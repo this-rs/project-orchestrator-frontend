@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, Fragment, type ReactNode } from 'react'
 import { useAtom } from 'jotai'
 import {
   Brain,
@@ -27,7 +27,6 @@ import { EntityList, EntityRow } from '@/components/ui/EntityRow'
 import { MetaLine } from '@/components/ui/MetaLine'
 import { Section } from '@/components/ui/Section'
 import { Skeleton, SkeletonLine } from '@/components/ui/Skeleton'
-import { pluralize } from '@/components/ui/format'
 import { focusRing, hitArea, metaText, surface, textLink } from '@/components/ui/classes'
 import { MetricTooltip } from '@/components/ui/MetricTooltip'
 import { intelligenceApi } from '@/services/intelligence'
@@ -37,6 +36,7 @@ import { projectsApi } from '@/services/projects'
 import { intelligenceSummaryAtom } from '@/atoms/intelligence'
 import type { IntelligenceSummary } from '@/types/intelligence'
 import type { CodeHealth, Project } from '@/types'
+import { useT, type MessageKey } from '@/i18n'
 
 // ============================================================================
 // HEALTH SCORE — Circular Gauge
@@ -91,14 +91,24 @@ function healthScoreColor(score: number): string {
   return '#f87171'
 }
 
-function healthScoreLabel(score: number): string {
-  if (score >= 80) return 'Excellent'
-  if (score >= 60) return 'Good'
-  if (score >= 40) return 'Needs Attention'
-  return 'At Risk'
+function healthScoreLabelKey(score: number): MessageKey {
+  if (score >= 80) return 'intelDashboard.health.excellent'
+  if (score >= 60) return 'intelDashboard.health.good'
+  if (score >= 40) return 'intelDashboard.health.needsAttention'
+  return 'intelDashboard.health.atRisk'
+}
+
+/** Fills the `{name}` markers of a translated sentence with nodes (a tooltip, bold text), keeping the word order of each language. */
+function fillTemplate(template: string, parts: Record<string, ReactNode>): ReactNode[] {
+  return template.split(/(\{\w+\})/).map((piece, i) => {
+    const name = /^\{(\w+)\}$/.exec(piece)?.[1]
+    return name !== undefined && name in parts ? <Fragment key={i}>{parts[name]}</Fragment> : piece
+  })
 }
 
 function CircularGauge({ score, size = 140, showLabel = true }: { score: number; size?: number; showLabel?: boolean }) {
+  const { t } = useT()
+  const label = t(healthScoreLabelKey(score))
   const strokeWidth = size < 100 ? 7 : 9
   const radius = (size - strokeWidth) / 2
   const circumference = 2 * Math.PI * radius
@@ -106,7 +116,7 @@ function CircularGauge({ score, size = 140, showLabel = true }: { score: number;
   const progress = (score / 100) * circumference
 
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }} role="img" aria-label={`Health score ${score} of 100, ${healthScoreLabel(score)}`}>
+    <div className="relative shrink-0" style={{ width: size, height: size }} role="img" aria-label={t('intelDashboard.health.gaugeAria', { score, label })}>
       <svg width={size} height={size} className="transform -rotate-90" aria-hidden="true">
         <circle
           cx={size / 2}
@@ -132,7 +142,7 @@ function CircularGauge({ score, size = 140, showLabel = true }: { score: number;
         <span className={`${size < 100 ? 'text-xl' : 'text-2xl'} font-semibold tabular-nums`} style={{ color }}>
           {score}
         </span>
-        {showLabel && <span className="text-[11px] text-gray-500 mt-0.5">{healthScoreLabel(score)}</span>}
+        {showLabel && <span className="text-[11px] text-gray-500 mt-0.5">{label}</span>}
       </div>
     </div>
   )
@@ -143,6 +153,7 @@ function CircularGauge({ score, size = 140, showLabel = true }: { score: number;
 // ============================================================================
 
 function RiskBadge({ risk }: { risk: CodeHealth['risk_assessment'] }) {
+  const { t } = useT()
   if (!risk) return null
   const total = risk.critical_count + risk.high_count + risk.medium_count + risk.low_count
   if (total === 0) return null
@@ -168,10 +179,10 @@ function RiskBadge({ risk }: { risk: CodeHealth['risk_assessment'] }) {
     <div className="inline-flex items-center gap-1.5 text-[11px] font-medium" style={{ color }}>
       <Icon size={12} aria-hidden="true" />
       {risk.critical_count > 0
-        ? `${risk.critical_count} critical`
+        ? t('intelDashboard.risk.critical', { count: risk.critical_count })
         : risk.high_count > 0
-          ? `${risk.high_count} high risk`
-          : `Avg risk ${(risk.avg_risk_score * 100).toFixed(0)}%`}
+          ? t('intelDashboard.risk.high', { count: risk.high_count })
+          : t('intelDashboard.risk.avg', { pct: (risk.avg_risk_score * 100).toFixed(0) })}
     </div>
   )
 }
@@ -229,6 +240,11 @@ interface ActionResult {
   message?: string
 }
 
+/** Error carried by the hook: `message` is absent when the failure has no text of its own (rendered in the viewer's language). */
+interface LoadError {
+  message?: string
+}
+
 // ============================================================================
 // INTELLIGENCE DATA HOOK
 // ============================================================================
@@ -251,13 +267,17 @@ export function useIntelligenceData(projectSlug: string): IntelligenceData {
   const [health, setHealth] = useState<CodeHealth | null>(null)
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { t } = useT()
+  const [error, setError] = useState<LoadError | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [actions, setActions] = useState<Record<string, ActionResult>>({})
 
   const getAction = useCallback(
-    (key: string): ActionResult => actions[key] ?? { key, status: 'idle' },
-    [actions],
+    (key: string): ActionResult => {
+      const a = actions[key] ?? { key, status: 'idle' }
+      return a.status === 'error' && !a.message ? { ...a, message: t('intelDashboard.errors.actionFailed') } : a
+    },
+    [actions, t],
   )
 
   const runAction = useCallback(
@@ -270,7 +290,7 @@ export function useIntelligenceData(projectSlug: string): IntelligenceData {
           setActions((prev) => ({ ...prev, [key]: { key, status: 'idle' } }))
         }, 4000)
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Action failed'
+        const message = err instanceof Error && err.message ? err.message : undefined
         setActions((prev) => ({ ...prev, [key]: { key, status: 'error', message } }))
       }
     },
@@ -290,13 +310,13 @@ export function useIntelligenceData(projectSlug: string): IntelligenceData {
       if (signal?.aborted) return
 
       if (summaryData.status === 'fulfilled') setSummary(summaryData.value)
-      else throw new Error(summaryData.reason?.message ?? 'Failed to load intelligence data')
+      else throw new Error(summaryData.reason?.message ?? '')
 
       if (healthData.status === 'fulfilled') setHealth(healthData.value)
       if (projectData.status === 'fulfilled') setProject(projectData.value)
     } catch (err) {
       if (signal?.aborted) return
-      setError(err instanceof Error ? err.message : 'Failed to load intelligence data')
+      setError({ message: err instanceof Error && err.message ? err.message : undefined })
     }
   }, [projectSlug, setSummary])
 
@@ -325,7 +345,7 @@ export function useIntelligenceData(projectSlug: string): IntelligenceData {
     health,
     project,
     loading,
-    error,
+    error: error ? (error.message ?? t('intelDashboard.errors.loadFailed')) : null,
     refreshing,
     healthScore,
     handleRefresh,
@@ -345,6 +365,7 @@ export function IntelHealthBreakdown({
   data: IntelligenceData
   progress?: { percentage: number }
 }) {
+  const { t } = useT()
   const s = data.summary
   if (!s) return null
   const risk = data.health?.risk_assessment
@@ -357,17 +378,23 @@ export function IntelHealthBreakdown({
         <div className="flex-1 min-w-0 space-y-1">
           <p className="text-sm text-gray-200">
             <MetricTooltip term="health_score">
-              <span>Health</span>
+              <span>{t('intelDashboard.health.title')}</span>
             </MetricTooltip>{' '}
             <span className="font-medium" style={{ color: healthScoreColor(data.healthScore) }}>
-              {healthScoreLabel(data.healthScore)}
+              {t(healthScoreLabelKey(data.healthScore))}
             </span>
           </p>
           <MetaLine
             items={[
-              pluralize(s.code.files + s.code.functions, 'code entity', 'code entities'),
-              pluralize(s.knowledge.notes + s.knowledge.decisions, 'knowledge item'),
-              pluralize(s.skills.total, 'skill'),
+              t(
+                s.code.files + s.code.functions === 1 ? 'intelDashboard.summary.codeEntityOne' : 'intelDashboard.summary.codeEntityOther',
+                { count: s.code.files + s.code.functions },
+              ),
+              t(
+                s.knowledge.notes + s.knowledge.decisions === 1 ? 'intelDashboard.summary.knowledgeItemOne' : 'intelDashboard.summary.knowledgeItemOther',
+                { count: s.knowledge.notes + s.knowledge.decisions },
+              ),
+              t(s.skills.total === 1 ? 'intelDashboard.summary.skillOne' : 'intelDashboard.summary.skillOther', { count: s.skills.total }),
             ]}
           />
           {risk && <RiskBadge risk={risk} />}
@@ -376,36 +403,36 @@ export function IntelHealthBreakdown({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
         {progress != null && (
-          <MiniGauge label="Project progress" value={progress.percentage / 100} color={gaugeColor} />
+          <MiniGauge label={t('intelDashboard.gauges.projectProgress')} value={progress.percentage / 100} color={gaugeColor} />
         )}
         <MiniGauge
-          label="Knowledge coverage"
+          label={t('intelDashboard.gauges.knowledgeCoverage')}
           value={s.code.files > 0 ? Math.min(1, (s.knowledge.notes + s.knowledge.decisions) / s.code.files / 2) : 0}
           color={gaugeColor}
           tooltipTerm="knowledge_coverage"
         />
         <MiniGauge
-          label="Note freshness"
+          label={t('intelDashboard.gauges.noteFreshness')}
           value={s.knowledge.notes > 0 ? 1 - s.knowledge.stale_count / s.knowledge.notes : 1}
           color={gaugeColor}
           tooltipTerm="note_freshness"
         />
-        <MiniGauge label="Neural energy" value={s.neural.avg_energy} color={gaugeColor} tooltipTerm="energy" />
+        <MiniGauge label={t('intelDashboard.gauges.neuralEnergy')} value={s.neural.avg_energy} color={gaugeColor} tooltipTerm="energy" />
         <MiniGauge
-          label="Synapse quality"
+          label={t('intelDashboard.gauges.synapseQuality')}
           value={1 - s.neural.weak_synapses_ratio}
           color={gaugeColor}
           tooltipTerm="synapse_quality"
         />
         <MiniGauge
-          label="Skills maturity"
+          label={t('intelDashboard.gauges.skillsMaturity')}
           value={s.skills.total > 0 ? s.skills.active / s.skills.total : 0}
           color={gaugeColor}
           tooltipTerm="skills_maturity"
         />
         {risk && (
           <MiniGauge
-            label="Code safety"
+            label={t('intelDashboard.gauges.codeSafety')}
             value={(() => {
               const total = risk.critical_count + risk.high_count + risk.medium_count + risk.low_count
               if (total === 0) return 1
@@ -422,13 +449,14 @@ export function IntelHealthBreakdown({
 
 /** Refresh button for a Section header (reloads the intelligence summary). */
 export function IntelRefreshButton({ data }: { data: Pick<IntelligenceData, 'refreshing' | 'handleRefresh'> }) {
+  const { t } = useT()
   return (
     <button
       type="button"
       onClick={() => void data.handleRefresh()}
       disabled={data.refreshing}
-      aria-label="Refresh intelligence data"
-      title="Refresh intelligence data"
+      aria-label={t('intelDashboard.refresh')}
+      title={t('intelDashboard.refresh')}
       className={`w-9 h-9 md:w-8 md:h-8 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-200 hover:bg-white/[0.05] disabled:opacity-50 ${focusRing}`}
     >
       <RefreshCw size={14} className={data.refreshing ? 'animate-spin' : ''} aria-hidden="true" />
@@ -448,31 +476,32 @@ export function IntelStatGrid({
   /** `tiles`: 2×2 big numbers that stretch to the height of their neighbour. */
   variant?: 'compact' | 'tiles'
 }) {
+  const { t } = useT()
   const s = summary
   const items = [
     {
       icon: FileCode2,
-      label: 'Code entities',
+      label: t('intelDashboard.stats.codeEntities'),
       value: s.code.files + s.code.functions,
-      sub: `${s.code.files} files · ${s.code.functions} functions`,
+      sub: t('intelDashboard.stats.codeEntitiesSub', { files: s.code.files, functions: s.code.functions }),
     },
     {
       icon: StickyNote,
-      label: 'Notes & decisions',
+      label: t('intelDashboard.stats.notesDecisions'),
       value: s.knowledge.notes + s.knowledge.decisions,
-      sub: `${s.knowledge.notes} notes · ${s.knowledge.decisions} decisions`,
+      sub: t('intelDashboard.stats.notesDecisionsSub', { notes: s.knowledge.notes, decisions: s.knowledge.decisions }),
     },
     {
       icon: Sparkles,
-      label: 'Skills',
+      label: t('intelDashboard.stats.skills'),
       value: s.skills.total,
-      sub: `${s.skills.active} active · ${s.skills.emerging} emerging`,
+      sub: t('intelDashboard.stats.skillsSub', { active: s.skills.active, emerging: s.skills.emerging }),
     },
     {
       icon: GitBranch,
-      label: 'Synapses',
+      label: t('intelDashboard.stats.synapses'),
       value: s.neural.active_synapses,
-      sub: `${Math.round(s.neural.avg_energy * 100)}% avg energy`,
+      sub: t('intelDashboard.stats.synapsesSub', { pct: Math.round(s.neural.avg_energy * 100) }),
     },
   ]
   return (
@@ -514,6 +543,7 @@ export function IntelFallback({
 }: {
   intelligence: { loading: boolean; error: string | null; summary: unknown | null; handleRefresh: () => void | Promise<void> }
 }) {
+  const { t } = useT()
   if (intelligence.loading) {
     return (
       <div data-testid="intel-loading" aria-busy="true" className={`${surface} p-4 space-y-3`}>
@@ -524,7 +554,7 @@ export function IntelFallback({
             <SkeletonLine width="70%" />
           </div>
         </div>
-        <p className={metaText}>Loading intelligence data…</p>
+        <p className={metaText}>{t('intelDashboard.fallback.loading')}</p>
       </div>
     )
   }
@@ -538,7 +568,7 @@ export function IntelFallback({
           title={intelligence.error}
           action={
             <button type="button" onClick={() => void intelligence.handleRefresh()} className={`text-xs ${textLink} ${hitArea}`}>
-              Retry
+              {t('intelDashboard.fallback.retry')}
             </button>
           }
         />
@@ -548,7 +578,7 @@ export function IntelFallback({
 
   return (
     <div data-testid="intel-empty" className={surface}>
-      <EmptyState size="sm" icon={<Brain aria-hidden="true" />} title="No intelligence data available. Sync your projects first." />
+      <EmptyState size="sm" icon={<Brain aria-hidden="true" />} title={t('intelDashboard.fallback.empty')} />
     </div>
   )
 }
@@ -558,84 +588,85 @@ export function IntelFallback({
 // ============================================================================
 
 export function IntelQuickActions({ data }: { data: IntelligenceData }) {
+  const { t } = useT()
   if (!data.summary) return null
   const project = data.project
 
   const actions: { key: string; label: string; icon: typeof Brain; description: string; run: () => Promise<string> }[] = [
     {
       key: 'staleness',
-      label: 'Update staleness',
+      label: t('intelDashboard.maintenance.staleness.label'),
       icon: Timer,
-      description: 'Recalculate staleness scores for all notes',
+      description: t('intelDashboard.maintenance.staleness.description'),
       run: async () => {
         const r = await adminApi.updateStaleness()
         await data.handleRefresh()
-        return `${r.notes_updated} notes updated`
+        return t('intelDashboard.maintenance.staleness.result', { notes: r.notes_updated })
       },
     },
     {
       key: 'energy',
-      label: 'Recalculate energy',
+      label: t('intelDashboard.maintenance.energy.label'),
       icon: Zap,
-      description: 'Update neural energy scores based on activity',
+      description: t('intelDashboard.maintenance.energy.description'),
       run: async () => {
         const r = await adminApi.updateEnergy()
         await data.handleRefresh()
-        return `${r.notes_updated} notes updated (half-life: ${r.half_life_days}d)`
+        return t('intelDashboard.maintenance.energy.result', { notes: r.notes_updated, days: r.half_life_days })
       },
     },
     {
       key: 'decay',
-      label: 'Decay synapses',
+      label: t('intelDashboard.maintenance.decay.label'),
       icon: Waves,
-      description: 'Decay weak synapses and prune dead connections',
+      description: t('intelDashboard.maintenance.decay.description'),
       run: async () => {
         const r = await adminApi.decayNeurons()
         await data.handleRefresh()
-        return `${r.synapses_decayed} decayed, ${r.synapses_pruned} pruned`
+        return t('intelDashboard.maintenance.decay.result', { decayed: r.synapses_decayed, pruned: r.synapses_pruned })
       },
     },
     ...(project
       ? [
           {
             key: 'fabric',
-            label: 'Update fabric scores',
+            label: t('intelDashboard.maintenance.fabric.label'),
             icon: Network,
-            description: 'Recalculate GDS metrics (PageRank, communities)',
+            description: t('intelDashboard.maintenance.fabric.description'),
             run: async () => {
               const r = await adminApi.updateFabricScores({ project_id: project.id })
               await data.handleRefresh()
-              return `${r.nodes_updated} nodes, ${r.communities} communities`
+              return t('intelDashboard.maintenance.fabric.result', { nodes: r.nodes_updated, communities: r.communities })
             },
           },
           {
             key: 'skills',
-            label: 'Detect skills',
+            label: t('intelDashboard.maintenance.skills.label'),
             icon: BrainCircuit,
-            description: 'Auto-detect emergent skills from note clusters',
+            description: t('intelDashboard.maintenance.skills.description'),
             run: async () => {
               const r = await adminApi.detectSkills(project.id)
               await data.handleRefresh()
-              return `${r.skills_created ?? 0} new, ${r.skills_updated ?? 0} updated`
+              return t('intelDashboard.maintenance.skills.result', { created: r.skills_created ?? 0, updated: r.skills_updated ?? 0 })
             },
           },
         ]
       : []),
     {
       key: 'backfill',
-      label: 'Backfill synapses',
+      label: t('intelDashboard.maintenance.backfill.label'),
       icon: Search,
-      description: 'Create missing synapses from semantic similarity',
+      description: t('intelDashboard.maintenance.backfill.description'),
       run: async () => {
         await adminApi.startBackfillSynapses()
-        return 'Backfill job started'
+        return t('intelDashboard.maintenance.backfill.result')
       },
     },
   ]
 
   return (
-    <Section title="Maintenance" count={actions.length} description="Knowledge graph maintenance" collapsible defaultOpen={false}>
-      <EntityList aria-label="Maintenance actions">
+    <Section title={t('intelDashboard.maintenance.title')} count={actions.length} description={t('intelDashboard.maintenance.description')} collapsible defaultOpen={false}>
+      <EntityList aria-label={t('intelDashboard.maintenance.listAria')}>
         {actions.map((a) => {
           const state = data.getAction(a.key)
           const running = state.status === 'running'
@@ -644,15 +675,15 @@ export function IntelQuickActions({ data }: { data: IntelligenceData }) {
             <EntityRow
               key={a.key}
               title={a.label}
-              ariaLabel={`Run: ${a.label}`}
+              ariaLabel={t('intelDashboard.maintenance.runAria', { label: a.label })}
               onClick={() => {
                 if (!running) void data.runAction(a.key, a.run)
               }}
               leading={
                 running ? (
-                  <Loader2 size={14} className="animate-spin text-indigo-400" aria-label="Running" />
+                  <Loader2 size={14} className="animate-spin text-indigo-400" aria-label={t('intelDashboard.maintenance.running')} />
                 ) : state.status === 'success' ? (
-                  <Check size={14} className="text-emerald-400" aria-label="Done" />
+                  <Check size={14} className="text-emerald-400" aria-label={t('intelDashboard.maintenance.done')} />
                 ) : (
                   <Icon size={14} className="text-gray-500" aria-hidden="true" />
                 )
@@ -665,11 +696,11 @@ export function IntelQuickActions({ data }: { data: IntelligenceData }) {
                   </span>
                 ) : running ? (
                   <span role="status" className={metaText}>
-                    Running…
+                    {t('intelDashboard.maintenance.running')}
                   </span>
                 ) : undefined
               }
-              trailing={<span className="text-indigo-400/90">Run</span>}
+              trailing={<span className="text-indigo-400/90">{t('intelDashboard.maintenance.run')}</span>}
             />
           )
         })}
@@ -683,6 +714,7 @@ export function IntelQuickActions({ data }: { data: IntelligenceData }) {
 // ============================================================================
 
 export function IntelAttention({ data }: { data: IntelligenceData }) {
+  const { t } = useT()
   const s = data.summary
   if (!s) return null
 
@@ -695,8 +727,10 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
       tone: 'text-amber-400',
       text: (
         <>
-          <strong className="font-medium tabular-nums">{s.knowledge.stale_count}</strong>{' '}
-          <MetricTooltip term="stale_note" showIndicator>stale notes</MetricTooltip> need review
+          {fillTemplate(t('intelDashboard.attention.stale'), {
+            count: <strong className="font-medium tabular-nums">{s.knowledge.stale_count}</strong>,
+            term: <MetricTooltip term="stale_note" showIndicator>{t('intelDashboard.attention.staleTerm')}</MetricTooltip>,
+          })}
         </>
       ),
     })
@@ -707,8 +741,10 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
       tone: 'text-gray-400',
       text: (
         <>
-          <strong className="font-medium tabular-nums">{s.neural.dead_notes_count}</strong>{' '}
-          <MetricTooltip term="dead_note" showIndicator>dead notes</MetricTooltip> (no energy)
+          {fillTemplate(t('intelDashboard.attention.dead'), {
+            count: <strong className="font-medium tabular-nums">{s.neural.dead_notes_count}</strong>,
+            term: <MetricTooltip term="dead_note" showIndicator>{t('intelDashboard.attention.deadTerm')}</MetricTooltip>,
+          })}
         </>
       ),
     })
@@ -719,8 +755,10 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
       tone: 'text-amber-400',
       text: (
         <>
-          <strong className="font-medium tabular-nums">{s.code.orphans}</strong>{' '}
-          <MetricTooltip term="orphan" showIndicator>orphan files</MetricTooltip> (no imports/exports)
+          {fillTemplate(t('intelDashboard.attention.orphans'), {
+            count: <strong className="font-medium tabular-nums">{s.code.orphans}</strong>,
+            term: <MetricTooltip term="orphan" showIndicator>{t('intelDashboard.attention.orphansTerm')}</MetricTooltip>,
+          })}
         </>
       ),
     })
@@ -731,7 +769,7 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
       tone: 'text-red-400',
       text: (
         <>
-          <strong className="font-medium tabular-nums">{risk.critical_count}</strong> files at critical risk
+          {fillTemplate(t('intelDashboard.attention.critical'), { count: <strong className="font-medium tabular-nums">{risk.critical_count}</strong> })}
         </>
       ),
     })
@@ -742,9 +780,11 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
       tone: 'text-orange-400',
       text: (
         <>
-          <strong className="font-medium tabular-nums">{data.health.god_function_count}</strong>{' '}
-          <MetricTooltip term="god_function" showIndicator>god functions</MetricTooltip> (threshold:{' '}
-          {data.health.god_function_threshold})
+          {fillTemplate(t('intelDashboard.attention.god'), {
+            count: <strong className="font-medium tabular-nums">{data.health.god_function_count}</strong>,
+            term: <MetricTooltip term="god_function" showIndicator>{t('intelDashboard.attention.godTerm')}</MetricTooltip>,
+            threshold: data.health.god_function_threshold,
+          })}
         </>
       ),
     })
@@ -752,8 +792,8 @@ export function IntelAttention({ data }: { data: IntelligenceData }) {
   if (items.length === 0) return null
 
   return (
-    <Section title="Attention needed" count={items.length}>
-      <EntityList aria-label="Attention needed">
+    <Section title={t('intelDashboard.attention.title')} count={items.length}>
+      <EntityList aria-label={t('intelDashboard.attention.title')}>
         {items.map((it) => (
           <EntityRow
             key={it.key}

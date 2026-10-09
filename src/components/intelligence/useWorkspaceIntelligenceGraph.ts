@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useT, type MessageKey } from '@/i18n'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import type {
   IntelligenceNode,
@@ -133,7 +134,15 @@ function toReactFlowEdge(edge: BackendGraphEdge, index: number): IntelligenceEdg
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
+type Tr = ReturnType<typeof useT>['t']
+const countOf = (t: Tr, n: number, one: MessageKey, other: MessageKey) => t(n === 1 ? one : other, { count: n })
+const nodesText = (t: Tr, n: number) => countOf(t, n, 'intelPage.graph.stage.nodesOne', 'intelPage.graph.stage.nodesOther')
+const edgesText = (t: Tr, n: number) => countOf(t, n, 'intelPage.graph.stage.edgesOne', 'intelPage.graph.stage.edgesOther')
+
 export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined) {
+  const { t } = useT()
+  const tRef = useRef(t)
+  tRef.current = t
   const [nodes, setNodes] = useAtom(intelligenceNodesAtom)
   const [edges, setEdges] = useAtom(intelligenceEdgesAtom)
   const setLoading = useSetAtom(intelligenceLoadingAtom)
@@ -197,7 +206,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
         updateStage(stageId, {
           status: 'done',
           completedAt: Date.now(),
-          detail: `${rfNodes.length} nodes`,
+          detail: nodesText(tRef.current, rfNodes.length),
         })
       }
 
@@ -227,7 +236,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
       if (err instanceof DOMException && err.name === 'AbortError') return
       if (signal?.aborted) return
       console.error('[useWorkspaceIntelligenceGraph] fetch error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load workspace graph')
+      setError(err instanceof Error ? err.message : tRef.current('intelPage.graph.workspaceLoadFailed'))
       if (stageId) updateStage(stageId, { status: 'error', completedAt: Date.now() })
     } finally {
       if (!signal?.aborted) {
@@ -260,7 +269,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return
       if (signal?.aborted) return
-      updateStage('fetch_summary', { status: 'done', completedAt: Date.now(), detail: 'skipped' })
+      updateStage('fetch_summary', { status: 'done', completedAt: Date.now(), detail: tRef.current('intelPage.graph.stage.skipped') })
     } finally {
       if (!signal?.aborted) {
         setSummaryLoading(false)
@@ -286,16 +295,16 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     // Initialize loading stages
     const stages: LoadingStage[] = []
     if (primary.length > 0) {
-      stages.push({ id: 'fetch_primary', label: 'Fetching code & fabric layers', status: 'pending' })
+      stages.push({ id: 'fetch_primary', label: tRef.current('intelPage.graph.stage.fetchCodeFabric'), status: 'pending' })
     }
     if (rest.length > 0) {
-      stages.push({ id: 'fetch_secondary', label: `Fetching ${rest.join(', ')} layers`, status: 'pending' })
+      stages.push({ id: 'fetch_secondary', label: tRef.current('intelPage.graph.stage.fetchLayers', { layers: rest.join(', ') }), status: 'pending' })
     }
     if (primary.length === 0 && rest.length === 0) {
-      stages.push({ id: 'fetch_data', label: 'Fetching graph data', status: 'pending' })
+      stages.push({ id: 'fetch_data', label: tRef.current('intelPage.graph.stage.fetchData'), status: 'pending' })
     }
-    stages.push({ id: 'fetch_summary', label: 'Loading summary', status: 'pending' })
-    stages.push({ id: 'layout', label: 'Computing layout', status: 'pending' })
+    stages.push({ id: 'fetch_summary', label: tRef.current('intelPage.graph.stage.loadSummary'), status: 'pending' })
+    stages.push({ id: 'layout', label: tRef.current('intelPage.graph.stage.computeLayout'), status: 'pending' })
     setStages(stages)
 
     if (primary.length > 0 && rest.length > 0) {
@@ -333,8 +342,8 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
         // Create loading stages for the incremental fetch + layout
         const stageId = `fetch_${needed.join('_')}`
         const stages: LoadingStage[] = [
-          { id: stageId, label: `Fetching ${needed.join(', ')} layers`, status: 'pending' },
-          { id: 'layout', label: 'Computing layout', status: 'pending' },
+          { id: stageId, label: tRef.current('intelPage.graph.stage.fetchLayers', { layers: needed.join(', ') }), status: 'pending' },
+          { id: 'layout', label: tRef.current('intelPage.graph.stage.computeLayout'), status: 'pending' },
         ]
         setStages(stages)
         fetchGraphForLayers(needed, nodeLimit, stageId)
@@ -420,12 +429,12 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
       const edgeCount = filteredEdges.length
       const startedAt = Date.now()
       setStages([
-        { id: 'update_edges', label: 'Updating edges', status: 'loading', startedAt, detail: `${edgeCount} edges` },
+        { id: 'update_edges', label: tRef.current('intelPage.graph.stage.updateEdges'), status: 'loading', startedAt, detail: edgesText(tRef.current, edgeCount) },
       ])
       requestAnimationFrame(() => {
         setLayoutedEdges(filteredEdges)
         setStages([
-          { id: 'update_edges', label: 'Updating edges', status: 'done', startedAt, completedAt: Date.now(), detail: `${edgeCount} edges` },
+          { id: 'update_edges', label: tRef.current('intelPage.graph.stage.updateEdges'), status: 'done', startedAt, completedAt: Date.now(), detail: edgesText(tRef.current, edgeCount) },
         ])
       })
       return
@@ -450,8 +459,8 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
         updateStage('layout', {
           status: 'loading',
           detail: total > 1
-            ? `${done}/${total} clusters · ${nodesDone}/${nodesTotal} nodes`
-            : `${nodesDone}/${nodesTotal} nodes`,
+            ? tRef.current('intelPage.graph.stage.layoutClusters', { done, total, nodesDone, nodesTotal })
+            : tRef.current('intelPage.graph.stage.layoutNodes', { nodesDone, nodesTotal }),
           progress: nodesDone,
           progressTotal: nodesTotal,
         })
@@ -477,8 +486,8 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
           status: 'done',
           completedAt: Date.now(),
           detail: components > 1
-            ? `${filteredNodes.length} nodes · ${components} clusters`
-            : `${filteredNodes.length} nodes`,
+            ? tRef.current('intelPage.graph.stage.layoutDone', { nodes: nodesText(tRef.current, filteredNodes.length), clusters: components })
+            : nodesText(tRef.current, filteredNodes.length),
           progress: filteredNodes.length,
           progressTotal: filteredNodes.length,
         })

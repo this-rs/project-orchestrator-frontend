@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useT, type MessageKey } from '@/i18n'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import type { IntelligenceLayer, VisibilityMode } from '@/types/intelligence'
 import { LAYERS, LAYER_ORDER, VISIBILITY_PRESETS } from '@/constants/intelligence'
@@ -87,6 +88,7 @@ function LayerControlsComponent({
   onClearProjectFilters,
   onHoverProject,
 }: LayerControlsProps) {
+  const { t } = useT()
   const [heatmapEnabled, setHeatmapEnabled] = useAtom(energyHeatmapAtom)
   const [touchesEnabled, setTouchesEnabled] = useAtom(touchesHeatmapAtom)
   const [coChangeThreshold, setCoChangeThreshold] = useAtom(coChangeThresholdAtom)
@@ -102,9 +104,9 @@ function LayerControlsComponent({
   const presetTabs: ViewTab<string>[] = [
     ...VISIBILITY_PRESETS.map((preset) => {
       const Icon = presetIcons[preset.icon] ?? Layers
-      return { id: preset.id as string, label: preset.label, icon: <Icon /> }
+      return { id: preset.id as string, label: t(`intelGraph.preset.${preset.id}` as MessageKey), icon: <Icon /> }
     }),
-    { id: CUSTOM_TAB, label: 'Custom', icon: <SlidersHorizontal /> },
+    { id: CUSTOM_TAB, label: t('intelGraph.controls.custom'), icon: <SlidersHorizontal /> },
   ]
   const selectPreset = (id: string) => {
     if (id === CUSTOM_TAB) {
@@ -119,17 +121,17 @@ function LayerControlsComponent({
     <div className="absolute top-3 left-3 z-40 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
       {/* Presets — one segmented control (scrolls in its own strip on phones) + the edges toggle */}
       <div className="flex max-w-full flex-wrap items-center gap-2">
-        <ViewTabs tabs={presetTabs} value={customMode ? CUSTOM_TAB : activeMode} onChange={selectPreset} label="Graph presets" className="min-w-0" />
+        <ViewTabs tabs={presetTabs} value={customMode ? CUSTOM_TAB : activeMode} onChange={selectPreset} label={t('intelGraph.controls.presets')} className="min-w-0" />
         <div className={segmented}>
           <button
             type="button"
             onClick={() => setShowAllEdges(!showAllEdges)}
             aria-pressed={showAllEdges}
             className={segItem}
-            title={showAllEdges ? 'Show only priority edges (budget mode)' : `Show all edges (${hiddenEdgeCount} hidden)`}
+            title={showAllEdges ? t('intelGraph.controls.edgesPriorityTitle') : t('intelGraph.controls.edgesAllTitle', { count: hiddenEdgeCount })}
           >
             {showAllEdges ? <Eye size={14} aria-hidden="true" /> : <EyeOff size={14} aria-hidden="true" />}
-            {showAllEdges ? 'All edges' : 'Edges'}
+            {showAllEdges ? t('intelGraph.controls.allEdges') : t('intelGraph.controls.edges')}
             {!showAllEdges && hiddenEdgeCount > 0 && <span className="tabular-nums font-normal text-gray-500">{hiddenEdgeCount}</span>}
           </button>
         </div>
@@ -140,15 +142,15 @@ function LayerControlsComponent({
         <div className="flex max-w-full items-center gap-1">
           <div
             role="group"
-            aria-label="Project views"
+            aria-label={t('intelGraph.controls.projectViews')}
             className={`${segmented} max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
           >
             <span className="inline-flex shrink-0 items-center gap-1 pl-2 pr-1 text-[11px] text-gray-500" aria-hidden="true">
               <LayoutGrid size={12} />
-              Views
+              {t('intelGraph.controls.views')}
             </span>
-            <button type="button" onClick={onClearProjectFilters} aria-pressed={!hasFilters} className={segItem} title="Show all projects">
-              All
+            <button type="button" onClick={onClearProjectFilters} aria-pressed={!hasFilters} className={segItem} title={t('intelGraph.controls.showAllProjects')}>
+              {t('intelGraph.controls.all')}
             </button>
             {projectMetas.map((p, i) => {
               const color = PROJECT_COLORS[i % PROJECT_COLORS.length]
@@ -162,7 +164,7 @@ function LayerControlsComponent({
                   onMouseLeave={() => onHoverProject?.(null)}
                   aria-pressed={isActive}
                   className={segItem}
-                  title={`${p.name} (${p.node_count} nodes)${isActive ? ' — click to deselect' : ''}`}
+                  title={`${t(p.node_count === 1 ? 'intelGraph.controls.projectNodesOne' : 'intelGraph.controls.projectNodesOther', { name: p.name, count: p.node_count })}${isActive ? t('intelGraph.controls.deselectHint') : ''}`}
                 >
                   <span
                     className="h-2 w-2 shrink-0 rounded-full"
@@ -178,8 +180,8 @@ function LayerControlsComponent({
             <button
               type="button"
               onClick={onClearProjectFilters}
-              aria-label="Clear project filters"
-              title="Clear project filters"
+              aria-label={t('intelGraph.controls.clearFilters')}
+              title={t('intelGraph.controls.clearFilters')}
               className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat}`}
             >
               <X size={14} aria-hidden="true" />
@@ -192,7 +194,7 @@ function LayerControlsComponent({
       {customMode && (
         <>
           {/* Layer toggles */}
-          <div role="group" aria-label="Layers" className={`${segmented} flex-col items-stretch`}>
+          <div role="group" aria-label={t('intelGraph.controls.layers')} className={`${segmented} flex-col items-stretch`}>
             {LAYER_ORDER.map((layerId) => {
               const layer = LAYERS[layerId]
               const visible = visibleLayers.has(layerId)
@@ -204,7 +206,7 @@ function LayerControlsComponent({
                   onClick={() => onToggleLayer(layerId)}
                   aria-pressed={visible}
                   className={`${segItem} justify-start gap-2`}
-                  title={layer.description}
+                  title={t(`intelGraph.layer.${layerId}.description` as MessageKey)}
                 >
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -212,11 +214,11 @@ function LayerControlsComponent({
                     aria-hidden="true"
                   />
                   {visible ? <Eye size={14} aria-hidden="true" /> : <EyeOff size={14} aria-hidden="true" />}
-                  <span>{layer.label}</span>
+                  <span>{t(`intelGraph.layer.${layerId}.label` as MessageKey)}</span>
                   {isLoading ? (
                     <span
                       role="status"
-                      aria-label={`Loading ${layer.label}`}
+                      aria-label={t('intelGraph.controls.loadingLayer', { layer: t(`intelGraph.layer.${layerId}.label` as MessageKey) })}
                       className="ml-auto h-3 w-3 shrink-0 animate-spin rounded-full border-[1.5px] motion-reduce:animate-none"
                       style={{ borderColor: layer.color, borderTopColor: 'transparent' }}
                     />
@@ -229,35 +231,35 @@ function LayerControlsComponent({
           </div>
 
           {/* Overlay toggles */}
-          <div role="group" aria-label="Overlays" className={`${segmented} flex-col items-stretch`}>
+          <div role="group" aria-label={t('intelGraph.controls.overlays')} className={`${segmented} flex-col items-stretch`}>
             <button
               type="button"
               onClick={() => setHeatmapEnabled(!heatmapEnabled)}
               aria-pressed={heatmapEnabled}
               className={`${segItem} justify-start gap-2`}
-              title="Color note nodes by energy level (red=low, green=high)"
+              title={t('intelGraph.controls.energyTitle')}
             >
               <Flame size={14} aria-hidden="true" />
-              Energy heatmap
+              {t('intelGraph.controls.energy')}
             </button>
             <button
               type="button"
               onClick={() => setTouchesEnabled(!touchesEnabled)}
               aria-pressed={touchesEnabled}
               className={`${segItem} justify-start gap-2`}
-              title="Highlight file nodes by churn score (commit frequency)"
+              title={t('intelGraph.controls.churnTitle')}
             >
               <GitCommitHorizontal size={14} aria-hidden="true" />
-              Churn heatmap
+              {t('intelGraph.controls.churn')}
             </button>
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
               className={`${segItem} justify-start gap-2`}
-              title="Search to visualize spreading activation (⌘K)"
+              title={t('intelGraph.controls.activationTitle')}
             >
               <Search size={14} aria-hidden="true" />
-              Activation
+              {t('intelGraph.controls.activation')}
               <kbd className="ml-auto rounded border border-white/[0.08] px-1 py-0.5 font-mono text-[11px] font-normal text-gray-500">⌘K</kbd>
             </button>
             <button
@@ -265,10 +267,10 @@ function LayerControlsComponent({
               onClick={() => setCommunityHulls(!communityHulls)}
               aria-pressed={communityHulls}
               className={`${segItem} justify-start gap-2`}
-              title="Show community cluster hulls in 3D view (Louvain communities)"
+              title={t('intelGraph.controls.communitiesTitle')}
             >
               <Hexagon size={14} aria-hidden="true" />
-              Communities
+              {t('intelGraph.controls.communities')}
             </button>
           </div>
 
@@ -277,8 +279,8 @@ function LayerControlsComponent({
             <div className={`${panel} flex flex-col gap-1 p-2`}>
               <label htmlFor="co-change-threshold" className="flex items-center gap-2 text-xs text-gray-300">
                 <GitFork size={14} className="text-gray-500" aria-hidden="true" />
-                <span className="font-medium">Co-change</span>
-                <span className="ml-auto text-[11px] tabular-nums text-gray-500">min {coChangeThreshold}</span>
+                <span className="font-medium">{t('intelGraph.controls.coChange')}</span>
+                <span className="ml-auto text-[11px] tabular-nums text-gray-500">{t('intelGraph.controls.coChangeMin', { n: coChangeThreshold })}</span>
               </label>
               <input
                 id="co-change-threshold"
@@ -289,8 +291,8 @@ function LayerControlsComponent({
                 value={coChangeThreshold}
                 onChange={(e) => setCoChangeThreshold(Number(e.target.value))}
                 className="h-9 w-full cursor-pointer accent-indigo-400"
-                aria-valuetext={`at least ${coChangeThreshold} co-changes`}
-                title={`Hide CO_CHANGED edges with fewer than ${coChangeThreshold} co-changes`}
+                aria-valuetext={t('intelGraph.controls.coChangeValue', { n: coChangeThreshold })}
+                title={t('intelGraph.controls.coChangeTitle', { n: coChangeThreshold })}
               />
               <div className="flex justify-between text-[11px] tabular-nums text-gray-500">
                 <span>1</span>

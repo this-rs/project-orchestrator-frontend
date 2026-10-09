@@ -109,7 +109,7 @@ describe('IntelligencePage', () => {
     )
     // layer facts survive the redesign
     expect(screen.getByText('120')).toBeTruthy() // co-changed pairs
-    expect(screen.getByText('1 circular dependencies detected')).toBeTruthy()
+    expect(screen.getByText('1 circular dependency detected')).toBeTruthy()
     expect(screen.getByText('50 total activations')).toBeTruthy()
   })
 

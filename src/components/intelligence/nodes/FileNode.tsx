@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useT } from '@/i18n'
 import { Handle, Position } from '@xyflow/react'
 import type { NodeProps, Node } from '@xyflow/react'
 import type { FileNodeData } from '@/types/intelligence'
@@ -39,6 +40,7 @@ function churnToColor(churn: number): string {
 }
 
 function FileNodeComponent({ data, selected }: NodeProps<Node<FileNodeData>>) {
+  const { t } = useT()
   const size = NODE_SIZES.file
   const color = ENTITY_COLORS.file
   const riskBorder = data.riskLevel ? riskColors[data.riskLevel] : color
@@ -78,7 +80,7 @@ function FileNodeComponent({ data, selected }: NodeProps<Node<FileNodeData>>) {
         border: `2px solid ${borderColor}`,
         boxShadow: shadow,
       }}
-      title={`${data.path ?? data.label}${isDiscussed ? ' (discussed)' : ''}${showChurnGlow ? ` (churn: ${(churn * 100).toFixed(0)}%)` : ''}`}
+      title={`${data.path ?? data.label}${isDiscussed ? ` ${t('intelGraph.node.discussed')}` : ''}${showChurnGlow ? ` ${t('intelGraph.node.churn', { pct: (churn * 100).toFixed(0) })}` : ''}`}
     >
       <Handle type="target" position={Position.Top} className="!w-1.5 !h-1.5 !bg-blue-400 !border-0" />
       <FileCode2 size={16} color={iconColor} />
@@ -95,7 +97,7 @@ function FileNodeComponent({ data, selected }: NodeProps<Node<FileNodeData>>) {
             border: '1.5px solid #D1D5DB',
             boxShadow: '0 0 4px rgba(209, 213, 219, 0.3)',
           }}
-          title="Discussed in chat session"
+          title={t('intelGraph.node.discussedTitle')}
         >
           <MessageCircle size={8} color="#D1D5DB" />
         </div>

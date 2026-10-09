@@ -1,4 +1,5 @@
 import { memo, useState, useEffect } from 'react'
+import { useT, type MessageKey } from '@/i18n'
 import { useParams } from 'react-router-dom'
 import type { FileNodeData } from '@/types/intelligence'
 import type { Note, NodeImportance, NodeImportanceMetrics, NodeImportanceFabricMetrics } from '@/types'
@@ -97,15 +98,16 @@ const riskConfig: Record<string, { bg: string; text: string; border: string; Ico
 }
 
 function RiskBadge({ level }: { level: string }) {
+  const { t } = useT()
   const cfg = riskConfig[level] ?? riskConfig.medium
   const Icon = cfg.Icon
   return (
     <span
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-md border"
+      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold uppercase rounded-md border"
       style={{ backgroundColor: cfg.bg, color: cfg.text, borderColor: cfg.border }}
     >
       <Icon size={10} />
-      {level.toUpperCase()}
+      {level in riskConfig ? t(`intelGraph.importance.${level}` as MessageKey) : level}
     </span>
   )
 }
@@ -184,6 +186,7 @@ interface FunctionInfo {
 }
 
 function FileContextCardComponent({ data, entityId }: FileContextCardProps) {
+  const { t } = useT()
   const { projectSlug } = useParams<{ slug: string; projectSlug: string }>()
   const filePath = data.path ?? entityId
 
@@ -261,7 +264,7 @@ function FileContextCardComponent({ data, entityId }: FileContextCardProps) {
         {communityId != null && !communityLabel && (
           <span className="inline-flex items-center gap-1 text-[10px] text-slate-500">
             <Network size={10} />
-            community {communityId}
+            {t('intelGraph.card.community', { id: String(communityId) })}
           </span>
         )}
         {riskLevel && <RiskBadge level={riskLevel} />}
@@ -310,11 +313,11 @@ function FileContextCardComponent({ data, entityId }: FileContextCardProps) {
         <div className="flex items-center gap-3">
           <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
             <ArrowDownRight size={10} className="text-emerald-500" />
-            {metrics.in_degree} imports
+            {t('intelGraph.fileCard.imports', { n: metrics.in_degree })}
           </span>
           <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
             <ArrowUpRight size={10} className="text-blue-500" />
-            {metrics.out_degree} dependents
+            {t('intelGraph.fileCard.dependents', { n: metrics.out_degree })}
           </span>
           {metrics.clustering_coefficient != null && (
             <span className="text-[10px] text-slate-500">
@@ -329,16 +332,16 @@ function FileContextCardComponent({ data, entityId }: FileContextCardProps) {
         <div className="flex items-center gap-1.5 mb-1.5">
           <Braces size={10} className="text-blue-400" />
           <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-            Functions
+            {t('intelGraph.fileCard.functions')}
           </span>
           {!loading && (
             <span className="text-[10px] text-slate-600 font-mono">({functions.length})</span>
           )}
         </div>
         {loading ? (
-          <SectionLoader label="Loading symbols..." />
+          <SectionLoader label={t('intelGraph.fileCard.loadingSymbols')} />
         ) : functions.length === 0 ? (
-          <p className="text-[10px] text-slate-600 italic pl-3">No functions found</p>
+          <p className="text-[10px] text-slate-600 italic pl-3">{t('intelGraph.fileCard.noFunctions')}</p>
         ) : (
           <div className="space-y-0.5 max-h-[120px] overflow-y-auto">
             {functions.map((fn) => (
@@ -373,16 +376,16 @@ function FileContextCardComponent({ data, entityId }: FileContextCardProps) {
         <div className="flex items-center gap-1.5 mb-1.5">
           <StickyNote size={10} className="text-amber-400" />
           <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-            Linked Notes
+            {t('intelGraph.fileCard.linkedNotes')}
           </span>
           {!loading && (
             <span className="text-[10px] text-slate-600 font-mono">({linkedNotes.length})</span>
           )}
         </div>
         {loading ? (
-          <SectionLoader label="Loading notes..." />
+          <SectionLoader label={t('intelGraph.fileCard.loadingNotes')} />
         ) : linkedNotes.length === 0 ? (
-          <p className="text-[10px] text-slate-600 italic pl-3">No linked notes</p>
+          <p className="text-[10px] text-slate-600 italic pl-3">{t('intelGraph.fileCard.noNotes')}</p>
         ) : (
           <div className="space-y-1 max-h-[140px] overflow-y-auto">
             {linkedNotes.map((note) => {
@@ -405,7 +408,7 @@ function FileContextCardComponent({ data, entityId }: FileContextCardProps) {
                     <span
                       className="w-1.5 h-1.5 rounded-full"
                       style={{ backgroundColor: importColor }}
-                      title={`importance: ${note.importance}`}
+                      title={t('intelGraph.fileCard.importance', { level: note.importance in importanceColors ? t(`intelGraph.importance.${note.importance}` as MessageKey) : note.importance })}
                     />
                     {note.tags.length > 0 && (
                       <div className="flex items-center gap-0.5 ml-auto">
@@ -429,16 +432,16 @@ function FileContextCardComponent({ data, entityId }: FileContextCardProps) {
         <div className="flex items-center gap-1.5 mb-1.5">
           <GitFork size={10} className="text-orange-400" />
           <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-            Co-Changers
+            {t('intelGraph.fileCard.coChangers')}
           </span>
           {!loading && coChangers.length > 0 && (
-            <span className="text-[10px] text-slate-600 font-mono">(top {coChangers.length})</span>
+            <span className="text-[10px] text-slate-600 font-mono">{t('intelGraph.fileCard.top', { n: coChangers.length })}</span>
           )}
         </div>
         {loading ? (
-          <SectionLoader label="Loading co-changers..." />
+          <SectionLoader label={t('intelGraph.fileCard.loadingCoChangers')} />
         ) : coChangers.length === 0 ? (
-          <p className="text-[10px] text-slate-600 italic pl-3">No co-change data</p>
+          <p className="text-[10px] text-slate-600 italic pl-3">{t('intelGraph.fileCard.noCoChange')}</p>
         ) : (
           <div className="space-y-0.5">
             {coChangers.map((cc) => {

@@ -1,4 +1,6 @@
 import { memo } from 'react'
+import { useT } from '@/i18n'
+import { statusLabel } from './statusLabel'
 import { CostDisplay } from '@/components/ui/CostDisplay'
 import { costReport, hasCost } from '@/utils/cost'
 import { useAtomValue, useSetAtom } from 'jotai'
@@ -80,13 +82,14 @@ const statusColors: Record<string, { bg: string; text: string; border: string }>
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useT()
   const colors = statusColors[status] ?? { bg: '#1e293b', text: '#94a3b8', border: '#334155' }
   return (
     <span
       className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-md border"
       style={{ backgroundColor: colors.bg, color: colors.text, borderColor: colors.border }}
     >
-      {status}
+      {statusLabel(t, status)}
     </span>
   )
 }
@@ -96,6 +99,7 @@ function StatusBadge({ status }: { status: string }) {
 // ============================================================================
 
 function DecisionDetailPanel({ data }: { data: DecisionNodeData }) {
+  const { t } = useT()
   const decisionStatusColors: Record<string, string> = {
     accepted: '#22C55E',
     proposed: '#F59E0B',
@@ -118,14 +122,14 @@ function DecisionDetailPanel({ data }: { data: DecisionNodeData }) {
       {/* Chosen option */}
       {data.chosenOption && (
         <div className="bg-violet-950/30 rounded-md p-2 border border-violet-800/40">
-          <p className="text-[10px] text-violet-400 mb-1 font-medium uppercase tracking-wider">Chosen Option</p>
+          <p className="text-[10px] text-violet-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.chosenOption')}</p>
           <p className="text-xs text-slate-300 leading-relaxed">{data.chosenOption}</p>
         </div>
       )}
 
       {/* Description (from label) */}
       <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Description</p>
+        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.description')}</p>
         <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-6">
           {data.label}
         </p>
@@ -139,20 +143,21 @@ function DecisionDetailPanel({ data }: { data: DecisionNodeData }) {
 // ============================================================================
 
 function PlanDetailPanel({ data }: { data: PlanNodeData }) {
+  const { t } = useT()
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <StatusBadge status={data.status} />
-        <span className="text-[10px] text-slate-500">Priority: {data.priority}</span>
+        <span className="text-[10px] text-slate-500">{t('intelGraph.inspector.priority', { value: data.priority })}</span>
       </div>
       {data.taskCount !== undefined && (
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <Target size={12} />
-          <span>{data.taskCount} tasks</span>
+          <span>{t(data.taskCount === 1 ? 'intelGraph.inspector.tasksOne' : 'intelGraph.inspector.tasksOther', { n: data.taskCount })}</span>
         </div>
       )}
       <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Title</p>
+        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.title')}</p>
         <p className="text-xs text-slate-300 leading-relaxed">{data.label}</p>
       </div>
     </div>
@@ -160,16 +165,17 @@ function PlanDetailPanel({ data }: { data: PlanNodeData }) {
 }
 
 function TaskDetailPanel({ data }: { data: TaskNodeData }) {
+  const { t } = useT()
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <StatusBadge status={data.status} />
         {data.priority !== undefined && (
-          <span className="text-[10px] text-slate-500">Priority: {data.priority}</span>
+          <span className="text-[10px] text-slate-500">{t('intelGraph.inspector.priority', { value: data.priority })}</span>
         )}
       </div>
       <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Title</p>
+        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.title')}</p>
         <p className="text-xs text-slate-300 leading-relaxed">{data.label}</p>
       </div>
     </div>
@@ -184,34 +190,35 @@ function TaskDetailPanel({ data }: { data: TaskNodeData }) {
 const SESSION_COST_FORMAT = { format: (usd: number) => `$${usd.toFixed(4)}` } as const
 
 function ChatSessionDetailPanel({ data }: { data: ChatSessionNodeData }) {
+  const { t } = useT()
   const sessionCost = costReport(data.totalCostUsd, data.costBasis)
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-indigo-950/30 rounded-md p-2 border border-indigo-800/40">
-          <p className="text-[10px] text-indigo-400 font-medium">Messages</p>
+          <p className="text-[10px] text-indigo-400 font-medium">{t('intelGraph.inspector.messages')}</p>
           <p className="text-sm text-slate-200 font-semibold">{data.messageCount}</p>
         </div>
         <div className="bg-indigo-950/30 rounded-md p-2 border border-indigo-800/40">
-          <p className="text-[10px] text-indigo-400 font-medium">Cost</p>
+          <p className="text-[10px] text-indigo-400 font-medium">{t('intelGraph.inspector.cost')}</p>
           <p className="text-sm text-slate-200 font-semibold">
             {hasCost(sessionCost, SESSION_COST_FORMAT) ? (
               <CostDisplay cost={sessionCost} {...SESSION_COST_FORMAT} />
             ) : (
               // No figure for this session: said as such, not as $0.0000.
-              <span title="Cost unknown">—</span>
+              <span title={t('intelGraph.inspector.costUnknown')}>—</span>
             )}
           </p>
         </div>
       </div>
       {data.model && (
         <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span className="text-[10px] text-slate-500">Model:</span>
+          <span className="text-[10px] text-slate-500">{t('intelGraph.inspector.model')}</span>
           <span className="font-mono text-slate-300">{data.model}</span>
         </div>
       )}
       <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Title</p>
+        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.title')}</p>
         <p className="text-xs text-slate-300 leading-relaxed">{data.label}</p>
       </div>
     </div>
@@ -223,6 +230,7 @@ function ChatSessionDetailPanel({ data }: { data: ChatSessionNodeData }) {
 // ============================================================================
 
 function GenericPropertiesPanel({ data }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   const properties = Object.entries(data).filter(
     ([key]) => !['label', 'entityType', 'layer', 'entityId'].includes(key),
   )
@@ -246,7 +254,7 @@ function GenericPropertiesPanel({ data }: { data: Record<string, unknown> }) {
       })}
 
       {properties.length === 0 && (
-        <p className="text-xs text-slate-500 italic">No additional properties</p>
+        <p className="text-xs text-slate-500 italic">{t('intelGraph.inspector.noProperties')}</p>
       )}
     </div>
   )
@@ -261,6 +269,7 @@ interface NodeInspectorProps {
 }
 
 function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
+  const { t } = useT()
   const node = useAtomValue(selectedNodeAtom)
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom)
 
@@ -293,6 +302,7 @@ function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
         </div>
         <button
           onClick={() => setSelectedNodeId(null)}
+          aria-label={t('intelGraph.inspector.close')}
           className="p-1 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
         >
           <X size={14} />

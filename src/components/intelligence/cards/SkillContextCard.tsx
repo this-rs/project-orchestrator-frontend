@@ -1,4 +1,6 @@
 import { memo, useState, useEffect, useCallback } from 'react'
+import { useT, type MessageKey } from '@/i18n'
+import { statusLabel } from '../statusLabel'
 import type { SkillNodeData } from '@/types/intelligence'
 import type { Skill, SkillHealth, SkillMembers, Note, Decision } from '@/types'
 import { skillsApi } from '@/services/skills'
@@ -63,25 +65,27 @@ const statusColors: Record<string, { bg: string; text: string; border: string }>
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useT()
   const colors = statusColors[status] ?? { bg: '#1e293b', text: '#94a3b8', border: '#334155' }
   return (
     <span
       className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-md border"
       style={{ backgroundColor: colors.bg, color: colors.text, borderColor: colors.border }}
     >
-      {status}
+      {statusLabel(t, status)}
     </span>
   )
 }
 
-const healthConfig: Record<string, { color: string; Icon: typeof Shield; label: string }> = {
-  healthy: { color: '#4ade80', Icon: ShieldCheck, label: 'Healthy' },
-  needs_attention: { color: '#fbbf24', Icon: ShieldAlert, label: 'Needs attention' },
-  at_risk: { color: '#fb923c', Icon: AlertTriangle, label: 'At risk' },
-  should_archive: { color: '#f87171', Icon: Shield, label: 'Should archive' },
+const healthConfig: Record<string, { color: string; Icon: typeof Shield }> = {
+  healthy: { color: '#4ade80', Icon: ShieldCheck },
+  needs_attention: { color: '#fbbf24', Icon: ShieldAlert },
+  at_risk: { color: '#fb923c', Icon: AlertTriangle },
+  should_archive: { color: '#f87171', Icon: Shield },
 }
 
 function HealthBadge({ recommendation }: { recommendation: string }) {
+  const { t } = useT()
   const cfg = healthConfig[recommendation] ?? healthConfig.needs_attention
   const Icon = cfg.Icon
   return (
@@ -90,7 +94,7 @@ function HealthBadge({ recommendation }: { recommendation: string }) {
       style={{ color: cfg.color, backgroundColor: `${cfg.color}15` }}
     >
       <Icon size={10} />
-      {cfg.label}
+      {t(`intelGraph.skillCard.health.${recommendation in healthConfig ? recommendation : 'needs_attention'}` as MessageKey)}
     </span>
   )
 }
@@ -118,12 +122,13 @@ interface SkillContextCardProps {
 }
 
 function SkillContextCardComponent({ data, entityId }: SkillContextCardProps) {
+  const { t } = useT()
   const [skill, setSkill] = useState<Skill | null>(null)
   const [health, setHealth] = useState<SkillHealth | null>(null)
   const [members, setMembers] = useState<SkillMembers | null>(null)
   const [loading, setLoading] = useState(true)
   const [activating, setActivating] = useState(false)
-  const [activationResult, setActivationResult] = useState<string | null>(null)
+  const [activationResult, setActivationResult] = useState<{ ok: boolean; text: string } | null>(null)
 
   // Fetch enriched data
   useEffect(() => {
@@ -156,15 +161,19 @@ function SkillContextCardComponent({ data, entityId }: SkillContextCardProps) {
     setActivationResult(null)
     try {
       const result = await skillsApi.activate(entityId, data.label)
-      setActivationResult(
-        `Activated with ${result.activated_notes.length} notes, confidence ${(result.confidence * 100).toFixed(0)}%`,
-      )
+      setActivationResult({
+        ok: true,
+        text: t('intelGraph.skillCard.activated', { notes: result.activated_notes.length, confidence: (result.confidence * 100).toFixed(0) }),
+      })
     } catch (err) {
-      setActivationResult(err instanceof Error ? `Error: ${err.message}` : 'Activation failed')
+      setActivationResult({
+        ok: false,
+        text: err instanceof Error ? t('intelGraph.skillCard.error', { message: err.message }) : t('intelGraph.skillCard.activationFailed'),
+      })
     } finally {
       setActivating(false)
     }
-  }, [entityId, data.label])
+  }, [entityId, data.label, t])
 
   // Derived
   const notes: Note[] = members?.notes ?? []
@@ -179,11 +188,11 @@ function SkillContextCardComponent({ data, entityId }: SkillContextCardProps) {
         <StatusBadge status={data.status} />
         {health && <HealthBadge recommendation={health.recommendation} />}
         {skill?.is_validated && (
-          <span className="text-[9px] text-emerald-500 font-medium">Validated</span>
+          <span className="text-[9px] text-emerald-500 font-medium">{t('intelGraph.skillCard.validated')}</span>
         )}
         {health?.in_probation && (
           <span className="text-[9px] text-amber-500 font-medium">
-            Probation ({health.probation_days_remaining ?? '?'}d left)
+            {t('intelGraph.skillCard.probation', { days: health.probation_days_remaining ?? '?' })}
           </span>
         )}
       </div>
@@ -197,25 +206,25 @@ function SkillContextCardComponent({ data, entityId }: SkillContextCardProps) {
 
       {/* ── Energy, Cohesion & Coverage gauges ────────────────────── */}
       <div className="space-y-1.5">
-        <MiniGauge label="Energy" value={data.energy} color="#ec4899" />
-        <MiniGauge label="Cohesion" value={data.cohesion} color="#a78bfa" />
-        {skill && <MiniGauge label="Coverage" value={skill.coverage} color="#06b6d4" />}
-        {skill && <MiniGauge label="Hit Rate" value={skill.hit_rate} color="#22c55e" />}
+        <MiniGauge label={t('intelGraph.card.energy')} value={data.energy} color="#ec4899" />
+        <MiniGauge label={t('intelGraph.skillCard.cohesion')} value={data.cohesion} color="#a78bfa" />
+        {skill && <MiniGauge label={t('intelGraph.skillCard.coverage')} value={skill.coverage} color="#06b6d4" />}
+        {skill && <MiniGauge label={t('intelGraph.skillCard.hitRate')} value={skill.hit_rate} color="#22c55e" />}
       </div>
 
       {/* ── Stats counters ────────────────────────────────────────── */}
       <div className="flex items-center gap-3 flex-wrap">
         <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
           <StickyNote size={10} className="text-amber-400" />
-          {notes.length || data.noteCount} notes
+          {t('intelGraph.skillCard.notes', { n: notes.length || data.noteCount })}
         </span>
         <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
           <Scale size={10} className="text-violet-400" />
-          {decisions.length || 0} decisions
+          {t('intelGraph.skillCard.decisions', { n: decisions.length || 0 })}
         </span>
         <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
           <Zap size={10} className="text-pink-400" />
-          {skill?.activation_count ?? data.activationCount} activations
+          {t('intelGraph.skillCard.activations', { n: skill?.activation_count ?? data.activationCount })}
         </span>
       </div>
 
@@ -225,7 +234,7 @@ function SkillContextCardComponent({ data, entityId }: SkillContextCardProps) {
           <div className="flex items-center gap-1.5 mb-1.5">
             <Target size={10} className="text-pink-400" />
             <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-              Trigger Patterns
+              {t('intelGraph.skillCard.triggerPatterns')}
             </span>
           </div>
           <div className="space-y-0.5 max-h-[80px] overflow-y-auto">
@@ -254,16 +263,16 @@ function SkillContextCardComponent({ data, entityId }: SkillContextCardProps) {
         <div className="flex items-center gap-1.5 mb-1.5">
           <StickyNote size={10} className="text-amber-400" />
           <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-            Member Notes
+            {t('intelGraph.skillCard.memberNotes')}
           </span>
           {!loading && (
             <span className="text-[10px] text-slate-600 font-mono">({notes.length})</span>
           )}
         </div>
         {loading ? (
-          <SectionLoader label="Loading members..." />
+          <SectionLoader label={t('intelGraph.skillCard.loadingMembers')} />
         ) : notes.length === 0 ? (
-          <p className="text-[10px] text-slate-600 italic pl-3">No member notes</p>
+          <p className="text-[10px] text-slate-600 italic pl-3">{t('intelGraph.skillCard.noMembers')}</p>
         ) : (
           <div className="space-y-0.5 max-h-[100px] overflow-y-auto">
             {notes.slice(0, 8).map((note) => (
@@ -280,7 +289,7 @@ function SkillContextCardComponent({ data, entityId }: SkillContextCardProps) {
               </div>
             ))}
             {notes.length > 8 && (
-              <p className="text-[9px] text-slate-600 pl-2">+{notes.length - 8} more</p>
+              <p className="text-[9px] text-slate-600 pl-2">{t('intelGraph.skillCard.more', { n: notes.length - 8 })}</p>
             )}
           </div>
         )}
@@ -292,7 +301,7 @@ function SkillContextCardComponent({ data, entityId }: SkillContextCardProps) {
           <div className="flex items-center gap-1.5 mb-1.5">
             <Scale size={10} className="text-violet-400" />
             <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-              Member Decisions
+              {t('intelGraph.skillCard.memberDecisions')}
             </span>
             <span className="text-[10px] text-slate-600 font-mono">({decisions.length})</span>
           </div>
@@ -302,7 +311,7 @@ function SkillContextCardComponent({ data, entityId }: SkillContextCardProps) {
                 key={d.id}
                 className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-slate-800/60 group"
               >
-                <span className="text-[9px] text-violet-500 min-w-[48px]">{d.status}</span>
+                <span className="text-[9px] text-violet-500 min-w-[48px]">{statusLabel(t, d.status)}</span>
                 <span className="text-[10px] text-slate-400 truncate flex-1 group-hover:text-violet-200">
                   {d.description.slice(0, 80)}
                 </span>
@@ -317,7 +326,7 @@ function SkillContextCardComponent({ data, entityId }: SkillContextCardProps) {
         <div className="bg-slate-800/40 rounded-md p-2 border border-slate-700/40">
           <p className="text-[10px] text-slate-400 mb-0.5 font-medium uppercase tracking-wider">
             <Heart size={9} className="inline mr-1 text-pink-400" />
-            Health Assessment
+            {t('intelGraph.skillCard.healthAssessment')}
           </p>
           <p className="text-[10px] text-slate-300 leading-relaxed">
             {health.explanation}
@@ -351,19 +360,19 @@ function SkillContextCardComponent({ data, entityId }: SkillContextCardProps) {
         {activating ? (
           <>
             <RefreshCw size={12} className="animate-spin" />
-            Activating...
+            {t('intelGraph.skillCard.activating')}
           </>
         ) : (
           <>
             <Sparkles size={12} />
-            Activate Skill
+            {t('intelGraph.skillCard.activate')}
           </>
         )}
       </button>
 
       {activationResult && (
-        <p className={`text-[10px] px-1 ${activationResult.startsWith('Error') ? 'text-red-400' : 'text-emerald-400'}`}>
-          {activationResult}
+        <p className={`text-[10px] px-1 ${activationResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+          {activationResult.text}
         </p>
       )}
     </div>

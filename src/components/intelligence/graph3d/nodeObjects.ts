@@ -23,7 +23,18 @@ import { costReport, costToText } from '@/utils/cost'
 import * as THREE from 'three'
 import SpriteText from 'three-spritetext'
 import { ENTITY_COLORS } from '@/constants/intelligence'
+import type { MessageKey } from '@/i18n'
+import type { Vars } from '@/i18n/catalog'
 import type { Graph3DNode } from './useGraph3DLayout'
+
+/** Translator for code that runs outside React (canvas / three.js builders). */
+export type TFn = (key: MessageKey, vars?: Vars) => string
+
+/** "N plans": one key per grammatical number, picked here. */
+function countLabel(t: TFn, noun: 'plans' | 'tasks' | 'files' | 'messages' | 'entities', n: number): string {
+  const key = (n === 1 ? `intelGraph.subtitle.${noun}One` : `intelGraph.subtitle.${noun}Other`) as MessageKey
+  return t(key, { n })
+}
 
 // SpriteText extends Sprite extends Object3D — has .position
 type SpriteTextInstance = SpriteText & THREE.Object3D
@@ -622,7 +633,7 @@ function createHitboxSprite(): THREE.Sprite {
 
 // ── Subtitle builders per entity type ────────────────────────────────────────
 
-function getNodeSubtitle(node: Graph3DNode): string | undefined {
+function getNodeSubtitle(node: Graph3DNode, t: TFn): string | undefined {
   const data = node.data
   const entityType = node.entityType
 
@@ -631,8 +642,8 @@ function getNodeSubtitle(node: Graph3DNode): string | undefined {
     const parts: string[] = []
     const pc = data.plan_count as number | undefined
     const tc = data.task_count as number | undefined
-    if (pc) parts.push(`${pc} plans`)
-    if (tc) parts.push(`${tc} tasks`)
+    if (pc) parts.push(countLabel(t, 'plans', pc))
+    if (tc) parts.push(countLabel(t, 'tasks', tc))
     return parts.length > 0 ? parts.join(' · ') : undefined
   }
 
@@ -641,9 +652,9 @@ function getNodeSubtitle(node: Graph3DNode): string | undefined {
     const parts: string[] = []
     const tc = data.task_count as number | undefined
     const ctc = data.completed_task_count as number | undefined
-    if (tc) parts.push(`${ctc ?? 0}/${tc} tasks`)
+    if (tc) parts.push(t('intelGraph.subtitle.tasksProgress', { done: ctc ?? 0, total: tc }))
     const fc = data.file_count as number | undefined
-    if (fc) parts.push(`${fc} files`)
+    if (fc) parts.push(countLabel(t, 'files', fc))
     return parts.length > 0 ? parts.join(' · ') : undefined
   }
 
@@ -652,7 +663,7 @@ function getNodeSubtitle(node: Graph3DNode): string | undefined {
     const parts: string[] = []
     const sc = data.step_count as number | undefined
     const csc = data.completed_step_count as number | undefined
-    if (sc) parts.push(`${csc ?? 0}/${sc} steps`)
+    if (sc) parts.push(t('intelGraph.subtitle.stepsProgress', { done: csc ?? 0, total: sc }))
     // Descendance counts — compact format
     const counts: string[] = []
     const nc = data.note_count as number | undefined
@@ -720,7 +731,7 @@ function getNodeSubtitle(node: Graph3DNode): string | undefined {
     const sha = data.sha as string | undefined
     if (sha) parts.push(sha.slice(0, 7))
     const fc = data.file_count as number | undefined
-    if (fc) parts.push(`${fc} files`)
+    if (fc) parts.push(countLabel(t, 'files', fc))
     return parts.length > 0 ? parts.join(' · ') : undefined
   }
 
@@ -728,7 +739,7 @@ function getNodeSubtitle(node: Graph3DNode): string | undefined {
   if (entityType === 'chat_session') {
     const parts: string[] = []
     if (data.model) parts.push(String(data.model))
-    if (data.messageCount) parts.push(`${data.messageCount} msgs`)
+    if (data.messageCount) parts.push(countLabel(t, 'messages', Number(data.messageCount)))
     const cost = costToText(costReport(data.totalCostUsd == null ? null : Number(data.totalCostUsd), data.costBasis), {
       hideZero: true,
       format: (usd) => `$${usd.toFixed(3)}`,
@@ -739,8 +750,8 @@ function getNodeSubtitle(node: Graph3DNode): string | undefined {
 
   // ── Feature graph: entity count ──
   if (entityType === 'feature_graph') {
-    const count = data.entity_count
-    if (count) return `${count} entities`
+    const entityCount = data.entity_count
+    if (entityCount) return countLabel(t, 'entities', Number(entityCount))
     return undefined
   }
 
@@ -798,7 +809,7 @@ function getNodeProgress(node: Graph3DNode): NodeProgress | undefined {
   return undefined
 }
 
-export function createNodeObject(node: Graph3DNode): THREE.Object3D {
+export function createNodeObject(node: Graph3DNode, t: TFn): THREE.Object3D {
   const group = new THREE.Group()
   const q = _currentConfig
 
@@ -825,7 +836,7 @@ export function createNodeObject(node: Graph3DNode): THREE.Object3D {
 
   // ── LOW mode: ring + label + shared emoji (~55 GPU textures for emojis) ──
   // ── FULL/MEDIUM mode: ring + label + SpriteText emoji (N textures, OK at low counts) ──
-  const subtitle = q.showSubtitle ? getNodeSubtitle(node) : undefined
+  const subtitle = q.showSubtitle ? getNodeSubtitle(node, t) : undefined
   const progress = q.showProgress ? getNodeProgress(node) : undefined
 
   // 1. Glow halo (behind everything) — only for high quality + energy > 0.4

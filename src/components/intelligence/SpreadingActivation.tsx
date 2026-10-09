@@ -3,6 +3,7 @@ import { useAtom, useSetAtom } from 'jotai'
 import { atom } from 'jotai'
 import { Search, X, Zap } from 'lucide-react'
 import { notesApi } from '@/services/notes'
+import { useT } from '@/i18n'
 import { visibleLayersAtom } from '@/atoms/intelligence'
 import type { IntelligenceLayer } from '@/types/intelligence'
 
@@ -46,6 +47,7 @@ interface SpreadingActivationProps {
 }
 
 function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps) {
+  const { t } = useT()
   const [isOpen, setIsOpen] = useAtom(activationSearchOpenAtom)
   const setActivation = useSetAtom(activationStateAtom)
   const [visibleLayers, setVisibleLayers] = useAtom(visibleLayersAtom)
@@ -215,7 +217,7 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search to visualize spreading activation..."
+          placeholder={t('intelDashboard.activation.placeholder')}
           className="flex-1 bg-transparent text-sm text-slate-200 placeholder:text-slate-400 outline-none"
         />
         {searching && (
@@ -223,6 +225,7 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
         )}
         <button
           onClick={handleClose}
+          aria-label={t('intelDashboard.activation.close')}
           className="p-0.5 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors"
         >
           <X size={14} />
@@ -233,13 +236,13 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
       <div className="flex items-center gap-3 mt-2 px-4 text-[10px] text-slate-500">
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50" />
-          Direct match
+          {t('intelDashboard.activation.direct')}
         </span>
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-violet-400 shadow-sm shadow-violet-400/50" />
-          Propagated
+          {t('intelDashboard.activation.propagated')}
         </span>
-        <span className="ml-auto opacity-60">Enter to search · Esc to close</span>
+        <span className="ml-auto opacity-60">{t('intelDashboard.activation.hint')}</span>
       </div>
     </div>
   )

@@ -8,18 +8,19 @@
 import { memo } from 'react'
 import { RadarChart } from '@/components/ui/RadarChart'
 import type { RadarAxis } from '@/components/ui/RadarChart'
+import { useT, type MessageKey } from '@/i18n'
 import type { AffinityScore, RelevanceVector } from '@/types/intelligence'
 
 // ============================================================================
 // Dimension display names
 // ============================================================================
 
-const DIMENSION_LABELS: Record<string, string> = {
-  phase: 'Phase',
-  structure: 'Structure',
-  domain: 'Domain',
-  resource: 'Resource',
-  lifecycle: 'Lifecycle',
+const DIMENSION_LABELS: Record<string, MessageKey> = {
+  phase: 'intelDashboard.dimension.phase',
+  structure: 'intelDashboard.dimension.structure',
+  domain: 'intelDashboard.dimension.domain',
+  resource: 'intelDashboard.dimension.resource',
+  lifecycle: 'intelDashboard.dimension.lifecycle',
 }
 
 // ============================================================================
@@ -40,11 +41,12 @@ interface ContextRadarProps {
 // ============================================================================
 
 function ContextRadarComponent({ affinity, size = 'sm' }: ContextRadarProps) {
+  const { t } = useT()
   // Build axes from affinity dimension scores — show the similarity (1 - distance)
   const axes: RadarAxis[] = affinity.dimensions.map((dim) => {
     const similarity = 1 - Math.abs(dim.context_value - dim.relevance_value)
     return {
-      name: DIMENSION_LABELS[dim.name] ?? dim.name,
+      name: DIMENSION_LABELS[dim.name] ? t(DIMENSION_LABELS[dim.name]) : dim.name,
       value: similarity,
     }
   })

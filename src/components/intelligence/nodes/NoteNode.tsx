@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useT } from '@/i18n'
 import { Handle, Position } from '@xyflow/react'
 import type { NodeProps, Node } from '@xyflow/react'
 import type { NoteNodeData } from '@/types/intelligence'
@@ -43,6 +44,7 @@ function energyToColor(energy: number): string {
 }
 
 function NoteNodeComponent({ data, selected, id }: NodeProps<Node<NoteNodeData>>) {
+  const { t } = useT()
   const size = NODE_SIZES.note
   const defaultColor = ENTITY_COLORS.note
   const Icon = noteIcons[data.noteType] ?? StickyNote
@@ -106,7 +108,7 @@ function NoteNodeComponent({ data, selected, id }: NodeProps<Node<NoteNodeData>>
         // Scale up activated nodes slightly
         transform: isActivated ? `scale(${1 + activationScore * 0.3})` : undefined,
       }}
-      title={`[${data.noteType}] ${data.label}${isActivated ? ` (activation: ${(activationScore * 100).toFixed(0)}%)` : heatmapEnabled ? ` (energy: ${(data.energy * 100).toFixed(0)}%)` : ''}`}
+      title={`[${data.noteType}] ${data.label}${isActivated ? ` ${t('intelGraph.node.activation', { pct: (activationScore * 100).toFixed(0) })}` : heatmapEnabled ? ` ${t('intelGraph.node.energy', { pct: (data.energy * 100).toFixed(0) })}` : ''}`}
     >
       <Handle type="target" position={Position.Top} className="!w-1.5 !h-1.5 !bg-amber-400 !border-0" />
       <Icon size={14} color={color} />

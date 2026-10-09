@@ -7,6 +7,7 @@
  */
 import { memo, useEffect, useState, useCallback } from 'react'
 import { intelligenceApi } from '@/services/intelligence'
+import { useT, type MessageKey } from '@/i18n'
 import type { RouteResponse, RouteResult } from '@/types/intelligence'
 import {
   Workflow,
@@ -20,12 +21,12 @@ import {
 // Dimension colors & labels
 // ============================================================================
 
-const DIMENSION_CONFIG: Record<string, { label: string; color: string }> = {
-  phase: { label: 'Phase', color: '#818cf8' },      // indigo
-  structure: { label: 'Struct', color: '#34d399' },  // emerald
-  domain: { label: 'Domain', color: '#fb923c' },     // orange
-  resource: { label: 'Rsrc', color: '#38bdf8' },     // sky
-  lifecycle: { label: 'Life', color: '#f472b6' },    // pink
+const DIMENSION_CONFIG: Record<string, { label: MessageKey; color: string }> = {
+  phase: { label: 'intelDashboard.dimensionShort.phase', color: '#818cf8' },      // indigo
+  structure: { label: 'intelDashboard.dimensionShort.structure', color: '#34d399' },  // emerald
+  domain: { label: 'intelDashboard.dimensionShort.domain', color: '#fb923c' },     // orange
+  resource: { label: 'intelDashboard.dimensionShort.resource', color: '#38bdf8' },     // sky
+  lifecycle: { label: 'intelDashboard.dimensionShort.lifecycle', color: '#f472b6' },    // pink
 }
 
 // ============================================================================
@@ -59,6 +60,7 @@ interface ProtocolRowProps {
 }
 
 function ProtocolRow({ result, rank }: ProtocolRowProps) {
+  const { t } = useT()
   const [expanded, setExpanded] = useState(false)
   const score = result.affinity.score
   const color = scoreColor(score)
@@ -119,7 +121,7 @@ function ProtocolRow({ result, rank }: ProtocolRowProps) {
               return (
                 <div key={dim.name} className="flex items-center gap-2">
                   <span className="text-[9px] text-slate-500 w-10 shrink-0">
-                    {cfg?.label ?? dim.name}
+                    {cfg ? t(cfg.label) : dim.name}
                   </span>
                   <div className="flex-1">
                     <ScoreBar
@@ -161,9 +163,11 @@ interface ProtocolRankingProps {
 }
 
 function ProtocolRankingComponent({ projectId, planId, className }: ProtocolRankingProps) {
+  const { t } = useT()
   const [routeData, setRouteData] = useState<RouteResponse | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // `message` is absent when the failure has no text of its own (shown in the viewer's language)
+  const [error, setError] = useState<{ message?: string } | null>(null)
 
   const fetchRoute = useCallback(async () => {
     if (!projectId) return
@@ -177,7 +181,7 @@ function ProtocolRankingComponent({ projectId, planId, className }: ProtocolRank
       setRouteData(data)
     } catch (err) {
       console.error('[ProtocolRanking] route error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load routing')
+      setError({ message: err instanceof Error && err.message ? err.message : undefined })
     } finally {
       setLoading(false)
     }
@@ -193,7 +197,7 @@ function ProtocolRankingComponent({ projectId, planId, className }: ProtocolRank
     return (
       <div className={`flex items-center gap-2 py-3 ${className ?? ''}`}>
         <Loader2 size={12} className="animate-spin text-slate-500" />
-        <span className="text-[10px] text-slate-500">Loading routing...</span>
+        <span className="text-[10px] text-slate-500">{t('intelDashboard.ranking.loading')}</span>
       </div>
     )
   }
@@ -201,7 +205,7 @@ function ProtocolRankingComponent({ projectId, planId, className }: ProtocolRank
   if (error) {
     return (
       <div className={`text-[10px] text-red-400 py-2 ${className ?? ''}`}>
-        {error}
+        {error.message ?? t('intelDashboard.ranking.loadFailed')}
       </div>
     )
   }
@@ -209,7 +213,7 @@ function ProtocolRankingComponent({ projectId, planId, className }: ProtocolRank
   if (!routeData || routeData.results.length === 0) {
     return (
       <div className={`text-[10px] text-slate-600 italic py-2 ${className ?? ''}`}>
-        No protocols to rank.
+        {t('intelDashboard.ranking.empty')}
       </div>
     )
   }
@@ -220,10 +224,10 @@ function ProtocolRankingComponent({ projectId, planId, className }: ProtocolRank
       <div className="flex items-center gap-1.5 mb-2">
         <Target size={10} className="text-indigo-400" />
         <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-          Protocol Ranking
+          {t('intelDashboard.ranking.title')}
         </span>
         <span className="text-[9px] text-slate-600 ml-auto">
-          {routeData.total_evaluated} evaluated
+          {t('intelDashboard.ranking.evaluated', { count: routeData.total_evaluated })}
         </span>
       </div>
 

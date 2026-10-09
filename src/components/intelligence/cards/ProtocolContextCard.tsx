@@ -1,4 +1,5 @@
 import { Fragment, memo, useEffect, useState } from 'react'
+import { useT, type MessageKey } from '@/i18n'
 import type { ProtocolNodeData } from '@/types/intelligence'
 import type { ProtocolDetailApi, ProtocolRunApi, RouteResult } from '@/types/intelligence'
 import { intelligenceApi } from '@/services/intelligence'
@@ -40,13 +41,14 @@ const categoryBadgeColors: Record<string, { bg: string; text: string; border: st
 }
 
 function CategoryBadge({ category }: { category: string }) {
+  const { t } = useT()
   const colors = categoryBadgeColors[category] ?? { bg: '#1e293b', text: '#94a3b8', border: '#334155' }
   return (
     <span
       className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-md border"
       style={{ backgroundColor: colors.bg, color: colors.text, borderColor: colors.border }}
     >
-      {category}
+      {category in categoryBadgeColors ? t(`intelGraph.protoCard.category.${category}` as MessageKey) : category}
     </span>
   )
 }
@@ -73,12 +75,12 @@ interface ProtocolContextCardProps {
 // DIMENSION BAR (for "Why Activated" panel)
 // ============================================================================
 
-const DIMENSION_BAR_CONFIG: Record<string, { label: string; color: string }> = {
-  phase: { label: 'Phase', color: '#818cf8' },
-  structure: { label: 'Structure', color: '#34d399' },
-  domain: { label: 'Domain', color: '#fb923c' },
-  resource: { label: 'Resource', color: '#38bdf8' },
-  lifecycle: { label: 'Lifecycle', color: '#f472b6' },
+const DIMENSION_BAR_CONFIG: Record<string, { color: string }> = {
+  phase: { color: '#818cf8' },
+  structure: { color: '#34d399' },
+  domain: { color: '#fb923c' },
+  resource: { color: '#38bdf8' },
+  lifecycle: { color: '#f472b6' },
 }
 
 function dimensionBarColor(similarity: number): string {
@@ -88,6 +90,7 @@ function dimensionBarColor(similarity: number): string {
 }
 
 function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardProps) {
+  const { t, date } = useT()
   const [detail, setDetail] = useState<ProtocolDetailApi | null>(null)
   const [activeRun, setActiveRun] = useState<ProtocolRunApi | null>(null)
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null)
@@ -135,7 +138,7 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
     return () => { cancelled = true }
   }, [entityId])
 
-  if (loading) return <SectionLoader label="Loading protocol..." />
+  if (loading) return <SectionLoader label={t('intelGraph.protoCard.loading')} />
 
   const states = detail?.states ?? []
   const transitions = detail?.transitions ?? []
@@ -149,18 +152,18 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
       <div className="flex items-center gap-2 flex-wrap">
         <CategoryBadge category={data.category} />
         <span className="text-[10px] text-slate-500">
-          {states.length} state{states.length !== 1 ? 's' : ''}
+          {t(states.length === 1 ? 'intelGraph.protoCard.statesOne' : 'intelGraph.protoCard.statesOther', { n: states.length })}
         </span>
         <span className="text-[10px] text-slate-600">&middot;</span>
         <span className="text-[10px] text-slate-500">
-          {transitions.length} transition{transitions.length !== 1 ? 's' : ''}
+          {t(transitions.length === 1 ? 'intelGraph.protoCard.transitionsOne' : 'intelGraph.protoCard.transitionsOther', { n: transitions.length })}
         </span>
       </div>
 
       {/* Description */}
       {detail?.description && (
         <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-          <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Description</p>
+          <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.description')}</p>
           <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-4">
             {detail.description}
           </p>
@@ -171,7 +174,7 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
       {data.skillId && (
         <div className="flex items-center gap-1.5 bg-pink-950/20 rounded-md px-2 py-1.5 border border-pink-900/30">
           <Brain size={10} className="text-pink-400" />
-          <span className="text-[10px] text-pink-300 font-medium">Linked to Skill</span>
+          <span className="text-[10px] text-pink-300 font-medium">{t('intelGraph.protoCard.linkedSkill')}</span>
           <span className="text-[9px] font-mono text-pink-600 ml-auto truncate max-w-[120px]">
             {data.skillId}
           </span>
@@ -191,7 +194,7 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
             }
             <Target size={10} className="text-indigo-400" />
             <span className="text-[10px] text-indigo-400 font-medium uppercase tracking-wider">
-              Why Activated
+              {t('intelGraph.protoCard.whyActivated')}
             </span>
             <span
               className="text-[10px] font-mono font-semibold ml-auto"
@@ -221,7 +224,7 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
                   return (
                     <div key={dim.name} className="flex items-center gap-2">
                       <span className="text-[9px] text-slate-500 w-14 shrink-0">
-                        {cfg?.label ?? dim.name}
+                        {cfg ? t(`intelGraph.protoCard.dimension.${dim.name}` as MessageKey) : dim.name}
                       </span>
                       <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
                         <div
@@ -249,12 +252,12 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
 
               {/* Context vs Relevance values */}
               <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[9px]">
-                <span className="text-slate-600 font-medium">Dim</span>
-                <span className="text-slate-600 font-medium text-center">Context</span>
-                <span className="text-slate-600 font-medium text-center">Ideal</span>
+                <span className="text-slate-600 font-medium">{t('intelGraph.protoCard.dim')}</span>
+                <span className="text-slate-600 font-medium text-center">{t('intelGraph.protoCard.context')}</span>
+                <span className="text-slate-600 font-medium text-center">{t('intelGraph.protoCard.ideal')}</span>
                 {routeResult.affinity.dimensions.map((dim) => (
                   <Fragment key={dim.name}>
-                    <span className="text-slate-500">{DIMENSION_BAR_CONFIG[dim.name]?.label ?? dim.name}</span>
+                    <span className="text-slate-500">{DIMENSION_BAR_CONFIG[dim.name] ? t(`intelGraph.protoCard.dimension.${dim.name}` as MessageKey) : dim.name}</span>
                     <span className="font-mono text-slate-400 text-center">{dim.context_value.toFixed(2)}</span>
                     <span className="font-mono text-indigo-400 text-center">{dim.relevance_value.toFixed(2)}</span>
                   </Fragment>
@@ -271,10 +274,10 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
           <div className="flex items-center gap-1.5 mb-1.5">
             <Activity size={10} className="text-cyan-400" />
             <span className="text-[10px] text-cyan-400 font-medium uppercase tracking-wider">
-              Active Run
+              {t('intelGraph.protoCard.activeRun')}
             </span>
             <span className="text-[9px] text-slate-600 ml-auto">
-              {activeRun.states_visited.length}/{states.length} states
+              {t('intelGraph.protoCard.runProgress', { done: activeRun.states_visited.length, total: states.length })}
             </span>
           </div>
           <ProtocolRunViewer
@@ -290,11 +293,11 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
         <div className="flex items-center gap-1.5 mb-1.5">
           <Circle size={10} className="text-orange-400" />
           <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-            States
+            {t('intelGraph.protoCard.states')}
           </span>
         </div>
         {states.length === 0 ? (
-          <p className="text-[10px] text-slate-600 italic pl-3">No states defined</p>
+          <p className="text-[10px] text-slate-600 italic pl-3">{t('intelGraph.protoCard.noStates')}</p>
         ) : (
           <div className="space-y-1 max-h-[140px] overflow-y-auto">
             {states.map((state) => {
@@ -310,7 +313,7 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
                     <span className="text-[10px] font-medium text-orange-200">
                       {state.name}
                     </span>
-                    <span className="text-[8px] text-slate-600 ml-auto">{state.state_type}</span>
+                    <span className="text-[8px] text-slate-600 ml-auto">{state.state_type in stateTypeIcons ? t(`intelGraph.protoCard.stateType.${state.state_type}` as MessageKey) : state.state_type}</span>
                   </div>
                   {state.description && (
                     <p className="text-[9px] text-slate-500 mt-0.5 line-clamp-1 pl-3.5">
@@ -319,7 +322,7 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
                   )}
                   {state.action && (
                     <p className="text-[8px] text-cyan-600 mt-0.5 pl-3.5 font-mono">
-                      action: {state.action}
+                      {t('intelGraph.protoCard.action', { name: state.action })}
                     </p>
                   )}
                 </div>
@@ -334,19 +337,19 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
         <div className="flex items-center gap-1.5 mb-1.5">
           <ArrowRight size={10} className="text-orange-400" />
           <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-            Transitions
+            {t('intelGraph.protoCard.transitions')}
           </span>
         </div>
         {transitions.length === 0 ? (
-          <p className="text-[10px] text-slate-600 italic pl-3">No transitions defined</p>
+          <p className="text-[10px] text-slate-600 italic pl-3">{t('intelGraph.protoCard.noTransitions')}</p>
         ) : (
           <div className="space-y-1 max-h-[140px] overflow-y-auto">
-            {transitions.map((t) => {
-              const fromName = stateNameMap.get(t.from_state) ?? '?'
-              const toName = stateNameMap.get(t.to_state) ?? '?'
+            {transitions.map((tr) => {
+              const fromName = stateNameMap.get(tr.from_state) ?? '?'
+              const toName = stateNameMap.get(tr.to_state) ?? '?'
               return (
                 <div
-                  key={t.id}
+                  key={tr.id}
                   className="bg-orange-950/10 rounded-md px-2 py-1 border border-orange-900/20"
                 >
                   <div className="flex items-center gap-1">
@@ -356,10 +359,10 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5 pl-1">
                     <Workflow size={7} className="text-orange-600" />
-                    <span className="text-[9px] text-orange-300 font-mono">{t.trigger}</span>
-                    {t.guard && (
+                    <span className="text-[9px] text-orange-300 font-mono">{tr.trigger}</span>
+                    {tr.guard && (
                       <span className="text-[8px] text-slate-600 font-mono ml-auto">
-                        [{t.guard}]
+                        [{tr.guard}]
                       </span>
                     )}
                   </div>
@@ -373,8 +376,8 @@ function ProtocolContextCardComponent({ data, entityId }: ProtocolContextCardPro
       {/* Timestamps */}
       {detail && (
         <div className="flex items-center gap-3 text-[9px] text-slate-600 pt-1 border-t border-slate-800">
-          <span>Created: {new Date(detail.created_at).toLocaleDateString()}</span>
-          <span>Updated: {new Date(detail.updated_at).toLocaleDateString()}</span>
+          <span>{t('intelGraph.protoCard.created', { date: date(detail.created_at) })}</span>
+          <span>{t('intelGraph.protoCard.updated', { date: date(detail.updated_at) })}</span>
         </div>
       )}
     </div>
