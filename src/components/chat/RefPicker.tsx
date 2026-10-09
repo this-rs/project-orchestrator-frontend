@@ -2,10 +2,13 @@ import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Loader2, X } from 'lucide-react'
 import { useSheetPlacement } from '@/hooks/useSheetPlacement'
+import { actorKinds, entityKinds } from '@/refs/kinds'
 import { refKindDef } from '@/refs/registry'
+import type { RefSigil } from '@/refs/trigger'
 import { refStatusLabel } from '@/refs/statusLabel'
 import type { RefSearchState } from '@/refs/useRefSearch'
 import type { RefSearchItem } from '@/refs/refsApi'
+import { useActiveKinds } from '@/refs/useActiveKinds'
 import { MAX_REFS_PER_MESSAGE, type RefKind } from '@/refs/types'
 
 export const refOptionId = (listId: string, index: number) => `${listId}-opt-${index}`
@@ -17,6 +20,10 @@ interface RefPickerProps {
   /** Index of the option `aria-activedescendant` points at. */
   activeIndex: number
   kindFilter?: RefKind
+  /** `#` searches the entities, `@` the actors (persona, skill). */
+  sigil?: RefSigil
+  /** `@` only: no project in view, and actors are only suggested inside one. */
+  needsProject?: boolean
   /** The draft already holds the most references a message may carry. */
   full: boolean
   /** The draft already holds this one: it can still be chosen at the cap (nothing is added). */
@@ -36,26 +43,36 @@ interface RefPickerProps {
  * pattern): the options are never focused, the active one is announced through
  * `aria-activedescendant`. A mouse press does not take the focus either.
  */
-export function RefPicker({ listId, search, activeIndex, kindFilter, full, isInDraft, onPick, onHover, sheet = false, anchor = null, onClose }: RefPickerProps) {
+export function RefPicker({ listId, search, activeIndex, kindFilter, sigil = '#', needsProject = false, full, isInDraft, onPick, onHover, sheet = false, anchor = null, onClose }: RefPickerProps) {
   const placement = useSheetPlacement(anchor, sheet)
   const { items } = search
+  useActiveKinds() // the words below follow the kinds the server lists
+  const kinds = sigil === '@' ? actorKinds() : entityKinds()
+  const noKinds = kinds.length === 0
   // The textarea keeps the focus, so the browser never scrolls to the option the arrows reached:
   // bring it into the visible area ourselves (7 rows fit; the 8th was blind).
   useEffect(() => {
     document.getElementById(refOptionId(listId, activeIndex))?.scrollIntoView?.({ block: 'nearest' })
   }, [listId, activeIndex])
-  const loading = search.status === 'loading' || search.status === 'idle'
-  const status =
-    search.status === 'error'
+  const loading = !noKinds && (search.status === 'loading' || search.status === 'idle')
+  const status = noKinds
+    ? 'No actors available on this server'
+    : search.status === 'error'
       ? search.message
       : search.status === 'ready' && items.length === 0
-        ? 'No results'
+        ? needsProject
+          ? 'Select a project to search personas and skills'
+          : 'No results'
         : search.status === 'ready'
           ? `${items.length} result${items.length > 1 ? 's' : ''}`
           : 'Searching…'
   const hint = (
     <p className="m-0 min-w-0 flex-1 px-2.5 pb-1 text-[11px] text-slate-400 [@media(pointer:coarse)]:text-xs">
-      {kindFilter ? `${refKindDef(kindFilter).name} only` : 'Plans, tasks, notes, decisions, RFCs'}
+      {kindFilter
+        ? `${refKindDef(kindFilter).name} only`
+        : sigil === '@'
+          ? `Actors: ${kinds.map((k) => refKindDef(k).name).join(', ') || 'none'}`
+          : kinds.map((k) => refKindDef(k).name).join(', ')}
       {full ? ' — maximum references reached' : ''}
     </p>
   )
@@ -102,7 +119,7 @@ export function RefPicker({ listId, search, activeIndex, kindFilter, full, isInD
         <ul
           id={listId}
           role="listbox"
-          aria-label="References"
+          aria-label={sigil === '@' ? 'Actors' : 'References'}
           aria-busy={loading || undefined}
           className={`m-0 list-none p-0 transition-opacity ${loading ? 'opacity-60' : ''}`}
         >

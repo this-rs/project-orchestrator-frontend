@@ -7,18 +7,22 @@
  * bail-out for React and Jotai).
  */
 import { findRefTokens } from '@/utils/messageRefs'
-import { refKindDef } from './registry'
+import { isCaseInsensitiveFormat } from './ids'
+import { kindInfo } from './kinds'
+import { isWireKind, refKindDef } from './registry'
 import {
   MAX_REFS_PER_MESSAGE,
   displayState,
-  isRefKind,
   type ChatReference,
   type EntityRef,
   type ResolvedRef,
 } from './types'
 
-/** Identity of a reference: the pair that travels. Ids are compared case-insensitively. */
-export const refKey = (ref: EntityRef): string => `${ref.kind}:${ref.id.toLowerCase()}`
+/** Identity of a reference: the pair that travels. Hex ids are compared case-insensitively; a path or an address is not. */
+export const refKey = (ref: EntityRef): string => {
+  const format = kindInfo(ref.kind)?.idFormat
+  return `${ref.kind}:${format && !isCaseInsensitiveFormat(format) ? ref.id : ref.id.toLowerCase()}`
+}
 
 /** Add a reference. A duplicate keeps the first entry (and learns a label it lacked); past the cap nothing is added. */
 export function addReference(refs: readonly ChatReference[], ref: ChatReference): readonly ChatReference[] {
@@ -186,7 +190,7 @@ export function parseResolvedRefs(raw: unknown): ResolvedRef[] {
   for (const r of raw) {
     if (!r || typeof r !== 'object') continue
     const e = r as Record<string, unknown>
-    if (!isRefKind(e.kind) || typeof e.id !== 'string' || typeof e.status !== 'string' || !RESOLUTIONS.includes(e.status)) continue
+    if (!isWireKind(e.kind) || typeof e.id !== 'string' || typeof e.status !== 'string' || !RESOLUTIONS.includes(e.status)) continue
     const entry: ResolvedRef = { kind: e.kind, id: e.id, status: e.status as ResolvedRef['status'] }
     if (typeof e.label === 'string') entry.label = e.label
     if (typeof e.subtitle === 'string') entry.subtitle = e.subtitle

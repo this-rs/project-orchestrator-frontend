@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import kinds from '../__fixtures__/kinds_response.json'
+import { clearRefKinds, parseKindsResponse, setActiveKinds } from '../kinds'
 import search from '../__fixtures__/search_response.json'
 import errors from '../__fixtures__/errors.json'
 import { ApiError } from '@/services/api'
@@ -53,6 +55,31 @@ describe('refsApi.search', () => {
     getMock.mockResolvedValue(search.empty_response)
     await refsApi.search({ q: '', kinds: ['plan', 'task', 'note', 'decision', 'rfc'] })
     expect(getMock).toHaveBeenLastCalledWith('/refs/search', undefined)
+  })
+})
+
+describe('refsApi.search with the kinds of the server', () => {
+  const PID = '00333b5f-2d0a-4467-9c98-155e55d2b7e5'
+  const persona = { kind: 'persona', id: '57cf05c9-25b6-495d-ab07-de4b11d64736', label: 'Reviewer' }
+  const commit = { kind: 'commit', id: `${PID}:fbb4a32c1d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a`, label: 'fix: x' }
+
+  afterEach(() => clearRefKinds())
+
+  it('names the kinds that are not the historical five, and the project for the sensitive ones', async () => {
+    getMock.mockResolvedValue(search.empty_response)
+    await refsApi.search({ q: 'r', kinds: ['persona', 'skill'], projectId: PID })
+    expect(getMock).toHaveBeenLastCalledWith(`/refs/search?q=r&kinds=persona%2Cskill&project_id=${PID}`, undefined)
+  })
+
+  it('an item of a kind the server does not list is dropped; once listed it is kept', () => {
+    expect(parseSearchResponse({ items: [persona] })).toEqual([])
+    setActiveKinds(parseKindsResponse(kinds.response)!)
+    expect(parseSearchResponse({ items: [persona, commit] }).map((i) => i.kind)).toEqual(['persona', 'commit'])
+  })
+
+  it('an item whose id is not spelled as its kind spells it is dropped', () => {
+    setActiveKinds(parseKindsResponse(kinds.response)!)
+    expect(parseSearchResponse({ items: [{ ...persona, id: 'nope' }, { ...commit, id: PID }] })).toEqual([])
   })
 })
 

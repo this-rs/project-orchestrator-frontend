@@ -5,22 +5,22 @@ const at = (text: string) => detectTrigger(text, text.length)
 
 describe('detectTrigger', () => {
   it('opens on a bare # with an empty query (most recent)', () => {
-    expect(at('#')).toEqual({ start: 0, end: 1, query: '' })
+    expect(at('#')).toEqual({ start: 0, end: 1, query: '', sigil: '#' })
   })
 
   it('reads the query after the # up to the caret, after a space or an opener', () => {
-    expect(at('voir #refs')).toEqual({ start: 5, end: 10, query: 'refs' })
-    expect(at('voir (#refs')).toMatchObject({ start: 6, query: 'refs' })
+    expect(at('voir #refs')).toEqual({ start: 5, end: 10, query: 'refs', sigil: '#' })
+    expect(at('voir (#refs')).toMatchObject({ start: 6, query: 'refs', sigil: '#' })
     expect(at('a\n#b')).toMatchObject({ start: 2, query: 'b' })
   })
 
   it('uses the caret, not the end of the text', () => {
-    expect(detectTrigger('voir #refs et la suite', 10)).toEqual({ start: 5, end: 10, query: 'refs' })
+    expect(detectTrigger('voir #refs et la suite', 10)).toEqual({ start: 5, end: 10, query: 'refs', sigil: '#' })
     expect(detectTrigger('voir #refs et la suite', 4)).toBeNull()
   })
 
   it('takes a kind prefix as a filter: "#rfc foo"', () => {
-    expect(at('#rfc design')).toEqual({ start: 0, end: 11, query: 'design', kinds: ['rfc'] })
+    expect(at('#rfc design')).toEqual({ start: 0, end: 11, query: 'design', kinds: ['rfc'], sigil: '#' })
     expect(at('x #Task ')).toMatchObject({ query: '', kinds: ['task'] })
     // not a kind: a space ends the query, there is no trigger any more
     expect(at('#foo bar')).toBeNull()
@@ -35,8 +35,8 @@ describe('detectTrigger', () => {
   it('is not a trigger inside inline code or a fenced block', () => {
     expect(at('`code #refs')).toBeNull()
     expect(at('``` \n#refs')).toBeNull()
-    expect(at('```\ncode\n```\n#refs')).toMatchObject({ query: 'refs' })
-    expect(at('`a` #refs')).toMatchObject({ query: 'refs' })
+    expect(at('```\ncode\n```\n#refs')).toMatchObject({ query: 'refs', sigil: '#' })
+    expect(at('`a` #refs')).toMatchObject({ query: 'refs', sigil: '#' })
   })
 
   it('is not a trigger on a finished token or a query too long to be one', () => {
