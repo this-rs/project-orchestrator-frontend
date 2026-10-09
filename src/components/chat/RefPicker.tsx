@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
-import { Loader2 } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Loader2, X } from 'lucide-react'
+import { useSheetPlacement } from '@/hooks/useSheetPlacement'
 import { refKindDef } from '@/refs/registry'
 import { refStatusLabel } from '@/refs/statusLabel'
 import type { RefSearchState } from '@/refs/useRefSearch'
@@ -21,6 +23,12 @@ interface RefPickerProps {
   isInDraft?: (item: RefSearchItem) => boolean
   onPick: (item: RefSearchItem) => void
   onHover: (index: number) => void
+  /** Narrow screen: a bottom sheet (fixed, 44px rows, follows the visual viewport) instead of the popover. */
+  sheet?: boolean
+  /** The sheet rests on this element (the composer box). */
+  anchor?: HTMLElement | null
+  /** Close button of the sheet (touch has no Escape). */
+  onClose?: () => void
 }
 
 /**
@@ -28,7 +36,8 @@ interface RefPickerProps {
  * pattern): the options are never focused, the active one is announced through
  * `aria-activedescendant`. A mouse press does not take the focus either.
  */
-export function RefPicker({ listId, search, activeIndex, kindFilter, full, isInDraft, onPick, onHover }: RefPickerProps) {
+export function RefPicker({ listId, search, activeIndex, kindFilter, full, isInDraft, onPick, onHover, sheet = false, anchor = null, onClose }: RefPickerProps) {
+  const placement = useSheetPlacement(anchor, sheet)
   const { items } = search
   // The textarea keeps the focus, so the browser never scrolls to the option the arrows reached:
   // bring it into the visible area ourselves (7 rows fit; the 8th was blind).
@@ -44,17 +53,42 @@ export function RefPicker({ listId, search, activeIndex, kindFilter, full, isInD
         : search.status === 'ready'
           ? `${items.length} result${items.length > 1 ? 's' : ''}`
           : 'Searching…'
-  return (
+  const hint = (
+    <p className="m-0 min-w-0 flex-1 px-2.5 pb-1 text-[11px] text-slate-400 [@media(pointer:coarse)]:text-xs">
+      {kindFilter ? `${refKindDef(kindFilter).name} only` : 'Plans, tasks, notes, decisions, RFCs'}
+      {full ? ' — maximum references reached' : ''}
+    </p>
+  )
+  const body = (
     <div
       data-testid="ref-picker"
-      className="absolute bottom-full left-0 right-0 z-30 mb-1 max-h-[min(16rem,40dvh)] overflow-y-auto rounded-lg border border-white/[0.08] bg-surface-popover py-1 shadow-xl"
+      data-variant={sheet ? 'sheet' : 'popover'}
+      className={
+        sheet
+          ? // Fixed to the screen, just above the composer; the composer stays visible under it.
+            'fixed inset-x-0 z-50 overflow-y-auto overscroll-contain rounded-t-2xl border border-b-0 border-white/[0.1] bg-surface-popover pb-1 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] shadow-2xl motion-safe:animate-ref-sheet-in'
+          : 'absolute bottom-full left-0 right-0 z-30 mb-1 max-h-[min(16rem,40dvh)] overflow-y-auto rounded-lg border border-white/[0.08] bg-surface-popover py-1 shadow-xl'
+      }
+      style={sheet ? { bottom: placement.bottom, maxHeight: placement.maxHeight } : undefined}
       // Keep the caret in the textarea.
       onMouseDown={(e) => e.preventDefault()}
     >
-      <p className="px-2.5 pb-1 text-[11px] text-slate-400">
-        {kindFilter ? `${refKindDef(kindFilter).name} only` : 'Plans, tasks, notes, decisions, RFCs'}
-        {full ? ' — maximum references reached' : ''}
-      </p>
+      {sheet ? (
+        <div className="sticky top-0 z-10 flex items-center gap-1 bg-surface-popover pl-1">
+          <span aria-hidden="true" className="absolute left-1/2 top-1.5 h-1 w-9 -translate-x-1/2 rounded-full bg-white/20" />
+          <div className="flex min-w-0 flex-1 pt-3">{hint}</div>
+          <button
+            type="button"
+            aria-label="Close references"
+            onClick={onClose}
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-slate-300 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+          >
+            <X className="size-5" aria-hidden="true" />
+          </button>
+        </div>
+      ) : (
+        <div className="flex">{hint}</div>
+      )}
       {full && (
         <p
           data-testid="ref-picker-limit"
@@ -86,7 +120,9 @@ export function RefPicker({ listId, search, activeIndex, kindFilter, full, isInD
                 data-testid="ref-option"
                 onClick={() => onPick(item)}
                 onMouseMove={() => onHover(i)}
-                className={`flex min-h-8 items-center gap-2 px-2.5 py-1 text-xs text-slate-200 [@media(pointer:coarse)]:min-h-11 ${
+                className={`flex items-center gap-2 px-2.5 py-1 text-xs text-slate-200 ${
+                  sheet ? 'min-h-11 py-2 text-sm' : 'min-h-8 [@media(pointer:coarse)]:min-h-11'
+                } ${
                   blocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
                 } ${active ? 'bg-indigo-500/20 ring-2 ring-inset ring-indigo-400' : ''}`}
               >
@@ -122,4 +158,5 @@ export function RefPicker({ listId, search, activeIndex, kindFilter, full, isInD
       </div>
     </div>
   )
+  return sheet ? createPortal(body, document.body) : body
 }

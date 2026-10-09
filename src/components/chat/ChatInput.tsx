@@ -126,6 +126,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const isMobile = useIsMobile()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  // The composer box: the mobile reference sheet rests on it (state, so the sheet re-renders once it exists).
+  const [composerBoxEl, setComposerBoxEl] = useState<HTMLDivElement | null>(null)
   const [modeOverride, setModeOverride] = useAtom(chatSessionPermissionOverrideAtom)
   const [serverConfig, setServerConfig] = useAtom(chatPermissionConfigAtom)
   const autoContinue = useAtomValue(chatAutoContinueAtom)
@@ -897,6 +899,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
       <div
         // Glass: a translucent fill and a blur, so the transcript scrolling under the box stays
         // legible but soft. (It used to be a flat bg-white/[0.04] on top of a strip.)
+        ref={setComposerBoxEl}
         className={`flex flex-col rounded-xl bg-surface-base/55 backdrop-blur-md backdrop-saturate-150 border border-white/[0.1] shadow-lg shadow-black/20 p-1 transition-colors focus-within:border-indigo-500/40 ${
           disabled ? 'opacity-50' : ''
         }${refsEnabled ? ' relative' : ''}`}
@@ -911,6 +914,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             isInDraft={(item) => draftRefs.some((r) => refKey(r) === refKey(item))}
             onPick={pickRef}
             onHover={setRefActive}
+            sheet={isMobile}
+            anchor={composerBoxEl}
+            onClose={() => {
+              // Focus first: focusing the composer re-arms the picker, closing comes after.
+              textareaRef.current?.focus()
+              if (trigger) setDismissedAt(trigger.start)
+            }}
           />
         )}
         {refsEnabled && (
