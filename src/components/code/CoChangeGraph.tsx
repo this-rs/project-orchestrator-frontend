@@ -12,6 +12,7 @@ import {
 import { EmptyState, Skeleton, metaText, surface } from '@/components/ui'
 import { GitBranch } from 'lucide-react'
 import { commitsApi, projectsApi } from '@/services'
+import { useT } from '@/i18n'
 import type { CoChangeEdge } from '@/types'
 import '@xyflow/react/dist/style.css'
 
@@ -150,6 +151,7 @@ function layoutNodes(nodeIds: string[], edges: CoChangeEdge[]): Map<string, { x:
 // ── Main component ──────────────────────────────────────────────────────
 
 export function CoChangeGraph({ projectSlug }: CoChangeGraphProps) {
+  const { t } = useT()
   const [edges, setEdges] = useState<CoChangeEdge[]>([])
   const [loading, setLoading] = useState(true)
   const [minCount, setMinCount] = useState(2)
@@ -228,15 +230,15 @@ export function CoChangeGraph({ projectSlug }: CoChangeGraphProps) {
   }, [])
 
   if (loading) {
-    return <Skeleton className="h-[500px] rounded-xl" aria-label="Loading co-change graph" />
+    return <Skeleton className="h-[500px] rounded-xl" aria-label={t('code.coChange.loading')} />
   }
 
   if (edges.length === 0) {
     return (
       <EmptyState
         icon={<GitBranch className="w-8 h-8 text-gray-500" />}
-        title="No co-change data available"
-        description="Co-change data is built from commit history. Register commits with file changes to populate this graph."
+        title={t('code.coChange.none')}
+        description={t('code.coChange.noneDescription')}
       />
     )
   }
@@ -246,13 +248,13 @@ export function CoChangeGraph({ projectSlug }: CoChangeGraphProps) {
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2 md:px-4 border-b border-white/[0.06]">
         <div className="flex items-center gap-2 min-w-0">
           <GitBranch className="w-4 h-4 shrink-0 text-gray-500" aria-hidden="true" />
-          <h3 className="text-sm font-semibold text-gray-200">Co-change graph</h3>
+          <h3 className="text-sm font-semibold text-gray-200">{t('code.coChange.title')}</h3>
           <span className={`${metaText} tabular-nums`}>
-            {flowNodes.length} files · {flowEdges.length} relationships
+            {t('code.coChange.summary', { files: flowNodes.length, relationships: flowEdges.length })}
           </span>
         </div>
         <label className={`flex items-center gap-2 ${metaText}`}>
-          Min co-changes
+          {t('code.coChange.min')}
           <input
             type="range"
             min={1}

@@ -12,11 +12,12 @@ import {
   Section,
   SkeletonLine,
   StatusText,
-  pluralize,
   Meter,
 } from '@/components/ui'
 import { glassButton, glassFlat } from '@/components/ui/classes'
 import { useToast } from '@/hooks'
+import { useT } from '@/i18n'
+import { useCodeCount, useRiskLevelLabel } from './useCodeCount'
 import { codeApi } from '@/services'
 import type { CodeCommunity, NodeImportance } from '@/types'
 
@@ -34,18 +35,17 @@ function shortName(member: string): string {
   return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : member
 }
 
-const communityName = (c: CodeCommunity, idx: number) => (c.enriched_by ? c.label : `Community #${idx + 1}`)
-
 // ── Member chip ─────────────────────────────────────────────────────────
 
 function MemberChip({ member, onClick }: { member: string; onClick: () => void }) {
+  const { t } = useT()
   const Icon = isFilePath(member) ? FileText : Hash
   return (
     <button
       type="button"
       onClick={onClick}
       title={member}
-      aria-label={`Importance of ${member}`}
+      aria-label={t('code.communities.importanceOf', { member })}
       className={`${glassButton.secondary} ${glassFlat} min-h-9 px-2.5 text-xs font-mono font-normal text-gray-300 max-w-full`}
     >
       <Icon className="w-3 h-3 shrink-0 text-gray-500" aria-hidden="true" />
@@ -57,6 +57,8 @@ function MemberChip({ member, onClick }: { member: string; onClick: () => void }
 // ── Node importance (dialog content) ────────────────────────────────────
 
 function NodeImportanceContent({ member, projectSlug }: { member: string; projectSlug: string }) {
+  const { t } = useT()
+  const levelLabel = useRiskLevelLabel()
   const [data, setData] = useState<NodeImportance | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -87,14 +89,14 @@ function NodeImportanceContent({ member, projectSlug }: { member: string; projec
 
   if (loading) {
     return (
-      <div className="space-y-2" role="status" aria-label="Loading">
+      <div className="space-y-2" role="status" aria-label={t('code.common.loading')}>
         <SkeletonLine width="40%" />
         <SkeletonLine />
         <SkeletonLine width="70%" />
       </div>
     )
   }
-  if (error) return <p className="text-sm text-gray-500">Could not load the importance data.</p>
+  if (error) return <p className="text-sm text-gray-500">{t('code.communities.importanceFailed')}</p>
   if (!data) return null
 
   const m = data.metrics
@@ -103,19 +105,19 @@ function NodeImportanceContent({ member, projectSlug }: { member: string; projec
   return (
     <div className="space-y-3">
       <p className="font-mono text-xs text-gray-400 break-all">{member}</p>
-      {data.risk_level && <StatusText status={data.risk_level} label={`${data.risk_level} risk`} />}
+      {data.risk_level && <StatusText status={data.risk_level} label={t('code.communities.riskLevel', { level: levelLabel(data.risk_level) })} />}
       {data.summary && <p className="text-sm text-gray-300 leading-relaxed">{data.summary}</p>}
       {data.message && !data.summary && <p className="text-xs text-gray-500">{data.message}</p>}
       <Facts
         items={[
-          { label: 'PageRank', value: m.pagerank != null ? m.pagerank.toFixed(4) : null },
-          { label: 'Betweenness', value: m.betweenness != null ? m.betweenness.toFixed(4) : null },
-          { label: 'In-degree', value: m.in_degree },
-          { label: 'Out-degree', value: m.out_degree },
-          { label: 'Clustering', value: m.clustering_coefficient != null ? m.clustering_coefficient.toFixed(4) : null },
-          { label: 'Fabric PageRank', value: f?.fabric_pagerank != null ? f.fabric_pagerank.toFixed(4) : null },
-          { label: 'Fabric betweenness', value: f?.fabric_betweenness != null ? f.fabric_betweenness.toFixed(4) : null },
-          { label: 'Community', value: f?.fabric_community_label ?? null },
+          { label: t('code.communities.pagerank'), value: m.pagerank != null ? m.pagerank.toFixed(4) : null },
+          { label: t('code.communities.betweenness'), value: m.betweenness != null ? m.betweenness.toFixed(4) : null },
+          { label: t('code.communities.inDegree'), value: m.in_degree },
+          { label: t('code.communities.outDegree'), value: m.out_degree },
+          { label: t('code.communities.clustering'), value: m.clustering_coefficient != null ? m.clustering_coefficient.toFixed(4) : null },
+          { label: t('code.communities.fabricPagerank'), value: f?.fabric_pagerank != null ? f.fabric_pagerank.toFixed(4) : null },
+          { label: t('code.communities.fabricBetweenness'), value: f?.fabric_betweenness != null ? f.fabric_betweenness.toFixed(4) : null },
+          { label: t('code.communities.communityLabel'), value: f?.fabric_community_label ?? null },
         ]}
       />
     </div>
@@ -125,6 +127,10 @@ function NodeImportanceContent({ member, projectSlug }: { member: string; projec
 // ── Main component ──────────────────────────────────────────────────────
 
 export function CodeCommunitiesTab({ projectSlug }: CodeCommunitiesTabProps) {
+  const { t } = useT()
+  const count = useCodeCount()
+  const communityName = (c: CodeCommunity, idx: number) =>
+    c.enriched_by ? c.label : t('code.communities.community', { n: idx + 1 })
   const toast = useToast()
   const [communities, setCommunities] = useState<CodeCommunity[]>([])
   const [totalFiles, setTotalFiles] = useState(0)
@@ -144,11 +150,11 @@ export function CodeCommunitiesTab({ projectSlug }: CodeCommunitiesTabProps) {
       setCommunities(data.communities)
       setTotalFiles(data.total_files)
     } catch {
-      setError('Could not load the communities.')
+      setError(t('code.communities.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [projectSlug])
+  }, [projectSlug, t])
 
   useEffect(() => {
     loadCommunities()
@@ -160,9 +166,9 @@ export function CodeCommunitiesTab({ projectSlug }: CodeCommunitiesTabProps) {
     try {
       await codeApi.enrichCommunities({ project_slug: projectSlug })
       await loadCommunities()
-      toast.success('Community labels enriched')
+      toast.success(t('code.communities.enriched'))
     } catch {
-      toast.error('Could not enrich the labels')
+      toast.error(t('code.communities.enrichFailed'))
     } finally {
       setEnriching(false)
     }
@@ -171,18 +177,18 @@ export function CodeCommunitiesTab({ projectSlug }: CodeCommunitiesTabProps) {
   if (!projectSlug) {
     return (
       <EmptyState
-        title="Select a project"
-        description="Community analysis works on one project at a time — pick one in the filter above."
+        title={t('code.common.selectProject')}
+        description={t('code.communities.needProject')}
       />
     )
   }
   if (loading && communities.length === 0) return <EntityListSkeleton rows={4} />
-  if (error) return <ErrorState title="Communities unavailable" description={error} onRetry={loadCommunities} />
+  if (error) return <ErrorState title={t('code.communities.unavailable')} description={error} onRetry={loadCommunities} />
   if (communities.length === 0) {
     return (
       <EmptyState
-        title="No communities detected"
-        description="Sync the project first: communities are detected on the coupling graph (Louvain)."
+        title={t('code.communities.none')}
+        description={t('code.communities.noneDescription')}
       />
     )
   }
@@ -190,17 +196,17 @@ export function CodeCommunitiesTab({ projectSlug }: CodeCommunitiesTabProps) {
   return (
     <>
       <Section
-        title="Communities"
+        title={t('code.communities.title')}
         count={communities.length}
-        description={`Clusters of tightly coupled files and functions across ${pluralize(totalFiles, 'file')}. Open one to inspect its members.`}
+        description={t('code.communities.description', { files: count('file', totalFiles) })}
         action={
           <Button variant="ghost" size="sm" onClick={handleEnrich} loading={enriching}>
             <Sparkles className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
-            Enrich labels
+            {t('code.communities.enrich')}
           </Button>
         }
       >
-        <EntityList aria-label="Communities">
+        <EntityList aria-label={t('code.communities.title')}>
           {communities.map((community, idx) => {
             const name = communityName(community, idx)
             const open = openId === community.id
@@ -214,12 +220,12 @@ export function CodeCommunitiesTab({ projectSlug }: CodeCommunitiesTabProps) {
                 selected={open}
                 expanded={open}
                 chevron
-                trailing={pluralize(community.size, 'member')}
+                trailing={count('member', community.size)}
                 meta={[
                   community.cohesion != null ? (
-                    <Meter key="c" size="inline" value={community.cohesion} display={`cohesion ${(community.cohesion * 100).toFixed(0)}%`} />
+                    <Meter key="c" size="inline" value={community.cohesion} display={t('code.communities.cohesion', { percent: (community.cohesion * 100).toFixed(0) })} />
                   ) : null,
-                  community.key_files.length ? pluralize(community.key_files.length, 'key file') : null,
+                  community.key_files.length ? count('keyFile', community.key_files.length) : null,
                 ]}
               >
                 {open && (
@@ -233,7 +239,7 @@ export function CodeCommunitiesTab({ projectSlug }: CodeCommunitiesTabProps) {
                         size="sm"
                         onClick={() => setShowAll((prev) => new Set(prev).add(community.id))}
                       >
-                        +{members.length - visible.length} more
+                        {t('code.common.more', { n: members.length - visible.length })}
                       </Button>
                     )}
                   </div>

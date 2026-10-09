@@ -17,38 +17,43 @@ import {
   RelativeTime,
   Select,
   groupByRecency,
-  pluralize,
 } from '@/components/ui'
 import { useFormDialog, useIncrementalList, useToast, useWorkspaceSlug } from '@/hooks'
 import { CreateFeatureGraphForm, AutoBuildFeatureGraphForm } from '@/components/forms'
 import type { FeatureGraph } from '@/types'
 import { workspacePath } from '@/utils/paths'
-import { NOMENCLATURE } from '@/constants/nomenclature'
+import { useT, type MessageKey } from '@/i18n'
+import { useRecencyLabel } from '@/components/code/useCodeCount'
 import { humanize, humanizeIfCode, looksLikeIdentifier } from '@/utils/featureGraphReadable'
 
 type SortKey = 'recent' | 'name' | 'entities'
-
-const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'recent', label: 'Most recent' },
-  { value: 'name', label: 'Name (A–Z)' },
-  { value: 'entities', label: 'Most entities' },
-]
 
 /** Rows rendered at once: the API returns every graph in one response (no server pagination). */
 const PAGE_SIZE = 50
 const noopRef = () => {}
 
 /** One plain sentence when the graph has no description of its own. */
-function graphSentence(g: FeatureGraph): string | undefined {
+function graphSentence(g: FeatureGraph, t: ReturnType<typeof useT>['t']): string | undefined {
   if (g.description) return g.description
   if (!g.entry_function) return undefined
-  const depth = g.build_depth != null ? ` and follows its calls ${g.build_depth} ${g.build_depth === 1 ? 'level' : 'levels'} deep` : ''
-  return `Starts from “${humanize(g.entry_function)}”${depth}.`
+  const name = humanize(g.entry_function)
+  if (g.build_depth == null) return t('featureGraphs.list.startsFrom', { name })
+  return t(g.build_depth === 1 ? 'featureGraphs.list.startsFromDepthOne' : 'featureGraphs.list.startsFromDepthOther', {
+    name,
+    n: g.build_depth,
+  })
 }
 
 // ── Main page ───────────────────────────────────────────────────────────
 
 export function FeatureGraphsPage() {
+  const { t } = useT()
+  const recencyLabel = useRecencyLabel()
+  const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+    { value: 'recent', label: t('featureGraphs.list.sort.recent') },
+    { value: 'name', label: t('featureGraphs.list.sort.name') },
+    { value: 'entities', label: t('featureGraphs.list.sort.entities') },
+  ]
   const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
   const createDialog = useFormDialog()
@@ -122,7 +127,7 @@ export function FeatureGraphsPage() {
     projects,
     onSubmit: async (data) => {
       const graph = await featureGraphsApi.create(data)
-      toast.success('Feature graph created')
+      toast.success(t('featureGraphs.list.created'))
       navigate(workspacePath(wsSlug, `/feature-graphs/${graph.id}`), { state: { projectId: data.project_id } })
     },
   })
@@ -131,21 +136,21 @@ export function FeatureGraphsPage() {
     projects,
     onSubmit: async (data) => {
       const graph = await featureGraphsApi.autoBuild(data)
-      toast.success(`Auto-built with ${graph.entities?.length || 0} entities`)
+      toast.success(t('featureGraphs.list.autoBuilt', { n: graph.entities?.length || 0 }))
       navigate(workspacePath(wsSlug, `/feature-graphs/${graph.id}`), { state: { projectId: data.project_id } })
     },
   })
 
-  const openCreate = () => createDialog.open({ title: 'New feature graph' })
-  const openAutoBuild = () => autoBuildDialog.open({ title: 'Auto-build feature graph', size: 'lg', submitLabel: 'Build' })
+  const openCreate = () => createDialog.open({ title: t('featureGraphs.list.newTitle') })
+  const openAutoBuild = () => autoBuildDialog.open({ title: t('featureGraphs.list.autoBuildTitle'), size: 'lg', submitLabel: t('featureGraphs.list.build') })
 
   const handleDelete = async (graph: FeatureGraph) => {
     try {
       await featureGraphsApi.delete(graph.id)
       setGraphs((prev) => prev.filter((g) => g.id !== graph.id))
-      toast.success('Feature graph deleted')
+      toast.success(t('featureGraphs.list.deleted'))
     } catch {
-      toast.error('Failed to delete feature graph')
+      toast.error(t('featureGraphs.list.deleteFailed'))
     }
   }
 
@@ -163,19 +168,19 @@ export function FeatureGraphsPage() {
     <>
       <Button size="sm" variant="secondary" onClick={openAutoBuild}>
         <Sparkles className="w-4 h-4 mr-1.5" aria-hidden="true" />
-        Auto-build
+        {t('featureGraphs.list.autoBuild')}
       </Button>
       <Button size="sm" onClick={openCreate}>
         <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
-        New graph
+        {t('featureGraphs.list.newGraph')}
       </Button>
     </>
   )
 
   return (
     <PageShell
-      title={NOMENCLATURE.featureGraphs.plural}
-      description={NOMENCLATURE.featureGraphs.description}
+      title={t('nav.concepts.featureGraphs')}
+      description={t('featureGraphs.description')}
       intro="featureGraphs"
       count={loading ? undefined : filtered.length}
       width="wide"
@@ -184,7 +189,7 @@ export function FeatureGraphsPage() {
         <FilterBar
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="Search feature graphs…"
+          searchPlaceholder={t('featureGraphs.list.searchPlaceholder')}
           activeCount={(projectFilterActive ? 1 : 0) + (sort !== 'recent' ? 1 : 0)}
           activeLabels={[
             projectFilterActive ? projectNameById[selectedProject] ?? '' : '',
@@ -198,7 +203,7 @@ export function FeatureGraphsPage() {
             <>
               {showProjectFilter && (
                 <Select
-                  options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+                  options={[{ value: 'all', label: t('featureGraphs.list.allProjects') }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
                   value={selectedProject}
                   onChange={setSelectedProject}
                   icon={<Folder className="w-3 h-3" />}
@@ -218,22 +223,18 @@ export function FeatureGraphsPage() {
       {loading ? (
         <EntityListSkeleton rows={4} />
       ) : error ? (
-        <ErrorState description="Feature graphs could not be loaded." onRetry={fetchGraphs} />
+        <ErrorState description={t('featureGraphs.list.loadFailed')} onRetry={fetchGraphs} />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<GitGraph className="w-6 h-6" />}
-          title={isPristine ? 'No feature graphs yet' : 'No matching feature graphs'}
-          description={
-            isPristine
-              ? 'A feature graph gathers the files, functions and types behind one feature. Let Auto-build assemble one from an entry function, or create an empty one and add entities by hand.'
-              : 'Try another search, or clear the search and the project filter.'
-          }
+          title={isPristine ? t('featureGraphs.list.emptyTitle') : t('featureGraphs.list.noMatchTitle')}
+          description={isPristine ? t('featureGraphs.list.emptyDescription') : t('featureGraphs.list.noMatchDescription')}
           action={
             isPristine ? (
               createActions
             ) : (
               <Button size="sm" variant="secondary" onClick={clearAll}>
-                Clear
+                {t('featureGraphs.list.clear')}
               </Button>
             )
           }
@@ -241,7 +242,7 @@ export function FeatureGraphsPage() {
       ) : (
         <div>
           {groups.map(({ group, items }) => (
-            <ListGroup key={group} title={group} count={items.length}>
+            <ListGroup key={group} title={group === 'All' ? t('featureGraphs.list.all') : recencyLabel(group)} count={items.length}>
               {items.map((graph) => (
                 <EntityRow
                   key={graph.id}
@@ -254,41 +255,41 @@ export function FeatureGraphsPage() {
                   ariaLabel={humanizeIfCode(graph.name)}
                   menuLabel={humanizeIfCode(graph.name)}
                   href={workspacePath(wsSlug, `/feature-graphs/${graph.id}`)}
-                  description={graphSentence(graph)}
+                  description={graphSentence(graph, t)}
                   trailing={<RelativeTime date={graph.created_at} />}
                   meta={[
                     selectedProject === 'all' && projectNameById[graph.project_id] ? (
-                      <Fact key="project" icon={FolderKanban} title="Project" truncateAt="max-w-[12rem]">
+                      <Fact key="project" icon={FolderKanban} title={t('featureGraphs.list.project')} truncateAt="max-w-[12rem]">
                         {projectNameById[graph.project_id]}
                       </Fact>
                     ) : null,
                     graph.entry_function ? (
-                      <Fact key="entry" icon={Play} title={`Entry function: ${graph.entry_function}`} truncateAt="max-w-[20rem]">
+                      <Fact key="entry" icon={Play} title={t('featureGraphs.list.entryFunction', { name: graph.entry_function })} truncateAt="max-w-[20rem]">
                         {humanize(graph.entry_function)}{' '}
                         <code className="font-mono text-[11px] text-gray-500">{graph.entry_function}</code>
                       </Fact>
                     ) : null,
                     graph.build_depth != null ? (
-                      <Fact key="depth" icon={Layers} title="Build depth">
-                        {`depth ${graph.build_depth}`}
+                      <Fact key="depth" icon={Layers} title={t('featureGraphs.list.buildDepth')}>
+                        {t('featureGraphs.list.depth', { n: graph.build_depth })}
                       </Fact>
                     ) : null,
                     graph.entity_count != null ? (
                       <Fact key="entities" icon={Boxes}>
-                        {pluralize(graph.entity_count, 'entity', 'entities')}
+                        {t(`featureGraphs.counts.entity.${graph.entity_count === 1 ? 'one' : 'other'}` as MessageKey, { n: graph.entity_count })}
                       </Fact>
                     ) : null,
                   ]}
                   actions={[
                     {
-                      label: 'Delete',
+                      label: t('featureGraphs.list.delete'),
                       icon: Trash2,
                       variant: 'danger',
                       onClick: () => handleDelete(graph),
                       confirm: {
-                        title: 'Delete feature graph?',
-                        description: `Permanently delete “${graph.name}”? The code itself is not touched. This cannot be undone.`,
-                        confirmLabel: 'Delete',
+                        title: t('featureGraphs.list.deleteTitle'),
+                        description: t('featureGraphs.list.deleteDescription', { name: graph.name }),
+                        confirmLabel: t('featureGraphs.list.delete'),
                       },
                     },
                   ]}
@@ -297,7 +298,7 @@ export function FeatureGraphsPage() {
             </ListGroup>
           ))}
           <p className="mt-2 text-center text-xs text-gray-500 tabular-nums" role="status">
-            Showing {visible.length.toLocaleString()} of {filtered.length.toLocaleString()}
+            {t('featureGraphs.list.showing', { shown: visible.length, total: filtered.length })}
           </p>
           <LoadMoreSentinel sentinelRef={noopRef} loadingMore={false} hasMore={hasMore} remaining={remaining} onLoadMore={showMore} />
         </div>
@@ -306,7 +307,7 @@ export function FeatureGraphsPage() {
       <FormDialog {...createDialog.dialogProps} onSubmit={createForm.submit}>
         {createForm.fields}
       </FormDialog>
-      <FormDialog {...autoBuildDialog.dialogProps} onSubmit={autoBuildForm.submit} submitLabel="Build">
+      <FormDialog {...autoBuildDialog.dialogProps} onSubmit={autoBuildForm.submit} submitLabel={t('featureGraphs.list.build')}>
         {autoBuildForm.fields}
       </FormDialog>
     </PageShell>

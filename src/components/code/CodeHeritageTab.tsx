@@ -17,14 +17,9 @@ import type { TabItem } from '@/components/ui'
 import { codeApi } from '@/services'
 import type { ClassHierarchy, SubclassesResponse, InterfaceImplementorsResponse } from '@/types'
 import { ViewTabs } from '@/components/ui'
+import { useT } from '@/i18n'
 
 type HeritageMode = 'hierarchy' | 'subclasses' | 'implementors'
-
-const MODES: (TabItem & { id: HeritageMode; placeholder: string })[] = [
-  { id: 'hierarchy', label: 'Class hierarchy', placeholder: 'Class or struct name…' },
-  { id: 'subclasses', label: 'Subclasses', placeholder: 'Parent class name…' },
-  { id: 'implementors', label: 'Implementors', placeholder: 'Interface or trait name…' },
-]
 
 type Result =
   | { mode: 'hierarchy'; data: ClassHierarchy }
@@ -35,6 +30,12 @@ const Mono = ({ children }: { children: string }) => <span className="font-mono 
 
 /** Inheritance explorer — the searched name is typed, the result is a list per direction. */
 export function CodeHeritageTab() {
+  const { t } = useT()
+  const modes: (TabItem & { id: HeritageMode; placeholder: string })[] = [
+    { id: 'hierarchy', label: t('code.heritage.hierarchy'), placeholder: t('code.heritage.hierarchyPlaceholder') },
+    { id: 'subclasses', label: t('code.heritage.subclasses'), placeholder: t('code.heritage.subclassesPlaceholder') },
+    { id: 'implementors', label: t('code.heritage.implementors'), placeholder: t('code.heritage.implementorsPlaceholder') },
+  ]
   const [mode, setMode] = useState<HeritageMode>('hierarchy')
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
@@ -58,7 +59,7 @@ export function CodeHeritageTab() {
         setResult({ mode: 'implementors', data: await codeApi.findInterfaceImplementors({ interface_name: name }) })
       }
     } catch {
-      setError('The backend may be unreachable.')
+      setError(t('code.common.backendUnreachable'))
     } finally {
       setLoading(false)
     }
@@ -80,50 +81,57 @@ export function CodeHeritageTab() {
     }
   }
 
-  const current = MODES.find((m) => m.id === mode)!
+  const current = modes.find((m) => m.id === mode)!
 
   let body
   if (!searched) {
     body = (
       <EmptyState
         icon={<GitFork className="w-8 h-8 text-gray-500" />}
-        title="Explore inheritance"
-        description="Search a class, interface or trait to see its parents and children, its subclasses, or its implementors."
+        title={t('code.heritage.exploreTitle')}
+        description={t('code.heritage.exploreDescription')}
       />
     )
   } else if (loading) {
     body = <EntityListSkeleton rows={3} />
   } else if (error) {
-    body = <ErrorState title="Search failed" description={error} onRetry={() => search()} />
+    body = <ErrorState title={t('code.common.searchFailed')} description={error} onRetry={() => search()} />
   } else if (result?.mode === 'hierarchy') {
     body = <HierarchyView data={result.data} />
   } else if (result?.mode === 'subclasses') {
-    body = <NameList title={<>Subclasses of <Mono>{result.data.class_name}</Mono></>} items={result.data.subclasses} total={result.data.total} empty="No subclasses found." />
+    body = (
+      <NameList
+        title={t('code.heritage.subclassesOf', { name: result.data.class_name })}
+        items={result.data.subclasses}
+        total={result.data.total}
+        empty={t('code.heritage.noSubclasses')}
+      />
+    )
   } else if (result?.mode === 'implementors') {
     body = (
       <NameList
-        title={<>Implementors of <Mono>{result.data.interface_name}</Mono></>}
+        title={t('code.heritage.implementorsOf', { name: result.data.interface_name })}
         items={result.data.implementors}
         total={result.data.total}
-        empty="No implementors found."
+        empty={t('code.heritage.noImplementors')}
       />
     )
   } else {
-    body = <EmptyState size="sm" title={`No results for “${query}”`} description="Make sure the project is synced and the name is exact." />
+    body = <EmptyState size="sm" title={t('code.heritage.noResultsFor', { query })} description={t('code.heritage.noResultsDescription')} />
   }
 
   return (
     <div className="space-y-4">
-      <ViewTabs tabs={MODES} value={mode} onChange={changeMode} label="Heritage mode" />
+      <ViewTabs tabs={modes} value={mode} onChange={changeMode} label={t('code.heritage.mode')} />
       <form role="search" onSubmit={handleSubmit}>
         <FilterBar
           search={query}
           onSearchChange={setQuery}
           searchPlaceholder={current.placeholder}
-          searchLabel="Type name"
+          searchLabel={t('code.heritage.typeName')}
           trailing={
             <Button type="submit" size="sm" loading={loading} disabled={!query.trim()}>
-              Search
+              {t('code.common.search')}
             </Button>
           }
         />
@@ -136,32 +144,33 @@ export function CodeHeritageTab() {
 // ── Views ───────────────────────────────────────────────────────────────
 
 function HierarchyView({ data }: { data: ClassHierarchy }) {
+  const { t } = useT()
   if (data.parents.length === 0 && data.children.length === 0) {
-    return <EmptyState size="sm" title={`No parent or child classes found for ${data.type_name}.`} />
+    return <EmptyState size="sm" title={t('code.heritage.noRelatives', { name: data.type_name })} />
   }
   return (
     <div className="space-y-6">
       {data.parents.length > 0 && (
-        <Section title="Parents" count={data.parents.length} description="From the closest ancestor up.">
-          <EntityList aria-label="Parent classes">
+        <Section title={t('code.heritage.parents')} count={data.parents.length} description={t('code.heritage.parentsDescription')}>
+          <EntityList aria-label={t('code.heritage.parentClasses')}>
             {data.parents.map((parent) => (
-              <EntityRow key={parent} title={<Mono>{parent}</Mono>} ariaLabel={parent} meta={['extends']} />
+              <EntityRow key={parent} title={<Mono>{parent}</Mono>} ariaLabel={parent} meta={[t('code.heritage.extends')]} />
             ))}
           </EntityList>
         </Section>
       )}
 
       <div className={`${surface} flex flex-wrap items-center gap-2 px-3 py-2 md:px-4`}>
-        <StatusDot tone="progress" label="Searched type" />
+        <StatusDot tone="progress" label={t('code.heritage.searchedType')} />
         <span className="font-mono text-sm text-gray-100 break-all">{data.type_name}</span>
-        <span className={`${metaText} ml-auto tabular-nums`}>depth {data.depth}</span>
+        <span className={`${metaText} ml-auto tabular-nums`}>{t('code.heritage.depth', { n: data.depth })}</span>
       </div>
 
       {data.children.length > 0 && (
-        <Section title="Children" count={data.children.length}>
-          <EntityList aria-label="Child classes">
+        <Section title={t('code.heritage.children')} count={data.children.length}>
+          <EntityList aria-label={t('code.heritage.childClasses')}>
             {data.children.map((child) => (
-              <EntityRow key={child} title={<Mono>{child}</Mono>} ariaLabel={child} meta={['extended by']} />
+              <EntityRow key={child} title={<Mono>{child}</Mono>} ariaLabel={child} meta={[t('code.heritage.extendedBy')]} />
             ))}
           </EntityList>
         </Section>
@@ -171,12 +180,13 @@ function HierarchyView({ data }: { data: ClassHierarchy }) {
 }
 
 function NameList({ title, items, total, empty }: { title: React.ReactNode; items: string[]; total: number; empty: string }) {
+  const { t } = useT()
   return (
     <Section title={title} count={total}>
       {items.length === 0 ? (
         <EmptyState size="sm" title={empty} />
       ) : (
-        <EntityList aria-label="Results">
+        <EntityList aria-label={t('code.heritage.results')}>
           {items.map((name) => (
             <EntityRow key={name} title={<Mono>{name}</Mono>} ariaLabel={name} />
           ))}

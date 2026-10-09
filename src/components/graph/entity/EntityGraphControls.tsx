@@ -6,7 +6,9 @@ import {
   type NeighborhoodDepth,
   type NeighborhoodLayer,
 } from '@/services/neighborhood'
+import { useT } from '@/i18n'
 import { LAYER_META } from './entityVisuals'
+import { useEntityLabels } from './useEntityLabels'
 
 export interface EntityGraphControlsProps {
   depth: NeighborhoodDepth
@@ -42,13 +44,15 @@ export function EntityGraphControls({
   onReset,
   onZoom,
 }: EntityGraphControlsProps) {
+  const { t } = useT()
+  const { layerLabel, layerDescription } = useEntityLabels()
   return (
     <div className="flex flex-col gap-2 text-xs text-gray-300">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {/* Depth — segmented control */}
         <div className="flex items-center gap-2">
           <span id="eg-depth-label" className="text-gray-500">
-            Depth
+            {t('graph.entity.depth')}
           </span>
           <div role="group" aria-labelledby="eg-depth-label" className={segmented}>
             {DEPTHS.map((d) => (
@@ -56,7 +60,7 @@ export function EntityGraphControls({
                 key={d}
                 type="button"
                 aria-pressed={depth === d}
-                aria-label={`Depth ${d}`}
+                aria-label={t('graph.entity.depthN', { n: d })}
                 onClick={() => onDepthChange(d)}
                 className={`${segItem} min-w-9 md:min-w-8`}
               >
@@ -68,7 +72,7 @@ export function EntityGraphControls({
 
         {/* Relief — maps to min_weight */}
         <label className="flex items-center gap-2 flex-1 min-w-[180px]">
-          <span className="text-gray-500">Relief</span>
+          <span className="text-gray-500">{t('graph.entity.relief')}</span>
           <input
             type="range"
             min={0}
@@ -76,8 +80,8 @@ export function EntityGraphControls({
             step={0.05}
             value={relief}
             onChange={(e) => onReliefChange(Number(e.target.value))}
-            aria-label="Relief"
-            aria-valuetext={`${Math.round(relief * 100)} %`}
+            aria-label={t('graph.entity.relief')}
+            aria-valuetext={t('graph.entity.reliefValue', { percent: Math.round(relief * 100) })}
             className="flex-1 h-9 accent-indigo-400 cursor-pointer"
           />
           <span className="w-9 text-right tabular-nums text-gray-400">
@@ -89,7 +93,7 @@ export function EntityGraphControls({
           <button
             type="button"
             onClick={() => onZoom(1 / 1.3)}
-            aria-label="Zoom out"
+            aria-label={t('graph.entity.zoomOut')}
             className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat}`}
           >
             <Minus size={14} aria-hidden="true" />
@@ -97,20 +101,20 @@ export function EntityGraphControls({
           <button
             type="button"
             onClick={() => onZoom(1.3)}
-            aria-label="Zoom in"
+            aria-label={t('graph.entity.zoomIn')}
             className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat}`}
           >
             <Plus size={14} aria-hidden="true" />
           </button>
-          <Button type="button" variant="ghost" size="sm" flat onClick={onReset} aria-label="Reset view">
+          <Button type="button" variant="ghost" size="sm" flat onClick={onReset} aria-label={t('graph.entity.resetView')}>
             <RotateCcw size={13} aria-hidden="true" />
-            <span className="hidden sm:inline">Reset</span>
+            <span className="hidden sm:inline">{t('graph.entity.reset')}</span>
           </Button>
         </div>
       </div>
 
       {/* Layers — multi-select: each item carries its own pressed state */}
-      <div role="group" aria-label="Layers" className={`${segmented} flex-wrap`}>
+      <div role="group" aria-label={t('graph.entity.layers')} className={`${segmented} flex-wrap`}>
         {NEIGHBORHOOD_LAYERS.map((l) => {
           const meta = LAYER_META[l]
           const on = layers.has(l)
@@ -121,7 +125,7 @@ export function EntityGraphControls({
               type="button"
               aria-pressed={on}
               onClick={() => onToggleLayer(l)}
-              title={meta.description}
+              title={layerDescription(l)}
               className={`${segItem} gap-1.5`}
             >
               <span
@@ -129,7 +133,7 @@ export function EntityGraphControls({
                 className="inline-block w-2 h-2 rounded-full"
                 style={{ backgroundColor: meta.color, opacity: on ? 1 : 0.35 }}
               />
-              {meta.label}
+              {layerLabel(l)}
               {count !== undefined && <span className={`tabular-nums font-normal ${on ? 'text-indigo-100/80' : 'text-gray-500'}`}>{count}</span>}
             </button>
           )

@@ -1,6 +1,8 @@
 import { memo, useCallback, useMemo, type KeyboardEvent, type RefObject } from 'react'
 import type { LaidOutNode, RadialLayout } from './radialLayout'
-import { typeColor, typeLabel } from './entityVisuals'
+import { useT } from '@/i18n'
+import { typeColor } from './entityVisuals'
+import { useEntityLabels } from './useEntityLabels'
 
 export interface EntityGraphCanvasProps {
   layout: RadialLayout
@@ -109,6 +111,8 @@ const Nodes = memo(function Nodes({
   onActivate: (id: string) => void
   onHover: (id: string | null) => void
 }) {
+  const { t } = useT()
+  const { typeLabel } = useEntityLabels()
   const u = layout.size / 600
   const hit = 12 * u // minimum touch radius
   return (
@@ -132,7 +136,7 @@ const Nodes = memo(function Nodes({
             style={{ transform: `translate(${n.x}px, ${n.y}px)`, opacity }}
             role="button"
             tabIndex={0}
-            aria-label={`${typeLabel(n.type)}: ${n.label}`}
+            aria-label={t('graph.entity.nodeLabel', { type: typeLabel(n.type), label: n.label })}
             aria-pressed={selected}
             data-node-id={n.id}
             onClick={(e) => {
@@ -211,6 +215,7 @@ export function EntityGraphCanvas({
   wasDrag,
   dimmed,
 }: EntityGraphCanvasProps) {
+  const { t } = useT()
   const focusId = hoverId ?? selectedId
   const neighbors = useMemo(() => {
     const s = new Set<string>()
@@ -240,7 +245,7 @@ export function EntityGraphCanvas({
       }`}
       style={{ touchAction: 'none', overflow: 'visible' }}
       role="group"
-      aria-label="Neighborhood graph"
+      aria-label={t('graph.entity.canvas')}
       onClick={() => {
         if (!wasDrag()) onSelect(null)
       }}

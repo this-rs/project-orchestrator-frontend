@@ -36,6 +36,8 @@ import { EntityBrowser, EntityIcon } from '@/components/featureGraphs/EntityBrow
 import { EntityDetailPanel } from '@/components/featureGraphs/EntityDetailPanel'
 import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { useT, type MessageKey } from '@/i18n'
+import { useFeatureGraphLabels } from '@/components/featureGraphs/useFeatureGraphLabels'
 import {
   entityColors,
   layoutSubgraph,
@@ -112,25 +114,17 @@ function toFlow(layout: GraphLayout): { nodes: Node<GraphNodeData>[]; edges: Edg
 // ADD ENTITY FORM
 // ============================================================================
 
-const typeOptions = [
-  { value: 'function', label: 'Function' },
-  { value: 'file', label: 'File' },
-  { value: 'struct', label: 'Struct' },
-  { value: 'trait', label: 'Trait' },
-  { value: 'enum', label: 'Enum' },
-]
-
-const roleOptions = [
-  { value: '', label: 'Auto-detect' },
-  { value: 'entry_point', label: 'Entry Point' },
-  { value: 'core_logic', label: 'Core Logic' },
-  { value: 'data_model', label: 'Data Model' },
-  { value: 'trait_contract', label: 'Trait Contract' },
-  { value: 'api_surface', label: 'API Surface' },
-  { value: 'support', label: 'Support' },
-]
+const TYPE_VALUES = ['function', 'file', 'struct', 'trait', 'enum'] as const
+const ROLE_VALUES = ['entry_point', 'core_logic', 'data_model', 'trait_contract', 'api_surface', 'support'] as const
 
 function useAddEntityForm({ graphId, onSuccess }: { graphId: string; onSuccess: () => void }) {
+  const { t } = useT()
+  const labels = useFeatureGraphLabels()
+  const typeOptions = TYPE_VALUES.map((value) => ({ value, label: labels.typeLabel(value) }))
+  const roleOptions = [
+    { value: '', label: t('featureGraphs.detail.autoDetect') },
+    ...ROLE_VALUES.map((value) => ({ value, label: labels.roleWord(value) })),
+  ]
   const [entityId, setEntityId] = useState('')
   const [entityType, setEntityType] = useState<string>('function')
   const [role, setRole] = useState<string>('')
@@ -139,7 +133,7 @@ function useAddEntityForm({ graphId, onSuccess }: { graphId: string; onSuccess: 
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!entityId.trim()) errs.entity_id = 'Entity ID is required'
+    if (!entityId.trim()) errs.entity_id = t('featureGraphs.detail.entityIdRequired')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -147,10 +141,10 @@ function useAddEntityForm({ graphId, onSuccess }: { graphId: string; onSuccess: 
   return {
     fields: (
       <>
-        <p className="text-xs text-gray-500">Add a file or a symbol that Auto-build did not pick up.</p>
-        <Select label="Entity Type" options={typeOptions} value={entityType} onChange={setEntityType} />
+        <p className="text-xs text-gray-500">{t('featureGraphs.detail.addHint')}</p>
+        <Select label={t('featureGraphs.detail.entityType')} options={typeOptions} value={entityType} onChange={setEntityType} />
         <Input
-          label={entityType === 'file' ? 'File Path' : 'Symbol Name'}
+          label={entityType === 'file' ? t('featureGraphs.detail.filePath') : t('featureGraphs.detail.symbolName')}
           placeholder={entityType === 'file' ? 'src/api/handlers.rs' : 'handle_request'}
           value={entityId}
           onChange={(e) => setEntityId(e.target.value)}
@@ -158,7 +152,7 @@ function useAddEntityForm({ graphId, onSuccess }: { graphId: string; onSuccess: 
           className="font-mono"
           autoFocus
         />
-        <Select label="Role" options={roleOptions} value={role} onChange={setRole} />
+        <Select label={t('featureGraphs.detail.role')} options={roleOptions} value={role} onChange={setRole} />
       </>
     ),
     submit: async () => {
@@ -168,7 +162,7 @@ function useAddEntityForm({ graphId, onSuccess }: { graphId: string; onSuccess: 
         entity_id: entityId.trim(),
         role: role ? (role as FeatureGraphRole) : undefined,
       })
-      toast.success('Entity added')
+      toast.success(t('featureGraphs.detail.entityAdded'))
       setEntityId('')
       setRole('')
       onSuccess()
@@ -193,6 +187,7 @@ function GraphCanvas({
   viewById: Map<string, EntityView>
   views: EntityView[]
 }) {
+  const { t } = useT()
   const [attempt, setAttempt] = useState(0)
   const [result, setResult] = useState<LayoutResult | null>(null)
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
@@ -242,29 +237,26 @@ function GraphCanvas({
   return (
     <div className="space-y-2">
       <p role="status" className="text-xs text-gray-400 tabular-nums">
-        {subgraph.nodes.length.toLocaleString()} entities · {subgraph.relations.length.toLocaleString()} relations drawn
+        {t('featureGraphs.detail.drawn', { entities: subgraph.nodes.length, relations: subgraph.relations.length })}
         {droppedEdges > 0 && (
-          <span className="text-amber-400/90">
-            {' '}
-            ({droppedEdges.toLocaleString()} more relations are not drawn to keep panning smooth; every entity is shown)
-          </span>
+          <span className="text-amber-400/90"> {t('featureGraphs.detail.dropped', { n: droppedEdges })}</span>
         )}
       </p>
 
       {failed ? (
         <ErrorState
-          title="The graph could not be drawn"
-          description="Computing the layout failed. The entity list above is unaffected."
+          title={t('featureGraphs.detail.drawFailedTitle')}
+          description={t('featureGraphs.detail.drawFailedDescription')}
           onRetry={() => setAttempt((a) => a + 1)}
         />
       ) : !flow ? (
         <div
           role="status"
-          aria-label="Computing layout"
+          aria-label={t('featureGraphs.detail.computing')}
           style={{ height: 400 }}
           className="animate-pulse rounded-xl border border-white/[0.06] bg-white/[0.03] flex items-center justify-center text-xs text-gray-500"
         >
-          Laying out {subgraph.nodes.length.toLocaleString()} entities…
+          {t('featureGraphs.detail.layingOut', { n: subgraph.nodes.length })}
         </div>
       ) : (
         <div
@@ -331,6 +323,9 @@ interface FGLocationState {
 }
 
 export function FeatureGraphDetailPage() {
+  const { t } = useT()
+  const count = (key: 'entity' | 'relation', n: number) =>
+    t(`featureGraphs.counts.${key}.${n === 1 ? 'one' : 'other'}` as MessageKey, { n })
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
@@ -352,11 +347,11 @@ export function FeatureGraphDetailPage() {
       setDetail(await featureGraphsApi.get(id))
     } catch (err) {
       console.error('Failed to fetch feature graph:', err)
-      setError('Failed to load feature graph')
+      setError(t('featureGraphs.detail.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [id, t])
 
   useEffect(() => {
     fetchData()
@@ -404,7 +399,7 @@ export function FeatureGraphDetailPage() {
   if (error) {
     return (
       <PageContainer width="wide">
-        <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
+        <ErrorState title={t('featureGraphs.detail.failedTitle')} description={error} onRetry={fetchData} />
       </PageContainer>
     )
   }
@@ -425,18 +420,18 @@ export function FeatureGraphDetailPage() {
   const relationCount = detail.relations?.length ?? 0
 
   const parentLinks: ParentLink[] = [
-    { icon: GitGraphIcon, label: 'Feature Graphs', name: 'Feature Graphs', href: workspacePath(wsSlug, '/feature-graphs') },
+    { icon: GitGraphIcon, label: t('nav.concepts.featureGraphs'), name: t('nav.concepts.featureGraphs'), href: workspacePath(wsSlug, '/feature-graphs') },
   ]
   if (parentProject) {
     parentLinks.unshift({
       icon: FolderKanban,
-      label: 'Project',
+      label: t('featureGraphs.list.project'),
       name: parentProject.name,
       href: workspacePath(wsSlug, `/projects/${parentProject.slug}`),
     })
   }
 
-  const openAddEntity = () => addEntityDialog.open({ title: 'Add entity', size: 'md' })
+  const openAddEntity = () => addEntityDialog.open({ title: t('featureGraphs.detail.addEntity'), size: 'md' })
 
   return (
     <PageContainer width="wide" className="space-y-6">
@@ -447,41 +442,41 @@ export function FeatureGraphDetailPage() {
         meta={[
           detail.entry_function ? (
             <span key="entry" className="inline-flex items-baseline gap-1 min-w-0">
-              built from
+              {t('featureGraphs.detail.builtFrom')}
               <code className="font-mono text-gray-300 truncate max-w-[14rem]" title={detail.entry_function}>
                 {detail.entry_function}
               </code>
             </span>
           ) : null,
-          detail.build_depth != null ? `depth ${detail.build_depth}` : null,
-          `${totalEntities.toLocaleString()} ${totalEntities === 1 ? 'entity' : 'entities'}`,
-          relationCount > 0 ? `${relationCount.toLocaleString()} ${relationCount === 1 ? 'relation' : 'relations'}` : null,
-          <RelativeTime key="c" date={detail.created_at} prefix="created " />,
+          detail.build_depth != null ? t('featureGraphs.list.depth', { n: detail.build_depth }) : null,
+          count('entity', totalEntities),
+          relationCount > 0 ? count('relation', relationCount) : null,
+          <RelativeTime key="c" date={detail.created_at} prefix={`${t('featureGraphs.detail.created')} `} />,
         ]}
         actions={
           <Button size="sm" variant="secondary" onClick={openAddEntity}>
             <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
-            Add entity
+            {t('featureGraphs.detail.addEntity')}
           </Button>
         }
         overflowActions={[
           {
-            label: 'Delete',
+            label: t('featureGraphs.detail.delete'),
             icon: Trash2,
             variant: 'danger',
             onClick: async () => {
               try {
                 await featureGraphsApi.delete(detail.id)
-                toast.success('Feature graph deleted')
+                toast.success(t('featureGraphs.detail.deleted'))
                 navigate(workspacePath(wsSlug, '/feature-graphs'))
               } catch {
-                toast.error('Failed to delete feature graph')
+                toast.error(t('featureGraphs.detail.deleteFailed'))
               }
             },
             confirm: {
-              title: 'Delete feature graph?',
-              description: `Delete “${detail.name}” and its entity associations? The code itself is not touched. This cannot be undone.`,
-              confirmLabel: 'Delete',
+              title: t('featureGraphs.detail.deleteTitle'),
+              description: t('featureGraphs.detail.deleteDescription', { name: detail.name }),
+              confirmLabel: t('featureGraphs.detail.delete'),
             },
           },
         ]}
@@ -491,19 +486,19 @@ export function FeatureGraphDetailPage() {
 
       {/* ── Entities, grouped by role ── */}
       <Section
-        title="Entities"
+        title={t('featureGraphs.detail.entities')}
         count={totalEntities}
-        description="The code that implements this feature. Each entry has a readable title, the exact code name and a one-line explanation. Group by role, file or type; scroll to see them all."
+        description={t('featureGraphs.detail.entitiesDescription')}
       >
         {totalEntities === 0 ? (
           <EmptyState
             size="sm"
             icon={<Package />}
-            title="No entities yet"
-            description="This graph is empty. Add files or functions by hand, or create a new one with Auto-build from an entry function."
+            title={t('featureGraphs.detail.noEntities')}
+            description={t('featureGraphs.detail.noEntitiesDescription')}
             action={
               <Button size="sm" variant="secondary" onClick={openAddEntity}>
-                Add entity
+                {t('featureGraphs.detail.addEntity')}
               </Button>
             }
           />
@@ -515,11 +510,11 @@ export function FeatureGraphDetailPage() {
       {/* ── Graph (heavy canvas, opt-in) ── */}
       {totalEntities > 0 && (
         <Section
-          title="Graph"
-          description="Interactive diagram of the entities and their relations. Drag to pan, pinch or scroll to zoom, tap a node for its details."
+          title={t('featureGraphs.detail.graph')}
+          description={t('featureGraphs.detail.graphDescription')}
           action={
             <Button size="sm" variant="ghost" aria-expanded={showGraph} onClick={() => setShowGraph((v) => !v)}>
-              {showGraph ? 'Hide graph' : 'Show graph'}
+              {showGraph ? t('featureGraphs.detail.hideGraph') : t('featureGraphs.detail.showGraph')}
             </Button>
           }
         >

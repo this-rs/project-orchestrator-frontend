@@ -23,13 +23,12 @@ import {
   formatAbsolute,
   formatDay,
   inlineLink,
-  pluralize,
   rowInteractive,
   surface,
   ProgressLine,
   TONE_CLASSES,
 } from '@/components/ui'
-import { NOMENCLATURE } from '@/constants/nomenclature'
+import { useT, type MessageKey } from '@/i18n'
 import { workspacesApi, projectsApi } from '@/services'
 import { useFormDialog, useIsMobile, useLinkDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -73,14 +72,16 @@ function healthTone(score: number): string {
 }
 
 /** The product's words (DESIGN.md § 0): an Objective is still a `milestone` on the wire. */
-const OBJECTIVE = NOMENCLATURE.objectives
-const addObjective = `Add ${OBJECTIVE.singular.toLowerCase()}`
 
 // ============================================================================
 // MAIN PAGE — hub: header (+ intro) → progress → health → graph → attention → lists → timeline → assets → maintenance
 // ============================================================================
 
 export function WorkspaceDetailPage() {
+  const { t } = useT()
+  const count = (n: number, key: 'project' | 'objective' | 'task') =>
+    t(`projects.counts.${key}.${n === 1 ? 'one' : 'other'}` as MessageKey, { n })
+  const addObjective = t('projects.workspace.addObjective')
   const slug = useWorkspaceSlug()
   const navigate = useNavigate()
   const editWorkspaceDialog = useFormDialog()
@@ -142,12 +143,12 @@ export function WorkspaceDetailPage() {
     } catch (err) {
       if (signal.aborted) return
       console.error('Failed to fetch workspace:', err)
-      setError('Failed to load workspace')
+      setError(t('projects.workspace.loadFailed'))
     } finally {
       if (!signal.aborted && isInitialLoad) setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- workspace is a data object (would cause infinite loop)
-  }, [slug, workspaceRefresh, projectRefresh, milestoneRefresh, taskRefresh])
+  }, [slug, t, workspaceRefresh, projectRefresh, milestoneRefresh, taskRefresh])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -160,7 +161,7 @@ export function WorkspaceDetailPage() {
       if (!slug) return
       const newMilestone = await workspacesApi.createMilestone(slug, data)
       setMilestones((prev) => [...prev, { ...newMilestone, progress: undefined }])
-      toast.success(`${OBJECTIVE.singular} added`)
+      toast.success(t('projects.workspace.objectiveAdded'))
     },
   })
 
@@ -169,7 +170,7 @@ export function WorkspaceDetailPage() {
       if (!slug) return
       const newResource = await workspacesApi.createResource(slug, data)
       setResources((prev) => [...prev, newResource])
-      toast.success('Resource added')
+      toast.success(t('projects.workspace.resourceAdded'))
     },
   })
 
@@ -178,7 +179,7 @@ export function WorkspaceDetailPage() {
       if (!slug) return
       const newComponent = await workspacesApi.createComponent(slug, data)
       setComponents((prev) => [...prev, newComponent])
-      toast.success('Component added')
+      toast.success(t('projects.workspace.componentAdded'))
     },
   })
 
@@ -192,7 +193,7 @@ export function WorkspaceDetailPage() {
       if (!slug) return
       const updated = await workspacesApi.update(slug, data)
       setWorkspace(updated)
-      toast.success('Workspace renamed')
+      toast.success(t('projects.workspace.renamed'))
       if (data.slug && data.slug !== slug) {
         navigate(`/workspace/${data.slug}/overview`, { replace: true })
       }
@@ -207,8 +208,8 @@ export function WorkspaceDetailPage() {
   if (error || !workspace)
     return (
       <ErrorState
-        title="Failed to load"
-        description={error ?? 'Workspace data unavailable'}
+        title={t('projects.common.failedTitle')}
+        description={error ?? t('projects.workspace.unavailable')}
         onRetry={() => fetchData(new AbortController().signal)}
       />
     )
@@ -217,8 +218,8 @@ export function WorkspaceDetailPage() {
 
   const openAddProject = () =>
     linkDialog.open({
-      title: 'Add project',
-      submitLabel: 'Add',
+      title: t('projects.workspace.addProject'),
+      submitLabel: t('projects.common.add'),
       fetchOptions: async () => {
         const data = await projectsApi.list()
         const existingIds = new Set(projects.map((p) => p.id))
@@ -231,14 +232,14 @@ export function WorkspaceDetailPage() {
         const data = await projectsApi.list()
         const proj = (data.items || []).find((p) => p.id === projectId)
         if (proj) setProjects((prev) => [...prev, proj])
-        toast.success('Project added')
+        toast.success(t('projects.workspace.projectAdded'))
       },
     })
 
   const openMoveProject = (project: Project) =>
     moveDialog.open({
-      title: `Move "${project.name}" to workspace`,
-      submitLabel: 'Move',
+      title: t('projects.workspace.moveTitle', { name: project.name }),
+      submitLabel: t('projects.workspace.move'),
       fetchOptions: async () => {
         const allWorkspaces = await workspacesApi.list()
         return (allWorkspaces.items || [])
@@ -249,26 +250,26 @@ export function WorkspaceDetailPage() {
         await workspacesApi.removeProject(workspace.slug, project.id)
         await workspacesApi.addProject(targetSlug, project.id)
         setProjects((prev) => prev.filter((p) => p.id !== project.id))
-        toast.success(`Project moved to ${targetSlug}`)
+        toast.success(t('projects.workspace.projectMoved', { slug: targetSlug }))
       },
     })
 
   const removeProject = async (project: Project) => {
     await workspacesApi.removeProject(workspace.slug, project.id)
     setProjects((prev) => prev.filter((p) => p.id !== project.id))
-    toast.success('Project removed')
+    toast.success(t('projects.workspace.projectRemoved'))
   }
 
   const deleteResource = async (resource: Resource) => {
     await workspacesApi.deleteResource(resource.id)
     setResources((prev) => prev.filter((r) => r.id !== resource.id))
-    toast.success('Resource deleted')
+    toast.success(t('projects.workspace.resourceDeleted'))
   }
 
   const deleteComponent = async (component: Component) => {
     await workspacesApi.deleteComponent(component.id)
     setComponents((prev) => prev.filter((c) => c.id !== component.id))
-    toast.success('Component deleted')
+    toast.success(t('projects.workspace.componentDeleted'))
   }
 
   const graphFallback = <Skeleton className="w-full h-[300px] sm:h-[450px] rounded-xl!" />
@@ -283,32 +284,32 @@ export function WorkspaceDetailPage() {
         meta={[
           intelReady ? (
             <MetricTooltip key="health" term="health_score">
-              <span className={`tabular-nums ${healthTone(intelligence.healthScore)}`}>Health {intelligence.healthScore}</span>
+              <span className={`tabular-nums ${healthTone(intelligence.healthScore)}`}>{t('projects.workspace.healthScore', { score: intelligence.healthScore })}</span>
             </MetricTooltip>
           ) : null,
-          pluralize(projects.length, 'project'),
-          pluralize(milestones.length, OBJECTIVE.singular.toLowerCase()),
-          workspace.updated_at ? <RelativeTime key="upd" date={workspace.updated_at} prefix="updated " /> : null,
+          count(projects.length, 'project'),
+          count(milestones.length, 'objective'),
+          workspace.updated_at ? <RelativeTime key="upd" date={workspace.updated_at} prefix={`${t('projects.common.updated')} `} /> : null,
         ]}
         overflowActions={[
           {
-            label: 'Edit',
+            label: t('projects.common.edit'),
             icon: Pencil,
-            onClick: () => editWorkspaceDialog.open({ title: 'Edit workspace' }),
+            onClick: () => editWorkspaceDialog.open({ title: t('projects.workspace.editTitle') }),
           },
           {
-            label: 'Delete',
+            label: t('projects.common.delete'),
             icon: Trash2,
             variant: 'danger',
             onClick: async () => {
               await workspacesApi.delete(workspace.slug)
-              toast.success('Workspace deleted')
+              toast.success(t('projects.workspace.deleted'))
               navigate('/workspace-selector')
             },
             confirm: {
-              title: 'Delete workspace?',
-              description: `This will permanently delete "${workspace.name}". Projects will not be deleted.`,
-              confirmLabel: 'Delete',
+              title: t('projects.workspace.deleteTitle'),
+              description: t('projects.workspace.deleteDescription', { name: workspace.name }),
+              confirmLabel: t('projects.common.delete'),
             },
           },
         ]}
@@ -316,16 +317,20 @@ export function WorkspaceDetailPage() {
 
       {/* ── Progress (only when tasks exist) ── */}
       {overallProgress && overallProgress.total_tasks > 0 && (
-        <section aria-label="Workspace progress" className="space-y-1.5">
-          <ProgressLine value={overallProgress.percentage} size="md" label="Workspace progress" />
+        <section aria-label={t('projects.workspace.progress')} className="space-y-1.5">
+          <ProgressLine value={overallProgress.percentage} size="md" label={t('projects.workspace.progress')} />
           <p className="text-[11px] leading-4 text-gray-500 tabular-nums">
-            {overallProgress.completed_tasks} / {overallProgress.total_tasks} tasks completed · {Math.round(overallProgress.percentage)}%
+            {t('projects.workspace.tasksCompleted', {
+              done: overallProgress.completed_tasks,
+              total: overallProgress.total_tasks,
+              percent: Math.round(overallProgress.percentage),
+            })}
           </p>
         </section>
       )}
 
       {/* ── Health: key numbers + breakdown ── */}
-      <Section title="Health" action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
+      <Section title={t('projects.common.health')} action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
         {intelReady && intelligence.summary ? (
           <IntelPulse data={intelligence} />
         ) : (
@@ -335,7 +340,7 @@ export function WorkspaceDetailPage() {
 
       {/* ── Graph (visual, collapsed on phones — heavy WebGL) ── */}
       {slug && (
-        <Section title="Graph" collapsible defaultOpen={!isMobile}>
+        <Section title={t('projects.workspace.graph')} collapsible defaultOpen={!isMobile}>
           <div className={`${surface} overflow-hidden`}>
             <Suspense fallback={graphFallback}>
               <WorkspaceGraphPage workspaceSlug={slug} embedded />
@@ -349,34 +354,34 @@ export function WorkspaceDetailPage() {
 
       {/* ── Projects ── */}
       <Section
-        title={NOMENCLATURE.projects.plural}
+        title={t('nav.concepts.projects')}
         count={projects.length}
         action={
           <Button size="sm" variant="ghost" onClick={openAddProject}>
-            Add
+            {t('projects.common.add')}
           </Button>
         }
       >
         {projects.length === 0 ? (
           <EmptyState
             size="sm"
-            title="No projects yet"
-            description="Add an existing project or create one from the Projects page."
+            title={t('projects.list.emptyTitle')}
+            description={t('projects.workspace.noProjectsDescription')}
             action={
               <Button size="sm" variant="secondary" onClick={openAddProject}>
-                Add
+                {t('projects.common.add')}
               </Button>
             }
           />
         ) : (
-          <EntityList aria-label="Projects">
+          <EntityList aria-label={t('nav.concepts.projects')}>
             {projects.map((project) => (
               <EntityRow
                 key={project.id}
                 title={project.name}
                 href={workspacePath(slug, `/projects/${project.slug}`)}
                 description={project.description || undefined}
-                trailing={project.last_synced ? <RelativeTime date={project.last_synced} prefix="synced " /> : undefined}
+                trailing={project.last_synced ? <RelativeTime date={project.last_synced} prefix={`${t('projects.common.synced')} `} /> : undefined}
                 meta={[
                   <span key="slug" className="font-mono">
                     {project.slug}
@@ -399,18 +404,18 @@ export function WorkspaceDetailPage() {
                     )}
                     <OverflowMenu
                       size="sm"
-                      label={`Actions for ${project.name}`}
+                      label={t('projects.workspace.actionsFor', { name: project.name })}
                       actions={[
-                        { label: 'Move to another workspace', icon: ArrowRightLeft, onClick: () => openMoveProject(project) },
+                        { label: t('projects.workspace.moveToAnother'), icon: ArrowRightLeft, onClick: () => openMoveProject(project) },
                         {
-                          label: 'Remove',
+                          label: t('projects.common.remove'),
                           icon: X,
                           variant: 'danger',
                           onClick: () => removeProject(project),
                           confirm: {
-                            title: 'Remove project from workspace?',
-                            description: `“${project.name}” stays intact; it is only detached from this workspace.`,
-                            confirmLabel: 'Remove',
+                            title: t('projects.workspace.removeTitle'),
+                            description: t('projects.workspace.removeDescription', { name: project.name }),
+                            confirmLabel: t('projects.common.remove'),
                           },
                         },
                       ]}
@@ -425,27 +430,27 @@ export function WorkspaceDetailPage() {
 
       {/* ── Objectives (milestones on the wire) ── */}
       <Section
-        title={OBJECTIVE.plural}
+        title={t('nav.concepts.objectives')}
         count={milestones.length}
         action={
           <Button size="sm" variant="ghost" onClick={() => milestoneFormDialog.open({ title: addObjective })}>
-            Add
+            {t('projects.common.add')}
           </Button>
         }
       >
         {milestones.length === 0 ? (
           <EmptyState
             size="sm"
-            title={`No ${OBJECTIVE.plural.toLowerCase()} yet`}
-            description={OBJECTIVE.description}
+            title={t('projects.workspace.noObjectives')}
+            description={t('projects.workspace.objectivesDescription')}
             action={
               <Button size="sm" variant="secondary" onClick={() => milestoneFormDialog.open({ title: addObjective })}>
-                Add
+                {t('projects.common.add')}
               </Button>
             }
           />
         ) : (
-          <EntityList aria-label={OBJECTIVE.plural}>
+          <EntityList aria-label={t('nav.concepts.objectives')}>
             {milestones.map((milestone) => {
               const p = milestone.progress
               return (
@@ -459,21 +464,21 @@ export function WorkspaceDetailPage() {
                     <StatusText key="s" kind="milestone" status={milestone.status} />,
                     p && p.total > 0 ? (
                       <span key="p" className="tabular-nums">
-                        {p.completed}/{pluralize(p.total, 'task')}
+                        {p.completed}/{count(p.total, 'task')}
                       </span>
                     ) : null,
                     milestone.target_date ? (
                       <span key="t" title={formatAbsolute(milestone.target_date)}>
-                        due {formatDay(milestone.target_date)}
+                        {t('projects.common.due', { date: formatDay(milestone.target_date) })}
                       </span>
                     ) : null,
                     milestone.tags?.length ? (
                       <span key="tags" className="text-gray-500">
-                        {milestone.tags.map((t) => `#${t}`).join(' ')}
+                        {milestone.tags.map((tag) => `#${tag}`).join(' ')}
                       </span>
                     ) : null,
                   ]}
-                  context={p && p.total > 0 ? <ProgressLine value={p.percentage} label={`${milestone.title} progress`} /> : undefined}
+                  context={p && p.total > 0 ? <ProgressLine value={p.percentage} label={t('projects.workspace.progressOf', { title: milestone.title })} /> : undefined}
                 />
               )
             })}
@@ -483,7 +488,7 @@ export function WorkspaceDetailPage() {
 
       {/* ── Timeline (collapsed on phones) ── */}
       {slug && (
-        <Section title="Timeline" collapsible defaultOpen={!isMobile}>
+        <Section title={t('projects.workspace.timeline')} collapsible defaultOpen={!isMobile}>
           <div className={`${surface} px-3 md:px-4`}>
             <Suspense fallback={graphFallback}>
               <WorkspaceLearningTimeline workspaceSlug={slug} embedded />
@@ -494,27 +499,27 @@ export function WorkspaceDetailPage() {
 
       {/* ── Resources ── */}
       <Section
-        title="Resources"
+        title={t('projects.workspace.resources')}
         count={resources.length}
         action={
-          <Button size="sm" variant="ghost" onClick={() => resourceFormDialog.open({ title: 'Add resource', size: 'lg' })}>
-            Add
+          <Button size="sm" variant="ghost" onClick={() => resourceFormDialog.open({ title: t('projects.workspace.addResource'), size: 'lg' })}>
+            {t('projects.common.add')}
           </Button>
         }
       >
         {resources.length === 0 ? (
           <EmptyState
             size="sm"
-            title="No resources yet"
-            description="API contracts, schemas and specs shared by projects."
+            title={t('projects.workspace.noResources')}
+            description={t('projects.workspace.noResourcesDescription')}
             action={
-              <Button size="sm" variant="secondary" onClick={() => resourceFormDialog.open({ title: 'Add resource', size: 'lg' })}>
-                Add
+              <Button size="sm" variant="secondary" onClick={() => resourceFormDialog.open({ title: t('projects.workspace.addResource'), size: 'lg' })}>
+                {t('projects.common.add')}
               </Button>
             }
           />
         ) : (
-          <EntityList aria-label="Resources">
+          <EntityList aria-label={t('projects.workspace.resources')}>
             {resources.map((resource) => (
               <EntityRow
                 key={resource.id}
@@ -537,17 +542,20 @@ export function WorkspaceDetailPage() {
                       rel="noreferrer"
                       className={`inline-flex items-center gap-1 ${inlineLink} ${rowInteractive}`}
                     >
-                      Open <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                      {t('projects.common.open')} <ExternalLink className="w-3 h-3" aria-hidden="true" />
                     </a>
                   ) : null,
                 ]}
                 actions={[
                   {
-                    label: 'Delete',
+                    label: t('projects.common.delete'),
                     icon: Trash2,
                     variant: 'danger',
                     onClick: () => deleteResource(resource),
-                    confirm: { title: 'Delete resource?', description: `“${resource.name}” will be permanently deleted.` },
+                    confirm: {
+                      title: t('projects.workspace.deleteResourceTitle'),
+                      description: t('projects.workspace.deleteResourceDescription', { name: resource.name }),
+                    },
                   },
                 ]}
               />
@@ -558,27 +566,27 @@ export function WorkspaceDetailPage() {
 
       {/* ── Components ── */}
       <Section
-        title="Components"
+        title={t('projects.workspace.components')}
         count={components.length}
         action={
-          <Button size="sm" variant="ghost" onClick={() => componentFormDialog.open({ title: 'Add component' })}>
-            Add
+          <Button size="sm" variant="ghost" onClick={() => componentFormDialog.open({ title: t('projects.workspace.addComponent') })}>
+            {t('projects.common.add')}
           </Button>
         }
       >
         {components.length === 0 ? (
           <EmptyState
             size="sm"
-            title="No components yet"
-            description="Services, frontends, databases… of the deployed system."
+            title={t('projects.workspace.noComponents')}
+            description={t('projects.workspace.noComponentsDescription')}
             action={
-              <Button size="sm" variant="secondary" onClick={() => componentFormDialog.open({ title: 'Add component' })}>
-                Add
+              <Button size="sm" variant="secondary" onClick={() => componentFormDialog.open({ title: t('projects.workspace.addComponent') })}>
+                {t('projects.common.add')}
               </Button>
             }
           />
         ) : (
-          <EntityList aria-label="Components">
+          <EntityList aria-label={t('projects.workspace.components')}>
             {components.map((component) => (
               <EntityRow
                 key={component.id}
@@ -587,15 +595,18 @@ export function WorkspaceDetailPage() {
                 meta={[
                   <span key="type">{component.component_type}</span>,
                   component.runtime,
-                  component.tags?.length ? component.tags.map((t) => `#${t}`).join(' ') : null,
+                  component.tags?.length ? component.tags.map((tag) => `#${tag}`).join(' ') : null,
                 ]}
                 actions={[
                   {
-                    label: 'Delete',
+                    label: t('projects.common.delete'),
                     icon: Trash2,
                     variant: 'danger',
                     onClick: () => deleteComponent(component),
-                    confirm: { title: 'Delete component?', description: `“${component.name}” will be permanently deleted.` },
+                    confirm: {
+                      title: t('projects.workspace.deleteComponentTitle'),
+                      description: t('projects.workspace.deleteComponentDescription', { name: component.name }),
+                    },
                   },
                 ]}
               />

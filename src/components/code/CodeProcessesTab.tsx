@@ -12,10 +12,11 @@ import {
   SkeletonLine,
   focusRing,
   groupBy,
-  pluralize,
   textLink,
 } from '@/components/ui'
 import { useToast } from '@/hooks'
+import { useT } from '@/i18n'
+import { useCodeCount } from './useCodeCount'
 import { codeApi } from '@/services'
 import type { EntryPoint, ProcessSummary } from '@/types'
 
@@ -32,13 +33,6 @@ interface ProcessStep {
 
 const ENTRY_TYPE_ORDER = ['main', 'handler', 'cli', 'event', 'other'] as const
 type EntryType = (typeof ENTRY_TYPE_ORDER)[number]
-const ENTRY_TYPE_LABEL: Record<EntryType, string> = {
-  main: 'Main functions',
-  handler: 'HTTP handlers',
-  cli: 'CLI commands',
-  event: 'Event handlers',
-  other: 'Other entry points',
-}
 const entryType = (ep: EntryPoint): EntryType => {
   const t = (ep.type ?? '').toLowerCase()
   return (ENTRY_TYPE_ORDER as readonly string[]).includes(t) ? (t as EntryType) : 'other'
@@ -52,6 +46,8 @@ function shortName(id: string): string {
 }
 
 export function CodeProcessesTab({ projectSlug, onOpenFile }: CodeProcessesTabProps) {
+  const { t } = useT()
+  const count = useCodeCount()
   const toast = useToast()
   const [entryPoints, setEntryPoints] = useState<EntryPoint[]>([])
   const [processes, setProcesses] = useState<ProcessSummary[]>([])
@@ -74,11 +70,11 @@ export function CodeProcessesTab({ projectSlug, onOpenFile }: CodeProcessesTabPr
       setEntryPoints(epData.entry_points)
       setProcesses(procData.processes)
     } catch {
-      setError('Could not load the processes.')
+      setError(t('code.processes.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [projectSlug])
+  }, [projectSlug, t])
 
   useEffect(() => {
     loadData()
@@ -90,9 +86,9 @@ export function CodeProcessesTab({ projectSlug, onOpenFile }: CodeProcessesTabPr
     try {
       await codeApi.detectProcesses({ project_slug: projectSlug })
       await loadData()
-      toast.success('Process detection finished')
+      toast.success(t('code.processes.detectDone'))
     } catch {
-      toast.error('Process detection failed')
+      toast.error(t('code.processes.detectFailed'))
     } finally {
       setDetecting(false)
     }
@@ -122,42 +118,42 @@ export function CodeProcessesTab({ projectSlug, onOpenFile }: CodeProcessesTabPr
   if (!projectSlug) {
     return (
       <EmptyState
-        title="Select a project"
-        description="Process detection works on one project at a time — pick one in the filter above."
+        title={t('code.common.selectProject')}
+        description={t('code.processes.needProject')}
       />
     )
   }
   if (loading && processes.length === 0 && entryPoints.length === 0) return <EntityListSkeleton rows={4} />
-  if (error) return <ErrorState title="Processes unavailable" description={error} onRetry={loadData} />
+  if (error) return <ErrorState title={t('code.processes.unavailable')} description={error} onRetry={loadData} />
 
   const detectButton = (
     <Button variant="secondary" size="sm" onClick={handleDetect} loading={detecting}>
       <Play className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
-      Detect processes
+      {t('code.processes.detect')}
     </Button>
   )
 
   return (
     <div className="space-y-6">
       <Section
-        title="Entry points"
+        title={t('code.processes.entryPoints')}
         count={entryPoints.length}
-        description="Where execution starts: main functions, HTTP handlers, CLI commands, event handlers."
+        description={t('code.processes.entryPointsDescription')}
         action={detectButton}
       >
         {entryPoints.length === 0 ? (
-          <EmptyState size="sm" title="No entry points found" description="Detect processes scans the codebase for them." />
+          <EmptyState size="sm" title={t('code.processes.noEntryPoints')} description={t('code.processes.noEntryPointsDescription')} />
         ) : (
           <div>
             {entryGroups.map(({ key, items }) => (
-              <ListGroup key={key} title={ENTRY_TYPE_LABEL[key]} count={items.length} collapsible defaultOpen={entryGroups.length <= 2}>
+              <ListGroup key={key} title={t(`code.processes.entry.${key}`)} count={items.length} collapsible defaultOpen={entryGroups.length <= 2}>
                 {items.map((ep) => (
                   <EntityRow
                     key={ep.id}
                     title={<span className="font-mono">{shortName(ep.id)}</span>}
                     ariaLabel={ep.id}
                     description={ep.id !== shortName(ep.id) ? <span className="font-mono break-all">{ep.id}</span> : undefined}
-                    trailing={<span title="Entry score">{ep.score.toFixed(2)}</span>}
+                    trailing={<span title={t('code.processes.entryScore')}>{ep.score.toFixed(2)}</span>}
                   />
                 ))}
               </ListGroup>
@@ -167,18 +163,18 @@ export function CodeProcessesTab({ projectSlug, onOpenFile }: CodeProcessesTabPr
       </Section>
 
       <Section
-        title="Detected processes"
+        title={t('code.processes.detected')}
         count={processes.length}
-        description="Business flows traced from the entry points. Open one to follow its steps."
+        description={t('code.processes.detectedDescription')}
       >
         {processes.length === 0 ? (
           <EmptyState
             size="sm"
-            title="No processes detected"
-            description="Run Detect processes to trace call chains from the entry points."
+            title={t('code.processes.noProcesses')}
+            description={t('code.processes.noProcessesDescription')}
           />
         ) : (
-          <EntityList aria-label="Detected processes">
+          <EntityList aria-label={t('code.processes.detected')}>
             {processes.map((proc) => {
               const open = expandedProcess === proc.id
               return (
@@ -189,19 +185,19 @@ export function CodeProcessesTab({ projectSlug, onOpenFile }: CodeProcessesTabPr
                   selected={open}
                   expanded={open}
                   chevron
-                  trailing={pluralize(proc.total, 'step')}
+                  trailing={count('step', proc.total)}
                 >
                   {open &&
                     (loadingSteps ? (
-                      <div className="space-y-2" role="status" aria-label="Loading steps">
+                      <div className="space-y-2" role="status" aria-label={t('code.processes.loadingSteps')}>
                         <SkeletonLine width="60%" />
                         <SkeletonLine width="45%" />
                         <SkeletonLine width="55%" />
                       </div>
                     ) : processSteps.length === 0 ? (
-                      <p className="text-xs text-gray-500">No steps available.</p>
+                      <p className="text-xs text-gray-500">{t('code.processes.noSteps')}</p>
                     ) : (
-                      <ol className="space-y-2 border-l border-white/[0.08] ml-1 pl-3" aria-label={`Steps of ${proc.label || proc.id}`}>
+                      <ol className="space-y-2 border-l border-white/[0.08] ml-1 pl-3" aria-label={t('code.processes.stepsOf', { name: proc.label || proc.id })}>
                         {processSteps.map((step, idx) => (
                           <li key={`${step.function_name}-${idx}`} className="min-w-0">
                             <span className="block font-mono text-sm text-gray-200 break-all">{step.function_name}</span>

@@ -20,6 +20,7 @@ import { Link } from 'react-router-dom'
 import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
 import { EmptyState, ViewTabs, type ViewTab } from '@/components/ui'
 import { glass, glassFlat, iconButton } from '@/components/ui/classes'
+import { useT } from '@/i18n'
 import { EntityGroupPanel } from './EntityGroupPanel'
 import { useEntityGroups } from '@/hooks/useEntityGroups'
 import { useActivationWebSocket } from '@/hooks/useActivationWebSocket'
@@ -150,9 +151,10 @@ export interface GraphBreadcrumb {
 }
 
 function GraphBreadcrumbs({ items }: { items: GraphBreadcrumb[] }) {
+  const { t } = useT()
   if (items.length === 0) return null
   return (
-    <nav aria-label="Graph breadcrumbs" className="flex flex-wrap items-center gap-x-1 gap-y-0.5 px-3 md:px-4 py-1.5 text-xs text-gray-400 border-b border-white/[0.06] min-w-0">
+    <nav aria-label={t('graph.unified.breadcrumbs')} className="flex flex-wrap items-center gap-x-1 gap-y-0.5 px-3 md:px-4 py-1.5 text-xs text-gray-400 border-b border-white/[0.06] min-w-0">
       {items.map((item, i) => (
         <React.Fragment key={i}>
           {i > 0 && <ChevronRight className="w-3 h-3 text-gray-600 flex-shrink-0" aria-hidden="true" />}
@@ -256,6 +258,7 @@ export function UnifiedGraphSection<T>({
   projectSlug,
   className = '',
 }: UnifiedGraphSectionProps<T>) {
+  const { t } = useT()
   // Lightweight WS for spreading activation on fractal graphs (plan/milestone/task pages)
   // Only connects when projectSlug is provided and 3D view is active
   useActivationWebSocket(projectSlug)
@@ -381,7 +384,7 @@ export function UnifiedGraphSection<T>({
   const viewTabs: ViewTab<FractalViewMode>[] = [
     ...(views.includes('dag') ? [{ id: 'dag' as const, label: 'DAG', icon: <GitFork /> }] : []),
     ...(views.includes('waves')
-      ? [{ id: 'waves' as const, label: wavesLoading ? 'Computing…' : 'Waves', icon: <Layers />, disabled: wavesLoading }]
+      ? [{ id: 'waves' as const, label: wavesLoading ? t('graph.unified.computing') : t('graph.unified.waves'), icon: <Layers />, disabled: wavesLoading }]
       : []),
     ...(views.includes('3d') ? [{ id: '3d' as const, label: '3D', icon: <Box /> }] : []),
   ]
@@ -392,21 +395,24 @@ export function UnifiedGraphSection<T>({
 
   // Dynamic title
   const displayTitle = title ?? (
-    viewMode === 'waves' ? 'Execution Waves'
-    : viewMode === '3d' ? '3D Universe'
-    : 'Dependency Graph'
+    viewMode === 'waves' ? t('graph.unified.wavesTitle')
+    : viewMode === '3d' ? t('graph.unified.universeTitle')
+    : t('graph.unified.dependencyTitle')
   )
 
   // Summary stats
   const summaryText = useMemo(() => {
     if (viewMode === 'waves' && waves) {
-      return `${waves.summary.total_waves} waves · ${waves.summary.total_tasks} tasks`
+      return t('graph.unified.wavesSummary', { waves: waves.summary.total_waves, tasks: waves.summary.total_tasks })
     }
     if (viewMode === '3d') {
-      return `${nodes.length} nodes`
+      return t('graph.unified.nodesSummary', { n: nodes.length })
     }
-    return `${counts.core - 1} tasks · ${links.filter((l) => l.type === 'DEPENDS_ON').length} deps`
-  }, [viewMode, waves, nodes.length, counts, links])
+    return t('graph.unified.dagSummary', {
+      tasks: counts.core - 1,
+      deps: links.filter((l) => l.type === 'DEPENDS_ON').length,
+    })
+  }, [viewMode, waves, nodes.length, counts, links, t])
 
   // ── 3D content (shared between inline and fullscreen portal) ──────────────
 
@@ -456,8 +462,8 @@ export function UnifiedGraphSection<T>({
             value={graphBrightness}
             onChange={(e) => setGraphBrightness(parseFloat(e.target.value))}
             className="graph-brightness-slider"
-            title={`Brightness: ${Math.round(graphBrightness * 100)}%`}
-            aria-label="Brightness"
+            title={t('graph.unified.brightnessValue', { percent: Math.round(graphBrightness * 100) })}
+            aria-label={t('graph.unified.brightness')}
             style={{
               writingMode: 'vertical-lr',
               direction: 'rtl',
@@ -475,8 +481,8 @@ export function UnifiedGraphSection<T>({
           type="button"
           onClick={toggleFullscreen}
           className={`${iconButton('secondary', 'size-9 md:size-8')} ${glassFlat}`}
-          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-          aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          title={isFullscreen ? t('graph.unified.exitFullscreen') : t('graph.unified.fullscreen')}
+          aria-label={isFullscreen ? t('graph.unified.exitFullscreen') : t('graph.unified.fullscreen')}
         >
           {isFullscreen ? <Minimize size={14} aria-hidden="true" /> : <Maximize size={14} aria-hidden="true" />}
         </button>
@@ -497,14 +503,14 @@ export function UnifiedGraphSection<T>({
         </div>
 
         {/* View mode — the segmented control of the design system */}
-        <ViewTabs tabs={viewTabs} value={viewMode} onChange={selectView} label="Graph view" className="min-w-0" />
+        <ViewTabs tabs={viewTabs} value={viewMode} onChange={selectView} label={t('graph.unified.view')} className="min-w-0" />
       </div>
 
       {/* Content */}
       <div className="relative">
         <Suspense
           fallback={
-            <div className="h-[360px] sm:h-[400px] animate-pulse bg-white/[0.03]" aria-busy="true" aria-label="Loading graph" />
+            <div className="h-[360px] sm:h-[400px] animate-pulse bg-white/[0.03]" aria-busy="true" aria-label={t('graph.unified.loading')} />
           }
         >
           {viewMode === '3d' ? (
@@ -532,7 +538,7 @@ export function UnifiedGraphSection<T>({
             </div>
           ) : (
             <div className="flex items-center justify-center h-[240px] sm:h-[400px]">
-              <EmptyState size="sm" title="No graph yet" description="There is nothing to draw for this view." />
+              <EmptyState size="sm" title={t('graph.unified.emptyTitle')} description={t('graph.unified.emptyDescription')} />
             </div>
           )}
         </Suspense>

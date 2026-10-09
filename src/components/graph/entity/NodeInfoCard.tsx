@@ -4,7 +4,9 @@ import { glass, glassButton, glassFlat, iconButton, popIn } from '@/components/u
 import type { NeighborhoodNode } from '@/services/neighborhood'
 import type { PathStep } from './radialLayout'
 import { EntityTypeIcon } from './EntityTypeIcon'
-import { relLabel, typeLabel } from './entityVisuals'
+import { useT } from '@/i18n'
+import { relLabel } from './entityVisuals'
+import { useEntityLabels } from './useEntityLabels'
 
 export interface NodeInfoCardProps {
   node: NeighborhoodNode
@@ -31,13 +33,15 @@ export function NodeInfoCard({
   onOpen,
   onClose,
 }: NodeInfoCardProps) {
+  const { t } = useT()
+  const { typeLabel } = useEntityLabels()
   const canOpen = !isCenter && (href !== null || onOpen !== undefined)
-  const openLabel = 'Open'
+  const openLabel = t('graph.entity.card.open')
 
   return (
     <div
       role="dialog"
-      aria-label={`Details: ${node.label}`}
+      aria-label={t('graph.entity.card.details', { label: node.label })}
       className={`eg-card rounded-xl p-3 text-xs text-gray-300 ${glass} ${popIn}`}
     >
       <div className="flex items-start gap-2">
@@ -49,11 +53,13 @@ export function NodeInfoCard({
             {typeLabel(node.type)}
             {!isCenter && (
               <>
-                {' · '}{node.depth} hop{node.depth > 1 ? 's' : ''} away
-                {' · '}salience {Math.round(node.weight * 100)}%
+                {' · '}
+                {t(node.depth > 1 ? 'graph.entity.card.hopsOther' : 'graph.entity.card.hopsOne', { n: node.depth })}
+                {' · '}
+                {t('graph.entity.card.salience', { percent: Math.round(node.weight * 100) })}
               </>
             )}
-            {isCenter && ' · current entity'}
+            {isCenter && ` · ${t('graph.entity.card.current')}`}
           </div>
           <div className="text-sm font-medium text-gray-100 break-words">{node.label}</div>
           {node.subtitle && <div className="text-gray-400 break-words">{node.subtitle}</div>}
@@ -61,7 +67,7 @@ export function NodeInfoCard({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={t('graph.entity.card.close')}
           className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} shrink-0 -mr-1 -mt-1`}
         >
           <X size={14} aria-hidden="true" />
@@ -69,7 +75,7 @@ export function NodeInfoCard({
       </div>
 
       {!isCenter && (
-        <div className="mt-2" aria-label="Relation to the center">
+        <div className="mt-2" aria-label={t('graph.entity.card.relation')}>
           {path && path.length > 0 ? (
             <ol className="flex flex-wrap items-center gap-1 text-[11px]">
               {path.map((s, i) => (
@@ -86,7 +92,7 @@ export function NodeInfoCard({
             </ol>
           ) : (
             <span className="text-gray-500">
-              Indirect relation (link hidden by the relief or the layers).
+              {t('graph.entity.card.indirect')}
             </span>
           )}
         </div>
