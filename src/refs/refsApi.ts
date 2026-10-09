@@ -1,5 +1,7 @@
 import { api, buildQuery, ApiError } from '@/services/api'
-import { isRefKind, REF_KINDS, type RefKind, type RefProject } from './types'
+import { HISTORICAL_KIND_NAMES, isActiveKind, kindInfo } from './kinds'
+import { validateRefId } from './ids'
+import type { RefKind, RefProject } from './types'
 
 /** One search result (contract C4 / `search_response.json`): a pointer, never content. */
 export interface RefSearchItem {
@@ -16,7 +18,13 @@ export interface RefSearchParams {
   q: string
   kinds?: readonly RefKind[]
   limit?: number
+  /** Sensitive kinds (persona, skill...) are only suggested inside a project: say which. */
+  projectId?: string
 }
+
+/** Exactly the kinds a search without `kinds` asks for: nothing needs to be said. */
+const isDefaultKinds = (kinds: readonly string[]): boolean =>
+  kinds.length === HISTORICAL_KIND_NAMES.length && HISTORICAL_KIND_NAMES.every((k) => kinds.includes(k))
 
 const asProject = (v: unknown): RefProject | undefined => {
   if (!v || typeof v !== 'object') return undefined
@@ -34,8 +42,10 @@ export function parseSearchResponse(raw: unknown): RefSearchItem[] {
   for (const it of items) {
     if (!it || typeof it !== 'object') continue
     const e = it as Record<string, unknown>
-    if (!isRefKind(e.kind) || typeof e.id !== 'string' || typeof e.label !== 'string') continue
-    const item: RefSearchItem = { kind: e.kind, id: e.id, label: e.label }
+    if (!isActiveKind(e.kind) || typeof e.label !== 'string') continue
+    const format = kindInfo(e.kind)?.idFormat ?? 'uuid'
+    if (!validateRefId(format, e.id)) continue
+    const item: RefSearchItem = { kind: e.kind, id: e.id as string, label: e.label }
     if (typeof e.subtitle === 'string') item.subtitle = e.subtitle
     if (typeof e.entity_status === 'string') item.entity_status = e.entity_status
     const project = asProject(e.project)
@@ -71,9 +81,10 @@ export function readRefsInvalid(err: unknown): RefsInvalid | null {
 
 export const refsApi = {
   /** `GET /api/refs/search`. The signal aborts a request the user has already typed past. */
-  async search({ q, kinds, limit }: RefSearchParams, signal?: AbortSignal): Promise<RefSearchItem[]> {
-    const active = kinds && kinds.length > 0 && kinds.length < REF_KINDS.length ? kinds.join(',') : undefined
-    const raw = await api.get<unknown>(`/refs/search${buildQuery({ q, kinds: active, limit })}`, signal)
+  async search({ q, kinds, limit, projectId }: RefSearchParams, signal?: AbortSignal): Promise<RefSearchItem[]> {
+    // A search without `kinds` asks for the five historical ones; any other kind must be named.
+    const active = kinds && kinds.length > 0 && !isDefaultKinds(kinds) ? kinds.join(',') : undefined
+    const raw = await api.get<unknown>(`/refs/search${buildQuery({ q, kinds: active, limit, project_id: projectId })}`, signal)
     return parseSearchResponse(raw)
   },
 }

@@ -31,6 +31,7 @@ import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget
 import { ReferenceChip } from './ReferenceChip'
 import { RefPicker, refOptionId } from './RefPicker'
 import { detectTrigger, isReferenceQuery } from '@/refs/trigger'
+import { useActiveKinds } from '@/refs/useActiveKinds'
 import { useRefSearch } from '@/refs/useRefSearch'
 import { countRefTokens, reconcileRefs, refKey, removeRefFromText } from '@/refs/refState'
 import { MAX_REFS_PER_MESSAGE, type ChatReference } from '@/refs/types'
@@ -166,7 +167,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   // --- Attachments ---
   const store = useStore()
 
-  // --- References (#) --- off unless the server announced refs_v1: the composer is then exactly what it was.
+  // --- References (# and @) --- off unless the server announced refs_v1: the composer is then exactly what it was.
   const refsEnabled = useAtomValue(refsEnabledAtom)
   const [refLabels, setRefLabels] = useAtom(chatRefLabelsAtom)
   const [caret, setCaret] = useState(0)
@@ -179,7 +180,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const found = refsEnabled && !composing && !disabled ? detectTrigger(value, caret) : null
   const trigger = found && isReferenceQuery(found) ? found : null
   const pickerOpen = trigger !== null && trigger.start !== dismissedAt
-  const refSearch = useRefSearch({ query: trigger?.query ?? '', kinds: trigger?.kinds, enabled: pickerOpen })
+  useActiveKinds() // the trigger and the picker follow the kinds the server lists
+  const refSearch = useRefSearch({ query: trigger?.query ?? '', kinds: trigger?.kinds, sigil: trigger?.sigil, enabled: pickerOpen })
   const activeRef = Math.min(refActive, refSearch.items.length - 1)
   // The option Enter/Tab would take, and the one aria-activedescendant names: the same thing, or nothing
   // (loading, error and an empty list have none: Enter then sends the message).
@@ -910,6 +912,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             search={refSearch}
             activeIndex={activeRef}
             kindFilter={trigger?.kinds?.[0]}
+            sigil={trigger?.sigil}
+            needsProject={trigger?.sigil === '@' && !selectedProject}
             full={refsFull}
             isInDraft={(item) => draftRefs.some((r) => refKey(r) === refKey(item))}
             onPick={pickRef}

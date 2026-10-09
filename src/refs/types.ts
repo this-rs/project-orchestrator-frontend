@@ -5,12 +5,20 @@
  * `tests/fixtures/refs/`).
  */
 
-/** The five kinds a message may reference today. `persona` and `skill` are reserved by the server. */
-export const REF_KINDS = ['plan', 'task', 'note', 'decision', 'rfc'] as const
-export type RefKind = (typeof REF_KINDS)[number]
+import { HISTORICAL_KIND_NAMES, isActiveKind } from './kinds'
 
-export const isRefKind = (value: unknown): value is RefKind =>
-  typeof value === 'string' && (REF_KINDS as readonly string[]).includes(value)
+/**
+ * A kind of reference: the name the server lists on `GET /api/refs/kinds`
+ * (`plan`, `task`, `persona`...). Open on purpose: which kinds exist is the
+ * server's decision, read at runtime (see `kinds.ts`), never a list here.
+ */
+export type RefKind = string
+
+/** The five kinds of the first release: what a server without the kinds route offers. */
+export const REF_KINDS = HISTORICAL_KIND_NAMES
+
+/** Is this a kind THIS server resolves (and so one the composer may offer or send)? */
+export const isRefKind = (value: unknown): value is RefKind => isActiveKind(value)
 
 /** Most references one message may carry (`max_refs_per_message` of entity_ref.json). */
 export const MAX_REFS_PER_MESSAGE = 20

@@ -1,0 +1,24 @@
+{
+  "fallback_kinds": ["plan", "task", "note", "decision", "rfc"],
+  "response": {
+    "contract_version": 1,
+    "kinds": [
+      { "kind": "plan", "id_format": "uuid", "sensitive": false },
+      { "kind": "task", "id_format": "uuid", "sensitive": false },
+      { "kind": "note", "id_format": "uuid", "sensitive": false },
+      { "kind": "decision", "id_format": "uuid", "sensitive": false },
+      { "kind": "rfc", "id_format": "uuid", "sensitive": false },
+      { "kind": "conversation", "id_format": "uuid", "sensitive": false },
+      { "kind": "project", "id_format": "uuid", "sensitive": false },
+      { "kind": "milestone", "id_format": "uuid", "sensitive": false },
+      { "kind": "release", "id_format": "uuid", "sensitive": false },
+      { "kind": "workspace", "id_format": "uuid", "sensitive": false },
+      { "kind": "commit", "id_format": "project_commit", "sensitive": true },
+      { "kind": "protocol", "id_format": "uuid", "sensitive": false },
+      { "kind": "persona", "id_format": "uuid", "sensitive": true },
+      { "kind": "skill", "id_format": "uuid", "sensitive": true },
+      { "kind": "file", "id_format": "project_path", "sensitive": true },
+      { "kind": "link", "id_format": "url", "sensitive": false }
+    ]
+  }
+}
