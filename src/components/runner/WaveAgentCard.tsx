@@ -64,6 +64,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
   return (
     <EntityRow
       title={agent.task_title}
+      entityRef={{ kind: 'task', id: agent.task_id, label: agent.task_title }}
       selected={isSelected}
       leading={<StatusDot tone={meta.tone} pulse={meta.live} label={meta.label} />}
       trailing={<span className="font-mono">{formatElapsed(agent.elapsed_secs)}</span>}

@@ -1,4 +1,5 @@
 import { memo, useState, useEffect } from 'react'
+import { AddToChatButton } from '@/refs/source'
 import { useAtomValue } from 'jotai'
 import { providersAtom } from '@/atoms'
 import { describeSessionProvider, shouldShowProviderBadge } from '@/constants/providers'
@@ -136,6 +137,7 @@ function RunRow({
 
         {/* Actions — always visible (touch, DESIGN.md § 10), flat glass icon buttons */}
         <div className="flex items-center gap-0.5">
+          <AddToChatButton entity={{ kind: 'conversation', id: run.sessionId, label: run.title }} />
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onViewRun(run.sessionId) }}

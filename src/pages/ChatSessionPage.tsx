@@ -9,6 +9,7 @@
  */
 
 import { useCallback } from 'react'
+import { AddToChatButton, useReferenceSource } from '@/refs/source'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowDown } from 'lucide-react'
 import { useConversationWs } from '@/hooks/runner'
@@ -34,6 +35,7 @@ export default function ChatSessionPage() {
   const { scrollRef, scrollToBottom } = useStickToBottom<HTMLDivElement>(messages)
   // Agentic mode surfaces: detached runs spawned by this session.
   const detachedRuns = useDetachedRuns(sessionId ?? null)
+  const source = useReferenceSource(sessionId ? { kind: 'conversation', id: sessionId, label: `Session ${sessionId.slice(0, 8)}` } : null)
 
   const handleViewRun = useCallback((childSessionId: string) => {
     navigate(workspacePath(wsSlug, `/chat/${childSessionId}`))
@@ -75,7 +77,7 @@ export default function ChatSessionPage() {
         >
           <ArrowLeft className="w-4 h-4" />
         </Link>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0" {...source}>
           <h1 className="text-sm font-medium text-slate-200 truncate">
             Session {sessionId.slice(0, 8)}
           </h1>
@@ -86,6 +88,7 @@ export default function ChatSessionPage() {
             </span>
           </div>
         </div>
+        {sessionId && <AddToChatButton entity={{ kind: 'conversation', id: sessionId, label: `Session ${sessionId.slice(0, 8)}` }} />}
         {/* Agentic mode pill — surfaces background-run state for this session */}
         <AgenticModePill
           runs={detachedRuns.runs}
