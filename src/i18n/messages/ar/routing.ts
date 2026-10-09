@@ -136,5 +136,13 @@ export default {
   },
   menu: { modeLegend: 'وضع التوجيه', saveFailed: 'تعذّر حفظ الوضع.' },
   picker: { primary: 'الأساسي: {target} · PO يوجّه المنفّذين', forced: 'مفروض: {target}', willChoose: 'سيختار PO عند أول رسالة', routedBy: 'تم التوجيه بواسطة: {by}', aria: 'التوجيه: {mode}' },
+  modelTargets: {
+    loading: 'جارٍ قراءة فهرس النماذج…',
+    offline: 'قائمة دون اتصال.',
+    offlineHelp: 'تعذّرت قراءة فهرس Claude المباشر: تُعرض فقط النماذج التي يعرفها الخادم مسبقًا.',
+    retry: 'إعادة المحاولة',
+    legacy: 'قديم',
+    vaultNeeded: '{providers}: المفتاح في الخزنة، وهي مقفلة.',
+  },
   reason: 'السبب: {reason}',
 } satisfies Translation<'routing'>

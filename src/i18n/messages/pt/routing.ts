@@ -136,5 +136,13 @@ export default {
   },
   menu: { modeLegend: 'Modo de roteamento', saveFailed: 'Não foi possível salvar o modo.' },
   picker: { primary: 'Principal: {target} · O PO roteia os executores', forced: 'Forçado: {target}', willChoose: 'O PO escolherá na primeira mensagem', routedBy: 'Roteado por: {by}', aria: 'Roteamento: {mode}' },
+  modelTargets: {
+    loading: 'Lendo o catálogo de modelos…',
+    offline: 'Lista offline.',
+    offlineHelp: 'O catálogo Claude ao vivo não pôde ser lido: só os modelos que o servidor já conhece são listados.',
+    retry: 'Tentar de novo',
+    legacy: 'antigo',
+    vaultNeeded: '{providers}: a chave está no cofre, que está trancado.',
+  },
   reason: 'Motivo: {reason}',
 } satisfies Translation<'routing'>

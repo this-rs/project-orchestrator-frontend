@@ -134,5 +134,13 @@ export default {
   },
   menu: { modeLegend: 'Routing mode', saveFailed: 'The mode could not be saved.' },
   picker: { primary: 'Primary: {target} · PO routes executors', forced: 'Forced: {target}', willChoose: 'PO will choose at the first message', routedBy: 'Routed by: {by}', aria: 'Routing: {mode}' },
+  modelTargets: {
+    loading: 'Reading the model catalog…',
+    offline: 'Offline list.',
+    offlineHelp: 'The live Claude catalog could not be read: only the models the server already knows are listed.',
+    retry: 'Retry',
+    legacy: 'legacy',
+    vaultNeeded: '{providers}: the key is in the vault, which is locked.',
+  },
   reason: 'Reason: {reason}',
 } as const

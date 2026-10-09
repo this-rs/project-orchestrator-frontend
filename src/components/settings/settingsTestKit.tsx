@@ -4,6 +4,8 @@ import { render } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import { MemoryRouter } from 'react-router-dom'
 import { providersAtom, providersLoadStateAtom } from '@/atoms'
+import type { ModelDefinition } from '@/constants/models'
+import type { VaultOverview } from '@/services/vault'
 import type { ProviderInstance, ProvidersResponse } from '@/types/provider'
 
 export const CLAUDE: ProviderInstance = {
@@ -73,10 +75,13 @@ export function mountSettings(
     state?: 'ready' | 'unsupported'
     /** The mocked `providersApi.list`: the mount's own re-fetch must answer with the same instances. */
     list?: { mockResolvedValue: (v: ProvidersResponse) => unknown }
+    /** Other atoms to set before the first render (the live Claude catalog, say). */
+    prepare?: (store: ReturnType<typeof createStore>) => void
   } = {},
 ) {
   if (opts.list && opts.state !== 'unsupported') opts.list.mockResolvedValue(response(opts.providers ?? [CLAUDE, DEEPSEEK, LOCAL]))
   const store = createStore()
+  opts.prepare?.(store)
   if (opts.state === 'unsupported') {
     store.set(providersAtom, null)
     store.set(providersLoadStateAtom, 'unsupported')
@@ -91,3 +96,27 @@ export function mountSettings(
   )
   return { store, ...utils }
 }
+
+/** A live Claude catalog as `GET /api/chat/models` serves it (current lineup first, one legacy). */
+export const CLAUDE_CATALOG: ModelDefinition[] = [
+  { id: 'claude-opus-5-5', family: 'opus', version: '5.5', tier: 'current', shortLabel: 'Opus 5.5', fullLabel: 'Claude Opus 5.5', description: '' },
+  { id: 'claude-sonnet-5', family: 'sonnet', version: '5', tier: 'current', shortLabel: 'Sonnet 5', fullLabel: 'Claude Sonnet 5', description: '' },
+  { id: 'claude-sonnet-4-5', family: 'sonnet', version: '4.5', tier: 'legacy', shortLabel: 'Sonnet 4.5', fullLabel: 'Claude Sonnet 4.5', description: '' },
+  { id: 'claude-haiku-5-5', family: 'haiku', version: '5.5', tier: 'current', shortLabel: 'Haiku 5.5', fullLabel: 'Claude Haiku 5.5', description: '' },
+]
+
+/** The vault as `GET /vault` answers it; `unlocked_until: null` = locked. */
+export const vaultState = (over: Partial<VaultOverview> = {}): VaultOverview => ({
+  initialized: true,
+  unlocked_until: '2099-01-01T00:00:00Z',
+  secret_count: 1,
+  unavailable: null,
+  secrets: [],
+  grants: [],
+  requests: [],
+  ...over,
+})
+
+/** Headings of an open SearchableSelect list (its group rows), in order. */
+export const listHeadings = (listbox: HTMLElement): string[] =>
+  Array.from(listbox.querySelectorAll('li[role="presentation"]')).map((li) => li.textContent ?? '')

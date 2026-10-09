@@ -136,5 +136,13 @@ export default {
   },
   menu: { modeLegend: 'Chế độ định tuyến', saveFailed: 'Không thể lưu chế độ.' },
   picker: { primary: 'Chính: {target} · PO định tuyến các bên thực thi', forced: 'Đã buộc: {target}', willChoose: 'PO sẽ chọn ở tin nhắn đầu tiên', routedBy: 'Định tuyến bởi: {by}', aria: 'Định tuyến: {mode}' },
+  modelTargets: {
+    loading: 'Đang đọc danh mục mô hình…',
+    offline: 'Danh sách ngoại tuyến.',
+    offlineHelp: 'Không đọc được danh mục Claude trực tiếp: chỉ liệt kê các mô hình máy chủ đã biết.',
+    retry: 'Thử lại',
+    legacy: 'cũ',
+    vaultNeeded: '{providers}: khóa nằm trong két, mà két đang bị khóa.',
+  },
   reason: 'Lý do: {reason}',
 } satisfies Translation<'routing'>

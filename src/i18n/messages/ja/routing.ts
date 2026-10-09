@@ -136,5 +136,13 @@ export default {
   },
   menu: { modeLegend: 'ルーティングモード', saveFailed: 'モードを保存できませんでした。' },
   picker: { primary: 'プライマリ: {target} · PO が実行役をルーティング', forced: '強制: {target}', willChoose: '最初のメッセージで PO が選択します', routedBy: 'ルーティング元: {by}', aria: 'ルーティング: {mode}' },
+  modelTargets: {
+    loading: 'モデルカタログを読み込み中…',
+    offline: 'オフラインの一覧。',
+    offlineHelp: 'Claude のライブカタログを読み取れませんでした。サーバーが既に知っているモデルのみ表示しています。',
+    retry: '再試行',
+    legacy: '旧版',
+    vaultNeeded: '{providers}：キーは保管庫にあり、保管庫はロックされています。',
+  },
   reason: '理由: {reason}',
 } satisfies Translation<'routing'>

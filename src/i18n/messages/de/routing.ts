@@ -136,5 +136,13 @@ export default {
   },
   menu: { modeLegend: 'Routing-Modus', saveFailed: 'Der Modus konnte nicht gespeichert werden.' },
   picker: { primary: 'Primär: {target} · PO routet die Ausführenden', forced: 'Erzwungen: {target}', willChoose: 'PO wählt bei der ersten Nachricht', routedBy: 'Geroutet durch: {by}', aria: 'Routing-Modus: {mode}' },
+  modelTargets: {
+    loading: 'Modellkatalog wird gelesen…',
+    offline: 'Offline-Liste.',
+    offlineHelp: 'Der Live-Katalog von Claude konnte nicht gelesen werden: nur die dem Server bereits bekannten Modelle sind aufgeführt.',
+    retry: 'Erneut versuchen',
+    legacy: 'veraltet',
+    vaultNeeded: '{providers}: Der Schlüssel liegt im Tresor, der gesperrt ist.',
+  },
   reason: 'Grund: {reason}',
 } satisfies Translation<'routing'>
