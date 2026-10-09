@@ -136,5 +136,13 @@ export default {
   },
   menu: { modeLegend: 'रूटिंग मोड', saveFailed: 'मोड सहेजा नहीं जा सका।' },
   picker: { primary: 'प्राथमिक: {target} · PO निष्पादकों को रूट करता है', forced: 'थोपा गया: {target}', willChoose: 'PO पहले संदेश पर चुनेगा', routedBy: 'रूट करने वाला: {by}', aria: 'रूटिंग: {mode}' },
+  modelTargets: {
+    loading: 'मॉडल कैटलॉग पढ़ा जा रहा है…',
+    offline: 'ऑफ़लाइन सूची।',
+    offlineHelp: 'Claude का लाइव कैटलॉग नहीं पढ़ा जा सका: केवल वे मॉडल सूचीबद्ध हैं जिन्हें सर्वर पहले से जानता है।',
+    retry: 'फिर से कोशिश करें',
+    legacy: 'पुराना',
+    vaultNeeded: '{providers}: कुंजी वॉल्ट में है, जो लॉक है।',
+  },
   reason: 'कारण: {reason}',
 } satisfies Translation<'routing'>

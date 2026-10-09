@@ -136,5 +136,13 @@ export default {
   },
   menu: { modeLegend: 'Режим маршрутизації', saveFailed: 'Не вдалося зберегти режим.' },
   picker: { primary: 'Основний: {target} · PO маршрутизує виконавців', forced: 'Примусово: {target}', willChoose: 'PO обере при першому повідомленні', routedBy: 'Маршрутизація: {by}', aria: 'Маршрутизація: {mode}' },
+  modelTargets: {
+    loading: 'Читання каталогу моделей…',
+    offline: 'Список офлайн.',
+    offlineHelp: 'Не вдалося прочитати живий каталог Claude: показано лише моделі, вже відомі серверу.',
+    retry: 'Повторити',
+    legacy: 'застаріла',
+    vaultNeeded: '{providers}: ключ у сховищі, а воно заблоковане.',
+  },
   reason: 'Причина: {reason}',
 } satisfies Translation<'routing'>

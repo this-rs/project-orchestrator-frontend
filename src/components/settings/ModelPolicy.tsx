@@ -1,21 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, X } from 'lucide-react'
-import { Button, Input, ToneText } from '@/components/ui'
-import { useProviders } from '@/hooks/useProviders'
+import { Button, Input, SearchableSelect, ToneText } from '@/components/ui'
+import { useProviders, useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
 import { hasUsdPrice } from '@/constants/providerSettings'
-import {
-  POLICY_MODES_FR,
-  POLICY_ROLE_LABELS_FR,
-  modelCapabilities,
-  wizardErrorMessage,
-} from '@/constants/providerWizard'
-import {
-  capabilitiesFor,
-  type ModelAlias,
-  type ProviderInstance,
-  type ProviderModel,
-} from '@/types/provider'
+import { POLICY_MODES_FR, POLICY_ROLE_LABELS_FR, wizardErrorMessage } from '@/constants/providerWizard'
+import { capabilitiesFor, type ModelAlias, type ProviderInstance } from '@/types/provider'
 import {
   POLICY_RULE_ROLES,
   type ModelPolicy as Policy,
@@ -23,8 +13,14 @@ import {
 } from '@/types/providerSettings'
 import { ConfirmPanel } from './ConfirmPanel'
 import { ChoiceRow, FieldNote, FIELD_LABEL, FormField, NativeSelect } from './FormField'
+import { CatalogStateNote, TargetVaultUnlock } from './ModelTargets'
+import {
+  decodeTarget,
+  encodeTarget,
+  useModelTargets,
+  withCurrentTarget,
+} from './useModelTargets'
 import { ErrorLine, Loading, Panel, SaveStatus } from './SettingsPanel'
-import { useModelCatalog } from './useModelCatalog'
 
 const FIXED_ALIASES = ['fast', 'default', 'deep', 'utility'] as const
 const OFF_POLICY: Policy = { mode: 'off', rules: {}, fallback: [], caps: {} }
@@ -47,59 +43,7 @@ function withFixedRows(aliases: ModelAlias[]): ModelAlias[] {
   ]
 }
 
-/**
- * The model of one alias, from the instance's catalog (loaded on demand,
- * cached for the session), with capabilities when known; free typing when the
- * catalog is empty or unavailable. A model outside the catalog stays visible.
- */
-function AliasModelSelect({
-  id,
-  provider,
-  fallback,
-  value,
-  onChange,
-}: {
-  id: string
-  provider: string
-  fallback: ProviderModel[]
-  value: string
-  onChange: (model: string) => void
-}) {
-  const catalog = useModelCatalog(provider || null, !!provider)
-  const models = catalog.models && catalog.models.length > 0 ? catalog.models : fallback
-  if (!provider || models.length === 0) {
-    return (
-      <Input
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={!provider}
-        title={catalog.error ? `Catalogue indisponible : ${catalog.error}` : undefined}
-        placeholder={
-          !provider ? '—' : catalog.loading ? 'Chargement des modèles…' : 'nom du modèle'
-        }
-      />
-    )
-  }
-  const listed = models.some((m) => m.id === value)
-  return (
-    <NativeSelect id={id} value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">Choisir un modèle…</option>
-      {value && !listed && <option value={value}>{value} (hors catalogue)</option>}
-      {models.map((m) => {
-        const caps = modelCapabilities(m)
-        return (
-          <option key={m.id} value={m.id}>
-            {m.label ?? m.id}
-            {caps ? ` — ${caps}` : ''}
-          </option>
-        )
-      })}
-    </NativeSelect>
-  )
-}
-
-const ALIAS_GRID = 'grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)_minmax(0,1fr)_6rem] sm:items-center'
+const ALIAS_GRID = 'grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)_6rem] sm:items-center'
 
 function AliasTable({
   instances,
@@ -116,6 +60,12 @@ function AliasTable({
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const [busy, setBusy] = useState(false)
+
+  const refreshProviders = useRefreshProviders()
+  // One list for every row: every instance and its models, grouped by provider
+  // (the live Claude catalog, by family, for Claude Code). Picking a model sets
+  // the provider with it.
+  const targets = useModelTargets({ instances })
 
   const [tick, setTick] = useState(0)
   useEffect(() => {
@@ -206,8 +156,7 @@ function AliasTable({
             aria-hidden="true"
           >
             <span>Alias</span>
-            <span>Provider</span>
-            <span>Modèle</span>
+            <span>Provider · modèle</span>
             <span />
           </div>
           <ul className="divide-y divide-white/[0.05]" aria-label="Alias de modèles">
@@ -218,8 +167,9 @@ function AliasTable({
                 instance.health.status !== 'healthy' &&
                 instance.health.status !== 'unknown'
               const fixed = (FIXED_ALIASES as readonly string[]).includes(row.alias)
-              const models = instance?.models ?? []
               const name = row.alias || 'nouvel alias'
+              // A row with a provider and no model is not a target yet: it reads as unset.
+              const current = row.provider && row.model ? { provider: row.provider, model: row.model } : undefined
               return (
                 <li
                   key={i}
@@ -244,32 +194,20 @@ function AliasTable({
                     )}
                   </div>
                   <div className="min-w-0">
-                    <label htmlFor={`alias-inst-${i}`} className={`${FIELD_LABEL} sm:sr-only`}>
-                      Provider de {name}
-                    </label>
-                    <NativeSelect
-                      id={`alias-inst-${i}`}
-                      value={row.provider}
-                      onChange={(e) => set(i, { provider: e.target.value, model: '' })}
-                    >
-                      <option value="">Non réglé</option>
-                      {instances.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.label}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                  </div>
-                  <div className="min-w-0">
                     <label htmlFor={`alias-model-${i}`} className={`${FIELD_LABEL} sm:sr-only`}>
                       Modèle de {name}
                     </label>
-                    <AliasModelSelect
+                    <SearchableSelect
                       id={`alias-model-${i}`}
-                      provider={row.provider}
-                      fallback={models}
-                      value={row.model}
-                      onChange={(model) => set(i, { model })}
+                      value={current ? encodeTarget(current) : ''}
+                      options={withCurrentTarget(targets.options, current, instances)}
+                      noneLabel="Non réglé"
+                      noun={{ one: 'modèle', other: 'modèles' }}
+                      loading={targets.catalog === 'loading'}
+                      onChange={(v) => {
+                        const target = decodeTarget(v)
+                        set(i, { provider: target?.provider ?? '', model: target?.model ?? '' })
+                      }}
                     />
                   </div>
                   <div className="flex items-center justify-end gap-2">
@@ -293,6 +231,18 @@ function AliasTable({
               )
             })}
           </ul>
+          <div className="mt-3 space-y-2">
+            <CatalogStateNote state={targets.catalog} onRetry={targets.refresh} />
+            <TargetVaultUnlock
+              providers={rows.map((r) => r.provider)}
+              instances={instances}
+              onUnlocked={() => {
+                // The providers that depend on the vault answer now: re-read them and their catalogs.
+                void refreshProviders()
+                targets.refresh()
+              }}
+            />
+          </div>
         </div>
       )}
     </Panel>

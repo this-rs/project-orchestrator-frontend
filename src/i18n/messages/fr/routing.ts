@@ -136,5 +136,13 @@ export default {
   },
   menu: { modeLegend: 'Mode de routage', saveFailed: 'Le mode n\'a pas pu être enregistré.' },
   picker: { primary: 'Principal : {target} · PO route les exécutants', forced: 'Forcé : {target}', willChoose: 'PO choisira au premier message', routedBy: 'Routé par : {by}', aria: 'Routage : {mode}' },
+  modelTargets: {
+    loading: 'Lecture du catalogue de modèles…',
+    offline: 'Liste hors ligne.',
+    offlineHelp: 'Le catalogue Claude en direct n’a pas pu être lu : seuls les modèles déjà connus du serveur sont listés.',
+    retry: 'Réessayer',
+    legacy: 'ancien',
+    vaultNeeded: '{providers} : la clé est dans le coffre, qui est verrouillé.',
+  },
   reason: 'Raison : {reason}',
 } satisfies Translation<'routing'>

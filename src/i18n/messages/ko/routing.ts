@@ -136,5 +136,13 @@ export default {
   },
   menu: { modeLegend: '라우팅 모드', saveFailed: '모드를 저장하지 못했습니다.' },
   picker: { primary: '기본: {target} · PO가 실행자를 라우팅', forced: '강제됨: {target}', willChoose: '첫 메시지에서 PO가 선택합니다', routedBy: '라우팅 주체: {by}', aria: '라우팅: {mode}' },
+  modelTargets: {
+    loading: '모델 카탈로그를 읽는 중…',
+    offline: '오프라인 목록.',
+    offlineHelp: 'Claude 실시간 카탈로그를 읽을 수 없습니다. 서버가 이미 알고 있는 모델만 표시됩니다.',
+    retry: '다시 시도',
+    legacy: '구버전',
+    vaultNeeded: '{providers}: 키가 금고에 있으며 금고가 잠겨 있습니다.',
+  },
   reason: '이유: {reason}',
 } satisfies Translation<'routing'>

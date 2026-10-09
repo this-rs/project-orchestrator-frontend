@@ -136,5 +136,13 @@ export default {
   },
   menu: { modeLegend: '路由模式', saveFailed: '无法保存该模式。' },
   picker: { primary: '主要：{target} · PO 路由执行者', forced: '已强制：{target}', willChoose: 'PO 将在第一条消息时选择', routedBy: '路由方：{by}', aria: '路由：{mode}' },
+  modelTargets: {
+    loading: '正在读取模型目录…',
+    offline: '离线列表。',
+    offlineHelp: '无法读取 Claude 实时目录：仅列出服务器已知的模型。',
+    retry: '重试',
+    legacy: '旧版',
+    vaultNeeded: '{providers}：密钥在保险库中，而保险库已锁定。',
+  },
   reason: '原因：{reason}',
 } satisfies Translation<'routing'>

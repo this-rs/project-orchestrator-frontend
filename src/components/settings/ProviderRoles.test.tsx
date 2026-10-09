@@ -25,10 +25,22 @@ vi.mock('@/services/providers', async (orig) => ({
 vi.mock('@/services/projects', () => ({
   projectsApi: { list: vi.fn().mockResolvedValue({ items: [{ slug: 'acme', name: 'Acme' }] }) },
 }))
+const vaultApiMock = vi.hoisted(() => ({ overview: vi.fn(), unlock: vi.fn() }))
+vi.mock('@/services/vault', async (orig) => ({
+  ...(await orig<typeof import('@/services/vault')>()),
+  vaultApi: { overview: vaultApiMock.overview, unlock: vaultApiMock.unlock },
+}))
 
-import { chatEffectiveProviderIdAtom, providersAtom } from '@/atoms'
+import { chatEffectiveProviderIdAtom, modelCatalogAtom, modelCatalogLoadedAtom, providersAtom } from '@/atoms'
+import { chatApi } from '@/services'
 import { ProviderRoles } from './ProviderRoles'
-import { CLAUDE, DEEPSEEK, LOCAL, mountSettings, response } from './settingsTestKit'
+import { CLAUDE, CLAUDE_CATALOG, DEEPSEEK, LOCAL, listHeadings, mountSettings, response, vaultState } from './settingsTestKit'
+
+/** The live Claude catalog, already read by the app (or empty and settled = unreachable). */
+const catalog = (models = CLAUDE_CATALOG) => (store: { set: (a: unknown, v: unknown) => void }) => {
+  store.set(modelCatalogAtom, models)
+  store.set(modelCatalogLoadedAtom, true)
+}
 
 const box = (name: RegExp | string, root: HTMLElement = document.body) =>
   within(root).getByRole('combobox', { name }) as HTMLInputElement
@@ -39,6 +51,9 @@ const pick = (field: RegExp | string, option: string | RegExp, root: HTMLElement
 }
 
 beforeEach(() => {
+  vaultApiMock.overview.mockReset().mockResolvedValue(vaultState())
+  vaultApiMock.unlock.mockReset()
+  vi.spyOn(chatApi, 'getModelCatalog').mockResolvedValue([])
   roles.mockReset().mockResolvedValue({})
   setRoles.mockReset().mockResolvedValue({})
   projectRoles.mockReset().mockResolvedValue({})
@@ -185,5 +200,66 @@ describe('ProviderRoles', () => {
     expect(screen.queryByRole('button', { name: 'Enregistrer' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
     expect(await screen.findByLabelText('Pilote')).toBeTruthy()
+  })
+
+  it('a role lists every model of the live Claude catalog, grouped by provider then family, next to the other instances', async () => {
+    mountSettings(<ProviderRoles />, { prepare: catalog() })
+    await screen.findByRole('combobox', { name: 'Pilote' })
+    fireEvent.click(box('Pilote'))
+    const listbox = screen.getByRole('listbox')
+    const names = within(listbox).getAllByRole('option').map((o) => o.textContent ?? '')
+    expect(names).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Claude Code · modèle par défaut'),
+        expect.stringContaining('Claude Code · Opus 5.5'),
+        expect.stringContaining('Claude Code · Haiku 5.5'),
+        expect.stringContaining('DeepSeek · deepseek-chat'),
+      ]),
+    )
+    expect(listHeadings(listbox)).toEqual(['Claude Code', 'Claude Code · Opus', 'Claude Code · Sonnet', 'Claude Code · Haiku', 'DeepSeek', 'Local llama'])
+    // Found by its id too, and saved as { provider, model }.
+    fireEvent.change(box('Pilote'), { target: { value: 'claude-haiku-5-5' } })
+    fireEvent.click(screen.getByRole('option', { name: /Claude Code · Haiku 5\.5/ }))
+    fireEvent.click(within(screen.getByTestId('roles-global')).getByRole('button', { name: 'Enregistrer' }))
+    await waitFor(() => expect(setRoles).toHaveBeenCalledWith({ pilot: { provider: 'claude-code', model: 'claude-haiku-5-5' } }))
+  })
+
+  it('an unreachable live catalog: the list is said to be offline, in words and with an icon', async () => {
+    mountSettings(<ProviderRoles />, { prepare: catalog([]) })
+    const panel = await screen.findByTestId('roles-global')
+    const note = await within(panel).findByTestId('catalog-offline')
+    expect(note.textContent).toContain('Offline list.')
+    expect(note.querySelector('svg')).toBeTruthy()
+    expect(note.getAttribute('role')).toBe('note')
+  })
+
+  it('a role on a provider whose key sits in the locked vault: VaultUnlock in place; unlocking re-reads providers and catalogs', async () => {
+    vaultApiMock.overview.mockResolvedValue(vaultState({ unlocked_until: null }))
+    vaultApiMock.unlock.mockResolvedValue({ unlocked_until: '2099-01-01T00:00:00Z', unlock_proof: 'proof' })
+    roles.mockResolvedValue({ pilot: { provider: 'deepseek', model: 'deepseek-chat' } })
+    mountSettings(<ProviderRoles />)
+    const panel = await screen.findByTestId('roles-global')
+    const gate = await within(panel).findByTestId('target-vault-unlock')
+    expect(gate.textContent).toContain('DeepSeek: the key is in the vault, which is locked.')
+    const listsBefore = list.mock.calls.length
+    const rolesBefore = roles.mock.calls.length
+    const catalogsBefore = vi.mocked(chatApi.getModelCatalog).mock.calls.length
+    fireEvent.change(within(gate).getByLabelText('Vault locked'), { target: { value: 'correct horse' } })
+    fireEvent.click(within(gate).getByRole('button', { name: 'Unlock' }))
+    await waitFor(() => expect(vaultApiMock.unlock).toHaveBeenCalledWith('correct horse', 60))
+    expect((await within(gate).findByRole('status')).textContent).toContain('Vault unlocked')
+    await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(listsBefore))
+    await waitFor(() => expect(roles.mock.calls.length).toBeGreaterThan(rolesBefore))
+    await waitFor(() => expect(vi.mocked(chatApi.getModelCatalog).mock.calls.length).toBeGreaterThan(catalogsBefore))
+  })
+
+  it('no unlock form when the chosen role does not depend on the vault', async () => {
+    vaultApiMock.overview.mockResolvedValue(vaultState({ unlocked_until: null }))
+    roles.mockResolvedValue({ pilot: { provider: 'local-llama' } })
+    mountSettings(<ProviderRoles />)
+    const panel = await screen.findByTestId('roles-global')
+    await within(panel).findByLabelText('Pilote')
+    expect(within(panel).queryByTestId('target-vault-unlock')).toBeNull()
+    expect(vaultApiMock.overview).not.toHaveBeenCalled()
   })
 })

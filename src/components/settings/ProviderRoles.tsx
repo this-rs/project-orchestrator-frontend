@@ -1,55 +1,30 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { Button, SearchableSelect, type SearchableOption } from '@/components/ui'
+import { Button, SearchableSelect } from '@/components/ui'
 import { useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
 import { ROLE_LABELS_FR, routedByFr, wizardErrorMessage } from '@/constants/providerWizard'
 import { providerConsentPath } from '@/constants/providerErrors'
-import type { ProviderInstance, ProvidersResponse } from '@/types/provider'
+import type { ModelAlias, ProviderInstance, ProvidersResponse } from '@/types/provider'
 import {
   PROVIDER_ROLES,
   type ProviderRole,
   type RoleAssignments,
-  type RoleTarget,
 } from '@/types/providerSettings'
 import { FieldNote, FIELD_LABEL } from './FormField'
+import { CatalogStateNote, TargetVaultUnlock } from './ModelTargets'
+import {
+  decodeTarget as decode,
+  describeTarget,
+  encodeTarget as encode,
+  useModelTargets,
+  withCurrentTarget as withCurrent,
+} from './useModelTargets'
 import { ErrorLine, Loading, Panel, ProjectPicker, SaveStatus } from './SettingsPanel'
 import { useProjectOptions } from './useProjectOptions'
 
-// A target is one <option>: `m|<provider>|<model>`, `a|<provider>|<alias>`, or `d|<provider>|` (the instance's default model).
-const encode = (t: RoleTarget | undefined): string => {
-  if (!t) return ''
-  if (t.alias) return `a|${t.provider}|${t.alias}`
-  if (t.model) return `m|${t.provider}|${t.model}`
-  return `d|${t.provider}|`
-}
-const decode = (value: string): RoleTarget | undefined => {
-  if (!value) return undefined
-  const first = value.indexOf('|')
-  const second = value.indexOf('|', first + 1)
-  const kind = value.slice(0, first)
-  const provider = value.slice(first + 1, second)
-  const rest = value.slice(second + 1)
-  if (kind === 'a') return { provider, alias: rest }
-  if (kind === 'm') return { provider, model: rest }
-  return { provider }
-}
-
-function describeTarget(
-  t: { provider: string; model?: string | null; alias?: string | null },
-  instances: readonly ProviderInstance[]
-): string {
-  const label = instances.find((p) => p.id === t.provider)?.label ?? t.provider
-  return `${label} · ${t.alias ? `alias ${t.alias}` : (t.model ?? 'modèle par défaut')}`
-}
-
-/** The current target stays visible when the catalog no longer lists it. */
-const withCurrent = (options: SearchableOption[], current: RoleTarget | undefined, instances: readonly ProviderInstance[]) => {
-  const value = encode(current)
-  return !current || options.some((o) => o.value === value)
-    ? options
-    : [{ value, label: describeTarget(current, instances) }, ...options]
-}
+const NO_INSTANCES: ProviderInstance[] = []
+const NO_ALIASES: ModelAlias[] = []
 
 const same = (a: RoleAssignments | null, b: RoleAssignments) =>
   JSON.stringify(a ?? {}) === JSON.stringify(b)
@@ -101,35 +76,25 @@ export function ProviderRoles({
     void load()
   }, [load])
 
-  const instances = list?.providers ?? []
-  const aliases = list?.aliases ?? []
-  const disallowed = (providerId: string) =>
-    !!slug && instances.find((p) => p.id === providerId)?.allowed_for_project === false
+  const instances = list?.providers ?? NO_INSTANCES
+  const aliases = list?.aliases ?? NO_ALIASES
+  const disallowed = useCallback(
+    (providerId: string) =>
+      !!slug && instances.find((p) => p.id === providerId)?.allowed_for_project === false,
+    [slug, instances]
+  )
   const anyDisallowed = !!slug && instances.some((p) => p.allowed_for_project === false)
   const dirty = saved !== null && !same(saved, draft)
 
-  /** Every instance, its default model, its models and its aliases, searchable by instance name too. */
-  const targetOptions: SearchableOption[] = instances.flatMap((p) => {
-    const blocked = disallowed(p.id)
-    const note = blocked ? 'non autorisé pour ce projet' : undefined
-    const own = aliases.filter((a) => a.provider === p.id)
-    return [
-      { value: `d|${p.id}|`, label: `${p.label} · modèle par défaut`, description: note, disabled: blocked },
-      ...p.models.map((m) => ({
-        value: `m|${p.id}|${m.id}`,
-        label: `${p.label} · ${m.label ?? m.id}`,
-        description: note,
-        keywords: [m.id],
-        disabled: blocked,
-      })),
-      ...own.map((a) => ({
-        value: `a|${p.id}|${a.alias}`,
-        label: `${p.label} · alias ${a.alias}`,
-        description: note,
-        disabled: blocked,
-      })),
-    ]
-  })
+  // Every instance, its default model, its models (the live Claude catalog for
+  // Claude Code, the instance's own catalog otherwise) and its aliases, grouped
+  // by provider, searchable by instance name too.
+  const disallowedNote = useCallback(
+    (providerId: string) => (disallowed(providerId) ? 'non autorisé pour ce projet' : undefined),
+    [disallowed]
+  )
+  const targets = useModelTargets({ instances, aliases, withDefault: true, withAliases: true, disallowed: disallowedNote })
+  const targetOptions = targets.options
 
   const save = async () => {
     setError(null)
@@ -261,6 +226,17 @@ export function ProviderRoles({
               )
             })}
           </div>
+
+          <CatalogStateNote state={targets.catalog} onRetry={targets.refresh} />
+          <TargetVaultUnlock
+            providers={PROVIDER_ROLES.flatMap((r) => (draft[r] ? [draft[r]!.provider] : []))}
+            instances={instances}
+            onUnlocked={() => {
+              // The providers that depend on the vault answer now: re-read them and their catalogs.
+              void Promise.all([load(), refreshChat()])
+              targets.refresh()
+            }}
+          />
 
           {anyDisallowed && (
             <p className="text-xs text-amber-300">

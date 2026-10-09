@@ -136,5 +136,13 @@ export default {
   },
   menu: { modeLegend: 'Modo de enrutamiento', saveFailed: 'No se pudo guardar el modo.' },
   picker: { primary: 'Principal: {target} · PO enruta a los ejecutores', forced: 'Forzado: {target}', willChoose: 'PO elegirá en el primer mensaje', routedBy: 'Enrutado por: {by}', aria: 'Enrutamiento: {mode}' },
+  modelTargets: {
+    loading: 'Leyendo el catálogo de modelos…',
+    offline: 'Lista sin conexión.',
+    offlineHelp: 'No se pudo leer el catálogo Claude en vivo: solo se listan los modelos que el servidor ya conoce.',
+    retry: 'Reintentar',
+    legacy: 'antiguo',
+    vaultNeeded: '{providers}: la clave está en la bóveda, que está bloqueada.',
+  },
   reason: 'Motivo: {reason}',
 } satisfies Translation<'routing'>

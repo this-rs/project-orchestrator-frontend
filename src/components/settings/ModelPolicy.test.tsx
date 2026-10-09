@@ -25,8 +25,16 @@ vi.mock('@/services/providers', async (orig) => ({
   },
 }))
 
+const vaultApiMock = vi.hoisted(() => ({ overview: vi.fn(), unlock: vi.fn() }))
+vi.mock('@/services/vault', async (orig) => ({
+  ...(await orig<typeof import('@/services/vault')>()),
+  vaultApi: { overview: vaultApiMock.overview, unlock: vaultApiMock.unlock },
+}))
+
+import { modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
+import { chatApi } from '@/services'
 import { ModelPolicy } from './ModelPolicy'
-import { CLAUDE, DEEPSEEK, LOCAL, mountSettings } from './settingsTestKit'
+import { CLAUDE, CLAUDE_CATALOG, DEEPSEEK, LOCAL, listHeadings, mountSettings, vaultState } from './settingsTestKit'
 
 const ALIASES = [
   { alias: 'default', provider: 'deepseek', model: 'deepseek-chat' },
@@ -39,6 +47,17 @@ const el = (name: RegExp | string) =>
   screen.getByLabelText(name) as HTMLInputElement & HTMLSelectElement
 const policyPanel = () => within(screen.getByTestId('policy-panel'))
 const aliasPanel = () => within(screen.getByTestId('aliases-panel'))
+const box = (name: RegExp | string) => screen.getByRole('combobox', { name }) as HTMLInputElement
+/** Open an alias row's model combobox and click the option with that name (what a person does). */
+const pick = (field: RegExp | string, option: string | RegExp) => {
+  fireEvent.click(box(field))
+  fireEvent.click(screen.getByRole('option', { name: option }))
+}
+/** The live Claude catalog, already read by the app (or empty and settled = unreachable). */
+const catalog = (models = CLAUDE_CATALOG) => (store: { set: (a: unknown, v: unknown) => void }) => {
+  store.set(modelCatalogAtom, models)
+  store.set(modelCatalogLoadedAtom, true)
+}
 
 async function mount(providers = [CLAUDE, DEEPSEEK, LOCAL]) {
   const utils = mountSettings(<ModelPolicy />, { providers, list })
@@ -50,6 +69,9 @@ const save = () => fireEvent.click(policyPanel().getByRole('button', { name: 'En
 
 beforeEach(() => {
   list.mockReset()
+  vaultApiMock.overview.mockReset().mockResolvedValue(vaultState())
+  vaultApiMock.unlock.mockReset()
+  vi.spyOn(chatApi, 'getModelCatalog').mockResolvedValue([])
   aliases.mockReset().mockResolvedValue(ALIASES)
   setAliases.mockReset().mockResolvedValue(ALIASES)
   policy.mockReset().mockResolvedValue(OFF)
@@ -68,13 +90,82 @@ describe('alias table', () => {
 
   it('saves only complete rows with PUT /chat/model-aliases', async () => {
     await mount()
-    fireEvent.change(el('Provider de utility'), { target: { value: 'local-llama' } })
-    fireEvent.change(el('Modèle de utility'), { target: { value: 'qwen3' } })
+    pick('Modèle de utility', 'Local llama · qwen3')
     fireEvent.click(aliasPanel().getByRole('button', { name: 'Enregistrer' }))
     await waitFor(() => expect(setAliases).toHaveBeenCalledTimes(1))
     const sent = setAliases.mock.calls[0][0] as { alias: string }[]
     expect(sent.map((a) => a.alias).sort()).toEqual(['deep', 'default', 'fast', 'utility'])
     expect(await aliasPanel().findByText('Alias enregistrés.')).toBeTruthy()
+  })
+
+  it('the default alias lists every model of the live Claude catalog, by provider then family, with the other instances', async () => {
+    mountSettings(<ModelPolicy />, { providers: [CLAUDE, DEEPSEEK, LOCAL], list, prepare: catalog() })
+    await screen.findByTestId('alias-fast')
+    fireEvent.click(box('Modèle de default'))
+    const listbox = screen.getByRole('listbox')
+    const names = within(listbox).getAllByRole('option').map((o) => o.textContent)
+    expect(names).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Claude Code · Opus 5.5'),
+        expect.stringContaining('Claude Code · Sonnet 5'),
+        expect.stringContaining('Claude Code · Haiku 5.5'),
+        expect.stringContaining('DeepSeek · deepseek-reasoner'),
+        expect.stringContaining('Local llama · qwen3'),
+      ]),
+    )
+    expect(listHeadings(listbox)).toEqual(['Claude Code · Opus', 'Claude Code · Sonnet', 'Claude Code · Haiku', 'DeepSeek', 'Local llama'])
+    // A legacy model says so in words, under its row.
+    expect(within(listbox).getByRole('option', { name: /Sonnet 4\.5/ }).textContent).toContain('legacy')
+    expect(screen.queryByTestId('catalog-offline')).toBeNull()
+  })
+
+  it('a model of another provider is chosen in the one control and saved with its provider', async () => {
+    await mount()
+    pick('Modèle de fast', 'DeepSeek · deepseek-reasoner')
+    expect(box('Modèle de fast').value).toBe('DeepSeek · deepseek-reasoner')
+    fireEvent.click(aliasPanel().getByRole('button', { name: 'Enregistrer' }))
+    await waitFor(() => expect(setAliases).toHaveBeenCalledTimes(1))
+    expect(setAliases.mock.calls[0][0]).toEqual(
+      expect.arrayContaining([{ alias: 'fast', provider: 'deepseek', model: 'deepseek-reasoner' }]),
+    )
+  })
+
+  it('an unreachable live catalog: the list is said to be offline (text and icon) and Claude Code lists what the server knows', async () => {
+    const claude = { ...CLAUDE, models: [{ id: 'claude-sonnet-5' }] }
+    mountSettings(<ModelPolicy />, { providers: [claude, DEEPSEEK, LOCAL], list, prepare: catalog([]) })
+    await screen.findByTestId('alias-fast')
+    const note = await aliasPanel().findByTestId('catalog-offline')
+    expect(note.textContent).toContain('Offline list.')
+    expect(note.querySelector('svg')).toBeTruthy()
+    fireEvent.click(box('Modèle de default'))
+    expect(screen.getByRole('option', { name: /Claude Code · claude-sonnet-5/ })).toBeTruthy()
+    // "Retry" reads the catalog again.
+    fireEvent.click(within(note).getByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(chatApi.getModelCatalog).toHaveBeenCalled())
+  })
+
+  it('the chosen provider keeps its key in the locked vault: VaultUnlock in place; unlocking re-reads providers and catalogs', async () => {
+    vaultApiMock.overview.mockResolvedValue(vaultState({ unlocked_until: null }))
+    vaultApiMock.unlock.mockResolvedValue({ unlocked_until: '2099-01-01T00:00:00Z', unlock_proof: 'proof' })
+    await mount() // the default alias runs on DeepSeek, whose credential is `vault:deepseek-key`
+    const gate = await aliasPanel().findByTestId('target-vault-unlock')
+    expect(gate.textContent).toContain('DeepSeek: the key is in the vault, which is locked.')
+    const listsBefore = list.mock.calls.length
+    const catalogsBefore = vi.mocked(chatApi.getModelCatalog).mock.calls.length
+    fireEvent.change(within(gate).getByLabelText('Vault locked'), { target: { value: 'correct horse' } })
+    fireEvent.click(within(gate).getByRole('button', { name: 'Unlock' }))
+    await waitFor(() => expect(vaultApiMock.unlock).toHaveBeenCalledWith('correct horse', 60))
+    expect((await within(gate).findByRole('status')).textContent).toContain('Vault unlocked')
+    await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(listsBefore))
+    await waitFor(() => expect(vi.mocked(chatApi.getModelCatalog).mock.calls.length).toBeGreaterThan(catalogsBefore))
+  })
+
+  it('no unlock form while the vault is open, nor when the chosen providers do not use it', async () => {
+    vaultApiMock.overview.mockResolvedValue(vaultState({ unlocked_until: null }))
+    aliases.mockResolvedValue([{ alias: 'default', provider: 'local-llama', model: 'qwen3' }])
+    await mount()
+    expect(vaultApiMock.overview).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('target-vault-unlock')).toBeNull()
   })
 
   it('an alias that could not be read: the error and a retry, never an empty table that would overwrite', async () => {
