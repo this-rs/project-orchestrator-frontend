@@ -2,6 +2,9 @@ import { useId, useMemo, useState } from 'react'
 import { Ban, Check, ChevronDown, ChevronRight, Settings } from 'lucide-react'
 import type { ContentBlock } from '@/types'
 import { useT } from '@/i18n'
+import { permissionModeMeta } from './sessionListUtils'
+import { isClaudeCodeProvider } from '@/types/provider'
+import type { ProviderKind } from '@/types/provider'
 import { allowAvailability, groupTools, SHORTENED_SERVER } from '@/utils/toolInventory'
 
 interface SystemInitBlockProps {
@@ -21,6 +24,13 @@ export function SystemInitBlock({ block }: SystemInitBlockProps) {
   const toolsCount = tools.length > 0 ? tools.length : ((block.metadata?.tools_count as number) ?? 0)
   const mcpServersCount = (block.metadata?.mcp_servers_count as number) ?? 0
   const permissionMode = block.metadata?.permission_mode as string | undefined
+  // Renamed label + dot, as everywhere else; the raw CLI value stays in the title.
+  const modeMeta = permissionModeMeta(permissionMode, {
+    isClaudeCode: isClaudeCodeProvider(
+      block.metadata?.provider as string | undefined,
+      block.metadata?.provider_kind as ProviderKind | undefined,
+    ),
+  })
   // The inventory needs the names: an older block only kept the count.
   const canExpand = tools.length > 0
 
@@ -64,8 +74,15 @@ export function SystemInitBlock({ block }: SystemInitBlockProps) {
           </span>
         )}
 
-        {permissionMode && (
-          <span className="px-1.5 py-0.5 bg-orange-600/20 text-orange-300 text-[10px] rounded">{permissionMode}</span>
+        {modeMeta && (
+          <span
+            title={permissionMode}
+            data-testid="init-permission-mode"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-600/20 text-orange-300 text-[10px] rounded"
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${modeMeta.dot}`} aria-hidden="true" />
+            {modeMeta.label}
+          </span>
         )}
       </div>
 

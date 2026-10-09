@@ -63,3 +63,37 @@ describe('SystemInitBlock — tools really offered', () => {
     expect(screen.queryByRole('button')).toBeNull()
   })
 })
+
+describe('SystemInitBlock — permission mode badge', () => {
+  const badge = () => screen.queryByTestId('init-permission-mode')
+
+  it.each([
+    ['bypassPermissions', "Rock'n roll"],
+    ['acceptEdits', 'Accept edits'],
+    ['default', 'Ask permissions'],
+    ['plan', 'Plan mode'],
+  ])('%s renders its renamed label, never the raw CLI value', (mode, label) => {
+    const { container } = render(<SystemInitBlock block={block({ permission_mode: mode })} />)
+    expect(badge()!.textContent).toBe(label)
+    expect(container.textContent).not.toContain('bypassPermissions')
+    expect(container.textContent).not.toContain('acceptEdits')
+    // The raw value stays available for diagnostics, not as visible text.
+    expect(badge()!.getAttribute('title')).toBe(mode)
+    expect(badge()!.querySelector('span')!.className).toMatch(/bg-/)
+  })
+
+  it('a neutral provider gets the neutral wording', () => {
+    render(<SystemInitBlock block={block({ permission_mode: 'bypassPermissions', provider_kind: 'openai_compatible' })} />)
+    expect(badge()!.textContent).toBe("Rock'n roll")
+  })
+
+  it('an unknown mode is shown as is', () => {
+    render(<SystemInitBlock block={block({ permission_mode: 'yolo' })} />)
+    expect(badge()!.textContent).toBe('yolo')
+  })
+
+  it('no mode, no badge', () => {
+    render(<SystemInitBlock block={block({ model: 'm' })} />)
+    expect(badge()).toBeNull()
+  })
+})
