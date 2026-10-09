@@ -133,7 +133,7 @@ export default {
     poChooses: 'O PO escolherá (roteamento: completo)',
     poRoutes: 'O PO roteia (recomendado)',
   },
-  menu: { aria: 'Modelos desta conversa', chipDefault: 'Padrão do servidor', modeStrict: 'Estrito: 1 modelo', modeMixed: 'Misto: {count} modelos', summaryNone: 'Nada marcado: vale o padrão do servidor.', summaryMixed: 'O PO roteia entre os {count} modelos marcados.', selectAll: 'Selecionar tudo', clearAll: 'Desmarcar tudo', noProvider: 'Nenhum provedor configurado', providerToggle: 'Todos os modelos de {provider}', countOf: '{selected} de {total}', noModels: 'Nenhum modelo listado para este provedor', loading: 'Carregando modelos…', search: 'Buscar modelos…' },
+  menu: { aria: 'Modelos desta conversa', chipDefault: 'Padrão do servidor', modeStrict: 'Estrito: 1 modelo', modeMixed: 'Misto: {count} modelos', summaryNone: 'Nada marcado: vale o padrão do servidor.', summaryMixed: 'O PO roteia entre os {count} modelos marcados.', selectAll: 'Selecionar tudo', clearAll: 'Desmarcar tudo', noProvider: 'Nenhum provedor configurado', providerToggle: 'Todos os modelos de {provider}', countOf: '{selected} de {total}', noModels: 'Nenhum modelo listado para este provedor', loading: 'Carregando modelos…', search: 'Buscar modelos…', refreshModelsAria: 'Atualizar a lista de modelos', refreshModels: 'Atualizar modelos', refreshing: 'Atualizando…' },
   picker: { routedBy: 'Roteado por: {by}' },
   modelTargets: {
     loading: 'Lendo o catálogo de modelos…',

@@ -133,7 +133,7 @@ export default {
     poChooses: 'سيختار PO بنفسه (التوجيه: كامل)',
     poRoutes: 'PO يوجّه (موصى به)',
   },
-  menu: { aria: 'نماذج هذه المحادثة', chipDefault: 'الإعداد الافتراضي للخادم', modeStrict: 'صارم: نموذج واحد', modeMixed: 'مختلط: {count} نماذج', summaryNone: 'لا شيء محدد: يُطبَّق الإعداد الافتراضي للخادم.', summaryMixed: 'يوجّه PO بين النماذج المحددة ({count}).', selectAll: 'تحديد الكل', clearAll: 'إلغاء تحديد الكل', noProvider: 'لا يوجد مزوّد مهيّأ', providerToggle: 'كل نماذج {provider}', countOf: '{selected} من {total}', noModels: 'لا توجد نماذج مدرجة لهذا المزوّد', loading: 'جارٍ تحميل النماذج…', search: 'ابحث عن نماذج…' },
+  menu: { aria: 'نماذج هذه المحادثة', chipDefault: 'الإعداد الافتراضي للخادم', modeStrict: 'صارم: نموذج واحد', modeMixed: 'مختلط: {count} نماذج', summaryNone: 'لا شيء محدد: يُطبَّق الإعداد الافتراضي للخادم.', summaryMixed: 'يوجّه PO بين النماذج المحددة ({count}).', selectAll: 'تحديد الكل', clearAll: 'إلغاء تحديد الكل', noProvider: 'لا يوجد مزوّد مهيّأ', providerToggle: 'كل نماذج {provider}', countOf: '{selected} من {total}', noModels: 'لا توجد نماذج مدرجة لهذا المزوّد', loading: 'جارٍ تحميل النماذج…', search: 'ابحث عن نماذج…', refreshModelsAria: 'تحديث قائمة النماذج', refreshModels: 'تحديث النماذج', refreshing: 'جارٍ التحديث…' },
   picker: { routedBy: 'تم التوجيه بواسطة: {by}' },
   modelTargets: {
     loading: 'جارٍ قراءة فهرس النماذج…',

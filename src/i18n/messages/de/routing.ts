@@ -133,7 +133,7 @@ export default {
     poChooses: 'PO wählt (Routing: vollständig)',
     poRoutes: 'PO routet (empfohlen)',
   },
-  menu: { aria: 'Modelle dieser Unterhaltung', chipDefault: 'Server-Standard', modeStrict: 'Strikt: 1 Modell', modeMixed: 'Gemischt: {count} Modelle', summaryNone: 'Nichts gewählt: Der Server-Standard gilt.', summaryMixed: 'PO routet zwischen den {count} gewählten Modellen.', selectAll: 'Alle auswählen', clearAll: 'Alle abwählen', noProvider: 'Kein Provider konfiguriert', providerToggle: 'Alle Modelle von {provider}', countOf: '{selected} von {total}', noModels: 'Keine Modelle für diesen Provider gelistet', loading: 'Modelle werden geladen…', search: 'Modelle suchen…' },
+  menu: { aria: 'Modelle dieser Unterhaltung', chipDefault: 'Server-Standard', modeStrict: 'Strikt: 1 Modell', modeMixed: 'Gemischt: {count} Modelle', summaryNone: 'Nichts gewählt: Der Server-Standard gilt.', summaryMixed: 'PO routet zwischen den {count} gewählten Modellen.', selectAll: 'Alle auswählen', clearAll: 'Alle abwählen', noProvider: 'Kein Provider konfiguriert', providerToggle: 'Alle Modelle von {provider}', countOf: '{selected} von {total}', noModels: 'Keine Modelle für diesen Provider gelistet', loading: 'Modelle werden geladen…', search: 'Modelle suchen…', refreshModelsAria: 'Modellliste aktualisieren', refreshModels: 'Modelle aktualisieren', refreshing: 'Wird aktualisiert…' },
   picker: { routedBy: 'Geroutet durch: {by}' },
   modelTargets: {
     loading: 'Modellkatalog wird gelesen…',

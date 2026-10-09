@@ -133,7 +133,7 @@ export default {
     poChooses: 'PO sẽ chọn (định tuyến: đầy đủ)',
     poRoutes: 'PO định tuyến (khuyến nghị)',
   },
-  menu: { aria: 'Mô hình của cuộc trò chuyện này', chipDefault: 'Mặc định của máy chủ', modeStrict: 'Nghiêm ngặt: 1 mô hình', modeMixed: 'Hỗn hợp: {count} mô hình', summaryNone: 'Chưa chọn gì: áp dụng mặc định của máy chủ.', summaryMixed: 'PO định tuyến giữa {count} mô hình đã chọn.', selectAll: 'Chọn tất cả', clearAll: 'Bỏ chọn tất cả', noProvider: 'Chưa cấu hình nhà cung cấp nào', providerToggle: 'Tất cả mô hình của {provider}', countOf: '{selected} trên {total}', noModels: 'Không có mô hình nào cho nhà cung cấp này', loading: 'Đang tải mô hình…', search: 'Tìm mô hình…' },
+  menu: { aria: 'Mô hình của cuộc trò chuyện này', chipDefault: 'Mặc định của máy chủ', modeStrict: 'Nghiêm ngặt: 1 mô hình', modeMixed: 'Hỗn hợp: {count} mô hình', summaryNone: 'Chưa chọn gì: áp dụng mặc định của máy chủ.', summaryMixed: 'PO định tuyến giữa {count} mô hình đã chọn.', selectAll: 'Chọn tất cả', clearAll: 'Bỏ chọn tất cả', noProvider: 'Chưa cấu hình nhà cung cấp nào', providerToggle: 'Tất cả mô hình của {provider}', countOf: '{selected} trên {total}', noModels: 'Không có mô hình nào cho nhà cung cấp này', loading: 'Đang tải mô hình…', search: 'Tìm mô hình…', refreshModelsAria: 'Làm mới danh sách mô hình', refreshModels: 'Làm mới mô hình', refreshing: 'Đang cập nhật…' },
   picker: { routedBy: 'Định tuyến bởi: {by}' },
   modelTargets: {
     loading: 'Đang đọc danh mục mô hình…',

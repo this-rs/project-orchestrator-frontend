@@ -133,7 +133,7 @@ export default {
     poChooses: 'PO выберет сам (маршрутизация: полная)',
     poRoutes: 'PO маршрутизирует (рекомендуется)',
   },
-  menu: { aria: 'Модели этого разговора', chipDefault: 'Значение сервера по умолчанию', modeStrict: 'Строгий: 1 модель', modeMixed: 'Смешанный: моделей: {count}', summaryNone: 'Ничего не выбрано: действует значение сервера по умолчанию.', summaryMixed: 'PO маршрутизирует между выбранными моделями ({count}).', selectAll: 'Выбрать все', clearAll: 'Снять все', noProvider: 'Провайдеры не настроены', providerToggle: 'Все модели {provider}', countOf: '{selected} из {total}', noModels: 'Для этого провайдера нет моделей', loading: 'Загрузка моделей…', search: 'Поиск моделей…' },
+  menu: { aria: 'Модели этого разговора', chipDefault: 'Значение сервера по умолчанию', modeStrict: 'Строгий: 1 модель', modeMixed: 'Смешанный: моделей: {count}', summaryNone: 'Ничего не выбрано: действует значение сервера по умолчанию.', summaryMixed: 'PO маршрутизирует между выбранными моделями ({count}).', selectAll: 'Выбрать все', clearAll: 'Снять все', noProvider: 'Провайдеры не настроены', providerToggle: 'Все модели {provider}', countOf: '{selected} из {total}', noModels: 'Для этого провайдера нет моделей', loading: 'Загрузка моделей…', search: 'Поиск моделей…', refreshModelsAria: 'Обновить список моделей', refreshModels: 'Обновить модели', refreshing: 'Обновление…' },
   picker: { routedBy: 'Маршрутизация: {by}' },
   modelTargets: {
     loading: 'Чтение каталога моделей…',

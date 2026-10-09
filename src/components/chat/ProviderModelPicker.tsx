@@ -1,6 +1,7 @@
 import { useId, useMemo, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Check, ChevronDown, Lock, RefreshCw, Search } from 'lucide-react'
+import { useT } from '@/i18n'
 import { Highlight } from '@/components/ui/SearchableSelect'
 import { fold } from '@/components/ui/searchFold'
 import { useModelCatalog } from '@/components/settings/useModelCatalog'
@@ -422,17 +423,18 @@ export function RefreshClaudeModels() {
   const setModels = useSetAtom(modelCatalogAtom)
   const setLoaded = useSetAtom(modelCatalogLoadedAtom)
   const [refreshing, setRefreshing] = useAtom(modelCatalogRefreshingAtom)
+  const { t } = useT()
   return (
     <div className="border-t border-white/[0.06] px-3 py-1.5">
       <button
         type="button"
         disabled={refreshing}
-        aria-label="Actualiser la liste des modèles"
+        aria-label={t('routing.menu.refreshModelsAria')}
         onClick={() => refreshModelCatalog(setModels, setLoaded, setRefreshing)}
         className="inline-flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-200 disabled:opacity-60"
       >
         <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
-        {refreshing ? 'Mise à jour…' : 'Actualiser les modèles'}
+        {refreshing ? t('routing.menu.refreshing') : t('routing.menu.refreshModels')}
       </button>
     </div>
   )

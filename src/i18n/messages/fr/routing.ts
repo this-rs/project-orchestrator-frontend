@@ -133,7 +133,7 @@ export default {
     poChooses: 'PO choisira (routage : complet)',
     poRoutes: 'PO route (recommandé)',
   },
-  menu: { aria: 'Modèles de cette conversation', chipDefault: 'Défaut du serveur', modeStrict: 'Strict : 1 modèle', modeMixed: 'Mixte : {count} modèles', summaryNone: 'Rien de coché : le défaut du serveur s\'applique.', summaryMixed: 'PO route entre les {count} modèles cochés.', selectAll: 'Tout sélectionner', clearAll: 'Tout désélectionner', noProvider: 'Aucun provider configuré', providerToggle: 'Tous les modèles de {provider}', countOf: '{selected} sur {total}', noModels: 'Aucun modèle listé pour ce provider', loading: 'Chargement des modèles…', search: 'Rechercher un modèle…' },
+  menu: { aria: 'Modèles de cette conversation', chipDefault: 'Défaut du serveur', modeStrict: 'Strict : 1 modèle', modeMixed: 'Mixte : {count} modèles', summaryNone: 'Rien de coché : le défaut du serveur s\'applique.', summaryMixed: 'PO route entre les {count} modèles cochés.', selectAll: 'Tout sélectionner', clearAll: 'Tout désélectionner', noProvider: 'Aucun provider configuré', providerToggle: 'Tous les modèles de {provider}', countOf: '{selected} sur {total}', noModels: 'Aucun modèle listé pour ce provider', loading: 'Chargement des modèles…', search: 'Rechercher un modèle…', refreshModelsAria: 'Actualiser la liste des modèles', refreshModels: 'Actualiser les modèles', refreshing: 'Mise à jour…' },
   picker: { routedBy: 'Routé par : {by}' },
   modelTargets: {
     loading: 'Lecture du catalogue de modèles…',

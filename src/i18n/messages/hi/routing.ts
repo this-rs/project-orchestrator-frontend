@@ -133,7 +133,7 @@ export default {
     poChooses: 'PO चुनेगा (रूटिंग: पूर्ण)',
     poRoutes: 'PO रूट करता है (अनुशंसित)',
   },
-  menu: { aria: 'इस बातचीत के मॉडल', chipDefault: 'सर्वर डिफ़ॉल्ट', modeStrict: 'सख़्त: 1 मॉडल', modeMixed: 'मिश्रित: {count} मॉडल', summaryNone: 'कुछ चुना नहीं गया: सर्वर डिफ़ॉल्ट लागू होगा।', summaryMixed: 'PO चुने गए {count} मॉडलों के बीच रूट करता है।', selectAll: 'सभी चुनें', clearAll: 'सभी हटाएँ', noProvider: 'कोई प्रदाता कॉन्फ़िगर नहीं है', providerToggle: '{provider} के सभी मॉडल', countOf: '{total} में से {selected}', noModels: 'इस प्रदाता के लिए कोई मॉडल सूचीबद्ध नहीं', loading: 'मॉडल लोड हो रहे हैं…', search: 'मॉडल खोजें…' },
+  menu: { aria: 'इस बातचीत के मॉडल', chipDefault: 'सर्वर डिफ़ॉल्ट', modeStrict: 'सख़्त: 1 मॉडल', modeMixed: 'मिश्रित: {count} मॉडल', summaryNone: 'कुछ चुना नहीं गया: सर्वर डिफ़ॉल्ट लागू होगा।', summaryMixed: 'PO चुने गए {count} मॉडलों के बीच रूट करता है।', selectAll: 'सभी चुनें', clearAll: 'सभी हटाएँ', noProvider: 'कोई प्रदाता कॉन्फ़िगर नहीं है', providerToggle: '{provider} के सभी मॉडल', countOf: '{total} में से {selected}', noModels: 'इस प्रदाता के लिए कोई मॉडल सूचीबद्ध नहीं', loading: 'मॉडल लोड हो रहे हैं…', search: 'मॉडल खोजें…', refreshModelsAria: 'मॉडल सूची रीफ़्रेश करें', refreshModels: 'मॉडल रीफ़्रेश करें', refreshing: 'अपडेट हो रहा है…' },
   picker: { routedBy: 'रूट करने वाला: {by}' },
   modelTargets: {
     loading: 'मॉडल कैटलॉग पढ़ा जा रहा है…',

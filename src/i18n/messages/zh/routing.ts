@@ -133,7 +133,7 @@ export default {
     poChooses: 'PO 将自行选择（路由：完全）',
     poRoutes: 'PO 路由（推荐）',
   },
-  menu: { aria: '此对话的模型', chipDefault: '服务器默认', modeStrict: '严格: 1 个模型', modeMixed: '混合: {count} 个模型', summaryNone: '未选择：使用服务器默认。', summaryMixed: 'PO 在所选的 {count} 个模型之间路由。', selectAll: '全选', clearAll: '全不选', noProvider: '未配置任何提供商', providerToggle: '{provider} 的所有模型', countOf: '共 {total} 个，已选 {selected} 个', noModels: '此提供商没有可列出的模型', loading: '正在加载模型…', search: '搜索模型…' },
+  menu: { aria: '此对话的模型', chipDefault: '服务器默认', modeStrict: '严格: 1 个模型', modeMixed: '混合: {count} 个模型', summaryNone: '未选择：使用服务器默认。', summaryMixed: 'PO 在所选的 {count} 个模型之间路由。', selectAll: '全选', clearAll: '全不选', noProvider: '未配置任何提供商', providerToggle: '{provider} 的所有模型', countOf: '共 {total} 个，已选 {selected} 个', noModels: '此提供商没有可列出的模型', loading: '正在加载模型…', search: '搜索模型…', refreshModelsAria: '刷新模型列表', refreshModels: '刷新模型', refreshing: '正在更新…' },
   picker: { routedBy: '路由方：{by}' },
   modelTargets: {
     loading: '正在读取模型目录…',
