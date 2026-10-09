@@ -1,25 +1,21 @@
 import { useEffect, useRef } from 'react'
 import { useAtomValue } from 'jotai'
 import { useSyncExternalStore } from 'react'
-import { currentUserAtom, isAuthenticatedAtom } from '@/atoms'
+import { isAuthenticatedAtom } from '@/atoms'
 import { refsEnabledAtom } from '@/atoms/chat'
-import { getApiBase } from '@/services/env'
 import { HISTORICAL_KINDS, cachedRefKinds, ensureRefKinds, getActiveKinds, setActiveKinds, subscribeKinds, type KindInfo } from './kinds'
-import { refsCapabilityScope } from './refsCapability'
 
 /** The kinds this server resolves; re-renders when they arrive. Historical five until then. */
 export const useActiveKinds = (): readonly KindInfo[] => useSyncExternalStore(subscribeKinds, getActiveKinds, getActiveKinds)
 
 /**
- * Mounted once (ReferenceSourceHost): once the server speaks references, ask
+ * Mounted once, by the chat hook (which owns the server/account scope): once the server speaks references, ask
  * which kinds it resolves. Until it answers, and for a server that has no
  * such route, the five historical kinds stay in force.
  */
-export function useRefKindsSync(): void {
+export function useRefKindsSync(scope: string): void {
   const enabled = useAtomValue(refsEnabledAtom)
   const authenticated = useAtomValue(isAuthenticatedAtom)
-  const userId = useAtomValue(currentUserAtom)?.id
-  const scope = refsCapabilityScope(getApiBase(), userId)
   const synced = useRef(false)
   useEffect(() => {
     if (!enabled || !authenticated) {

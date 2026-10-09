@@ -20,7 +20,6 @@
  * was not published when this was written: the parser is tolerant and the
  * single function to adjust is `fetchRefKinds`.
  */
-import { api, ApiError } from '@/services/api'
 import { isIdFormat, type IdFormat } from './ids'
 
 export interface KindInfo {
@@ -54,6 +53,8 @@ export function parseKindsResponse(raw: unknown): KindInfo[] | null {
 
 /** The ONE function to adjust if the route moves. `null` = could not tell. */
 export async function fetchRefKinds(signal?: AbortSignal): Promise<readonly KindInfo[] | null> {
+  // Loaded on demand: this module is read by the wire layer (token parsing), which must not drag the HTTP client in with it.
+  const { api, ApiError } = await import('@/services/api')
   try {
     const kinds = parseKindsResponse(await api.get<unknown>('/refs/kinds', signal))
     return kinds ?? HISTORICAL_KINDS

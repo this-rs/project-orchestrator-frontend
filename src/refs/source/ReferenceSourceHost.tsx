@@ -1,7 +1,6 @@
 import { useEffect } from 'react'
 import { useAtomValue, useStore } from 'jotai'
 import { refsEnabledAtom } from '@/atoms/chat'
-import { useRefKindsSync } from '../useActiveKinds'
 import { addRefToChatAtom, draggingRefAtom, refsAddAnnouncementAtom } from './addToChat'
 import {
   REF_ATTR,
@@ -40,7 +39,6 @@ export function ReferenceSourceHost() {
   const enabled = useAtomValue(refsEnabledAtom)
   const store = useStore()
   const announcement = useAtomValue(refsAddAnnouncementAtom)
-  useRefKindsSync()
 
   useEffect(() => {
     if (!enabled) return
