@@ -53,6 +53,9 @@ export const chatAutoApprovedToolsAtom = atom<Set<string>>(new Set<string>())
 /** Whether auto-continue is enabled (automatically sends "Continue" after max_turns) */
 export const chatAutoContinueAtom = atom<boolean>(false)
 
+/** Whether the horizontal timeline strip is shown above the transcript (remembered per browser). */
+export const chatTimelineOpenAtom = atomWithStorage<boolean>('chat-timeline-open', false)
+
 /** Draft key of a conversation that has no id yet (nothing sent so far). */
 export const NEW_CONVERSATION_DRAFT_KEY = '__new__'
 

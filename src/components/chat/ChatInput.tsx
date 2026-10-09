@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect, useId } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
-import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom, chatSessionImagesCauseAtom, refsEnabledAtom, chatRefLabelsAtom } from '@/atoms'
+import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom, chatSessionImagesCauseAtom, refsEnabledAtom, chatRefLabelsAtom, chatTimelineOpenAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import { documentsApi } from '@/services/documents'
 import { ApiError } from '@/services/api'
@@ -18,7 +18,7 @@ import {
   modeLabelSet,
   readToolPolicyMode,
 } from '@/constants/toolPolicy'
-import { ChevronDown, Loader2, Paperclip, Square, ArrowRight } from 'lucide-react'
+import { ChevronDown, Loader2, Paperclip, Square, ArrowRight, ChartNoAxesGantt } from 'lucide-react'
 import { ActivityBar, type RunActions } from './ActivityBar'
 import type { RunningItem } from './runningActivity'
 import { RoutingModePicker } from './RoutingModePicker'
@@ -37,6 +37,7 @@ import { MAX_REFS_PER_MESSAGE, type ChatReference } from '@/refs/types'
 import type { RefSearchItem } from '@/refs/refsApi'
 import { findRefTokens, refToken } from '@/utils/messageRefs'
 import { useT } from '@/i18n'
+import { Button } from '@/components/ui'
 import { panelGlass } from '@/components/ui/panelGlass'
 import {
   addAttachment,
@@ -131,6 +132,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const [modeOverride, setModeOverride] = useAtom(chatSessionPermissionOverrideAtom)
   const [serverConfig, setServerConfig] = useAtom(chatPermissionConfigAtom)
   const autoContinue = useAtomValue(chatAutoContinueAtom)
+  const [timelineOpen, setTimelineOpen] = useAtom(chatTimelineOpenAtom)
   const providerTarget = useAtomValue(chatProviderTargetAtom)
   const sessionPolicy = useAtomValue(chatSessionToolPolicyAtom)
   const trustHelpId = useId()
@@ -1122,6 +1124,19 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           </div>
 
           <div className="ml-auto flex shrink-0 items-center gap-2">
+            {/* Timeline strip toggle */}
+            <Button
+              icon
+              size="sm"
+              type="button"
+              onClick={() => setTimelineOpen((v) => !v)}
+              aria-pressed={timelineOpen}
+              aria-label={t('session.timeline.title')}
+              title={timelineOpen ? t('session.timeline.hide') : t('session.timeline.show')}
+              className={timelineOpen ? 'text-indigo-300' : 'text-gray-400'}
+            >
+              <ChartNoAxesGantt className="size-4" aria-hidden="true" />
+            </Button>
             {/* Auto-continue toggle */}
             <div className="flex items-center gap-1.5">
               <span className={`hidden sm:inline text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto</span>

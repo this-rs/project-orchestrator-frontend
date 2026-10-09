@@ -4,7 +4,7 @@ import { OverflowMenu } from '@/components/ui/OverflowMenu'
 import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom } from '@/atoms'
 import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
@@ -31,6 +31,7 @@ import { ChatInput, type PrefillPayload } from './ChatInput'
 import { SecretRequestTray } from './SecretRequestTray'
 import { SessionOpenError } from './SessionOpenError'
 import { ComposerDock } from './ComposerDock'
+import { ChatTimelineStrip } from './ChatTimelineStrip'
 import { collectRunning } from './runningActivity'
 import type { RunActions } from './ActivityBar'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
@@ -72,6 +73,7 @@ export function ChatPanel() {
   const [panelWidth, setPanelWidth] = useAtom(chatPanelWidthAtom)
   const [showSessions, setShowSessions] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const timelineOpen = useAtomValue(chatTimelineOpenAtom)
   // Height of the composer floating over the bottom of the transcript (see ComposerDock)
   const [dockHeight, setDockHeight] = useState(0)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
@@ -657,6 +659,9 @@ export function ChatPanel() {
                     onStopRun={handleStopRun}
                   />
                 )}
+                {timelineOpen && (
+                  <ChatTimelineStrip sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
+                )}
                 {/* The composer floats over the transcript: the messages scroll under its glass. */}
                 <div className="relative flex flex-1 min-h-0 flex-col">
                   <RefsAnnouncer />
@@ -892,6 +897,9 @@ export function ChatPanel() {
               onViewRun={handleViewRun}
               onStopRun={handleStopRun}
             />
+          )}
+          {timelineOpen && (
+            <ChatTimelineStrip sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
           )}
           {/* The composer floats over the transcript: the messages scroll under its glass. */}
           <div className="relative flex flex-1 min-h-0 flex-col">
