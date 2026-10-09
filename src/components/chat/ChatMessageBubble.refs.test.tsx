@@ -47,3 +47,24 @@ describe('ChatMessageBubble — references', () => {
     expect(empty.container.innerHTML).toBe(plain.container.innerHTML)
   })
 })
+
+describe('ChatMessageBubble — entities cited by the agent', () => {
+  const agent = (content: string): ChatMessage => ({
+    id: 'a1',
+    role: 'assistant',
+    blocks: [{ id: 'b1', type: 'text', content }],
+    timestamp: new Date(),
+  })
+
+  it('draws a cited #plan:uuid as a chip in an assistant text block', async () => {
+    const { MemoryRouter, Route, Routes } = await import('react-router-dom')
+    render(
+      <MemoryRouter initialEntries={['/workspace/acme/today']}>
+        <Routes>
+          <Route path="/workspace/:slug/*" element={<ChatMessageBubble message={agent(`voir ${a.token}`)} />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('link').getAttribute('href')).toBe(`/workspace/acme/plans/${a.ref.id}`)
+  })
+})
