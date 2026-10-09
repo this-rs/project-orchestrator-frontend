@@ -1,4 +1,14 @@
 export default {
+  vaultUnlock: {
+    locked: "Vault locked",
+    placeholder: "Vault passphrase",
+    submit: "Unlock",
+    submitting: "Unlocking…",
+    done: "Vault unlocked: the providers that depend on it are up to date.",
+    wrongPassphrase: "Wrong passphrase.",
+    failed: "Could not unlock the vault: {reason}",
+    settings: "Vault settings",
+  },
   degradation: {
     title: 'Some features are not available in this conversation',
     harness: {

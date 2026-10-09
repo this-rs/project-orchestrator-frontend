@@ -1,6 +1,16 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  vaultUnlock: {
+    locked: "保管庫はロックされています",
+    placeholder: "保管庫のパスフレーズ",
+    submit: "ロック解除",
+    submitting: "解除中…",
+    done: "保管庫のロックを解除しました：これに依存するプロバイダーは最新です。",
+    wrongPassphrase: "パスフレーズが正しくありません。",
+    failed: "保管庫のロックを解除できませんでした：{reason}",
+    settings: "保管庫の設定",
+  },
   degradation: {
     title: "この会話では一部の機能を利用できません",
     harness: {

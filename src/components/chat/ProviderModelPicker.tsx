@@ -1,9 +1,11 @@
-import { useId, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Check, ChevronDown, Lock, RefreshCw, Search } from 'lucide-react'
 import { Highlight } from '@/components/ui/SearchableSelect'
 import { fold } from '@/components/ui/searchFold'
 import { useModelCatalog } from '@/components/settings/useModelCatalog'
+import { useRefreshProviders } from '@/hooks/useProviders'
+import { vaultApi, type VaultOverview } from '@/services/vault'
 import {
   chatDefaultModelAtom,
   chatEffectiveProviderAtom,
@@ -44,6 +46,7 @@ import {
   type ProviderInstance,
 } from '@/types/provider'
 import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
+import { VaultUnlock } from './VaultUnlock'
 
 /** The one menu of the composer's target control, or none. Owned by the composer, which also has a mode menu to close. */
 export type ProviderModelMenu = 'target' | 'routing' | null
@@ -117,9 +120,28 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   const [expanded, setExpanded] = useState<string | null>(null)
   const baseId = useId()
   const modelHelpId = `${baseId}-model-help`
+  const refreshProviders = useRefreshProviders()
 
   const hasSession = !!sessionId
   const showProviders = list !== null && loadState !== 'unsupported'
+  // A provider whose credential sits in the vault cannot run while the vault is
+  // locked: the menu says so and unlocks in place. Read each time the menu opens.
+  const [vault, setVault] = useState<VaultOverview | null>(null)
+  useEffect(() => {
+    if (open !== 'target' || !showProviders) return
+    let alive = true
+    // Wrapped so a synchronous failure (no fetch in this environment) is still a rejection.
+    Promise.resolve()
+      .then(() => vaultApi.overview())
+      .then(
+        (o) => alive && setVault(o),
+        () => alive && setVault(null),
+      )
+    return () => {
+      alive = false
+    }
+  }, [open, showProviders])
+  const vaultLocked = !!vault && vault.initialized && !vault.unavailable && !vault.unlocked_until
   const resolvedDefault = showProviders ? (list.default ?? null) : null
   const effectiveClaude = loadState === 'unsupported' || isClaudeCodeProvider(effectiveId, instance?.kind ?? sessionProvider?.kind)
 
@@ -277,6 +299,11 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
         <div data-testid="target-picker-popover" className={POPOVER}>
           {header}
           {poChooses && autoPanel}
+          {showProviders && vaultLocked && (
+            <div className="px-3 py-2 border-b border-white/[0.06]">
+              <VaultUnlock onUnlocked={() => void refreshProviders()} />
+            </div>
+          )}
           {showProviders && hasSession && !poChooses && (
             <div className="px-3 py-2 space-y-1.5 border-b border-white/[0.06]">
               <div className="flex items-baseline gap-1.5 text-xs">

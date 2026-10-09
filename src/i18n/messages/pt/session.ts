@@ -1,6 +1,16 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  vaultUnlock: {
+    locked: "Cofre bloqueado",
+    placeholder: "Senha de acesso do cofre",
+    submit: "Desbloquear",
+    submitting: "Desbloqueando…",
+    done: "Cofre desbloqueado: os provedores que dependem dele estão atualizados.",
+    wrongPassphrase: "Senha incorreta.",
+    failed: "Não foi possível desbloquear o cofre: {reason}",
+    settings: "Configurações do cofre",
+  },
   degradation: {
     title: "Alguns recursos não estão disponíveis nesta conversa",
     harness: {

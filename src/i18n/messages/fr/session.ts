@@ -1,6 +1,16 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  vaultUnlock: {
+    locked: "Coffre verrouillé",
+    placeholder: "Phrase de passe du coffre",
+    submit: "Déverrouiller",
+    submitting: "Déverrouillage…",
+    done: "Coffre déverrouillé : les providers qui en dépendent sont à jour.",
+    wrongPassphrase: "Phrase de passe incorrecte.",
+    failed: "Impossible de déverrouiller le coffre : {reason}",
+    settings: "Réglages du coffre",
+  },
   degradation: {
     title: "Certaines fonctions ne sont pas disponibles dans cette conversation",
     harness: {

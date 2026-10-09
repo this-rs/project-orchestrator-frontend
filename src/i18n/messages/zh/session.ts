@@ -1,6 +1,16 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  vaultUnlock: {
+    locked: "保险库已锁定",
+    placeholder: "保险库口令",
+    submit: "解锁",
+    submitting: "正在解锁…",
+    done: "保险库已解锁：依赖它的提供方已更新。",
+    wrongPassphrase: "口令错误。",
+    failed: "无法解锁保险库：{reason}",
+    settings: "保险库设置",
+  },
   degradation: {
     title: "此对话中部分功能不可用",
     harness: {
