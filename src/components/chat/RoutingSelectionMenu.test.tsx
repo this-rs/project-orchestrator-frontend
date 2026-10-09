@@ -33,12 +33,15 @@ import {
 import type { ProvidersResponse } from '@/types/provider'
 import type { ProviderRoutingMode, RoutingSettingsResponse } from '@/types/routing'
 import type { ContentBlock } from '@/types'
+import { I18nProvider, type LocaleCode } from '@/i18n'
+import { loadLocale } from '@/i18n/store'
 import { ChatInput } from './ChatInput'
 import { ChatHeaderTitle } from './ChatHeaderTitle'
 import { ModelChangedBlock } from './ModelChangedBlock'
 
 vi.mock('@/hooks', () => ({ useIsMobile: () => false }))
-vi.mock('@/services/chat', () => ({ chatApi: { getPermissionConfig: () => new Promise(() => {}) } }))
+const changeConversationRouting = vi.hoisted(() => vi.fn(() => Promise.resolve('local' as const)))
+vi.mock('@/services/chat', () => ({ chatApi: { getPermissionConfig: () => new Promise(() => {}) }, changeConversationRouting }))
 vi.mock('@/services/providers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/providers')>()),
   providersApi: { models: vi.fn().mockResolvedValue({ models: [] }), list: vi.fn() },
@@ -77,7 +80,7 @@ const settings = (mode: ProviderRoutingMode, primary: RoutingSettingsResponse['p
   mode, stage: 'auto', primary, exploration_epsilon: 0, cost_weight: 0, latency_weight: 0, demote_after: 0, scope: 'global',
 })
 
-function mount(mode: ProviderRoutingMode, { sessionId = null as string | null, primary = null as RoutingSettingsResponse['primary'], prepare, onChangeModel }: { sessionId?: string | null; primary?: RoutingSettingsResponse['primary']; prepare?: (s: Store) => void; onChangeModel?: (model: string) => void } = {}) {
+function mount(mode: ProviderRoutingMode, { sessionId = null as string | null, primary = null as RoutingSettingsResponse['primary'], prepare, onChangeModel, locale }: { sessionId?: string | null; primary?: RoutingSettingsResponse['primary']; prepare?: (s: Store) => void; onChangeModel?: (model: string) => void; locale?: LocaleCode } = {}) {
   const store = createStore()
   store.set(chatSessionIdAtom, sessionId)
   store.set(chatPermissionConfigAtom, { mode: 'default', allowed_tools: [], disallowed_tools: [] })
@@ -87,11 +90,12 @@ function mount(mode: ProviderRoutingMode, { sessionId = null as string | null, p
   store.set(providersLoadStateAtom, 'ready')
   store.set(routingSettingsAtom(''), { state: 'ready', settings: settings(mode, primary) })
   prepare?.(store)
-  render(
+  const input = (
     <Provider store={store}>
       <ChatInput onSend={() => {}} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={() => {}} isStreaming={false} sessionId={sessionId} onChangeModel={onChangeModel} />
-    </Provider>,
+    </Provider>
   )
+  render(locale ? <I18nProvider initial={locale}>{input}</I18nProvider> : input)
   return store
 }
 
@@ -208,15 +212,16 @@ describe('RoutingSelectionMenu', () => {
     })
     openMenu()
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
-    // "Hand it to PO": the chat now reads Auto, the rest is off.
+    // "Hand it to PO": the chat now reads Auto; its list stays visible and usable below.
     fireEvent.click(screen.getByRole('switch'))
     expect(store.get(chatRoutingModeAtom)).toBe('full')
     expect(screen.getByTestId('target-chip').textContent).toContain('Auto')
-    expect(screen.getByTestId('routing-selection').hasAttribute('inert')).toBe(true)
+    expect(screen.getByTestId('routing-selection').hasAttribute('inert')).toBe(false)
+    expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', { routing_mode: 'full' })
     // ...and back to a model of its own.
     fireEvent.click(screen.getByRole('switch'))
     expect(store.get(chatRoutingModeAtom)).toBe('primary')
-    expect(screen.getByTestId('routing-selection').hasAttribute('inert')).toBe(false)
+    expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', { routing_mode: 'primary' })
     // Nothing global was written, and no draft was touched.
     expect(routingApi.put).not.toHaveBeenCalled()
     expect(routingApi.putProject).not.toHaveBeenCalled()
@@ -285,7 +290,8 @@ describe('RoutingSelectionMenu', () => {
   it('a backend without the router: the plain picker, no switch', () => {
     mount('primary', { prepare: (s) => s.set(routingSettingsAtom(''), { state: 'unsupported', settings: null }) })
     fireEvent.click(screen.getByTestId('target-chip'))
-    expect(screen.queryByTestId('routing-auto-switch')).toBeNull()
+    expect(screen.getByTestId('target-picker-popover')).toBeTruthy()
+    expect(screen.queryByRole('switch')).toBeNull()
   })
 
   it('full: with a session, the menu says what PO chose and why - same switch, no separate page', () => {
@@ -336,6 +342,77 @@ describe('RoutingSelectionMenu', () => {
   it('primary: the effective provider id is still reported before a session', () => {
     const store = mount('primary')
     expect(store.get(chatEffectiveProviderIdAtom)).toBe('claude-code')
+  })
+
+  it('an alias ticked next to the model it stands for is ONE model: strict, not mixed', () => {
+    const store = mount('primary', {
+      prepare: (s) => s.set(providersAtom, { ...PROVIDERS, aliases: [{ alias: 'fast', provider: 'local-llama', model: 'qwen' }] } as ProvidersResponse),
+    })
+    openMenu()
+    fireEvent.click(within(screen.getByTestId('target-provider-local-llama')).getByRole('button', { name: /Local llama/ }))
+    tick('local-llama', 'qwen')
+    tick('local-llama', /fast/)
+    expect(store.get(chatDraftSelectionAtom)).toHaveLength(2)
+    expect(store.get(chatDraftRoutingModeAtom)).toBe('primary')
+    expect(screen.getByTestId('routing-summary').textContent).toContain('Strict: 1 model')
+  })
+
+  it('an existing chat on Auto: the panel says what PO chose; picking a model takes the hand back and says so; "Hand it back to PO" restores Auto', () => {
+    const onChangeModel = vi.fn()
+    const store = mount('primary', {
+      sessionId: 's1',
+      onChangeModel,
+      prepare: (s) => {
+        s.set(chatSessionProviderAtom, { id: 'local-llama' })
+        s.set(chatSessionModelAtom, 'qwen')
+        s.set(providersAtom, { ...PROVIDERS, providers: [PROVIDERS.providers[0], { ...PROVIDERS.providers[1], models: [{ id: 'qwen' }, { id: 'phi' }] }] })
+        s.set(chatSessionCapabilitiesSnapshotAtom, { set_model_live: true })
+        s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheap', routing_mode: 'full' })
+      },
+    })
+    openMenu()
+    expect(screen.getByTestId('routing-auto-panel').textContent).toContain('PO chose: qwen')
+    expect(screen.queryByTestId('routing-hand-back')).toBeNull()
+    // The list is still there, below the panel, and usable.
+    tick('local-llama', 'phi')
+    expect(onChangeModel).toHaveBeenCalledWith('phi')
+    expect(store.get(chatRoutingModeAtom)).toBe('primary')
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('status').textContent).toContain('You took the hand back')
+    // Hand it back.
+    fireEvent.click(screen.getByTestId('routing-hand-back'))
+    expect(store.get(chatRoutingModeAtom)).toBe('full')
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
+    expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', { routing_mode: 'full' })
+    expect(routingApi.put).not.toHaveBeenCalled()
+  })
+
+  it('an existing chat shows ITS mode, not the settings: full settings, a chat opened in strict', () => {
+    mount('full', { sessionId: 's1', prepare: (s) => s.set(chatSessionRoutingAtom, { routed_by: 'default', route_reason: null, routing_mode: null }) })
+    expect(screen.getByTestId('target-chip').textContent).not.toContain('Auto')
+    openMenu()
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('every control has a visible focus ring and a target of 24px (44px on touch)', () => {
+    mount('primary', { prepare: (s) => s.set(modelCatalogAtom, CLAUDE_MODELS) })
+    openMenu()
+    const popover = screen.getByTestId('target-picker-popover')
+    const controls = [screen.getByTestId('target-chip'), ...within(popover).getAllByRole('button'), ...within(popover).getAllByRole('checkbox')]
+    for (const el of controls) {
+      expect(el.className, el.outerHTML.slice(0, 120)).toMatch(/focus-visible:ring-2/)
+      expect(el.className, el.outerHTML.slice(0, 120)).toMatch(/min-h-6|size-6|h-9|min-h-11/)
+      expect(el.className, el.outerHTML.slice(0, 120)).toMatch(/pointer-coarse:(min-h-11|size-11|h-11)/)
+    }
+  })
+
+  it('reads in the user\'s language', async () => {
+    await loadLocale('fr')
+    mount('primary', { locale: 'fr', prepare: (s) => s.set(modelCatalogAtom, CLAUDE_MODELS) })
+    openMenu()
+    fireEvent.click(within(screen.getByTestId('target-provider-claude-code')).getByRole('checkbox', { name: /Tous les modèles de Claude Code/ }))
+    expect(screen.getByTestId('routing-summary').textContent).toContain('Mixte : 2 modèles')
+    expect(screen.getAllByRole('group', { name: /^Versions de /i })[0]).toBeTruthy()
   })
 
   it('a chat opened in Strict: the switch is off and the locked provider shows', () => {

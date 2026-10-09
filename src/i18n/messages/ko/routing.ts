@@ -133,7 +133,7 @@ export default {
     poChooses: 'PO가 선택합니다(라우팅: 전체)',
     poRoutes: 'PO가 라우팅(권장)',
   },
-  menu: { aria: '이 대화의 모델', chipDefault: '서버 기본값', modeStrict: '엄격: 모델 1개', modeMixed: '혼합: 모델 {count}개', summaryNone: '선택 없음: 서버 기본값이 적용됩니다.', summaryMixed: 'PO가 선택한 {count}개 모델 사이에서 라우팅합니다.', selectAll: '모두 선택', clearAll: '모두 해제', noProvider: '구성된 제공자가 없습니다', providerToggle: '{provider}의 모든 모델', countOf: '{total}개 중 {selected}개', noModels: '이 제공자의 모델이 없습니다', loading: '모델 불러오는 중…', search: '모델 검색…', refreshModelsAria: '모델 목록 새로 고침', refreshModels: '모델 새로 고침', refreshing: '업데이트 중…' },
+  menu: { aria: '이 대화의 모델', chipDefault: '서버 기본값', modeStrict: '엄격: 모델 1개', modeMixed: '혼합: 모델 {count}개', summaryNone: '선택 없음: 서버 기본값이 적용됩니다.', summaryMixed: 'PO가 선택한 {count}개 모델 사이에서 라우팅합니다.', selectAll: '모두 선택', clearAll: '모두 해제', noProvider: '구성된 제공자가 없습니다', providerToggle: '{provider}의 모든 모델', countOf: '{total}개 중 {selected}개', noModels: '이 제공자의 모델이 없습니다', loading: '모델 불러오는 중…', search: '모델 검색…', refreshModelsAria: '모델 목록 새로 고침', refreshModels: '모델 새로 고침', refreshing: '업데이트 중…', defaultModel: '기본 모델', locked: '대화는 해당 제공자에 머뭅니다', otherProvider: '다른 제공자로 새 대화', liveUnsupported: '이 제공자는 진행 중인 대화의 모델을 바꿀 수 없습니다. 다른 모델을 쓰려면 새 대화를 시작하세요.', autoChose: 'PO의 선택: {model}', autoHint: '아래에서 모델을 고르면 제어를 되찾습니다.', tookControl: '제어를 되찾았습니다: {model}이(가) 이 대화를 맡습니다.', handBack: 'PO에게 맡기기', aliasesGroup: '모델 별칭', modelsGroup: '모델', noMatch: '“{query}”와 일치하는 모델이 없습니다', versionsGroup: '{family} 버전' },
   picker: { routedBy: '라우팅 주체: {by}' },
   modelTargets: {
     loading: '모델 카탈로그를 읽는 중…',

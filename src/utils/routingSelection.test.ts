@@ -34,5 +34,7 @@ describe('routingSelection', () => {
     const alias: RoutingPick = { provider: 'local', model: 'fast' }
     const out = distinctModels([c, alias], (p) => (p.model === 'fast' ? 'qwen' : p.model))
     expect(out).toEqual([c])
+    // ...so a model and its alias read strict, not mixed.
+    expect(modeOf(false, [c, alias], (p) => (p.model === 'fast' ? 'qwen' : p.model))).toBe('primary')
   })
 })

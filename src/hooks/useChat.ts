@@ -8,7 +8,8 @@ import { getApiBase } from '@/services/env'
 import { toEntityRef, type ChatReference, type EntityRef } from '@/refs/types'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
-import { aliasesForInstance } from '@/constants/providers'
+import { pickModelResolver } from '@/constants/providers'
+import { distinctModels } from '@/utils/routingSelection'
 import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
@@ -2011,14 +2012,12 @@ export function useChat() {
         // without it the picker is the only way, as before.
         const routerPresent = !!store.get(routingSettingsAtom(slug)).settings
         const explicit = chosenMode ? chosenMode !== 'full' : routerPresent ? store.get(chatForcedTargetAtom) : mode === 'primary'
-        // Mixed: PO routes among the picked models. An alias is sent as the model it stands for.
+        // Mixed: PO routes among the picked models (`ChatRequest.routing_pool`). An alias is
+        // sent as the model it stands for, and an alias next to its model counts once.
+        const resolvePick = pickModelResolver(store.get(providersAtom))
         const pool =
           chosenMode === 'mixed'
-            ? store.get(chatDraftSelectionAtom).map((pick) => {
-                const instance = store.get(providersAtom)?.providers.find((x) => x.id === pick.provider)
-                const alias = aliasesForInstance(instance, store.get(providersAtom)?.aliases).find((a) => a.alias === pick.model)
-                return { provider: pick.provider, model: alias?.model ?? pick.model }
-              })
+            ? distinctModels(store.get(chatDraftSelectionAtom), resolvePick).map((pick) => ({ provider: pick.provider, model: resolvePick(pick) }))
             : null
         // The provider is named ONLY when the user picked an instance this
         // server lists. Otherwise the field is left out and the server
@@ -2061,8 +2060,9 @@ export function useChat() {
         if (store.get(chatDraftSelectionAtom).length > 0) store.set(chatSelectedProviderAtom, null)
         store.set(chatDraftAutoAtom, null)
         store.set(chatDraftSelectionAtom, [])
-        // The conversation keeps the mode it was opened with, before its record says so.
-        if (chosenMode) store.set(chatSessionRoutingAtom, { routed_by: null, route_reason: null, routing_mode: chosenMode })
+        // The conversation keeps the mode it was opened with (its own, or the settings' of that
+        // moment), before its record says so: it never follows the settings afterwards.
+        store.set(chatSessionRoutingAtom, { routed_by: null, route_reason: null, routing_mode: mode })
         if (mode !== 'primary') {
           // How PO routed it (`routed_by`, `route_reason`): read from the record, best effort.
           void Promise.resolve()
@@ -2071,7 +2071,7 @@ export function useChat() {
               if (store.get(chatSessionIdAtom) !== response.session_id) return
               const record = routingOf(session)
               // A server that does not echo the mode yet: keep the one this chat was opened with.
-              store.set(chatSessionRoutingAtom, record && chosenMode && !record.routing_mode ? { ...record, routing_mode: chosenMode } : record)
+              store.set(chatSessionRoutingAtom, record && !record.routing_mode ? { ...record, routing_mode: mode } : (record ?? { routed_by: null, route_reason: null, routing_mode: mode }))
             })
             .catch(() => {})
         }

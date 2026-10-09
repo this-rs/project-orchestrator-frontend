@@ -226,3 +226,23 @@ export const chatApi = {
   associateSession: (sessionId: string, entityType: 'Plan' | 'Task', entityId: string, source: string = 'manual') =>
     api.post(`/chat/sessions/${sessionId}/associate`, { entity_type: entityType, entity_id: entityId, source }),
 }
+
+/** A change of routing asked on an EXISTING conversation from the routing menu. */
+export interface ConversationRoutingChange {
+  /** `full` = Auto (also "hand it back to PO"), `primary` = one model, `mixed` = a pool. */
+  routing_mode: NonNullable<CreateSessionRequest['routing_mode']>
+  /** `mixed` only: the (provider, model) pairs PO may route among. */
+  routing_pool?: NonNullable<CreateSessionRequest['routing_pool']>
+}
+
+/**
+ * The one place a routing change of an existing conversation reaches the server.
+ * The server has no route for it yet: the change stays in this conversation's
+ * state on the client, and `'local'` says so. A model picked by hand is not
+ * routed through here: it is the live `set_model` frame, which the server knows.
+ */
+export function changeConversationRouting(sessionId: string, change: ConversationRoutingChange): Promise<'local'> {
+  void sessionId
+  void change
+  return Promise.resolve('local')
+}

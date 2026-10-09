@@ -135,6 +135,19 @@ export function aliasesForInstance(
     .sort((a, b) => rank(a.alias) - rank(b.alias) || a.alias.localeCompare(b.alias))
 }
 
+/**
+ * The model a (provider, model-or-alias) pick stands for, from the listing: an
+ * alias resolves to its model, anything else is itself.
+ */
+export function pickModelResolver(
+  list: { providers: readonly ProviderInstance[]; aliases?: readonly ModelAlias[] | null } | null | undefined,
+): (pick: { provider: string; model: string }) => string {
+  return (pick) => {
+    const instance = list?.providers.find((p) => p.id === pick.provider)
+    return aliasesForInstance(instance, list?.aliases).find((a) => a.alias === pick.model)?.model ?? pick.model
+  }
+}
+
 /** How a model of a NON-Claude instance is named: its label, else its id as is. */
 export function providerModelLabel(instance: ProviderInstance | null | undefined, modelId: string): string {
   return instance?.models?.find((m) => m.id === modelId)?.label || modelId
