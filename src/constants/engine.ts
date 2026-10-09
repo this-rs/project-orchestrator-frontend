@@ -55,9 +55,22 @@ function contextWindowKnown(declared: DeclaredCapabilities | null | undefined): 
   return typeof value === 'number' && value > 0
 }
 
-/** `context_window` declared, and declared unknown. Absent from the declaration = nothing said. */
+/**
+ * Fields nexus always serialises in a `Capabilities`: a declaration that carries
+ * them all is complete, so an absent `context_window` there means unknown (nexus
+ * skips the field when it is `None`).
+ */
+const ALWAYS_SERIALIZED: readonly (keyof ProviderCapabilities)[] = ['tools', 'images', 'resume', 'per_session_mcp']
+
+/**
+ * `context_window` declared unknown: `null`, no positive size, or left out of a
+ * complete declaration. Left out of a partial declaration = nothing said.
+ */
 function contextWindowUnprobed(declared: DeclaredCapabilities | null | undefined): boolean {
-  if (!declared || !('context_window' in declared)) return false
+  if (!declared) return false
+  if (!('context_window' in declared) || declared.context_window === undefined) {
+    return ALWAYS_SERIALIZED.every((field) => field in declared)
+  }
   return !contextWindowKnown(declared)
 }
 

@@ -54,6 +54,7 @@ export default {
     heading: "이 세션에서 제공되는 도구",
     builtin: "내장 도구",
     server: "MCP 서버 {server}",
+    shortened: "이름이 줄어든 MCP 도구(64자로 잘림)",
     count: "도구 {count}개",
     allowHeading: "허용된 패턴",
     available: "사용 가능: 일치하는 도구 {count}개",
