@@ -10,7 +10,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { MessageSquare } from 'lucide-react'
 import { useConversationWs } from '@/hooks/runner'
 import { useDetachedRuns, useWorkspaceSlug } from '@/hooks'
-import { Timeline, EventChain, buildTimeline, chainOf, type TimelineItem } from '@/components/timeline'
+import { TimelineGantt, EventChain, buildTimeline, chainOf, type TimelineItem } from '@/components/timeline'
 import { workspacePath } from '@/utils/paths'
 import { useTimelineContext } from '@/hooks/useTimelineContext'
 import { useTimelineLabels } from '@/hooks/useTimelineLabels'
@@ -59,7 +59,7 @@ export default function ChatTimelinePage() {
       />
 
       <div className="rounded-lg border border-white/10 bg-slate-900/60 p-2">
-        <Timeline lanes={timeline.lanes} selectedId={selected?.id} onSelect={select} density="comfortable" labels={labels} />
+        <TimelineGantt lanes={timeline.lanes} selectedId={selected?.id} onSelect={select} density="comfortable" labels={labels} />
       </div>
 
       {selected && chain ? (

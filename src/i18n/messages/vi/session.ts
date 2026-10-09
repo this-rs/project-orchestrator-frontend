@@ -91,5 +91,9 @@ export default {
     },
     empty: "Chưa có gì xảy ra.",
     earlier: "Hiện {n} mục cũ hơn",
+    calls: "Lệnh gọi: {n}",
+    peak: "Đỉnh song song: {n}",
+    parallel: "Song song",
+    idle: "Nghỉ {d}",
   },
 } satisfies Translation<'session'>

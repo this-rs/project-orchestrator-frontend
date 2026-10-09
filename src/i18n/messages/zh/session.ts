@@ -91,5 +91,9 @@ export default {
     },
     empty: "还没有发生任何事。",
     earlier: "显示更早的 {n} 项",
+    calls: "调用：{n}",
+    peak: "并行峰值：{n}",
+    parallel: "并行",
+    idle: "空闲 {d}",
   },
 } satisfies Translation<'session'>
