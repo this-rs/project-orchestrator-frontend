@@ -2,7 +2,7 @@ import { useId, useMemo, useState } from 'react'
 import { Ban, Check, ChevronDown, ChevronRight, Settings } from 'lucide-react'
 import type { ContentBlock } from '@/types'
 import { useT } from '@/i18n'
-import { allowAvailability, groupTools } from '@/utils/toolInventory'
+import { allowAvailability, groupTools, SHORTENED_SERVER } from '@/utils/toolInventory'
 
 interface SystemInitBlockProps {
   block: ContentBlock
@@ -43,7 +43,7 @@ export function SystemInitBlock({ block }: SystemInitBlockProps) {
               aria-controls={panelId}
               title={t('session.tools.toggle')}
               onClick={() => setOpen((v) => !v)}
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-gray-700/50 text-gray-300 text-[10px] rounded hover:bg-gray-700/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+              className="inline-flex min-h-6 items-center gap-0.5 px-1.5 py-0.5 bg-gray-700/50 text-gray-300 text-[10px] rounded hover:bg-gray-700/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
             >
               {open ? (
                 <ChevronDown className="h-3 w-3" aria-hidden="true" />
@@ -69,13 +69,24 @@ export function SystemInitBlock({ block }: SystemInitBlockProps) {
         )}
       </div>
 
-      {canExpand && open && <ToolInventory id={panelId} tools={tools} allow={allow} />}
+      {/* Always in the DOM so `aria-controls` names an element that exists; hidden when collapsed. */}
+      {canExpand && <ToolInventory id={panelId} tools={tools} allow={allow} hidden={!open} />}
     </div>
   )
 }
 
 /** What the session really offers, by MCP server, and which allow patterns match none of it. */
-export function ToolInventory({ id, tools, allow }: { id?: string; tools: readonly string[]; allow: readonly string[] }) {
+export function ToolInventory({
+  id,
+  tools,
+  allow,
+  hidden,
+}: {
+  id?: string
+  tools: readonly string[]
+  allow: readonly string[]
+  hidden?: boolean
+}) {
   const { t } = useT()
   const groups = useMemo(() => groupTools(tools), [tools])
   const patterns = useMemo(() => allowAvailability(allow, tools), [allow, tools])
@@ -83,6 +94,7 @@ export function ToolInventory({ id, tools, allow }: { id?: string; tools: readon
   return (
     <div
       id={id}
+      hidden={hidden}
       data-testid="tool-inventory"
       className="mt-1.5 ml-5 space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[11px] text-gray-300"
     >
@@ -90,7 +102,12 @@ export function ToolInventory({ id, tools, allow }: { id?: string; tools: readon
         <p className="font-medium text-gray-200">{t('session.tools.heading')}</p>
         <ul className="mt-1 space-y-1.5">
           {groups.map((group) => {
-            const label = group.server === null ? t('session.tools.builtin') : t('session.tools.server', { server: group.server })
+            const label =
+              group.server === null
+                ? t('session.tools.builtin')
+                : group.server === SHORTENED_SERVER
+                  ? t('session.tools.shortened')
+                  : t('session.tools.server', { server: group.server })
             return (
               <li key={group.server ?? ''} data-testid="tool-group" data-server={group.server ?? ''}>
                 <p className="text-gray-400">

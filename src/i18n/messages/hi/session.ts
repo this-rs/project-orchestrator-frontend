@@ -54,6 +54,7 @@ export default {
     heading: "इस सत्र में उपलब्ध टूल",
     builtin: "अंतर्निहित टूल",
     server: "MCP सर्वर {server}",
+    shortened: "छोटे किए गए नाम वाले MCP टूल (64 अक्षरों तक काटे गए)",
     count: "{count} टूल",
     allowHeading: "अनुमत पैटर्न",
     available: "उपलब्ध: {count} मेल खाते टूल",

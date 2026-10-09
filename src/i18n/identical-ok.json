@@ -2,6 +2,7 @@
   "comment": "Keys whose text is legitimately the same as English: `ns.key` for every language (proper nouns, code), `lang:ns.key` for a cognate in one language.",
   "keys": [
     "nav.concepts.code",
+    "de:session.init.tools", "de:session.tools.count",
     "routing.badge.poChooses",
     "routing.modes.full.label",
     "fr:routing.modes.primary.label",

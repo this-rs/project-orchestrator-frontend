@@ -46,17 +46,18 @@ export default {
   },
   init: {
     title: "Session initialisée",
-    tools: "{count} outils",
-    mcpServers: "{count} serveurs MCP",
+    tools: "Outils : {count}",
+    mcpServers: "Serveurs MCP : {count}",
   },
   tools: {
     toggle: "Afficher les outils offerts dans cette session",
     heading: "Outils offerts dans cette session",
     builtin: "Outils intégrés",
     server: "Serveur MCP {server}",
-    count: "{count} outils",
+    shortened: "Outils MCP au nom raccourci (coupé à 64 caractères)",
+    count: "Outils : {count}",
     allowHeading: "Motifs autorisés",
-    available: "Disponible : {count} outils correspondants",
+    available: "Disponible — outils correspondants : {count}",
     unavailable: "Non disponible dans cette session",
   },
 } satisfies Translation<'session'>
