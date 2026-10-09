@@ -91,5 +91,9 @@ export default {
     },
     empty: "अभी तक कुछ नहीं हुआ।",
     earlier: "{n} पुराने दिखाएँ",
+    calls: "कॉल: {n}",
+    peak: "समानांतर चरम: {n}",
+    parallel: "समानांतर",
+    idle: "{d} निष्क्रिय",
   },
 } satisfies Translation<'session'>

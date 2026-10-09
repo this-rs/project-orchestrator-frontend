@@ -8,7 +8,7 @@
 import { StatusIcon } from '@/components/ui'
 import { TONE_CLASSES } from '@/components/ui/statusMeta'
 import { focusRing } from '@/components/ui/classes'
-import { STATUS_TONE, DEFAULT_TIMELINE_LABELS, formatItemDuration, type TimelineLabels } from './Timeline'
+import { STATUS_TONE, DEFAULT_TIMELINE_LABELS, formatItemDuration, type TimelineLabels } from './status'
 import { shortModel, type TimelineItem } from './model'
 
 export interface EventChainProps {

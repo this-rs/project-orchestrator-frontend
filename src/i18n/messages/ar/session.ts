@@ -91,5 +91,9 @@ export default {
     },
     empty: "لم يحدث شيء بعد.",
     earlier: "عرض {n} أقدم",
+    calls: "الاستدعاءات: {n}",
+    peak: "الذروة المتوازية: {n}",
+    parallel: "بالتوازي",
+    idle: "خمول {d}",
   },
 } satisfies Translation<'session'>

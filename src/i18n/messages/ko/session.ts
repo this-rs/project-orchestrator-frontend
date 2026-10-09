@@ -91,5 +91,9 @@ export default {
     },
     empty: "아직 아무 일도 없었습니다.",
     earlier: "이전 {n}개 표시",
+    calls: "호출: {n}",
+    peak: "병렬 최대: {n}",
+    parallel: "병렬",
+    idle: "{d} 유휴",
   },
 } satisfies Translation<'session'>

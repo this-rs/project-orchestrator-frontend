@@ -91,5 +91,9 @@ export default {
     },
     empty: "まだ何も起きていません。",
     earlier: "以前の {n} 件を表示",
+    calls: "呼び出し：{n}",
+    peak: "並列のピーク：{n}",
+    parallel: "並列",
+    idle: "{d} の待機",
   },
 } satisfies Translation<'session'>

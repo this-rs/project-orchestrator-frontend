@@ -91,5 +91,9 @@ export default {
     },
     empty: "Nada aconteceu ainda.",
     earlier: "Mostrar {n} anteriores",
+    calls: "Chamadas: {n}",
+    peak: "Pico em paralelo: {n}",
+    parallel: "Em paralelo",
+    idle: "{d} de inatividade",
   },
 } satisfies Translation<'session'>
