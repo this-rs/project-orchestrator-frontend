@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { ENTITY_PATH } from '@/refs/entityRoutes'
 import { Provider, useAtomValue, useSetAtom } from 'jotai'
 import { MainLayout } from '@/layouts'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
@@ -210,7 +211,7 @@ function App() {
                         <Route path="milestones" element={<MilestonesPage />} />
                         <Route path="milestones/:milestoneId" element={<MilestoneDetailPage />} />
                         <Route
-                          path="project-milestones/:milestoneId"
+                          path={ENTITY_PATH.projectMilestone}
                           element={<ProjectMilestoneDetailPage />}
                         />
                         <Route path="today" element={<TodayPage />} />
@@ -219,30 +220,30 @@ function App() {
                         <Route path="documents" element={<DocumentsPage />} />
                         <Route path="deployments" element={<DeploymentsPage />} />
                         <Route path="plans" element={<PlansPage />} />
-                        <Route path="plans/:planId" element={<PlanDetailPage />} />
+                        <Route path={ENTITY_PATH.plan} element={<PlanDetailPage />} />
                         <Route path="plans/:planId/runner" element={<RunnerDashboard />} />
                         <Route path="tasks" element={<TasksPage />} />
-                        <Route path="tasks/:taskId" element={<TaskDetailPage />} />
+                        <Route path={ENTITY_PATH.task} element={<TaskDetailPage />} />
                         <Route path="notes" element={<NotesPage />} />
-                        <Route path="notes/:noteId" element={<NoteDetailPage />} />
+                        <Route path={ENTITY_PATH.note} element={<NoteDetailPage />} />
                         <Route path="decisions" element={<DecisionsPage />} />
-                        <Route path="decisions/:decisionId" element={<DecisionDetailPage />} />
+                        <Route path={ENTITY_PATH.decision} element={<DecisionDetailPage />} />
                         <Route path="code" element={<CodePage />} />
                         <Route path="skills" element={<SkillsPage />} />
-                        <Route path="skills/:id" element={<SkillDetailPage />} />
+                        <Route path={ENTITY_PATH.skill} element={<SkillDetailPage />} />
                         <Route path="personas" element={<PersonasPage />} />
-                        <Route path="personas/:id" element={<PersonaDetailPage />} />
+                        <Route path={ENTITY_PATH.persona} element={<PersonaDetailPage />} />
                         <Route path="feature-graphs" element={<FeatureGraphsPage />} />
                         <Route path="feature-graphs/:id" element={<FeatureGraphDetailPage />} />
                         <Route path="protocols" element={<ProtocolsPage />} />
-                        <Route path="protocols/:protocolId" element={<ProtocolDetailPage />} />
+                        <Route path={ENTITY_PATH.protocol} element={<ProtocolDetailPage />} />
                         <Route path="rfcs" element={<RfcDashboardPage />} />
-                        <Route path="rfcs/:rfcId" element={<RfcDetailPage />} />
+                        <Route path={ENTITY_PATH.rfc} element={<RfcDetailPage />} />
                         {/* Intelligence is now a dedicated page (layers, neural, behavioral) */}
                         <Route path="projects/:projectSlug/intelligence" element={<IntelligencePage />} />
                         <Route path="projects/:projectSlug/intelligence/graph" element={<IntelligenceGraphPage />} />
                         <Route path="projects/:projectSlug/intelligence/vector-space" element={<VectorSpaceExplorer />} />
-                        <Route path="chat/:sessionId" element={<ChatSessionPage />} />
+                        <Route path={ENTITY_PATH.conversation} element={<ChatSessionPage />} />
                         <Route path="chat/:sessionId/timeline" element={<ChatTimelinePage />} />
                         <Route path="pipelines" element={<PipelineDashboardPage />} />
                         <Route path="triggers" element={<TriggerDashboardPage />} />
