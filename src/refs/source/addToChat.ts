@@ -34,7 +34,7 @@ export interface AddRefInput {
   label?: string
   subtitle?: string
   /** A button/keyboard add gives feedback the eye can see (toast); a drop already shows the chip. */
-  via: 'drop' | 'button' | 'keyboard'
+  via: 'drop' | 'button' | 'keyboard' | 'longpress'
 }
 
 export const addRefToChatAtom = atom(null, (get, set, input: AddRefInput): AddRefResult => {
