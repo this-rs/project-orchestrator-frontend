@@ -4,7 +4,7 @@ import { PlusCircle } from 'lucide-react'
 import { refsEnabledAtom } from '@/atoms/chat'
 import { fallbackName } from '../refState'
 import { addRefToChatAtom, draggingRefAtom } from './addToChat'
-import { dragCarriesRef, parseEntityRef, readRefFromDataTransfer } from './refSource'
+import { dragCarriesRef, dragCarriesUri, firstUri, parseEntityRef, readRefFromDataTransfer, uriToRef } from './refSource'
 
 /**
  * Drop handlers for a reference dropped on a surface (the composer, the whole
@@ -18,18 +18,20 @@ export function useRefDropTarget({ stop = false }: { stop?: boolean } = {}) {
   const enabled = useAtomValue(refsEnabledAtom)
   const store = useStore()
   const add = useSetAtom(addRefToChatAtom)
-  const dragged = useAtomValue(draggingRefAtom)
   const depth = useRef(0)
   const [over, setOver] = useState(false)
 
   const accepts = useCallback(
-    (e: DragEvent) => enabled && dragCarriesRef(e.dataTransfer, store.get(draggingRefAtom)),
+    (e: DragEvent) => enabled && (dragCarriesRef(e.dataTransfer, store.get(draggingRefAtom)) || dragCarriesUri(e.dataTransfer)),
     [enabled, store],
   )
+  // A text field takes a dropped address as text by itself: the zone claims it only if it turns out to be an entity.
+  const nativeText = (e: DragEvent) =>
+    !dragCarriesRef(e.dataTransfer, store.get(draggingRefAtom)) && e.target instanceof Element && !!e.target.closest('textarea,input,[contenteditable="true"]')
 
   const onDragEnter = useCallback(
     (e: DragEvent) => {
-      if (!accepts(e)) return
+      if (!accepts(e) || nativeText(e)) return
       if (stop) e.stopPropagation()
       depth.current++
       setOver(true)
@@ -38,7 +40,7 @@ export function useRefDropTarget({ stop = false }: { stop?: boolean } = {}) {
   )
   const onDragOver = useCallback(
     (e: DragEvent) => {
-      if (!accepts(e)) return
+      if (!accepts(e) || nativeText(e)) return
       // Without preventDefault the drop never fires (and a textarea would insert the raw text).
       e.preventDefault()
       if (stop) e.stopPropagation()
@@ -48,7 +50,7 @@ export function useRefDropTarget({ stop = false }: { stop?: boolean } = {}) {
   )
   const onDragLeave = useCallback(
     (e: DragEvent) => {
-      if (!accepts(e)) return
+      if (!accepts(e) || nativeText(e)) return
       if (stop) e.stopPropagation()
       depth.current = Math.max(0, depth.current - 1)
       if (depth.current === 0) setOver(false)
@@ -58,12 +60,26 @@ export function useRefDropTarget({ stop = false }: { stop?: boolean } = {}) {
   const onDrop = useCallback(
     (e: DragEvent) => {
       if (!accepts(e)) return
+      const inFlight = store.get(draggingRefAtom)
+      const carried = readRefFromDataTransfer(e.dataTransfer) ?? inFlight
+      if (!carried) {
+        // Not one of our references: an address, maybe a page of this application.
+        const uri = firstUri(e.dataTransfer)
+        const fromUri = uri ? uriToRef(uri) : null
+        // In a text field an address nobody can make a reference of is just text: leave it to the field.
+        if (!fromUri && nativeText(e)) return
+        e.preventDefault()
+        if (stop) e.stopPropagation()
+        depth.current = 0
+        setOver(false)
+        add({ ref: fromUri, label: undefined, via: 'drop' })
+        return
+      }
       e.preventDefault()
       if (stop) e.stopPropagation()
       depth.current = 0
       setOver(false)
-      const inFlight = store.get(draggingRefAtom)
-      const ref = parseEntityRef(readRefFromDataTransfer(e.dataTransfer) ?? inFlight)
+      const ref = parseEntityRef(carried)
       store.set(draggingRefAtom, null)
       // It said it was a reference and was not one: say so rather than swallow the drop.
       if (!ref) {
@@ -79,7 +95,7 @@ export function useRefDropTarget({ stop = false }: { stop?: boolean } = {}) {
   return {
     zoneProps: { onDragEnter, onDragOver, onDragLeave, onDrop },
     /** The pointer is over this zone with one of our references. */
-    over: enabled && over && dragged !== null,
+    over: enabled && over,
   }
 }
 

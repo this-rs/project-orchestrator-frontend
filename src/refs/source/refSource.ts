@@ -19,7 +19,7 @@
  */
 import { findRefTokens, refToken } from '@/utils/messageRefs'
 import { validateRefId } from '../ids'
-import { kindInfo } from '../kinds'
+import { isActiveKind, kindInfo } from '../kinds'
 import { routeToRef } from '../entityRoutes'
 import { isRefKind, type EntityRef } from '../types'
 
@@ -128,4 +128,38 @@ export function resolveSource(target: Element): ResolvedSource | null {
     return ref ? { ref, label: carrier.getAttribute(REF_LABEL_ATTR) ?? undefined, draggable: carrier.getAttribute(REF_DRAG_ATTR) !== 'off', via: 'annotation' } : null
   }
   return null
+}
+
+// --- a dropped URL ------------------------------------------------------------------------------------
+
+/** The first address of a `text/uri-list` payload (comment lines start with #), or ''. */
+export function firstUri(dt: DataTransfer): string {
+  const list = dt.getData('text/uri-list')
+  return list.split(/\r?\n/).map((l) => l.trim()).find((l) => l && !l.startsWith('#')) ?? ''
+}
+
+/** Does this drag carry an address (and so might be a page of this application, or a web link)? Only `types` is readable during a drag. */
+export const dragCarriesUri = (dt: DataTransfer | null): boolean => {
+  if (!dt) return false
+  const types = Array.from(dt.types)
+  // A file dragged from a web page carries its address too: the attachment zone owns that drag.
+  return types.includes('text/uri-list') && !types.includes('Files')
+}
+
+/**
+ * The reference a dropped address designates: a page of this application that
+ * is an entity (route table), else - only when the server announced the `link`
+ * kind - an external http(s) address. Null: not something the chat can hold.
+ */
+export function uriToRef(uri: string): EntityRef | null {
+  const inApp = routeToRef(uri)
+  if (inApp) return inApp
+  // A page of this application that is not an entity is not a web link either.
+  try {
+    if (new URL(uri, window.location.href).origin === window.location.origin) return null
+  } catch {
+    return null
+  }
+  if (!isActiveKind('link') || !/^https?:\/\//i.test(uri)) return null
+  return validateRefId('url', uri) ? { kind: 'link', id: uri } : null
 }
