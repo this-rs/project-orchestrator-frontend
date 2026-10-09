@@ -205,9 +205,9 @@ function App() {
                     <Route path="/workspace/:slug" element={<WorkspaceRouteGuard />}>
                       <Route element={<MainLayout />}>
                         <Route index element={<Navigate to="today" replace />} />
-                        <Route path="overview" element={<WorkspaceDetailPage />} />
+                        <Route path={ENTITY_PATH.workspace} element={<WorkspaceDetailPage />} />
                         <Route path="projects" element={<ProjectsPage />} />
-                        <Route path="projects/:projectSlug" element={<ProjectDetailPage />} />
+                        <Route path={ENTITY_PATH.project} element={<ProjectDetailPage />} />
                         <Route path="milestones" element={<MilestonesPage />} />
                         <Route path="milestones/:milestoneId" element={<MilestoneDetailPage />} />
                         <Route

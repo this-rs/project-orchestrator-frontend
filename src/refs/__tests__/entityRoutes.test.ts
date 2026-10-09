@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import fixture from '../__fixtures__/kinds_response.json'
-import { ENTITY_PATH, ENTITY_ROUTES, NON_ENTITY_ID_ROUTES, routeToRef } from '../entityRoutes'
+import { ENTITY_PATH, ENTITY_ROUTES, NON_ENTITY_ID_ROUTES, routeToRef, setSlugResolver } from '../entityRoutes'
 import { HISTORICAL_KINDS, clearRefKinds, parseKindsResponse, setActiveKinds } from '../kinds'
 
 const ID = '57cf05c9-25b6-495d-ab07-de4b11d64736'
@@ -23,10 +23,13 @@ describe('routeToRef (the one table route -> kind)', () => {
       'personas/:id': 'persona',
       'skills/:id': 'skill',
       'chat/:sessionId': 'conversation',
+      'projects/:projectSlug': 'project',
+      overview: 'workspace',
     }
     expect(ENTITY_ROUTES.map((r) => r.path).sort()).toEqual(Object.keys(expected).sort())
+    setSlugResolver((_k, slug) => (slug === 'po' || slug === 'my-project' ? ID : null))
     for (const [path, kind] of Object.entries(expected)) {
-      const href = `/workspace/po/${path.replace(/:\w+$/, ID)}`
+      const href = `/workspace/po/${path.replace(/:\w+$/, kind === 'project' ? 'my-project' : ID)}`
       expect(routeToRef(href, base), href).toEqual({ kind, id: ID })
     }
   })
@@ -41,7 +44,6 @@ describe('routeToRef (the one table route -> kind)', () => {
       '/workspace/po/plans',
       `/workspace/po/plans/${ID}/runner`,
       `/workspace/po/plans/${ID}/extra/segments`,
-      '/workspace/po/projects/my-project',
       `/plans/${ID}`,
       `/workspace/po/milestones/${ID}`,
       '/workspace/po/plans/not-a-uuid',
@@ -60,6 +62,32 @@ describe('routeToRef (the one table route -> kind)', () => {
     expect(routeToRef(`/workspace/po/personas/${ID}`, base)).toBeNull()
     expect(routeToRef(`/workspace/po/project-milestones/${ID}`, base)).toBeNull()
     expect(routeToRef(`/workspace/po/rfcs/${ID}`, base)).toEqual({ kind: 'rfc', id: ID })
+  })
+})
+
+describe('slug routes (a project, a workspace)', () => {
+  afterEach(() => setSlugResolver(() => null))
+
+  it('resolve through the resolver the host registers, with the workspace in scope', () => {
+    const calls: unknown[][] = []
+    setSlugResolver((...args) => {
+      calls.push(args)
+      return ID
+    })
+    expect(routeToRef('/workspace/po/projects/my-project/', base)).toEqual({ kind: 'project', id: ID })
+    expect(routeToRef('/workspace/po/overview', base)).toEqual({ kind: 'workspace', id: ID })
+    expect(calls).toEqual([['project', 'my-project', 'po'], ['workspace', 'po', 'po']])
+  })
+
+  it('are not references when the slug is unknown (list not loaded), or the resolved id is malformed', () => {
+    expect(routeToRef('/workspace/po/projects/my-project', base)).toBeNull()
+    setSlugResolver(() => 'not-a-uuid')
+    expect(routeToRef('/workspace/po/projects/my-project', base)).toBeNull()
+  })
+
+  it('only for sub-pages of nothing: /projects/x/intelligence is not the project', () => {
+    setSlugResolver(() => ID)
+    expect(routeToRef('/workspace/po/projects/my-project/intelligence', base)).toBeNull()
   })
 })
 

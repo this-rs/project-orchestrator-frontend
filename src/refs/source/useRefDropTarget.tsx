@@ -6,6 +6,10 @@ import { fallbackName } from '../refState'
 import { addRefToChatAtom, draggingRefAtom } from './addToChat'
 import { dragCarriesRef, dragCarriesUri, firstUri, parseEntityRef, readRefFromDataTransfer, uriToRef } from './refSource'
 
+/** A text field takes a dropped address as text by itself: the zone claims it only if it turns out to be an entity. */
+const nativeText = (e: DragEvent, store: ReturnType<typeof useStore>): boolean =>
+  !dragCarriesRef(e.dataTransfer, store.get(draggingRefAtom)) && e.target instanceof Element && !!e.target.closest('textarea,input,[contenteditable="true"]')
+
 /**
  * Drop handlers for a reference dropped on a surface (the composer, the whole
  * chat panel). A drag that is not ours (files, selected text) is not touched:
@@ -25,37 +29,34 @@ export function useRefDropTarget({ stop = false }: { stop?: boolean } = {}) {
     (e: DragEvent) => enabled && (dragCarriesRef(e.dataTransfer, store.get(draggingRefAtom)) || dragCarriesUri(e.dataTransfer)),
     [enabled, store],
   )
-  // A text field takes a dropped address as text by itself: the zone claims it only if it turns out to be an entity.
-  const nativeText = (e: DragEvent) =>
-    !dragCarriesRef(e.dataTransfer, store.get(draggingRefAtom)) && e.target instanceof Element && !!e.target.closest('textarea,input,[contenteditable="true"]')
 
   const onDragEnter = useCallback(
     (e: DragEvent) => {
-      if (!accepts(e) || nativeText(e)) return
+      if (!accepts(e) || nativeText(e, store)) return
       if (stop) e.stopPropagation()
       depth.current++
       setOver(true)
     },
-    [accepts, stop],
+    [accepts, stop, store],
   )
   const onDragOver = useCallback(
     (e: DragEvent) => {
-      if (!accepts(e) || nativeText(e)) return
+      if (!accepts(e) || nativeText(e, store)) return
       // Without preventDefault the drop never fires (and a textarea would insert the raw text).
       e.preventDefault()
       if (stop) e.stopPropagation()
       e.dataTransfer.dropEffect = 'copy'
     },
-    [accepts, stop],
+    [accepts, stop, store],
   )
   const onDragLeave = useCallback(
     (e: DragEvent) => {
-      if (!accepts(e) || nativeText(e)) return
+      if (!accepts(e) || nativeText(e, store)) return
       if (stop) e.stopPropagation()
       depth.current = Math.max(0, depth.current - 1)
       if (depth.current === 0) setOver(false)
     },
-    [accepts, stop],
+    [accepts, stop, store],
   )
   const onDrop = useCallback(
     (e: DragEvent) => {
@@ -67,7 +68,7 @@ export function useRefDropTarget({ stop = false }: { stop?: boolean } = {}) {
         const uri = firstUri(e.dataTransfer)
         const fromUri = uri ? uriToRef(uri) : null
         // In a text field an address nobody can make a reference of is just text: leave it to the field.
-        if (!fromUri && nativeText(e)) return
+        if (!fromUri && nativeText(e, store)) return
         e.preventDefault()
         if (stop) e.stopPropagation()
         depth.current = 0
