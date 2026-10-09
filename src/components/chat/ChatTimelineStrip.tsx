@@ -8,7 +8,10 @@
  */
 import { memo, useCallback, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ExternalLink } from 'lucide-react'
+import { Maximize2 } from 'lucide-react'
+import { focusRing } from '@/components/ui/classes'
+import { useT } from '@/i18n'
+import { useTimelineLabels } from '@/hooks/useTimelineLabels'
 import type { ChatMessage } from '@/types'
 import { Timeline, buildTimeline, resolveTarget, type TimelineItem, type TimelineRunInput } from '@/components/timeline'
 import { workspacePath } from '@/utils/paths'
@@ -28,6 +31,8 @@ interface ChatTimelineStripProps {
 
 export const ChatTimelineStrip = memo(function ChatTimelineStrip({ sessionId, messages, isStreaming, title, runs, workspaceSlug }: ChatTimelineStripProps) {
   // Re-read the routing decisions and the work graph when a turn ends, not on every token.
+  const { t } = useT()
+  const labels = useTimelineLabels()
   const context = useTimelineContext(sessionId, isStreaming)
   const timeline = useMemo(
     () => buildTimeline({ messages, sessionId: sessionId ?? 'new', title: title ?? context.title, isStreaming, runs, session: context.session, decisions: context.decisions, work: context.work }),
@@ -47,16 +52,16 @@ export const ChatTimelineStrip = memo(function ChatTimelineStrip({ sessionId, me
   return (
     <div className="flex shrink-0 items-start gap-2 border-b border-white/10 bg-slate-900/60 px-3 py-1" data-testid="chat-timeline-strip">
       <div className="min-w-0 flex-1">
-        <Timeline lanes={timeline.lanes} onSelect={handleSelect} maxItems={STRIP_MAX_ITEMS} />
+        <Timeline lanes={timeline.lanes} onSelect={handleSelect} maxItems={STRIP_MAX_ITEMS} labels={labels} />
       </div>
       {sessionId && workspaceSlug && (
         <Link
           to={workspacePath(workspaceSlug, `/chat/${sessionId}/timeline`)}
-          className="mt-1 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
-          title="Open the timeline page"
-          aria-label="Open the timeline page"
+          className={`inline-flex size-9 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200 md:size-8 ${focusRing}`}
+          title={t('session.timeline.openPage')}
+          aria-label={t('session.timeline.openPage')}
         >
-          <ExternalLink className="size-3.5" aria-hidden="true" />
+          <Maximize2 className="size-4" aria-hidden="true" />
         </Link>
       )}
     </div>

@@ -37,6 +37,7 @@ import { MAX_REFS_PER_MESSAGE, type ChatReference } from '@/refs/types'
 import type { RefSearchItem } from '@/refs/refsApi'
 import { findRefTokens, refToken } from '@/utils/messageRefs'
 import { useT } from '@/i18n'
+import { Button } from '@/components/ui'
 import { panelGlass } from '@/components/ui/panelGlass'
 import {
   addAttachment,
@@ -1124,16 +1125,18 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
 
           <div className="ml-auto flex shrink-0 items-center gap-2">
             {/* Timeline strip toggle */}
-            <button
+            <Button
+              icon
+              size="sm"
               type="button"
               onClick={() => setTimelineOpen((v) => !v)}
               aria-pressed={timelineOpen}
-              aria-label="Timeline"
-              title={timelineOpen ? "Hide the timeline" : "Show the timeline"}
-              className={`flex size-7 items-center justify-center rounded-md transition-colors hover:bg-white/[0.06] ${timelineOpen ? "text-indigo-300" : "text-gray-400 hover:text-gray-200"}`}
+              aria-label={t('session.timeline.title')}
+              title={timelineOpen ? t('session.timeline.hide') : t('session.timeline.show')}
+              className={timelineOpen ? 'text-indigo-300' : 'text-gray-400'}
             >
-              <ChartNoAxesGantt className="size-3.5" aria-hidden="true" />
-            </button>
+              <ChartNoAxesGantt className="size-4" aria-hidden="true" />
+            </Button>
             {/* Auto-continue toggle */}
             <div className="flex items-center gap-1.5">
               <span className={`hidden sm:inline text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto</span>

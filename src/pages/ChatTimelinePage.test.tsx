@@ -32,7 +32,7 @@ describe('<ChatTimelinePage>', () => {
   it('asks to pick an event when none is selected', () => {
     open()
     expect(screen.getByText(/Pick an event/)).toBeTruthy()
-    expect(screen.getByText('2 events')).toBeTruthy()
+    expect(screen.getByText(/Events: 2/)).toBeTruthy()
   })
 
   it('shows the chain, input and output of the item in the URL', () => {
@@ -50,6 +50,6 @@ describe('<ChatTimelinePage>', () => {
 
   it('links back to the conversation', () => {
     open()
-    expect(screen.getByRole('link', { name: 'Back to the conversation' }).getAttribute('href')).toBe('/workspace/ws/chat/s')
+    expect(screen.getByRole('link', { name: /Back to the conversation/ }).getAttribute('href')).toBe('/workspace/ws/chat/s')
   })
 })

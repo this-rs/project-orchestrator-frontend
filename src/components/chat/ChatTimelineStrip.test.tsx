@@ -27,7 +27,7 @@ describe('<ChatTimelineStrip>', () => {
     strip()
     expect(screen.getByText('Ship')).toBeTruthy()
     expect(screen.getByTestId('timeline-lane-context').textContent).toContain('native · deepseek-chat')
-    expect(screen.getByRole('link', { name: 'Open the timeline page' }).getAttribute('href')).toBe('/workspace/ws/chat/s/timeline')
+    expect(screen.getByRole('link', { name: 'Open the full timeline' }).getAttribute('href')).toBe('/workspace/ws/chat/s/timeline')
   })
 
   it('scrolls to a call whose block is on the page', () => {
