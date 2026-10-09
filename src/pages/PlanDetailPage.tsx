@@ -46,7 +46,6 @@ import {
   groupBy,
   hitArea,
   inlineLink,
-  pluralize,
   rowInteractive,
   surface,
   ViewToggle,
@@ -58,6 +57,8 @@ import { ApiError } from '@/services/api'
 import { UniversalKanban, createTaskKanbanConfig } from '@/components/kanban'
 import { useViewMode, useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { useT } from '@/i18n'
+import { useStatusLabel } from '@/components/kanban/statusLabels'
 import { chatSuggestedProjectIdAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { CreateTaskForm, CreateConstraintForm, EditPlanForm } from '@/components/forms'
 import { UnifiedGraphSection, type GraphBreadcrumb } from '@/components/graph/UnifiedGraphSection'
@@ -93,6 +94,8 @@ interface DecisionWithTask extends Decision {
 const TASK_GROUP_ORDER: TaskStatus[] = ['in_progress', 'blocked', 'pending', 'failed', 'completed']
 
 export function PlanDetailPage() {
+  const { t } = useT()
+  const statusLabel = useStatusLabel()
   const { planId } = useParams<{ planId: string }>()
   const { navigate } = useViewTransition()
   const wsSlug = useWorkspaceSlug()
@@ -152,13 +155,13 @@ export function PlanDetailPage() {
     const crumbs: GraphBreadcrumb[] = []
     if (linkedMilestones.length > 0) {
       const ms = linkedMilestones[0]
-      crumbs.push({ label: `Milestone: ${ms.title}`, href: ms.href })
+      crumbs.push({ label: t('planDetail.milestoneCrumb', { title: ms.title }), href: ms.href })
     }
     if (plan) {
-      crumbs.push({ label: `Plan: ${plan.title || plan.id.slice(0, 8)}` })
+      crumbs.push({ label: t('planDetail.planCrumb', { title: plan.title || plan.id.slice(0, 8) }) })
     }
     return crumbs
-  }, [linkedMilestones, plan])
+  }, [linkedMilestones, plan, t])
 
   const fetchData = useCallback(async () => {
     if (!planId) return
@@ -188,7 +191,7 @@ export function PlanDetailPage() {
         return (td.decisions || []).map((d) => ({
           ...d,
           taskId: taskInfo?.id || '',
-          taskTitle: taskInfo?.title || taskInfo?.description || 'Untitled task',
+          taskTitle: taskInfo?.title || taskInfo?.description || t('planDetail.untitledTask'),
         }))
       })
       setDecisions(allDecisions)
@@ -208,12 +211,12 @@ export function PlanDetailPage() {
       }
     } catch (error) {
       console.error('Failed to fetch plan:', error)
-      setError('Failed to load plan')
+      setError('load')
     } finally {
       if (isInitialLoad) setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- plan and setSuggestedProjectId: plan is a data object (would cause loop), Jotai setter is stable
-  }, [planId, planRefresh, taskRefresh, projectRefresh])
+  }, [planId, planRefresh, taskRefresh, projectRefresh, t])
 
   useEffect(() => {
     fetchData()
@@ -283,17 +286,17 @@ export function PlanDetailPage() {
       setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)))
       try {
         await tasksApi.update(taskId, { status: newStatus })
-        toast.success('Status updated')
+        toast.success(t('tasks.toast.statusUpdated'))
       } catch (error) {
         if (original) {
           setTasks((prev) => prev.map((t) => (t.id === taskId ? original : t)))
         }
         console.error('Failed to update task status:', error)
-        toast.error('Failed to update task status')
+        toast.error(t('planDetail.toast.taskStatusFailed'))
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable
-    [tasks],
+    [tasks, t],
   )
 
   /** Board: the board moves the card optimistically; rethrow so it can roll back. */
@@ -302,14 +305,14 @@ export function PlanDetailPage() {
       try {
         await tasksApi.update(taskId, { status: newStatus as TaskStatus })
         setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus as TaskStatus } : t)))
-        toast.success('Status updated')
+        toast.success(t('tasks.toast.statusUpdated'))
       } catch (err) {
-        toast.error('Failed to update task status')
+        toast.error(t('planDetail.toast.taskStatusFailed'))
         throw err
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable
-    [],
+    [t],
   )
 
   // Stable fetchFn for kanban — fetches tasks scoped to this plan
@@ -330,7 +333,7 @@ export function PlanDetailPage() {
       if (!planId) return
       const newTask = await plansApi.createTask(planId, data)
       setTasks((prev) => [...prev, newTask])
-      toast.success('Task added')
+      toast.success(t('planDetail.toast.taskAdded'))
     },
   })
 
@@ -339,7 +342,7 @@ export function PlanDetailPage() {
       if (!planId) return
       const newConstraint = await plansApi.addConstraint(planId, data)
       setConstraints((prev) => [...prev, newConstraint])
-      toast.success('Constraint added')
+      toast.success(t('planDetail.toast.constraintAdded'))
     },
   })
 
@@ -347,16 +350,16 @@ export function PlanDetailPage() {
     try {
       await decisionsApi.update(decision.id, { status: newStatus })
       setDecisions((prev) => prev.map((d) => (d.id === decision.id ? { ...d, status: newStatus } : d)))
-      toast.success(`Decision status → ${newStatus}`)
+      toast.success(t('planDetail.toast.decisionStatus', { status: newStatus }))
     } catch {
-      toast.error('Failed to update decision status')
+      toast.error(t('planDetail.toast.decisionStatusFailed'))
     }
   }
 
   const handleDeleteDecision = async (decision: DecisionWithTask) => {
     await decisionsApi.delete(decision.id)
     setDecisions((prev) => prev.filter((d) => d.id !== decision.id))
-    toast.success('Decision deleted')
+    toast.success(t('planDetail.toast.decisionDeleted'))
   }
 
   // Fresh status map from local tasks state (includes optimistic updates)
@@ -380,20 +383,20 @@ export function PlanDetailPage() {
         await plansApi.unlinkFromProject(plan.id)
       }
       setPlan({ ...plan, ...updateData, project_id } as Plan)
-      toast.success('Plan updated')
+      toast.success(t('planDetail.toast.planUpdated'))
     },
   })
 
-  const openAddTask = () => taskFormDialog.open({ title: 'Add task', size: 'lg' })
-  const openAddConstraint = () => constraintFormDialog.open({ title: 'Add constraint' })
+  const openAddTask = () => taskFormDialog.open({ title: t('planDetail.dialog.addTask'), size: 'lg' })
+  const openAddConstraint = () => constraintFormDialog.open({ title: t('planDetail.dialog.addConstraint') })
   const openLinkCommit = () => {
     setCommitShaInput('')
-    commitFormDialog.open({ title: 'Link commit', submitLabel: 'Link', size: 'sm' })
+    commitFormDialog.open({ title: t('planDetail.dialog.linkCommit'), submitLabel: t('planDetail.dialog.link'), size: 'sm' })
   }
   const openLinkProject = () =>
     linkDialog.open({
-      title: 'Link project',
-      submitLabel: 'Link',
+      title: t('planDetail.dialog.linkProject'),
+      submitLabel: t('planDetail.dialog.link'),
       fetchOptions: async () => {
         const data = await projectsApi.list()
         return (data.items || []).map((p) => ({ value: p.id, label: p.name, description: p.slug }))
@@ -405,11 +408,11 @@ export function PlanDetailPage() {
         const proj = (data.items || []).find((p) => p.id === projectId)
         setLinkedProject(proj || null)
         setPlan({ ...plan, project_id: projectId } as Plan)
-        toast.success('Project linked')
+        toast.success(t('planDetail.toast.projectLinked'))
       },
     })
 
-  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
+  if (error) return <ErrorState title={t('planDetail.loadFailedTitle')} description={t('planDetail.loadFailed')} onRetry={fetchData} />
   if (loading || !plan) return <DetailSkeleton />
 
   const completedTasks = statusCounts.find((c) => c.status === 'completed')?.count ?? 0
@@ -417,14 +420,14 @@ export function PlanDetailPage() {
   // Parents: milestones, then the linked project (unlink lives in the ⋯ menu)
   const parentLinks: ParentLink[] = linkedMilestones.map((ms) => ({
     icon: ms.type === 'project' ? FolderKanban : Flag,
-    label: ms.type === 'project' ? 'Project Milestone' : 'Milestone',
+    label: ms.type === 'project' ? t('planDetail.parent.projectMilestone') : t('planDetail.parent.milestone'),
     name: ms.title,
     href: ms.href,
   }))
   if (linkedProject) {
     parentLinks.push({
       icon: FolderKanban,
-      label: 'Project',
+      label: t('planDetail.parent.project'),
       name: linkedProject.name,
       href: workspacePath(wsSlug, `/projects/${linkedProject.slug}`),
     })
@@ -441,20 +444,20 @@ export function PlanDetailPage() {
 
   const hasGraphNodes = Boolean(planGraphData.data && (planGraphData.graph?.nodes || []).length > 0)
   const tabs = [
-    { id: 'tasks', label: 'Tasks', icon: <ListChecks className="w-4 h-4" />, count: tasks.length },
-    ...(hasGraphNodes ? [{ id: 'graph', label: 'Graph', icon: <GitFork className="w-4 h-4" />, count: (planGraphData.graph?.nodes || []).length }] : []),
-    { id: 'runner', label: 'Runner', icon: <Play className="w-4 h-4" /> },
-    { id: 'chat', label: 'Discussions', icon: <MessageCircle className="w-4 h-4" />, count: discussionCount || undefined },
-    { id: 'artefacts', label: 'Artefacts', icon: <Archive className="w-4 h-4" />, count: commits.length + decisions.length + constraints.length },
+    { id: 'tasks', label: t('planDetail.tabs.tasks'), icon: <ListChecks className="w-4 h-4" />, count: tasks.length },
+    ...(hasGraphNodes ? [{ id: 'graph', label: t('planDetail.tabs.graph'), icon: <GitFork className="w-4 h-4" />, count: (planGraphData.graph?.nodes || []).length }] : []),
+    { id: 'runner', label: t('planDetail.tabs.runner'), icon: <Play className="w-4 h-4" /> },
+    { id: 'chat', label: t('planDetail.tabs.discussions'), icon: <MessageCircle className="w-4 h-4" />, count: discussionCount || undefined },
+    { id: 'artefacts', label: t('planDetail.tabs.artefacts'), icon: <Archive className="w-4 h-4" />, count: commits.length + decisions.length + constraints.length },
   ]
 
   const handlePlanStatusChange = async (newStatus: PlanStatus) => {
     try {
       await plansApi.updateStatus(plan.id, newStatus)
       setPlan({ ...plan, status: newStatus })
-      toast.success('Status updated')
+      toast.success(t('tasks.toast.statusUpdated'))
     } catch {
-      toast.error('Failed to update status')
+      toast.error(t('tasks.toast.statusFailed'))
     }
   }
 
@@ -476,15 +479,15 @@ export function PlanDetailPage() {
         meta={[
           <PriorityText key="p" priority={plan.priority} />,
           plan.created_by ? (
-            <span key="by" className="truncate max-w-[10rem]" title={`Created by ${plan.created_by}`}>
+            <span key="by" className="truncate max-w-[10rem]" title={t('planDetail.header.createdBy', { name: plan.created_by })}>
               {plan.created_by}
             </span>
           ) : null,
-          <RelativeTime key="c" date={plan.created_at} prefix="created " />,
-          pluralize(tasks.length, 'task'),
+          <RelativeTime key="c" date={plan.created_at} prefix={t('planDetail.header.createdPrefix')} />,
+          t(tasks.length === 1 ? 'planDetail.header.tasks.one' : 'planDetail.header.tasks.other', { count: tasks.length }),
           tasks.length > 0 ? (
             <span key="done" className="tabular-nums">
-              {completedTasks}/{tasks.length} done
+              {t('planDetail.header.done', { done: completedTasks, total: tasks.length })}
             </span>
           ) : null,
           hasPipelineRunning ? (
@@ -494,8 +497,8 @@ export function PlanDetailPage() {
               onClick={goToRunner}
               className={`${hitArea} ${inlineLink} inline-flex items-center gap-1.5 text-indigo-300`}
             >
-              <StatusDot tone="progress" pulse label="Pipeline running" />
-              Run in progress
+              <StatusDot tone="progress" pulse label={t('planDetail.header.pipelineRunning')} />
+              {t('planDetail.header.runInProgress')}
             </button>
           ) : null,
         ]}
@@ -503,50 +506,50 @@ export function PlanDetailPage() {
           canLaunch ? (
             <Button size="sm" onClick={() => setImplementDialogOpen(true)}>
               <Play className="w-4 h-4 mr-1 -ml-0.5" aria-hidden="true" />
-              Run
+              {t('planDetail.header.run')}
             </Button>
           ) : hasPipelineRunning ? (
             <Button size="sm" variant="secondary" onClick={goToRunner}>
               <ExternalLink className="w-4 h-4 mr-1 -ml-0.5" aria-hidden="true" />
-              Open runner
+              {t('planDetail.header.openRunner')}
             </Button>
           ) : undefined
         }
         overflowActions={[
-          { label: 'Edit', icon: Pencil, onClick: () => editPlanDialog.open({ title: 'Edit plan' }) },
-          { label: 'Add task', icon: Plus, onClick: openAddTask },
-          { label: 'Add constraint', icon: Plus, onClick: openAddConstraint },
-          { label: 'Link commit', icon: Link2, onClick: openLinkCommit },
-          { label: 'Link project', icon: Link2, onClick: openLinkProject, hidden: Boolean(linkedProject) },
+          { label: t('planDetail.header.edit'), icon: Pencil, onClick: () => editPlanDialog.open({ title: t('planDetail.dialog.editPlan') }) },
+          { label: t('planDetail.dialog.addTask'), icon: Plus, onClick: openAddTask },
+          { label: t('planDetail.dialog.addConstraint'), icon: Plus, onClick: openAddConstraint },
+          { label: t('planDetail.dialog.linkCommit'), icon: Link2, onClick: openLinkCommit },
+          { label: t('planDetail.dialog.linkProject'), icon: Link2, onClick: openLinkProject, hidden: Boolean(linkedProject) },
           {
-            label: 'Unlink project',
+            label: t('planDetail.header.unlinkProject'),
             icon: Unlink,
             hidden: !linkedProject,
             onClick: async () => {
               await plansApi.unlinkFromProject(plan.id)
               setLinkedProject(null)
               setPlan({ ...plan, project_id: undefined } as Plan)
-              toast.success('Project unlinked')
+              toast.success(t('planDetail.toast.projectUnlinked'))
             },
             confirm: {
-              title: 'Unlink project?',
-              description: `This plan will no longer belong to “${linkedProject?.name ?? 'the project'}”.`,
-              confirmLabel: 'Unlink',
+              title: t('planDetail.header.unlinkTitle'),
+              description: t('planDetail.header.unlinkBody', { name: linkedProject?.name ?? t('planDetail.header.theProject') }),
+              confirmLabel: t('planDetail.header.unlink'),
             },
           },
-          { label: 'Open runner', icon: ExternalLink, onClick: goToRunner },
+          { label: t('planDetail.header.openRunner'), icon: ExternalLink, onClick: goToRunner },
           {
-            label: 'Delete',
+            label: t('planDetail.header.delete'),
             icon: Trash2,
             variant: 'danger',
             onClick: async () => {
               await plansApi.delete(plan.id)
-              toast.success('Plan deleted')
+              toast.success(t('planDetail.toast.planDeleted'))
               navigate(workspacePath(wsSlug, '/plans'), { type: 'back-button' })
             },
             confirm: {
-              title: 'Delete plan?',
-              description: 'This will permanently delete this plan and all its tasks, steps, decisions, and constraints.',
+              title: t('planDetail.header.deleteTitle'),
+              description: t('planDetail.header.deleteBody'),
             },
           },
         ]}
@@ -554,11 +557,11 @@ export function PlanDetailPage() {
         <StatusBreakdown kind="task" counts={statusCounts} className="w-full" />
       </PageHeader>
 
-      <TabLayout tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} label="Plan sections" className="pt-4">
+      <TabLayout tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} label={t('planDetail.tabs.label')} className="pt-4">
         {/* ── Tasks ── */}
         {activeTab === 'tasks' && (
           <Section
-            title="Tasks"
+            title={t('planDetail.tabs.tasks')}
             count={tasks.length}
             action={
               <>
@@ -566,8 +569,8 @@ export function PlanDetailPage() {
                   <button
                     type="button"
                     onClick={toggleAllTasks}
-                    aria-label={tasksAllExpanded ? 'Collapse all steps' : 'Expand all steps'}
-                    title={tasksAllExpanded ? 'Collapse all steps' : 'Expand all steps'}
+                    aria-label={tasksAllExpanded ? t('planDetail.tasks.collapseAll') : t('planDetail.tasks.expandAll')}
+                    title={tasksAllExpanded ? t('planDetail.tasks.collapseAll') : t('planDetail.tasks.expandAll')}
                     className={`${iconButton('ghost', 'size-9 md:size-8')} text-gray-500`}
                   >
                     {tasksAllExpanded ? (
@@ -578,7 +581,7 @@ export function PlanDetailPage() {
                   </button>
                 )}
                 {tasks.length > 0 && <ViewToggle value={viewMode} onChange={setViewMode} />}
-                <SectionAddButton label="Add task" onClick={openAddTask} />
+                <SectionAddButton label={t('planDetail.dialog.addTask')} onClick={openAddTask} />
               </>
             }
           >
@@ -586,11 +589,11 @@ export function PlanDetailPage() {
               <EmptyState
                 size="sm"
                 icon={<ListChecks />}
-                title="No tasks in this plan"
-                description="Add the first task to start planning the work."
+                title={t('planDetail.tasks.emptyTitle')}
+                description={t('planDetail.tasks.emptyBody')}
                 action={
                   <Button size="sm" variant="secondary" onClick={openAddTask}>
-                    Add task
+                    {t('planDetail.dialog.addTask')}
                   </Button>
                 }
               />
@@ -603,7 +606,7 @@ export function PlanDetailPage() {
             ) : (
               <div>
                 {taskGroups.map(({ key, items }) => (
-                  <ListGroup key={key} title={getStatusMeta('task', key).label} count={items.length}>
+                  <ListGroup key={key} title={statusLabel(key, getStatusMeta('task', key).label)} count={items.length}>
                     {items.map((task) => (
                       <PlanTaskRow
                         key={task.id}
@@ -657,9 +660,9 @@ export function PlanDetailPage() {
               <div role="alert" className={`${surface} flex items-start gap-3 p-4`}>
                 <div className="flex-1 min-w-0 space-y-2">
                   <div>
-                    <ToneText tone="warning" icon label="Run stuck" className="text-sm font-medium" />
+                    <ToneText tone="warning" icon label={t('planDetail.runner.stuck')} className="text-sm font-medium" />
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Every task is done ({runnerSnapshot.tasks_completed}/{runnerSnapshot.tasks_total}) but the run is still marked as active. The runner did not finalise properly.
+                      {t('planDetail.runner.stuckBody', { done: runnerSnapshot.tasks_completed, total: runnerSnapshot.tasks_total })}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -669,18 +672,18 @@ export function PlanDetailPage() {
                       onClick={async () => {
                         try {
                           await runnerApi.forceCancelRun(plan.id)
-                          toast.success('Run finalised')
+                          toast.success(t('planDetail.toast.runFinalised'))
                         } catch (err) {
-                          toast.error(err instanceof Error ? err.message : 'Failed to finalise the run')
+                          toast.error(err instanceof Error ? err.message : t('planDetail.toast.finaliseFailed'))
                         }
                       }}
                     >
                       <Zap className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                      Force finalisation
+                      {t('planDetail.runner.forceFinalise')}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={goToRunner}>
                       <ExternalLink className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                      Open runner
+                      {t('planDetail.header.openRunner')}
                     </Button>
                   </div>
                 </div>
@@ -691,14 +694,14 @@ export function PlanDetailPage() {
               <Section
                 title={
                   <span className="inline-flex items-center gap-2">
-                    <StatusDot tone="progress" pulse size="md" label="Running" />
-                    Active run
+                    <StatusDot tone="progress" pulse size="md" label={t('planDetail.runner.running')} />
+                    {t('planDetail.runner.activeRun')}
                   </span>
                 }
                 action={
                   <Button size="sm" variant="ghost" onClick={goToRunner}>
                     <ExternalLink className="w-4 h-4 mr-1 -ml-1" aria-hidden="true" />
-                    Open runner
+                    {t('planDetail.header.openRunner')}
                   </Button>
                 }
               >
@@ -719,30 +722,30 @@ export function PlanDetailPage() {
               <EmptyState
                 size="sm"
                 icon={<Play />}
-                title="No active pipeline run"
+                title={t('planDetail.runner.noRunTitle')}
                 description={
                   plan.status === 'approved'
-                    ? 'Launch a run to implement the tasks of this plan.'
-                    : 'Approve the plan to launch a pipeline run.'
+                    ? t('planDetail.runner.noRunApproved')
+                    : t('planDetail.runner.noRunOther')
                 }
                 action={
                   <>
                     {canLaunch && (
                       <Button size="sm" onClick={() => setImplementDialogOpen(true)}>
                         <Play className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                        Run
+                        {t('planDetail.header.run')}
                       </Button>
                     )}
                     <Button size="sm" variant="secondary" onClick={goToRunner}>
                       <ExternalLink className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                      Open runner
+                      {t('planDetail.header.openRunner')}
                     </Button>
                   </>
                 }
               />
             )}
 
-            <Section title="Run history">
+            <Section title={t('planDetail.runner.history')}>
               <PlanRunHistory planIds={plan.id} maxRuns={10} />
             </Section>
           </div>
@@ -750,7 +753,7 @@ export function PlanDetailPage() {
 
         {/* ── Discussions ── */}
         {activeTab === 'chat' && (
-          <Section title="Discussions" count={discussionCount}>
+          <Section title={t('planDetail.tabs.discussions')} count={discussionCount}>
             <LinkedDiscussions
               entity={{ type: 'plan', id: plan.id }}
               projectId={plan.project_id ?? linkedProject?.id}
@@ -770,15 +773,15 @@ export function PlanDetailPage() {
         {/* ── Artefacts ── */}
         {activeTab === 'artefacts' && (
           <div className="space-y-6">
-            <Section title="Commits" count={commits.length} action={<SectionAddButton label="Link commit" icon={Link2} onClick={openLinkCommit} />}>
-              <CommitList commits={commits} emptyMessage="No commits linked to this plan yet" />
+            <Section title={t('planDetail.artefacts.commits')} count={commits.length} action={<SectionAddButton label={t('planDetail.artefacts.linkCommit')} icon={Link2} onClick={openLinkCommit} />}>
+              <CommitList commits={commits} emptyMessage={t('planDetail.artefacts.noCommits')} />
             </Section>
 
-            <Section title="Constraints" count={constraints.length} action={<SectionAddButton label="Add constraint" onClick={openAddConstraint} />}>
+            <Section title={t('planDetail.artefacts.constraints')} count={constraints.length} action={<SectionAddButton label={t('planDetail.artefacts.addConstraint')} onClick={openAddConstraint} />}>
               {constraints.length === 0 ? (
-                <EmptyLine>No constraints defined</EmptyLine>
+                <EmptyLine>{t('planDetail.artefacts.noConstraints')}</EmptyLine>
               ) : (
-                <EntityList aria-label="Constraints">
+                <EntityList aria-label={t('planDetail.artefacts.constraints')}>
                   {constraints.map((constraint) => (
                     <ConstraintRow
                       key={constraint.id}
@@ -786,7 +789,7 @@ export function PlanDetailPage() {
                       onDelete={async () => {
                         await plansApi.deleteConstraint(constraint.id)
                         setConstraints((prev) => prev.filter((c) => c.id !== constraint.id))
-                        toast.success('Constraint deleted')
+                        toast.success(t('planDetail.toast.constraintDeleted'))
                       }}
                     />
                   ))}
@@ -794,11 +797,11 @@ export function PlanDetailPage() {
               )}
             </Section>
 
-            <Section title="Decisions" count={decisions.length}>
+            <Section title={t('planDetail.artefacts.decisions')} count={decisions.length}>
               {decisions.length === 0 ? (
-                <EmptyLine>No decisions recorded — decisions are added from task pages.</EmptyLine>
+                <EmptyLine>{t('planDetail.artefacts.noDecisions')}</EmptyLine>
               ) : (
-                <EntityList aria-label="Decisions">
+                <EntityList aria-label={t('planDetail.artefacts.decisions')}>
                   {decisions.map((decision) => (
                     <DecisionRow
                       key={decision.id}
@@ -825,16 +828,16 @@ export function PlanDetailPage() {
       </TabLayout>
 
       {/* ── Details (long properties, DESIGN.md § 7) ── */}
-      <Section title="Details">
+      <Section title={t('planDetail.details.title')}>
         <Facts
           items={[
-            { label: 'Status', value: <StatusText kind="plan" status={plan.status} /> },
-            { label: 'Priority', value: plan.priority ? String(plan.priority) : null },
-            { label: 'Project', value: linkedProject?.name ?? null },
-            { label: 'Created by', value: plan.created_by || null },
-            { label: 'Created', value: plan.created_at ? formatAbsolute(plan.created_at) : null },
-            { label: 'Tasks', value: tasks.length > 0 ? `${completedTasks} of ${tasks.length} done` : null },
-            { label: 'ID', value: <span className="font-mono text-xs text-gray-400 break-all">{plan.id}</span> },
+            { label: t('planDetail.details.status'), value: <StatusText kind="plan" status={plan.status} /> },
+            { label: t('planDetail.details.priority'), value: plan.priority ? String(plan.priority) : null },
+            { label: t('planDetail.details.project'), value: linkedProject?.name ?? null },
+            { label: t('planDetail.details.createdBy'), value: plan.created_by || null },
+            { label: t('planDetail.details.created'), value: plan.created_at ? formatAbsolute(plan.created_at) : null },
+            { label: t('planDetail.details.tasks'), value: tasks.length > 0 ? t('planDetail.details.tasksDone', { done: completedTasks, total: tasks.length }) : null },
+            { label: t('planDetail.details.id'), value: <span className="font-mono text-xs text-gray-400 break-all">{plan.id}</span> },
           ]}
         />
       </Section>
@@ -854,7 +857,7 @@ export function PlanDetailPage() {
           const sha = commitShaInput.trim()
           if (!sha || !planId) return false
           await plansApi.linkCommit(planId, sha)
-          toast.success('Commit linked')
+          toast.success(t('planDetail.toast.commitLinked'))
           setCommitShaInput('')
           fetchData()
         }}
@@ -877,7 +880,7 @@ export function PlanDetailPage() {
               navigate(runnerPath, { type: 'card-click' })
             } else {
               console.error('Failed to start plan run:', err)
-              toast.error(err instanceof Error ? err.message : 'Failed to start run')
+              toast.error(err instanceof Error ? err.message : t('planDetail.toast.startFailed'))
             }
           } finally {
             setImplementLoading(false)
@@ -886,7 +889,7 @@ export function PlanDetailPage() {
         }}
         mode="plan"
         projectSlug={linkedProject?.slug}
-        entityTitle={plan.title || 'Untitled Plan'}
+        entityTitle={plan.title || t('planDetail.untitledPlan')}
         loading={implementLoading}
       />
     </PageContainer>
@@ -922,10 +925,11 @@ function PlanTaskRow({
   planTitle,
   projectId,
 }: PlanTaskRowProps) {
+  const { t } = useT()
   const [expanded, setExpanded] = useState(false)
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [loadingSteps, setLoadingSteps] = useState(false)
-  const title = task.title || task.description || 'Untitled task'
+  const title = task.title || task.description || t('planDetail.untitledTask')
   const tags = task.tags || []
 
   const fetchSteps = useCallback(async () => {
@@ -988,7 +992,7 @@ function PlanTaskRow({
           type="button"
           onClick={toggleExpand}
           aria-expanded={expanded}
-          aria-label={expanded ? `Hide steps of ${title}` : `Show steps of ${title}`}
+          aria-label={expanded ? t('planDetail.row.hideSteps', { title }) : t('planDetail.row.showSteps', { title })}
           className={`${iconButton('ghost', 'size-9')} ${glassFlat} -m-2.5 text-gray-500`}
         >
           <ChevronRight className={`w-4 h-4 transition-transform duration-(--duration-fast) ${expanded ? 'rotate-90' : ''}`} aria-hidden="true" />
@@ -1003,13 +1007,13 @@ function PlanTaskRow({
       ]}
       meta={[
         task.assigned_to ? (
-          <span key="assignee" className="truncate max-w-[10rem]" title={`Assigned to ${task.assigned_to}`}>
+          <span key="assignee" className="truncate max-w-[10rem]" title={t('planDetail.row.assignedTo', { name: task.assigned_to })}>
             @{task.assigned_to}
           </span>
         ) : null,
         steps !== null && totalSteps > 0 ? (
           <span key="steps" className="tabular-nums">
-            {completedSteps}/{totalSteps} steps
+            {t('planDetail.row.stepsCount', { done: completedSteps, total: totalSteps })}
           </span>
         ) : null,
         tags.length > 0 ? (

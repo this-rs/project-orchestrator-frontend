@@ -28,7 +28,6 @@ import {
   RowCheckbox,
   ViewToggle,
   Button,
-  pluralize,
 } from '@/components/ui'
 import {
   useKanbanFilters,
@@ -49,11 +48,13 @@ import type { EditTaskFormData } from '@/components/forms/EditTaskForm'
 import type { TaskWithPlan, TaskStatus, PaginatedResponse } from '@/types'
 import type { KanbanTask } from '@/components/kanban/KanbanCard'
 import { workspacePath } from '@/utils/paths'
-import { NOMENCLATURE } from '@/constants/nomenclature'
-
-const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('task')]
+import { useT } from '@/i18n'
+import { translateOptions, useStatusLabel } from '@/components/kanban/statusLabels'
 
 export function TasksPage() {
+  const { t } = useT()
+  const statusLabel = useStatusLabel()
+  const statusOptions = [{ value: 'all', label: t('tasks.list.allStatuses') }, ...translateOptions(getStatusOptions('task'), statusLabel)]
   const [, setTasksAtom] = useAtom(tasksAtom)
   const [, setLoadingAtom] = useAtom(tasksLoadingAtom)
   const [statusFilter, setStatusFilter] = useAtom(taskStatusFilterAtom)
@@ -153,14 +154,14 @@ export function TasksPage() {
       )
       try {
         await tasksApi.update(taskId, { status: newStatus })
-        toast.success('Status updated')
+        toast.success(t('tasks.toast.statusUpdated'))
       } catch {
         // Rollback optimistic update
         if (oldTask) updateItem((t) => t.id === taskId, () => oldTask)
-        toast.error('Failed to update status')
+        toast.error(t('tasks.toast.statusFailed'))
       }
     },
-    [tasks, updateItem, toast],
+    [tasks, updateItem, toast, t],
   )
 
   /** Board: the board moves the card optimistically; rethrow so it can roll back. */
@@ -168,13 +169,13 @@ export function TasksPage() {
     async (taskId: string, newStatus: string) => {
       try {
         await tasksApi.update(taskId, { status: newStatus as TaskStatus })
-        toast.success('Status updated')
+        toast.success(t('tasks.toast.statusUpdated'))
       } catch (err) {
-        toast.error('Failed to update status')
+        toast.error(t('tasks.toast.statusFailed'))
         throw err
       }
     },
-    [toast],
+    [toast, t],
   )
 
   const handleTaskClick = useCallback(
@@ -205,19 +206,19 @@ export function TasksPage() {
         (t) => t.id === editingTask.id,
         (t) => ({ ...t, ...data }),
       )
-      toast.success('Task updated')
+      toast.success(t('tasks.list.updated'))
     },
   })
 
   const handleEditTask = (task: TaskWithPlan) => {
     setEditingTask(task)
-    editDialog.open({ title: 'Edit Task' })
+    editDialog.open({ title: t('tasks.list.editTitle') })
   }
 
   const handleDeleteTask = async (task: TaskWithPlan) => {
     await tasksApi.delete(task.id)
     removeItems((t) => t.id === task.id)
-    toast.success('Task deleted')
+    toast.success(t('tasks.list.deleted'))
   }
 
   const multiSelect = useMultiSelect(tasks, (t) => t.id)
@@ -225,8 +226,8 @@ export function TasksPage() {
   const handleBulkDelete = () => {
     const count = multiSelect.selectionCount
     confirmDialog.open({
-      title: `Delete ${pluralize(count, 'task')}?`,
-      description: `This will permanently delete ${count} task${count > 1 ? 's' : ''} and all their steps and decisions.`,
+      title: t(count === 1 ? 'tasks.list.bulkTitle.one' : 'tasks.list.bulkTitle.other', { count }),
+      description: t(count === 1 ? 'tasks.list.bulkBody.one' : 'tasks.list.bulkBody.other', { count }),
       onConfirm: async () => {
         const items = multiSelect.selectedItems
         confirmDialog.setProgress({ current: 0, total: items.length })
@@ -237,7 +238,7 @@ export function TasksPage() {
         const ids = new Set(items.map((t) => t.id))
         removeItems((t) => ids.has(t.id))
         multiSelect.clear()
-        toast.success(`Deleted ${count} task${count > 1 ? 's' : ''}`)
+        toast.success(t(count === 1 ? 'tasks.list.deletedMany.one' : 'tasks.list.deletedMany.other', { count }))
       },
     })
   }
@@ -253,15 +254,15 @@ export function TasksPage() {
   // List filters (FilterBar)
   const listActiveCount = (projectFilterParam ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
   const listActiveLabels = [
-    projectFilterParam ? projectOptions.find((o) => o.value === selectedProjectId)?.label ?? 'Project' : '',
+    projectFilterParam ? projectOptions.find((o) => o.value === selectedProjectId)?.label ?? t('tasks.list.project') : '',
     statusFilter !== 'all' ? statusOptions.find((o) => o.value === statusFilter)?.label ?? statusFilter : '',
   ]
   const isPristine = total === 0 && listActiveCount === 0
 
   return (
     <PageShell
-      title={NOMENCLATURE.tasks.plural}
-      description="Manage tasks across all plans"
+      title={t('nav.concepts.tasks')}
+      description={t('tasks.list.description')}
       intro="tasks"
       count={!isKanban && !loading ? total : undefined}
       width={isKanban ? 'full' : 'wide'}
@@ -316,16 +317,16 @@ export function TasksPage() {
         <EmptyState
           size={isPristine ? 'page' : 'md'}
           variant={isPristine ? 'tasks' : 'search'}
-          title={isPristine ? 'No tasks yet' : 'No matching tasks'}
-          description={isPristine ? 'Tasks are created inside a plan: open a plan and add its first task.' : 'No tasks match the current filters.'}
+          title={isPristine ? t('tasks.list.emptyPristineTitle') : t('tasks.list.emptyFilteredTitle')}
+          description={isPristine ? t('tasks.list.emptyPristineBody') : t('tasks.list.emptyFilteredBody')}
           action={
             isPristine ? (
               <Button size="sm" onClick={() => navigate(workspacePath(wsSlug, '/plans'))}>
-                Open plans
+                {t('tasks.list.openPlans')}
               </Button>
             ) : (
               <Button size="sm" variant="secondary" onClick={clearFilters}>
-                Clear
+                {t('tasks.actions.clear')}
               </Button>
             )
           }
@@ -334,15 +335,17 @@ export function TasksPage() {
         <>
           <div className="flex items-center justify-between gap-2 pl-1 pb-1.5 min-h-9 text-[11px] text-gray-500">
             <span className="tabular-nums">
-              {tasks.length < total ? `${tasks.length} of ${total} loaded` : `${total} task${total === 1 ? '' : 's'}`}
+              {tasks.length < total
+                ? t('tasks.list.loaded', { loaded: tasks.length, total })
+                : t(total === 1 ? 'tasks.list.count.one' : 'tasks.list.count.other', { count: total })}
             </span>
             <Button size="sm" variant="ghost" flat onClick={multiSelect.toggleAll}>
-              {multiSelect.isAllSelected ? 'Deselect all' : 'Select all'}
+              {multiSelect.isAllSelected ? t('tasks.actions.deselectAll') : t('tasks.actions.selectAll')}
             </Button>
           </div>
           {/* No recency / status grouping here: the server orders by priority and the list is
               paginated on scroll — groups would shift as pages arrive. Status is filterable above. */}
-          <EntityList aria-label="Tasks">
+          <EntityList aria-label={t('tasks.list.listLabel')}>
             {tasks.map((task) => (
               <TaskRow
                 key={task.id}
@@ -382,7 +385,8 @@ interface TaskRowProps {
 }
 
 function TaskRow({ task, wsSlug, selected, onToggleSelect, onEdit, onStatusChange, onDelete }: TaskRowProps) {
-  const title = task.title || task.description || 'Untitled task'
+  const { t } = useT()
+  const title = task.title || task.description || t('tasks.list.untitled')
   const tags = task.tags || []
   return (
     <EntityRow
@@ -400,7 +404,7 @@ function TaskRow({ task, wsSlug, selected, onToggleSelect, onEdit, onStatusChang
       className="hover:bg-white/[0.03] active:bg-white/[0.05]"
       selected={selected}
       muted={task.status === 'completed'}
-      leading={<RowCheckbox checked={selected} onToggle={onToggleSelect} label={`Select ${title}`} />}
+      leading={<RowCheckbox checked={selected} onToggle={onToggleSelect} label={t('tasks.list.select', { title })} />}
       trailing={<RelativeTime date={task.updated_at ?? task.created_at} />}
       description={task.title ? task.description : undefined}
       tone={getStatusMeta('task', task.status).tone}
@@ -413,7 +417,7 @@ function TaskRow({ task, wsSlug, selected, onToggleSelect, onEdit, onStatusChang
           <Link
             key="plan"
             to={workspacePath(wsSlug, `/plans/${task.plan_id}`)}
-            title={`Plan: ${task.plan_title}`}
+            title={t('tasks.list.planTitle', { title: task.plan_title })}
             className={`${rowInteractive} ${hitArea} ${inlineLink} inline-flex items-center gap-1 min-w-0`}
           >
             <ClipboardList className="w-3 h-3 shrink-0" aria-hidden="true" />
@@ -421,26 +425,26 @@ function TaskRow({ task, wsSlug, selected, onToggleSelect, onEdit, onStatusChang
           </Link>
         ) : null,
         task.assigned_to ? (
-          <Fact key="assignee" icon={User} title={`Assigned to ${task.assigned_to}`} truncateAt="max-w-[10rem]">
+          <Fact key="assignee" icon={User} title={t('tasks.list.assignedTo', { name: task.assigned_to })} truncateAt="max-w-[10rem]">
             @{task.assigned_to}
           </Fact>
         ) : null,
         tags.length > 0 ? (
           <Fact key="tags" icon={Tag}>
-            {tags.map((t) => `#${t}`).join(' ')}
+            {tags.map((tag) => `#${tag}`).join(' ')}
           </Fact>
         ) : null,
       ]}
       actions={[
-        { label: 'Edit', icon: Pencil, onClick: onEdit },
+        { label: t('tasks.actions.edit'), icon: Pencil, onClick: onEdit },
         {
-          label: 'Delete',
+          label: t('tasks.actions.delete'),
           icon: Trash2,
           variant: 'danger',
           onClick: onDelete,
           confirm: {
-            title: 'Delete task?',
-            description: 'This will permanently delete this task and all its steps and decisions.',
+            title: t('tasks.list.deleteTitle'),
+            description: t('tasks.list.deleteBody'),
           },
         },
       ]}

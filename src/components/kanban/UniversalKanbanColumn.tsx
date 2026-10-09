@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { useInfiniteScroll } from '@/hooks'
+import { useT } from '@/i18n'
 import { Skeleton, Spinner, StatusDot, type StatusKind } from '@/components/ui'
 
 interface UniversalKanbanColumnProps<T extends { id: string }> {
@@ -34,10 +35,11 @@ export function UniversalKanbanColumn<T extends { id: string }>({
   loadingMore = false,
   onLoadMore,
   loading = false,
-  emptyLabel = 'No items',
+  emptyLabel,
   fullWidth = false,
   children,
 }: UniversalKanbanColumnProps<T>) {
+  const { t } = useT()
   const { isOver, setNodeRef } = useDroppable({ id })
 
   const { sentinelRef } = useInfiniteScroll({
@@ -74,7 +76,7 @@ export function UniversalKanbanColumn<T extends { id: string }>({
             ))}
           </div>
         ) : items.length === 0 ? (
-          <div className="flex items-center justify-center h-16 text-xs text-gray-600">{emptyLabel}</div>
+          <div className="flex items-center justify-center h-16 text-xs text-gray-600">{emptyLabel ?? t('kanban.empty.items')}</div>
         ) : (
           <>
             {items.map((item) => children(item))}

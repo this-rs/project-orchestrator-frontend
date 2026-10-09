@@ -4,6 +4,7 @@
  * (`ViewToggle`, `RowCheckbox`, `ProgressLine`) live in `@/components/ui`.
  */
 import type { ReactNode } from 'react'
+import { useT } from '@/i18n'
 
 // ── Filter input ────────────────────────────────────────────────────────
 
@@ -44,14 +45,15 @@ export function PriorityRangeFields({
   onMinChange: (v: number | undefined) => void
   onMaxChange: (v: number | undefined) => void
 }) {
+  const { t } = useT()
   const parse = (v: string) => (v === '' ? undefined : Number(v))
   return (
     <div className="flex items-center gap-1.5 min-w-0">
-      <FilterField type="number" label="Minimum priority" placeholder="Priority min" value={min} onChange={(v) => onMinChange(parse(v))} />
+      <FilterField type="number" label={t('kanban.filters.minPriority')} placeholder={t('kanban.filters.priorityMin')} value={min} onChange={(v) => onMinChange(parse(v))} />
       <span className="text-gray-600 text-xs" aria-hidden="true">
         –
       </span>
-      <FilterField type="number" label="Maximum priority" placeholder="max" value={max} onChange={(v) => onMaxChange(parse(v))} />
+      <FilterField type="number" label={t('kanban.filters.maxPriority')} placeholder={t('kanban.filters.priorityMax')} value={max} onChange={(v) => onMaxChange(parse(v))} />
     </div>
   )
 }

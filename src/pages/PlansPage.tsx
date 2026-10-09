@@ -25,7 +25,6 @@ import {
   getStatusOptions,
   RowCheckbox,
   ViewToggle,
-  pluralize,
 } from '@/components/ui'
 import {
   useViewMode,
@@ -45,9 +44,8 @@ import { PlanKanbanFilterBar, UniversalKanban, createPlanKanbanConfig } from '@/
 import type { PlanKanbanFilters } from '@/components/kanban'
 import type { Plan, PlanStatus, PaginatedResponse } from '@/types'
 import { workspacePath } from '@/utils/paths'
-import { NOMENCLATURE } from '@/constants/nomenclature'
-
-const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('plan')]
+import { useT } from '@/i18n'
+import { translateOptions, useStatusLabel } from '@/components/kanban/statusLabels'
 
 const defaultFilters: PlanKanbanFilters = {
   project: 'all',
@@ -59,6 +57,9 @@ const defaultFilters: PlanKanbanFilters = {
 }
 
 export function PlansPage() {
+  const { t } = useT()
+  const statusLabel = useStatusLabel()
+  const statusOptions = [{ value: 'all', label: t('plans.allStatuses') }, ...translateOptions(getStatusOptions('plan'), statusLabel)]
   const [, setPlans] = useAtom(plansAtom)
   const [, setLoadingAtom] = useAtom(plansLoadingAtom)
   const [statusFilter, setStatusFilter] = useAtom(planStatusFilterAtom)
@@ -208,17 +209,17 @@ export function PlansPage() {
       )
       try {
         await plansApi.updateStatus(planId, newStatus)
-        toast.success('Status updated')
+        toast.success(t('tasks.toast.statusUpdated'))
       } catch {
         if (oldPlan)
           updateItem(
             (p) => p.id === planId,
             () => oldPlan,
           )
-        toast.error('Failed to update status')
+        toast.error(t('tasks.toast.statusFailed'))
       }
     },
-    [plans, updateItem, toast],
+    [plans, updateItem, toast, t],
   )
 
   /** Board: the board moves the card optimistically; rethrow so it can roll back. */
@@ -226,13 +227,13 @@ export function PlansPage() {
     async (planId: string, newStatus: string) => {
       try {
         await plansApi.updateStatus(planId, newStatus)
-        toast.success('Status updated')
+        toast.success(t('tasks.toast.statusUpdated'))
       } catch (err) {
-        toast.error('Failed to update status')
+        toast.error(t('tasks.toast.statusFailed'))
         throw err
       }
     },
-    [toast],
+    [toast, t],
   )
 
   const planKanbanConfig = useMemo(
@@ -244,7 +245,7 @@ export function PlansPage() {
     workspaceSlug: wsSlug,
     onSubmit: async (data) => {
       await plansApi.create(data)
-      toast.success('Plan created')
+      toast.success(t('plans.toast.created'))
       reset()
     },
   })
@@ -270,19 +271,19 @@ export function PlansPage() {
         (p) => p.id === editingPlan.id,
         (p) => ({ ...p, ...updateData, project_id }),
       )
-      toast.success('Plan updated')
+      toast.success(t('plans.toast.updated'))
     },
   })
 
   const handleEditPlan = (plan: Plan) => {
     setEditingPlan(plan)
-    editDialog.open({ title: 'Edit plan' })
+    editDialog.open({ title: t('plans.dialog.edit') })
   }
 
   const handleDeletePlan = async (plan: Plan) => {
     await plansApi.delete(plan.id)
     removeItems((p) => p.id === plan.id)
-    toast.success('Plan deleted')
+    toast.success(t('plans.toast.deleted'))
   }
 
   const multiSelect = useMultiSelect(plans, (p) => p.id)
@@ -292,8 +293,8 @@ export function PlansPage() {
   const handleBulkDelete = () => {
     const count = multiSelect.selectionCount
     confirmDialog.open({
-      title: `Delete ${pluralize(count, 'plan')}?`,
-      description: `This will permanently delete ${count} plan${count > 1 ? 's' : ''} and all their tasks.`,
+      title: t(count === 1 ? 'plans.confirm.bulkTitle.one' : 'plans.confirm.bulkTitle.other', { count }),
+      description: t(count === 1 ? 'plans.confirm.bulkBody.one' : 'plans.confirm.bulkBody.other', { count }),
       onConfirm: async () => {
         const items = multiSelect.selectedItems
         confirmDialog.setProgress({ current: 0, total: items.length })
@@ -304,12 +305,12 @@ export function PlansPage() {
         const ids = new Set(items.map((p) => p.id))
         removeItems((p) => ids.has(p.id))
         multiSelect.clear()
-        toast.success(`Deleted ${count} plan${count > 1 ? 's' : ''}`)
+        toast.success(t(count === 1 ? 'plans.toast.deletedMany.one' : 'plans.toast.deletedMany.other', { count }))
       },
     })
   }
 
-  const openCreatePlan = () => formDialog.open({ title: 'Create plan', size: 'lg' })
+  const openCreatePlan = () => formDialog.open({ title: t('plans.dialog.create'), size: 'lg' })
 
   const isKanban = viewMode === 'kanban'
   const showListSkeleton = loading && !isKanban && plans.length === 0
@@ -325,22 +326,22 @@ export function PlansPage() {
   // List filters (FilterBar)
   const listActiveCount = (projectFilterParam ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0)
   const listActiveLabels = [
-    projectFilterParam ? projectNames.get(selectedProjectId) ?? 'Project' : '',
+    projectFilterParam ? projectNames.get(selectedProjectId) ?? t('plans.project') : '',
     statusFilter !== 'all' ? statusOptions.find((o) => o.value === statusFilter)?.label ?? statusFilter : '',
   ]
   const isPristine = total === 0 && listActiveCount === 0 && !listSearch
 
   return (
     <PageShell
-      title={NOMENCLATURE.plans.plural}
-      description="Plan and track implementation phases"
+      title={t('nav.concepts.plans')}
+      description={t('plans.description')}
       intro="plans"
       count={!isKanban && !loading ? total : undefined}
       width={isKanban ? 'full' : 'wide'}
       actions={
         <Button size="sm" onClick={openCreatePlan}>
           <Plus className="w-4 h-4 mr-1 -ml-0.5" aria-hidden="true" />
-          New plan
+          {t('plans.newPlan')}
         </Button>
       }
       filters={
@@ -356,7 +357,7 @@ export function PlansPage() {
           <FilterBar
             search={kanbanFilters.search}
             onSearchChange={(v) => handleFilterChange('search', v)}
-            searchPlaceholder="Search plans…"
+            searchPlaceholder={t('plans.searchPlaceholder')}
             activeCount={listActiveCount}
             activeLabels={listActiveLabels}
             onClear={clearFilters}
@@ -396,18 +397,18 @@ export function PlansPage() {
         <EmptyState
           size={isPristine ? 'page' : 'md'}
           variant={isPristine ? 'plans' : 'search'}
-          title={isPristine ? 'No plans yet' : 'No matching plans'}
+          title={isPristine ? t('plans.empty.pristineTitle') : t('plans.empty.filteredTitle')}
           description={
-            isPristine ? 'Create a plan to organize your development work.' : 'Try adjusting your search or filters.'
+            isPristine ? t('plans.empty.pristineBody') : t('plans.empty.filteredBody')
           }
           action={
             isPristine ? (
               <Button size="sm" onClick={openCreatePlan}>
-                New plan
+                {t('plans.newPlan')}
               </Button>
             ) : (
               <Button size="sm" variant="secondary" onClick={clearFilters}>
-                Clear
+                {t('tasks.actions.clear')}
               </Button>
             )
           }
@@ -416,15 +417,17 @@ export function PlansPage() {
         <>
           <div className="flex items-center justify-between gap-2 pl-1 pb-1.5 min-h-9 text-[11px] text-gray-500">
             <span className="tabular-nums">
-              {plans.length < total ? `${plans.length} of ${total} loaded` : `${total} plan${total === 1 ? '' : 's'}`}
+              {plans.length < total
+                ? t('plans.loaded', { loaded: plans.length, total })
+                : t(total === 1 ? 'plans.count.one' : 'plans.count.other', { count: total })}
             </span>
             <Button size="sm" variant="ghost" flat onClick={multiSelect.toggleAll}>
-              {multiSelect.isAllSelected ? 'Deselect all' : 'Select all'}
+              {multiSelect.isAllSelected ? t('tasks.actions.deselectAll') : t('tasks.actions.selectAll')}
             </Button>
           </div>
           {/* No recency / status grouping here: the server orders by priority and the list is
               paginated on scroll — groups would shift as pages arrive. Status is filterable above. */}
-          <EntityList aria-label="Plans">
+          <EntityList aria-label={t('plans.listLabel')}>
             {plans.map((plan) => (
               <EntityRow
                 key={plan.id}
@@ -438,7 +441,7 @@ export function PlansPage() {
                   <RowCheckbox
                     checked={multiSelect.isSelected(plan.id)}
                     onToggle={(shiftKey) => multiSelect.toggle(plan.id, shiftKey)}
-                    label={`Select ${plan.title}`}
+                    label={t('plans.selectPlan', { title: plan.title })}
                   />
                 }
                 trailing={<RelativeTime date={plan.created_at} />}
@@ -457,26 +460,26 @@ export function PlansPage() {
                 ]}
                 meta={[
                   plan.project_id ? (
-                    <Fact key="project" icon={FolderKanban} title="Project" truncateAt="max-w-[12rem]">
-                      {projectNames.get(plan.project_id) ?? 'Project'}
+                    <Fact key="project" icon={FolderKanban} title={t('plans.project')} truncateAt="max-w-[12rem]">
+                      {projectNames.get(plan.project_id) ?? t('plans.project')}
                     </Fact>
                   ) : null,
                   plan.created_by ? (
-                    <Fact key="by" icon={User} title={`Created by ${plan.created_by}`} truncateAt="max-w-[10rem]">
+                    <Fact key="by" icon={User} title={t('plans.createdBy', { name: plan.created_by })} truncateAt="max-w-[10rem]">
                       {plan.created_by}
                     </Fact>
                   ) : null,
                 ]}
                 actions={[
-                  { label: 'Edit', icon: Pencil, onClick: () => handleEditPlan(plan) },
+                  { label: t('tasks.actions.edit'), icon: Pencil, onClick: () => handleEditPlan(plan) },
                   {
-                    label: 'Delete',
+                    label: t('tasks.actions.delete'),
                     icon: Trash2,
                     variant: 'danger',
                     onClick: () => handleDeletePlan(plan),
                     confirm: {
-                      title: 'Delete plan?',
-                      description: 'This plan and all its tasks will be permanently deleted.',
+                      title: t('plans.confirm.deleteTitle'),
+                      description: t('plans.confirm.deleteBody'),
                     },
                   },
                 ]}

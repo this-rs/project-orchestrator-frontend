@@ -3,6 +3,7 @@ import { Folder } from 'lucide-react'
 import { FilterBar, Select, Switch } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
+import { useT } from '@/i18n'
 import type { Project } from '@/types'
 import { PriorityRangeFields } from './ListControls'
 
@@ -33,6 +34,7 @@ export function PlanKanbanFilterBar({
   activeFilterCount,
   trailing,
 }: PlanKanbanFilterBarProps) {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const [projects, setProjects] = useState<Project[]>([])
 
@@ -44,21 +46,21 @@ export function PlanKanbanFilterBar({
       .catch(() => setProjects([]))
   }, [wsSlug])
 
-  const projectOptions = [{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]
+  const projectOptions = [{ value: 'all', label: t('kanban.filters.allProjects') }, ...projects.map((p) => ({ value: p.id, label: p.name }))]
 
   const activeLabels = [
-    filters.project !== 'all' ? projects.find((p) => p.id === filters.project)?.name ?? 'Project' : '',
+    filters.project !== 'all' ? projects.find((p) => p.id === filters.project)?.name ?? t('kanban.filters.project') : '',
     filters.priority_min !== undefined ? `P ≥ ${filters.priority_min}` : '',
     filters.priority_max !== undefined ? `P ≤ ${filters.priority_max}` : '',
-    filters.hide_completed ? 'Hide completed' : '',
-    filters.hide_cancelled ? 'Hide cancelled' : '',
+    filters.hide_completed ? t('kanban.filters.hideCompleted') : '',
+    filters.hide_cancelled ? t('kanban.filters.hideCancelled') : '',
   ]
 
   return (
     <FilterBar
       search={filters.search}
       onSearchChange={(v) => onFilterChange('search', v)}
-      searchPlaceholder="Search plans…"
+      searchPlaceholder={t('kanban.filters.searchPlans')}
       activeCount={activeFilterCount}
       activeLabels={activeLabels}
       onClear={onClearFilters}
@@ -79,8 +81,8 @@ export function PlanKanbanFilterBar({
             onMinChange={(v) => onFilterChange('priority_min', v)}
             onMaxChange={(v) => onFilterChange('priority_max', v)}
           />
-          <Switch label="Hide completed" checked={filters.hide_completed} onChange={(v) => onFilterChange('hide_completed', v)} />
-          <Switch label="Hide cancelled" checked={filters.hide_cancelled} onChange={(v) => onFilterChange('hide_cancelled', v)} />
+          <Switch label={t('kanban.filters.hideCompleted')} checked={filters.hide_completed} onChange={(v) => onFilterChange('hide_completed', v)} />
+          <Switch label={t('kanban.filters.hideCancelled')} checked={filters.hide_cancelled} onChange={(v) => onFilterChange('hide_cancelled', v)} />
         </>
       }
     />

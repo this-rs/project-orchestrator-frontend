@@ -1,0 +1,32 @@
+export default {
+  summary: {
+    waves: 'Waves:',
+    maxParallel: 'Max parallel:',
+    criticalPath: 'Critical path:',
+    tasks: 'Tasks:',
+    conflicts: '{count} conflicts',
+    viewRunner: 'View runner',
+    resume: 'Resume plan',
+    launch: 'Launch plan',
+  },
+  card: {
+    hideSteps: 'Hide steps of {title}',
+    showSteps: 'Show steps of {title}',
+    working: 'Working…',
+    conflictOn: 'Conflict on: {files}',
+    fileConflict: 'File conflict',
+    stepsDone: '{done} of {total} steps done',
+    sharedFile: '{file} — shared with another task of this wave',
+    loadingSteps: 'Loading steps…',
+    verify: 'Verify: {text}',
+    noSteps: 'No steps',
+    openTask: 'Open task',
+  },
+  column: {
+    wave: 'Wave {number}',
+    activeWave: 'Active wave',
+    split: 'split',
+    progress: 'Wave {number}: {done} of {total} tasks done',
+  },
+  none: 'No waves computed',
+} as const

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Rocket, AlertTriangle, DollarSign } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { NOMENCLATURE } from '@/constants/nomenclature'
+import { useT } from '@/i18n'
 import { RunTargetPicker } from '@/components/runner/RunTargetPicker'
 import { useRunTarget } from '@/hooks/useRunTarget'
 import {
@@ -41,12 +41,6 @@ interface ImplementDialogProps {
   projectSlug?: string | null
 }
 
-const modeLabels: Record<ImplementMode, string> = {
-  plan: NOMENCLATURE.plans.singular,
-  task: NOMENCLATURE.tasks.singular,
-  milestone: NOMENCLATURE.objectives.singular,
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -65,6 +59,7 @@ export function ImplementDialog({
   defaultBudget = 10,
   projectSlug,
 }: ImplementDialogProps) {
+  const { t } = useT()
   const [budget, setBudget] = useState<number>(defaultBudget)
   const [tokenBudget, setTokenBudget] = useState<number>(1_000_000)
   const target = useRunTarget(projectSlug)
@@ -72,8 +67,6 @@ export function ImplementDialog({
   const usdDisabled = target.visible && !hasKnownPrice(target.instance)
 
   if (!open) return null
-
-  const label = modeLabels[mode]
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -92,10 +85,10 @@ export function ImplementDialog({
           </div>
           <div>
             <h3 className="text-lg font-semibold text-gray-100">
-              Implement {label}
+              {t(`pipeline.implement.title.${mode}` as const)}
             </h3>
             <p className="text-sm text-gray-400 mt-0.5">
-              Hand the work to assistants and follow it from Automation
+              {t('pipeline.implement.subtitle')}
             </p>
           </div>
         </div>
@@ -104,9 +97,7 @@ export function ImplementDialog({
         <div className="p-3 bg-white/[0.04] rounded-lg">
           <p className="text-sm text-gray-300 font-medium truncate">{entityTitle}</p>
           <p className="text-xs text-gray-500 mt-1">
-            {mode === 'plan' && 'Every task of this plan runs, the independent ones at the same time.'}
-            {mode === 'task' && 'An assistant takes this task on its own.'}
-            {mode === 'milestone' && 'Every plan linked to this objective runs.'}
+            {t(`pipeline.implement.hint.${mode}` as const)}
           </p>
         </div>
 
@@ -116,7 +107,7 @@ export function ImplementDialog({
         <div className="p-3 bg-white/[0.04] rounded-lg space-y-2">
           <div className="flex items-center gap-2">
             <DollarSign className="w-4 h-4 text-emerald-400" />
-            <span className="text-sm font-medium text-gray-300">Budget Limit</span>
+            <span className="text-sm font-medium text-gray-300">{t('pipeline.implement.budgetLimit')}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <input
@@ -126,7 +117,7 @@ export function ImplementDialog({
               step={5}
               value={budget}
               disabled={usdDisabled}
-              aria-label="Budget limit in USD"
+              aria-label={t('pipeline.implement.budgetAria')}
               aria-describedby={usdDisabled ? RUN_BUDGET_USD_DISABLED_ID : undefined}
               onChange={(e) => setBudget(Math.max(1, Number(e.target.value)))}
               className="w-24 px-3 py-1.5 bg-white/[0.06] border border-white/[0.08] rounded-lg text-base md:text-sm text-gray-200 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500/50 focus:border-indigo-500/50 disabled:opacity-40"
@@ -149,7 +140,7 @@ export function ImplementDialog({
             ))}
           </div>
           <p className="text-xs text-gray-500">
-            Execution stops when cumulated API cost reaches this limit.
+            {t('pipeline.implement.budgetHelp')}
           </p>
           {usdDisabled && (
             <div className="space-y-1.5 pt-1">
@@ -179,14 +170,14 @@ export function ImplementDialog({
         <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
           <AlertTriangle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-yellow-300">
-            The assistants started here use your AI provider and its credits. Check the plan before launching.
+            {t('pipeline.implement.warning')}
           </p>
         </div>
 
         {/* Actions */}
         <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
           <Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>
-            Cancel
+            {t('pipeline.implement.cancel')}
           </Button>
           <Button
             variant="primary"
@@ -197,7 +188,7 @@ export function ImplementDialog({
             loading={loading}
           >
             <Rocket className="w-4 h-4 mr-1.5" />
-            Launch
+            {t('pipeline.implement.launch')}
           </Button>
         </div>
       </div>
