@@ -1,6 +1,16 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  vaultUnlock: {
+    locked: "Tresor gesperrt",
+    placeholder: "Passphrase des Tresors",
+    submit: "Entsperren",
+    submitting: "Wird entsperrt…",
+    done: "Tresor entsperrt: Die davon abhängigen Provider sind aktuell.",
+    wrongPassphrase: "Falsche Passphrase.",
+    failed: "Der Tresor konnte nicht entsperrt werden: {reason}",
+    settings: "Tresor-Einstellungen",
+  },
   degradation: {
     title: "Einige Funktionen sind in dieser Unterhaltung nicht verfügbar",
     harness: {

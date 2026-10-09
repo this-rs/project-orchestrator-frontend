@@ -1,6 +1,16 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  vaultUnlock: {
+    locked: "Хранилище заблокировано",
+    placeholder: "Парольная фраза хранилища",
+    submit: "Разблокировать",
+    submitting: "Разблокировка…",
+    done: "Хранилище разблокировано: провайдеры, которые от него зависят, обновлены.",
+    wrongPassphrase: "Неверная парольная фраза.",
+    failed: "Не удалось разблокировать хранилище: {reason}",
+    settings: "Настройки хранилища",
+  },
   degradation: {
     title: "Некоторые функции недоступны в этом разговоре",
     harness: {

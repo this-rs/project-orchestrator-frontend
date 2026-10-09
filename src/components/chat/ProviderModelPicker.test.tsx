@@ -33,6 +33,8 @@ import {
 import type { ProvidersResponse } from '@/types/provider'
 import { clearModelCatalogCache } from '@/components/settings/useModelCatalog'
 import { providersApi } from '@/services/providers'
+import { ApiError } from '@/services/api'
+import type { VaultOverview } from '@/services/vault'
 import { ChatInput } from './ChatInput'
 
 vi.mock('@/hooks', () => ({ useIsMobile: () => false }))
@@ -44,6 +46,11 @@ vi.mock('@/services/providers', async (importOriginal) => ({
   providersApi: { models: vi.fn(), list: vi.fn() },
 }))
 vi.mock('@/services/documents', () => ({ documentsApi: { upload: vi.fn() } }))
+const vaultApiMock = vi.hoisted(() => ({ overview: vi.fn(), unlock: vi.fn() }))
+vi.mock('@/services/vault', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/vault')>()),
+  vaultApi: { overview: vaultApiMock.overview, unlock: vaultApiMock.unlock },
+}))
 
 type Store = ReturnType<typeof createStore>
 
@@ -156,6 +163,19 @@ beforeEach(() => {
   localStorage.clear()
   clearModelCatalogCache()
   vi.mocked(providersApi.models).mockReset().mockResolvedValue([])
+  vaultApiMock.overview.mockReset().mockResolvedValue(vaultState())
+  vaultApiMock.unlock.mockReset()
+})
+
+const vaultState = (over: Partial<VaultOverview> = {}): VaultOverview => ({
+  initialized: true,
+  unlocked_until: '2099-01-01T00:00:00Z',
+  secret_count: 1,
+  unavailable: null,
+  secrets: [],
+  grants: [],
+  requests: [],
+  ...over,
 })
 
 describe('ProviderModelPicker — new conversation', () => {
@@ -574,5 +594,65 @@ describe('ProviderModelPicker — one menu at a time', () => {
     expect(screen.getByTestId('target-picker-popover')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /^Default$/ }))
     expect(screen.queryByTestId('target-picker-popover')).toBeNull()
+  })
+})
+
+describe('ProviderModelPicker — vault locked', () => {
+  const LOCKED = vaultState({ unlocked_until: null })
+  const RELISTED: ProvidersResponse = {
+    ...PROVIDERS,
+    providers: [
+      ...PROVIDERS.providers,
+      { id: 'vault-llm', kind: 'openai_compatible', label: 'Vault LLM', health: { status: 'healthy' }, models: [{ id: 'vault-model' }] },
+    ],
+  }
+
+  beforeEach(() => {
+    vi.mocked(providersApi.list).mockReset()
+  })
+
+  it('shows a passphrase field and an Unlock button in the menu while the vault is locked', async () => {
+    vaultApiMock.overview.mockResolvedValue(LOCKED)
+    mount({ prepare: withProviders() })
+    openTarget()
+    expect(await screen.findByLabelText('Vault locked')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Unlock' })).toBeTruthy()
+    // The settings link stays as the fallback.
+    expect(screen.getByRole('link', { name: 'Vault settings' }).getAttribute('href')).toBe('/vault')
+  })
+
+  it('shows no field while the vault is open', async () => {
+    mount({ prepare: withProviders() })
+    openTarget()
+    await waitFor(() => expect(vaultApiMock.overview).toHaveBeenCalled())
+    expect(screen.queryByLabelText('Vault locked')).toBeNull()
+  })
+
+  it('unlocks in place with the passphrase, then re-reads the providers and shows the new one', async () => {
+    vaultApiMock.overview.mockResolvedValue(LOCKED)
+    vaultApiMock.unlock.mockResolvedValue({ unlocked_until: '2099-01-01T00:00:00Z', unlock_proof: 'proof' })
+    vi.mocked(providersApi.list).mockResolvedValue(RELISTED)
+    mount({ prepare: withProviders() })
+    const menu = openTarget()
+    fireEvent.change(await screen.findByLabelText('Vault locked'), { target: { value: 'correct horse' } })
+    fireEvent.click(menu.getByRole('button', { name: 'Unlock' }))
+
+    await waitFor(() => expect(vaultApiMock.unlock).toHaveBeenCalledWith('correct horse', 60))
+    expect((await screen.findByRole('status')).textContent).toContain('Vault unlocked')
+    expect(providersApi.list).toHaveBeenCalled()
+    expect(await screen.findByText('Vault LLM')).toBeTruthy()
+  })
+
+  it('a wrong passphrase says so in text, keeps the field, and does not re-read the providers', async () => {
+    vaultApiMock.overview.mockResolvedValue(LOCKED)
+    vaultApiMock.unlock.mockRejectedValue(new ApiError(403, JSON.stringify({ error: 'wrong passphrase' })))
+    mount({ prepare: withProviders() })
+    const menu = openTarget()
+    fireEvent.change(await screen.findByLabelText('Vault locked'), { target: { value: 'nope' } })
+    fireEvent.click(menu.getByRole('button', { name: 'Unlock' }))
+
+    expect((await screen.findByRole('alert')).textContent).toBe('Wrong passphrase.')
+    expect(screen.getByLabelText('Vault locked')).toBeTruthy()
+    expect(providersApi.list).not.toHaveBeenCalled()
   })
 })

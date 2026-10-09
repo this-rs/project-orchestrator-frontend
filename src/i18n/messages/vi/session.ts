@@ -1,6 +1,16 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  vaultUnlock: {
+    locked: "Kho đang khóa",
+    placeholder: "Mật khẩu của kho",
+    submit: "Mở khóa",
+    submitting: "Đang mở khóa…",
+    done: "Đã mở khóa kho: các nhà cung cấp phụ thuộc vào kho đã được cập nhật.",
+    wrongPassphrase: "Mật khẩu không đúng.",
+    failed: "Không thể mở khóa kho: {reason}",
+    settings: "Cài đặt kho",
+  },
   degradation: {
     title: "Một số tính năng không khả dụng trong cuộc trò chuyện này",
     harness: {

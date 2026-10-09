@@ -1,6 +1,16 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  vaultUnlock: {
+    locked: "वॉल्ट लॉक है",
+    placeholder: "वॉल्ट का पासफ़्रेज़",
+    submit: "अनलॉक करें",
+    submitting: "अनलॉक हो रहा है…",
+    done: "वॉल्ट अनलॉक हो गया: उस पर निर्भर प्रदाता अब अद्यतन हैं।",
+    wrongPassphrase: "पासफ़्रेज़ गलत है।",
+    failed: "वॉल्ट अनलॉक नहीं हो सका: {reason}",
+    settings: "वॉल्ट सेटिंग्स",
+  },
   degradation: {
     title: "इस बातचीत में कुछ सुविधाएँ उपलब्ध नहीं हैं",
     harness: {

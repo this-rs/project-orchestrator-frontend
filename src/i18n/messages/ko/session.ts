@@ -1,6 +1,16 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  vaultUnlock: {
+    locked: "보관함이 잠겨 있습니다",
+    placeholder: "보관함 암호 구절",
+    submit: "잠금 해제",
+    submitting: "잠금 해제 중…",
+    done: "보관함 잠금을 해제했습니다. 이에 의존하는 제공자가 최신 상태입니다.",
+    wrongPassphrase: "암호 구절이 올바르지 않습니다.",
+    failed: "보관함의 잠금을 해제할 수 없습니다: {reason}",
+    settings: "보관함 설정",
+  },
   degradation: {
     title: "이 대화에서는 일부 기능을 사용할 수 없습니다",
     harness: {

@@ -1,6 +1,16 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  vaultUnlock: {
+    locked: "الخزنة مقفلة",
+    placeholder: "عبارة مرور الخزنة",
+    submit: "فك القفل",
+    submitting: "جارٍ فك القفل…",
+    done: "تم فك قفل الخزنة: مزوّدو الخدمة المعتمدون عليها محدَّثون.",
+    wrongPassphrase: "عبارة المرور غير صحيحة.",
+    failed: "تعذّر فك قفل الخزنة: {reason}",
+    settings: "إعدادات الخزنة",
+  },
   degradation: {
     title: "بعض الميزات غير متاحة في هذه المحادثة",
     harness: {

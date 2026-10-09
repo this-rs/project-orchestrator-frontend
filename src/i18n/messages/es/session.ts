@@ -1,6 +1,16 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  vaultUnlock: {
+    locked: "Bóveda bloqueada",
+    placeholder: "Frase de contraseña de la bóveda",
+    submit: "Desbloquear",
+    submitting: "Desbloqueando…",
+    done: "Bóveda desbloqueada: los proveedores que dependen de ella están actualizados.",
+    wrongPassphrase: "Frase de contraseña incorrecta.",
+    failed: "No se pudo desbloquear la bóveda: {reason}",
+    settings: "Ajustes de la bóveda",
+  },
   degradation: {
     title: "Algunas funciones no están disponibles en esta conversación",
     harness: {
