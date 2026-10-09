@@ -2057,6 +2057,8 @@ export function useChat() {
         // The forced target belonged to the conversation just opened.
         store.set(chatForcedTargetAtom, false)
         // So did its mode: the next conversation starts from the settings again.
+        // The provider the menu parked for the composer belonged to it as well, not to the next chat.
+        if (store.get(chatDraftSelectionAtom).length > 0) store.set(chatSelectedProviderAtom, null)
         store.set(chatDraftAutoAtom, null)
         store.set(chatDraftSelectionAtom, [])
         // The conversation keeps the mode it was opened with, before its record says so.

@@ -1,11 +1,10 @@
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Check, ChevronDown, Lock, RefreshCw, Search } from 'lucide-react'
 import { Highlight } from '@/components/ui/SearchableSelect'
 import { fold } from '@/components/ui/searchFold'
 import { useModelCatalog } from '@/components/settings/useModelCatalog'
 import { useRefreshProviders } from '@/hooks/useProviders'
-import { vaultApi, type VaultOverview } from '@/services/vault'
 import {
   chatDefaultModelAtom,
   chatEffectiveProviderAtom,
@@ -46,6 +45,7 @@ import {
 } from '@/types/provider'
 import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
 import { VaultUnlock } from './VaultUnlock'
+import { useVaultLocked } from './useVaultLocked'
 
 /** The one menu of the composer's target control, or none. Owned by the composer, which also has a mode menu to close. */
 export type ProviderModelMenu = 'target' | 'routing' | null
@@ -59,18 +59,8 @@ interface ProviderModelPickerProps {
   onChangeModel?: (model: string) => void
   /** Start a new conversation — the way out of a session locked on its provider. */
   onNewConversation?: () => void
-  /**
-   * Called when the user makes (`true`) or clears (`false`) an explicit choice for a NEW conversation.
-   * `RoutingModePicker` uses it to know the target was forced from the Advanced path.
-   */
+  /** Called when the user makes (`true`) or clears (`false`) an explicit choice for a NEW conversation. */
   onForce?: (forced: boolean) => void
-  /** Mode tabs (Auto / Mixed / Strict), shown at the top of the menu. */
-  header?: ReactNode
-  /**
-   * Auto mode: PO chooses, so there is nothing to pick. The chip reads "Auto" and
-   * the menu is the header plus this panel instead of the provider list.
-   */
-  autoPanel?: ReactNode
 }
 
 const CHIP =
@@ -97,7 +87,7 @@ const rowTone = (active: boolean) =>
  * - Backend without provider routes: no provider at all, and the Claude model
  *   picker exactly as it was.
  */
-export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeModel, onNewConversation, onForce, header, autoPanel }: ProviderModelPickerProps) {
+export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeModel, onNewConversation, onForce }: ProviderModelPickerProps) {
   const list = useAtomValue(providersAtom)
   const loadState = useAtomValue(providersLoadStateAtom)
   const [pickedProvider, setPickedProvider] = useAtom(chatSelectedProviderAtom)
@@ -105,7 +95,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   const instance = useAtomValue(chatEffectiveProviderAtom)
   const sessionProvider = useAtomValue(chatSessionProviderAtom)
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
-  const [sessionRouting, setSessionRouting] = useAtom(chatSessionRoutingAtom)
+  const setSessionRouting = useSetAtom(chatSessionRoutingAtom)
   const routingMode = useAtomValue(chatRoutingModeAtom)
   const defaultModel = useAtomValue(chatDefaultModelAtom)
   const capabilities = useAtomValue(chatSessionCapabilitiesAtom)
@@ -121,24 +111,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
 
   const hasSession = !!sessionId
   const showProviders = list !== null && loadState !== 'unsupported'
-  // A provider whose credential sits in the vault cannot run while the vault is
-  // locked: the menu says so and unlocks in place. Read each time the menu opens.
-  const [vault, setVault] = useState<VaultOverview | null>(null)
-  useEffect(() => {
-    if (open !== 'target' || !showProviders) return
-    let alive = true
-    // Wrapped so a synchronous failure (no fetch in this environment) is still a rejection.
-    Promise.resolve()
-      .then(() => vaultApi.overview())
-      .then(
-        (o) => alive && setVault(o),
-        () => alive && setVault(null),
-      )
-    return () => {
-      alive = false
-    }
-  }, [open, showProviders])
-  const vaultLocked = !!vault && vault.initialized && !vault.unavailable && !vault.unlocked_until
+  const vaultLocked = useVaultLocked(open === 'target' && showProviders)
   const resolvedDefault = showProviders ? (list.default ?? null) : null
   const effectiveClaude = loadState === 'unsupported' || isClaudeCodeProvider(effectiveId, instance?.kind ?? sessionProvider?.kind)
 
@@ -224,16 +197,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   }
 
   // ── Chip ───────────────────────────────────────────────────────────
-  // A chat the user gave its own model is no longer PO's to decide: its chip names that model.
-  const ownChoice = hasSession && sessionRouting?.routed_by === 'request'
-  const poChooses = !!autoPanel
-  const chipText = poChooses && !ownChoice
-    ? AUTO_TARGET_LABEL
-    : !showProviders
-      ? modelLabel
-      : autoActive
-        ? AUTO_TARGET_LABEL
-        : `${providerLabel} › ${modelLabel}`
+  const chipText = !showProviders ? modelLabel : autoActive ? AUTO_TARGET_LABEL : `${providerLabel} › ${modelLabel}`
   const chipTitle = autoActive && resolvedText ? `${AUTO_TARGET_LABEL}: ${resolvedText}` : chipText
 
   const choices = (p: ProviderInstance | null, active: string, withDefault: boolean, defaultActive = false) => (
@@ -270,7 +234,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
         className={`${CHIP} ${modelJustChanged ? 'border-violet-400/50 ring-1 ring-violet-400/30' : 'border-white/[0.08]'}`}
       >
         {showProviders &&
-          (hasSession && (!poChooses || ownChoice) ? (
+          (hasSession ? (
             <Lock className="w-2.5 h-2.5 text-gray-500" aria-hidden="true" />
           ) : (
             <span
@@ -292,14 +256,12 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
 
       {open === 'target' && (
         <div data-testid="target-picker-popover" className={POPOVER}>
-          {header}
-          {poChooses && autoPanel}
           {showProviders && vaultLocked && (
             <div className="px-3 py-2 border-b border-white/[0.06]">
               <VaultUnlock onUnlocked={() => void refreshProviders()} />
             </div>
           )}
-          {showProviders && hasSession && !poChooses && (
+          {showProviders && hasSession && (
             <div className="px-3 py-2 space-y-1.5 border-b border-white/[0.06]">
               <div className="flex items-baseline gap-1.5 text-xs">
                 <span className="text-gray-100">{providerLabel}</span>
@@ -323,7 +285,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
             </div>
           )}
 
-          {poChooses ? null : showProviders && !hasSession ? (
+          {showProviders && !hasSession ? (
             <>
               <button
                 type="button"
@@ -456,7 +418,7 @@ function ModelChoices({ instance, claude, aliases, activeModelId, withDefault, d
 }
 
 /** "Actualiser": asks the backend to re-read Anthropic's list. Never blocks the menu. */
-function RefreshClaudeModels() {
+export function RefreshClaudeModels() {
   const setModels = useSetAtom(modelCatalogAtom)
   const setLoaded = useSetAtom(modelCatalogLoadedAtom)
   const [refreshing, setRefreshing] = useAtom(modelCatalogRefreshingAtom)

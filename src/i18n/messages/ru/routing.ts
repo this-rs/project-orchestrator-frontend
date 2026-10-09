@@ -35,7 +35,6 @@ export default {
     remote: 'Удалённый, здесь не разрешён',
   },
   badge: { poChooses: 'Auto', why: 'Почему?' },
-  advanced: { force: 'Принудительно выбрать провайдера' },
   settings: {
     title: 'Маршрутизация',
     confirmAuto: 'Теперь PO будет применять собственный выбор без вопросов. Продолжить?',
@@ -134,8 +133,8 @@ export default {
     poChooses: 'PO выберет сам (маршрутизация: полная)',
     poRoutes: 'PO маршрутизирует (рекомендуется)',
   },
-  menu: { aria: 'Модели этого разговора', chipDefault: 'Значение сервера по умолчанию', chipMixed: 'Смешанный · моделей: {count}', summaryNone: 'Ничего не выбрано: действует значение сервера по умолчанию.', summaryMixed: 'PO маршрутизирует между выбранными моделями ({count}).', selectAll: 'Выбрать все', clearAll: 'Снять все', noProvider: 'Провайдеры не настроены', providerToggle: 'Все модели {provider}', countOf: '{selected} из {total}', noModels: 'Для этого провайдера нет моделей', loading: 'Загрузка моделей…', search: 'Поиск моделей…' },
-  picker: { primary: 'Основной: {target} · PO маршрутизирует исполнителей', forced: 'Принудительно: {target}', willChoose: 'PO выберет при первом сообщении', routedBy: 'Маршрутизация: {by}', aria: 'Маршрутизация: {mode}' },
+  menu: { aria: 'Модели этого разговора', chipDefault: 'Значение сервера по умолчанию', modeStrict: 'Строгий: 1 модель', modeMixed: 'Смешанный: моделей: {count}', summaryNone: 'Ничего не выбрано: действует значение сервера по умолчанию.', summaryMixed: 'PO маршрутизирует между выбранными моделями ({count}).', selectAll: 'Выбрать все', clearAll: 'Снять все', noProvider: 'Провайдеры не настроены', providerToggle: 'Все модели {provider}', countOf: '{selected} из {total}', noModels: 'Для этого провайдера нет моделей', loading: 'Загрузка моделей…', search: 'Поиск моделей…' },
+  picker: { routedBy: 'Маршрутизация: {by}' },
   modelTargets: {
     loading: 'Чтение каталога моделей…',
     offline: 'Список офлайн.',

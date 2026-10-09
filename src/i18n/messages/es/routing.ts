@@ -35,7 +35,6 @@ export default {
     remote: 'Remoto, no permitido aquí',
   },
   badge: { poChooses: 'Auto', why: '¿Por qué?' },
-  advanced: { force: 'Forzar un proveedor' },
   settings: {
     title: 'Enrutamiento',
     confirmAuto: 'PO aplicará ahora sus propias decisiones sin preguntar. ¿Continuar?',
@@ -134,8 +133,8 @@ export default {
     poChooses: 'PO elegirá (enrutamiento: completo)',
     poRoutes: 'PO enruta (recomendado)',
   },
-  menu: { aria: 'Modelos de esta conversación', chipDefault: 'Predeterminado del servidor', chipMixed: 'Mixto · {count} modelos', summaryNone: 'Nada marcado: se aplica el predeterminado del servidor.', summaryMixed: 'PO enruta entre los {count} modelos marcados.', selectAll: 'Seleccionar todo', clearAll: 'Deseleccionar todo', noProvider: 'Ningún proveedor configurado', providerToggle: 'Todos los modelos de {provider}', countOf: '{selected} de {total}', noModels: 'Ningún modelo listado para este proveedor', loading: 'Cargando modelos…', search: 'Buscar modelos…' },
-  picker: { primary: 'Principal: {target} · PO enruta a los ejecutores', forced: 'Forzado: {target}', willChoose: 'PO elegirá en el primer mensaje', routedBy: 'Enrutado por: {by}', aria: 'Enrutamiento: {mode}' },
+  menu: { aria: 'Modelos de esta conversación', chipDefault: 'Predeterminado del servidor', modeStrict: 'Estricto: 1 modelo', modeMixed: 'Mixto: {count} modelos', summaryNone: 'Nada marcado: se aplica el predeterminado del servidor.', summaryMixed: 'PO enruta entre los {count} modelos marcados.', selectAll: 'Seleccionar todo', clearAll: 'Deseleccionar todo', noProvider: 'Ningún proveedor configurado', providerToggle: 'Todos los modelos de {provider}', countOf: '{selected} de {total}', noModels: 'Ningún modelo listado para este proveedor', loading: 'Cargando modelos…', search: 'Buscar modelos…' },
+  picker: { routedBy: 'Enrutado por: {by}' },
   modelTargets: {
     loading: 'Leyendo el catálogo de modelos…',
     offline: 'Lista sin conexión.',

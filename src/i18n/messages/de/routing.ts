@@ -35,7 +35,6 @@ export default {
     remote: 'Remote, hier nicht erlaubt',
   },
   badge: { poChooses: 'Auto', why: 'Warum?' },
-  advanced: { force: 'Provider erzwingen' },
   settings: {
     title: 'Routing',
     confirmAuto: 'PO wendet seine eigenen Entscheidungen künftig ohne Rückfrage an. Fortfahren?',
@@ -134,8 +133,8 @@ export default {
     poChooses: 'PO wählt (Routing: vollständig)',
     poRoutes: 'PO routet (empfohlen)',
   },
-  menu: { aria: 'Modelle dieser Unterhaltung', chipDefault: 'Server-Standard', chipMixed: 'Gemischt · {count} Modelle', summaryNone: 'Nichts gewählt: Der Server-Standard gilt.', summaryMixed: 'PO routet zwischen den {count} gewählten Modellen.', selectAll: 'Alle auswählen', clearAll: 'Alle abwählen', noProvider: 'Kein Provider konfiguriert', providerToggle: 'Alle Modelle von {provider}', countOf: '{selected} von {total}', noModels: 'Keine Modelle für diesen Provider gelistet', loading: 'Modelle werden geladen…', search: 'Modelle suchen…' },
-  picker: { primary: 'Primär: {target} · PO routet die Ausführenden', forced: 'Erzwungen: {target}', willChoose: 'PO wählt bei der ersten Nachricht', routedBy: 'Geroutet durch: {by}', aria: 'Routing-Modus: {mode}' },
+  menu: { aria: 'Modelle dieser Unterhaltung', chipDefault: 'Server-Standard', modeStrict: 'Strikt: 1 Modell', modeMixed: 'Gemischt: {count} Modelle', summaryNone: 'Nichts gewählt: Der Server-Standard gilt.', summaryMixed: 'PO routet zwischen den {count} gewählten Modellen.', selectAll: 'Alle auswählen', clearAll: 'Alle abwählen', noProvider: 'Kein Provider konfiguriert', providerToggle: 'Alle Modelle von {provider}', countOf: '{selected} von {total}', noModels: 'Keine Modelle für diesen Provider gelistet', loading: 'Modelle werden geladen…', search: 'Modelle suchen…' },
+  picker: { routedBy: 'Geroutet durch: {by}' },
   modelTargets: {
     loading: 'Modellkatalog wird gelesen…',
     offline: 'Offline-Liste.',

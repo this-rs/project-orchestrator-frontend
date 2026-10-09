@@ -1,20 +1,30 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Check, ChevronDown, Minus, Search } from 'lucide-react'
+import { Check, ChevronDown, Minus, RefreshCw, Search } from 'lucide-react'
 import { Highlight } from '@/components/ui/SearchableSelect'
 import { Switch } from '@/components/ui/Switch'
 import { fold } from '@/components/ui/searchFold'
 import { loadModelCatalog } from '@/components/settings/useModelCatalog'
+import { useRefreshProviders } from '@/hooks/useProviders'
 import {
+  chatDefaultModelAtom,
   chatDraftAutoAtom,
   chatDraftSelectionAtom,
   chatForcedTargetAtom,
+  chatRoutingModeAtom,
   chatRoutingSettingsAtom,
+  chatRoutingSlugAtom,
   chatSelectedProviderAtom,
+  chatSessionCapabilitiesAtom,
   chatSessionModelAtom,
+  chatSessionProviderAtom,
+  chatSessionRoutingAtom,
+  chatTargetProviderIdAtom,
+  loadRoutingSettingsAtom,
   modelCatalogAtom,
   modelCatalogLoadedAtom,
   providersAtom,
+  providersLoadStateAtom,
 } from '@/atoms'
 import {
   defaultModelForFamily,
@@ -23,9 +33,19 @@ import {
   sortByVersionAscending,
   type ModelFamilyGroup,
 } from '@/constants/models'
-import { aliasesForInstance, healthDotColor, providerModelLabel, providerUnavailableReason } from '@/constants/providers'
+import {
+  DEFAULT_MODEL_LABEL,
+  NEW_CONVERSATION_OTHER_PROVIDER_LABEL,
+  PROVIDER_LOCKED_TEXT,
+  SET_MODEL_UNSUPPORTED_TEXT,
+  aliasesForInstance,
+  healthDotColor,
+  providerModelLabel,
+  providerUnavailableReason,
+  routedByKey,
+} from '@/constants/providers'
 import { useT } from '@/i18n'
-import { isClaudeCodeProvider, providerDisplayName, providerKindLabel, type ProviderInstance, type ProviderModel } from '@/types/provider'
+import { isClaudeCodeProvider, providerDisplayName, providerKindLabel, type ProviderInstance, type ProviderModel, type RoutedBy } from '@/types/provider'
 import {
   isPicked,
   pickKey,
@@ -34,7 +54,9 @@ import {
   togglePick,
   type RoutingPick,
 } from '@/utils/routingSelection'
-import type { ProviderModelMenu } from './ProviderModelPicker'
+import { ProviderModelPicker, RefreshClaudeModels, type ProviderModelMenu } from './ProviderModelPicker'
+import { VaultUnlock } from './VaultUnlock'
+import { useVaultLocked } from './useVaultLocked'
 
 const CHIP =
   'inline-flex min-w-0 max-w-full items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border border-white/[0.08] text-gray-300 hover:bg-white/[0.06] transition-colors'
@@ -58,72 +80,163 @@ export function AutoSwitch({ checked, onChange, disabled = false }: { checked: b
   )
 }
 
-/** Model lists of every instance: Claude from the catalog, the others from their own (cached) catalog. */
-function useProviderModels(instances: readonly ProviderInstance[]): Record<string, ProviderModel[]> {
+interface ProviderModels {
+  loaded: Record<string, ProviderModel[]>
+  failed: Record<string, boolean>
+  retry: (id: string) => void
+}
+
+/** Model lists of every non-Claude instance from its own (cached) catalog, read while the menu is open. */
+function useProviderModels(instances: readonly ProviderInstance[], active: boolean): ProviderModels {
   const [loaded, setLoaded] = useState<Record<string, ProviderModel[]>>({})
+  const [failed, setFailed] = useState<Record<string, boolean>>({})
+  const alive = useRef(true)
   useEffect(() => {
-    let live = true
-    for (const p of instances) {
-      if (isClaudeCodeProvider(p.id, p.kind)) continue
-      loadModelCatalog(p.id)
-        .then((models) => live && setLoaded((prev) => ({ ...prev, [p.id]: models })))
-        .catch(() => {})
-    }
+    alive.current = true
     return () => {
-      live = false
+      alive.current = false
     }
-  }, [instances])
-  return loaded
+  }, [])
+  const read = useCallback((id: string, force: boolean) => {
+    loadModelCatalog(id, force)
+      .then((models) => {
+        if (!alive.current) return
+        setLoaded((prev) => ({ ...prev, [id]: models }))
+        setFailed((prev) => ({ ...prev, [id]: false }))
+      })
+      .catch(() => alive.current && setFailed((prev) => ({ ...prev, [id]: true })))
+  }, [])
+  useEffect(() => {
+    if (!active) return
+    for (const p of instances) if (!isClaudeCodeProvider(p.id, p.kind)) read(p.id, false)
+  }, [instances, active, read])
+  const retry = useCallback((id: string) => read(id, true), [read])
+  return { loaded, failed, retry }
+}
+
+interface RoutingSelectionMenuProps {
+  /** Current session (null/undefined = a conversation not created yet). */
+  sessionId?: string | null
+  open: ProviderModelMenu
+  onOpenChange: (open: ProviderModelMenu) => void
+  /** Change the model of a LIVE session (sent over the socket). */
+  onChangeModel?: (model: string) => void
+  /** Start a new conversation - the way out of a session locked on its provider. */
+  onNewConversation?: () => void
 }
 
 /**
- * The menu of a NEW conversation: what it may run on, in one place.
+ * Where the conversation runs, in ONE menu - for a new conversation and for an
+ * existing one, at any time. A server without the router (or without provider
+ * routes) has nothing to route: the plain provider/model picker.
+ */
+export function RoutingSelectionMenu(props: RoutingSelectionMenuProps) {
+  const slug = useAtomValue(chatRoutingSlugAtom)
+  const load = useSetAtom(loadRoutingSettingsAtom)
+  const settings = useAtomValue(chatRoutingSettingsAtom)
+  const list = useAtomValue(providersAtom)
+  const loadState = useAtomValue(providersLoadStateAtom)
+  const setForced = useSetAtom(chatForcedTargetAtom)
+
+  useEffect(() => {
+    void load({ slug })
+  }, [load, slug])
+
+  if (!settings || !list || loadState === 'unsupported') return <ProviderModelPicker {...props} onForce={setForced} />
+  return <RoutingMenu {...props} autoByDefault={settings.mode === 'full'} />
+}
+
+/**
+ * The menu: what the conversation may run on, in one place.
  *
- * - the Auto switch: PO chooses on the whole chain; everything below is off;
+ * - the Auto switch: PO chooses on the whole chain; everything below is off.
+ *   It can be flipped at any time, in both directions, and only for THIS
+ *   conversation (a draft before its first message, the open chat afterwards);
  * - otherwise one section per provider, its models to tick. The mode is not a
- *   setting here, it is READ from the ticks: one model = strict, several =
- *   mixed (PO routes among them), none = the server default;
- * - quick gestures: select / clear everything, a whole provider, a whole family.
+ *   setting, it is READ from the ticks: one model = strict, several = mixed
+ *   (PO routes among them), none = the server default;
+ * - quick gestures on a draft: select / clear everything, a whole provider,
+ *   a whole Claude family.
  *
  * Claude keeps its families and versions: one line per family, one stop per
  * version on a stepped track, each stop tickable.
+ *
+ * An existing chat stays on its provider and runs one model at a time: ticking
+ * a model of that provider switches it live (when the provider can), the other
+ * providers are listed but off, and the gestures on many models are not offered.
  */
-export function DraftRoutingMenu({ open, onOpenChange }: { open: ProviderModelMenu; onOpenChange: (open: ProviderModelMenu) => void }) {
+function RoutingMenu({ sessionId, open, onOpenChange, onChangeModel, onNewConversation, autoByDefault }: RoutingSelectionMenuProps & { autoByDefault: boolean }) {
   const { t } = useT()
   const list = useAtomValue(providersAtom)
-  const settings = useAtomValue(chatRoutingSettingsAtom)
   const catalog = useAtomValue(modelCatalogAtom)
   const catalogLoaded = useAtomValue(modelCatalogLoadedAtom)
   const [autoDraft, setAutoDraft] = useAtom(chatDraftAutoAtom)
-  const [selection, setSelection] = useAtom(chatDraftSelectionAtom)
+  const draftSelection = useAtomValue(chatDraftSelectionAtom)
+  const setDraftSelection = useSetAtom(chatDraftSelectionAtom)
   const setPickedProvider = useSetAtom(chatSelectedProviderAtom)
-  const setSessionModel = useSetAtom(chatSessionModelAtom)
+  const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const setForced = useSetAtom(chatForcedTargetAtom)
+  const [sessionRouting, setSessionRouting] = useAtom(chatSessionRoutingAtom)
+  const sessionMode = useAtomValue(chatRoutingModeAtom)
+  const targetId = useAtomValue(chatTargetProviderIdAtom)
+  const sessionProvider = useAtomValue(chatSessionProviderAtom)
+  const defaultModel = useAtomValue(chatDefaultModelAtom)
+  const capabilities = useAtomValue(chatSessionCapabilitiesAtom)
+  const refreshProviders = useRefreshProviders()
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const baseId = useId()
+  const hasSession = !!sessionId
+  const isOpen = open === 'target'
 
   const instances = useMemo(() => list?.providers ?? [], [list])
   const claudeGroups = useMemo(() => groupModelsByFamily(catalog), [catalog])
-  const loaded = useProviderModels(instances)
+  const { loaded, failed, retry } = useProviderModels(instances, isOpen)
+  const vaultLocked = useVaultLocked(isOpen)
 
-  const auto = autoDraft ?? settings?.mode === 'full'
-  const modelsOf = (p: ProviderInstance): string[] => {
-    const own = isClaudeCodeProvider(p.id, p.kind) ? catalog.map((m) => m.id) : (loaded[p.id] ?? p.models ?? []).map((m) => m.id)
-    return own
-  }
-  const selectable = instances.filter((p) => !providerUnavailableReason(p))
+  // A chat the user gave its own model (recorded when they tick one) is no longer PO's to decide.
+  const ownChoice = hasSession && sessionRouting?.routed_by === 'request'
+  const auto = hasSession ? sessionMode === 'full' && !ownChoice : (autoDraft ?? autoByDefault)
+  /** The chat runs one model, the one it was opened with or switched to. */
+  const liveModel = sessionModel ?? defaultModel
+  const selection = useMemo<RoutingPick[]>(
+    () => (hasSession ? (liveModel ? [{ provider: targetId, model: liveModel }] : []) : draftSelection),
+    [hasSession, liveModel, targetId, draftSelection],
+  )
+  /** An existing chat can change model live only if its provider can. */
+  const liveLocked = hasSession && !capabilities.set_model_live
+
+  const modelsOf = (p: ProviderInstance): string[] =>
+    isClaudeCodeProvider(p.id, p.kind) ? catalog.map((m) => m.id) : (loaded[p.id] ?? p.models ?? []).map((m) => m.id)
+  const lockReason = (p: ProviderInstance) => providerUnavailableReason(p) ?? (hasSession && p.id !== targetId ? PROVIDER_LOCKED_TEXT : null)
+  const selectable = instances.filter((p) => !lockReason(p))
   const total = selectable.reduce((n, p) => n + modelsOf(p).length, 0)
 
-  /** Every change goes through here: the draft's atoms, and the single pick the rest of the composer reads. */
+  /** Draft: every change goes through here - the draft's atoms, and the single pick the rest of the composer reads. */
   const commit = (nextAuto: boolean, next: RoutingPick[]) => {
+    if (hasSession) {
+      // One model at a time: the pick that was just added replaces the running one.
+      const added = next.find((p) => !isPicked(selection, p))
+      if (!added || added.provider !== targetId || liveLocked) return
+      if (onChangeModel) onChangeModel(added.model)
+      else setSessionModel(added.model)
+      setSessionRouting({ routed_by: 'request', route_reason: null, routing_mode: 'primary' })
+      return
+    }
     setAutoDraft(nextAuto)
-    setSelection(next)
+    setDraftSelection(next)
     const pilot = nextAuto ? undefined : next[0]
     setPickedProvider(pilot?.provider ?? null)
     setSessionModel(pilot?.model ?? null)
     setForced(!!pilot)
   }
-  const setAuto = (on: boolean) => commit(on, selection)
+  /** The switch, both ways, for this conversation only. */
+  const setAuto = (on: boolean) => {
+    if (hasSession) {
+      setSessionRouting({ routed_by: on ? null : (sessionRouting?.routed_by ?? null), route_reason: sessionRouting?.route_reason ?? null, routing_mode: on ? 'full' : 'primary' })
+      return
+    }
+    commit(on, selection)
+  }
   const setAll = (on: boolean) =>
     commit(
       false,
@@ -132,34 +245,38 @@ export function DraftRoutingMenu({ open, onOpenChange }: { open: ProviderModelMe
 
   const nameOf = (provider: string, model: string) => {
     const p = instances.find((x) => x.id === provider) ?? null
-    const alias = aliasesForInstance(p, list?.aliases).find((a) => a.alias === model)
+    const alias = hasSession ? undefined : aliasesForInstance(p, list?.aliases).find((a) => a.alias === model)
     if (alias) return alias.alias
     return p && isClaudeCodeProvider(p.id, p.kind) ? getModelShortLabel(model) : providerModelLabel(p, model)
   }
   const count = selection.length
   const first = selection[0]
   const firstInstance = first ? (instances.find((p) => p.id === first.provider) ?? null) : null
+  const sessionLabel = sessionProvider?.label ?? (firstInstance ? providerDisplayName(firstInstance) : targetId)
+  // The mode is READ from the ticks: nothing stored, nothing to keep in step.
+  const modeLabel = auto ? t('routing.modes.full.label') : count === 0 ? '' : count === 1 ? t('routing.menu.modeStrict') : t('routing.menu.modeMixed', { count })
   const chipText = auto
     ? t('routing.modes.full.label')
     : count === 0
-      ? t('routing.menu.chipDefault')
+      ? hasSession
+        ? `${sessionLabel} › ${DEFAULT_MODEL_LABEL}`
+        : t('routing.menu.chipDefault')
       : count === 1
-        ? `${firstInstance ? providerDisplayName(firstInstance) : first.provider} › ${nameOf(first.provider, first.model)}`
-        : t('routing.menu.chipMixed', { count })
+        ? `${hasSession ? sessionLabel : firstInstance ? providerDisplayName(firstInstance) : first.provider} › ${nameOf(first.provider, first.model)}`
+        : modeLabel
   const summary = auto ? t('routing.modes.full.description') : count === 0 ? t('routing.menu.summaryNone') : count === 1 ? t('routing.modes.primary.description') : t('routing.menu.summaryMixed', { count })
-  const modeLabel = auto ? t('routing.modes.full.label') : count === 0 ? '' : count === 1 ? t('routing.modes.primary.label') : t('routing.modes.mixed.label')
-  const isOpen = open === 'target'
+  const mode = auto ? 'full' : count > 1 ? 'mixed' : 'primary'
 
   return (
     <div className="min-w-0 sm:relative">
       <button
         type="button"
         onClick={() => onOpenChange(isOpen ? null : 'target')}
-        aria-label={`${t('routing.menu.aria')}: ${modeLabel ? `${modeLabel} · ` : ''}${chipText}`}
+        aria-label={`${t('routing.menu.aria')}: ${modeLabel && modeLabel !== chipText ? `${modeLabel} · ` : ''}${chipText}`}
         aria-haspopup="true"
         aria-expanded={isOpen}
         data-testid="target-chip"
-        data-mode={auto ? 'full' : count > 1 ? 'mixed' : 'primary'}
+        data-mode={mode}
         className={CHIP}
       >
         {!auto && count === 1 && <span className={`w-1.5 h-1.5 rounded-full ${healthDotColor(firstInstance?.health?.status)}`} aria-hidden="true" />}
@@ -172,6 +289,12 @@ export function DraftRoutingMenu({ open, onOpenChange }: { open: ProviderModelMe
       {isOpen && (
         <div data-testid="target-picker-popover" className={POPOVER}>
           <AutoSwitch checked={auto} onChange={setAuto} />
+          {auto && hasSession && <AutoPanel reason={sessionRouting?.route_reason ?? null} routedBy={sessionRouting?.routed_by ?? null} />}
+          {vaultLocked && (
+            <div className="px-3 py-2 border-b border-white/[0.06]">
+              <VaultUnlock onUnlocked={() => void refreshProviders()} />
+            </div>
+          )}
 
           <div inert={auto} className={auto ? 'opacity-40' : undefined} data-testid="routing-selection">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.06]">
@@ -179,91 +302,130 @@ export function DraftRoutingMenu({ open, onOpenChange }: { open: ProviderModelMe
                 {modeLabel && <span className="text-gray-200">{modeLabel} · </span>}
                 {summary}
               </p>
-              <button type="button" data-testid="routing-select-all" disabled={total === 0 || count >= total} onClick={() => setAll(true)} className={BTN}>
-                {t('routing.menu.selectAll')}
-              </button>
-              <button type="button" data-testid="routing-clear-all" disabled={count === 0} onClick={() => setAll(false)} className={BTN}>
-                {t('routing.menu.clearAll')}
-              </button>
+              {!hasSession && (
+                <>
+                  <button type="button" data-testid="routing-select-all" disabled={total === 0 || count >= total} onClick={() => setAll(true)} className={BTN}>
+                    {t('routing.menu.selectAll')}
+                  </button>
+                  <button type="button" data-testid="routing-clear-all" disabled={count === 0} onClick={() => setAll(false)} className={BTN}>
+                    {t('routing.menu.clearAll')}
+                  </button>
+                </>
+              )}
             </div>
+            {hasSession && (
+              <div className="px-3 py-1.5 space-y-1 border-b border-white/[0.06]">
+                <p className="text-[10px] leading-snug text-gray-500">{liveLocked ? SET_MODEL_UNSUPPORTED_TEXT : PROVIDER_LOCKED_TEXT}</p>
+                {onNewConversation && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onNewConversation()
+                      // The composer is now a new conversation: leave this menu open so it shows the targets to choose from.
+                      onOpenChange('target')
+                    }}
+                    className={BTN}
+                  >
+                    {NEW_CONVERSATION_OTHER_PROVIDER_LABEL}
+                  </button>
+                )}
+              </div>
+            )}
 
-            {instances.length === 0 && <div className="px-3 py-2 text-xs text-gray-500">{t('routing.menu.noProvider')}</div>}
-            {instances.map((p) => {
-              const reason = providerUnavailableReason(p)
-              const models = modelsOf(p)
-              const claude = isClaudeCodeProvider(p.id, p.kind)
-              const state = providerState(selection, p.id, models)
-              const picked = models.filter((m) => isPicked(selection, { provider: p.id, model: m })).length
-              const isExpanded = !reason && (expanded[p.id] ?? (claude || state !== 'none'))
-              const sectionId = `${baseId}-${p.id}`
-              return (
-                <div key={p.id} data-testid={`target-provider-${p.id}`} className="border-b border-white/[0.04] last:border-b-0">
-                  <div className="flex items-center gap-2 px-3 py-1.5">
-                    <button
-                      type="button"
-                      role="checkbox"
-                      aria-checked={state === 'all' ? true : state === 'some' ? 'mixed' : false}
-                      aria-label={t('routing.menu.providerToggle', { provider: providerDisplayName(p) })}
-                      aria-disabled={reason ? true : undefined}
-                      data-testid={`routing-provider-check-${p.id}`}
-                      onClick={() => {
-                        if (reason) return
-                        commit(false, setProviderPicks(selection, p.id, models, state !== 'all'))
-                      }}
-                      className={`grid h-4 w-4 shrink-0 place-items-center rounded border ${
-                        state === 'none' ? 'border-white/20' : 'border-violet-400 bg-violet-500/30'
-                      } ${reason ? 'cursor-not-allowed opacity-50' : ''}`}
-                    >
-                      {state === 'all' && <Check className="h-3 w-3 text-violet-100" aria-hidden="true" />}
-                      {state === 'some' && <Minus className="h-3 w-3 text-violet-100" aria-hidden="true" />}
-                    </button>
-                    <button
-                      type="button"
-                      aria-expanded={reason ? undefined : isExpanded}
-                      aria-controls={isExpanded ? sectionId : undefined}
-                      onClick={() => !reason && setExpanded((e) => ({ ...e, [p.id]: !isExpanded }))}
-                      className={`flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs ${reason ? 'cursor-not-allowed text-gray-500' : 'text-gray-200'}`}
-                    >
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${healthDotColor(p.health?.status)}`} aria-hidden="true" />
-                      <span className="truncate">{providerDisplayName(p)}</span>
-                      <span className="shrink-0 text-[10px] text-gray-500">{providerKindLabel(p.kind)}</span>
-                      {!reason && models.length > 0 && (
-                        <span className="ml-auto shrink-0 text-[10px] text-gray-500">{t('routing.menu.countOf', { selected: picked, total: models.length })}</span>
+            <div inert={liveLocked} className={liveLocked ? 'opacity-60' : undefined}>
+              {instances.length === 0 && <div className="px-3 py-2 text-xs text-gray-500">{t('routing.menu.noProvider')}</div>}
+              {instances.map((p) => {
+                const reason = lockReason(p)
+                const models = modelsOf(p)
+                const claude = isClaudeCodeProvider(p.id, p.kind)
+                const state = providerState(selection, p.id, models)
+                const picked = models.filter((m) => isPicked(selection, { provider: p.id, model: m })).length
+                const isExpanded = !reason && (expanded[p.id] ?? (hasSession ? true : claude || state !== 'none'))
+                const sectionId = `${baseId}-${p.id}`
+                return (
+                  <div key={p.id} data-testid={`target-provider-${p.id}`} className="border-b border-white/[0.04] last:border-b-0">
+                    <div className="flex items-center gap-2 px-3 py-1.5">
+                      {!hasSession && (
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={state === 'all' ? true : state === 'some' ? 'mixed' : false}
+                          aria-label={t('routing.menu.providerToggle', { provider: providerDisplayName(p) })}
+                          aria-disabled={reason ? true : undefined}
+                          data-testid={`routing-provider-check-${p.id}`}
+                          onClick={() => {
+                            if (reason) return
+                            commit(false, setProviderPicks(selection, p.id, models, state !== 'all'))
+                          }}
+                          className={`grid h-4 w-4 shrink-0 place-items-center rounded border ${
+                            state === 'none' ? 'border-white/20' : 'border-violet-400 bg-violet-500/30'
+                          } ${reason ? 'cursor-not-allowed opacity-50' : ''}`}
+                        >
+                          {state === 'all' && <Check className="h-3 w-3 text-violet-100" aria-hidden="true" />}
+                          {state === 'some' && <Minus className="h-3 w-3 text-violet-100" aria-hidden="true" />}
+                        </button>
                       )}
-                      {!reason && <ChevronDown className={`h-2.5 w-2.5 shrink-0 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />}
-                    </button>
-                  </div>
-                  {reason && <p className="px-3 pb-1.5 pl-9 text-[10px] leading-snug text-gray-500">{reason}</p>}
-                  {isExpanded && (
-                    <div id={sectionId} className="mb-1 ml-5 border-l border-white/[0.08]">
-                      {claude ? (
-                        <ClaudeFamilies
-                          provider={p.id}
-                          groups={claudeGroups}
-                          loaded={catalogLoaded}
-                          selection={selection}
-                          onChange={(next) => commit(false, next)}
-                          aliases={aliasesForInstance(p, list?.aliases)}
-                        />
-                      ) : (
-                        <ModelChecklist
-                          provider={p.id}
-                          models={loaded[p.id] ?? p.models ?? []}
-                          loadingDone={p.id in loaded}
-                          selection={selection}
-                          aliases={aliasesForInstance(p, list?.aliases)}
-                          onChange={(next) => commit(false, next)}
-                        />
-                      )}
+                      <button
+                        type="button"
+                        aria-expanded={reason ? undefined : isExpanded}
+                        aria-controls={isExpanded ? sectionId : undefined}
+                        aria-disabled={reason ? true : undefined}
+                        onClick={() => !reason && setExpanded((e) => ({ ...e, [p.id]: !isExpanded }))}
+                        className={`flex min-w-0 flex-1 items-center gap-1.5 text-left text-xs ${reason ? 'cursor-not-allowed text-gray-500' : 'text-gray-200'}`}
+                      >
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${healthDotColor(p.health?.status)}`} aria-hidden="true" />
+                        <span className="truncate">{providerDisplayName(p)}</span>
+                        <span className="shrink-0 text-[10px] text-gray-500">{providerKindLabel(p.kind)}</span>
+                        {!reason && models.length > 0 && !hasSession && (
+                          <span className="ml-auto shrink-0 text-[10px] text-gray-500">{t('routing.menu.countOf', { selected: picked, total: models.length })}</span>
+                        )}
+                        {!reason && <ChevronDown className={`h-2.5 w-2.5 shrink-0 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''} ${hasSession ? 'ml-auto' : ''}`} aria-hidden="true" />}
+                      </button>
                     </div>
-                  )}
-                </div>
-              )
-            })}
+                    {reason && <p className={`px-3 pb-1.5 text-[10px] leading-snug text-gray-500 ${hasSession ? '' : 'pl-9'}`}>{reason}</p>}
+                    {isExpanded && (
+                      <div id={sectionId} className="mb-1 ml-5 border-l border-white/[0.08]">
+                        {claude ? (
+                          <ClaudeFamilies
+                            provider={p.id}
+                            groups={claudeGroups}
+                            loaded={catalogLoaded}
+                            selection={selection}
+                            onChange={(next) => commit(false, next)}
+                            aliases={hasSession ? [] : aliasesForInstance(p, list?.aliases)}
+                          />
+                        ) : (
+                          <ModelChecklist
+                            provider={p.id}
+                            models={loaded[p.id] ?? p.models ?? []}
+                            loadingDone={p.id in loaded || !!failed[p.id]}
+                            onRetry={() => retry(p.id)}
+                            selection={selection}
+                            aliases={hasSession ? [] : aliasesForInstance(p, list?.aliases)}
+                            onChange={(next) => commit(false, next)}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       )}
     </div>
+  )
+}
+
+/** Auto, once the conversation exists: what PO chose and why. */
+function AutoPanel({ reason, routedBy }: { reason: string | null; routedBy: RoutedBy | null }) {
+  const { t } = useT()
+  const lines = [reason ? t('routing.reason', { reason }) : null, routedBy ? t('routing.picker.routedBy', { by: t(routedByKey(routedBy)) }) : null].filter(Boolean)
+  return (
+    <p data-testid="routing-auto-panel" className="whitespace-pre-line px-3 py-2.5 text-[11px] leading-snug text-gray-400 border-b border-white/[0.06]">
+      {lines.join('\n') || t('routing.badge.poChooses')}
+    </p>
   )
 }
 
@@ -316,6 +478,7 @@ function ModelChecklist({
   provider,
   models,
   loadingDone,
+  onRetry,
   selection,
   aliases,
   onChange,
@@ -323,6 +486,7 @@ function ModelChecklist({
   provider: string
   models: ProviderModel[]
   loadingDone: boolean
+  onRetry: () => void
   selection: readonly RoutingPick[]
   aliases: { alias: string; model: string }[]
   onChange: (next: RoutingPick[]) => void
@@ -330,7 +494,17 @@ function ModelChecklist({
   const { t } = useT()
   const [query, setQuery] = useState('')
   if (models.length === 0) {
-    return <div className="px-3 py-2 text-xs text-gray-500">{loadingDone ? t('routing.menu.noModels') : t('routing.menu.loading')}</div>
+    return (
+      <div className="px-3 py-2 text-xs text-gray-500" aria-live="polite">
+        {loadingDone ? t('routing.menu.noModels') : t('routing.menu.loading')}
+        {loadingDone && (
+          <button type="button" onClick={onRetry} className="mt-1 flex items-center gap-1 text-indigo-300 hover:text-indigo-200 underline underline-offset-2">
+            <RefreshCw className="h-3 w-3" aria-hidden="true" />
+            {t('routing.modelTargets.retry')}
+          </button>
+        )}
+      </div>
+    )
   }
   const searchable = models.length > SEARCH_FROM
   const q = searchable ? fold(query.trim()) : ''
@@ -408,6 +582,7 @@ function ClaudeFamilies({
       {groups.map((group) => (
         <FamilyMultiRow key={group.family} group={group} provider={provider} selection={selection} onChange={onChange} />
       ))}
+      <RefreshClaudeModels />
     </div>
   )
 }

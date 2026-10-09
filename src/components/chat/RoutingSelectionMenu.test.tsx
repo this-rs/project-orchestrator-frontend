@@ -1,11 +1,12 @@
 /**
- * The routing-mode control of the composer, mounted through `ChatInput`:
- * one rendering per mode, the Advanced path, and the badge rules.
+ * The ONE routing menu of the composer, mounted through `ChatInput`: the Auto
+ * switch, ticked models per provider, the mode read from the ticks, a new or an
+ * existing conversation, and the badge rules.
  *
- * Run with: npx vitest run src/components/chat/RoutingModePicker.test.tsx
+ * Run with: npx vitest run src/components/chat/RoutingSelectionMenu.test.tsx
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
 import { routingApi } from '@/services/routing'
@@ -19,6 +20,7 @@ import {
   chatRoutingModeAtom,
   chatSelectedProviderAtom,
   chatSessionModelAtom,
+  chatSessionCapabilitiesSnapshotAtom,
   chatSessionIdAtom,
   chatSessionProviderAtom,
   chatSessionRoutingAtom,
@@ -43,6 +45,11 @@ vi.mock('@/services/providers', async (importOriginal) => ({
 }))
 vi.mock('@/services/routing', () => ({
   routingApi: { get: vi.fn(() => new Promise(() => {})), getProject: vi.fn(() => new Promise(() => {})), put: vi.fn(), putProject: vi.fn() },
+}))
+const vaultApiMock = vi.hoisted(() => ({ overview: vi.fn() }))
+vi.mock('@/services/vault', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/vault')>()),
+  vaultApi: { overview: vaultApiMock.overview, unlock: vi.fn() },
 }))
 vi.mock('@/services/documents', () => ({ documentsApi: { upload: vi.fn() } }))
 
@@ -70,7 +77,7 @@ const settings = (mode: ProviderRoutingMode, primary: RoutingSettingsResponse['p
   mode, stage: 'auto', primary, exploration_epsilon: 0, cost_weight: 0, latency_weight: 0, demote_after: 0, scope: 'global',
 })
 
-function mount(mode: ProviderRoutingMode, { sessionId = null as string | null, primary = null as RoutingSettingsResponse['primary'], prepare }: { sessionId?: string | null; primary?: RoutingSettingsResponse['primary']; prepare?: (s: Store) => void } = {}) {
+function mount(mode: ProviderRoutingMode, { sessionId = null as string | null, primary = null as RoutingSettingsResponse['primary'], prepare, onChangeModel }: { sessionId?: string | null; primary?: RoutingSettingsResponse['primary']; prepare?: (s: Store) => void; onChangeModel?: (model: string) => void } = {}) {
   const store = createStore()
   store.set(chatSessionIdAtom, sessionId)
   store.set(chatPermissionConfigAtom, { mode: 'default', allowed_tools: [], disallowed_tools: [] })
@@ -82,18 +89,19 @@ function mount(mode: ProviderRoutingMode, { sessionId = null as string | null, p
   prepare?.(store)
   render(
     <Provider store={store}>
-      <ChatInput onSend={() => {}} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={() => {}} isStreaming={false} sessionId={sessionId} />
+      <ChatInput onSend={() => {}} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={() => {}} isStreaming={false} sessionId={sessionId} onChangeModel={onChangeModel} />
     </Provider>,
   )
   return store
 }
 
-describe('RoutingModePicker', () => {
+describe('RoutingSelectionMenu', () => {
   const openMenu = () => fireEvent.click(screen.getByTestId('target-chip'))
   beforeEach(() => {
     vi.clearAllMocks()
     // The picked target is persisted: one test's pick must not reach the next.
     localStorage.clear()
+    vaultApiMock.overview.mockReset().mockResolvedValue({ initialized: true, unlocked_until: '2099-01-01T00:00:00Z', secret_count: 0, unavailable: null, secrets: [], grants: [], requests: [] })
   })
 
     const tick = (provider: string, name: string | RegExp) =>
@@ -119,7 +127,7 @@ describe('RoutingModePicker', () => {
     tick('local-llama', 'qwen')
     expect(store.get(chatDraftRoutingModeAtom)).toBe('primary')
     expect(screen.getByTestId('target-chip').textContent).toContain('Local llama › qwen')
-    expect(screen.getByTestId('routing-summary').textContent).toContain('Strict')
+    expect(screen.getByTestId('routing-summary').textContent).toContain('Strict: 1 model')
     // The single pick the rest of the composer reads follows.
     expect(store.get(chatSelectedProviderAtom)).toBe('local-llama')
     expect(store.get(chatSessionModelAtom)).toBe('qwen')
@@ -128,7 +136,8 @@ describe('RoutingModePicker', () => {
     // Claude: a version stop is a tickable checkbox on the family line.
     fireEvent.click(within(screen.getByTestId('target-provider-claude-code')).getByRole('checkbox', { name: /All models of Claude Code/ }))
     expect(store.get(chatDraftRoutingModeAtom)).toBe('mixed')
-    expect(screen.getByTestId('target-chip').textContent).toContain('Mixed · 3 models')
+    expect(screen.getByTestId('target-chip').textContent).toContain('Mixed: 3 models')
+    expect(screen.getByTestId('routing-summary').textContent).toContain('Mixed: 3 models')
     expect(screen.getByTestId('routing-summary').textContent).toContain('PO routes among the 3 picked models')
   })
 
@@ -192,20 +201,85 @@ describe('RoutingModePicker', () => {
     expect(routingApi.putProject).not.toHaveBeenCalled()
   })
 
-  it('an existing chat keeps the mode it was opened with: the switch only changes the view', () => {
+  it('an existing chat: Auto can be handed to PO and taken back, for THIS chat only', () => {
+    const store = mount('primary', {
+      sessionId: 's1',
+      prepare: (s) => s.set(chatSessionRoutingAtom, { routed_by: 'request', route_reason: null, routing_mode: 'primary' }),
+    })
+    openMenu()
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
+    // "Hand it to PO": the chat now reads Auto, the rest is off.
+    fireEvent.click(screen.getByRole('switch'))
+    expect(store.get(chatRoutingModeAtom)).toBe('full')
+    expect(screen.getByTestId('target-chip').textContent).toContain('Auto')
+    expect(screen.getByTestId('routing-selection').hasAttribute('inert')).toBe(true)
+    // ...and back to a model of its own.
+    fireEvent.click(screen.getByRole('switch'))
+    expect(store.get(chatRoutingModeAtom)).toBe('primary')
+    expect(screen.getByTestId('routing-selection').hasAttribute('inert')).toBe(false)
+    // Nothing global was written, and no draft was touched.
+    expect(routingApi.put).not.toHaveBeenCalled()
+    expect(routingApi.putProject).not.toHaveBeenCalled()
+    expect(store.get(chatDraftAutoAtom)).toBeNull()
+    expect(store.get(chatDraftSelectionAtom)).toEqual([])
+  })
+
+  it('an existing chat on Auto: switching Auto off keeps it on its provider', () => {
     const store = mount('primary', {
       sessionId: 's1',
       prepare: (s) => s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheap', routing_mode: 'full' }),
     })
-    // The record's mode wins over the settings' (primary).
     expect(store.get(chatRoutingModeAtom)).toBe('full')
     openMenu()
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
     fireEvent.click(screen.getByRole('switch'))
     expect(screen.queryByTestId('routing-auto-panel')).toBeNull()
-    expect(store.get(chatRoutingModeAtom)).toBe('full')
-    expect(routingApi.put).not.toHaveBeenCalled()
-    expect(store.get(chatDraftAutoAtom)).toBeNull()
+    expect(store.get(chatRoutingModeAtom)).toBe('primary')
+  })
+
+  it('an existing chat: ticking a model of its provider switches it live; no mass gestures, other providers are off', () => {
+    const onChangeModel = vi.fn()
+    mount('primary', {
+      sessionId: 's1',
+      onChangeModel,
+      prepare: (s) => {
+        s.set(chatSessionProviderAtom, { id: 'local-llama' })
+        s.set(chatSessionModelAtom, 'qwen')
+        s.set(providersAtom, { ...PROVIDERS, providers: [PROVIDERS.providers[0], { ...PROVIDERS.providers[1], models: [{ id: 'qwen' }, { id: 'phi' }] }] })
+        s.set(chatSessionCapabilitiesSnapshotAtom, { set_model_live: true })
+      },
+    })
+    openMenu()
+    expect(screen.queryByTestId('routing-select-all')).toBeNull()
+    expect(screen.queryByTestId('routing-provider-check-local-llama')).toBeNull()
+    expect(within(screen.getByTestId('target-provider-claude-code')).getByText(/stays on its provider/i)).toBeTruthy()
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
+    tick('local-llama', 'phi')
+    expect(onChangeModel).toHaveBeenCalledWith('phi')
+  })
+
+  it('the vault is unlocked from this menu too: a locked vault shows the passphrase field', async () => {
+    vaultApiMock.overview.mockResolvedValue({ initialized: true, unlocked_until: null, secret_count: 1, unavailable: null, secrets: [], grants: [], requests: [] })
+    mount('primary')
+    openMenu()
+    expect(await screen.findByLabelText('Vault locked')).toBeTruthy()
+  })
+
+  it('no vault field while the vault is open', async () => {
+    mount('primary')
+    openMenu()
+    await waitFor(() => expect(vaultApiMock.overview).toHaveBeenCalled())
+    expect(screen.queryByLabelText('Vault locked')).toBeNull()
+  })
+
+  it('a whole provider is ticked and cleared in one gesture, and the global gestures are disabled when there is nothing to do', () => {
+    const store = mount('primary')
+    openMenu()
+    expect((screen.getByTestId('routing-clear-all') as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByTestId('routing-provider-check-local-llama'))
+    expect(store.get(chatDraftSelectionAtom)).toEqual([{ provider: 'local-llama', model: 'qwen' }])
+    fireEvent.click(screen.getByTestId('routing-provider-check-local-llama'))
+    expect(store.get(chatDraftSelectionAtom)).toEqual([])
   })
 
   it('a backend without the router: the plain picker, no switch', () => {

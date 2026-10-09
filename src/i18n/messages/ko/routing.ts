@@ -35,7 +35,6 @@ export default {
     remote: '원격, 여기서는 허용되지 않음',
   },
   badge: { poChooses: 'Auto', why: '이유' },
-  advanced: { force: '프로바이더 강제 지정' },
   settings: {
     title: '라우팅',
     confirmAuto: '앞으로 PO가 묻지 않고 자신의 선택을 적용합니다. 계속할까요?',
@@ -134,8 +133,8 @@ export default {
     poChooses: 'PO가 선택합니다(라우팅: 전체)',
     poRoutes: 'PO가 라우팅(권장)',
   },
-  menu: { aria: '이 대화의 모델', chipDefault: '서버 기본값', chipMixed: '혼합 · 모델 {count}개', summaryNone: '선택 없음: 서버 기본값이 적용됩니다.', summaryMixed: 'PO가 선택한 {count}개 모델 사이에서 라우팅합니다.', selectAll: '모두 선택', clearAll: '모두 해제', noProvider: '구성된 제공자가 없습니다', providerToggle: '{provider}의 모든 모델', countOf: '{total}개 중 {selected}개', noModels: '이 제공자의 모델이 없습니다', loading: '모델 불러오는 중…', search: '모델 검색…' },
-  picker: { primary: '기본: {target} · PO가 실행자를 라우팅', forced: '강제됨: {target}', willChoose: '첫 메시지에서 PO가 선택합니다', routedBy: '라우팅 주체: {by}', aria: '라우팅: {mode}' },
+  menu: { aria: '이 대화의 모델', chipDefault: '서버 기본값', modeStrict: '엄격: 모델 1개', modeMixed: '혼합: 모델 {count}개', summaryNone: '선택 없음: 서버 기본값이 적용됩니다.', summaryMixed: 'PO가 선택한 {count}개 모델 사이에서 라우팅합니다.', selectAll: '모두 선택', clearAll: '모두 해제', noProvider: '구성된 제공자가 없습니다', providerToggle: '{provider}의 모든 모델', countOf: '{total}개 중 {selected}개', noModels: '이 제공자의 모델이 없습니다', loading: '모델 불러오는 중…', search: '모델 검색…' },
+  picker: { routedBy: '라우팅 주체: {by}' },
   modelTargets: {
     loading: '모델 카탈로그를 읽는 중…',
     offline: '오프라인 목록.',
