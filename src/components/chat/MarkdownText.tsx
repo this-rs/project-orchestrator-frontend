@@ -3,6 +3,10 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { ExternalLink } from '@/components/ui/ExternalLink'
+import type { ChatReference } from '@/refs/types'
+import { CitedRefChip } from './CitedRefChip'
+import { KnownRefsContext } from './citedRef'
+import { remarkCiteRefs } from './citeRefsPlugin'
 
 /**
  * Markdown link component: uses ExternalLink which renders differently
@@ -16,6 +20,15 @@ const markdownComponents = {
     </ExternalLink>
   ),
 }
+
+const citingComponents = {
+  ...markdownComponents,
+  'po-cited-ref': ({ kind, id, raw }: { kind: string; id: string; raw: string }) => (
+    <CitedRefChip kind={kind} id={id} raw={raw} />
+  ),
+}
+const PLAIN_PLUGINS = [remarkGfm]
+const CITING_PLUGINS = [remarkGfm, remarkCiteRefs]
 
 /**
  * Trailing, still-incomplete line made only of `-` or `=` (up to 3 leading
@@ -60,17 +73,28 @@ function holdBackAmbiguousTail(content: string): string {
 export const MarkdownText = memo(function MarkdownText({
   content,
   isStreaming = false,
+  citeRefs = false,
+  knownRefs,
 }: {
   content: string
   isStreaming?: boolean
+  /**
+   * The text is the agent's own words: a `#kind:id` in it becomes a chip.
+   * Off by default — a note body, a tool result or a document is untrusted
+   * and never gets chips.
+   */
+  citeRefs?: boolean
+  /** Labels already resolved by the server for this conversation. */
+  knownRefs?: readonly ChatReference[]
 }) {
-  return (
+  const md = (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={citeRefs ? CITING_PLUGINS : PLAIN_PLUGINS}
       rehypePlugins={[rehypeHighlight]}
-      components={markdownComponents}
+      components={citeRefs ? (citingComponents as typeof markdownComponents) : markdownComponents}
     >
       {isStreaming ? holdBackAmbiguousTail(content) : content}
     </ReactMarkdown>
   )
+  return citeRefs && knownRefs?.length ? <KnownRefsContext.Provider value={knownRefs}>{md}</KnownRefsContext.Provider> : md
 })
