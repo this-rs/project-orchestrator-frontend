@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { X } from 'lucide-react'
 import { DIALOG_MOTION, useVariants } from '@/utils/motion'
+import { useT } from '@/i18n'
 
 export interface DialogProps {
   open: boolean
@@ -19,6 +20,7 @@ const sizeClasses = {
 }
 
 export function Dialog({ open, onClose, title, children, size = 'sm' }: DialogProps) {
+  const { t } = useT()
   const closeRef = useRef<HTMLButtonElement>(null)
   const variants = useVariants(DIALOG_MOTION)
 
@@ -80,7 +82,7 @@ export function Dialog({ open, onClose, title, children, size = 'sm' }: DialogPr
                 ref={closeRef}
                 onClick={onClose}
                 className="text-gray-500 hover:text-gray-300 transition-colors shrink-0"
-                aria-label="Close"
+                aria-label={t('ui.close')}
               >
                 <X className="w-4.5 h-4.5" />
               </button>

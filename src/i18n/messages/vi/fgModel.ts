@@ -1,0 +1,48 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  other: 'Khác',
+  noFile: 'Không có thông tin về tệp',
+  listAnd: '{head} và {last}',
+  asyncNoun: '{noun} bất đồng bộ',
+  nounInFile: '{noun} trong {file}',
+  takes: 'nhận {params}',
+  takesNothing: 'không nhận đầu vào',
+  takesReturns: '{takes}, trả về {returns}',
+  noun: {
+    function: 'Hàm',
+    file: 'Tệp mã nguồn',
+    struct: 'Cấu trúc dữ liệu',
+    enum: 'Kiểu liệt kê',
+    trait: 'Trait',
+    other: 'Thực thể mã',
+  },
+  type: { function: 'Hàm', file: 'Tệp', struct: 'Struct', enum: 'Enum', trait: 'Trait' },
+  typePlural: { function: 'Hàm', file: 'Tệp', struct: 'Struct', enum: 'Enum', trait: 'Trait' },
+  level: { key: 'Chính', supporting: 'Hỗ trợ', minor: 'Phụ' },
+  rolePlain: {
+    entry_point: { word: 'Điểm vào', plain: 'điểm vào của tính năng' },
+    core_logic: { word: 'Logic cốt lõi', plain: 'làm phần việc chính của tính năng' },
+    api_surface: { word: 'API công khai', plain: 'được gọi từ bên ngoài tính năng' },
+    data_model: { word: 'Mô hình dữ liệu', plain: 'dữ liệu mà tính năng mang theo' },
+    trait_contract: { word: 'Hợp đồng', plain: 'hợp đồng mà tính năng dựa vào' },
+    support: { word: 'Hàm phụ trợ', plain: 'phần phụ trợ quanh tính năng' },
+  },
+  role: {
+    entry_point: { label: 'Điểm vào', description: 'Nơi tính năng bắt đầu (hàm bạn dùng để dựng đồ thị).' },
+    core_logic: { label: 'Logic cốt lõi', description: 'Các hàm và tệp thực sự làm việc.' },
+    api_surface: { label: 'Bề mặt API', description: 'Những gì các phần khác của mã gọi vào.' },
+    data_model: { label: 'Mô hình dữ liệu', description: 'Struct và enum mang dữ liệu của tính năng.' },
+    trait_contract: { label: 'Hợp đồng Trait', description: 'Các trait mà tính năng triển khai hoặc dựa vào.' },
+    support: { label: 'Hỗ trợ', description: 'Hàm phụ trợ và tiện ích quanh tính năng.' },
+  },
+  relation: {
+    related: 'Liên quan',
+    CALLS: { label: 'Gọi', description: 'Một hàm gọi hàm khác.' },
+    IMPORTS: { label: 'Nhập', description: 'Một tệp nhập tệp khác.' },
+    EXTENDS: { label: 'Mở rộng', description: 'Một kiểu mở rộng kiểu khác.' },
+    IMPLEMENTS: { label: 'Triển khai', description: 'Một kiểu triển khai một trait.' },
+    IMPLEMENTS_TRAIT: { label: 'Impl Trait', description: 'Một khối impl nhắm tới một trait.' },
+    IMPLEMENTS_FOR: { label: 'Impl cho', description: 'Một khối impl nhắm tới một kiểu.' },
+  },
+} satisfies Translation<'fgModel'>

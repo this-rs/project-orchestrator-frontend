@@ -1,6 +1,8 @@
 import { atom } from 'jotai'
 import { DEFAULT_TOOL_POLICY_MODE, type LegacyWireMode } from '@/constants/toolPolicy'
 import { POLICY_TO_LEGACY_MODE } from '@/types/provider'
+import { tr } from '@/i18n/lazy'
+import type { MessageKey } from '@/i18n/catalog'
 
 // ============================================================================
 // Setup wizard configuration atoms
@@ -33,56 +35,61 @@ export interface OidcProviderDef {
   consoleUrl?: string
 }
 
-export const OIDC_PROVIDERS: Record<OidcProvider, OidcProviderDef> = {
+const HAS_TENANT = new Set<OidcProvider>(['microsoft','okta','auth0','keycloak'])
+
+const OIDC_BASE: Record<OidcProvider, Omit<OidcProviderDef, 'description' | 'tenantLabel' | 'tenantPlaceholder'>> = {
   google: {
     label: 'Google',
-    description: 'Google Workspace & Gmail accounts',
     discoveryUrl: 'https://accounts.google.com/.well-known/openid-configuration',
     consoleUrl: 'https://console.cloud.google.com/apis/credentials',
   },
   microsoft: {
     label: 'Microsoft',
-    description: 'Azure AD & Microsoft 365',
     discoveryUrl: null,
     discoveryTemplate: 'https://login.microsoftonline.com/{tenant}/v2.0/.well-known/openid-configuration',
-    tenantLabel: 'Tenant ID',
-    tenantPlaceholder: 'common or your-tenant-id',
     consoleUrl: 'https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps',
   },
   okta: {
     label: 'Okta',
-    description: 'Okta identity platform',
     discoveryUrl: null,
     discoveryTemplate: 'https://{tenant}.okta.com/.well-known/openid-configuration',
-    tenantLabel: 'Okta Domain',
-    tenantPlaceholder: 'your-org (without .okta.com)',
     consoleUrl: 'https://developer.okta.com/',
   },
   auth0: {
     label: 'Auth0',
-    description: 'Auth0 by Okta',
     discoveryUrl: null,
     discoveryTemplate: 'https://{tenant}.auth0.com/.well-known/openid-configuration',
-    tenantLabel: 'Auth0 Domain',
-    tenantPlaceholder: 'your-tenant (without .auth0.com)',
     consoleUrl: 'https://manage.auth0.com/',
   },
   keycloak: {
     label: 'Keycloak',
-    description: 'Self-hosted Keycloak server',
     discoveryUrl: null,
     discoveryTemplate: '{tenant}/realms/{realm}/.well-known/openid-configuration',
-    tenantLabel: 'Server URL',
-    tenantPlaceholder: 'https://keycloak.example.com',
     consoleUrl: undefined,
   },
   custom: {
     label: 'Custom',
-    description: 'Any OpenID Connect provider',
     discoveryUrl: null,
     consoleUrl: undefined,
   },
 }
+
+/** The texts of a provider (description, tenant field) are read when used, so they follow the language on screen. */
+export const OIDC_PROVIDERS: Record<OidcProvider, OidcProviderDef> = Object.fromEntries(
+  (Object.keys(OIDC_BASE) as OidcProvider[]).map((key) => {
+    const def = {
+      ...OIDC_BASE[key],
+      get description() {
+        return tr(`setupOidc.oidc.${key}.description`)
+      },
+    } as OidcProviderDef
+    if (HAS_TENANT.has(key)) {
+      Object.defineProperty(def, 'tenantLabel', { enumerable: true, get: () => tr(`setupOidc.oidc.${key}.tenantLabel` as MessageKey) })
+      Object.defineProperty(def, 'tenantPlaceholder', { enumerable: true, get: () => tr(`setupOidc.oidc.${key}.tenantPlaceholder` as MessageKey) })
+    }
+    return [key, def]
+  }),
+) as Record<OidcProvider, OidcProviderDef>
 
 /** `none` = no engine picked here: the user adds one later in Settings → Providers. */
 export type ChatProviderChoice = 'claude-code' | 'none'

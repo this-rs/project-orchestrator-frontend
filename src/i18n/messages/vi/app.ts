@@ -1,0 +1,62 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  api: {
+    sessionExpired: 'Phiên đã hết hạn',
+    fallback: 'Đã xảy ra lỗi',
+    nonJson: 'Máy chủ trả lời một thứ không phải JSON: {request} → {status}{type}',
+  },
+  upload: {
+    malformed: 'Phản hồi từ máy chủ không hợp lệ',
+    network: 'Lỗi mạng',
+    timedOut: 'Tải lên quá thời gian',
+  },
+  runner: {
+    noActiveRun: 'Không có lượt chạy nào đang hoạt động để hủy',
+    cancelInProgress: 'Việc hủy đang được thực hiện',
+    noActiveRunForce: 'Không có lượt chạy nào đang hoạt động để buộc hủy',
+    fetchFailed: 'Không thể lấy trạng thái bộ chạy',
+  },
+  hooks: {
+    serverNotBack: 'Máy chủ không khởi động lại được. Hãy kiểm tra máy chủ rồi tải lại trang này.',
+    updateActionFailed: 'Thao tác cập nhật thất bại',
+    allProjects: 'Tất cả dự án',
+    taskGraphFailed: 'Không thể tải dữ liệu đồ thị tác vụ',
+    planGraphFailed: 'Không thể tải dữ liệu đồ thị kế hoạch',
+    pipelineFailed: 'Không thể lấy tiến độ quy trình',
+    discussionTreeFailed: 'Không thể lấy cây thảo luận',
+    newModel: 'Một mô hình mới',
+    modelAvailable: '{model} hiện đã khả dụng',
+    apiUnavailable: 'API không khả dụng',
+  },
+  attention: {
+    resumed: 'Đã tiếp tục lượt chạy: {title}',
+    resumeFailed: 'Không thể tiếp tục lượt chạy',
+    allowed: 'Đã cho phép: {what}',
+    denied: 'Đã từ chối: {what}',
+    replySent: 'Đã gửi phản hồi: {what}',
+    replyFailed: 'Chưa gửi được phản hồi',
+    accepted: 'Đã chấp nhận: {title}',
+    rejected: 'Đã từ chối: {title}',
+    decisionFailed: 'Chưa ghi nhận được quyết định',
+  },
+  chat: {
+    cancelledByUser: 'Người dùng đã hủy',
+    unknownError: 'Lỗi không xác định',
+    sessionInitialized: 'Phiên đã được khởi tạo',
+    maxTurns: 'Đã đạt số lượt tối đa',
+    maxTurnsCount: 'Đã đạt số lượt tối đa ({n} lượt)',
+    executionError: 'Đã xảy ra lỗi khi thực thi',
+    autoContinuing: 'Đang tự động tiếp tục...',
+    sessionError: 'Phiên đã kết thúc với lỗi',
+    startFailed: 'Không thể bắt đầu cuộc trò chuyện',
+  },
+  export: { user: 'Người dùng', assistant: 'Trợ lý' },
+  architecture: {
+    entry: 'Điểm vào',
+    gateway: 'Cổng vào',
+    services: 'Dịch vụ',
+    libraries: 'Thư viện, nhắn tin và bộ nhớ đệm',
+    data: 'Dữ liệu và bên ngoài',
+  },
+} satisfies Translation<'app'>

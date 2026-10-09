@@ -11,6 +11,8 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import type { RelevanceVector } from '@/types/intelligence'
+import { useT } from '@/i18n'
+import type { MessageKey } from '@/i18n/catalog'
 
 // ============================================================================
 // DIMENSION CONFIG
@@ -18,53 +20,54 @@ import type { RelevanceVector } from '@/types/intelligence'
 
 interface DimensionConfig {
   key: keyof RelevanceVector
-  label: string
+  label: MessageKey
   icon: typeof Gauge
   color: string
-  description: string
-  labels: string[]
+  /** The five marks under the slider; an empty one is left blank. */
+  labels: (MessageKey | '')[]
 }
 
 const DIMENSIONS: DimensionConfig[] = [
   {
     key: 'phase',
-    label: 'Phase',
+    label: 'composer.trigger.phase.label',
     icon: Gauge,
     color: '#818cf8',
-    description: 'Project lifecycle phase',
-    labels: ['Warmup', 'Planning', 'Execution', 'Review', 'Closure'],
+    labels: [
+      'composer.trigger.phase.warmup',
+      'composer.trigger.phase.planning',
+      'composer.trigger.phase.execution',
+      'composer.trigger.phase.review',
+      'composer.trigger.phase.closure',
+    ],
   },
   {
     key: 'structure',
-    label: 'Structure',
+    label: 'composer.trigger.structure.label',
     icon: Layers,
     color: '#34d399',
-    description: 'Codebase structural complexity',
-    labels: ['Simple', '', 'Moderate', '', 'Complex'],
+    labels: ['composer.trigger.structure.low', '', 'composer.trigger.structure.mid', '', 'composer.trigger.structure.high'],
   },
   {
     key: 'domain',
-    label: 'Domain',
+    label: 'composer.trigger.domain.label',
     icon: Globe,
     color: '#fb923c',
-    description: 'Domain knowledge required',
-    labels: ['Generic', '', 'Moderate', '', 'Specialized'],
+    labels: ['composer.trigger.domain.low', '', 'composer.trigger.domain.mid', '', 'composer.trigger.domain.high'],
   },
   {
     key: 'resource',
-    label: 'Resource',
+    label: 'composer.trigger.resource.label',
     icon: HardDrive,
     color: '#38bdf8',
-    description: 'Resource intensity',
-    labels: ['Light', '', 'Medium', '', 'Heavy'],
+    labels: ['composer.trigger.resource.low', '', 'composer.trigger.resource.mid', '', 'composer.trigger.resource.high'],
   },
   {
     key: 'lifecycle',
-    label: 'Lifecycle',
+    label: 'composer.trigger.lifecycle.label',
     icon: RotateCcw,
     color: '#f472b6',
-    description: 'Entity lifecycle maturity',
-    labels: ['New', '', 'Active', '', 'Mature'],
+    labels: ['composer.trigger.lifecycle.low', '', 'composer.trigger.lifecycle.mid', '', 'composer.trigger.lifecycle.high'],
   },
 ]
 
@@ -87,6 +90,7 @@ interface DimensionSliderProps {
 }
 
 function DimensionSlider({ config, value, onChange }: DimensionSliderProps) {
+  const { t } = useT()
   const Icon = config.icon
   const percentage = Math.round(value * 100)
 
@@ -95,7 +99,7 @@ function DimensionSlider({ config, value, onChange }: DimensionSliderProps) {
       <div className="flex items-center gap-1.5">
         <Icon size={10} style={{ color: config.color }} />
         <span className="text-[10px] text-slate-400 font-medium flex-1">
-          {config.label}
+          {t(config.label)}
         </span>
         <span
           className="text-[10px] font-mono font-semibold"
@@ -113,6 +117,7 @@ function DimensionSlider({ config, value, onChange }: DimensionSliderProps) {
           max={100}
           step={5}
           value={percentage}
+          aria-label={t(config.label)}
           onChange={(e) => onChange(config.key, parseInt(e.target.value) / 100)}
           className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
           style={{
@@ -134,7 +139,7 @@ function DimensionSlider({ config, value, onChange }: DimensionSliderProps) {
                 : undefined
             }
           >
-            {label}
+            {label && t(label)}
           </span>
         ))}
       </div>
@@ -152,6 +157,7 @@ interface TriggerBuilderProps {
 }
 
 function TriggerBuilderComponent({ vector, onChange }: TriggerBuilderProps) {
+  const { t } = useT()
   const handleDimensionChange = useCallback(
     (key: keyof RelevanceVector, value: number) => {
       onChange({ ...vector, [key]: value })
@@ -167,20 +173,19 @@ function TriggerBuilderComponent({ vector, onChange }: TriggerBuilderProps) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="text-[10px] font-semibold text-slate-400">
-          Relevance Vector
+          {t('composer.trigger.title')}
         </h4>
         <button
           onClick={handleReset}
           className="text-[9px] text-slate-600 hover:text-slate-400 transition-colors"
-          title="Reset to defaults"
+          title={t('composer.trigger.resetHint')}
         >
-          Reset
+          {t('composer.trigger.reset')}
         </button>
       </div>
 
       <p className="text-[9px] text-slate-600 leading-relaxed">
-        Define when this protocol should activate. Higher values mean the protocol is
-        more relevant in that dimension.
+        {t('composer.trigger.intro')}
       </p>
 
       <div className="space-y-3">

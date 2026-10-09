@@ -1,6 +1,10 @@
+import { activeTranslator } from '@/i18n/active'
+import type { MessageKey } from '@/i18n/catalog'
+
 /**
  * Glossary of technical terms used in the Project Orchestrator.
  * Each entry provides a human-readable label and a plain-language description.
+ * The words live in `src/i18n` (`glossary.<term>.*`) and are read when used, so they follow the language.
  */
 
 export interface GlossaryEntry {
@@ -10,208 +14,330 @@ export interface GlossaryEntry {
   description: string
 }
 
+const tr = (key: MessageKey): string => activeTranslator().t(key)
+
 export const glossary: Record<string, GlossaryEntry> = {
   energy: {
-    label: 'Energy',
-    description:
-      'Recent activity level of an element. The higher the energy, the more actively the element is being worked on.',
+    get label() {
+      return tr('glossary.energy.label')
+    },
+    get description() {
+      return tr('glossary.energy.description')
+    },
   },
   cohesion: {
-    label: 'Cohesion',
-    description:
-      'Measure of the internal strength of a module or component. High cohesion means its elements are tightly linked to each other.',
+    get label() {
+      return tr('glossary.cohesion.label')
+    },
+    get description() {
+      return tr('glossary.cohesion.description')
+    },
   },
   synapse: {
-    label: 'Synapse',
-    description:
-      'Connection between two elements of the project (notes, tasks, files). Represents a dependency or context relation.',
+    get label() {
+      return tr('glossary.synapse.label')
+    },
+    get description() {
+      return tr('glossary.synapse.description')
+    },
   },
   scar: {
-    label: 'Scar',
-    description:
-      'Trace left by a past problem. Helps avoid repeating the same mistakes by flagging fragile areas.',
+    get label() {
+      return tr('glossary.scar.label')
+    },
+    get description() {
+      return tr('glossary.scar.description')
+    },
   },
   moat: {
-    label: 'Moat',
-    description:
-      'Protective barrier around a critical component. Signals that changes there call for extra care.',
+    get label() {
+      return tr('glossary.moat.label')
+    },
+    get description() {
+      return tr('glossary.moat.description')
+    },
   },
   spreading_activation: {
-    label: 'Spreading activation',
-    description:
-      'Mechanism that propagates the importance of an element to its neighbours in the graph, like a wave through a network.',
+    get label() {
+      return tr('glossary.spreading_activation.label')
+    },
+    get description() {
+      return tr('glossary.spreading_activation.description')
+    },
   },
   fabric: {
-    label: 'Fabric',
-    description:
-      'The knowledge network of the project — the set of connections between notes, decisions and code.',
+    get label() {
+      return tr('glossary.fabric.label')
+    },
+    get description() {
+      return tr('glossary.fabric.description')
+    },
   },
   trajectory: {
-    label: 'Trajectory',
-    description:
-      'History of the path an agent or a task took through the stages of the project.',
+    get label() {
+      return tr('glossary.trajectory.label')
+    },
+    get description() {
+      return tr('glossary.trajectory.description')
+    },
   },
   protocol: {
-    label: 'Protocol',
-    description:
-      'Finite state machine describing a workflow. Defines the valid transitions between statuses.',
+    get label() {
+      return tr('glossary.protocol.label')
+    },
+    get description() {
+      return tr('glossary.protocol.description')
+    },
   },
   persona: {
-    label: 'Persona',
-    description:
-      'Specialised profile assigned to an agent to steer its behaviour and skills.',
+    get label() {
+      return tr('glossary.persona.label')
+    },
+    get description() {
+      return tr('glossary.persona.description')
+    },
   },
   episode: {
-    label: 'Episode',
-    description:
-      'Recorded work session of an agent, with the actions taken and the results obtained.',
+    get label() {
+      return tr('glossary.episode.label')
+    },
+    get description() {
+      return tr('glossary.episode.description')
+    },
   },
   neural_routing: {
-    label: 'Neural routing',
-    description:
-      'Smart distribution of tasks to agents, based on their skills and workload.',
+    get label() {
+      return tr('glossary.neural_routing.label')
+    },
+    get description() {
+      return tr('glossary.neural_routing.description')
+    },
   },
   milestone: {
-    label: 'Milestone',
-    description:
-      'Important checkpoint in the project. Groups tasks and marks a key step of progress.',
+    get label() {
+      return tr('glossary.milestone.label')
+    },
+    get description() {
+      return tr('glossary.milestone.description')
+    },
   },
   feature_graph: {
-    label: 'Feature graph',
-    description:
-      'Visualisation of the dependencies between features of the project, showing which features depend on which.',
+    get label() {
+      return tr('glossary.feature_graph.label')
+    },
+    get description() {
+      return tr('glossary.feature_graph.description')
+    },
   },
   lifecycle_hook: {
-    label: 'Lifecycle hook',
-    description:
-      "Automatic action triggered by a status change (e.g. a notification when a task moves to 'completed').",
+    get label() {
+      return tr('glossary.lifecycle_hook.label')
+    },
+    get description() {
+      return tr('glossary.lifecycle_hook.description')
+    },
   },
   constraint: {
-    label: 'Constraint',
-    description:
-      'Rule or limitation that applies to a task or a plan. Must be respected for the work to count as valid.',
+    get label() {
+      return tr('glossary.constraint.label')
+    },
+    get description() {
+      return tr('glossary.constraint.description')
+    },
   },
   decision: {
-    label: 'Decision',
-    description:
-      'Architectural or technical choice recorded with its context and rationale, for future reference.',
+    get label() {
+      return tr('glossary.decision.label')
+    },
+    get description() {
+      return tr('glossary.decision.description')
+    },
   },
   component: {
-    label: 'Component',
-    description:
-      'Functional module of the project (backend, frontend, API…) used to organise code and responsibilities.',
+    get label() {
+      return tr('glossary.component.label')
+    },
+    get description() {
+      return tr('glossary.component.description')
+    },
   },
   workspace: {
-    label: 'Workspace',
-    description:
-      'Isolated container grouping projects, tasks and resources. Keeps different work contexts apart.',
+    get label() {
+      return tr('glossary.workspace.label')
+    },
+    get description() {
+      return tr('glossary.workspace.description')
+    },
   },
   skill: {
-    label: 'Skill',
-    description:
-      'Recorded capability of an agent, describing what it knows how to do and at which level of mastery.',
+    get label() {
+      return tr('glossary.skill.label')
+    },
+    get description() {
+      return tr('glossary.skill.description')
+    },
   },
   release: {
-    label: 'Release',
-    description:
-      'Published version of the project, grouping a set of changes ready for production.',
+    get label() {
+      return tr('glossary.release.label')
+    },
+    get description() {
+      return tr('glossary.release.description')
+    },
   },
   success_rate: {
-    label: 'Success rate',
-    description:
-      'Percentage of tasks completed successfully by this persona. Reflects its reliability on the missions assigned.',
+    get label() {
+      return tr('glossary.success_rate.label')
+    },
+    get description() {
+      return tr('glossary.success_rate.description')
+    },
   },
   activation_count: {
-    label: 'Activations',
-    description:
-      'Number of times an element was activated (used by an agent). The higher the number, the more the element is called on.',
+    get label() {
+      return tr('glossary.activation_count.label')
+    },
+    get description() {
+      return tr('glossary.activation_count.description')
+    },
   },
   analysis_profile: {
-    label: 'Analysis profile',
-    description:
-      'Configuration defining how to analyse a project: which metrics to compute, which thresholds to apply.',
+    get label() {
+      return tr('glossary.analysis_profile.label')
+    },
+    get description() {
+      return tr('glossary.analysis_profile.description')
+    },
   },
   co_change: {
-    label: 'Co-change',
-    description:
-      'Files that often change together. Strong co-change suggests coupling (intended or accidental).',
+    get label() {
+      return tr('glossary.co_change.label')
+    },
+    get description() {
+      return tr('glossary.co_change.description')
+    },
   },
   coupling: {
-    label: 'Coupling',
-    description:
-      'Degree of dependency between two modules. Low coupling is preferable for maintainability.',
+    get label() {
+      return tr('glossary.coupling.label')
+    },
+    get description() {
+      return tr('glossary.coupling.description')
+    },
   },
   churn: {
-    label: 'Churn',
-    description:
-      'How often a file is modified. High churn can indicate an unstable area or one under active development.',
+    get label() {
+      return tr('glossary.churn.label')
+    },
+    get description() {
+      return tr('glossary.churn.description')
+    },
   },
   hotspot: {
-    label: 'Hotspot',
-    description:
-      'Frequently modified, complex file. Hotspots are areas to watch because they concentrate the risk of bugs.',
+    get label() {
+      return tr('glossary.hotspot.label')
+    },
+    get description() {
+      return tr('glossary.hotspot.description')
+    },
   },
   orphan: {
-    label: 'Orphan file',
-    description:
-      'File that is neither imported nor exported by other files. May indicate dead code or a poorly integrated file.',
+    get label() {
+      return tr('glossary.orphan.label')
+    },
+    get description() {
+      return tr('glossary.orphan.description')
+    },
   },
   dead_note: {
-    label: 'Dead note',
-    description:
-      'Note with no residual energy — it has not been read or modified for a long time and is likely obsolete.',
+    get label() {
+      return tr('glossary.dead_note.label')
+    },
+    get description() {
+      return tr('glossary.dead_note.description')
+    },
   },
   stale_note: {
-    label: 'Stale note',
-    description:
-      'Note whose content has not been updated for a while and may no longer reflect the current state of the project.',
+    get label() {
+      return tr('glossary.stale_note.label')
+    },
+    get description() {
+      return tr('glossary.stale_note.description')
+    },
   },
   god_function: {
-    label: 'God function',
-    description:
-      'Excessively long or complex function that does too many things. Should be split into smaller functions.',
+    get label() {
+      return tr('glossary.god_function.label')
+    },
+    get description() {
+      return tr('glossary.god_function.description')
+    },
   },
   clustering_coefficient: {
-    label: 'Clustering coefficient',
-    description:
-      "Measures the density of connections between a node's neighbours. A high coefficient indicates a tightly interconnected group.",
+    get label() {
+      return tr('glossary.clustering_coefficient.label')
+    },
+    get description() {
+      return tr('glossary.clustering_coefficient.description')
+    },
   },
   knowledge_coverage: {
-    label: 'Knowledge coverage',
-    description:
-      'Ratio between the number of notes/decisions and the number of code files. Indicates whether the code is well documented.',
+    get label() {
+      return tr('glossary.knowledge_coverage.label')
+    },
+    get description() {
+      return tr('glossary.knowledge_coverage.description')
+    },
   },
   note_freshness: {
-    label: 'Note freshness',
-    description:
-      'Share of notes still up to date. A low rate means many notes need a re-read.',
+    get label() {
+      return tr('glossary.note_freshness.label')
+    },
+    get description() {
+      return tr('glossary.note_freshness.description')
+    },
   },
   synapse_quality: {
-    label: 'Synapse quality',
-    description:
-      'Share of solid connections in the network. Weak synapses are unreliable links between elements.',
+    get label() {
+      return tr('glossary.synapse_quality.label')
+    },
+    get description() {
+      return tr('glossary.synapse_quality.description')
+    },
   },
   skills_maturity: {
-    label: 'Skills maturity',
-    description:
-      "Ratio of active skills to the total. Indicates the team's overall level of mastery on the project.",
+    get label() {
+      return tr('glossary.skills_maturity.label')
+    },
+    get description() {
+      return tr('glossary.skills_maturity.description')
+    },
   },
   code_safety: {
-    label: 'Code safety',
-    description:
-      'Score based on the risk assessment. Accounts for critical and high-risk files and for vulnerabilities.',
+    get label() {
+      return tr('glossary.code_safety.label')
+    },
+    get description() {
+      return tr('glossary.code_safety.description')
+    },
   },
   health_score: {
-    label: 'Health score',
-    description:
-      'Overall score combining knowledge coverage, note freshness, neural energy, synapse quality and skills maturity.',
+    get label() {
+      return tr('glossary.health_score.label')
+    },
+    get description() {
+      return tr('glossary.health_score.description')
+    },
   },
   circular_dependency: {
-    label: 'Circular dependency',
-    description:
-      'Situation where two modules depend on each other, creating a loop. Makes the code harder to maintain and test.',
+    get label() {
+      return tr('glossary.circular_dependency.label')
+    },
+    get description() {
+      return tr('glossary.circular_dependency.description')
+    },
   },
-} as const
+}
 
 /** Get a glossary entry by key, or undefined if not found */
 export function getGlossaryEntry(term: string): GlossaryEntry | undefined {

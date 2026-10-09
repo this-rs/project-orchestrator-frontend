@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { COST_ESTIMATED_BADGE, describeCost, type CostReport, type DescribeCostOptions } from '@/utils/cost'
+import { costEstimatedBadge, describeCost, type CostReport, type DescribeCostOptions } from '@/utils/cost'
 
 interface CostDisplayProps extends DescribeCostOptions {
   cost: CostReport | null | undefined
@@ -30,7 +30,7 @@ export function CostDisplay({ cost, before, className = '', format, hideZero }: 
       >
         {described.text}
         {described.estimated && (
-          <span className="ml-1 rounded border border-white/20 px-0.5 text-[0.85em] opacity-80">{COST_ESTIMATED_BADGE}</span>
+          <span className="ml-1 rounded border border-white/20 px-0.5 text-[0.85em] opacity-80">{costEstimatedBadge()}</span>
         )}
         {described.help && <span className="sr-only"> ({described.help})</span>}
       </span>

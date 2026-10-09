@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Input, Textarea } from '@/components/ui'
 import { PROJECT_PROFILE_TEXT, profileOf } from '@/constants/projectProfile'
+import { useT } from '@/i18n'
 import type { ProjectProfile } from '@/types'
 import { ProjectProfileField } from './ProjectProfileField'
 
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function EditProjectForm({ initialValues, onSubmit, loading }: Props) {
+  const { t } = useT()
   const initialProfile = profileOf(initialValues)
   const [profile, setProfile] = useState<ProjectProfile>(initialProfile)
   const [name, setName] = useState(initialValues.name)
@@ -50,8 +52,8 @@ export function EditProjectForm({ initialValues, onSubmit, loading }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!name.trim()) errs.name = 'Name is required'
-    if (!slug.trim()) errs.slug = 'Slug is required'
+    if (!name.trim()) errs.name = t('forms.error.name')
+    if (!slug.trim()) errs.slug = t('forms.error.slug')
     if (withCode && !rootPath.trim()) errs.root_path = PROJECT_PROFILE_TEXT.folder.required
     setErrors(errs)
     return Object.keys(errs).length === 0
@@ -62,8 +64,8 @@ export function EditProjectForm({ initialValues, onSubmit, loading }: Props) {
       <>
         <ProjectProfileField value={profile} onChange={setProfile} disabled={loading} />
         <Input
-          label="Name"
-          placeholder="Project name"
+          label={t('forms.field.name')}
+          placeholder={t('forms.placeholder.projectName')}
           value={name}
           onChange={(e) => handleNameChange(e.target.value)}
           error={errors.name}
@@ -71,8 +73,8 @@ export function EditProjectForm({ initialValues, onSubmit, loading }: Props) {
           autoFocus
         />
         <Input
-          label="Slug"
-          placeholder="project-slug"
+          label={t('forms.field.slug')}
+          placeholder={t('forms.placeholder.projectSlug')}
           value={slug}
           onChange={(e) => {
             setSlugTouched(true)
@@ -82,8 +84,8 @@ export function EditProjectForm({ initialValues, onSubmit, loading }: Props) {
           disabled={loading}
         />
         <Textarea
-          label="Description"
-          placeholder="Optional description..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.optionalDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           disabled={loading}

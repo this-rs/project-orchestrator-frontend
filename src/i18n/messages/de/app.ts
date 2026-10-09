@@ -1,0 +1,62 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  api: {
+    sessionExpired: 'Sitzung abgelaufen',
+    fallback: 'Es ist ein Fehler aufgetreten',
+    nonJson: 'Der Server hat etwas anderes als JSON geantwortet: {request} → {status}{type}',
+  },
+  upload: {
+    malformed: 'Fehlerhafte Antwort des Servers',
+    network: 'Netzwerkfehler',
+    timedOut: 'Zeitüberschreitung beim Hochladen',
+  },
+  runner: {
+    noActiveRun: 'Kein aktiver Lauf zum Abbrechen',
+    cancelInProgress: 'Abbruch läuft bereits',
+    noActiveRunForce: 'Kein aktiver Lauf zum erzwungenen Abbrechen',
+    fetchFailed: 'Der Status des Runners konnte nicht abgerufen werden',
+  },
+  hooks: {
+    serverNotBack: 'Der Server ist nach dem Neustart nicht zurückgekehrt. Prüfen Sie ihn und laden Sie diese Seite neu.',
+    updateActionFailed: 'Aktualisierung fehlgeschlagen',
+    allProjects: 'Alle Projekte',
+    taskGraphFailed: 'Die Daten des Aufgabengraphen konnten nicht geladen werden',
+    planGraphFailed: 'Die Daten des Plangraphen konnten nicht geladen werden',
+    pipelineFailed: 'Der Pipeline-Fortschritt konnte nicht abgerufen werden',
+    discussionTreeFailed: 'Der Diskussionsbaum konnte nicht abgerufen werden',
+    newModel: 'Ein neues Modell',
+    modelAvailable: '{model} ist jetzt verfügbar',
+    apiUnavailable: 'API nicht verfügbar',
+  },
+  attention: {
+    resumed: 'Lauf fortgesetzt: {title}',
+    resumeFailed: 'Der Lauf konnte nicht fortgesetzt werden',
+    allowed: 'Erlaubt: {what}',
+    denied: 'Abgelehnt: {what}',
+    replySent: 'Antwort gesendet: {what}',
+    replyFailed: 'Antwort nicht gesendet',
+    accepted: 'Angenommen: {title}',
+    rejected: 'Abgelehnt: {title}',
+    decisionFailed: 'Entscheidung nicht gespeichert',
+  },
+  chat: {
+    cancelledByUser: 'Vom Benutzer abgebrochen',
+    unknownError: 'Unbekannter Fehler',
+    sessionInitialized: 'Sitzung initialisiert',
+    maxTurns: 'Maximale Zugzahl erreicht',
+    maxTurnsCount: 'Maximale Zugzahl erreicht ({n} Züge)',
+    executionError: 'Ein Ausführungsfehler ist aufgetreten',
+    autoContinuing: 'Automatische Fortsetzung...',
+    sessionError: 'Die Sitzung wurde mit einem Fehler beendet',
+    startFailed: 'Die Unterhaltung konnte nicht gestartet werden',
+  },
+  export: { user: 'Benutzer', assistant: 'Assistent' },
+  architecture: {
+    entry: 'Einstiegspunkte',
+    gateway: 'Gateway',
+    services: 'Dienste',
+    libraries: 'Bibliotheken, Messaging und Cache',
+    data: 'Daten und Externes',
+  },
+} satisfies Translation<'app'>

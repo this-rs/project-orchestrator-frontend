@@ -14,6 +14,7 @@
 // ============================================================================
 
 import type { IntelligenceEntityType, IntelligenceRelationType, IntelligenceLayer } from './intelligence'
+import { lazyTexts, tr } from '@/i18n/lazy'
 
 // ── Scale levels ────────────────────────────────────────────────────────────
 
@@ -21,12 +22,12 @@ import type { IntelligenceEntityType, IntelligenceRelationType, IntelligenceLaye
 export type ScaleLevel = 'workspace' | 'project' | 'plan' | 'task'
 
 /** What each scale level shows as primary nodes */
-export const SCALE_LEVEL_PRIMARY: Record<ScaleLevel, string> = {
-  workspace: 'projects',
-  project: 'plans + milestones',
-  plan: 'tasks',
-  task: 'steps',
-}
+export const SCALE_LEVEL_PRIMARY: Record<ScaleLevel, string> = lazyTexts<ScaleLevel>({
+  workspace: 'intelConfig.scale.workspace',
+  project: 'intelConfig.scale.project',
+  plan: 'intelConfig.scale.plan',
+  task: 'intelConfig.scale.task',
+})
 
 // ── Entity groups (toggleable overlays) ─────────────────────────────────────
 
@@ -67,7 +68,9 @@ export interface EntityGroupConfig {
 export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
   {
     id: 'core',
-    label: 'Core',
+    get label() {
+      return tr('intelConfig.group.core')
+    },
     icon: 'Circle',
     defaultEnabled: true,
     availableAt: ['workspace', 'project', 'plan', 'task'],
@@ -76,7 +79,9 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
   },
   {
     id: 'code',
-    label: 'Code',
+    get label() {
+      return tr('intelConfig.group.code')
+    },
     icon: 'Code',
     defaultEnabled: true,
     availableAt: ['project', 'plan', 'task'],
@@ -85,7 +90,9 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
   },
   {
     id: 'knowledge',
-    label: 'Knowledge',
+    get label() {
+      return tr('intelConfig.group.knowledge')
+    },
     icon: 'BookOpen',
     defaultEnabled: true,
     availableAt: ['project', 'plan', 'task'],
@@ -94,7 +101,9 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
   },
   {
     id: 'git',
-    label: 'Git',
+    get label() {
+      return tr('intelConfig.group.git')
+    },
     icon: 'GitCommit',
     defaultEnabled: true,
     availableAt: ['project', 'plan', 'task'],
@@ -103,7 +112,9 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
   },
   {
     id: 'sessions',
-    label: 'Sessions',
+    get label() {
+      return tr('intelConfig.group.sessions')
+    },
     icon: 'MessageCircle',
     defaultEnabled: true,
     availableAt: ['project', 'plan', 'task'],
@@ -112,7 +123,9 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
   },
   {
     id: 'features',
-    label: 'Features',
+    get label() {
+      return tr('intelConfig.group.features')
+    },
     icon: 'Network',
     defaultEnabled: true,
     availableAt: ['project', 'plan', 'task'],
@@ -121,7 +134,9 @@ export const ENTITY_GROUP_CONFIGS: EntityGroupConfig[] = [
   },
   {
     id: 'behavioral',
-    label: 'Behavioral',
+    get label() {
+      return tr('intelConfig.group.behavioral')
+    },
     icon: 'Workflow',
     defaultEnabled: true,
     availableAt: ['project', 'plan', 'task'],

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Input, Textarea } from '@/components/ui'
+import { useT } from '@/i18n'
 
 export interface CreateMilestoneFormData {
   title: string
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function CreateMilestoneForm({ onSubmit }: Props) {
+  const { t } = useT()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [targetDate, setTargetDate] = useState('')
@@ -21,7 +23,7 @@ export function CreateMilestoneForm({ onSubmit }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!title.trim()) errs.title = 'Title is required'
+    if (!title.trim()) errs.title = t('forms.error.title')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -30,29 +32,29 @@ export function CreateMilestoneForm({ onSubmit }: Props) {
     fields: (
       <>
         <Input
-          label="Title"
-          placeholder="Milestone title"
+          label={t('forms.field.title')}
+          placeholder={t('forms.placeholder.milestoneTitle')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           error={errors.title}
           autoFocus
         />
         <Textarea
-          label="Description"
-          placeholder="Optional description..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.optionalDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
         />
         <Input
-          label="Target Date"
+          label={t('forms.field.targetDate')}
           type="date"
           value={targetDate}
           onChange={(e) => setTargetDate(e.target.value)}
         />
         <Input
-          label="Tags"
-          placeholder="Comma-separated tags"
+          label={t('forms.field.tags')}
+          placeholder={t('forms.placeholder.tags')}
           value={tags}
           onChange={(e) => setTags(e.target.value)}
         />

@@ -1,0 +1,62 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  api: {
+    sessionExpired: 'Sesión caducada',
+    fallback: 'Se produjo un error',
+    nonJson: 'El servidor respondió algo distinto de JSON: {request} → {status}{type}',
+  },
+  upload: {
+    malformed: 'Respuesta del servidor mal formada',
+    network: 'Error de red',
+    timedOut: 'Se agotó el tiempo de la subida',
+  },
+  runner: {
+    noActiveRun: 'No hay ninguna ejecución activa que cancelar',
+    cancelInProgress: 'Ya hay una cancelación en curso',
+    noActiveRunForce: 'No hay ninguna ejecución activa que cancelar a la fuerza',
+    fetchFailed: 'No se pudo obtener el estado del ejecutor',
+  },
+  hooks: {
+    serverNotBack: 'El servidor no volvió tras reiniciarse. Compruébalo y recarga esta página.',
+    updateActionFailed: 'Falló la acción de actualización',
+    allProjects: 'Todos los proyectos',
+    taskGraphFailed: 'No se pudieron cargar los datos del grafo de tareas',
+    planGraphFailed: 'No se pudieron cargar los datos del grafo de planes',
+    pipelineFailed: 'No se pudo obtener el progreso del pipeline',
+    discussionTreeFailed: 'No se pudo obtener el árbol de discusión',
+    newModel: 'Un modelo nuevo',
+    modelAvailable: '{model} ya está disponible',
+    apiUnavailable: 'API no disponible',
+  },
+  attention: {
+    resumed: 'Ejecución retomada: {title}',
+    resumeFailed: 'No se pudo retomar la ejecución',
+    allowed: 'Permitido: {what}',
+    denied: 'Denegado: {what}',
+    replySent: 'Respuesta enviada: {what}',
+    replyFailed: 'Respuesta no enviada',
+    accepted: 'Aceptado: {title}',
+    rejected: 'Rechazado: {title}',
+    decisionFailed: 'Decisión no registrada',
+  },
+  chat: {
+    cancelledByUser: 'Cancelado por el usuario',
+    unknownError: 'Error desconocido',
+    sessionInitialized: 'Sesión iniciada',
+    maxTurns: 'Se alcanzó el máximo de turnos',
+    maxTurnsCount: 'Se alcanzó el máximo de turnos ({n} turnos)',
+    executionError: 'Se produjo un error de ejecución',
+    autoContinuing: 'Continuando automáticamente...',
+    sessionError: 'La sesión terminó con un error',
+    startFailed: 'No se pudo iniciar la conversación',
+  },
+  export: { user: 'Usuario', assistant: 'Asistente' },
+  architecture: {
+    entry: 'Puntos de entrada',
+    gateway: 'Pasarela',
+    services: 'Servicios',
+    libraries: 'Bibliotecas, mensajería y caché',
+    data: 'Datos y externos',
+  },
+} satisfies Translation<'app'>

@@ -5,10 +5,10 @@ import { NOMENCLATURE } from '@/constants/nomenclature'
 import { RunTargetPicker } from '@/components/runner/RunTargetPicker'
 import { useRunTarget } from '@/hooks/useRunTarget'
 import {
-  RUN_BUDGET_TOKENS_HELP,
-  RUN_BUDGET_TOKENS_LABEL,
+  runBudgetTokensHelp,
+  runBudgetTokensLabel,
   RUN_BUDGET_USD_DISABLED_ID,
-  RUN_TARGET_NO_PRICE_TEXT,
+  runTargetNoPriceText,
   hasKnownPrice,
 } from '@/constants/runProviders'
 import type { StartRunOptions } from '@/services/runner'
@@ -154,10 +154,10 @@ export function ImplementDialog({
           {usdDisabled && (
             <div className="space-y-1.5 pt-1">
               <p id={RUN_BUDGET_USD_DISABLED_ID} className="text-xs text-amber-300">
-                {RUN_TARGET_NO_PRICE_TEXT}
+                {runTargetNoPriceText()}
               </p>
               <label className="flex items-center gap-2 text-sm text-gray-300">
-                <span>{RUN_BUDGET_TOKENS_LABEL}</span>
+                <span>{runBudgetTokensLabel()}</span>
                 <input
                   type="number"
                   min={1000}
@@ -169,7 +169,7 @@ export function ImplementDialog({
                 />
               </label>
               <p id="run-budget-tokens-help" className="text-xs text-gray-500">
-                {RUN_BUDGET_TOKENS_HELP}
+                {runBudgetTokensHelp()}
               </p>
             </div>
           )}

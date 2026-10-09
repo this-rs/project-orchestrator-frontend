@@ -10,8 +10,8 @@ import {
   COMPOSER_MODE_LABELS,
   COMPOSER_MODE_ORDER,
   MODE_DOT_COLORS,
-  TRUST_REQUIRES_SANDBOX_TEXT,
-  TRUST_DOWNGRADED_TEXT,
+  trustRequiresSandboxText,
+  trustDowngradedText,
   TRUST_FALLBACK_MODE,
   claudeNativeModeLabel,
   isTrustAllowed,
@@ -873,7 +873,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           data-testid="trust-downgraded"
           className={`flex items-start justify-between gap-2 rounded-lg border border-amber-500/30 ${panelGlass.warning} px-2.5 py-1.5 text-[11px] text-amber-200`}
         >
-          <span className="min-w-0">{TRUST_DOWNGRADED_TEXT}</span>
+          <span className="min-w-0">{trustDowngradedText()}</span>
           <button
             type="button"
             onClick={() => setTrustDowngraded(false)}
@@ -1103,7 +1103,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
                         </span>
                         {refused && (
                           <span id={trustHelpId} className="mt-0.5 block text-[10px] leading-snug text-gray-500">
-                            {TRUST_REQUIRES_SANDBOX_TEXT}
+                            {trustRequiresSandboxText()}
                           </span>
                         )}
                       </button>

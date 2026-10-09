@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { Button } from './Button'
 import { useToast } from '@/hooks/useToast'
+import { useT } from '@/i18n'
 import { DIALOG_MOTION, useVariants } from '@/utils/motion'
 
 export interface FormDialogProps {
@@ -30,13 +31,14 @@ export function FormDialog({
   onSubmit,
   title,
   children,
-  submitLabel = 'Create',
-  cancelLabel = 'Cancel',
+  submitLabel,
+  cancelLabel,
   loading = false,
   size = 'md',
 }: FormDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null)
   const variants = useVariants(DIALOG_MOTION)
+  const { t } = useT()
   const toast = useToast()
   const [submitting, setSubmitting] = useState(false)
 
@@ -78,7 +80,7 @@ export function FormDialog({
         onClose()
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'An error occurred')
+      toast.error(err instanceof Error ? err.message : t('ui.formDialog.error'))
     } finally {
       setSubmitting(false)
     }
@@ -129,10 +131,10 @@ export function FormDialog({
                   disabled={isLoading}
                   type="button"
                 >
-                  {cancelLabel}
+                  {cancelLabel ?? t('ui.cancel')}
                 </Button>
                 <Button variant="primary" size="sm" type="submit" loading={isLoading}>
-                  {submitLabel}
+                  {submitLabel ?? t('ui.create')}
                 </Button>
               </div>
             </form>

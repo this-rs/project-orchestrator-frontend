@@ -19,6 +19,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { Check, ChevronDown, Loader2 } from 'lucide-react'
 import { fold } from './searchFold'
+import { useT } from '@/i18n'
 
 export interface SearchableOption {
   value: string
@@ -106,11 +107,13 @@ export function SearchableSelect({
   placeholder,
   disabled,
   loading,
-  noun = { one: 'résultat', other: 'résultats' },
+  noun: nounProp,
   className = '',
   'aria-describedby': describedBy,
   'aria-label': ariaLabel,
 }: SearchableSelectProps) {
+  const { t } = useT()
+  const noun = nounProp ?? { one: t('ui.select.nounOne'), other: t('ui.select.nounOther') }
   const auto = useId().replace(/:/g, '')
   const inputId = id ?? `ss-${auto}`
   const listId = `${inputId}-list`
@@ -137,7 +140,7 @@ export function SearchableSelect({
     if (noneLabel !== undefined && (!q || fold(noneLabel).includes(q)))
       out.push({ key: 'none', value: '', label: noneLabel, current: value === '' })
     if (outside && !q)
-      out.push({ key: 'outside', value, label: `${value} (hors liste, valeur actuelle)`, current: true })
+      out.push({ key: 'outside', value, label: t('ui.select.outside', { value }), current: true })
     for (const o of options)
       if (hit(o))
         out.push({
@@ -151,14 +154,14 @@ export function SearchableSelect({
         })
     const typed = query.trim()
     if (allowCustom && typed && !options.some((o) => fold(o.value) === q || fold(o.label) === q) && typed !== value)
-      out.push({ key: 'custom', value: typed, label: `Utiliser “${typed}”`, custom: true })
+      out.push({ key: 'custom', value: typed, label: t('ui.select.useCustom', { value: typed }), custom: true })
     return out
-  }, [options, q, query, noneLabel, allowCustom, outside, value])
+  }, [options, q, query, noneLabel, allowCustom, outside, value, t])
 
   const matches = rows.filter((r) => !r.custom && r.key !== 'none' && r.key !== 'outside').length
   const total = options.length
   const nounFor = (n: number) => (n === 1 ? noun.one : noun.other)
-  const count = loading && total === 0 ? '' : q ? `${matches} sur ${total}` : `${total} ${nounFor(total)}`
+  const count = loading && total === 0 ? '' : q ? t('ui.select.countOf', { matches, total }) : `${total} ${nounFor(total)}`
   const enabled = (i: number) => !!rows[i] && !rows[i].disabled
 
   const openList = () => {
@@ -292,16 +295,16 @@ export function SearchableSelect({
             aria-live="polite"
           >
             <span>{count}</span>
-            {loading && <span>Chargement…</span>}
+            {loading && <span>{t('ui.select.loading')}</span>}
           </div>
-          <ul id={listId} role="listbox" aria-label="Choix" className="max-h-64 overflow-y-auto py-1">
+          <ul id={listId} role="listbox" aria-label={t('ui.select.choices')} className="max-h-64 overflow-y-auto py-1">
             {matches === 0 && (!!q || rows.length === 0) && (
               <li role="presentation" className="px-3 py-3 text-sm text-gray-500">
                 {loading
-                  ? 'Chargement…'
+                  ? t('ui.select.loading')
                   : q
-                    ? `Aucun ${noun.one} ne correspond à « ${query.trim()} »`
-                    : `Aucun ${noun.one}`}
+                    ? t('ui.select.noMatch', { noun: noun.one, query: query.trim() })
+                    : t('ui.select.none', { noun: noun.one })}
               </li>
             )}
             {rows.map((r, i) => {

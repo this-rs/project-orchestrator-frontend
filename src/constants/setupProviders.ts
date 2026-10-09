@@ -1,24 +1,26 @@
 import type { ChatProviderChoice } from '@/atoms/setup'
+import { tr } from '@/i18n/lazy'
 
 /** Wording of the setup wizard's chat-engine choice (one module for the provider-related labels). */
-export const SETUP_CHAT_ENGINE_OPTIONS: ReadonlyArray<{
+export function setupChatEngineOptions(): ReadonlyArray<{
   value: ChatProviderChoice
   label: string
   description: string
-}> = [
-  {
-    value: 'claude-code',
-    label: 'Claude Code',
-    description: 'Uses the Claude Code CLI installed on this machine.',
-  },
-  {
-    value: 'none',
-    label: 'Another provider (configure later)',
-    description: 'Skip for now: add an engine in Settings → Providers after setup.',
-  },
-]
+}> {
+  return [
+    {
+      value: 'claude-code',
+      label: 'Claude Code',
+      description: tr('providers.setup.claudeCodeDescription'),
+    },
+    {
+      value: 'none',
+      label: tr('providers.setup.otherLabel'),
+      description: tr('providers.setup.otherDescription'),
+    },
+  ]
+}
 
-export const SETUP_NO_ENGINE_NOTE =
-  'No engine is set up here. The Claude Code CLI is not required: add a provider in Settings → Providers once the app is running.'
+export const setupNoEngineNote = (): string => tr('providers.setup.noEngineNote')
 
-export const SETUP_LAUNCH_NO_ENGINE_SUMMARY = 'To configure in Settings → Providers'
+export const setupLaunchNoEngineSummary = (): string => tr('providers.setup.launchSummary')

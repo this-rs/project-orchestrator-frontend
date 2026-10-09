@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Input, Textarea } from '@/components/ui'
+import { useT } from '@/i18n'
 
 export interface EditMilestoneFormData {
   title: string
@@ -19,6 +20,7 @@ function toDateInput(value?: string): string {
 }
 
 export function EditMilestoneForm({ initialValues, onSubmit }: Props) {
+  const { t } = useT()
   const [title, setTitle] = useState(initialValues.title)
   const [description, setDescription] = useState(initialValues.description ?? '')
   const [targetDate, setTargetDate] = useState(toDateInput(initialValues.target_date))
@@ -33,7 +35,7 @@ export function EditMilestoneForm({ initialValues, onSubmit }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!title.trim()) errs.title = 'Title is required'
+    if (!title.trim()) errs.title = t('forms.error.title')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -41,15 +43,15 @@ export function EditMilestoneForm({ initialValues, onSubmit }: Props) {
   return {
     fields: (
       <>
-        <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} error={errors.title} autoFocus />
+        <Input label={t('forms.field.title')} value={title} onChange={(e) => setTitle(e.target.value)} error={errors.title} autoFocus />
         <Textarea
-          label="Description"
-          placeholder="Optional description..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.optionalDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={4}
         />
-        <Input label="Target Date" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+        <Input label={t('forms.field.targetDate')} type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
       </>
     ),
     submit: async () => {

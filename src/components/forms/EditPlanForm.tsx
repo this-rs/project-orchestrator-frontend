@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Input, Textarea, Select } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import type { Project } from '@/types'
+import { useT } from '@/i18n'
 
 export interface EditPlanFormData {
   title: string
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function EditPlanForm({ initialValues, onSubmit, workspaceSlug, loading }: Props) {
+  const { t } = useT()
   const [title, setTitle] = useState(initialValues.title)
   const [description, setDescription] = useState(initialValues.description ?? '')
   const [priority, setPriority] = useState(String(initialValues.priority ?? 5))
@@ -42,13 +44,13 @@ export function EditPlanForm({ initialValues, onSubmit, workspaceSlug, loading }
   }, [workspaceSlug])
 
   const projectOptions = [
-    { value: '', label: 'No project' },
+    { value: '', label: t('forms.noProject') },
     ...projects.map((p) => ({ value: p.id, label: p.name })),
   ]
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!title.trim()) errs.title = 'Title is required'
+    if (!title.trim()) errs.title = t('forms.error.title')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -57,8 +59,8 @@ export function EditPlanForm({ initialValues, onSubmit, workspaceSlug, loading }
     fields: (
       <>
         <Input
-          label="Title"
-          placeholder="Plan title"
+          label={t('forms.field.title')}
+          placeholder={t('forms.placeholder.planTitle')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           error={errors.title}
@@ -66,8 +68,8 @@ export function EditPlanForm({ initialValues, onSubmit, workspaceSlug, loading }
           autoFocus
         />
         <Textarea
-          label="Description"
-          placeholder="Describe the plan..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.planDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           disabled={loading}
@@ -75,7 +77,7 @@ export function EditPlanForm({ initialValues, onSubmit, workspaceSlug, loading }
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Input
-            label="Priority"
+            label={t('forms.field.priority')}
             type="number"
             min={1}
             max={10}
@@ -84,7 +86,7 @@ export function EditPlanForm({ initialValues, onSubmit, workspaceSlug, loading }
             disabled={loading}
           />
           <Select
-            label="Project"
+            label={t('forms.field.project')}
             options={projectOptions}
             value={projectId}
             onChange={(value) => setProjectId(value)}

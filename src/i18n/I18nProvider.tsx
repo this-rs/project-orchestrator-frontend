@@ -4,6 +4,7 @@ import { bundleOf, loadLocale } from './store'
 import { createTranslator } from './translate'
 import { I18nContext, type I18nValue } from './context'
 import { initialLocale, rememberLocale } from './preference'
+import { setActiveTranslator } from './active'
 
 /**
  * The page keeps showing the current language until the requested one is loaded: switching never flashes
@@ -36,7 +37,9 @@ export function I18nProvider({ children, initial }: { children: ReactNode; initi
 
   const value = useMemo<I18nValue>(() => {
     const bundle = bundleOf(shown) ?? bundleOf(DEFAULT_LOCALE)!
-    return { ...createTranslator(shown, bundle), requested, setLocale }
+    const translator = createTranslator(shown, bundle)
+    setActiveTranslator(translator)
+    return { ...translator, requested, setLocale }
   }, [shown, requested, setLocale])
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>

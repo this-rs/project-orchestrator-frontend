@@ -9,6 +9,7 @@ import type {
   IntelligenceEntityType,
   IntelligenceRelationType,
 } from '@/types/intelligence'
+import { tr } from '@/i18n/lazy'
 
 // ============================================================================
 // LAYER CONFIGURATION
@@ -17,64 +18,96 @@ import type {
 export const LAYERS: Record<IntelligenceLayer, LayerConfig> = {
   code: {
     id: 'code',
-    label: 'Code',
-    description: 'Files, functions, structs, traits',
+    get label() {
+      return tr('intelConfig.layer.code.label')
+    },
+    get description() {
+      return tr('intelConfig.layer.code.description')
+    },
     color: '#3B82F6', // blue-500
     enabled: true,
     zIndex: 2,
   },
   pm: {
     id: 'pm',
-    label: 'Project',
-    description: 'Plans, tasks, milestones',
+    get label() {
+      return tr('intelConfig.layer.pm.label')
+    },
+    get description() {
+      return tr('intelConfig.layer.pm.description')
+    },
     color: '#10B981', // emerald-500
     enabled: false,
     zIndex: 3,
   },
   knowledge: {
     id: 'knowledge',
-    label: 'Knowledge',
-    description: 'Notes, decisions, constraints',
+    get label() {
+      return tr('intelConfig.layer.knowledge.label')
+    },
+    get description() {
+      return tr('intelConfig.layer.knowledge.description')
+    },
     color: '#F59E0B', // amber-500
     enabled: true,
     zIndex: 4,
   },
   fabric: {
     id: 'fabric',
-    label: 'Fabric',
-    description: 'IMPORTS, CALLS, CO_CHANGED',
+    get label() {
+      return tr('intelConfig.layer.fabric.label')
+    },
+    get description() {
+      return tr('intelConfig.layer.fabric.description')
+    },
     color: '#94A3B8', // slate-400
     enabled: true,
     zIndex: 1,
   },
   neural: {
     id: 'neural',
-    label: 'Neural',
-    description: 'Synapses, energy, activation',
+    get label() {
+      return tr('intelConfig.layer.neural.label')
+    },
+    get description() {
+      return tr('intelConfig.layer.neural.description')
+    },
     color: '#06B6D4', // cyan-500
     enabled: false,
     zIndex: 5,
   },
   skills: {
     id: 'skills',
-    label: 'Skills',
-    description: 'Emergent knowledge clusters',
+    get label() {
+      return tr('intelConfig.layer.skills.label')
+    },
+    get description() {
+      return tr('intelConfig.layer.skills.description')
+    },
     color: '#EC4899', // pink-500
     enabled: false,
     zIndex: 7,
   },
   behavioral: {
     id: 'behavioral',
-    label: 'Behavioral',
-    description: 'Protocols, states, transitions (FSM)',
+    get label() {
+      return tr('intelConfig.layer.behavioral.label')
+    },
+    get description() {
+      return tr('intelConfig.layer.behavioral.description')
+    },
     color: '#F97316', // orange-500
     enabled: false,
     zIndex: 6,
   },
   chat: {
     id: 'chat',
-    label: 'Chat',
-    description: 'Chat sessions & discussed entities',
+    get label() {
+      return tr('intelConfig.layer.chat.label')
+    },
+    get description() {
+      return tr('intelConfig.layer.chat.description')
+    },
     color: '#6366F1', // indigo-500
     enabled: false,
     zIndex: 8,
@@ -192,50 +225,78 @@ export const NODE_SIZES: Record<IntelligenceEntityType, { width: number; height:
 export const VISIBILITY_PRESETS: VisibilityPreset[] = [
   {
     id: 'code_only',
-    label: 'Code',
-    description: 'Architecture code pure',
+    get label() {
+      return tr('intelConfig.preset.code_only.label')
+    },
+    get description() {
+      return tr('intelConfig.preset.code_only.description')
+    },
     layers: ['code', 'fabric'],
     icon: 'Code2',
   },
   {
     id: 'knowledge_overlay',
-    label: 'Knowledge',
-    description: 'Notes & decisions on the code',
+    get label() {
+      return tr('intelConfig.preset.knowledge_overlay.label')
+    },
+    get description() {
+      return tr('intelConfig.preset.knowledge_overlay.description')
+    },
     layers: ['code', 'knowledge', 'fabric'],
     icon: 'BookOpen',
   },
   {
     id: 'neural_view',
-    label: 'Neural',
-    description: 'Neural network, skills & protocols',
+    get label() {
+      return tr('intelConfig.preset.neural_view.label')
+    },
+    get description() {
+      return tr('intelConfig.preset.neural_view.description')
+    },
     layers: ['knowledge', 'neural', 'skills', 'behavioral'],
     icon: 'Brain',
   },
   {
     id: 'pm_view',
-    label: 'Project',
-    description: 'Plans, tasks, milestones',
+    get label() {
+      return tr('intelConfig.preset.pm_view.label')
+    },
+    get description() {
+      return tr('intelConfig.preset.pm_view.description')
+    },
     layers: ['pm'],
     icon: 'KanbanSquare',
   },
   {
     id: 'impact_mode',
-    label: 'Impact',
-    description: 'Analyse d\'impact',
+    get label() {
+      return tr('intelConfig.preset.impact_mode.label')
+    },
+    get description() {
+      return tr('intelConfig.preset.impact_mode.description')
+    },
     layers: ['code', 'knowledge', 'fabric'],
     icon: 'Zap',
   },
   {
     id: 'behavioral_view',
-    label: 'Behavioral',
-    description: 'Protocoles, skills, notes & interconnexions',
+    get label() {
+      return tr('intelConfig.preset.behavioral_view.label')
+    },
+    get description() {
+      return tr('intelConfig.preset.behavioral_view.description')
+    },
     layers: ['behavioral', 'skills', 'knowledge', 'neural'],
     icon: 'Workflow',
   },
   {
     id: 'full_stack',
-    label: 'Full',
-    description: 'All layers',
+    get label() {
+      return tr('intelConfig.preset.full_stack.label')
+    },
+    get description() {
+      return tr('intelConfig.preset.full_stack.description')
+    },
     layers: ['code', 'pm', 'knowledge', 'fabric', 'neural', 'skills', 'behavioral', 'chat'],
     icon: 'Layers',
   },

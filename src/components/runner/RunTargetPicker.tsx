@@ -2,11 +2,11 @@ import { useId } from 'react'
 import { Link } from 'react-router-dom'
 import { aliasesForInstance, healthDotColor, healthLabel, providerUnavailableReason } from '@/constants/providers'
 import {
-  RUN_TARGET_CONSENT_LINK,
-  RUN_TARGET_DEFAULT_MODEL,
-  RUN_TARGET_LABEL,
-  RUN_TARGET_NO_PRICE_TEXT,
-  RUN_TARGET_THIRD_PARTY_TEXT,
+  runTargetConsentLink,
+  runTargetDefaultModel,
+  runTargetLabel,
+  runTargetNoPriceText,
+  runTargetThirdPartyText,
   hasKnownPrice,
   isThirdParty,
   serverDefaultLabel,
@@ -52,7 +52,7 @@ export function RunTargetPicker({ target }: RunTargetPickerProps) {
   return (
     <div data-testid="run-target" className="p-3 bg-white/[0.04] rounded-lg space-y-2">
       <span id={`${base}-label`} className="text-sm font-medium text-gray-300">
-        {RUN_TARGET_LABEL}
+        {runTargetLabel()}
       </span>
 
       <div role="radiogroup" aria-labelledby={`${base}-label`} className="space-y-1">
@@ -82,7 +82,7 @@ export function RunTargetPicker({ target }: RunTargetPickerProps) {
 
       {anyNotAllowed && (
         <Link to="/providers#consent" className="inline-block text-xs text-indigo-300 hover:text-indigo-200 underline underline-offset-2">
-          {RUN_TARGET_CONSENT_LINK}
+          {runTargetConsentLink()}
         </Link>
       )}
 
@@ -97,7 +97,7 @@ export function RunTargetPicker({ target }: RunTargetPickerProps) {
             value={choice.model ?? ''}
             onChange={(e) => setChoice({ ...choice, model: e.target.value || null })}
           >
-            <option value="">{RUN_TARGET_DEFAULT_MODEL}</option>
+            <option value="">{runTargetDefaultModel()}</option>
             {aliases.length > 0 && (
               <optgroup label="Aliases">
                 {aliases.map((a) => (
@@ -122,12 +122,12 @@ export function RunTargetPicker({ target }: RunTargetPickerProps) {
 
       {thirdParty && (
         <p data-testid="run-target-third-party" className="text-xs text-gray-400">
-          {RUN_TARGET_THIRD_PARTY_TEXT}
+          {runTargetThirdPartyText()}
         </p>
       )}
       {unpriced && (
         <p data-testid="run-target-no-price" className="text-xs text-amber-300">
-          {RUN_TARGET_NO_PRICE_TEXT}
+          {runTargetNoPriceText()}
         </p>
       )}
     </div>

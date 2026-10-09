@@ -251,7 +251,7 @@ export interface StoredInstance {
 
 export function normalizeStoredInstance(raw: unknown, id: ProviderId): StoredInstance {
   const r = obj(raw)
-  if (!r) throw new Error(`GET /api/chat/providers/${id} : réponse inattendue`)
+  if (!r) throw new Error(`GET /api/chat/providers/${id} : unexpected response`)
   return {
     id: str(r.id) ?? id,
     kind: str(r.kind) ?? 'openai_compatible',

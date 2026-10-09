@@ -6,9 +6,9 @@
 import { describe, it, expect } from 'vitest'
 import type { ProviderInstance } from '@/types/provider'
 import {
-  PROVIDER_NOT_ALLOWED_TEXT,
-  PROVIDER_SIGN_IN_REQUIRED_TEXT,
-  PROVIDER_UNAVAILABLE_TEXT,
+  providerNotAllowedText,
+  providerSignInRequiredText,
+  providerUnavailableText,
   aliasesForInstance,
   healthDotColor,
   providerModelLabel,
@@ -51,19 +51,19 @@ describe('providerUnavailableReason', () => {
   })
 
   it('says sign-in is required', () => {
-    expect(providerUnavailableReason(instance({ health: { status: 'auth_required' } }))).toBe(PROVIDER_SIGN_IN_REQUIRED_TEXT)
+    expect(providerUnavailableReason(instance({ health: { status: 'auth_required' } }))).toBe(providerSignInRequiredText())
   })
 
   it('gives the last error of an unhealthy instance, or says it is unavailable', () => {
     const error = { code: 'endpoint_unreachable' as const, message: 'Connection refused (127.0.0.1:8080)' }
     expect(providerUnavailableReason(instance({ health: { status: 'unhealthy', error } }))).toBe(error.message)
-    expect(providerUnavailableReason(instance({ health: { status: 'unhealthy' } }))).toBe(PROVIDER_UNAVAILABLE_TEXT)
+    expect(providerUnavailableReason(instance({ health: { status: 'unhealthy' } }))).toBe(providerUnavailableText())
   })
 
   it('puts the project consent before health', () => {
     expect(
       providerUnavailableReason(instance({ allowed_for_project: false, health: { status: 'auth_required' } })),
-    ).toBe(PROVIDER_NOT_ALLOWED_TEXT)
+    ).toBe(providerNotAllowedText())
   })
 })
 

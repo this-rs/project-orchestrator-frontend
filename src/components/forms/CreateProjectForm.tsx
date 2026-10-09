@@ -3,6 +3,7 @@ import { FolderOpen } from 'lucide-react'
 import { Button, Input, Textarea } from '@/components/ui'
 import { isTauri } from '@/services/env'
 import { PROJECT_PROFILE_TEXT } from '@/constants/projectProfile'
+import { useT } from '@/i18n'
 import type { ProjectProfile } from '@/types'
 import { ProjectProfileField } from './ProjectProfileField'
 
@@ -28,6 +29,7 @@ async function pickDirectory(): Promise<string | null> {
 }
 
 export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
+  const { t } = useT()
   const [profile, setProfile] = useState<ProjectProfile>('software')
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
@@ -74,14 +76,14 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
       console.error('Directory picker failed:', e)
       setErrors((prev) => ({
         ...prev,
-        root_path: 'Failed to open folder picker. Rebuild the desktop app.',
+        root_path: t('forms.error.folderPicker'),
       }))
     }
   }
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!name.trim()) errs.name = 'Name is required'
+    if (!name.trim()) errs.name = t('forms.error.name')
     if (withCode && !rootPath.trim()) errs.root_path = PROJECT_PROFILE_TEXT.folder.required
     setErrors(errs)
     return Object.keys(errs).length === 0
@@ -94,22 +96,22 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
           <p className="flex items-center gap-2 text-xs text-gray-400">
             <FolderOpen className="w-3.5 h-3.5 text-gray-500 shrink-0" aria-hidden="true" />
             <span className="min-w-0 break-words">
-              Will be added to <span className="font-medium text-gray-200">{workspaceName}</span>
+              {t('forms.project.addedTo')} <span className="font-medium text-gray-200">{workspaceName}</span>
             </span>
           </p>
         )}
         <ProjectProfileField value={profile} onChange={handleProfileChange} />
         <Input
-          label="Name"
-          placeholder="My Project"
+          label={t('forms.field.name')}
+          placeholder={t('forms.placeholder.projectNameNew')}
           value={name}
           onChange={(e) => handleNameChange(e.target.value)}
           error={errors.name}
           autoFocus
         />
         <Input
-          label="Slug"
-          placeholder="my-project"
+          label={t('forms.field.slug')}
+          placeholder={t('forms.placeholder.projectSlugNew')}
           value={slug}
           onChange={(e) => {
             setSlugTouched(true)
@@ -144,8 +146,8 @@ export function CreateProjectForm({ onSubmit, workspaceName }: Props) {
           </div>
         )}
         <Textarea
-          label="Description"
-          placeholder="Optional description..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.optionalDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}

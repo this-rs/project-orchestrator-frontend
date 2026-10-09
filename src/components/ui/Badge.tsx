@@ -2,6 +2,8 @@ import { useState } from 'react'
 import type { TaskStatus, PlanStatus, NoteStatus, NoteImportance, ReleaseStatus, StepStatus, MilestoneStatus, SkillStatus, DecisionStatus } from '@/types'
 import { Dropdown } from './Dropdown'
 import { Spinner } from './Spinner'
+import { statusLabel } from './statusMeta'
+import { activeTranslator } from '@/i18n/active'
 
 type BadgeVariant = 'default' | 'success' | 'warning' | 'error' | 'info' | 'purple'
 
@@ -34,9 +36,17 @@ export function Badge({ children, variant = 'default', className = '' }: BadgePr
 // STATIC STATUS BADGES
 // ============================================================================
 
-const defaultConfig = { label: 'Unknown', variant: 'default' as BadgeVariant }
-
 type StatusBadgeConfig<T extends string> = Record<T, { label: string; variant: BadgeVariant }>
+
+/** Label (in the language on screen) and colour of a status; `label` in the config is the English fallback. */
+function resolveBadge<T extends string>(
+  config: StatusBadgeConfig<T>,
+  status: T | undefined | null,
+): { label: string; variant: BadgeVariant } {
+  const hit = status ? config[status] : undefined
+  if (!hit || !status) return { label: activeTranslator().t('ui.status.unknown'), variant: 'default' }
+  return { label: statusLabel(status, hit.label), variant: hit.variant }
+}
 
 export const TaskStatusBadge = ({ status }: { status: TaskStatus | undefined | null }) => {
   const config: StatusBadgeConfig<TaskStatus> = {
@@ -46,7 +56,7 @@ export const TaskStatusBadge = ({ status }: { status: TaskStatus | undefined | n
     completed: { label: 'Completed', variant: 'success' },
     failed: { label: 'Failed', variant: 'error' },
   }
-  const { label, variant } = (status && config[status]) || defaultConfig
+  const { label, variant } = resolveBadge(config, status)
   return <Badge variant={variant}>{label}</Badge>
 }
 
@@ -58,7 +68,7 @@ export const PlanStatusBadge = ({ status }: { status: PlanStatus | undefined | n
     completed: { label: 'Completed', variant: 'success' },
     cancelled: { label: 'Cancelled', variant: 'error' },
   }
-  const { label, variant } = (status && config[status]) || defaultConfig
+  const { label, variant } = resolveBadge(config, status)
   return <Badge variant={variant}>{label}</Badge>
 }
 
@@ -70,7 +80,7 @@ export const NoteStatusBadge = ({ status }: { status: NoteStatus | undefined | n
     obsolete: { label: 'Obsolete', variant: 'error' },
     archived: { label: 'Archived', variant: 'default' },
   }
-  const { label, variant } = (status && config[status]) || defaultConfig
+  const { label, variant } = resolveBadge(config, status)
   return <Badge variant={variant}>{label}</Badge>
 }
 
@@ -81,7 +91,7 @@ export const ImportanceBadge = ({ importance }: { importance: NoteImportance | u
     high: { label: 'High', variant: 'warning' },
     critical: { label: 'Critical', variant: 'error' },
   }
-  const { label, variant } = (importance && config[importance]) || defaultConfig
+  const { label, variant } = resolveBadge(config, importance)
   return <Badge variant={variant}>{label}</Badge>
 }
 
@@ -92,7 +102,7 @@ export const ReleaseStatusBadge = ({ status }: { status: ReleaseStatus | undefin
     released: { label: 'Released', variant: 'success' },
     cancelled: { label: 'Cancelled', variant: 'error' },
   }
-  const { label, variant } = (status && config[status]) || defaultConfig
+  const { label, variant } = resolveBadge(config, status)
   return <Badge variant={variant}>{label}</Badge>
 }
 
@@ -105,7 +115,7 @@ export const MilestoneStatusBadge = ({ status }: { status: MilestoneStatus | und
     closed: { label: 'Closed', variant: 'purple' },
   }
   const resolved = status?.toLowerCase() as MilestoneStatus | undefined
-  const { label, variant } = (resolved && config[resolved]) || defaultConfig
+  const { label, variant } = resolveBadge(config, resolved)
   return <Badge variant={variant}>{label}</Badge>
 }
 
@@ -116,7 +126,7 @@ export const StepStatusBadge = ({ status }: { status: StepStatus | undefined | n
     completed: { label: 'Completed', variant: 'success' },
     skipped: { label: 'Skipped', variant: 'warning' },
   }
-  const { label, variant } = (status && config[status]) || defaultConfig
+  const { label, variant } = resolveBadge(config, status)
   return <Badge variant={variant}>{label}</Badge>
 }
 
@@ -141,17 +151,16 @@ function createInteractiveStatusBadge<T extends string>(
   config: StatusBadgeConfig<T>,
   opts?: { normalizeStatus?: boolean },
 ) {
-  const options = (Object.keys(config) as T[]).map((key) => ({
-    value: key,
-    label: config[key].label,
-  }))
-
   return function InteractiveStatusBadge({
     status,
     onStatusChange,
     disabled = false,
   }: InteractiveBadgeProps<T>) {
     const [loading, setLoading] = useState(false)
+    const options = (Object.keys(config) as T[]).map((key) => ({
+      value: key,
+      label: statusLabel(key, config[key].label),
+    }))
 
     const handleChange = async (newStatus: T) => {
       if (newStatus === status) return
@@ -166,7 +175,7 @@ function createInteractiveStatusBadge<T extends string>(
     const resolved = opts?.normalizeStatus
       ? (status?.toLowerCase() as T | undefined)
       : status
-    const { label, variant } = (resolved && config[resolved]) || defaultConfig
+    const { label, variant } = resolveBadge(config, resolved)
 
     if (loading) {
       return (
@@ -244,7 +253,7 @@ export const SkillStatusBadge = ({ status }: { status: SkillStatus | undefined |
     archived: { label: 'Archived', variant: 'default' },
     imported: { label: 'Imported', variant: 'info' },
   }
-  const { label, variant } = (status && config[status]) || defaultConfig
+  const { label, variant } = resolveBadge(config, status)
   return <Badge variant={variant}>{label}</Badge>
 }
 
@@ -263,7 +272,7 @@ export const DecisionStatusBadge = ({ status }: { status: DecisionStatus | undef
     deprecated: { label: 'Deprecated', variant: 'warning' },
     superseded: { label: 'Superseded', variant: 'default' },
   }
-  const { label, variant } = (status && config[status]) || defaultConfig
+  const { label, variant } = resolveBadge(config, status)
   return <Badge variant={variant}>{label}</Badge>
 }
 

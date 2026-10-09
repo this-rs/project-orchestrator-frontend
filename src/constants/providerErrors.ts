@@ -9,6 +9,7 @@
 
 import type { ProviderErrorCode, ProviderErrorInfo } from '@/types/provider'
 import { HARNESS_FEATURES } from './engine'
+import { lazyTexts, tr } from '@/i18n/lazy'
 
 export const PROVIDER_SETTINGS_PATH = '/providers'
 export const VAULT_PATH = '/vault'
@@ -27,56 +28,56 @@ export function providerInstancePath(providerId: string | null | undefined): str
     : PROVIDER_SETTINGS_PATH
 }
 
-export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> = {
-  no_provider: 'No provider available',
-  endpoint_not_allowed: 'Endpoint not allowed for this project',
-  instance_not_found: 'Provider no longer exists',
-  provider_conflict: 'Provider conflict',
-  cli_not_found: 'Command-line tool not found',
-  provider_error: 'The provider failed to open the session',
-  provider_unknown: 'Unknown provider',
-  provider_unavailable: 'Provider unavailable',
-  auth_required: 'Sign-in required',
-  credentials_locked: 'Vault locked',
-  unauthorized: 'Credential refused',
-  endpoint_unreachable: 'Endpoint unreachable',
-  model_no_tools: 'This model cannot call tools',
-  context_too_small: 'Context window too small',
-  rate_limited: 'Rate limited',
-  overloaded: 'Provider overloaded',
-  timeout: 'The provider timed out',
-  process_exited: 'The provider process exited',
-  protocol: 'Unexpected answer from the provider',
-  unsupported: 'Not supported by this provider',
-  turn_in_progress: 'A turn is already running',
-  invalid_request: 'Request refused',
-  closed: 'The session is closed',
-  security_gate_closed: 'Third-party providers are switched off',
-  origin_mismatch: 'The endpoint changed',
-  endpoint_invalid_url: 'Invalid endpoint URL',
-  endpoint_scheme_not_allowed: 'Endpoint scheme not allowed',
-  endpoint_http_outside_loopback: 'Plain http is not allowed here',
-  endpoint_credentials_in_url: 'Credentials in the URL',
-  endpoint_host_missing: 'Endpoint has no host',
-  endpoint_private_address: 'Private address refused',
-  envelope_unbound_token: 'Delegation refused: unbound token',
-  envelope_parent_not_found: 'Delegation refused: parent not found',
-  envelope_depth_exceeded: 'Delegation refused: too deep',
-  envelope_too_many_children: 'Delegation refused: too many children',
-  envelope_cwd_outside_parent: 'Delegation refused: folder outside the parent',
-  envelope_add_dir_outside_parent: 'Delegation refused: extra folder outside the parent',
-  envelope_project_mismatch: 'Delegation refused: other project',
-  envelope_workspace_mismatch: 'Delegation refused: other workspace',
-  envelope_not_a_child: 'Delegation refused: not a child session',
-  tool_not_in_profile: 'Tool not allowed for this session',
-  endpoint_unresolvable: 'Endpoint host not found',
-  endpoint_redirects_not_allowed: 'Redirects are not followed',
-  credential_test_requires_saved_instance: 'Save the instance to test its key',
-  engine_unavailable: 'The engine of this conversation is switched off',
-  invalid_routing_mode: 'Unknown routing mode',
-  invalid_learning_stage: 'Unknown learning stage',
-  invalid_routing_weight: 'Routing weight out of range',
-}
+export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> = lazyTexts<ProviderErrorCode>({
+  no_provider: 'providerErrors.titles.no_provider',
+  endpoint_not_allowed: 'providerErrors.titles.endpoint_not_allowed',
+  instance_not_found: 'providerErrors.titles.instance_not_found',
+  provider_conflict: 'providerErrors.titles.provider_conflict',
+  cli_not_found: 'providerErrors.titles.cli_not_found',
+  provider_error: 'providerErrors.titles.provider_error',
+  provider_unknown: 'providerErrors.titles.provider_unknown',
+  provider_unavailable: 'providerErrors.titles.provider_unavailable',
+  auth_required: 'providerErrors.titles.auth_required',
+  credentials_locked: 'providerErrors.titles.credentials_locked',
+  unauthorized: 'providerErrors.titles.unauthorized',
+  endpoint_unreachable: 'providerErrors.titles.endpoint_unreachable',
+  model_no_tools: 'providerErrors.titles.model_no_tools',
+  context_too_small: 'providerErrors.titles.context_too_small',
+  rate_limited: 'providerErrors.titles.rate_limited',
+  overloaded: 'providerErrors.titles.overloaded',
+  timeout: 'providerErrors.titles.timeout',
+  process_exited: 'providerErrors.titles.process_exited',
+  protocol: 'providerErrors.titles.protocol',
+  unsupported: 'providerErrors.titles.unsupported',
+  turn_in_progress: 'providerErrors.titles.turn_in_progress',
+  invalid_request: 'providerErrors.titles.invalid_request',
+  closed: 'providerErrors.titles.closed',
+  security_gate_closed: 'providerErrors.titles.security_gate_closed',
+  origin_mismatch: 'providerErrors.titles.origin_mismatch',
+  endpoint_invalid_url: 'providerErrors.titles.endpoint_invalid_url',
+  endpoint_scheme_not_allowed: 'providerErrors.titles.endpoint_scheme_not_allowed',
+  endpoint_http_outside_loopback: 'providerErrors.titles.endpoint_http_outside_loopback',
+  endpoint_credentials_in_url: 'providerErrors.titles.endpoint_credentials_in_url',
+  endpoint_host_missing: 'providerErrors.titles.endpoint_host_missing',
+  endpoint_private_address: 'providerErrors.titles.endpoint_private_address',
+  envelope_unbound_token: 'providerErrors.titles.envelope_unbound_token',
+  envelope_parent_not_found: 'providerErrors.titles.envelope_parent_not_found',
+  envelope_depth_exceeded: 'providerErrors.titles.envelope_depth_exceeded',
+  envelope_too_many_children: 'providerErrors.titles.envelope_too_many_children',
+  envelope_cwd_outside_parent: 'providerErrors.titles.envelope_cwd_outside_parent',
+  envelope_add_dir_outside_parent: 'providerErrors.titles.envelope_add_dir_outside_parent',
+  envelope_project_mismatch: 'providerErrors.titles.envelope_project_mismatch',
+  envelope_workspace_mismatch: 'providerErrors.titles.envelope_workspace_mismatch',
+  envelope_not_a_child: 'providerErrors.titles.envelope_not_a_child',
+  tool_not_in_profile: 'providerErrors.titles.tool_not_in_profile',
+  endpoint_unresolvable: 'providerErrors.titles.endpoint_unresolvable',
+  endpoint_redirects_not_allowed: 'providerErrors.titles.endpoint_redirects_not_allowed',
+  credential_test_requires_saved_instance: 'providerErrors.titles.credential_test_requires_saved_instance',
+  engine_unavailable: 'providerErrors.titles.engine_unavailable',
+  invalid_routing_mode: 'providerErrors.titles.invalid_routing_mode',
+  invalid_learning_stage: 'providerErrors.titles.invalid_learning_stage',
+  invalid_routing_weight: 'providerErrors.titles.invalid_routing_weight',
+})
 
 /**
  * French titles for the SETTINGS context (the Providers page and its cards).
@@ -123,8 +124,7 @@ export const RETRY_BY_TESTING_TEXT_FR = 'Cliquez sur Tester pour réessayer.'
  * Trust ("Rock’n roll") refused because the provider has no sandbox
  * (`unsupported` with capability `sandbox`, backend A35).
  */
-export const SANDBOX_TRUST_REFUSED_TEXT =
-  'Le mode « Rock’n roll » est refusé pour cette machine distante : son instance ne l’autorise pas. Activez-le dans les réglages de l’instance, ou choisissez un autre mode (Demander, Éditions auto ou Plan), puis réessayez.'
+export const sandboxTrustRefusedText = (): string => tr('providerErrors.sandboxTrustRefused')
 
 export function isSandboxRefusal(
   error: Pick<ProviderErrorInfo, 'code' | 'capability' | 'message'>
@@ -159,11 +159,9 @@ export function harnessGapOf(
 /** `12 s`, `2 min` — how long a rate limit asks to wait. */
 export function formatRetryDelay(ms: number): string {
   const seconds = Math.max(1, Math.ceil(ms / 1000))
-  if (seconds < 90) return `${seconds} s`
-  return `${Math.ceil(seconds / 60)} min`
+  if (seconds < 90) return tr('providerErrors.delay.seconds', { n: seconds })
+  return tr('providerErrors.delay.minutes', { n: Math.ceil(seconds / 60) })
 }
-
-const tokens = (n: number) => n.toLocaleString('en-US')
 
 /** What happened and what to do, in one or two sentences. Never carries a credential. */
 export function providerErrorExplanation(
@@ -171,120 +169,86 @@ export function providerErrorExplanation(
   projectSlug?: string | null
 ): string {
   switch (error.code) {
-    case 'no_provider':
-      return 'No provider instance is healthy and allowed for this project, so a conversation cannot be started. Add or repair one in the provider settings.'
     case 'endpoint_not_allowed': {
       const project = error.project_slug ?? projectSlug
-      const who = project ? `Project "${project}"` : 'This project'
-      const where = error.origin ? ` to ${error.origin}` : ' to this endpoint'
-      return `${who} has not agreed to send its content${where}. Nothing was sent.`
+      return tr('providerErrors.explain.endpoint_not_allowed', {
+        who: project ? tr('providerErrors.explain.whoProject', { project }) : tr('providerErrors.explain.whoThis'),
+        where: error.origin ? tr('providerErrors.explain.toOrigin', { origin: error.origin }) : tr('providerErrors.explain.toThis'),
+      })
     }
-    case 'auth_required':
-      return 'This provider needs you to sign in. Run the command below in a terminal, then re-check. Project Orchestrator does not sign in for you.'
-    case 'credentials_locked':
-      return 'The credential of this provider is in the vault, and the vault is locked. Unlock it to continue. There is no fallback to another provider.'
-    case 'unauthorized':
-      return 'The provider refused the credential of this instance. Check the key it refers to in the instance settings.'
-    case 'endpoint_unreachable':
-      return 'The endpoint of this provider did not answer.'
     case 'model_no_tools':
-      return `${error.model ? `Model "${error.model}"` : 'This model'} cannot call tools, which a conversation here requires. Choose another model.`
+      return tr('providerErrors.explain.model_no_tools', {
+        subject: error.model ? tr('providerErrors.explain.modelNamed', { model: error.model }) : tr('providerErrors.explain.modelThis'),
+      })
     case 'context_too_small': {
       const sizes =
         error.needed != null && error.available != null
-          ? ` ${tokens(error.needed)} tokens are needed, ${tokens(error.available)} are available.`
+          ? tr('providerErrors.explain.sizesBoth', { needed: error.needed, available: error.available })
           : error.needed != null
-            ? ` ${tokens(error.needed)} tokens are needed.`
+            ? tr('providerErrors.explain.sizesNeeded', { needed: error.needed })
             : error.available != null
-              ? ` Only ${tokens(error.available)} tokens are available.`
+              ? tr('providerErrors.explain.sizesAvailable', { available: error.available })
               : ''
-      return `The context window of this model is too small for this conversation.${sizes} Choose a model with a larger window.`
+      return sizes
+        ? tr('providerErrors.explain.context_too_small', { sizes })
+        : tr('providerErrors.explain.context_too_small_plain')
     }
-    case 'instance_not_found':
-      return 'The provider instance this conversation ran on has been deleted. It cannot be resumed: start a new conversation.'
     case 'cli_not_found':
-      return `${error.program ? `"${error.program}"` : 'The command-line tool of this provider'} is not installed on the server, or not on its PATH.`
+      return error.program
+        ? tr('providerErrors.explain.cli_not_found', { program: error.program })
+        : tr('providerErrors.explain.cli_not_found_generic')
     case 'rate_limited':
       return error.retry_after_ms != null
-        ? `The provider is rate limiting requests. Try again in ${formatRetryDelay(error.retry_after_ms)}.`
-        : 'The provider is rate limiting requests. Try again in a moment.'
-    case 'overloaded':
-      return 'The provider is overloaded right now.'
-    case 'timeout':
-      return 'The provider did not answer in time.'
-    case 'process_exited':
-      return 'The process of this provider stopped unexpectedly.'
-    case 'protocol':
-      return 'The provider sent an answer that could not be understood.'
+        ? tr('providerErrors.explain.rate_limited_in', { delay: formatRetryDelay(error.retry_after_ms) })
+        : tr('providerErrors.explain.rate_limited')
     case 'unsupported':
-      if (isSandboxRefusal(error)) return SANDBOX_TRUST_REFUSED_TEXT
+      if (isSandboxRefusal(error)) return sandboxTrustRefusedText()
       return error.capability
-        ? `This provider does not support "${error.capability}".`
-        : 'This provider does not support what was asked.'
+        ? tr('providerErrors.explain.unsupported_capability', { capability: error.capability })
+        : tr('providerErrors.explain.unsupported')
+    case 'no_provider':
+    case 'auth_required':
+    case 'credentials_locked':
+    case 'unauthorized':
+    case 'endpoint_unreachable':
+    case 'instance_not_found':
+    case 'overloaded':
+    case 'timeout':
+    case 'process_exited':
+    case 'protocol':
     case 'turn_in_progress':
-      return 'The previous message is still being answered. Wait for it to finish, or stop it.'
     case 'invalid_request':
-      return 'The provider refused the request as invalid.'
     case 'closed':
-      return 'This session has been closed by its provider.'
     case 'provider_conflict':
-      return 'This conversation already runs on another provider. A conversation stays on its provider.'
     case 'provider_error':
-      return 'The provider could not open the session. Try again, or choose another provider.'
     case 'provider_unknown':
-      return 'The provider named in this request is not configured on this server. Choose one of the listed instances.'
     case 'provider_unavailable':
-      return 'This provider is not available right now: it is unhealthy, refused by the security gate, or this conversation was opened on the agent engine and the server is no longer running it. Try another instance, check its settings, or ask whoever runs the server to switch the agent engine back on.'
     case 'security_gate_closed':
-      return 'Third-party providers need authentication to be enabled on this server, so that sessions get signed, bound tokens. Turn authentication on, then add the instance again. Claude Code is not affected.'
     case 'origin_mismatch':
-      return 'The instance no longer points at the endpoint you were shown, so your consent was not recorded. Reload the settings and review the endpoint before allowing it.'
     case 'endpoint_invalid_url':
-      return 'The base URL is not a valid URL. Enter it in full, for example https://api.example.com/v1.'
     case 'endpoint_scheme_not_allowed':
-      return 'Only https is accepted, and http only for localhost. Change the scheme of the base URL.'
     case 'endpoint_http_outside_loopback':
-      return 'Plain http is only accepted for localhost, 127.0.0.1 and ::1. Use https for any other host.'
     case 'endpoint_credentials_in_url':
-      return 'The base URL contains a user name or password. Remove it: keys are given as a vault or environment reference, never inside the URL.'
     case 'endpoint_host_missing':
-      return 'The base URL has no host. Enter it in full, for example https://api.example.com/v1.'
     case 'endpoint_private_address':
-      return 'The host resolves to a private or internal address, which the server refuses to call. Use a public endpoint, or localhost for a local model.'
     case 'envelope_unbound_token':
-      return 'This request came with a token that is not bound to a session, so it cannot start a child session.'
     case 'envelope_parent_not_found':
-      return 'The parent session of this delegation does not exist any more.'
     case 'envelope_depth_exceeded':
-      return 'This delegation chain is already as deep as allowed. Do the work in the current session instead.'
     case 'envelope_too_many_children':
-      return 'This session already has as many live child sessions as allowed. Wait for one to finish.'
     case 'envelope_cwd_outside_parent':
-      return "A child session cannot work in a folder outside its parent's folder."
     case 'envelope_add_dir_outside_parent':
-      return "A child session cannot be given an extra folder outside its parent's folders."
     case 'envelope_project_mismatch':
-      return 'A child session must stay in the project of its parent.'
     case 'envelope_workspace_mismatch':
-      return 'A child session must stay in the workspace of its parent.'
     case 'envelope_not_a_child':
-      return 'This session is not a child of the session that tried to act on it.'
     case 'tool_not_in_profile':
-      return 'This session is not allowed to call that tool. Third-party providers get a restricted tool profile.'
     case 'endpoint_unresolvable':
-      return 'The server could not resolve the host name of this endpoint. Check the spelling of the base URL and that the server can reach DNS, then test again.'
     case 'endpoint_redirects_not_allowed':
-      return 'The endpoint answered with a redirect, which the server does not follow (a key could be sent to another host). Use the final URL as the base URL.'
     case 'credential_test_requires_saved_instance':
-      return 'A test that uses a key is only run on an instance that is already saved, with the same endpoint and key reference. Save the instance first, then test it again.'
     case 'engine_unavailable':
-      return 'This conversation was opened on the agent engine, and the server no longer runs it, so it cannot be resumed. Start a new conversation, or ask whoever runs the server to switch the agent engine back on (CHAT_PROVIDER_PATH).'
     case 'invalid_routing_mode':
-      return 'The routing mode must be primary, mixed or full.'
     case 'invalid_learning_stage':
-      return 'The learning stage must be shadow, advisory or auto.'
     case 'invalid_routing_weight':
-      return 'A routing weight or the exploration rate is out of its allowed range. Exploration must be between 0 and 1; weights cannot be negative.'
+      return tr(`providerErrors.explain.${error.code}`)
   }
 }
 
@@ -292,7 +256,6 @@ export function providerErrorExplanation(
 export const NO_PROVIDER_ERROR: ProviderErrorInfo = { code: 'no_provider', message: '' }
 
 /** Shown with a composer disabled because nothing can receive the message. */
-export const NO_PROVIDER_COMPOSER_TEXT = 'No provider is available: a message cannot be sent.'
-export const INSTANCE_MISSING_COMPOSER_TEXT =
-  'The provider of this conversation has been deleted: it cannot be resumed. Start a new conversation.'
-export const RETRY_BY_SENDING_TEXT = 'Send your message again to retry.'
+export const noProviderComposerText = (): string => tr('providerErrors.noProviderComposer')
+export const instanceMissingComposerText = (): string => tr('providerErrors.instanceMissingComposer')
+export const retryBySendingText = (): string => tr('providerErrors.retryBySending')

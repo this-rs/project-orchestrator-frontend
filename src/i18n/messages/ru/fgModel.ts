@@ -1,0 +1,48 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  other: 'Другое',
+  noFile: 'Нет сведений о файле',
+  listAnd: '{head} и {last}',
+  asyncNoun: 'Асинхронная сущность: {noun}',
+  nounInFile: '{noun} в {file}',
+  takes: 'принимает {params}',
+  takesNothing: 'ничего не принимает',
+  takesReturns: '{takes}, возвращает {returns}',
+  noun: {
+    function: 'Функция',
+    file: 'Исходный файл',
+    struct: 'Структура данных',
+    enum: 'Перечисление',
+    trait: 'Трейт',
+    other: 'Сущность кода',
+  },
+  type: { function: 'Функция', file: 'Файл', struct: 'Структура', enum: 'Перечисление', trait: 'Трейт' },
+  typePlural: { function: 'Функции', file: 'Файлы', struct: 'Структуры', enum: 'Перечисления', trait: 'Трейты' },
+  level: { key: 'Ключевой', supporting: 'Вспомогательный', minor: 'Второстепенный' },
+  rolePlain: {
+    entry_point: { word: 'Точка входа', plain: 'точка входа в функциональность' },
+    core_logic: { word: 'Основная логика', plain: 'выполняет основную работу функциональности' },
+    api_surface: { word: 'Публичный API', plain: 'вызывается извне функциональности' },
+    data_model: { word: 'Модель данных', plain: 'данные, которые несёт функциональность' },
+    trait_contract: { word: 'Контракт', plain: 'контракт, на который опирается функциональность' },
+    support: { word: 'Помощник', plain: 'вспомогательный код вокруг функциональности' },
+  },
+  role: {
+    entry_point: { label: 'Точки входа', description: 'Где начинается функциональность (функция, от которой строился граф).' },
+    core_logic: { label: 'Основная логика', description: 'Функции и файлы, которые выполняют основную работу.' },
+    api_surface: { label: 'Поверхность API', description: 'Что вызывают другие части кода.' },
+    data_model: { label: 'Модели данных', description: 'Структуры и перечисления, несущие данные функциональности.' },
+    trait_contract: { label: 'Контракты трейтов', description: 'Трейты, которые функциональность реализует или использует.' },
+    support: { label: 'Поддержка', description: 'Помощники и утилиты вокруг функциональности.' },
+  },
+  relation: {
+    related: 'Связано',
+    CALLS: { label: 'Вызывает', description: 'Одна функция вызывает другую.' },
+    IMPORTS: { label: 'Импортирует', description: 'Один файл импортирует другой.' },
+    EXTENDS: { label: 'Расширяет', description: 'Один тип расширяет другой.' },
+    IMPLEMENTS: { label: 'Реализует', description: 'Тип реализует трейт.' },
+    IMPLEMENTS_TRAIT: { label: 'Impl трейта', description: 'Блок impl относится к трейту.' },
+    IMPLEMENTS_FOR: { label: 'Impl для', description: 'Блок impl относится к типу.' },
+  },
+} satisfies Translation<'fgModel'>

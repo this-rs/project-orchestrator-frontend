@@ -1,3 +1,5 @@
+import { useT } from '@/i18n'
+
 interface SkeletonProps {
   className?: string
   width?: string
@@ -61,10 +63,11 @@ export function EntityRowSkeleton({ meta = true }: { meta?: boolean }) {
 
 /** Loading state for an EntityList: `rows` placeholder rows inside the same card surface. */
 export function EntityListSkeleton({ rows = 6, className = '' }: { rows?: number; className?: string }) {
+  const { t } = useT()
   return (
     <div
       role="status"
-      aria-label="Loading"
+      aria-label={t('ui.loading')}
       className={`rounded-xl border border-white/[0.06] bg-white/[0.02] divide-y divide-white/[0.05] overflow-hidden ${className}`}
     >
       {Array.from({ length: rows }).map((_, i) => (

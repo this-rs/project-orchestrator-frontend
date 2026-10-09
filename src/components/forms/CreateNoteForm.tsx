@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Textarea, Select, Input } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import type { Project, NoteType, NoteImportance } from '@/types'
+import { useT } from '@/i18n'
 
 export interface CreateNoteFormData {
   project_id: string
@@ -17,25 +18,24 @@ interface Props {
   workspaceSlug?: string
 }
 
-const typeOptions = [
-  { value: 'guideline', label: 'Guideline' },
-  { value: 'gotcha', label: 'Gotcha' },
-  { value: 'pattern', label: 'Pattern' },
-  { value: 'context', label: 'Context' },
-  { value: 'tip', label: 'Tip' },
-  { value: 'observation', label: 'Observation' },
-  { value: 'assertion', label: 'Assertion' },
-]
-
-const importanceOptions = [
-  { value: '', label: 'Default' },
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'critical', label: 'Critical' },
-]
-
 export function CreateNoteForm({ onSubmit, defaultProjectId, workspaceSlug }: Props) {
+  const { t } = useT()
+  const typeOptions = [
+    { value: 'guideline', label: t('forms.noteType.guideline') },
+    { value: 'gotcha', label: t('forms.noteType.gotcha') },
+    { value: 'pattern', label: t('forms.noteType.pattern') },
+    { value: 'context', label: t('forms.noteType.context') },
+    { value: 'tip', label: t('forms.noteType.tip') },
+    { value: 'observation', label: t('forms.noteType.observation') },
+    { value: 'assertion', label: t('forms.noteType.assertion') },
+  ]
+  const importanceOptions = [
+    { value: '', label: t('forms.default') },
+    { value: 'low', label: t('ui.status.low') },
+    { value: 'medium', label: t('ui.status.medium') },
+    { value: 'high', label: t('ui.status.high') },
+    { value: 'critical', label: t('ui.status.critical') },
+  ]
   const [projectId, setProjectId] = useState(defaultProjectId || '')
   const [noteType, setNoteType] = useState<string>('guideline')
   const [content, setContent] = useState('')
@@ -53,13 +53,13 @@ export function CreateNoteForm({ onSubmit, defaultProjectId, workspaceSlug }: Pr
   }, [workspaceSlug])
 
   const projectOptions = [
-    { value: '', label: 'Global (cross-project)' },
+    { value: '', label: t('forms.globalProject') },
     ...projects.map((p) => ({ value: p.id, label: p.name })),
   ]
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!content.trim()) errs.content = 'Content is required'
+    if (!content.trim()) errs.content = t('forms.error.content')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -68,7 +68,7 @@ export function CreateNoteForm({ onSubmit, defaultProjectId, workspaceSlug }: Pr
     fields: (
       <>
         <Select
-          label="Project"
+          label={t('forms.field.project')}
           options={projectOptions}
           value={projectId}
           onChange={(value) => setProjectId(value)}
@@ -76,21 +76,21 @@ export function CreateNoteForm({ onSubmit, defaultProjectId, workspaceSlug }: Pr
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Select
-            label="Type"
+            label={t('forms.field.type')}
             options={typeOptions}
             value={noteType}
             onChange={(value) => setNoteType(value)}
           />
           <Select
-            label="Importance"
+            label={t('forms.field.importance')}
             options={importanceOptions}
             value={importance}
             onChange={(value) => setImportance(value)}
           />
         </div>
         <Textarea
-          label="Content"
-          placeholder="Write the note content..."
+          label={t('forms.field.content')}
+          placeholder={t('forms.placeholder.noteContent')}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           error={errors.content}
@@ -98,8 +98,8 @@ export function CreateNoteForm({ onSubmit, defaultProjectId, workspaceSlug }: Pr
           rows={5}
         />
         <Input
-          label="Tags"
-          placeholder="Comma-separated tags"
+          label={t('forms.field.tags')}
+          placeholder={t('forms.placeholder.tags')}
           value={tags}
           onChange={(e) => setTags(e.target.value)}
         />

@@ -13,7 +13,7 @@ const OPTIONS: SearchableOption[] = [
   { value: 'qwen-coder', label: 'Qwen Édition Coder', description: 'outils : non' },
   { value: 'llama-3', label: 'Llama 3' },
 ]
-const NOUN = { one: 'modèle', other: 'modèles' }
+const NOUN = { one: 'model', other: 'models' }
 
 function Harness(props: Partial<React.ComponentProps<typeof SearchableSelect>> & { initial?: string }) {
   const [value, setValue] = useState(props.initial ?? '')
@@ -46,16 +46,16 @@ describe('SearchableSelect', () => {
   it('shows the count and the secondary line of each option', () => {
     render(<Harness />)
     open()
-    expect(screen.getByText('3 modèles')).toBeTruthy()
+    expect(screen.getByText('3 models')).toBeTruthy()
     expect(screen.getByText('outils : oui · 1 048 576 tokens')).toBeTruthy()
   })
 
-  it('filters by id and by label, ignoring case and accents, and counts "n sur total"', () => {
+  it('filters by id and by label, ignoring case and accents, and counts "n of total"', () => {
     render(<Harness />)
     open()
     type('FLASH')
     expect(names()).toEqual(['deepseek-flashoutils : oui · 1 048 576 tokens'])
-    expect(screen.getByText('1 sur 3')).toBeTruthy()
+    expect(screen.getByText('1 of 3')).toBeTruthy()
     type('edition')
     expect(names().length).toBe(1)
     expect(names()[0]).toContain('Qwen Édition Coder')
@@ -77,7 +77,7 @@ describe('SearchableSelect', () => {
     render(<Harness />)
     open()
     type('xyz')
-    expect(screen.getByText('Aucun modèle ne correspond à « xyz »')).toBeTruthy()
+    expect(screen.getByText('No model matches “xyz”')).toBeTruthy()
     expect(screen.queryAllByRole('option').length).toBe(0)
   })
 
@@ -153,18 +153,18 @@ describe('SearchableSelect', () => {
     expect(box().value).toBe('Aucun')
   })
 
-  it('allowCustom offers « Utiliser “xyz” » last, and only when the text is not an option', () => {
+  it('allowCustom offers “Use xyz” last, and only when the text is not an option', () => {
     const onChange = vi.fn()
     render(<Harness allowCustom onChange={onChange} />)
     open()
-    expect(names().some((n) => n?.includes('Utiliser'))).toBe(false)
+    expect(names().some((n) => n?.includes('Use'))).toBe(false)
     type('llama-3')
-    expect(names().some((n) => n?.includes('Utiliser'))).toBe(false)
+    expect(names().some((n) => n?.includes('Use'))).toBe(false)
     type('xyz')
     // The empty state is still said, above the offer to use the text as is.
-    expect(screen.getByText('Aucun modèle ne correspond à « xyz »')).toBeTruthy()
+    expect(screen.getByText('No model matches “xyz”')).toBeTruthy()
     const last = screen.getAllByRole('option').at(-1)!
-    expect(last.textContent).toBe('Utiliser “xyz”')
+    expect(last.textContent).toBe('Use “xyz”')
     fireEvent.keyDown(box(), { key: 'Enter' })
     expect(onChange).toHaveBeenCalledWith('xyz')
     expect(box().value).toBe('xyz')
@@ -174,7 +174,7 @@ describe('SearchableSelect', () => {
     render(<Harness allowCustom initial="mon-modele" />)
     expect(box().value).toBe('mon-modele')
     open()
-    expect(screen.getByText(/hors liste/)).toBeTruthy()
+    expect(screen.getByText(/not in the list/)).toBeTruthy()
   })
 
   it('is disabled and does not open', () => {
@@ -187,7 +187,7 @@ describe('SearchableSelect', () => {
   it('shows a loading state', () => {
     render(<Harness options={[]} loading />)
     open()
-    expect(within(screen.getByRole('listbox')).getByText('Chargement…')).toBeTruthy()
+    expect(within(screen.getByRole('listbox')).getByText('Loading…')).toBeTruthy()
     expect(box().closest('[aria-busy="true"]')).toBeTruthy()
   })
 

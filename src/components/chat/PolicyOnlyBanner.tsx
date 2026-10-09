@@ -1,5 +1,5 @@
 import { ShieldAlert } from 'lucide-react'
-import { POLICY_ONLY_DETAIL, POLICY_ONLY_TEXT } from '@/constants/capabilities'
+import { policyOnlyDetail, policyOnlyText } from '@/constants/capabilities'
 import { panelGlass } from '@/components/ui/panelGlass'
 
 /**
@@ -15,8 +15,8 @@ export function PolicyOnlyBanner() {
     >
       <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
       <p className="min-w-0">
-        <span className="font-medium text-amber-100">{POLICY_ONLY_TEXT}</span>{' '}
-        <span className="text-amber-200/80">{POLICY_ONLY_DETAIL}</span>
+        <span className="font-medium text-amber-100">{policyOnlyText()}</span>{' '}
+        <span className="text-amber-200/80">{policyOnlyDetail()}</span>
       </p>
     </div>
   )

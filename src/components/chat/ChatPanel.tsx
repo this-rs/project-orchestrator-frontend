@@ -9,8 +9,8 @@ import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen,
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
 import { describeSessionProvider, providerUnavailableReason } from '@/constants/providers'
-import { INSTANCE_MISSING_COMPOSER_TEXT, NO_PROVIDER_COMPOSER_TEXT, NO_PROVIDER_ERROR } from '@/constants/providerErrors'
-import { RESUME_UNSUPPORTED_TEXT } from '@/constants/capabilities'
+import { instanceMissingComposerText, noProviderComposerText, NO_PROVIDER_ERROR } from '@/constants/providerErrors'
+import { resumeUnsupportedText } from '@/constants/capabilities'
 import type { BackgroundTaskInfo } from '@/types'
 import { chatApi } from '@/services/chat'
 import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2 } from 'lucide-react'
@@ -256,11 +256,11 @@ export function ChatPanel() {
   const cannotResume = !isNewConversation && !capabilities.resume && sessionLive === false
   /** Why the composer is off, when a provider state (not a missing project) is the reason. */
   const composerBlockedReason = noProvider
-    ? NO_PROVIDER_COMPOSER_TEXT
+    ? noProviderComposerText()
     : instanceMissing
-      ? INSTANCE_MISSING_COMPOSER_TEXT
+      ? instanceMissingComposerText()
       : cannotResume
-        ? RESUME_UNSUPPORTED_TEXT
+        ? resumeUnsupportedText()
         : null
   const composerDisabled = (isNewConversation && !hasContext) || composerBlockedReason !== null
 

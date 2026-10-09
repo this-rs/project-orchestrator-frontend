@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Input, Textarea, Select } from '@/components/ui'
 import type { AutoBuildFeatureGraphRequest } from '@/types'
+import { useT } from '@/i18n'
 
 interface Props {
   projects: { id: string; name: string }[]
@@ -8,13 +9,14 @@ interface Props {
 }
 
 const RELATION_OPTIONS = [
-  { key: 'CALLS', label: 'Calls', defaultOn: true },
-  { key: 'IMPORTS', label: 'Imports', defaultOn: true },
-  { key: 'EXTENDS', label: 'Extends', defaultOn: false },
-  { key: 'IMPLEMENTS', label: 'Implements', defaultOn: false },
-]
+  { key: 'CALLS', label: 'forms.autoBuild.calls', defaultOn: true },
+  { key: 'IMPORTS', label: 'forms.autoBuild.imports', defaultOn: true },
+  { key: 'EXTENDS', label: 'forms.autoBuild.extends', defaultOn: false },
+  { key: 'IMPLEMENTS', label: 'forms.autoBuild.implements', defaultOn: false },
+] as const
 
 export function AutoBuildFeatureGraphForm({ projects, onSubmit }: Props) {
+  const { t } = useT()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [projectId, setProjectId] = useState(projects[0]?.id || '')
@@ -34,9 +36,9 @@ export function AutoBuildFeatureGraphForm({ projects, onSubmit }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!name.trim()) errs.name = 'Name is required'
-    if (!projectId) errs.project_id = 'Project is required'
-    if (!entryFunction.trim()) errs.entry_function = 'Entry function is required'
+    if (!name.trim()) errs.name = t('forms.error.name')
+    if (!projectId) errs.project_id = t('forms.error.project')
+    if (!entryFunction.trim()) errs.entry_function = t('forms.error.entryFunction')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -45,50 +47,44 @@ export function AutoBuildFeatureGraphForm({ projects, onSubmit }: Props) {
     fields: (
       <div className="space-y-4">
         <Select
-          label="Project"
+          label={t('forms.field.project')}
           options={projectOptions}
           value={projectId}
           onChange={setProjectId}
           error={errors.project_id}
         />
         <Input
-          label="Name"
-          placeholder="Feature graph name"
+          label={t('forms.field.name')}
+          placeholder={t('forms.placeholder.featureGraphName')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           error={errors.name}
           autoFocus
         />
         <Textarea
-          label="Description"
-          placeholder="Describe this feature graph..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.featureGraphDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={2}
         />
 
         <div className="border-t border-white/[0.06] pt-4">
-          <h4 className="text-sm font-medium text-gray-300 mb-1">Build Configuration</h4>
-          <p className="text-xs text-gray-500 mb-3">
-            Auto-build starts from one function of the project and follows its calls (callers and callees), then adds
-            the related types and traits.
-          </p>
+          <h4 className="text-sm font-medium text-gray-300 mb-1">{t('forms.autoBuild.title')}</h4>
+          <p className="text-xs text-gray-500 mb-3">{t('forms.autoBuild.intro')}</p>
 
           <Input
-            label="Entry Function"
-            placeholder="e.g. handle_request"
+            label={t('forms.autoBuild.entryFunction')}
+            placeholder={t('forms.autoBuild.entryPlaceholder')}
             value={entryFunction}
             onChange={(e) => setEntryFunction(e.target.value)}
             error={errors.entry_function}
           />
-          <p className="mt-1 text-xs text-gray-500">
-            Exact name of a function already indexed in the project (case-sensitive, without its file path). Sync the
-            project first if it was never analysed.
-          </p>
+          <p className="mt-1 text-xs text-gray-500">{t('forms.autoBuild.entryHelp')}</p>
 
           <div className="mt-3">
             <label className="block text-sm font-medium text-gray-300 mb-1">
-              Depth <span className="text-gray-500 font-normal">({depth})</span>
+              {t('forms.autoBuild.depth')} <span className="text-gray-500 font-normal">({depth})</span>
             </label>
             <input
               type="range"
@@ -99,20 +95,20 @@ export function AutoBuildFeatureGraphForm({ projects, onSubmit }: Props) {
               className="w-full accent-indigo-500"
             />
             <div className="flex justify-between text-xs text-gray-500 mt-0.5">
-              <span>1 (focused)</span>
-              <span>5 (broad)</span>
+              <span>{t('forms.autoBuild.depthFocused')}</span>
+              <span>{t('forms.autoBuild.depthBroad')}</span>
             </div>
             <p className="mt-1 text-xs text-gray-500" data-testid="depth-hint">
               {depth <= 2
-                ? 'How many call hops to follow from the entry function. Usually a few dozen entities.'
+                ? t('forms.autoBuild.depthHintLow')
                 : depth === 3
-                  ? 'Follows calls three hops away: can reach a few hundred entities.'
-                  : 'Deep builds can pull in hundreds or thousands of entities, and the graph becomes hard to read. Prefer 2 or 3 unless you need the full reach.'}
+                  ? t('forms.autoBuild.depthHintMid')
+                  : t('forms.autoBuild.depthHintHigh')}
             </p>
           </div>
 
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-300 mb-2">Include Relations</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">{t('forms.autoBuild.relations')}</label>
             <div className="flex flex-wrap gap-2">
               {RELATION_OPTIONS.map((rel) => (
                 <button
@@ -125,7 +121,7 @@ export function AutoBuildFeatureGraphForm({ projects, onSubmit }: Props) {
                       : 'bg-white/[0.04] text-gray-500 hover:bg-white/[0.08]'
                   }`}
                 >
-                  {rel.label}
+                  {t(rel.label)}
                 </button>
               ))}
             </div>
@@ -144,11 +140,9 @@ export function AutoBuildFeatureGraphForm({ projects, onSubmit }: Props) {
             </div>
             <div>
               <span className="text-sm text-gray-300 group-hover:text-gray-200 transition-colors">
-                Filter by community
+                {t('forms.autoBuild.community')}
               </span>
-              <p className="text-xs text-gray-500">
-                Only include functions in the same Louvain community as the entry point
-              </p>
+              <p className="text-xs text-gray-500">{t('forms.autoBuild.communityHelp')}</p>
             </div>
           </label>
         </div>

@@ -11,6 +11,7 @@
 import { useState } from 'react'
 import { AlertCircle, Download, Loader2, RotateCw, X } from 'lucide-react'
 import { useUpdateCheck } from '@/hooks'
+import { useT } from '@/i18n'
 import { ExternalLink } from '@/components/ui/ExternalLink'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
@@ -18,6 +19,7 @@ const ACTION_BTN =
   'inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-60'
 
 export function WebUpdateBanner() {
+  const { t } = useT()
   const {
     updateAvailable,
     latestVersion,
@@ -56,21 +58,21 @@ export function WebUpdateBanner() {
 
           <p className="text-sm text-blue-800 dark:text-blue-200">
             {restarting ? (
-              <>Restarting to apply version {staged ?? latestVersion}…</>
+              <>{t('ui.webUpdate.restarting', { version: staged ?? latestVersion ?? '' })}</>
             ) : installing ? (
-              <>Downloading version {latestVersion}…</>
+              <>{t('ui.webUpdate.downloading', { version: latestVersion ?? '' })}</>
             ) : staged ? (
               <>
-                <span className="font-medium">Version {staged}</span> is installed and ready.{' '}
-                {status?.restart_supported
-                  ? 'Restart the server to apply it.'
-                  : 'Restart the server manually to apply it.'}
+                <span className="font-medium">{t('ui.webUpdate.version', { version: staged })}</span>{' '}
+                {t('ui.webUpdate.installedReady')}{' '}
+                {status?.restart_supported ? t('ui.webUpdate.restartToApply') : t('ui.webUpdate.restartManually')}
               </>
             ) : (
               <>
-                <span className="font-medium">Version {latestVersion}</span> is available
+                <span className="font-medium">{t('ui.webUpdate.version', { version: latestVersion ?? '' })}</span>{' '}
+                {t('ui.webUpdate.available')}
                 {currentVersion && (
-                  <span className="text-blue-600 dark:text-blue-400"> (current: {currentVersion})</span>
+                  <span className="text-blue-600 dark:text-blue-400"> {t('ui.webUpdate.current', { version: currentVersion })}</span>
                 )}
                 {releaseUrl && (
                   <>
@@ -79,37 +81,37 @@ export function WebUpdateBanner() {
                       href={releaseUrl}
                       className="font-medium underline hover:text-blue-900 dark:hover:text-blue-100"
                     >
-                      View release notes
+                      {t('ui.webUpdate.releaseNotes')}
                     </ExternalLink>
                   </>
                 )}
               </>
             )}
             {status && !status.self_update_supported && !staged && !installing && status.update_hint && (
-              <span className="text-blue-700 dark:text-blue-300"> · To update: {status.update_hint}</span>
+              <span className="text-blue-700 dark:text-blue-300"> · {t('ui.webUpdate.toUpdate', { hint: status.update_hint })}</span>
             )}
           </p>
         </div>
 
         <div className="flex flex-shrink-0 items-center gap-2">
-          {(installing || restarting) && <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-label="Installing" />}
+          {(installing || restarting) && <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-label={t('ui.webUpdate.installing')} />}
           {canInstall && (
             <button onClick={install} disabled={acting} className={ACTION_BTN}>
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
-              {installError ? 'Retry install' : 'Install update'}
+              {installError ? t('ui.webUpdate.retryInstall') : t('ui.webUpdate.install')}
             </button>
           )}
           {staged && !restarting && status?.restart_supported && (
             <button onClick={() => setConfirmRestart(true)} disabled={acting} className={ACTION_BTN}>
               <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
-              Restart now
+              {t('ui.webUpdate.restartNow')}
             </button>
           )}
           {!pending && (
             <button
               onClick={dismiss}
               className="rounded p-1 text-blue-400 transition-colors hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900 dark:hover:text-blue-300"
-              aria-label="Dismiss update notification"
+              aria-label={t('ui.webUpdate.dismiss')}
             >
               <X className="h-4 w-4" />
             </button>
@@ -119,7 +121,7 @@ export function WebUpdateBanner() {
 
       {(installError || actionError) && (
         <p className="mx-auto mt-1.5 max-w-7xl text-xs text-red-600 dark:text-red-400" role="alert">
-          {installError ? `Install failed: ${installError}` : actionError}
+          {installError ? t('ui.webUpdate.installFailed', { error: installError }) : actionError}
         </p>
       )}
 
@@ -130,9 +132,9 @@ export function WebUpdateBanner() {
           await restart()
           setConfirmRestart(false)
         }}
-        title="Restart the server?"
-        description={`Version ${staged ?? ''} will start. Running conversations are interrupted and the app reconnects in a few seconds.`}
-        confirmLabel="Restart now"
+        title={t('ui.webUpdate.restartTitle')}
+        description={t('ui.webUpdate.restartDescription', { version: staged ?? '' })}
+        confirmLabel={t('ui.webUpdate.restartNow')}
         variant="warning"
       />
     </div>

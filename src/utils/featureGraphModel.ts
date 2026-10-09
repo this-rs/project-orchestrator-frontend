@@ -1,6 +1,7 @@
 import dagre from 'dagre'
 import type { FeatureGraphEntity, FeatureGraphRelation } from '@/types'
 import { entityCodeName, entityTitle } from './featureGraphReadable'
+import { tr } from '@/i18n/lazy'
 
 // ============================================================================
 // Vocabulary (single source for the page, the legend and the help text)
@@ -8,16 +9,31 @@ import { entityCodeName, entityTitle } from './featureGraphReadable'
 
 export const ROLE_ORDER = ['entry_point', 'core_logic', 'data_model', 'trait_contract', 'api_surface', 'support'] as const
 
-export const ROLE_META: Record<string, { label: string; description: string; weight: number }> = {
-  entry_point: { label: 'Entry Points', description: 'Where the feature starts (the function you built from).', weight: 6 },
-  core_logic: { label: 'Core Logic', description: 'The functions and files doing the actual work.', weight: 5 },
-  api_surface: { label: 'API Surface', description: 'What other parts of the code call into.', weight: 4 },
-  data_model: { label: 'Data Models', description: 'Structs and enums carrying the feature data.', weight: 3 },
-  trait_contract: { label: 'Trait Contracts', description: 'Traits the feature implements or relies on.', weight: 2 },
-  support: { label: 'Support', description: 'Helpers and utilities around the feature.', weight: 1 },
+type Role = (typeof ROLE_ORDER)[number]
+
+/** A role of the vocabulary; its words are read when used, so they follow the language on screen. */
+function roleMeta(role: Role, weight: number): { label: string; description: string; weight: number } {
+  return {
+    get label() {
+      return tr(`fgModel.role.${role}.label`)
+    },
+    get description() {
+      return tr(`fgModel.role.${role}.description`)
+    },
+    weight,
+  }
 }
 
-export const roleLabel = (role: string | undefined) => (role && ROLE_META[role]?.label) || 'Other'
+export const ROLE_META: Record<string, { label: string; description: string; weight: number }> = {
+  entry_point: roleMeta('entry_point', 6),
+  core_logic: roleMeta('core_logic', 5),
+  api_surface: roleMeta('api_surface', 4),
+  data_model: roleMeta('data_model', 3),
+  trait_contract: roleMeta('trait_contract', 2),
+  support: roleMeta('support', 1),
+}
+
+export const roleLabel = (role: string | undefined) => (role && ROLE_META[role]?.label) || tr('fgModel.other')
 
 export interface EntityTypeColors {
   bg: string
@@ -27,12 +43,26 @@ export interface EntityTypeColors {
   label: string
 }
 
+type EntityKind = 'function' | 'file' | 'struct' | 'trait' | 'enum'
+
+function typeMeta(kind: EntityKind, bg: string, border: string, text: string): EntityTypeColors {
+  return {
+    bg,
+    border,
+    text,
+    minimap: border,
+    get label() {
+      return tr(`fgModel.type.${kind}`)
+    },
+  }
+}
+
 export const ENTITY_TYPE_META: Record<string, EntityTypeColors> = {
-  function: { bg: '#052e16', border: '#22c55e', text: '#86efac', minimap: '#22c55e', label: 'Function' },
-  file: { bg: '#172554', border: '#3b82f6', text: '#93c5fd', minimap: '#3b82f6', label: 'File' },
-  struct: { bg: '#2e1065', border: '#a855f7', text: '#d8b4fe', minimap: '#a855f7', label: 'Struct' },
-  trait: { bg: '#431407', border: '#f97316', text: '#fdba74', minimap: '#f97316', label: 'Trait' },
-  enum: { bg: '#022c22', border: '#10b981', text: '#6ee7b7', minimap: '#10b981', label: 'Enum' },
+  function: typeMeta('function', '#052e16', '#22c55e', '#86efac'),
+  file: typeMeta('file', '#172554', '#3b82f6', '#93c5fd'),
+  struct: typeMeta('struct', '#2e1065', '#a855f7', '#d8b4fe'),
+  trait: typeMeta('trait', '#431407', '#f97316', '#fdba74'),
+  enum: typeMeta('enum', '#022c22', '#10b981', '#6ee7b7'),
 }
 
 export const DEFAULT_ENTITY_COLORS: EntityTypeColors = {
@@ -40,7 +70,9 @@ export const DEFAULT_ENTITY_COLORS: EntityTypeColors = {
   border: '#6b7280',
   text: '#d1d5db',
   minimap: '#6b7280',
-  label: 'Other',
+  get label() {
+    return tr('fgModel.other')
+  },
 }
 
 export const entityColors = (type: string) => ENTITY_TYPE_META[type] ?? DEFAULT_ENTITY_COLORS
@@ -52,16 +84,38 @@ export interface RelationStyle {
   description: string
 }
 
-export const RELATION_META: Record<string, RelationStyle> = {
-  CALLS: { stroke: '#6b7280', dashed: false, label: 'Calls', description: 'A function calls another.' },
-  IMPORTS: { stroke: '#60a5fa', dashed: true, label: 'Imports', description: 'A file imports another.' },
-  EXTENDS: { stroke: '#a855f7', dashed: false, label: 'Extends', description: 'A type extends another.' },
-  IMPLEMENTS: { stroke: '#f97316', dashed: false, label: 'Implements', description: 'A type implements a trait.' },
-  IMPLEMENTS_TRAIT: { stroke: '#f97316', dashed: false, label: 'Impl Trait', description: 'An impl block targets a trait.' },
-  IMPLEMENTS_FOR: { stroke: '#f59e0b', dashed: true, label: 'Impl For', description: 'An impl block targets a type.' },
+type RelationKind = 'CALLS' | 'IMPORTS' | 'EXTENDS' | 'IMPLEMENTS' | 'IMPLEMENTS_TRAIT' | 'IMPLEMENTS_FOR'
+
+function relationMeta(kind: RelationKind, stroke: string, dashed: boolean): RelationStyle {
+  return {
+    stroke,
+    dashed,
+    get label() {
+      return tr(`fgModel.relation.${kind}.label`)
+    },
+    get description() {
+      return tr(`fgModel.relation.${kind}.description`)
+    },
+  }
 }
 
-export const DEFAULT_RELATION: RelationStyle = { stroke: '#4b5563', dashed: false, label: 'Related', description: '' }
+export const RELATION_META: Record<string, RelationStyle> = {
+  CALLS: relationMeta('CALLS', '#6b7280', false),
+  IMPORTS: relationMeta('IMPORTS', '#60a5fa', true),
+  EXTENDS: relationMeta('EXTENDS', '#a855f7', false),
+  IMPLEMENTS: relationMeta('IMPLEMENTS', '#f97316', false),
+  IMPLEMENTS_TRAIT: relationMeta('IMPLEMENTS_TRAIT', '#f97316', false),
+  IMPLEMENTS_FOR: relationMeta('IMPLEMENTS_FOR', '#f59e0b', true),
+}
+
+export const DEFAULT_RELATION: RelationStyle = {
+  stroke: '#4b5563',
+  dashed: false,
+  get label() {
+    return tr('fgModel.relation.related')
+  },
+  description: '',
+}
 
 export const relationStyle = (type: string) => RELATION_META[type] ?? DEFAULT_RELATION
 

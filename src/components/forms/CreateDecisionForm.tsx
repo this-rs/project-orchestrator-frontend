@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Input, Textarea } from '@/components/ui'
+import { useT } from '@/i18n'
 
 export interface CreateDecisionFormData {
   description: string
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function CreateDecisionForm({ onSubmit }: Props) {
+  const { t } = useT()
   const [description, setDescription] = useState('')
   const [rationale, setRationale] = useState('')
   const [alternatives, setAlternatives] = useState('')
@@ -21,8 +23,8 @@ export function CreateDecisionForm({ onSubmit }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!description.trim()) errs.description = 'Description is required'
-    if (!rationale.trim()) errs.rationale = 'Rationale is required'
+    if (!description.trim()) errs.description = t('forms.error.description')
+    if (!rationale.trim()) errs.rationale = t('forms.error.rationale')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -31,30 +33,30 @@ export function CreateDecisionForm({ onSubmit }: Props) {
     fields: (
       <>
         <Input
-          label="Description"
-          placeholder="What was decided?"
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.decision')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={errors.description}
           autoFocus
         />
         <Textarea
-          label="Rationale"
-          placeholder="Why was this decision made?"
+          label={t('forms.field.rationale')}
+          placeholder={t('forms.placeholder.rationale')}
           value={rationale}
           onChange={(e) => setRationale(e.target.value)}
           error={errors.rationale}
           rows={3}
         />
         <Input
-          label="Alternatives"
-          placeholder="Comma-separated alternatives considered"
+          label={t('forms.field.alternatives')}
+          placeholder={t('forms.placeholder.alternatives')}
           value={alternatives}
           onChange={(e) => setAlternatives(e.target.value)}
         />
         <Input
-          label="Chosen Option"
-          placeholder="The selected option (optional)"
+          label={t('forms.field.chosenOption')}
+          placeholder={t('forms.placeholder.chosenOption')}
           value={chosenOption}
           onChange={(e) => setChosenOption(e.target.value)}
         />

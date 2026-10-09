@@ -8,31 +8,30 @@
 import { isClaudeCodeProvider, type CostBasis, type ProviderInstance, type ResolvedDefault } from '@/types/provider'
 import type { AgentExecution } from '@/types'
 import { providerModelLabel, routedByLabel } from './providers'
+import { tr } from '@/i18n/lazy'
 
-export const RUN_TARGET_LABEL = 'Provider / model'
-export const RUN_TARGET_DEFAULT_MODEL = 'Provider default model'
-export const RUN_TARGET_CONSENT_LINK = 'Allow this project in provider settings'
-export const RUN_TARGET_THIRD_PARTY_TEXT =
-  'Runs on a third-party provider: tools ask for approval or follow a restricted profile. A run on this provider never bypasses permissions.'
-export const RUN_TARGET_NO_PRICE_TEXT =
-  'This provider has no known price, so a budget in USD could never trigger. Set a token budget instead.'
+export const runTargetLabel = (): string => tr('providers.run.target')
+export const runTargetDefaultModel = (): string => tr('providers.run.defaultModel')
+export const runTargetConsentLink = (): string => tr('providers.run.consentLink')
+export const runTargetThirdPartyText = (): string => tr('providers.run.thirdParty')
+export const runTargetNoPriceText = (): string => tr('providers.run.noPrice')
 
 export const RUN_BUDGET_USD_DISABLED_ID = 'run-budget-usd-disabled'
-export const RUN_BUDGET_TOKENS_LABEL = 'Token budget'
-export const RUN_BUDGET_TOKENS_HELP = 'Execution stops when input and output tokens reach this limit.'
+export const runBudgetTokensLabel = (): string => tr('providers.run.tokensBudget')
+export const runBudgetTokensHelp = (): string => tr('providers.run.tokensBudgetHelp')
 
-export const TASK_MODEL_ALIAS_LABEL = 'Model alias'
-export const TASK_MODEL_ALIAS_INHERIT = 'Inherit (no override)'
-export const TASK_MODEL_ALIAS_HELP = 'Which model this task runs on. Empty: it inherits the run, project or server default.'
+export const taskModelAliasLabel = (): string => tr('providers.run.modelAlias')
+export const taskModelAliasInherit = (): string => tr('providers.run.modelAliasInherit')
+export const taskModelAliasHelp = (): string => tr('providers.run.modelAliasHelp')
 
 /** Label of the "nothing chosen" option: the server default, and which rule made it the default. */
 export function serverDefaultLabel(
   providers: readonly ProviderInstance[],
   resolved: ResolvedDefault | null | undefined,
 ): string {
-  if (!resolved) return 'Server default'
+  if (!resolved) return tr('providers.run.serverDefault')
   const label = providers.find((p) => p.id === resolved.provider)?.label || resolved.provider
-  return `Server default (${label}, ${routedByLabel(resolved.routed_by)})`
+  return tr('providers.run.serverDefaultWith', { provider: label, rule: routedByLabel(resolved.routed_by) })
 }
 
 /**
@@ -71,13 +70,13 @@ export interface ExecutionRouting {
   retry: number | null
 }
 
-const FALLBACK_REASON_LABELS: Readonly<Record<string, string>> = {
-  provider_unavailable: 'provider unavailable',
-  rate_limited: 'rate limited',
-  context_too_long: 'context too long',
-  budget: 'budget',
-  fallback: 'fallback',
-}
+const FALLBACK_REASON_KEYS = {
+  provider_unavailable: 'providers.run.reason.provider_unavailable',
+  rate_limited: 'providers.run.reason.rate_limited',
+  context_too_long: 'providers.run.reason.context_too_long',
+  budget: 'providers.run.reason.budget',
+  fallback: 'providers.run.reason.fallback',
+} as const
 
 /** What an execution record says about where it ran — nothing invented for fields it lacks. */
 export function describeExecutionRouting(exec: Pick<
@@ -88,9 +87,13 @@ export function describeExecutionRouting(exec: Pick<
   const requested = exec.model_requested || exec.model_alias || null
   const differs = !!ran && !!requested && requested !== ran
   const rawReason = exec.fallback_reason || null
-  const reason = rawReason ? FALLBACK_REASON_LABELS[rawReason] ?? rawReason.replace(/_/g, ' ') : null
+  const reason = rawReason
+    ? rawReason in FALLBACK_REASON_KEYS
+      ? tr(FALLBACK_REASON_KEYS[rawReason as keyof typeof FALLBACK_REASON_KEYS])
+      : rawReason.replace(/_/g, ' ')
+    : null
   const chosenBy = exec.route_rule
-    ? `rule ${exec.route_rule}`
+    ? tr('providers.run.rule', { rule: exec.route_rule })
     : exec.routed_by
       ? routedByLabel(exec.routed_by)
       : null

@@ -9,7 +9,7 @@ import { ToolContent, getToolSummary, getToolIcon } from './tools'
 import { useElapsedMs, formatDurationShort } from './useElapsedMs'
 import { useChatCapabilities, useChatSessionId } from './ChatSessionContext'
 import { useBlockProviderKind } from './useBlockProviderKind'
-import { TOOL_CANCEL_UNSUPPORTED_TEXT } from '@/constants/capabilities'
+import { toolCancelUnsupportedText } from '@/constants/capabilities'
 import { ChevronRight, Square } from 'lucide-react'
 
 const MCP_PREFIX = 'mcp__project-orchestrator__'
@@ -165,7 +165,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
             title={
               stopSupported
                 ? "Stop this tool (sends SIGINT to the running subprocess; the agent's turn continues)"
-                : TOOL_CANCEL_UNSUPPORTED_TEXT
+                : toolCancelUnsupportedText()
             }
             className={`ml-2 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono transition-colors shrink-0 ${
               stopSupported
@@ -177,7 +177,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
             stop
             {!stopSupported && (
               <span id={stopHelpId} className="sr-only">
-                {TOOL_CANCEL_UNSUPPORTED_TEXT}
+                {toolCancelUnsupportedText()}
               </span>
             )}
           </span>

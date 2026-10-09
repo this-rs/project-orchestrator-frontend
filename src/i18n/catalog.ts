@@ -13,6 +13,20 @@ import type projects from './messages/en/projects.ts'
 import type nav from './messages/en/nav.ts'
 import type routing from './messages/en/routing.ts'
 import type session from './messages/en/session.ts'
+import type ui from './messages/en/ui.ts'
+import type forms from './messages/en/forms.ts'
+import type composer from './messages/en/composer.ts'
+import type shell from './messages/en/shell.ts'
+import type nomenclature from './messages/en/nomenclature.ts'
+import type glossary from './messages/en/glossary.ts'
+import type toolPolicy from './messages/en/toolPolicy.ts'
+import type activity from './messages/en/activity.ts'
+import type fgModel from './messages/en/fgModel.ts'
+import type setupOidc from './messages/en/setupOidc.ts'
+import type app from './messages/en/app.ts'
+import type providers from './messages/en/providers.ts'
+import type providerErrors from './messages/en/providerErrors.ts'
+import type intelConfig from './messages/en/intelConfig.ts'
 
 interface EnglishMessages {
   common: typeof common
@@ -24,10 +38,27 @@ interface EnglishMessages {
   nav: typeof nav
   routing: typeof routing
   session: typeof session
+  ui: typeof ui
+  forms: typeof forms
+  composer: typeof composer
+  shell: typeof shell
+  nomenclature: typeof nomenclature
+  glossary: typeof glossary
+  toolPolicy: typeof toolPolicy
+  activity: typeof activity
+  fgModel: typeof fgModel
+  setupOidc: typeof setupOidc
+  app: typeof app
+  providers: typeof providers
+  providerErrors: typeof providerErrors
+  intelConfig: typeof intelConfig
 }
 
 export type Ns = keyof EnglishMessages
-export const NAMESPACES = ['common', 'nav', 'routing', 'session', 'architecture', 'code', 'featureGraphs', 'graph', 'projects'] as const satisfies readonly Ns[]
+export const NAMESPACES = [
+  'common', 'nav', 'routing', 'session', 'architecture', 'code', 'featureGraphs', 'graph', 'projects',
+  'ui', 'forms', 'composer', 'shell', 'nomenclature', 'glossary', 'toolPolicy', 'activity', 'fgModel', 'setupOidc', 'app', 'providers', 'providerErrors', 'intelConfig',
+] as const satisfies readonly Ns[]
 
 /** Every other language is a (possibly partial) overlay of the same shape. */
 export type Translation<N extends Ns> = DeepPartial<EnglishMessages[N]>

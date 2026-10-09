@@ -1,4 +1,5 @@
 import type { FeatureGraphEntity, FeatureGraphRelation } from '@/types'
+import { tr } from '@/i18n/lazy'
 
 // ============================================================================
 // Making entities speak: humanized title, one-line explanation, file, importance.
@@ -6,22 +7,37 @@ import type { FeatureGraphEntity, FeatureGraphRelation } from '@/types'
 // and uses the enriched fields (file_path, docstring, signature, line_start) when present.
 // ============================================================================
 
-export const ROLE_PLAIN: Record<string, { word: string; plain: string; weight: number }> = {
-  entry_point: { word: 'Entry point', plain: 'entry point of the feature', weight: 6 },
-  core_logic: { word: 'Core logic', plain: 'does the core work of the feature', weight: 5 },
-  api_surface: { word: 'Public API', plain: 'called from outside the feature', weight: 4 },
-  data_model: { word: 'Data model', plain: 'data carried by the feature', weight: 3 },
-  trait_contract: { word: 'Contract', plain: 'contract the feature relies on', weight: 2 },
-  support: { word: 'Helper', plain: 'helper around the feature', weight: 1 },
+type PlainRole = 'entry_point' | 'core_logic' | 'api_surface' | 'data_model' | 'trait_contract' | 'support'
+
+/** A role in words, read when used (so it follows the language on screen). */
+function plainRole(role: PlainRole, weight: number): { word: string; plain: string; weight: number } {
+  return {
+    get word() {
+      return tr(`fgModel.rolePlain.${role}.word`)
+    },
+    get plain() {
+      return tr(`fgModel.rolePlain.${role}.plain`)
+    },
+    weight,
+  }
 }
 
-const TYPE_NOUN: Record<string, string> = {
-  function: 'Function',
-  file: 'Source file',
-  struct: 'Data structure',
-  enum: 'Enumeration',
-  trait: 'Trait',
+export const ROLE_PLAIN: Record<string, { word: string; plain: string; weight: number }> = {
+  entry_point: plainRole('entry_point', 6),
+  core_logic: plainRole('core_logic', 5),
+  api_surface: plainRole('api_surface', 4),
+  data_model: plainRole('data_model', 3),
+  trait_contract: plainRole('trait_contract', 2),
+  support: plainRole('support', 1),
 }
+
+const TYPE_NOUN_KEYS = {
+  function: 'fgModel.noun.function',
+  file: 'fgModel.noun.file',
+  struct: 'fgModel.noun.struct',
+  enum: 'fgModel.noun.enum',
+  trait: 'fgModel.noun.trait',
+} as const
 
 /** Last meaningful segment of an identifier ("src/a.rs::Foo::bar" → "bar", "src/a/b.rs" → "b.rs"). */
 function lastSegment(raw: string): string {
@@ -166,23 +182,26 @@ export function parseSignature(signature: string | undefined): ParsedSignature |
 }
 
 const list = (items: string[]) =>
-  items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+  items.length <= 1
+    ? items.join('')
+    : tr('fgModel.listAnd', { head: items.slice(0, -1).join(', '), last: items[items.length - 1] })
 
 export function roleWord(role: string | undefined): string {
-  return (role && ROLE_PLAIN[role]?.word) || 'Other'
+  return (role && ROLE_PLAIN[role]?.word) || tr('fgModel.other')
 }
 
 /** Deterministic plain-language sentence when no docstring exists. */
 export function derivedSummary(e: FeatureGraphEntity): string {
   const sig = e.entity_type === 'function' ? parseSignature(e.signature) : undefined
-  let noun = TYPE_NOUN[e.entity_type] ?? 'Code entity'
-  if (sig?.async) noun = `Async ${noun.toLowerCase()}`
+  const nounKey = TYPE_NOUN_KEYS[e.entity_type as keyof typeof TYPE_NOUN_KEYS]
+  let noun = nounKey ? tr(nounKey) : tr('fgModel.noun.other')
+  if (sig?.async) noun = tr('fgModel.asyncNoun', { noun: noun.toLowerCase() })
   const file = entityFile(e)
-  let out = file && e.entity_type !== 'file' ? `${noun} in ${file}` : noun
-  if (e.entity_type === 'file' && file?.includes('/')) out = `${noun} in ${file.slice(0, file.lastIndexOf('/'))}/`
+  let out = file && e.entity_type !== 'file' ? tr('fgModel.nounInFile', { noun, file }) : noun
+  if (e.entity_type === 'file' && file?.includes('/')) out = tr('fgModel.nounInFile', { noun, file: `${file.slice(0, file.lastIndexOf('/'))}/` })
   if (sig) {
-    const takes = sig.params.length ? `takes ${list(sig.params)}` : 'takes no input'
-    out += ` — ${takes}${sig.returns ? `, returns ${sig.returns}` : ''}`
+    const takes = sig.params.length ? tr('fgModel.takes', { params: list(sig.params) }) : tr('fgModel.takesNothing')
+    out += ` — ${sig.returns ? tr('fgModel.takesReturns', { takes, returns: sig.returns }) : takes}`
   }
   const plain = e.role ? ROLE_PLAIN[e.role]?.plain : undefined
   if (plain) out += ` · ${plain}`
@@ -202,7 +221,11 @@ export interface Importance {
   label: string
 }
 
-const LEVEL_LABEL: Record<ImportanceLevel, string> = { key: 'Key', supporting: 'Supporting', minor: 'Minor' }
+const LEVEL_LABEL_KEYS = {
+  key: 'fgModel.level.key',
+  supporting: 'fgModel.level.supporting',
+  minor: 'fgModel.level.minor',
+} as const
 
 export function entityImportance(e: FeatureGraphEntity): Importance {
   let v = e.importance_score
@@ -212,7 +235,7 @@ export function entityImportance(e: FeatureGraphEntity): Importance {
   } else if (v > 1) v = v / 100
   const value = Math.min(1, Math.max(0, v))
   const level: ImportanceLevel = value >= 0.66 ? 'key' : value >= 0.33 ? 'supporting' : 'minor'
-  return { value, level, label: LEVEL_LABEL[level] }
+  return { value, level, label: tr(LEVEL_LABEL_KEYS[level]) }
 }
 
 // ----------------------------------------------------------------------------
@@ -237,8 +260,27 @@ export interface EntityView {
   haystack: string
 }
 
-const TYPE_LABEL: Record<string, string> = { function: 'Function', file: 'File', struct: 'Struct', enum: 'Enum', trait: 'Trait' }
-export const typeLabel = (t: string) => TYPE_LABEL[t] ?? (t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Other')
+const TYPE_LABEL_KEYS = {
+  function: 'fgModel.type.function',
+  file: 'fgModel.type.file',
+  struct: 'fgModel.type.struct',
+  enum: 'fgModel.type.enum',
+  trait: 'fgModel.type.trait',
+} as const
+const TYPE_PLURAL_KEYS = {
+  function: 'fgModel.typePlural.function',
+  file: 'fgModel.typePlural.file',
+  struct: 'fgModel.typePlural.struct',
+  enum: 'fgModel.typePlural.enum',
+  trait: 'fgModel.typePlural.trait',
+} as const
+export const typeLabel = (t: string) =>
+  t in TYPE_LABEL_KEYS
+    ? tr(TYPE_LABEL_KEYS[t as keyof typeof TYPE_LABEL_KEYS])
+    : t
+      ? t.charAt(0).toUpperCase() + t.slice(1)
+      : tr('fgModel.other')
+const typePlural = (t: string) => (t in TYPE_PLURAL_KEYS ? tr(TYPE_PLURAL_KEYS[t as keyof typeof TYPE_PLURAL_KEYS]) : `${typeLabel(t)}s`)
 
 export function buildEntityView(entity: FeatureGraphEntity, index: number): EntityView {
   const doc = firstSentence(entity.docstring)
@@ -316,10 +358,10 @@ export function groupEntityViews(
     items.sort(by === 'file' ? byLine : byImportance)
     if (by === 'file') {
       return key === NO_FILE
-        ? { key, path: ['No file information'], label: 'No file information', views: items }
+        ? { key, path: [tr('fgModel.noFile')], label: tr('fgModel.noFile'), views: items }
         : { key, path: key.split('/').filter(Boolean), label: key, views: items }
     }
-    const label = by === 'role' ? roleLabelOf(key) : `${typeLabel(key)}s`
+    const label = by === 'role' ? roleLabelOf(key) : typePlural(key)
     return { key, path: [label], label, views: items }
   })
 }

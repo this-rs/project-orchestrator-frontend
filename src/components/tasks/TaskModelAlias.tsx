@@ -2,9 +2,9 @@ import { useId, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { providersAtom } from '@/atoms'
 import {
-  TASK_MODEL_ALIAS_HELP,
-  TASK_MODEL_ALIAS_INHERIT,
-  TASK_MODEL_ALIAS_LABEL,
+  taskModelAliasHelp,
+  taskModelAliasInherit,
+  taskModelAliasLabel,
 } from '@/constants/runProviders'
 import { aliasesForInstance } from '@/constants/providers'
 import { useProviders } from '@/hooks/useProviders'
@@ -44,7 +44,7 @@ export function TaskModelAlias({ value, onChange }: TaskModelAliasProps) {
   return (
     <div data-testid="task-model-alias" className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
       <label htmlFor={id} className="text-xs text-gray-400">
-        {TASK_MODEL_ALIAS_LABEL}
+        {taskModelAliasLabel()}
       </label>
       <select
         id={id}
@@ -63,7 +63,7 @@ export function TaskModelAlias({ value, onChange }: TaskModelAliasProps) {
           }
         }}
       >
-        <option value="">{TASK_MODEL_ALIAS_INHERIT}</option>
+        <option value="">{taskModelAliasInherit()}</option>
         {names.map((n) => (
           <option key={n} value={n}>
             {n}
@@ -71,7 +71,7 @@ export function TaskModelAlias({ value, onChange }: TaskModelAliasProps) {
         ))}
       </select>
       <p id={`${id}-help`} className="basis-full text-[11px] text-gray-500">
-        {TASK_MODEL_ALIAS_HELP}
+        {taskModelAliasHelp()}
       </p>
     </div>
   )

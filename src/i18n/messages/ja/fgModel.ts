@@ -1,0 +1,48 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  other: 'その他',
+  noFile: 'ファイル情報なし',
+  listAnd: '{head}と{last}',
+  asyncNoun: '非同期の{noun}',
+  nounInFile: '{file} 内の{noun}',
+  takes: '{params} を受け取る',
+  takesNothing: '入力なし',
+  takesReturns: '{takes}、{returns} を返す',
+  noun: {
+    function: '関数',
+    file: 'ソースファイル',
+    struct: 'データ構造',
+    enum: '列挙型',
+    trait: 'トレイト',
+    other: 'コード要素',
+  },
+  type: { function: '関数', file: 'ファイル', struct: '構造体', enum: '列挙型', trait: 'トレイト' },
+  typePlural: { function: '関数', file: 'ファイル', struct: '構造体', enum: '列挙型', trait: 'トレイト' },
+  level: { key: '重要', supporting: '補助', minor: '軽微' },
+  rolePlain: {
+    entry_point: { word: 'エントリーポイント', plain: '機能の入口' },
+    core_logic: { word: 'コアロジック', plain: '機能の中心となる処理を行う' },
+    api_surface: { word: '公開 API', plain: '機能の外から呼び出される' },
+    data_model: { word: 'データモデル', plain: '機能が扱うデータ' },
+    trait_contract: { word: '契約', plain: '機能が依拠する契約' },
+    support: { word: 'ヘルパー', plain: '機能を補助するもの' },
+  },
+  role: {
+    entry_point: { label: 'エントリーポイント', description: '機能の起点（構築の元になった関数）。' },
+    core_logic: { label: 'コアロジック', description: '実際の処理を行う関数とファイル。' },
+    api_surface: { label: 'API サーフェス', description: 'コードの他の部分から呼び出されるもの。' },
+    data_model: { label: 'データモデル', description: '機能のデータを保持する構造体と列挙型。' },
+    trait_contract: { label: 'トレイトの契約', description: '機能が実装または依拠するトレイト。' },
+    support: { label: 'サポート', description: '機能を取り巻くヘルパーとユーティリティ。' },
+  },
+  relation: {
+    related: '関連',
+    CALLS: { label: '呼び出し', description: '関数が別の関数を呼び出す。' },
+    IMPORTS: { label: 'インポート', description: 'ファイルが別のファイルをインポートする。' },
+    EXTENDS: { label: '継承', description: '型が別の型を継承する。' },
+    IMPLEMENTS: { label: '実装', description: '型がトレイトを実装する。' },
+    IMPLEMENTS_TRAIT: { label: 'トレイトの impl', description: 'impl ブロックがトレイトを対象にする。' },
+    IMPLEMENTS_FOR: { label: '型への impl', description: 'impl ブロックが型を対象にする。' },
+  },
+} satisfies Translation<'fgModel'>

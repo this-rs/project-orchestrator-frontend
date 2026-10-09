@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import { MetaLine } from './MetaLine'
+import { useT } from '@/i18n'
 import { OverflowMenu, type OverflowMenuAction } from './OverflowMenu'
 import { TONE_CLASSES, type StatusTone } from './statusMeta'
 import { NOMENCLATURE, tintStyle, type ConceptKey } from '@/constants/nomenclature'
@@ -104,6 +105,7 @@ export function EntityCard({
   as: Tag = 'li',
   className = '',
 }: EntityCardProps) {
+  const { t } = useT()
   const Icon = icon ?? NOMENCLATURE[concept].icon
   const menuName = menuLabel ?? ariaLabel ?? (typeof title === 'string' ? title : undefined)
   const titleColor = selected ? 'text-gray-50' : muted ? 'text-gray-400' : 'text-gray-100'
@@ -128,7 +130,7 @@ export function EntityCard({
   )
 
   const menu = Array.isArray(actions) ? (
-    <OverflowMenu actions={actions as OverflowMenuAction[]} size="sm" label={menuName ? `Actions for ${menuName}` : 'Card actions'} />
+    <OverflowMenu actions={actions as OverflowMenuAction[]} size="sm" label={menuName ? t('ui.actionsFor', { name: menuName }) : t('ui.cardActions')} />
   ) : (
     actions
   )

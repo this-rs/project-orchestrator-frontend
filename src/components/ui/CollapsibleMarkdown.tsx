@@ -2,6 +2,7 @@ import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { ChevronDown } from 'lucide-react'
 import { ExternalLink } from '@/components/ui/ExternalLink'
+import { useT } from '@/i18n'
 
 const markdownComponents = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -24,6 +25,7 @@ export function CollapsibleMarkdown({
   maxHeight = 120,
   className,
 }: CollapsibleMarkdownProps) {
+  const { t } = useT()
   const [expanded, setExpanded] = useState(false)
   const [needsCollapse, setNeedsCollapse] = useState(false)
 
@@ -62,7 +64,7 @@ export function CollapsibleMarkdown({
           <ChevronDown
             className={`w-3 h-3 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
           />
-          {expanded ? 'Show less' : 'Show more'}
+          {expanded ? t('ui.showLess') : t('ui.showMore')}
         </button>
       )}
     </div>

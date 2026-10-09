@@ -1,6 +1,7 @@
 import { getAuthMode } from './auth'
 import { getValidToken, refreshToken, forceLogout } from './authManager'
 import { isTauri, getApiBase } from './env'
+import { tr } from '@/i18n/lazy'
 
 export class ApiError extends Error {
   constructor(
@@ -31,7 +32,8 @@ export class NonJsonResponseError extends ApiError {
 }
 
 function nonJsonMessage(method: string, path: string, status: number, contentType: string | null): string {
-  return `Le serveur a répondu autre chose que du JSON : ${method} ${path} → ${status}${contentType ? ` (${contentType.split(';')[0].trim()})` : ''}`
+  const type = contentType ? ` (${contentType.split(';')[0].trim()})` : ''
+  return tr('app.api.nonJson', { request: `${method} ${path}`, status, type })
 }
 
 /** Path of the request, without origin or query (a query may carry identifiers). */
@@ -144,13 +146,13 @@ async function request<T>(
           return request<T>(endpoint, options, true)
         } catch {
           // Refresh failed (forceLogout already called inside refreshToken on 401)
-          throw new ApiError(401, 'Session expired')
+          throw new ApiError(401, tr('app.api.sessionExpired'))
         }
       }
 
       // Already retried once → force logout
       forceLogout()
-      throw new ApiError(401, 'Session expired')
+      throw new ApiError(401, tr('app.api.sessionExpired'))
     }
 
     const message = await response.text()
@@ -220,7 +222,7 @@ export const apiRequest = request
  * The sentence to show a human. The API answers errors as `{"error": "..."}`
  * and `ApiError.message` carries that raw body — never put it in a toast as is.
  */
-export function apiErrorMessage(err: unknown, fallback = 'An error occurred'): string {
+export function apiErrorMessage(err: unknown, fallback = tr('app.api.fallback')): string {
   if (err instanceof ApiError) {
     try {
       const parsed = JSON.parse(err.message) as { error?: string }

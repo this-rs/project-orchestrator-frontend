@@ -16,7 +16,7 @@ vi.mock('@/services/providers', () => ({
 }))
 
 import { chatSessionPermissionOverrideAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
-import { NO_PROVIDER_ERROR, RETRY_BY_SENDING_TEXT, SANDBOX_TRUST_REFUSED_TEXT } from '@/constants/providerErrors'
+import { NO_PROVIDER_ERROR, retryBySendingText, sandboxTrustRefusedText } from '@/constants/providerErrors'
 import { ProviderStateCard } from './ProviderStateCard'
 
 function mount(error: ProviderErrorInfo, props: Partial<Parameters<typeof ProviderStateCard>[0]> = {}) {
@@ -122,7 +122,7 @@ describe('ProviderStateCard', () => {
   it('endpoint_unreachable — without a retry handler, says how to retry instead of a dead button', () => {
     const { card } = mount(err('endpoint_unreachable'))
     expect(within(card).queryByRole('button', { name: /retry/i })).toBeNull()
-    expect(card.textContent).toContain(RETRY_BY_SENDING_TEXT)
+    expect(card.textContent).toContain(retryBySendingText())
   })
 
   it('model_no_tools — says to choose another model', () => {
@@ -283,7 +283,7 @@ describe('ProviderStateCard — trust refused for lack of a sandbox', () => {
       { onRetry },
     )
     expect(card.textContent).toContain('Mode « Rock’n roll » refusé')
-    expect(card.textContent).toContain(SANDBOX_TRUST_REFUSED_TEXT)
+    expect(card.textContent).toContain(sandboxTrustRefusedText())
     fireEvent.click(within(card).getByRole('button', { name: 'Passer en mode « Demander »' }))
     expect(store.get(chatSessionPermissionOverrideAtom)).toBe('ask')
     expect(onRetry).toHaveBeenCalled()
@@ -291,7 +291,7 @@ describe('ProviderStateCard — trust refused for lack of a sandbox', () => {
 
   it('also recognises the refusal from the server sentence alone', () => {
     const { card } = mount(err('unsupported', { message: 'The provider does not support this capability: sandbox.' }))
-    expect(card.textContent).toContain(SANDBOX_TRUST_REFUSED_TEXT)
+    expect(card.textContent).toContain(sandboxTrustRefusedText())
     expect(card.textContent).not.toContain('does not support this capability')
   })
 })

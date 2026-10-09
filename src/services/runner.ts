@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, ApiError, buildQuery } from './api'
 import type { GateResultsResponse, ProgressScoreResponse } from '@/types/chat'
 import type { CostBasis } from '@/types/provider'
+import { tr } from '@/i18n/lazy'
 
 // ---------------------------------------------------------------------------
 // Types — aligned with backend RunStatus
@@ -225,10 +226,10 @@ export const runnerApi = {
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 404) {
-          throw new Error('No active run to cancel')
+          throw new Error(tr('app.runner.noActiveRun'))
         }
         if (err.status === 409) {
-          throw new Error('Cancellation already in progress')
+          throw new Error(tr('app.runner.cancelInProgress'))
         }
       }
       throw err
@@ -247,7 +248,7 @@ export const runnerApi = {
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 404) {
-          throw new Error('No active run to force-cancel')
+          throw new Error(tr('app.runner.noActiveRunForce'))
         }
       }
       throw err
@@ -303,7 +304,7 @@ export function useRunnerStatus(
       }
     } catch (err) {
       if (planIdRef.current === id) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch runner status')
+        setError(err instanceof Error ? err.message : tr('app.runner.fetchFailed'))
       }
     }
   }, [])

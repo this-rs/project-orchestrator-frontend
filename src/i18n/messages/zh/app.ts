@@ -1,0 +1,62 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  api: {
+    sessionExpired: '会话已过期',
+    fallback: '发生错误',
+    nonJson: '服务器返回的不是 JSON：{request} → {status}{type}',
+  },
+  upload: {
+    malformed: '服务器返回的响应格式有误',
+    network: '网络错误',
+    timedOut: '上传超时',
+  },
+  runner: {
+    noActiveRun: '没有可取消的进行中运行',
+    cancelInProgress: '取消正在进行',
+    noActiveRunForce: '没有可强制取消的进行中运行',
+    fetchFailed: '无法获取运行器状态',
+  },
+  hooks: {
+    serverNotBack: '服务器重启后没有恢复。请检查服务器，然后刷新此页面。',
+    updateActionFailed: '更新操作失败',
+    allProjects: '所有项目',
+    taskGraphFailed: '无法加载任务图数据',
+    planGraphFailed: '无法加载计划图数据',
+    pipelineFailed: '无法获取流水线进度',
+    discussionTreeFailed: '无法获取讨论树',
+    newModel: '一个新模型',
+    modelAvailable: '{model} 现已可用',
+    apiUnavailable: 'API 不可用',
+  },
+  attention: {
+    resumed: '运行已恢复：{title}',
+    resumeFailed: '无法恢复运行',
+    allowed: '已允许：{what}',
+    denied: '已拒绝：{what}',
+    replySent: '回复已发送：{what}',
+    replyFailed: '回复未发送',
+    accepted: '已接受：{title}',
+    rejected: '已拒绝：{title}',
+    decisionFailed: '决定未被记录',
+  },
+  chat: {
+    cancelledByUser: '已被用户取消',
+    unknownError: '未知错误',
+    sessionInitialized: '会话已初始化',
+    maxTurns: '已达到最大回合数',
+    maxTurnsCount: '已达到最大回合数（{n} 个回合）',
+    executionError: '执行时发生错误',
+    autoContinuing: '正在自动继续...',
+    sessionError: '会话因错误而结束',
+    startFailed: '无法开始对话',
+  },
+  export: { user: '用户', assistant: '助手' },
+  architecture: {
+    entry: '入口',
+    gateway: '网关',
+    services: '服务',
+    libraries: '库、消息与缓存',
+    data: '数据与外部系统',
+  },
+} satisfies Translation<'app'>

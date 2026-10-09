@@ -58,7 +58,7 @@ describe('a response that is not JSON', () => {
     expect(err).toBeInstanceOf(NonJsonResponseError)
     expect(err).toBeInstanceOf(ApiError)
     expect((err as ApiError).status).toBe(200)
-    expect(apiErrorMessage(err)).toBe('Le serveur a répondu autre chose que du JSON : GET /api/chat/providers → 200 (text/html)')
+    expect(apiErrorMessage(err)).toBe('The server answered something other than JSON: GET /api/chat/providers → 200 (text/html)')
     expect(apiErrorMessage(err)).not.toMatch(/Unrecognized token|Unexpected token|JSON\.parse/)
   })
 
@@ -66,7 +66,7 @@ describe('a response that is not JSON', () => {
     stub(502, html)
     const err = await api.post('/chat/providers/test', { id: 'x' }).catch((e: unknown) => e)
     expect((err as ApiError).status).toBe(502)
-    expect(apiErrorMessage(err)).toBe('Le serveur a répondu autre chose que du JSON : POST /api/chat/providers/test → 502 (text/html)')
+    expect(apiErrorMessage(err)).toBe('The server answered something other than JSON: POST /api/chat/providers/test → 502 (text/html)')
     expect(apiErrorMessage(err)).not.toContain('<')
   })
 

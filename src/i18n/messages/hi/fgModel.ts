@@ -1,0 +1,48 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  other: 'अन्य',
+  noFile: 'फ़ाइल की कोई जानकारी नहीं',
+  listAnd: '{head} और {last}',
+  asyncNoun: 'असिंक्रोनस {noun}',
+  nounInFile: '{file} में {noun}',
+  takes: '{params} लेता है',
+  takesNothing: 'कोई इनपुट नहीं लेता',
+  takesReturns: '{takes}, {returns} लौटाता है',
+  noun: {
+    function: 'फ़ंक्शन',
+    file: 'सोर्स फ़ाइल',
+    struct: 'डेटा संरचना',
+    enum: 'गणना प्रकार',
+    trait: 'ट्रेट',
+    other: 'कोड इकाई',
+  },
+  type: { function: 'फ़ंक्शन', file: 'फ़ाइल', struct: 'स्ट्रक्ट', enum: 'एनम', trait: 'ट्रेट' },
+  typePlural: { function: 'फ़ंक्शन', file: 'फ़ाइलें', struct: 'स्ट्रक्ट', enum: 'एनम', trait: 'ट्रेट' },
+  level: { key: 'मुख्य', supporting: 'सहायक', minor: 'गौण' },
+  rolePlain: {
+    entry_point: { word: 'प्रवेश बिंदु', plain: 'फ़ीचर का प्रवेश बिंदु' },
+    core_logic: { word: 'मुख्य तर्क', plain: 'फ़ीचर का मुख्य काम करता है' },
+    api_surface: { word: 'सार्वजनिक API', plain: 'फ़ीचर के बाहर से बुलाया जाता है' },
+    data_model: { word: 'डेटा मॉडल', plain: 'फ़ीचर द्वारा ढोया जाने वाला डेटा' },
+    trait_contract: { word: 'अनुबंध', plain: 'वह अनुबंध जिस पर फ़ीचर निर्भर है' },
+    support: { word: 'सहायक', plain: 'फ़ीचर के आसपास का सहायक कोड' },
+  },
+  role: {
+    entry_point: { label: 'प्रवेश बिंदु', description: 'जहाँ से फ़ीचर शुरू होता है (वह फ़ंक्शन जिससे आपने शुरुआत की)।' },
+    core_logic: { label: 'मुख्य तर्क', description: 'असली काम करने वाले फ़ंक्शन और फ़ाइलें।' },
+    api_surface: { label: 'API सतह', description: 'कोड के बाकी हिस्से जिसे बुलाते हैं।' },
+    data_model: { label: 'डेटा मॉडल', description: 'फ़ीचर का डेटा ढोने वाले स्ट्रक्ट और एनम।' },
+    trait_contract: { label: 'ट्रेट अनुबंध', description: 'वे ट्रेट जिन्हें फ़ीचर लागू करता है या जिन पर निर्भर है।' },
+    support: { label: 'सहायक', description: 'फ़ीचर के आसपास के सहायक फ़ंक्शन और उपयोगिताएँ।' },
+  },
+  relation: {
+    related: 'संबंधित',
+    CALLS: { label: 'बुलाता है', description: 'एक फ़ंक्शन दूसरे को बुलाता है।' },
+    IMPORTS: { label: 'इम्पोर्ट करता है', description: 'एक फ़ाइल दूसरी को इम्पोर्ट करती है।' },
+    EXTENDS: { label: 'विस्तार करता है', description: 'एक प्रकार दूसरे का विस्तार करता है।' },
+    IMPLEMENTS: { label: 'लागू करता है', description: 'एक प्रकार किसी ट्रेट को लागू करता है।' },
+    IMPLEMENTS_TRAIT: { label: 'ट्रेट का impl', description: 'एक impl ब्लॉक किसी ट्रेट को लक्ष्य बनाता है।' },
+    IMPLEMENTS_FOR: { label: 'किसके लिए impl', description: 'एक impl ब्लॉक किसी प्रकार को लक्ष्य बनाता है।' },
+  },
+} satisfies Translation<'fgModel'>

@@ -3,6 +3,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { adminApi } from '@/services/admin'
 import type { WatchStatus } from '@/types'
 import { isProjectWatched } from '@/utils/watch'
+import { useT } from '@/i18n'
 
 interface WatcherToggleProps {
   /** Project UUID */
@@ -30,6 +31,7 @@ export function WatcherToggle({
   compact = false,
   onToggle,
 }: WatcherToggleProps) {
+  const { t } = useT()
   const [watching, setWatching] = useState(false)
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState(false)
@@ -74,12 +76,13 @@ export function WatcherToggle({
     return (
       <div className={`inline-flex items-center gap-1.5 ${className}`}>
         <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-500" />
-        {!compact && <span className="text-xs text-gray-500">Checking watcher...</span>}
+        {!compact && <span className="text-xs text-gray-500">{t('ui.watcher.checking')}</span>}
       </div>
     )
   }
 
   const isDisabled = toggling
+  const title = watching ? t('ui.watcher.activeHint') : t('ui.watcher.inactiveHint')
 
   if (compact) {
     return (
@@ -91,7 +94,8 @@ export function WatcherToggle({
             ? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
             : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.08]'
         } ${className}`}
-        title={watching ? 'File watcher active — click to stop' : 'File watcher inactive — click to start'}
+        title={title}
+        aria-label={title}
       >
         {toggling ? (
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -113,7 +117,7 @@ export function WatcherToggle({
           ? 'bg-emerald-900/40 text-emerald-400 ring-emerald-500/20 hover:bg-emerald-900/60'
           : 'bg-white/[0.04] text-gray-400 ring-white/[0.08] hover:bg-white/[0.08] hover:text-gray-200'
       } ${className}`}
-      title={watching ? 'File watcher active — click to stop' : 'File watcher inactive — click to start'}
+      title={title}
     >
       {toggling ? (
         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -122,7 +126,7 @@ export function WatcherToggle({
       ) : (
         <EyeOff className="w-3.5 h-3.5" />
       )}
-      {watching ? 'Watching' : 'Watch off'}
+      {watching ? t('ui.watcher.on') : t('ui.watcher.off')}
     </button>
   )
 }

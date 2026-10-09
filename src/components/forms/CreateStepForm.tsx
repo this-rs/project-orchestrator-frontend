@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Input, Textarea } from '@/components/ui'
+import { useT } from '@/i18n'
 
 export interface CreateStepFormData {
   description: string
@@ -11,13 +12,14 @@ interface Props {
 }
 
 export function CreateStepForm({ onSubmit }: Props) {
+  const { t } = useT()
   const [description, setDescription] = useState('')
   const [verification, setVerification] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!description.trim()) errs.description = 'Description is required'
+    if (!description.trim()) errs.description = t('forms.error.description')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -26,8 +28,8 @@ export function CreateStepForm({ onSubmit }: Props) {
     fields: (
       <>
         <Textarea
-          label="Description"
-          placeholder="What needs to be done in this step..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.stepDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={errors.description}
@@ -35,8 +37,8 @@ export function CreateStepForm({ onSubmit }: Props) {
           rows={3}
         />
         <Input
-          label="Verification"
-          placeholder="How to verify this step is complete (optional)"
+          label={t('forms.field.verification')}
+          placeholder={t('forms.placeholder.stepVerification')}
           value={verification}
           onChange={(e) => setVerification(e.target.value)}
         />

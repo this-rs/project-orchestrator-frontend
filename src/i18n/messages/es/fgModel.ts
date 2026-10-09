@@ -1,0 +1,48 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  other: 'Otro',
+  noFile: 'Sin información de archivo',
+  listAnd: '{head} y {last}',
+  asyncNoun: '{noun} asíncrona',
+  nounInFile: '{noun} en {file}',
+  takes: 'recibe {params}',
+  takesNothing: 'no recibe nada',
+  takesReturns: '{takes} y devuelve {returns}',
+  noun: {
+    function: 'Función',
+    file: 'Archivo fuente',
+    struct: 'Estructura de datos',
+    enum: 'Enumeración',
+    trait: 'Trait',
+    other: 'Entidad de código',
+  },
+  type: { function: 'Función', file: 'Archivo', struct: 'Struct', enum: 'Enum', trait: 'Trait' },
+  typePlural: { function: 'Funciones', file: 'Archivos', struct: 'Structs', enum: 'Enums', trait: 'Traits' },
+  level: { key: 'Clave', supporting: 'De apoyo', minor: 'Menor' },
+  rolePlain: {
+    entry_point: { word: 'Punto de entrada', plain: 'punto de entrada de la funcionalidad' },
+    core_logic: { word: 'Lógica central', plain: 'hace el trabajo principal de la funcionalidad' },
+    api_surface: { word: 'API pública', plain: 'se llama desde fuera de la funcionalidad' },
+    data_model: { word: 'Modelo de datos', plain: 'datos que maneja la funcionalidad' },
+    trait_contract: { word: 'Contrato', plain: 'contrato en el que se apoya la funcionalidad' },
+    support: { word: 'Auxiliar', plain: 'auxiliar de la funcionalidad' },
+  },
+  role: {
+    entry_point: { label: 'Puntos de entrada', description: 'Donde empieza la funcionalidad (la función desde la que construiste).' },
+    core_logic: { label: 'Lógica central', description: 'Las funciones y archivos que hacen el trabajo real.' },
+    api_surface: { label: 'Superficie de API', description: 'Lo que otras partes del código llaman.' },
+    data_model: { label: 'Modelos de datos', description: 'Structs y enums que llevan los datos de la funcionalidad.' },
+    trait_contract: { label: 'Contratos de traits', description: 'Traits que la funcionalidad implementa o en los que se apoya.' },
+    support: { label: 'Apoyo', description: 'Auxiliares y utilidades alrededor de la funcionalidad.' },
+  },
+  relation: {
+    related: 'Relacionado',
+    CALLS: { label: 'Llama a', description: 'Una función llama a otra.' },
+    IMPORTS: { label: 'Importa', description: 'Un archivo importa otro.' },
+    EXTENDS: { label: 'Extiende', description: 'Un tipo extiende otro.' },
+    IMPLEMENTS: { label: 'Implementa', description: 'Un tipo implementa un trait.' },
+    IMPLEMENTS_TRAIT: { label: 'Impl de trait', description: 'Un bloque impl apunta a un trait.' },
+    IMPLEMENTS_FOR: { label: 'Impl para', description: 'Un bloque impl apunta a un tipo.' },
+  },
+} satisfies Translation<'fgModel'>

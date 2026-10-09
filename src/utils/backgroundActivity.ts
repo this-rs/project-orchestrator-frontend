@@ -14,17 +14,26 @@
  */
 import type { BackgroundActivityMetadata, BackgroundOutputEntry, ContentBlock } from '@/types'
 import type { StatusTone } from '@/components/ui/statusMeta'
+import { tr } from '@/i18n/lazy'
 
 export type ActivityKind = 'workflow' | 'shell' | 'monitor' | 'agent' | 'generic'
 export type ActivityStatus = 'running' | 'queued' | 'done' | 'failed' | 'cancelled' | 'ended'
 
+/** Status of an activity: the label is read when used, so it follows the language on screen. */
+const statusMeta = (status: ActivityStatus, tone: StatusTone): { label: string; tone: StatusTone } => ({
+  get label() {
+    return tr(`activity.status.${status}`)
+  },
+  tone,
+})
+
 export const ACTIVITY_STATUS_META: Record<ActivityStatus, { label: string; tone: StatusTone }> = {
-  running: { label: 'Running', tone: 'progress' },
-  queued: { label: 'Queued', tone: 'neutral' },
-  done: { label: 'Done', tone: 'success' },
-  failed: { label: 'Failed', tone: 'danger' },
-  cancelled: { label: 'Cancelled', tone: 'muted' },
-  ended: { label: 'Ended', tone: 'muted' },
+  running: statusMeta('running', 'progress'),
+  queued: statusMeta('queued', 'neutral'),
+  done: statusMeta('done', 'success'),
+  failed: statusMeta('failed', 'danger'),
+  cancelled: statusMeta('cancelled', 'muted'),
+  ended: statusMeta('ended', 'muted'),
 }
 
 /** An activity with no terminal signal and no tick for this long is considered ended. */
@@ -76,16 +85,16 @@ export function humanizeKey(key: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }
 
-const LIFECYCLE_LABELS: Record<string, string> = {
-  task_started: 'Started',
-  task_progress: 'Progress',
-  task_updated: 'Updated',
-  task_notification: 'Finished',
-}
+const LIFECYCLE_KEYS = {
+  task_started: 'activity.lifecycle.started',
+  task_progress: 'activity.lifecycle.progress',
+  task_updated: 'activity.lifecycle.updated',
+  task_notification: 'activity.lifecycle.finished',
+} as const
 
 /** Human label of a workflow lifecycle subtype (`task_progress` → `Progress`). */
 export function subtypeLabel(subtype: string): string {
-  return LIFECYCLE_LABELS[subtype] ?? humanizeKey(subtype)
+  return subtype in LIFECYCLE_KEYS ? tr(LIFECYCLE_KEYS[subtype as keyof typeof LIFECYCLE_KEYS]) : humanizeKey(subtype)
 }
 
 // ---------------------------------------------------------------------------
@@ -368,20 +377,20 @@ export function extractParams(args: {
   const { kind, title, subagentType, description, fields, toolInput } = args
   const params: KeyValue[] = []
   const merged: Fields = { ...toolInput, ...fields }
-  pushParam(params, 'Agent', subagentType ?? str(merged.subagent_type))
+  pushParam(params, tr('activity.param.agent'), subagentType ?? str(merged.subagent_type))
   if (kind === 'workflow') {
     const name = str(merged.workflow_name)
-    if (name && name !== title) pushParam(params, 'Workflow', name)
+    if (name && name !== title) pushParam(params, tr('activity.param.workflow'), name)
   }
   const desc = description ?? str(merged.description)
-  if (desc && desc !== title) pushParam(params, 'Task', desc)
-  pushParam(params, 'Tool', str(merged.last_tool_name) ?? str(merged.tool_name) ?? str(merged.tool))
-  pushParam(params, 'Model', str(merged.model))
+  if (desc && desc !== title) pushParam(params, tr('activity.param.task'), desc)
+  pushParam(params, tr('activity.param.tool'), str(merged.last_tool_name) ?? str(merged.tool_name) ?? str(merged.tool))
+  pushParam(params, tr('activity.param.model'), str(merged.model))
   const exit = merged.exit_code ?? merged.exitCode
-  if (typeof exit === 'number' || str(exit)) pushParam(params, 'Exit code', String(exit))
+  if (typeof exit === 'number' || str(exit)) pushParam(params, tr('activity.param.exitCode'), String(exit))
   const taskId = str(merged.task_id) ?? str(merged.bash_id) ?? str(merged.shell_id)
-  if (taskId) pushParam(params, 'Task id', taskId, true)
-  pushParam(params, 'Output file', str(merged.output_file), true)
+  if (taskId) pushParam(params, tr('activity.param.taskId'), taskId, true)
+  pushParam(params, tr('activity.param.outputFile'), str(merged.output_file), true)
   if (toolInput) {
     for (const [key, value] of Object.entries(toolInput)) {
       if (PROMPT_KEYS.has(key) || key === 'subagent_type' || key === 'description' || key === 'workflow_name') continue
@@ -419,16 +428,16 @@ export function buildActivity(input: ActivityInput): ActivityModel {
   let title: string
   switch (kind) {
     case 'workflow':
-      title = str(fields.workflow_name) ?? str(tool?.input.workflow_name) ?? description ?? 'Workflow'
+      title = str(fields.workflow_name) ?? str(tool?.input.workflow_name) ?? description ?? tr('activity.title.workflow')
       break
     case 'shell':
-      title = command ? firstLine(command) : (description ?? 'Background command')
+      title = command ? firstLine(command) : (description ?? tr('activity.title.shell'))
       break
     case 'monitor':
-      title = description ?? (command ? firstLine(command) : 'Monitor')
+      title = description ?? (command ? firstLine(command) : tr('activity.title.monitor'))
       break
     case 'agent':
-      title = description ?? subagentType ?? 'Sub-agent'
+      title = description ?? subagentType ?? tr('activity.title.agent')
       break
     default:
       title = description ?? str(fields.summary) ?? source

@@ -1,0 +1,48 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  other: 'Інше',
+  noFile: 'Немає відомостей про файл',
+  listAnd: '{head} і {last}',
+  asyncNoun: 'Асинхронна сутність: {noun}',
+  nounInFile: '{noun} у {file}',
+  takes: 'приймає {params}',
+  takesNothing: 'нічого не приймає',
+  takesReturns: '{takes}, повертає {returns}',
+  noun: {
+    function: 'Функція',
+    file: 'Вихідний файл',
+    struct: 'Структура даних',
+    enum: 'Перелік',
+    trait: 'Трейт',
+    other: 'Елемент коду',
+  },
+  type: { function: 'Функція', file: 'Файл', struct: 'Структура', enum: 'Перелік', trait: 'Трейт' },
+  typePlural: { function: 'Функції', file: 'Файли', struct: 'Структури', enum: 'Переліки', trait: 'Трейти' },
+  level: { key: 'Ключовий', supporting: 'Допоміжний', minor: 'Другорядний' },
+  rolePlain: {
+    entry_point: { word: 'Точка входу', plain: 'точка входу можливості' },
+    core_logic: { word: 'Основна логіка', plain: 'виконує основну роботу можливості' },
+    api_surface: { word: 'Публічний API', plain: 'викликається ззовні можливості' },
+    data_model: { word: 'Модель даних', plain: 'дані, з якими працює можливість' },
+    trait_contract: { word: 'Контракт', plain: 'контракт, на який спирається можливість' },
+    support: { word: 'Помічник', plain: 'допоміжний елемент навколо можливості' },
+  },
+  role: {
+    entry_point: { label: 'Точки входу', description: 'Звідки починається можливість (функція, від якої ви виходили).' },
+    core_logic: { label: 'Основна логіка', description: 'Функції та файли, що виконують реальну роботу.' },
+    api_surface: { label: 'Поверхня API', description: 'Те, що інші частини коду викликають.' },
+    data_model: { label: 'Моделі даних', description: 'Структури та переліки, що несуть дані можливості.' },
+    trait_contract: { label: 'Контракти трейтів', description: 'Трейти, які реалізує можливість або на які вона спирається.' },
+    support: { label: 'Підтримка', description: 'Помічники й утиліти навколо можливості.' },
+  },
+  relation: {
+    related: 'Пов\'язане',
+    CALLS: { label: 'Викликає', description: 'Одна функція викликає іншу.' },
+    IMPORTS: { label: 'Імпортує', description: 'Один файл імпортує інший.' },
+    EXTENDS: { label: 'Розширює', description: 'Один тип розширює інший.' },
+    IMPLEMENTS: { label: 'Реалізує', description: 'Тип реалізує трейт.' },
+    IMPLEMENTS_TRAIT: { label: 'Impl Trait', description: 'Блок impl належить трейту.' },
+    IMPLEMENTS_FOR: { label: 'Impl For', description: 'Блок impl належить типу.' },
+  },
+} satisfies Translation<'fgModel'>

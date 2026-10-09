@@ -1,0 +1,48 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  other: '其他',
+  noFile: '没有文件信息',
+  listAnd: '{head}和{last}',
+  asyncNoun: '异步{noun}',
+  nounInFile: '{file} 中的{noun}',
+  takes: '接收 {params}',
+  takesNothing: '不接收输入',
+  takesReturns: '{takes}，返回 {returns}',
+  noun: {
+    function: '函数',
+    file: '源文件',
+    struct: '数据结构',
+    enum: '枚举',
+    trait: 'Trait',
+    other: '代码实体',
+  },
+  type: { function: '函数', file: '文件', struct: '结构体', enum: '枚举', trait: 'Trait' },
+  typePlural: { function: '函数', file: '文件', struct: '结构体', enum: '枚举', trait: 'Trait' },
+  level: { key: '关键', supporting: '辅助', minor: '次要' },
+  rolePlain: {
+    entry_point: { word: '入口点', plain: '功能的入口点' },
+    core_logic: { word: '核心逻辑', plain: '承担功能的核心工作' },
+    api_surface: { word: '公共 API', plain: '从功能外部被调用' },
+    data_model: { word: '数据模型', plain: '功能所承载的数据' },
+    trait_contract: { word: '契约', plain: '功能所依赖的契约' },
+    support: { word: '辅助', plain: '围绕功能的辅助代码' },
+  },
+  role: {
+    entry_point: { label: '入口点', description: '功能的起点（你据以构建的那个函数）。' },
+    core_logic: { label: '核心逻辑', description: '真正完成工作的函数和文件。' },
+    api_surface: { label: 'API 接口面', description: '代码其他部分会调用的内容。' },
+    data_model: { label: '数据模型', description: '承载功能数据的结构体和枚举。' },
+    trait_contract: { label: 'Trait 契约', description: '功能所实现或依赖的 Trait。' },
+    support: { label: '支持', description: '围绕功能的辅助函数和工具。' },
+  },
+  relation: {
+    related: '相关',
+    CALLS: { label: '调用', description: '一个函数调用另一个函数。' },
+    IMPORTS: { label: '导入', description: '一个文件导入另一个文件。' },
+    EXTENDS: { label: '继承', description: '一个类型继承另一个类型。' },
+    IMPLEMENTS: { label: '实现', description: '一个类型实现某个 Trait。' },
+    IMPLEMENTS_TRAIT: { label: 'Impl Trait', description: '一个 impl 块以某个 Trait 为目标。' },
+    IMPLEMENTS_FOR: { label: 'Impl For', description: '一个 impl 块以某个类型为目标。' },
+  },
+} satisfies Translation<'fgModel'>

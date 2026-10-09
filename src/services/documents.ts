@@ -1,6 +1,7 @@
 import { api, buildQuery, ApiError } from './api'
 import { getApiBase } from './env'
 import { getValidToken } from './authManager'
+import { tr } from '@/i18n/lazy'
 import type {
   DocumentChunkListResponse,
   DocumentDetail,
@@ -106,7 +107,7 @@ function upload(file: File, options: UploadOptions = {}): Promise<DocumentDetail
             try {
               resolve(JSON.parse(xhr.responseText) as DocumentDetail)
             } catch {
-              reject(new ApiError(xhr.status, 'Malformed response from the server'))
+              reject(new ApiError(xhr.status, tr('app.upload.malformed')))
             }
             return
           }
@@ -117,14 +118,14 @@ function upload(file: File, options: UploadOptions = {}): Promise<DocumentDetail
           cleanup()
           // Status 0: the request never reached the server (offline, DNS,
           // CORS). Distinct from any HTTP status the server could return.
-          reject(new ApiError(0, 'Network error'))
+          reject(new ApiError(0, tr('app.upload.network')))
         }
 
         xhr.ontimeout = () => {
           cleanup()
           // 408 rather than 0: the request did reach the network, the answer
           // never came — a different advice from "check your connection".
-          reject(new ApiError(408, 'Upload timed out'))
+          reject(new ApiError(408, tr('app.upload.timedOut')))
         }
 
         xhr.onabort = () => {

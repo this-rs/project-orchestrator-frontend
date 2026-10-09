@@ -29,8 +29,8 @@ import {
 import { ApiError } from '@/services/api'
 import type { BackgroundTaskInfo, Project } from '@/types'
 import type { ProviderCapabilities, ProviderInstance, ProvidersResponse } from '@/types/provider'
-import { POLICY_ONLY_TEXT, RESUME_UNSUPPORTED_TEXT } from '@/constants/capabilities'
-import { INSTANCE_MISSING_COMPOSER_TEXT, NO_PROVIDER_COMPOSER_TEXT } from '@/constants/providerErrors'
+import { policyOnlyText, resumeUnsupportedText } from '@/constants/capabilities'
+import { instanceMissingComposerText, noProviderComposerText } from '@/constants/providerErrors'
 
 const chatStub = {
   sessionId: null as string | null,
@@ -189,7 +189,7 @@ describe('new conversation — no usable provider', () => {
     expect(card.getAttribute('data-error-code')).toBe('no_provider')
     expect(within(card).getByRole('link', { name: /provider settings/i }).getAttribute('href')).toBe('/providers')
     expect(input().getAttribute('data-disabled')).toBe('true')
-    expect(input().getAttribute('data-reason')).toBe(NO_PROVIDER_COMPOSER_TEXT)
+    expect(input().getAttribute('data-reason')).toBe(noProviderComposerText())
   })
 
   it('an empty instance list is "no provider" too', async () => {
@@ -317,7 +317,7 @@ describe('the instance of the conversation was deleted', () => {
     const card = await screen.findByRole('alert')
     expect(card.getAttribute('data-error-code')).toBe('instance_not_found')
     expect(input().getAttribute('data-disabled')).toBe('true')
-    expect(input().getAttribute('data-reason')).toBe(INSTANCE_MISSING_COMPOSER_TEXT)
+    expect(input().getAttribute('data-reason')).toBe(instanceMissingComposerText())
 
     fireEvent.click(within(card).getByRole('button', { name: /start a new conversation/i }))
     expect(chatStub.newSession).toHaveBeenCalled()
@@ -370,7 +370,7 @@ describe('capability guards of the panel', () => {
     const store = renderPanel({ prepare: onLlama({ ...FULL, interactive_permissions: false }) })
     await ready(store)
     const banner = screen.getByTestId('policy-only-banner')
-    expect(banner.textContent).toContain(POLICY_ONLY_TEXT)
+    expect(banner.textContent).toContain(policyOnlyText())
     expect(screen.getByTestId('dock').contains(banner)).toBe(true)
   })
 
@@ -425,14 +425,14 @@ describe('capability guards of the panel', () => {
     const store = renderPanel({ prepare: onLlama({ ...FULL, resume: false }) })
     await ready(store)
     await waitFor(() => expect(input().getAttribute('data-disabled')).toBe('true'))
-    expect(input().getAttribute('data-reason')).toBe(RESUME_UNSUPPORTED_TEXT)
-    expect(RESUME_UNSUPPORTED_TEXT).toContain('This provider cannot resume a conversation')
+    expect(input().getAttribute('data-reason')).toBe(resumeUnsupportedText())
+    expect(resumeUnsupportedText()).toContain('This provider cannot resume a conversation')
   })
 
   it('resume: false, session absent from live activity (quiet) — also blocked', async () => {
     const store = renderPanel({ prepare: onLlama({ ...FULL, resume: false }) })
     await ready(store)
-    await waitFor(() => expect(input().getAttribute('data-reason')).toBe(RESUME_UNSUPPORTED_TEXT))
+    await waitFor(() => expect(input().getAttribute('data-reason')).toBe(resumeUnsupportedText()))
   })
 
   it('resume: false but the process is alive — the conversation goes on', async () => {

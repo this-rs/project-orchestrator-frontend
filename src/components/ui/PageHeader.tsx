@@ -11,6 +11,7 @@ import { CollapsibleMarkdown } from './CollapsibleMarkdown'
 import { MetaLine } from './MetaLine'
 import { inlineLink } from './classes'
 import { useAddToChatAction, useReferenceSource, type ReferenceSourceEntity } from '@/refs/source'
+import { useT } from '@/i18n'
 
 export interface ParentLink {
   icon: LucideIcon
@@ -92,6 +93,7 @@ export function PageHeader({
   intro,
   entityRef,
 }: PageHeaderProps) {
+  const { t } = useT()
   const entity = entityRef ? { ...entityRef, label: entityRef.label ?? title } : null
   const source = useReferenceSource(entity)
   const addAction = useAddToChatAction(entity)
@@ -114,7 +116,7 @@ export function PageHeader({
     <header className="space-y-2">
       {inRouter && <BreadcrumbTitle title={title} />}
       {parentLinks && parentLinks.length > 0 && (
-        <nav aria-label="Parent entities" className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        <nav aria-label={t('ui.pageHeader.parents')} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           {parentLinks.map((link) => {
             const Icon = link.icon
             return (
@@ -144,7 +146,7 @@ export function PageHeader({
           </h1>
           {actions && <div className="flex flex-wrap items-center gap-2 sm:ml-auto">{actions}</div>}
         </div>
-        {hasOverflow && <OverflowMenu actions={menuActions} label={`Actions for ${title}`} className="-mr-1.5" />}
+        {hasOverflow && <OverflowMenu actions={menuActions} label={t('ui.actionsFor', { name: title })} className="-mr-1.5" />}
       </div>
 
       <MetaLine size="sm" items={facts} />

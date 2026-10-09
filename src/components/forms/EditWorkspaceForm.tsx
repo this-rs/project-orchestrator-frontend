@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Input, Textarea } from '@/components/ui'
+import { useT } from '@/i18n'
 
 export interface EditWorkspaceFormData {
   name: string
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function EditWorkspaceForm({ initialValues, onSubmit, loading }: Props) {
+  const { t } = useT()
   const [name, setName] = useState(initialValues.name)
   const [slug, setSlug] = useState(initialValues.slug)
   const [slugTouched, setSlugTouched] = useState(false)
@@ -37,8 +39,8 @@ export function EditWorkspaceForm({ initialValues, onSubmit, loading }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!name.trim()) errs.name = 'Name is required'
-    if (!slug.trim()) errs.slug = 'Slug is required'
+    if (!name.trim()) errs.name = t('forms.error.name')
+    if (!slug.trim()) errs.slug = t('forms.error.slug')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -47,8 +49,8 @@ export function EditWorkspaceForm({ initialValues, onSubmit, loading }: Props) {
     fields: (
       <>
         <Input
-          label="Name"
-          placeholder="Workspace name"
+          label={t('forms.field.name')}
+          placeholder={t('forms.placeholder.workspaceName')}
           value={name}
           onChange={(e) => handleNameChange(e.target.value)}
           error={errors.name}
@@ -56,8 +58,8 @@ export function EditWorkspaceForm({ initialValues, onSubmit, loading }: Props) {
           autoFocus
         />
         <Input
-          label="Slug"
-          placeholder="workspace-slug"
+          label={t('forms.field.slug')}
+          placeholder={t('forms.placeholder.workspaceSlug')}
           value={slug}
           onChange={(e) => {
             setSlugTouched(true)
@@ -67,8 +69,8 @@ export function EditWorkspaceForm({ initialValues, onSubmit, loading }: Props) {
           disabled={loading}
         />
         <Textarea
-          label="Description"
-          placeholder="Optional description..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.optionalDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           disabled={loading}

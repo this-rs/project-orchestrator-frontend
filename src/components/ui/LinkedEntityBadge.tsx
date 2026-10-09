@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { useT } from '@/i18n'
 
 interface LinkedEntityBadgeProps {
   label: string
@@ -8,6 +9,7 @@ interface LinkedEntityBadgeProps {
 }
 
 export function LinkedEntityBadge({ label, entityType, onUnlink, linkTo }: LinkedEntityBadgeProps) {
+  const { t } = useT()
   const content = (
     <>
       {entityType && <span className="text-gray-500 mr-1">{entityType}:</span>}
@@ -31,7 +33,8 @@ export function LinkedEntityBadge({ label, entityType, onUnlink, linkTo }: Linke
           onUnlink()
         }}
         className="text-gray-500 hover:text-red-400 transition-colors"
-        title="Unlink"
+        title={t('ui.unlink')}
+        aria-label={t('ui.unlink')}
       >
         &times;
       </button>

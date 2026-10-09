@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Input, Textarea } from '@/components/ui'
+import { useT } from '@/i18n'
 
 export interface EditTaskFormData {
   title: string
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function EditTaskForm({ initialValues, onSubmit, loading }: Props) {
+  const { t } = useT()
   const [title, setTitle] = useState(initialValues.title ?? '')
   const [description, setDescription] = useState(initialValues.description ?? '')
   const [priority, setPriority] = useState(String(initialValues.priority ?? 5))
@@ -34,7 +36,7 @@ export function EditTaskForm({ initialValues, onSubmit, loading }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!title.trim()) errs.title = 'Title is required'
+    if (!title.trim()) errs.title = t('forms.error.title')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -43,8 +45,8 @@ export function EditTaskForm({ initialValues, onSubmit, loading }: Props) {
     fields: (
       <>
         <Input
-          label="Title"
-          placeholder="Task title"
+          label={t('forms.field.title')}
+          placeholder={t('forms.placeholder.taskTitle')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           error={errors.title}
@@ -52,8 +54,8 @@ export function EditTaskForm({ initialValues, onSubmit, loading }: Props) {
           autoFocus
         />
         <Textarea
-          label="Description"
-          placeholder="Describe the task..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.taskDescriptionEdit')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           disabled={loading}
@@ -61,7 +63,7 @@ export function EditTaskForm({ initialValues, onSubmit, loading }: Props) {
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Input
-            label="Priority"
+            label={t('forms.field.priority')}
             type="number"
             min={1}
             max={10}
@@ -70,7 +72,7 @@ export function EditTaskForm({ initialValues, onSubmit, loading }: Props) {
             disabled={loading}
           />
           <Input
-            label="Est. Complexity"
+            label={t('forms.field.estComplexity')}
             type="number"
             min={1}
             max={10}
@@ -81,8 +83,8 @@ export function EditTaskForm({ initialValues, onSubmit, loading }: Props) {
           />
         </div>
         <Input
-          label="Tags"
-          placeholder="tag1, tag2, tag3"
+          label={t('forms.field.tags')}
+          placeholder={t('forms.placeholder.tagsExample')}
           value={tagsInput}
           onChange={(e) => setTagsInput(e.target.value)}
           disabled={loading}

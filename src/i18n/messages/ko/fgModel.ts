@@ -1,0 +1,48 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  other: '기타',
+  noFile: '파일 정보 없음',
+  listAnd: '{head} 및 {last}',
+  asyncNoun: '비동기 {noun}',
+  nounInFile: '{file}의 {noun}',
+  takes: '{params}을(를) 받음',
+  takesNothing: '입력을 받지 않음',
+  takesReturns: '{takes}, {returns}을(를) 반환',
+  noun: {
+    function: '함수',
+    file: '소스 파일',
+    struct: '데이터 구조',
+    enum: '열거형',
+    trait: '트레이트',
+    other: '코드 요소',
+  },
+  type: { function: '함수', file: '파일', struct: '구조체', enum: '열거형', trait: '트레이트' },
+  typePlural: { function: '함수', file: '파일', struct: '구조체', enum: '열거형', trait: '트레이트' },
+  level: { key: '핵심', supporting: '보조', minor: '부수' },
+  rolePlain: {
+    entry_point: { word: '진입점', plain: '기능의 진입점' },
+    core_logic: { word: '핵심 로직', plain: '기능의 핵심 작업을 수행함' },
+    api_surface: { word: '공개 API', plain: '기능 외부에서 호출됨' },
+    data_model: { word: '데이터 모델', plain: '기능이 다루는 데이터' },
+    trait_contract: { word: '계약', plain: '기능이 의존하는 계약' },
+    support: { word: '헬퍼', plain: '기능을 돕는 보조 코드' },
+  },
+  role: {
+    entry_point: { label: '진입점', description: '기능이 시작되는 곳(출발점으로 삼은 함수).' },
+    core_logic: { label: '핵심 로직', description: '실제 작업을 수행하는 함수와 파일.' },
+    api_surface: { label: 'API 표면', description: '코드의 다른 부분이 호출해 들어오는 지점.' },
+    data_model: { label: '데이터 모델', description: '기능의 데이터를 담는 구조체와 열거형.' },
+    trait_contract: { label: '트레이트 계약', description: '기능이 구현하거나 의존하는 트레이트.' },
+    support: { label: '지원', description: '기능을 둘러싼 헬퍼와 유틸리티.' },
+  },
+  relation: {
+    related: '관련됨',
+    CALLS: { label: '호출', description: '함수가 다른 함수를 호출합니다.' },
+    IMPORTS: { label: '임포트', description: '파일이 다른 파일을 임포트합니다.' },
+    EXTENDS: { label: '확장', description: '타입이 다른 타입을 확장합니다.' },
+    IMPLEMENTS: { label: '구현', description: '타입이 트레이트를 구현합니다.' },
+    IMPLEMENTS_TRAIT: { label: 'Impl 트레이트', description: 'impl 블록이 트레이트를 대상으로 합니다.' },
+    IMPLEMENTS_FOR: { label: 'Impl 대상', description: 'impl 블록이 타입을 대상으로 합니다.' },
+  },
+} satisfies Translation<'fgModel'>

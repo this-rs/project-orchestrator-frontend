@@ -44,6 +44,7 @@ import {
   type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
+import { tr } from '@/i18n/lazy'
 import { toProviderRef, toToolPolicy, type ToolPolicyMode } from '@/types/provider'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
 
@@ -393,7 +394,7 @@ export function useChat() {
   // The mode a NEW session opens with. A `trust` (chosen, remembered, or the
   // server default) is not sent to a provider without a sandbox: the server
   // would refuse the opening (A35). It is downgraded to `ask`, and the
-  // composer shows why (TRUST_DOWNGRADED_TEXT).
+  // composer shows why (trustDowngradedText).
   const openingPermissionMode = useCallback(
     (explicit: PermissionMode | null | undefined): ToolPolicyMode | null => {
       const target = store.get(chatProviderTargetAtom)
@@ -958,7 +959,7 @@ export function useChat() {
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'tool_result',
-            content: 'Cancelled by user',
+            content: tr('app.chat.cancelledByUser'),
             metadata: withParent({ tool_call_id: tcId, is_cancelled: true }, tcParent),
           })
           break
@@ -1047,7 +1048,7 @@ export function useChat() {
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'error',
-            content: (data as { message?: string }).message ?? 'Unknown error',
+            content: (data as { message?: string }).message ?? tr('app.chat.unknownError'),
             metadata: withParent(undefined, errParent),
           })
           if (!event.replaying) {
@@ -1156,7 +1157,7 @@ export function useChat() {
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'continue_indicator',
-            content: 'Auto-continuing...',
+            content: tr('app.chat.autoContinuing'),
             metadata: { delay_ms: delayMs, auto: true },
           })
           if (!event.replaying) {
@@ -1262,7 +1263,7 @@ export function useChat() {
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'system_init',
-              content: 'Session initialized',
+              content: tr('app.chat.sessionInitialized'),
               metadata: {
                 model: siModel,
                 tools_count: siTools?.length ?? 0,
@@ -1295,15 +1296,15 @@ export function useChat() {
               id: nextBlockId(),
               type: 'result_max_turns',
               content: rNumTurns
-                ? `Maximum turns reached (${rNumTurns} turns)`
-                : 'Maximum turns reached',
+                ? tr('app.chat.maxTurnsCount', { n: rNumTurns })
+                : tr('app.chat.maxTurns'),
               metadata: { num_turns: rNumTurns },
             })
           } else if (rSubtype === 'error_during_execution') {
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'result_error',
-              content: rResultText ?? 'An execution error occurred',
+              content: rResultText ?? tr('app.chat.executionError'),
               metadata: { result_text: rResultText },
             })
           }
@@ -2091,7 +2092,7 @@ export function useChat() {
         store.set(chatDraftInputAtom, (typed) => (typed.trim() === '' ? text : `${text}\n${typed}`))
         store.set(chatSessionOpenErrorAtom, {
           info: toProviderError(err),
-          message: apiErrorMessage(err, 'The conversation could not be started'),
+          message: apiErrorMessage(err, tr('app.chat.startFailed')),
           text,
           attachments: attachments ?? [],
         })

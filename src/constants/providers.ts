@@ -19,41 +19,43 @@ import {
   type RoutedBy,
 } from '@/types/provider'
 import type { MessageKey } from '@/i18n'
+import { tr } from '@/i18n/lazy'
 
 /** Shown where a model would be named and the server named none. Never an invented id. */
-export const DEFAULT_MODEL_LABEL = 'Default model'
+export const defaultModelLabel = (): string => tr('providers.defaultModel')
 
-export const PROVIDER_LOCKED_TEXT = 'A conversation stays on its provider'
-export const NEW_CONVERSATION_OTHER_PROVIDER_LABEL = 'New conversation with another provider'
-export const SET_MODEL_UNSUPPORTED_TEXT =
-  'This provider cannot change the model of a running conversation. Start a new conversation to use another model.'
+export const providerLockedText = (): string => tr('providers.locked')
+export const newConversationOtherProviderLabel = (): string => tr('providers.newConversationOther')
+export const setModelUnsupportedText = (): string => tr('providers.setModelUnsupported')
 
-export const PROVIDER_SIGN_IN_REQUIRED_TEXT = 'Sign-in required'
-export const PROVIDER_NOT_ALLOWED_TEXT = 'Not allowed for this project'
-export const PROVIDER_UNAVAILABLE_TEXT = 'Unavailable'
+export const providerSignInRequiredText = (): string => tr('providers.signInRequired')
+export const providerNotAllowedText = (): string => tr('providers.notAllowed')
+export const providerUnavailableText = (): string => tr('providers.unavailable')
 
-const ROUTED_BY_LABELS: Readonly<Record<string, string>> = {
-  session: 'session default',
-  request: 'requested',
-  task: 'task default',
-  persona: 'persona default',
-  run: 'run default',
-  project_rule: 'project default',
-  global_rule: 'global default',
-  default: 'server default',
-  claude_code: 'Claude Code fallback',
-  fallback: 'fallback',
-  auto: 'PO chooses',
-}
+const ROUTED_BY_LABEL_KEYS = {
+  session: 'providers.routedBy.session',
+  request: 'providers.routedBy.request',
+  task: 'providers.routedBy.task',
+  persona: 'providers.routedBy.persona',
+  run: 'providers.routedBy.run',
+  project_rule: 'providers.routedBy.project_rule',
+  global_rule: 'providers.routedBy.global_rule',
+  default: 'providers.routedBy.default',
+  claude_code: 'providers.routedBy.claude_code',
+  fallback: 'providers.routedBy.fallback',
+  auto: 'providers.routedBy.auto',
+} as const satisfies Record<string, MessageKey>
 
 /** i18n key of a `routed_by` value (`routing.routedBy.*`); an unknown rule reads as the server default. */
 export function routedByKey(routedBy: RoutedBy | null | undefined): MessageKey {
-  return (routedBy && routedBy in ROUTED_BY_LABELS ? `routing.routedBy.${routedBy}` : 'routing.routedBy.default') as MessageKey
+  return (routedBy && routedBy in ROUTED_BY_LABEL_KEYS ? `routing.routedBy.${routedBy}` : 'routing.routedBy.default') as MessageKey
 }
 
 /** Which rule made an instance the default, in words. An unknown rule is still "default". */
 export function routedByLabel(routedBy: RoutedBy | null | undefined): string {
-  return (routedBy && ROUTED_BY_LABELS[routedBy]) || 'default'
+  return routedBy && routedBy in ROUTED_BY_LABEL_KEYS
+    ? tr(ROUTED_BY_LABEL_KEYS[routedBy as keyof typeof ROUTED_BY_LABEL_KEYS])
+    : tr('providers.routedBy.fallbackDefault')
 }
 
 /**
@@ -68,12 +70,12 @@ const HEALTH_DOT_COLORS: Readonly<Record<ProviderHealthStatus, string>> = {
   unknown: 'bg-gray-500',
 }
 
-const HEALTH_LABELS: Readonly<Record<ProviderHealthStatus, string>> = {
-  healthy: 'Healthy',
-  degraded: 'Degraded',
-  unhealthy: 'Unhealthy',
-  auth_required: 'Sign-in required',
-  unknown: 'Not checked',
+const HEALTH_LABEL_KEYS: Readonly<Record<ProviderHealthStatus, MessageKey>> = {
+  healthy: 'providers.health.healthy',
+  degraded: 'providers.health.degraded',
+  unhealthy: 'providers.health.unhealthy',
+  auth_required: 'providers.health.auth_required',
+  unknown: 'providers.health.unknown',
 }
 
 export function healthDotColor(status: string | null | undefined): string {
@@ -81,7 +83,7 @@ export function healthDotColor(status: string | null | undefined): string {
 }
 
 export function healthLabel(status: string | null | undefined): string {
-  return (HEALTH_LABELS as Record<string, string>)[status ?? ''] ?? HEALTH_LABELS.unknown
+  return tr((HEALTH_LABEL_KEYS as Record<string, MessageKey>)[status ?? ''] ?? HEALTH_LABEL_KEYS.unknown)
 }
 
 /**
@@ -92,10 +94,10 @@ export function healthLabel(status: string | null | undefined): string {
  * `degraded` and `unknown` stay selectable — the server decides when asked.
  */
 export function providerUnavailableReason(instance: ProviderInstance): string | null {
-  if (instance.allowed_for_project === false) return PROVIDER_NOT_ALLOWED_TEXT
+  if (instance.allowed_for_project === false) return providerNotAllowedText()
   const health = instance.health
-  if (health?.status === 'auth_required') return PROVIDER_SIGN_IN_REQUIRED_TEXT
-  if (health?.status === 'unhealthy') return health.error?.message || PROVIDER_UNAVAILABLE_TEXT
+  if (health?.status === 'auth_required') return providerSignInRequiredText()
+  if (health?.status === 'unhealthy') return health.error?.message || providerUnavailableText()
   return null
 }
 
@@ -157,9 +159,8 @@ export function providerModelLabel(instance: ProviderInstance | null | undefined
 // Which provider a conversation runs on (badge, export)
 // ----------------------------------------------------------------------------
 
-export const PROVIDER_BADGE_UNAVAILABLE_TEXT = 'unavailable'
-export const PROVIDER_BADGE_UNAVAILABLE_HELP =
-  'The provider instance of this conversation has been deleted: it cannot be resumed.'
+export const providerBadgeUnavailableText = (): string => tr('providers.badgeUnavailable')
+export const providerBadgeUnavailableHelp = (): string => tr('providers.badgeUnavailableHelp')
 
 /** What a session says about its provider: its record, or its `system_init`. */
 export interface SessionProviderRef {
@@ -218,5 +219,5 @@ export function shouldShowProviderBadge(
 }
 
 /** The "no explicit choice" target of a new conversation: the server resolves provider and model. */
-export const AUTO_TARGET_LABEL = 'Auto'
-export const AUTO_TARGET_HELP = 'The server picks the provider and the model for this project.'
+export const autoTargetLabel = (): string => tr('providers.autoTarget')
+export const autoTargetHelp = (): string => tr('providers.autoTargetHelp')

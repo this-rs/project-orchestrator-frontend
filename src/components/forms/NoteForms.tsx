@@ -7,13 +7,18 @@ import { useState } from 'react'
 import { Input, Select, Textarea } from '@/components/ui'
 import type { NoteImportance, NoteType } from '@/types'
 import { noteTypeOptions } from '@/components/knowledge/noteMeta'
+import { useT } from '@/i18n'
 
-const importanceOptions = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'critical', label: 'Critical' },
-]
+/** Importance choices, labelled in the language on screen. */
+function useImportanceOptions() {
+  const { t } = useT()
+  return [
+    { value: 'low', label: t('ui.status.low') },
+    { value: 'medium', label: t('ui.status.medium') },
+    { value: 'high', label: t('ui.status.high') },
+    { value: 'critical', label: t('ui.status.critical') },
+  ]
+}
 
 const parseTags = (raw: string) =>
   raw
@@ -30,6 +35,8 @@ export interface EditNoteFormData {
 }
 
 export function useEditNoteForm(onSubmit: (data: EditNoteFormData) => Promise<void>) {
+  const { t } = useT()
+  const importanceOptions = useImportanceOptions()
   const [content, setContent] = useState('')
   const [importance, setImportance] = useState<NoteImportance>('medium')
   const [tags, setTags] = useState('')
@@ -45,8 +52,8 @@ export function useEditNoteForm(onSubmit: (data: EditNoteFormData) => Promise<vo
     fields: (
       <>
         <Textarea
-          label="Content (markdown)"
-          aria-label="Content"
+          label={t('forms.note.contentMarkdown')}
+          aria-label={t('forms.field.content')}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           error={error}
@@ -55,18 +62,18 @@ export function useEditNoteForm(onSubmit: (data: EditNoteFormData) => Promise<vo
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Select
-            label="Importance"
+            label={t('forms.field.importance')}
             options={importanceOptions}
             value={importance}
             onChange={(v) => setImportance(v as NoteImportance)}
           />
-          <Input label="Tags" placeholder="Comma-separated tags" value={tags} onChange={(e) => setTags(e.target.value)} />
+          <Input label={t('forms.field.tags')} placeholder={t('forms.placeholder.tags')} value={tags} onChange={(e) => setTags(e.target.value)} />
         </div>
       </>
     ),
     submit: async () => {
       if (!content.trim()) {
-        setError('Content is required')
+        setError(t('forms.error.content'))
         return false
       }
       await onSubmit({ content: content.trim(), importance, tags: parseTags(tags) })
@@ -77,6 +84,7 @@ export function useEditNoteForm(onSubmit: (data: EditNoteFormData) => Promise<vo
 // ── Invalidate ──────────────────────────────────────────────────────────
 
 export function useInvalidateNoteForm(onSubmit: (reason: string) => Promise<void>) {
+  const { t } = useT()
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | undefined>()
   return {
@@ -86,13 +94,11 @@ export function useInvalidateNoteForm(onSubmit: (reason: string) => Promise<void
     },
     fields: (
       <>
-        <p className="text-sm text-gray-400">
-          Marks the note as obsolete: agents stop receiving it. Say why, so the history explains it.
-        </p>
+        <p className="text-sm text-gray-400">{t('forms.note.invalidateIntro')}</p>
         <Textarea
-          label="Reason"
-          aria-label="Reason"
-          placeholder="e.g. The retry logic was removed in the v2 client"
+          label={t('forms.field.reason')}
+          aria-label={t('forms.field.reason')}
+          placeholder={t('forms.placeholder.invalidateReason')}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           error={error}
@@ -103,7 +109,7 @@ export function useInvalidateNoteForm(onSubmit: (reason: string) => Promise<void
     ),
     submit: async () => {
       if (!reason.trim()) {
-        setError('A reason is required')
+        setError(t('forms.error.reason'))
         return false
       }
       await onSubmit(reason.trim())
@@ -121,6 +127,8 @@ export interface SupersedeNoteFormData {
 }
 
 export function useSupersedeNoteForm(onSubmit: (data: SupersedeNoteFormData) => Promise<void>) {
+  const { t } = useT()
+  const importanceOptions = useImportanceOptions()
   const [noteType, setNoteType] = useState<NoteType>('guideline')
   const [content, setContent] = useState('')
   const [importance, setImportance] = useState<NoteImportance>('medium')
@@ -137,33 +145,31 @@ export function useSupersedeNoteForm(onSubmit: (data: SupersedeNoteFormData) => 
     },
     fields: (
       <>
-        <p className="text-sm text-gray-400">
-          Creates a new version of this note. The current one is kept for history and marked as superseded.
-        </p>
+        <p className="text-sm text-gray-400">{t('forms.note.supersedeIntro')}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Select label="Type" options={noteTypeOptions} value={noteType} onChange={(v) => setNoteType(v as NoteType)} />
+          <Select label={t('forms.field.type')} options={noteTypeOptions} value={noteType} onChange={(v) => setNoteType(v as NoteType)} />
           <Select
-            label="Importance"
+            label={t('forms.field.importance')}
             options={importanceOptions}
             value={importance}
             onChange={(v) => setImportance(v as NoteImportance)}
           />
         </div>
         <Textarea
-          label="New content (markdown)"
-          aria-label="New content"
+          label={t('forms.note.newContentMarkdown')}
+          aria-label={t('forms.note.newContent')}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           error={error}
           rows={10}
           autoFocus
         />
-        <Input label="Tags" placeholder="Comma-separated tags" value={tags} onChange={(e) => setTags(e.target.value)} />
+        <Input label={t('forms.field.tags')} placeholder={t('forms.placeholder.tags')} value={tags} onChange={(e) => setTags(e.target.value)} />
       </>
     ),
     submit: async () => {
       if (!content.trim()) {
-        setError('Content is required')
+        setError(t('forms.error.content'))
         return false
       }
       await onSubmit({ note_type: noteType, content: content.trim(), importance, tags: parseTags(tags) })
@@ -173,21 +179,21 @@ export function useSupersedeNoteForm(onSubmit: (data: SupersedeNoteFormData) => 
 
 // ── Link to an entity ───────────────────────────────────────────────────
 
-const linkTypeOptions = [
-  { value: 'file', label: 'File' },
-  { value: 'function', label: 'Function' },
-  { value: 'struct', label: 'Struct' },
-  { value: 'trait', label: 'Trait' },
-  { value: 'module', label: 'Module' },
-  { value: 'task', label: 'Task' },
-  { value: 'plan', label: 'Plan' },
-  { value: 'decision', label: 'Decision' },
-  { value: 'skill', label: 'Skill' },
-  { value: 'protocol', label: 'Protocol' },
-  { value: 'feature_graph', label: 'Feature graph' },
-]
-
 export function useLinkNoteEntityForm(onSubmit: (entityType: string, entityId: string) => Promise<void>) {
+  const { t } = useT()
+  const linkTypeOptions = [
+    { value: 'file', label: t('forms.entityType.file') },
+    { value: 'function', label: t('forms.entityType.function') },
+    { value: 'struct', label: t('forms.entityType.struct') },
+    { value: 'trait', label: t('forms.entityType.trait') },
+    { value: 'module', label: t('forms.entityType.module') },
+    { value: 'task', label: t('forms.entityType.task') },
+    { value: 'plan', label: t('forms.entityType.plan') },
+    { value: 'decision', label: t('forms.entityType.decision') },
+    { value: 'skill', label: t('forms.entityType.skill') },
+    { value: 'protocol', label: t('forms.entityType.protocol') },
+    { value: 'feature_graph', label: t('forms.entityType.feature_graph') },
+  ]
   const [entityType, setEntityType] = useState('file')
   const [entityId, setEntityId] = useState('')
   const [error, setError] = useState<string | undefined>()
@@ -199,10 +205,10 @@ export function useLinkNoteEntityForm(onSubmit: (entityType: string, entityId: s
     },
     fields: (
       <>
-        <Select label="Entity type" options={linkTypeOptions} value={entityType} onChange={setEntityType} />
+        <Select label={t('forms.field.entityType')} options={linkTypeOptions} value={entityType} onChange={setEntityType} />
         <Input
-          label="Entity"
-          placeholder={entityType === 'file' ? 'src/api/handlers.rs' : entityType === 'function' ? 'function name' : 'ID'}
+          label={t('forms.field.entity')}
+          placeholder={entityType === 'file' ? 'src/api/handlers.rs' : entityType === 'function' ? t('forms.placeholder.functionName') : t('forms.placeholder.id')}
           value={entityId}
           onChange={(e) => setEntityId(e.target.value)}
           error={error}
@@ -212,7 +218,7 @@ export function useLinkNoteEntityForm(onSubmit: (entityType: string, entityId: s
     ),
     submit: async () => {
       if (!entityId.trim()) {
-        setError('Required')
+        setError(t('forms.error.required'))
         return false
       }
       await onSubmit(entityType, entityId.trim())

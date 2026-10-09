@@ -6,6 +6,7 @@ import { Button } from './Button'
 import { Spinner } from './Spinner'
 import { DIALOG_MOTION, useVariants } from '@/utils/motion'
 import type { LinkOption } from '@/hooks/useLinkDialog'
+import { useT } from '@/i18n'
 
 export interface LinkEntityDialogProps {
   open: boolean
@@ -26,7 +27,7 @@ export function LinkEntityDialog({
   open,
   onClose,
   title,
-  submitLabel = 'Link',
+  submitLabel,
   options,
   selectedId,
   onSelect,
@@ -36,6 +37,7 @@ export function LinkEntityDialog({
   searchQuery,
   onSearchChange,
 }: LinkEntityDialogProps) {
+  const { t } = useT()
   const searchRef = useRef<HTMLInputElement>(null)
   const variants = useVariants(DIALOG_MOTION)
 
@@ -108,7 +110,7 @@ export function LinkEntityDialog({
                 <input
                   ref={searchRef}
                   className="w-full pl-10 pr-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="Search..."
+                  placeholder={t('ui.searchPlaceholder')}
                   value={searchQuery}
                   onChange={(e) => onSearchChange(e.target.value)}
                   disabled={loading}
@@ -123,7 +125,7 @@ export function LinkEntityDialog({
                   </div>
                 ) : options.length === 0 ? (
                   <div className="flex items-center justify-center py-8 text-sm text-gray-500">
-                    No items available
+                    {t('ui.linkDialog.empty')}
                   </div>
                 ) : (
                   options.map((option) => (
@@ -150,7 +152,7 @@ export function LinkEntityDialog({
             {/* Actions */}
             <div className="flex justify-end gap-3 px-4 py-4 md:px-6">
               <Button variant="secondary" size="sm" onClick={onClose} disabled={loading}>
-                Cancel
+                {t('ui.cancel')}
               </Button>
               <Button
                 variant="primary"
@@ -159,7 +161,7 @@ export function LinkEntityDialog({
                 loading={loading}
                 disabled={!selectedId || loading}
               >
-                {submitLabel}
+                {submitLabel ?? t('ui.link')}
               </Button>
             </div>
           </motion.div>

@@ -4,6 +4,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { FloatingMenu } from './FloatingMenu'
 import { menuItemClass } from './menuPosition'
 import { iconButton } from './classes'
+import { useT } from '@/i18n'
 
 export interface OverflowMenuAction {
   label: string
@@ -47,11 +48,12 @@ const stop = (e: SyntheticEvent) => e.stopPropagation()
 export function OverflowMenu({
   actions,
   className = '',
-  label = 'More actions',
+  label,
   icon = 'horizontal',
   size = 'md',
   align = 'end',
 }: OverflowMenuProps) {
+  const { t } = useT()
   const [isOpen, setIsOpen] = useState(false)
   const [pending, setPending] = useState<OverflowMenuAction | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -94,7 +96,7 @@ export function OverflowMenu({
         }}
         // Ghost glass icon button; `aria-expanded` is what keeps its glass visible while the menu is open.
         className={`${iconButton('ghost', sizeClass)} ${isOpen ? '' : 'text-gray-500'}`}
-        aria-label={label}
+        aria-label={label ?? t('ui.moreActions')}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-controls={isOpen ? menuId : undefined}
@@ -102,7 +104,7 @@ export function OverflowMenu({
         <Icon className="w-4 h-4" aria-hidden="true" />
       </button>
 
-      <FloatingMenu open={isOpen} onClose={close} triggerRef={triggerRef} id={menuId} label={label} align={align}>
+      <FloatingMenu open={isOpen} onClose={close} triggerRef={triggerRef} id={menuId} label={label ?? t('ui.moreActions')} align={align}>
         {visible.map((action) => {
           const ItemIcon = action.icon
           const danger = action.variant === 'danger'

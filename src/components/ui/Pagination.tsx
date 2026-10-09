@@ -1,4 +1,5 @@
 import { Select } from './Select'
+import { useT } from '@/i18n'
 
 interface PaginationProps {
   currentPage: number
@@ -21,6 +22,7 @@ export function Pagination({
   pageSizeOptions = [10, 25, 50, 100],
   className = '',
 }: PaginationProps) {
+  const { t } = useT()
   const canGoPrev = currentPage > 1
   const canGoNext = currentPage < totalPages
 
@@ -69,13 +71,9 @@ export function Pagination({
       {/* Items info */}
       <div className="text-sm text-gray-400">
         {totalItems === 0 ? (
-          'No items'
+          t('ui.pagination.none')
         ) : (
-          <>
-            Showing <span className="font-medium text-gray-200">{startItem}</span> to{' '}
-            <span className="font-medium text-gray-200">{endItem}</span> of{' '}
-            <span className="font-medium text-gray-200">{totalItems}</span> items
-          </>
+          t('ui.pagination.showing', { from: startItem, to: endItem, total: totalItems })
         )}
       </div>
 
@@ -83,7 +81,7 @@ export function Pagination({
       <div className="flex items-center gap-4">
         {/* Page size selector — hidden on mobile */}
         <div className="hidden sm:flex items-center gap-2">
-          <span className="text-sm text-gray-400 whitespace-nowrap">Per page:</span>
+          <span className="text-sm text-gray-400 whitespace-nowrap">{t('ui.pagination.perPage')}</span>
           <Select
             options={pageSizeOptions.map((size) => ({ value: String(size), label: String(size) }))}
             value={String(pageSize)}
@@ -105,7 +103,7 @@ export function Pagination({
                   : 'bg-white/[0.03] text-gray-500 cursor-not-allowed'
               }`}
             >
-              Prev
+              {t('ui.pagination.prev')}
             </button>
 
             {/* Page numbers — hidden on mobile, show current/total instead */}
@@ -144,7 +142,7 @@ export function Pagination({
                   : 'bg-white/[0.03] text-gray-500 cursor-not-allowed'
               }`}
             >
-              Next
+              {t('ui.pagination.next')}
             </button>
           </nav>
         )}

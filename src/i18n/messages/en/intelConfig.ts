@@ -1,0 +1,31 @@
+export default {
+  layer: {
+    code: { label: 'Code', description: 'Files, functions, structs, traits' },
+    pm: { label: 'Project', description: 'Plans, tasks, milestones' },
+    knowledge: { label: 'Knowledge', description: 'Notes, decisions, constraints' },
+    fabric: { label: 'Fabric', description: 'IMPORTS, CALLS, CO_CHANGED' },
+    neural: { label: 'Neural', description: 'Synapses, energy, activation' },
+    skills: { label: 'Skills', description: 'Emergent knowledge clusters' },
+    behavioral: { label: 'Behavioral', description: 'Protocols, states, transitions (FSM)' },
+    chat: { label: 'Chat', description: 'Chat sessions & discussed entities' },
+  },
+  preset: {
+    code_only: { label: 'Code', description: 'Pure code architecture' },
+    knowledge_overlay: { label: 'Knowledge', description: 'Notes & decisions on the code' },
+    neural_view: { label: 'Neural', description: 'Neural network, skills & protocols' },
+    pm_view: { label: 'Project', description: 'Plans, tasks, milestones' },
+    impact_mode: { label: 'Impact', description: 'Impact analysis' },
+    behavioral_view: { label: 'Behavioral', description: 'Protocols, skills, notes & interconnections' },
+    full_stack: { label: 'Full', description: 'All layers' },
+  },
+  group: {
+    core: 'Core',
+    code: 'Code',
+    knowledge: 'Knowledge',
+    git: 'Git',
+    sessions: 'Sessions',
+    features: 'Features',
+    behavioral: 'Behavioral',
+  },
+  scale: { workspace: 'projects', project: 'plans + milestones', plan: 'tasks', task: 'steps' },
+} as const

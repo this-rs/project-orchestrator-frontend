@@ -6,6 +6,7 @@
  */
 import { useState } from 'react'
 import { Input, Select, Textarea } from '@/components/ui'
+import { useT } from '@/i18n'
 
 // ── Edit context ────────────────────────────────────────────────────────
 
@@ -16,6 +17,7 @@ export interface EditDecisionFormData {
 }
 
 export function useEditDecisionForm(onSubmit: (data: EditDecisionFormData) => Promise<void>) {
+  const { t } = useT()
   const [description, setDescription] = useState('')
   const [rationale, setRationale] = useState('')
   const [chosen, setChosen] = useState('')
@@ -31,9 +33,9 @@ export function useEditDecisionForm(onSubmit: (data: EditDecisionFormData) => Pr
     fields: (
       <>
         <Textarea
-          label="Description"
-          aria-label="Description"
-          placeholder="What was decided? The first line is the title."
+          label={t('forms.field.description')}
+          aria-label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.decisionEdit')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={error}
@@ -41,17 +43,17 @@ export function useEditDecisionForm(onSubmit: (data: EditDecisionFormData) => Pr
           autoFocus
         />
         <Textarea
-          label="Rationale"
-          aria-label="Rationale"
-          placeholder="Why this decision was made"
+          label={t('forms.field.rationale')}
+          aria-label={t('forms.field.rationale')}
+          placeholder={t('forms.placeholder.rationaleEdit')}
           value={rationale}
           onChange={(e) => setRationale(e.target.value)}
           rows={6}
         />
         <Input
-          label="Chosen option"
-          aria-label="Chosen option"
-          placeholder="e.g. Option A"
+          label={t('forms.field.chosenOption')}
+          aria-label={t('forms.field.chosenOption')}
+          placeholder={t('forms.placeholder.optionExample')}
           value={chosen}
           onChange={(e) => setChosen(e.target.value)}
         />
@@ -59,7 +61,7 @@ export function useEditDecisionForm(onSubmit: (data: EditDecisionFormData) => Pr
     ),
     submit: async () => {
       if (!description.trim()) {
-        setError('Description is required')
+        setError(t('forms.error.description'))
         return false
       }
       await onSubmit({ description: description.trim(), rationale: rationale.trim(), chosen_option: chosen.trim() || undefined })
@@ -70,11 +72,11 @@ export function useEditDecisionForm(onSubmit: (data: EditDecisionFormData) => Pr
 // ── Affected entity ─────────────────────────────────────────────────────
 
 export const DECISION_AFFECTS_TYPES = [
-  { value: 'File', label: 'File' },
-  { value: 'Function', label: 'Function' },
-  { value: 'Struct', label: 'Struct' },
-  { value: 'Trait', label: 'Trait' },
-]
+  { value: 'File', label: 'forms.entityType.file' },
+  { value: 'Function', label: 'forms.entityType.function' },
+  { value: 'Struct', label: 'forms.entityType.struct' },
+  { value: 'Trait', label: 'forms.entityType.trait' },
+] as const
 
 export interface DecisionAffectsFormData {
   entity_type: string
@@ -83,6 +85,7 @@ export interface DecisionAffectsFormData {
 }
 
 export function useDecisionAffectsForm(onSubmit: (data: DecisionAffectsFormData) => Promise<void>) {
+  const { t } = useT()
   const [entityType, setEntityType] = useState('File')
   const [entityId, setEntityId] = useState('')
   const [impact, setImpact] = useState('')
@@ -97,20 +100,20 @@ export function useDecisionAffectsForm(onSubmit: (data: DecisionAffectsFormData)
     },
     fields: (
       <>
-        <Select label="Entity type" options={DECISION_AFFECTS_TYPES} value={entityType} onChange={setEntityType} />
+        <Select label={t('forms.field.entityType')} options={DECISION_AFFECTS_TYPES.map((o) => ({ value: o.value, label: t(o.label) }))} value={entityType} onChange={setEntityType} />
         <Input
-          label="Entity"
-          aria-label="Entity"
-          placeholder={entityType === 'File' ? 'src/api/handlers.rs' : `${entityType} name`}
+          label={t('forms.field.entity')}
+          aria-label={t('forms.field.entity')}
+          placeholder={entityType === 'File' ? 'src/api/handlers.rs' : t('forms.placeholder.entityName', { type: entityType })}
           value={entityId}
           onChange={(e) => setEntityId(e.target.value)}
           error={error}
           autoFocus
         />
         <Textarea
-          label="Impact"
-          aria-label="Impact"
-          placeholder="How this decision constrains it (optional)"
+          label={t('forms.field.impact')}
+          aria-label={t('forms.field.impact')}
+          placeholder={t('forms.placeholder.impact')}
           value={impact}
           onChange={(e) => setImpact(e.target.value)}
           rows={3}
@@ -119,7 +122,7 @@ export function useDecisionAffectsForm(onSubmit: (data: DecisionAffectsFormData)
     ),
     submit: async () => {
       if (!entityId.trim()) {
-        setError('Required')
+        setError(t('forms.error.required'))
         return false
       }
       await onSubmit({ entity_type: entityType, entity_id: entityId.trim(), impact_description: impact.trim() || undefined })

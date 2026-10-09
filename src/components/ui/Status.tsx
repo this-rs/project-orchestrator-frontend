@@ -16,6 +16,7 @@ import {
 import { FloatingMenu } from './FloatingMenu'
 import { menuItemClass } from './menuPosition'
 import { focusRing, hitArea } from './classes'
+import { useT } from '@/i18n'
 import {
   TONE_CLASSES,
   getPriorityMeta,
@@ -189,6 +190,7 @@ export function StatusMenu<K extends StatusKind>({
   icon,
   className = '',
 }: StatusMenuProps<K>) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -227,7 +229,7 @@ export function StatusMenu<K extends StatusKind>({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        aria-label={label ?? `Status: ${meta.label}. Change status`}
+        aria-label={label ?? t('ui.status.menuLabel', { status: meta.label })}
         className={`${hitArea} -mx-1 px-1 inline-flex items-center gap-1.5 rounded whitespace-nowrap transition-colors hover:bg-white/[0.05] ${focusRing} disabled:cursor-not-allowed ${TONE_CLASSES[meta.tone].text}`}
       >
         {busy ? (
@@ -240,7 +242,7 @@ export function StatusMenu<K extends StatusKind>({
         <span>{meta.label}</span>
         {!disabled && <ChevronDown className={`w-3 h-3 opacity-60 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />}
       </button>
-      <FloatingMenu open={open} onClose={close} triggerRef={triggerRef} id={menuId} label="Change status" align="start">
+      <FloatingMenu open={open} onClose={close} triggerRef={triggerRef} id={menuId} label={t('ui.status.change')} align="start">
         {choices.map((o) => {
           const m = getStatusMeta(kind, o.value)
           const selected = o.value === status
