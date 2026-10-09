@@ -13,7 +13,7 @@ import { focusRing } from '@/components/ui/classes'
 import { useT } from '@/i18n'
 import { useTimelineLabels } from '@/hooks/useTimelineLabels'
 import type { ChatMessage } from '@/types'
-import { Timeline, buildTimeline, resolveTarget, type TimelineItem, type TimelineRunInput } from '@/components/timeline'
+import { TimelineGantt, buildTimeline, resolveTarget, type TimelineItem, type TimelineRunInput } from '@/components/timeline'
 import { workspacePath } from '@/utils/paths'
 import { useTimelineContext } from '@/hooks/useTimelineContext'
 
@@ -52,7 +52,7 @@ export const ChatTimelineStrip = memo(function ChatTimelineStrip({ sessionId, me
   return (
     <div className="flex shrink-0 items-start gap-2 border-b border-white/10 bg-slate-900/60 px-3 py-1" data-testid="chat-timeline-strip">
       <div className="min-w-0 flex-1">
-        <Timeline lanes={timeline.lanes} onSelect={handleSelect} maxItems={STRIP_MAX_ITEMS} labels={labels} />
+        <TimelineGantt lanes={timeline.lanes} onSelect={handleSelect} maxItems={STRIP_MAX_ITEMS} labels={labels} maxHeightClass="max-h-[min(40vh,20rem)]" />
       </div>
       {sessionId && workspaceSlug && (
         <Link

@@ -89,5 +89,9 @@ export default {
     },
     empty: 'Nothing has happened yet.',
     earlier: 'Show {n} earlier',
+    calls: "Calls: {n}",
+    peak: "Peak in parallel: {n}",
+    parallel: "In parallel",
+    idle: "{d} idle",
   },
 } as const

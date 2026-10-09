@@ -19,6 +19,10 @@ export function useTimelineLabels(): TimelineLabels {
       empty: t('session.timeline.empty'),
       earlier: t('session.timeline.earlier', { n: '{n}' }),
       list: t('session.timeline.title'),
+      calls: t('session.timeline.calls'),
+      peak: t('session.timeline.peak'),
+      parallel: t('session.timeline.parallel'),
+      idle: t('session.timeline.idle'),
     }),
     [t],
   )

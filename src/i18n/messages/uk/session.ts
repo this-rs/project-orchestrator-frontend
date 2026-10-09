@@ -91,5 +91,9 @@ export default {
     },
     empty: "Поки що нічого не сталося.",
     earlier: "Показати ще {n} раніше",
+    calls: "Виклики: {n}",
+    peak: "Пік паралельно: {n}",
+    parallel: "Паралельно",
+    idle: "Простій {d}",
   },
 } satisfies Translation<'session'>
