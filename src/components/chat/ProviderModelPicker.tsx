@@ -48,8 +48,8 @@ import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
 import { VaultUnlock } from './VaultUnlock'
 import { useVaultLocked } from './useVaultLocked'
 
-/** The one menu of the composer's target control, or none. Owned by the composer, which also has a mode menu to close. */
-export type ProviderModelMenu = 'target' | 'routing' | null
+/** The composer's target menu when open, else none. Owned by the composer, which also has a mode menu to close. */
+export type ProviderModelMenu = 'target' | null
 
 interface ProviderModelPickerProps {
   /** Current session (null/undefined = a conversation not created yet). */
@@ -431,7 +431,7 @@ export function RefreshClaudeModels() {
         disabled={refreshing}
         aria-label={t('routing.menu.refreshModelsAria')}
         onClick={() => refreshModelCatalog(setModels, setLoaded, setRefreshing)}
-        className="inline-flex items-center gap-1 text-[10px] text-gray-400 hover:text-gray-200 disabled:opacity-60"
+        className="inline-flex min-h-6 items-center gap-1 rounded text-[10px] text-gray-400 hover:text-gray-200 disabled:opacity-60 outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 pointer-coarse:min-h-11"
       >
         <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
         {refreshing ? t('routing.menu.refreshing') : t('routing.menu.refreshModels')}

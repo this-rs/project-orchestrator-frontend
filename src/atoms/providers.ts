@@ -20,6 +20,7 @@ import {
 } from '@/types/provider'
 import { routingApi } from '@/services/routing'
 import type { ProviderRoutingMode, RoutingSettingsResponse } from '@/types/routing'
+import { pickModelResolver } from '@/constants/providers'
 import { modeOf, type RoutingPick } from '@/utils/routingSelection'
 import { chatPermissionConfigAtom, chatSelectedProjectAtom, chatSessionIdAtom, chatSessionModelAtom } from './chat'
 
@@ -249,17 +250,23 @@ export const chatDraftAutoAtom = atom<boolean | null>(null)
 export const chatDraftSelectionAtom = atom<RoutingPick[]>([])
 
 /** The routing mode the draft stands for - read from the two above, never stored. `null` = the settings decide. */
-export const chatDraftRoutingModeAtom = atom<ProviderRoutingMode | null>((get) => modeOf(get(chatDraftAutoAtom), get(chatDraftSelectionAtom)))
+export const chatDraftRoutingModeAtom = atom<ProviderRoutingMode | null>((get) =>
+  modeOf(get(chatDraftAutoAtom), get(chatDraftSelectionAtom), pickModelResolver(get(providersAtom))),
+)
 
 /**
- * Mode of THIS conversation, anything not known being `primary` (today's
- * behaviour): the one its record says it was opened with, else the settings'.
- * Before the first message: the draft's own choice, else the settings'.
+ * Mode of THIS conversation. Once it exists: what its record says (or what this
+ * chat was switched to), never the settings - they may have changed since; a
+ * record that names no mode reads `full` when PO chose its model, else `primary`.
+ * Before the first message: the draft's own choice, else the settings' (what
+ * the server will apply to it).
  */
 export const chatRoutingModeAtom = atom<ProviderRoutingMode>((get) => {
-  const settings = get(chatRoutingSettingsAtom)?.mode ?? 'primary'
-  if (get(chatSessionIdAtom)) return get(chatSessionRoutingAtom)?.routing_mode ?? settings
-  return get(chatDraftRoutingModeAtom) ?? settings
+  if (get(chatSessionIdAtom)) {
+    const record = get(chatSessionRoutingAtom)
+    return record?.routing_mode ?? (record?.routed_by === 'auto' ? 'full' : 'primary')
+  }
+  return get(chatDraftRoutingModeAtom) ?? get(chatRoutingSettingsAtom)?.mode ?? 'primary'
 })
 
 /**

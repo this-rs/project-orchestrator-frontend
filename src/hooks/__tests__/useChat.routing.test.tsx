@@ -13,6 +13,7 @@ import {
   chatDraftAutoAtom,
   chatDraftSelectionAtom,
   chatForcedTargetAtom,
+  chatRoutingModeAtom,
   chatSelectedProviderAtom,
   chatSessionModelAtom,
   chatSessionRoutingAtom,
@@ -120,6 +121,50 @@ describe('useChat.createSession — routing mode', () => {
       { provider: 'local-llama', model: 'qwen' },
       { provider: 'claude-code', model: 'claude-opus-5' },
     ])
+    // The pilot is the first ticked model (the server no longer pins it when a pool is given).
+    expect(body.provider).toBe('local-llama')
+  })
+
+  it('mixed: an alias goes out as its model, and an alias next to that model counts once', async () => {
+    const r = setup('primary')
+    act(() => {
+      r.store.set(providersAtom, { ...PROVIDERS, aliases: [{ alias: 'fast', provider: 'local-llama', model: 'qwen' }] } as ProvidersResponse)
+      r.store.set(chatDraftAutoAtom, false)
+      r.store.set(chatDraftSelectionAtom, [
+        { provider: 'local-llama', model: 'fast' },
+        { provider: 'local-llama', model: 'qwen' },
+        { provider: 'claude-code', model: 'claude-opus-5' },
+      ])
+    })
+    const body = await send(r)
+    expect(body.routing_mode).toBe('mixed')
+    expect(body.routing_pool).toEqual([
+      { provider: 'local-llama', model: 'qwen' },
+      { provider: 'claude-code', model: 'claude-opus-5' },
+    ])
+  })
+
+  it('an alias and its model only: ONE model, strict, no pool', async () => {
+    const r = setup('full')
+    act(() => {
+      r.store.set(providersAtom, { ...PROVIDERS, aliases: [{ alias: 'fast', provider: 'local-llama', model: 'qwen' }] } as ProvidersResponse)
+      r.store.set(chatDraftAutoAtom, false)
+      r.store.set(chatDraftSelectionAtom, [
+        { provider: 'local-llama', model: 'qwen' },
+        { provider: 'local-llama', model: 'fast' },
+      ])
+    })
+    const body = await send(r)
+    expect(body.routing_mode).toBe('primary')
+    expect(body).not.toHaveProperty('routing_pool')
+  })
+
+  it('a conversation opened on the settings keeps their mode, even if the settings change afterwards', async () => {
+    const r = setup('full')
+    await send(r)
+    act(() => r.store.set(routingSettingsAtom(''), { state: 'ready', settings: settings('primary') }))
+    await waitFor(() => expect(r.store.get(chatSessionRoutingAtom)?.routing_mode).toBe('full'))
+    expect(r.store.get(chatRoutingModeAtom)).toBe('full')
   })
 
   it('Auto: routing_mode full and nothing named, whatever was ticked', async () => {
@@ -167,7 +212,8 @@ describe('useChat.createSession — routing mode', () => {
     const r = setup('full')
     await send(r)
     await waitFor(() =>
-      expect(r.store.get(chatSessionRoutingAtom)).toEqual({ routed_by: 'auto', route_reason: 'cheapest capable', routing_mode: null }),
+      // A record that does not echo the mode keeps the one the chat was opened with (the settings' here).
+      expect(r.store.get(chatSessionRoutingAtom)).toEqual({ routed_by: 'auto', route_reason: 'cheapest capable', routing_mode: 'full' }),
     )
   })
 

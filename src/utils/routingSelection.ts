@@ -36,12 +36,14 @@ export function providerState(selection: readonly RoutingPick[], provider: strin
 
 /**
  * The routing mode a draft stands for. `null` = the user touched nothing that
- * says anything (no Auto choice, no pick): the settings decide.
+ * says anything (no Auto choice, no pick): the settings decide. `resolve` names
+ * the model a pick stands for (an alias and its model are ONE model).
  */
-export function modeOf(auto: boolean | null, selection: readonly RoutingPick[]): ProviderRoutingMode | null {
+export function modeOf(auto: boolean | null, selection: readonly RoutingPick[], resolve: (p: RoutingPick) => string = (p) => p.model): ProviderRoutingMode | null {
   if (auto) return 'full'
-  if (selection.length >= 2) return 'mixed'
-  if (selection.length === 1) return 'primary'
+  const count = distinctModels(selection, resolve).length
+  if (count >= 2) return 'mixed'
+  if (count === 1) return 'primary'
   // Auto was switched OFF and nothing picked yet: not Auto, so no routing; the server default runs.
   return auto === false ? 'primary' : null
 }
