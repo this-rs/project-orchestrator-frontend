@@ -9,8 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import { MemoryRouter } from 'react-router-dom'
-import { projectsAtom } from '@/atoms/projects'
-import { workspacesAtom } from '@/atoms/workspaces'
+import { clearSlugRegistry, rememberSlugs } from '../../slugRegistry'
 import { chatDraftInputAtom, chatPanelModeAtom, chatServerFeaturesAtom } from '@/atoms'
 import fixture from '../../__fixtures__/kinds_response.json'
 import { HISTORICAL_KINDS, clearRefKinds, parseKindsResponse, setActiveKinds } from '../../kinds'
@@ -50,6 +49,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   clearRefKinds()
+  clearSlugRegistry()
 })
 
 describe('drag of a link to an entity route', () => {
@@ -114,13 +114,13 @@ describe('slug pages (a project, a workspace) resolve from the lists the app hol
   const WORKSPACE_ID = '7a1d9c34-52e8-4b6f-a0c3-1e8f4d2b6a95'
 
   it('a link to a project page is the project, by its slug', () => {
-    store.set(projectsAtom, [{ id: PROJECT_ID, slug: 'my-project', name: 'P' } as never])
+    rememberSlugs('project', [{ id: PROJECT_ID, slug: 'my-project' }])
     mount(<a href="/workspace/po/projects/my-project">P</a>)
     expect(payload(drag(screen.getByText('P')))).toEqual({ kind: 'project', id: PROJECT_ID })
   })
 
   it('a link to a workspace overview is the workspace', () => {
-    store.set(workspacesAtom, [{ id: WORKSPACE_ID, slug: 'po', name: 'PO' } as never])
+    rememberSlugs('workspace', [{ id: WORKSPACE_ID, slug: 'po' }])
     mount(<a href="/workspace/po/overview">PO</a>)
     expect(payload(drag(screen.getByText('PO')))).toEqual({ kind: 'workspace', id: WORKSPACE_ID })
   })

@@ -3,8 +3,7 @@ import { useAtomValue, useStore } from 'jotai'
 import { refsEnabledAtom } from '@/atoms/chat'
 import { addRefToChatAtom, draggingRefAtom, refsAddAnnouncementAtom } from './addToChat'
 import { setSlugResolver } from '../entityRoutes'
-import { projectSlugToIdAtom } from '@/atoms/projects'
-import { workspacesAtom } from '@/atoms/workspaces'
+import { lookupSlug } from '../slugRegistry'
 import { REF_SELECTOR, resolveSource, writeRefToDataTransfer } from './refSource'
 
 /** Keyboard equivalent of a drag: focus an element that represents an entity, press this. */
@@ -36,15 +35,11 @@ export function ReferenceSourceHost() {
   const store = useStore()
   const announcement = useAtomValue(refsAddAnnouncementAtom)
 
-  // A link names a project or a workspace by its slug; the lists the application already holds say which id that is.
+  // A link names a project or a workspace by its slug; the registry (fed by the API layer) says which id that is.
   useEffect(() => {
-    setSlugResolver((kind, slug) => {
-      if (kind === 'project') return store.get(projectSlugToIdAtom).get(slug) ?? null
-      if (kind === 'workspace') return store.get(workspacesAtom).find((w) => w.slug === slug)?.id ?? null
-      return null
-    })
+    setSlugResolver((kind, slug) => lookupSlug(kind, slug))
     return () => setSlugResolver(() => null)
-  }, [store])
+  }, [])
 
   useEffect(() => {
     if (!enabled) return
