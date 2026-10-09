@@ -64,7 +64,7 @@ export function BoardCard({ id, dataKey, item, ariaLabel, entityRef, ...body }: 
       // Not a button: the card holds buttons (status, add to chat) and a button may not contain one.
       role="group"
       aria-label={ariaLabel}
-      className={`relative rounded-lg border px-3 py-2.5 cursor-grab active:cursor-grabbing select-none transition-colors duration-(--duration-instant) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${source['data-po-ref'] ? 'pr-8 ' : ''}${
+      className={`relative rounded-lg border px-3 py-2.5 cursor-grab active:cursor-grabbing select-none transition-colors duration-(--duration-instant) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60 ${source['data-po-ref'] ? 'pr-8 [@media(pointer:coarse)]:pr-12 ' : ''}${
         isDragging ? 'opacity-40 border-indigo-500/60 bg-surface-raised' : 'border-white/[0.06] bg-surface-raised hover:border-white/[0.14]'
       }`}
     >
@@ -77,12 +77,12 @@ export function BoardCard({ id, dataKey, item, ariaLabel, entityRef, ...body }: 
           // Stay out of the board's drag: this press belongs to the native drag.
           onPointerDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
-          className="absolute right-2 bottom-2 inline-flex size-5 cursor-grab items-center justify-center rounded text-slate-500 hover:bg-white/[0.06] hover:text-slate-300"
+          className="absolute right-2 bottom-2 inline-flex size-5 pointer-coarse:hidden cursor-grab items-center justify-center rounded text-slate-500 hover:bg-white/[0.06] hover:text-slate-300"
         >
           <GripVertical className="size-3.5" aria-hidden="true" />
         </span>
       )}
-      {entityRef && <AddToChatButton entity={{ ...entityRef, label: entityRef.label ?? ariaLabel }} className="absolute right-1 top-1" />}
+      {entityRef && <AddToChatButton entity={{ ...entityRef, label: entityRef.label ?? ariaLabel }} className="absolute! right-1 top-1" />}
     </div>
   )
 }

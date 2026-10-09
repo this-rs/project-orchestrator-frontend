@@ -150,7 +150,15 @@ export function EntityRow({
 
   const rowActions = Array.isArray(actions) ? ([...(addAction ? [addAction] : []), ...actions] as OverflowMenuAction[]) : null
   const menu = rowActions ? (
-    <OverflowMenu actions={rowActions} size="sm" label={menuName ? `Actions for ${menuName}` : 'Row actions'} />
+    <>
+      {/* Touch: "Add to chat" is a visible 44px button, not an entry two taps deep in the menu (the menu keeps it for the mouse and the keyboard). */}
+      {addAction && entity && (
+        <span data-testid="row-add-touch" className="hidden pointer-coarse:contents">
+          <AddToChatButton entity={entity} />
+        </span>
+      )}
+      <OverflowMenu actions={rowActions} size="sm" label={menuName ? `Actions for ${menuName}` : 'Row actions'} />
+    </>
   ) : addAction && entity ? (
     <>
       <AddToChatButton entity={entity} />
@@ -214,7 +222,7 @@ export function EntityRow({
           {primaryAction}
         </div>
       )}
-      {menu && <div className="relative z-10 shrink-0 -my-1.5 -mr-1.5 md:-mr-2">{menu}</div>}
+      {menu && <div className="relative z-10 flex shrink-0 items-center -my-1.5 -mr-1.5 md:-mr-2">{menu}</div>}
       {!actions && chevron && interactive && (
         <ChevronRight className="shrink-0 mt-0.5 w-4 h-4 text-gray-600" aria-hidden="true" />
       )}
