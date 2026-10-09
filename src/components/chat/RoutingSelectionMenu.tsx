@@ -268,7 +268,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onChangeModel, onNewConver
   const mode = auto ? 'full' : count > 1 ? 'mixed' : 'primary'
 
   return (
-    <div className="min-w-0 sm:relative">
+    <div className="min-w-0">
       <button
         type="button"
         onClick={() => onOpenChange(isOpen ? null : 'target')}
@@ -315,7 +315,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onChangeModel, onNewConver
             </div>
             {hasSession && (
               <div className="px-3 py-1.5 space-y-1 border-b border-white/[0.06]">
-                <p className="text-[10px] leading-snug text-gray-500">{liveLocked ? SET_MODEL_UNSUPPORTED_TEXT : PROVIDER_LOCKED_TEXT}</p>
+                {liveLocked && <p className="text-[10px] leading-snug text-gray-500">{SET_MODEL_UNSUPPORTED_TEXT}</p>}
                 {onNewConversation && (
                   <button
                     type="button"
