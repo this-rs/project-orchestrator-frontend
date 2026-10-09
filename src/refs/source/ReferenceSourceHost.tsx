@@ -14,6 +14,13 @@ import {
 /** Keyboard equivalent of a drag: focus an element that represents an entity, press this. */
 export const ADD_TO_CHAT_SHORTCUT = 'Alt+Shift+A'
 
+/** How long a finger must stay down on an entity to add it to the chat. */
+export const LONG_PRESS_MS = 500
+/** A finger that travels further than this is scrolling, not pressing. */
+const LONG_PRESS_SLOP_PX = 10
+/** Controls with a gesture of their own: a press that lands on one is theirs. A link is not on the list: its tap navigates, its long press adds. */
+const OWN_GESTURE = 'button,input,textarea,select,summary,[role="button"],[contenteditable="true"]'
+
 const isEditable = (el: Element): boolean =>
   el instanceof HTMLInputElement ||
   el instanceof HTMLTextAreaElement ||
@@ -55,12 +62,72 @@ export function ReferenceSourceHost() {
       e.preventDefault()
       store.set(addRefToChatAtom, { ref, label: carrier.getAttribute(REF_LABEL_ATTR) ?? undefined, via: 'keyboard' })
     }
+
+    // Long press: the one-finger equivalent of the drag (touch has none that coexists with scrolling).
+    // Elements that keep their own drag (`data-po-ref-drag="off"`: the kanban card, dnd-kit's TouchSensor
+    // owns the long press there) are left alone; they have the visible "Add to chat" button.
+    let press: { id: number; x: number; y: number; timer: ReturnType<typeof setTimeout> } | null = null
+    let firedAt = -Infinity
+    const cancelPress = () => {
+      if (press) clearTimeout(press.timer)
+      press = null
+    }
+    const onPointerDown = (e: PointerEvent) => {
+      if (press) return cancelPress() // a second finger: pinch / zoom, not a press
+      if (e.pointerType !== 'touch' || !(e.target instanceof Element)) return
+      const carrier = e.target.closest(REF_SELECTOR)
+      if (!carrier || carrier.getAttribute(REF_DRAG_ATTR) === 'off') return
+      const own = e.target.closest(OWN_GESTURE)
+      if (own && carrier.contains(own)) return
+      const ref = parseRefAttr(carrier.getAttribute(REF_ATTR))
+      if (!ref) return
+      const label = carrier.getAttribute(REF_LABEL_ATTR) ?? undefined
+      press = {
+        id: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        timer: setTimeout(() => {
+          press = null
+          firedAt = Date.now()
+          navigator.vibrate?.(15)
+          store.set(addRefToChatAtom, { ref, label, via: 'longpress' })
+        }, LONG_PRESS_MS),
+      }
+    }
+    const onPointerMove = (e: PointerEvent) => {
+      if (press && e.pointerId === press.id && Math.hypot(e.clientX - press.x, e.clientY - press.y) > LONG_PRESS_SLOP_PX) cancelPress()
+    }
+    // The context menu / link preview a long press raises, and the click that may follow it, are not wanted once we fired.
+    const recent = () => Date.now() - firedAt < 1500
+    const swallow = (e: Event) => {
+      if (!recent()) return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('pointermove', onPointerMove)
+    document.addEventListener('pointerup', cancelPress)
+    document.addEventListener('pointercancel', cancelPress)
+    document.addEventListener('scroll', cancelPress, true)
+    document.addEventListener('dragstart', cancelPress, true)
+    document.addEventListener('contextmenu', swallow, true)
+    document.addEventListener('click', swallow, true)
+
     document.addEventListener('dragstart', onDragStart)
     document.addEventListener('dragend', onDragEnd)
     // A drop that lands nowhere of ours still ends the drag (bubble phase: the zones read the payload first) (the source may have been unmounted: no dragend).
     document.addEventListener('drop', onDragEnd)
     document.addEventListener('keydown', onKeyDown)
     return () => {
+      cancelPress()
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('pointermove', onPointerMove)
+      document.removeEventListener('pointerup', cancelPress)
+      document.removeEventListener('pointercancel', cancelPress)
+      document.removeEventListener('scroll', cancelPress, true)
+      document.removeEventListener('dragstart', cancelPress, true)
+      document.removeEventListener('contextmenu', swallow, true)
+      document.removeEventListener('click', swallow, true)
       document.removeEventListener('dragstart', onDragStart)
       document.removeEventListener('dragend', onDragEnd)
       document.removeEventListener('drop', onDragEnd)

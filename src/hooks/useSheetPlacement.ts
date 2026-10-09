@@ -1,0 +1,54 @@
+import { useLayoutEffect, useState } from 'react'
+
+export interface SheetPlacement {
+  /** `bottom` of a `position: fixed` sheet (px, layout viewport): its lower edge rests on the anchor. */
+  bottom: number
+  /** Tallest the sheet may be (px): half of the VISIBLE area, never above its top edge. */
+  maxHeight: number
+}
+
+const GAP = 0
+const EDGE = 8
+const MIN_HEIGHT = 88
+
+/**
+ * Where a bottom sheet anchored on `anchor` (the composer) goes, from the VISUAL
+ * viewport: with the virtual keyboard open the layout viewport may not shrink (iOS) and
+ * the visual one is panned, so `innerHeight` alone would put the sheet behind the keys.
+ * Recomputed on visualViewport resize/scroll, window resize/scroll and when the anchor
+ * changes size (the composer grows with the text). Does nothing while `enabled` is false.
+ */
+export function useSheetPlacement(anchor: HTMLElement | null, enabled: boolean): SheetPlacement {
+  const [placement, setPlacement] = useState<SheetPlacement>({ bottom: 0, maxHeight: 256 })
+
+  useLayoutEffect(() => {
+    if (!enabled || !anchor) return
+    const vv = window.visualViewport ?? null
+    const update = () => {
+      const rect = anchor.getBoundingClientRect()
+      const visibleHeight = vv?.height ?? window.innerHeight
+      const visibleTop = vv?.offsetTop ?? 0
+      const next = {
+        bottom: Math.round(window.innerHeight - rect.top + GAP),
+        maxHeight: Math.round(Math.max(MIN_HEIGHT, Math.min(visibleHeight / 2, rect.top - visibleTop - EDGE))),
+      }
+      setPlacement((prev) => (prev.bottom === next.bottom && prev.maxHeight === next.maxHeight ? prev : next))
+    }
+    update()
+    vv?.addEventListener('resize', update)
+    vv?.addEventListener('scroll', update)
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    ro?.observe(anchor)
+    return () => {
+      vv?.removeEventListener('resize', update)
+      vv?.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+      ro?.disconnect()
+    }
+  }, [anchor, enabled])
+
+  return placement
+}

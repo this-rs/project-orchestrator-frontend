@@ -965,3 +965,18 @@ html {
   0% { transform: scale(0.6); opacity: 0.9; }
   100% { transform: scale(7); opacity: 0; }
 }
+
+/* ─── Reference sheet (mobile `#` picker) entrance ────────────────── */
+/* @utility so `motion-safe:` applies: under prefers-reduced-motion the sheet simply appears. */
+@utility animate-ref-sheet-in {
+  animation: ref-sheet-in var(--duration-fast) var(--ease-standard) both;
+}
+@keyframes ref-sheet-in {
+  from { transform: translateY(1rem); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+/* A declared reference source that is not a kanban card: no iOS callout/preview competing with the long press. */
+[data-po-ref]:not([data-po-ref-drag='off']) {
+  -webkit-touch-callout: none;
+}
