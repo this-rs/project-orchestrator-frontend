@@ -5,6 +5,7 @@
  * Body: diff header (@@ ... @@), red/green line-by-line diff with line numbers
  */
 
+import { useT } from '@/i18n'
 import type { ToolRendererProps } from './types'
 import { detectLanguage, tokenizeLine, getExtBadgeColor, getFileExtension } from './syntax'
 
@@ -19,6 +20,7 @@ function splitAndTruncate(text: string, maxLines: number): { lines: string[]; tr
 }
 
 export function EditToolRenderer({ toolInput, resultContent, isError, isLoading }: ToolRendererProps) {
+  const { t } = useT()
   const filePath = (toolInput.file_path as string) ?? ''
   const oldString = (toolInput.old_string as string) ?? ''
   const newString = (toolInput.new_string as string) ?? ''
@@ -55,17 +57,17 @@ export function EditToolRenderer({ toolInput, resultContent, isError, isLoading 
         <span className="truncate">{filePath}</span>
         {replaceAll && (
           <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-900/40 text-amber-400 border border-amber-800/30">
-            replace all
+            {t('chatA-tools.edit.replaceAll')}
           </span>
         )}
         {/* Line count summary */}
         <span className="shrink-0 ml-auto text-[10px] text-gray-600">
           {oldLineCount > 0 && (
-            <span className="text-red-500">-{oldLineCount} line{oldLineCount !== 1 ? 's' : ''}</span>
+            <span className="text-red-500">{t(oldLineCount === 1 ? 'chatA-tools.edit.removedLineOne' : 'chatA-tools.edit.removedLineMany', { count: oldLineCount })}</span>
           )}
           {oldLineCount > 0 && newLineCount > 0 && ', '}
           {newLineCount > 0 && (
-            <span className="text-green-500">+{newLineCount} line{newLineCount !== 1 ? 's' : ''}</span>
+            <span className="text-green-500">{t(newLineCount === 1 ? 'chatA-tools.edit.addedLineOne' : 'chatA-tools.edit.addedLineMany', { count: newLineCount })}</span>
           )}
         </span>
       </div>
@@ -100,8 +102,8 @@ export function EditToolRenderer({ toolInput, resultContent, isError, isLoading 
                 <span className="select-none text-red-500/70 shrink-0 w-4 text-center font-bold">{'\u2212'}</span>
                 {/* Content with muted syntax highlighting */}
                 <span className="flex-1 text-red-400/80">
-                  {tokens.map((t, j) => (
-                    <span key={j} className={t.className} style={{ opacity: 0.7 }}>{t.text}</span>
+                  {tokens.map((tok, j) => (
+                    <span key={j} className={tok.className} style={{ opacity: 0.7 }}>{tok.text}</span>
                   ))}
                 </span>
               </div>
@@ -109,7 +111,7 @@ export function EditToolRenderer({ toolInput, resultContent, isError, isLoading 
           })}
           {oldResult.truncated > 0 && (
             <div className="text-red-700/50 italic select-none pl-2 py-0.5 bg-red-950/15">
-              ... {oldResult.truncated} more removed line{oldResult.truncated > 1 ? 's' : ''}
+              {t(oldResult.truncated === 1 ? 'chatA-tools.edit.moreRemovedOne' : 'chatA-tools.edit.moreRemovedMany', { count: oldResult.truncated })}
             </div>
           )}
 
@@ -135,8 +137,8 @@ export function EditToolRenderer({ toolInput, resultContent, isError, isLoading 
                 <span className="select-none text-green-500/70 shrink-0 w-4 text-center font-bold">+</span>
                 {/* Content with syntax highlighting */}
                 <span className="flex-1">
-                  {tokens.map((t, j) => (
-                    <span key={j} className={t.className}>{t.text}</span>
+                  {tokens.map((tok, j) => (
+                    <span key={j} className={tok.className}>{tok.text}</span>
                   ))}
                 </span>
               </div>
@@ -144,7 +146,7 @@ export function EditToolRenderer({ toolInput, resultContent, isError, isLoading 
           })}
           {newResult.truncated > 0 && (
             <div className="text-green-700/50 italic select-none pl-2 py-0.5 bg-green-950/15">
-              ... {newResult.truncated} more added line{newResult.truncated > 1 ? 's' : ''}
+              {t(newResult.truncated === 1 ? 'chatA-tools.edit.moreAddedOne' : 'chatA-tools.edit.moreAddedMany', { count: newResult.truncated })}
             </div>
           )}
         </pre>
@@ -158,14 +160,14 @@ export function EditToolRenderer({ toolInput, resultContent, isError, isLoading 
             : 'border-white/[0.04] bg-black/20 text-gray-600'
         }`}>
           {resultContent.length > 500
-            ? resultContent.slice(0, 500) + '... (truncated)'
+            ? resultContent.slice(0, 500) + t('chatA-tools.edit.truncated')
             : resultContent}
         </div>
       )}
 
       {isLoading && (
         <div className="border-t border-white/[0.04] rounded-b-md bg-black/20 px-3 py-1.5">
-          <span className="text-xs text-gray-600 animate-pulse">editing...</span>
+          <span className="text-xs text-gray-600 animate-pulse">{t('chatA-tools.edit.editing')}</span>
         </div>
       )}
     </div>

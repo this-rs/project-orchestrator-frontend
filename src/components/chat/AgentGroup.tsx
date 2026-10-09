@@ -5,6 +5,7 @@ import { ThinkingBlock } from './ThinkingBlock'
 import { MarkdownText } from './MarkdownText'
 import { useChatCapabilities } from './ChatSessionContext'
 import { ChevronRight } from 'lucide-react'
+import { useT } from '@/i18n'
 
 // ============================================================================
 // Color palette for distinguishing multiple agents
@@ -44,12 +45,13 @@ interface AgentGroupProps {
 }
 
 export function AgentGroup({ parentBlock, childBlocks, allBlocks, isStreaming }: AgentGroupProps) {
+  const { t } = useT()
   const caps = useChatCapabilities()
   // Extract agent description from the Task tool input
   const toolInput = (parentBlock.metadata?.tool_input as Record<string, unknown>) ?? {}
   const description = (toolInput.description as string)
     || (toolInput.prompt as string)
-    || 'Sub-agent'
+    || t('chatA-activity.agent.subAgent')
 
   // Extract short description (first line, max 80 chars)
   const shortDescription = useMemo(() => {
@@ -142,9 +144,9 @@ export function AgentGroup({ parentBlock, childBlocks, allBlocks, isStreaming }:
         <span className="ml-auto text-gray-600 shrink-0 text-[11px] tabular-nums">
           {childToolBlocks.length > 0 && (
             <>
-              {childToolBlocks.length} tool{childToolBlocks.length !== 1 ? 's' : ''}
+              {t(childToolBlocks.length === 1 ? 'chatA-activity.agent.toolOne' : 'chatA-activity.agent.toolMany', { count: childToolBlocks.length })}
               {runningToolCount > 0 && (
-                <span className="text-amber-400/70 ml-1">{runningToolCount} running</span>
+                <span className="text-amber-400/70 ml-1">{t('chatA-activity.agent.running', { count: runningToolCount })}</span>
               )}
             </>
           )}
@@ -182,7 +184,7 @@ export function AgentGroup({ parentBlock, childBlocks, allBlocks, isStreaming }:
           {agentRunning && childBlocks.length === 0 && (
             <div className="flex items-center gap-1.5 text-gray-500 text-sm py-1">
               <span className={`inline-block w-1.5 h-1.5 rounded-full ${color.bg} animate-pulse`} />
-              <span>Agent running...</span>
+              <span>{t('chatA-activity.agent.runningIndicator')}</span>
             </div>
           )}
         </div>

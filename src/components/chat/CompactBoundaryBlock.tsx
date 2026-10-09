@@ -1,10 +1,12 @@
 import type { ContentBlock } from '@/types'
+import { useT } from '@/i18n'
 
 interface CompactBoundaryBlockProps {
   block: ContentBlock
 }
 
 export function CompactBoundaryBlock({ block }: CompactBoundaryBlockProps) {
+  const { t } = useT()
   const trigger = (block.metadata?.trigger as string) ?? 'auto'
   const preTokens = block.metadata?.pre_tokens as number | undefined
 
@@ -23,17 +25,17 @@ export function CompactBoundaryBlock({ block }: CompactBoundaryBlockProps) {
           <span className="pointer-events-none absolute inset-0 rounded-full border border-indigo-300/80 motion-safe:animate-[compaction-shockwave_900ms_ease-out_1_both] motion-reduce:hidden" />
         </span>
 
-        <span className="text-xs whitespace-nowrap">Context compacted</span>
+        <span className="text-xs whitespace-nowrap">{t('chatA-messages.compact.label')}</span>
 
         {/* Trigger badge */}
         <span className="px-1.5 py-0.5 bg-gray-700/50 text-gray-400 text-[10px] rounded font-medium">
-          {trigger}
+          {trigger === 'auto' || trigger === 'manual' ? t(`chatA-messages.compact.trigger.${trigger}`) : trigger}
         </span>
 
         {/* Token count */}
         {preTokens != null && (
           <span className="text-[10px] text-gray-600">
-            ~{Math.round(preTokens / 1000)}K tokens
+            {t('chatA-messages.compact.tokens', { count: Math.round(preTokens / 1000) })}
           </span>
         )}
       </div>

@@ -24,6 +24,7 @@ import {
 } from '@xyflow/react'
 import dagre from 'dagre'
 import { FileCode, Target, ArrowRight } from 'lucide-react'
+import { useT } from '@/i18n'
 import type { VizBlockProps } from './registry'
 import '@xyflow/react/dist/style.css'
 
@@ -79,7 +80,8 @@ function shortPath(p: string): string {
 // ============================================================================
 
 export function ImpactGraphViz({ data, expanded = false }: VizBlockProps) {
-  const target = (data.target as string) ?? 'unknown'
+  const { t } = useT()
+  const target = (data.target as string) ?? t('chatA-tools.viz.unknownTarget')
   const directImpacts = (data.direct_impacts as ImpactEntry[]) ?? []
   const transitiveImpacts = (data.transitive_impacts as ImpactEntry[]) ?? []
   const totalImpacted = (data.total_impacted as number) ?? 0
@@ -197,14 +199,14 @@ export function ImpactGraphViz({ data, expanded = false }: VizBlockProps) {
       <div className="flex items-center gap-2 text-[10px] text-gray-500">
         <div className="flex items-center gap-1">
           <div className="w-2 h-2 rounded-full bg-red-400/60" />
-          <span>Direct ({directImpacts.length})</span>
+          <span>{t('chatA-tools.viz.direct', { count: directImpacts.length })}</span>
         </div>
         <ArrowRight className="w-3 h-3" />
         <div className="flex items-center gap-1">
           <div className="w-2 h-2 rounded-full bg-amber-400/60" />
-          <span>Transitive ({transitiveImpacts.length})</span>
+          <span>{t('chatA-tools.viz.transitive', { count: transitiveImpacts.length })}</span>
         </div>
-        <span className="ml-auto">{totalImpacted} total</span>
+        <span className="ml-auto">{t('chatA-tools.viz.total', { count: totalImpacted })}</span>
       </div>
 
       {/* Graph */}

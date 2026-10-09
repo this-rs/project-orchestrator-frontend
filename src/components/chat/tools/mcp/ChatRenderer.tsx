@@ -6,6 +6,7 @@
  */
 
 import { costReport, costToText } from '@/utils/cost'
+import { useT } from '@/i18n'
 import type { ReactNode } from 'react'
 import { McpContainer, truncate, TimeAgo, ShortId, LinkedId } from './utils'
 import { ExternalLink } from '@/components/ui/ExternalLink'
@@ -179,6 +180,7 @@ function renderMarkdown(text: string): ReactNode[] {
 // ---------------------------------------------------------------------------
 
 function ChatSendMessageResult({ data, toolInput }: { data: Record<string, unknown>; toolInput?: Record<string, unknown> }) {
+  const { t } = useT()
   const sentMessage = toolInput?.message as string | undefined
   const response = data.response as string | undefined
   const costUsd = data.cost_usd as number | undefined
@@ -190,7 +192,7 @@ function ChatSendMessageResult({ data, toolInput }: { data: Record<string, unkno
       {/* Sent message */}
       {sentMessage && (
         <div className="border-l-2 border-blue-500/40 pl-2.5 py-1">
-          <div className="text-[10px] text-blue-400/70 font-medium mb-0.5">You</div>
+          <div className="text-[10px] text-blue-400/70 font-medium mb-0.5">{t('chatA-tools.chat.you')}</div>
           <div className="text-gray-500 text-[11px] whitespace-pre-wrap leading-relaxed">
             {truncate(sentMessage, 500)}
           </div>
@@ -200,7 +202,7 @@ function ChatSendMessageResult({ data, toolInput }: { data: Record<string, unkno
       {/* Response text — rendered as markdown */}
       {response && (
         <div className="border-l-2 border-green-500/40 pl-2.5 py-1">
-          <div className="text-[10px] text-green-400/70 font-medium mb-0.5">Assistant</div>
+          <div className="text-[10px] text-green-400/70 font-medium mb-0.5">{t('chatA-tools.chat.assistant')}</div>
           <div className="text-gray-400 text-[11px] max-h-60 overflow-y-auto leading-relaxed space-y-0.5">
             {renderMarkdown(truncate(response, 2000))}
           </div>
@@ -226,6 +228,7 @@ function ChatSendMessageResult({ data, toolInput }: { data: Record<string, unkno
 // ---------------------------------------------------------------------------
 
 function ChatSessionDetail({ data }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   const title = (data.title ?? data.preview) as string | undefined
   const model = data.model as string | undefined
   const cost = data.total_cost_usd as number | undefined
@@ -245,7 +248,7 @@ function ChatSessionDetail({ data }: { data: Record<string, unknown> }) {
         )}
         {msgCount != null && (
           <span className="text-[10px] text-gray-600">
-            {msgCount} message{msgCount !== 1 ? 's' : ''}
+            {t(msgCount === 1 ? 'chatA-tools.chat.messageOne' : 'chatA-tools.chat.messageMany', { count: msgCount })}
           </span>
         )}
         {costText(cost, data.cost_basis) && (

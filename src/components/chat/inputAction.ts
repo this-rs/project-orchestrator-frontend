@@ -11,6 +11,8 @@
  * rendering anything.
  */
 
+import { defaultT, type TFn } from './defaultT'
+
 /** What the single action button does right now. */
 export type InputAction = 'send' | 'stop' | 'stopping' | 'waiting' | 'idle'
 
@@ -94,16 +96,10 @@ export function deriveInputAction(state: InputActionState): InputAction {
 export function describeAction(
   action: InputAction,
   sendDecision?: InputActionState['sendDecision'],
+  t: TFn = defaultT,
 ): string {
-  if (sendDecision === 'reject-failed') return 'Remove the failed attachment first'
-  if (action === 'waiting') return 'Waiting for the upload to finish'
-  return ACTION_LABELS[action]
+  if (sendDecision === 'reject-failed') return t('chatA-input.action.removeFailed')
+  if (action === 'waiting') return t('chatA-input.action.waitingUpload')
+  return t(`chatA-input.action.${action}`)
 }
 
-export const ACTION_LABELS: Record<InputAction, string> = {
-  send: 'Send message',
-  stop: 'Stop generating',
-  stopping: 'Stopping…',
-  waiting: 'Waiting for attachments to finish uploading',
-  idle: 'Send message',
-}

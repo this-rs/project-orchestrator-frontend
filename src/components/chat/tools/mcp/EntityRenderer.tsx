@@ -5,6 +5,8 @@
  * as structured cards with typed fields, status badges, and metadata.
  */
 
+import { useT } from '@/i18n'
+import type { Translator } from '@/i18n/translate'
 import {
   StatusBadge, PriorityBadge, TagList, KVRow, SectionHeader,
   ProgressBar, TimeAgo, ShortId, McpContainer, truncate, EntityLink,
@@ -57,10 +59,11 @@ function normalizeTaskData(raw: Record<string, unknown>): Record<string, unknown
 // ---------------------------------------------------------------------------
 
 function PlanCard({ data: rawData }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   const data = normalizePlanData(rawData)
   const tasks = data.tasks as Record<string, unknown>[] | undefined
   const constraints = data.constraints as Record<string, unknown>[] | undefined
-  const completedTasks = tasks?.filter(t => t.status === 'completed').length ?? 0
+  const completedTasks = tasks?.filter(tk => tk.status === 'completed').length ?? 0
   const id = String(data.id ?? '')
 
   return (
@@ -81,24 +84,24 @@ function PlanCard({ data: rawData }: { data: Record<string, unknown> }) {
 
       <div className="space-y-0.5 mt-1.5">
         <ShortId id={String(data.id ?? '')} entityType="plan" />
-        {data.project_id ? <KVRow label="project"><LinkedId field="project_id" value={String(data.project_id)} /></KVRow> : null}
-        <KVRow label="created"><TimeAgo date={data.created_at as string} /></KVRow>
+        {data.project_id ? <KVRow label={t('chatA-tools.entity.project')}><LinkedId field="project_id" value={String(data.project_id)} /></KVRow> : null}
+        <KVRow label={t('chatA-tools.entity.created')}><TimeAgo date={data.created_at as string} /></KVRow>
       </div>
 
       {tasks && tasks.length > 0 && (
         <div className="mt-2">
-          <SectionHeader count={tasks.length}>Tasks</SectionHeader>
+          <SectionHeader count={tasks.length}>{t('chatA-tools.entity.tasks')}</SectionHeader>
           <ProgressBar completed={completedTasks} total={tasks.length} />
           <div className="mt-1 space-y-0.5">
             <CollapsibleList
               items={tasks}
               limit={5}
-              label="tasks"
-              renderItem={(t) => (
-                <div key={t.id as string} className="flex items-center gap-2 text-[11px]">
-                  <StatusBadge status={(t.status as string) ?? 'pending'} />
-                  <EntityLink entityType="task" id={String(t.id ?? '')}>
-                    <span className="text-gray-400 truncate hover:text-indigo-400">{(t.title as string) || truncate((t.description as string) ?? '', 60)}</span>
+              label={t('chatA-tools.entity.label.tasks')}
+              renderItem={(tk) => (
+                <div key={tk.id as string} className="flex items-center gap-2 text-[11px]">
+                  <StatusBadge status={(tk.status as string) ?? 'pending'} />
+                  <EntityLink entityType="task" id={String(tk.id ?? '')}>
+                    <span className="text-gray-400 truncate hover:text-indigo-400">{(tk.title as string) || truncate((tk.description as string) ?? '', 60)}</span>
                   </EntityLink>
                 </div>
               )}
@@ -109,11 +112,11 @@ function PlanCard({ data: rawData }: { data: Record<string, unknown> }) {
 
       {constraints && constraints.length > 0 && (
         <div className="mt-2">
-          <SectionHeader count={constraints.length}>Constraints</SectionHeader>
+          <SectionHeader count={constraints.length}>{t('chatA-tools.entity.constraints')}</SectionHeader>
           <CollapsibleList
             items={constraints}
             limit={3}
-            label="constraints"
+            label={t('chatA-tools.entity.label.constraints')}
             renderItem={(c, i) => (
               <div key={i} className="text-[11px] text-gray-500 flex items-center gap-1">
                 <span className="text-amber-500">⚠</span>
@@ -132,6 +135,7 @@ function PlanCard({ data: rawData }: { data: Record<string, unknown> }) {
 // ---------------------------------------------------------------------------
 
 function TaskCard({ data: rawData }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   const data = normalizeTaskData(rawData)
   const steps = data.steps as Record<string, unknown>[] | undefined
   const decisions = data.decisions as Record<string, unknown>[] | undefined
@@ -159,7 +163,7 @@ function TaskCard({ data: rawData }: { data: Record<string, unknown> }) {
 
       <div className="space-y-0.5 mt-1.5">
         <ShortId id={(data.id as string) ?? ''} entityType="task" />
-        {data.plan_id ? <KVRow label="plan"><LinkedId field="plan_id" value={String(data.plan_id)} /></KVRow> : null}
+        {data.plan_id ? <KVRow label={t('chatA-tools.entity.plan')}><LinkedId field="plan_id" value={String(data.plan_id)} /></KVRow> : null}
         {Array.isArray(data.tags) && data.tags.length > 0 && (
           <TagList tags={data.tags as string[]} />
         )}
@@ -167,11 +171,11 @@ function TaskCard({ data: rawData }: { data: Record<string, unknown> }) {
 
       {criteria && criteria.length > 0 && (
         <div className="mt-2">
-          <SectionHeader count={criteria.length}>Acceptance criteria</SectionHeader>
+          <SectionHeader count={criteria.length}>{t('chatA-tools.entity.criteria')}</SectionHeader>
           <CollapsibleList
             items={criteria}
             limit={4}
-            label="criteria"
+            label={t('chatA-tools.entity.label.criteria')}
             renderItem={(c, i) => (
               <li key={i} className="text-[11px] text-gray-500 flex items-start gap-1 list-none">
                 <span className="text-gray-600 select-none">•</span>
@@ -184,13 +188,13 @@ function TaskCard({ data: rawData }: { data: Record<string, unknown> }) {
 
       {steps && steps.length > 0 && (
         <div className="mt-2">
-          <SectionHeader count={steps.length}>Steps</SectionHeader>
+          <SectionHeader count={steps.length}>{t('chatA-tools.entity.steps')}</SectionHeader>
           <ProgressBar completed={completedSteps} total={steps.length} />
           <div className="mt-1 space-y-0.5">
             <CollapsibleList
               items={steps}
               limit={5}
-              label="steps"
+              label={t('chatA-tools.entity.label.steps')}
               renderItem={(s, i) => {
                 const st = (s.status as string) ?? 'pending'
                 const icon = st === 'completed' ? '✓' : st === 'in_progress' ? '▸' : st === 'skipped' ? '○' : '·'
@@ -209,11 +213,11 @@ function TaskCard({ data: rawData }: { data: Record<string, unknown> }) {
 
       {decisions && decisions.length > 0 && (
         <div className="mt-2">
-          <SectionHeader count={decisions.length}>Decisions</SectionHeader>
+          <SectionHeader count={decisions.length}>{t('chatA-tools.entity.decisions')}</SectionHeader>
           <CollapsibleList
             items={decisions}
             limit={3}
-            label="decisions"
+            label={t('chatA-tools.entity.label.decisions')}
             renderItem={(d, i) => (
               <div key={i} className="text-[11px] text-gray-500 mt-1">
                 <span className="text-gray-400">{truncate((d.description as string) ?? '', 100)}</span>
@@ -234,6 +238,7 @@ function TaskCard({ data: rawData }: { data: Record<string, unknown> }) {
 // ---------------------------------------------------------------------------
 
 function ProjectCard({ data }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   const slug = String(data.slug ?? '')
   return (
     <McpContainer>
@@ -253,9 +258,9 @@ function ProjectCard({ data }: { data: Record<string, unknown> }) {
       ) : null}
 
       <div className="space-y-0.5 mt-1.5">
-        {data.root_path ? <KVRow label="path"><span className="font-mono text-[10px]">{String(data.root_path)}</span></KVRow> : null}
-        <KVRow label="synced"><TimeAgo date={data.last_synced as string} /></KVRow>
-        <KVRow label="created"><TimeAgo date={data.created_at as string} /></KVRow>
+        {data.root_path ? <KVRow label={t('chatA-tools.entity.path')}><span className="font-mono text-[10px]">{String(data.root_path)}</span></KVRow> : null}
+        <KVRow label={t('chatA-tools.entity.synced')}><TimeAgo date={data.last_synced as string} /></KVRow>
+        <KVRow label={t('chatA-tools.entity.created')}><TimeAgo date={data.created_at as string} /></KVRow>
       </div>
     </McpContainer>
   )
@@ -266,6 +271,7 @@ function ProjectCard({ data }: { data: Record<string, unknown> }) {
 // ---------------------------------------------------------------------------
 
 function NoteCard({ data }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   return (
     <McpContainer>
       <div className="flex items-center gap-2">
@@ -290,7 +296,7 @@ function NoteCard({ data }: { data: Record<string, unknown> }) {
 
       <div className="space-y-0.5 mt-1.5">
         <ShortId id={(data.id as string) ?? ''} entityType="note" />
-        {data.project_id ? <KVRow label="project"><LinkedId field="project_id" value={String(data.project_id)} /></KVRow> : null}
+        {data.project_id ? <KVRow label={t('chatA-tools.entity.project')}><LinkedId field="project_id" value={String(data.project_id)} /></KVRow> : null}
       </div>
     </McpContainer>
   )
@@ -301,9 +307,10 @@ function NoteCard({ data }: { data: Record<string, unknown> }) {
 // ---------------------------------------------------------------------------
 
 function MilestoneCard({ data }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   const rawTasks = data.tasks as Record<string, unknown>[] | undefined
   const tasks = rawTasks?.map(normalizeTaskData)
-  const completedTasks = tasks?.filter(t => t.status === 'completed').length ?? 0
+  const completedTasks = tasks?.filter(tk => tk.status === 'completed').length ?? 0
   const id = String(data.id ?? '')
 
   return (
@@ -322,25 +329,25 @@ function MilestoneCard({ data }: { data: Record<string, unknown> }) {
       ) : null}
 
       <div className="space-y-0.5 mt-1.5">
-        {data.target_date ? <KVRow label="target">{String(data.target_date).slice(0, 10)}</KVRow> : null}
+        {data.target_date ? <KVRow label={t('chatA-tools.entity.target')}>{String(data.target_date).slice(0, 10)}</KVRow> : null}
         <ShortId id={(data.id as string) ?? ''} entityType="milestone" />
-        {data.project_id ? <KVRow label="project"><LinkedId field="project_id" value={String(data.project_id)} /></KVRow> : null}
+        {data.project_id ? <KVRow label={t('chatA-tools.entity.project')}><LinkedId field="project_id" value={String(data.project_id)} /></KVRow> : null}
       </div>
 
       {tasks && tasks.length > 0 && (
         <div className="mt-2">
-          <SectionHeader count={tasks.length}>Tasks</SectionHeader>
+          <SectionHeader count={tasks.length}>{t('chatA-tools.entity.tasks')}</SectionHeader>
           <ProgressBar completed={completedTasks} total={tasks.length} />
           <div className="mt-1 space-y-0.5">
             <CollapsibleList
               items={tasks}
               limit={5}
-              label="tasks"
-              renderItem={(t) => (
-                <div key={t.id as string} className="flex items-center gap-2 text-[11px]">
-                  <StatusBadge status={(t.status as string) ?? 'pending'} />
-                  <EntityLink entityType="task" id={String(t.id ?? '')}>
-                    <span className="text-gray-400 truncate hover:text-indigo-400">{(t.title as string) || truncate((t.description as string) ?? '', 60)}</span>
+              label={t('chatA-tools.entity.label.tasks')}
+              renderItem={(tk) => (
+                <div key={tk.id as string} className="flex items-center gap-2 text-[11px]">
+                  <StatusBadge status={(tk.status as string) ?? 'pending'} />
+                  <EntityLink entityType="task" id={String(tk.id ?? '')}>
+                    <span className="text-gray-400 truncate hover:text-indigo-400">{(tk.title as string) || truncate((tk.description as string) ?? '', 60)}</span>
                   </EntityLink>
                 </div>
               )}
@@ -357,6 +364,7 @@ function MilestoneCard({ data }: { data: Record<string, unknown> }) {
 // ---------------------------------------------------------------------------
 
 function ReleaseCard({ data }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   return (
     <McpContainer>
       <div className="flex items-center gap-2">
@@ -372,9 +380,9 @@ function ReleaseCard({ data }: { data: Record<string, unknown> }) {
       ) : null}
 
       <div className="space-y-0.5 mt-1.5">
-        {data.target_date ? <KVRow label="target">{String(data.target_date).slice(0, 10)}</KVRow> : null}
+        {data.target_date ? <KVRow label={t('chatA-tools.entity.target')}>{String(data.target_date).slice(0, 10)}</KVRow> : null}
         <ShortId id={(data.id as string) ?? ''} entityType="release" />
-        {data.project_id ? <KVRow label="project"><LinkedId field="project_id" value={String(data.project_id)} /></KVRow> : null}
+        {data.project_id ? <KVRow label={t('chatA-tools.entity.project')}><LinkedId field="project_id" value={String(data.project_id)} /></KVRow> : null}
       </div>
     </McpContainer>
   )
@@ -385,6 +393,7 @@ function ReleaseCard({ data }: { data: Record<string, unknown> }) {
 // ---------------------------------------------------------------------------
 
 function StepCard({ data }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   const status = (data.status as string) ?? 'pending'
   const taskId = data.task_id ? String(data.task_id) : undefined
   return (
@@ -395,11 +404,11 @@ function StepCard({ data }: { data: Record<string, unknown> }) {
           {truncate((data.description as string) ?? '', 200)}
         </span>
         {taskId && (
-          <ViewEntityButton entityType="task" entityId={taskId} label="View parent task" />
+          <ViewEntityButton entityType="task" entityId={taskId} label={t('chatA-tools.entity.view.parentTask')} />
         )}
       </div>
       {data.verification ? (
-        <KVRow label="verify"><span className="text-[10px]">{String(data.verification)}</span></KVRow>
+        <KVRow label={t('chatA-tools.entity.verify')}><span className="text-[10px]">{String(data.verification)}</span></KVRow>
       ) : null}
       <ShortId id={(data.id as string) ?? ''} />
     </McpContainer>
@@ -441,43 +450,44 @@ function entityTypeFromAction(action: string): string | undefined {
  * Returns { entityType, entityId, entityLabel } or null if no navigation is possible.
  */
 function resolveNavigableEntity(
+  t: Translator['t'],
   action: string,
   toolInput?: Record<string, unknown>,
   data?: Record<string, unknown>,
-): { entityType: string; entityId: string; entityLabel: string } | null {
+): { entityType: string; entityId: string; viewLabel: string } | null {
   // 1. Direct entity from action (plan, task, etc.)
   const directType = entityTypeFromAction(action)
   if (directType) {
     const id = data?.id ? String(data.id) :
       data?.slug ? String(data.slug) :
       extractIdFromInput(action, toolInput)
-    if (id) return { entityType: directType, entityId: id, entityLabel: directType.replace(/_/g, ' ') }
+    if (id) return { entityType: directType, entityId: id, viewLabel: t('chatA-tools.entity.view.entity', { entity: t(`chatA-tools.entity.type.${directType as 'plan'}`) }) }
   }
 
   // 2. Fallback for steps → parent task
   if (action.includes('step')) {
     const taskId = (toolInput?.task_id ?? data?.task_id) as string | undefined
-    if (taskId) return { entityType: 'task', entityId: String(taskId), entityLabel: 'parent task' }
+    if (taskId) return { entityType: 'task', entityId: String(taskId), viewLabel: t('chatA-tools.entity.view.parentTask') }
   }
 
   // 3. Fallback for decisions → parent task
   if (action.includes('decision')) {
     const taskId = (toolInput?.task_id ?? data?.task_id) as string | undefined
-    if (taskId) return { entityType: 'task', entityId: String(taskId), entityLabel: 'parent task' }
+    if (taskId) return { entityType: 'task', entityId: String(taskId), viewLabel: t('chatA-tools.entity.view.parentTask') }
   }
 
   // 4. Fallback for constraints → parent plan
   if (action.includes('constraint')) {
     const planId = (toolInput?.plan_id ?? data?.plan_id) as string | undefined
-    if (planId) return { entityType: 'plan', entityId: String(planId), entityLabel: 'parent plan' }
+    if (planId) return { entityType: 'plan', entityId: String(planId), viewLabel: t('chatA-tools.entity.view.parentPlan') }
   }
 
   // 5. Fallback for commits → linked task or plan
   if (action.includes('commit')) {
     const taskId = (toolInput?.task_id ?? data?.task_id) as string | undefined
-    if (taskId) return { entityType: 'task', entityId: String(taskId), entityLabel: 'linked task' }
+    if (taskId) return { entityType: 'task', entityId: String(taskId), viewLabel: t('chatA-tools.entity.view.linkedTask') }
     const planId = (toolInput?.plan_id ?? data?.plan_id) as string | undefined
-    if (planId) return { entityType: 'plan', entityId: String(planId), entityLabel: 'linked plan' }
+    if (planId) return { entityType: 'plan', entityId: String(planId), viewLabel: t('chatA-tools.entity.view.linkedPlan') }
   }
 
   return null
@@ -524,11 +534,12 @@ function ViewEntityButton({ entityType, entityId, label }: {
 }
 
 function SuccessCard({ action, data, toolInput }: { action: string; data: Record<string, unknown>; toolInput?: Record<string, unknown> }) {
+  const { t } = useT()
   const isDelete = action.startsWith('delete_')
   const isCreate = action.startsWith('create_')
 
   // Resolve the best navigable entity (direct or fallback to parent)
-  const nav = resolveNavigableEntity(action, toolInput, data)
+  const nav = resolveNavigableEntity(t, action, toolInput, data)
   const statusFromInput = toolInput?.status ? String(toolInput.status) : undefined
 
   // For simple { updated: true } or { deleted: true } or { added: true } responses
@@ -540,11 +551,11 @@ function SuccessCard({ action, data, toolInput }: { action: string; data: Record
             {isDelete ? '✗' : '✓'}
           </span>
           <span className="text-gray-400">
-            {isDelete ? 'Deleted' : 'Updated'}
+            {isDelete ? t('chatA-tools.entity.deleted') : t('chatA-tools.entity.updated')}
           </span>
           {statusFromInput && <StatusBadge status={statusFromInput} />}
           {nav && (
-            <ViewEntityButton entityType={nav.entityType} entityId={nav.entityId} label={`View ${nav.entityLabel}`} />
+            <ViewEntityButton entityType={nav.entityType} entityId={nav.entityId} label={nav.viewLabel} />
           )}
         </div>
       </McpContainer>
@@ -552,7 +563,7 @@ function SuccessCard({ action, data, toolInput }: { action: string; data: Record
   }
 
   // Determine a label for richer responses
-  const verb = isCreate ? 'Created' : isDelete ? 'Deleted' : 'Updated'
+  const verb = isCreate ? t('chatA-tools.entity.createdVerb') : isDelete ? t('chatA-tools.entity.deleted') : t('chatA-tools.entity.updated')
   const title = (data.title ?? data.name ?? data.version ?? data.content ?? data.description) as string | undefined
 
   return (
@@ -567,7 +578,7 @@ function SuccessCard({ action, data, toolInput }: { action: string; data: Record
         )}
         {(data.status) ? <StatusBadge status={String(data.status)} /> : null}
         {nav && (
-          <ViewEntityButton entityType={nav.entityType} entityId={nav.entityId} label={`View ${nav.entityLabel}`} />
+          <ViewEntityButton entityType={nav.entityType} entityId={nav.entityId} label={nav.viewLabel} />
         )}
       </div>
     </McpContainer>
@@ -584,6 +595,7 @@ function isIdField(key: string): boolean {
 }
 
 function GenericCard({ data }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   const priorityFields = ['title', 'name', 'version', 'content', 'description', 'status', 'slug', 'id']
   const fields = Object.entries(data).filter(([, v]) => v != null && v !== '')
 
@@ -610,7 +622,7 @@ function GenericCard({ data }: { data: Record<string, unknown> }) {
         </KVRow>
       ))}
       {fields.length > 8 && (
-        <div className="text-[10px] text-gray-600">+{fields.length - 8} more fields</div>
+        <div className="text-[10px] text-gray-600">{t('chatA-tools.entity.moreFields', { count: fields.length - 8 })}</div>
       )}
     </McpContainer>
   )

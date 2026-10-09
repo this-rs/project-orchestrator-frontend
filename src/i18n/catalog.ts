@@ -14,6 +14,11 @@ import type admin from './messages/en/admin.ts'
 import type mcpFederation from './messages/en/mcpFederation.ts'
 import type providerWizard from './messages/en/providerWizard.ts'
 import type providerAdmin from './messages/en/providerAdmin.ts'
+import type chatA_activity from './messages/en/chatA-activity.ts'
+import type chatA_input from './messages/en/chatA-input.ts'
+import type chatA_messages from './messages/en/chatA-messages.ts'
+import type chatA_page from './messages/en/chatA-page.ts'
+import type chatA_tools from './messages/en/chatA-tools.ts'
 import type common from './messages/en/common.ts'
 import type architecture from './messages/en/architecture.ts'
 import type code from './messages/en/code.ts'
@@ -64,6 +69,11 @@ interface EnglishMessages {
   mcpFederation: typeof mcpFederation
   providerWizard: typeof providerWizard
   providerAdmin: typeof providerAdmin
+  'chatA-activity': typeof chatA_activity
+  'chatA-input': typeof chatA_input
+  'chatA-messages': typeof chatA_messages
+  'chatA-page': typeof chatA_page
+  'chatA-tools': typeof chatA_tools
   common: typeof common
   architecture: typeof architecture
   code: typeof code
@@ -111,6 +121,7 @@ export const NAMESPACES = [
   'commits', 'deployments', 'kanban', 'milestones', 'pipeline', 'planDetail', 'plans', 'taskDetail', 'tasks', 'waves',
   'intelPage', 'intelDashboard', 'intelGraph', 'intelLearning', 'intelTimeline',
   'auth', 'workspaceSelector', 'settingsPage', 'settingsShared', 'vault', 'sharing', 'admin', 'mcpFederation', 'providerWizard', 'providerAdmin',
+  'chatA-activity', 'chatA-input', 'chatA-messages', 'chatA-page', 'chatA-tools',
 ] as const satisfies readonly Ns[]
 
 /** Every other language is a (possibly partial) overlay of the same shape. */

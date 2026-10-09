@@ -1,5 +1,7 @@
 import { useRef, useCallback } from 'react'
 import { useWelcomeData } from '@/hooks'
+import { useT } from '@/i18n'
+import type { Translator } from '@/i18n/translate'
 import type { Project, Plan } from '@/types'
 import { Play, Lightbulb, Zap, Building, Search, BarChart3, ClipboardList, Check, FileEdit, RefreshCw, MessageCircle, Clock } from 'lucide-react'
 
@@ -21,54 +23,19 @@ interface ChatWelcomeProps {
 // ============================================================================
 
 interface QuickAction {
-  label: string
-  description: string
-  prompt: string
   /** Cursor position from the end of the prompt string */
   cursorOffset?: number
   icon: 'next' | 'plan' | 'impact' | 'arch' | 'search' | 'roadmap'
 }
 
+/** Label, description and prompt of each action live in the catalog (`chatA-messages.welcome.actions.<icon>`). */
 const QUICK_ACTIONS: QuickAction[] = [
-  {
-    label: 'Next task',
-    description: 'Get next available task',
-    prompt: 'What is the next available task on the active plan? Show me its context and steps.',
-    icon: 'next',
-  },
-  {
-    label: 'Plan something',
-    description: 'Plan an implementation',
-    prompt: 'Plan the implementation of: ',
-    cursorOffset: 0,
-    icon: 'plan',
-  },
-  {
-    label: 'Impact analysis',
-    description: 'Analyze change impact',
-    prompt: 'Analyze the impact of changing: ',
-    cursorOffset: 0,
-    icon: 'impact',
-  },
-  {
-    label: 'Architecture',
-    description: 'Codebase overview',
-    prompt: 'Give me an overview of the project architecture',
-    icon: 'arch',
-  },
-  {
-    label: 'Code search',
-    description: 'Search in codebase',
-    prompt: 'Search the code for: ',
-    cursorOffset: 0,
-    icon: 'search',
-  },
-  {
-    label: 'Roadmap',
-    description: 'Milestones & releases',
-    prompt: 'Show me the full roadmap with milestones and releases',
-    icon: 'roadmap',
-  },
+  { icon: 'next' },
+  { icon: 'plan', cursorOffset: 0 },
+  { icon: 'impact', cursorOffset: 0 },
+  { icon: 'arch' },
+  { icon: 'search', cursorOffset: 0 },
+  { icon: 'roadmap' },
 ]
 
 // Debounce delay for quick action clicks (ms)
@@ -101,31 +68,31 @@ function QuickActionIcon({ type }: { type: QuickAction['icon'] }) {
 // ============================================================================
 
 /** Format a date string as relative time (e.g. "5h ago", "2d ago") */
-function relativeTime(dateStr: string): string {
+function relativeTime(dateStr: string, t: Translator['t']): string {
   const now = Date.now()
   const then = new Date(dateStr).getTime()
   if (isNaN(then)) return ''
   const diffMs = now - then
   const seconds = Math.floor(diffMs / 1000)
-  if (seconds < 60) return 'just now'
+  if (seconds < 60) return t('chatA-messages.welcome.time.now')
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 60) return t('chatA-messages.welcome.time.minutes', { count: minutes })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t('chatA-messages.welcome.time.hours', { count: hours })
   const days = Math.floor(hours / 24)
-  if (days < 30) return `${days}d ago`
+  if (days < 30) return t('chatA-messages.welcome.time.days', { count: days })
   const months = Math.floor(days / 30)
-  return `${months}mo ago`
+  return t('chatA-messages.welcome.time.months', { count: months })
 }
 
 /** Get a short plan status label with color class */
-function planStatusStyle(status: Plan['status']): { label: string; cls: string } {
+function planStatusStyle(status: Plan['status'], t: Translator['t']): { label: string; cls: string } {
   switch (status) {
-    case 'draft': return { label: 'Draft', cls: 'text-gray-400' }
-    case 'approved': return { label: 'Approved', cls: 'text-blue-400' }
-    case 'in_progress': return { label: 'In Progress', cls: 'text-amber-400' }
-    case 'completed': return { label: 'Done', cls: 'text-emerald-400' }
-    case 'cancelled': return { label: 'Cancelled', cls: 'text-red-400' }
+    case 'draft': return { label: t('chatA-messages.welcome.plan.draft'), cls: 'text-gray-400' }
+    case 'approved': return { label: t('chatA-messages.welcome.plan.approved'), cls: 'text-blue-400' }
+    case 'in_progress': return { label: t('chatA-messages.welcome.plan.in_progress'), cls: 'text-amber-400' }
+    case 'completed': return { label: t('chatA-messages.welcome.plan.completed'), cls: 'text-emerald-400' }
+    case 'cancelled': return { label: t('chatA-messages.welcome.plan.cancelled'), cls: 'text-red-400' }
     default: return { label: String(status), cls: 'text-gray-500' }
   }
 }
@@ -176,6 +143,7 @@ export function ChatWelcome({
   onSelectSession,
   selectedProject,
 }: ChatWelcomeProps) {
+  const { t } = useT()
   const { data, isLoading } = useWelcomeData(selectedProject)
   const lastClickRef = useRef(0)
 
@@ -185,9 +153,9 @@ export function ChatWelcome({
       const now = Date.now()
       if (now - lastClickRef.current < DEBOUNCE_MS) return
       lastClickRef.current = now
-      onQuickAction?.(action.prompt, action.cursorOffset)
+      onQuickAction?.(t(`chatA-messages.welcome.actions.${action.icon}.prompt`), action.cursorOffset)
     },
-    [onQuickAction],
+    [onQuickAction, t],
   )
 
   // Debounced session selection
@@ -232,17 +200,17 @@ export function ChatWelcome({
         {/* ── Header ─────────────────────────────────────── */}
         <div className="text-center pt-4 pb-2 opacity-0" style={{ animation: 'fadeSlideIn 300ms ease-out forwards' }}>
           <h2 className="text-lg font-semibold text-gray-200">
-            Project Orchestrator
+            {t('chatA-messages.welcome.title')}
           </h2>
           <p className="text-sm text-gray-500 mt-1">
-            What would you like to do?
+            {t('chatA-messages.welcome.subtitle')}
           </p>
         </div>
 
         {/* ── Quick Actions ──────────────────────────────── */}
         <div className="opacity-0" style={{ animation: 'fadeSlideIn 300ms ease-out 100ms forwards' }}>
           <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">
-            Quick Actions
+            {t('chatA-messages.welcome.quickActions')}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {QUICK_ACTIONS.map((action, i) => (
@@ -257,10 +225,10 @@ export function ChatWelcome({
                 </span>
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-gray-300 group-hover:text-gray-200 transition-colors">
-                    {action.label}
+                    {t(`chatA-messages.welcome.actions.${action.icon}.label`)}
                   </div>
                   <div className="text-xs text-gray-500 truncate">
-                    {action.description}
+                    {t(`chatA-messages.welcome.actions.${action.icon}.description`)}
                   </div>
                 </div>
               </button>
@@ -268,7 +236,7 @@ export function ChatWelcome({
           </div>
           {!selectedProject && (
             <p className="text-[10px] text-gray-600 mt-1.5 text-center">
-              Select a project above to use quick actions
+              {t('chatA-messages.welcome.selectProject')}
             </p>
           )}
         </div>
@@ -277,14 +245,14 @@ export function ChatWelcome({
         {isLoading ? (
           <div className="opacity-0" style={{ animation: 'fadeSlideIn 300ms ease-out 450ms forwards' }}>
             <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">
-              {selectedProject ? selectedProject.name : 'Project Status'}
+              {selectedProject ? selectedProject.name : t('chatA-messages.welcome.projectStatus')}
             </div>
             <StatusSkeleton />
           </div>
         ) : hasStatusData ? (
           <div className="opacity-0" style={{ animation: 'fadeSlideIn 300ms ease-out 450ms forwards' }}>
             <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">
-              {selectedProject ? selectedProject.name : 'Project Status'}
+              {selectedProject ? selectedProject.name : t('chatA-messages.welcome.projectStatus')}
             </div>
             <div className="grid grid-cols-2 gap-2">
               {/* Active plans count */}
@@ -292,8 +260,7 @@ export function ChatWelcome({
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06]">
                   <ClipboardList className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                   <span className="text-xs text-gray-400">
-                    <span className="text-gray-200 font-medium">{activePlans.length}</span>
-                    {' '}active plan{activePlans.length !== 1 ? 's' : ''}
+                    {t(activePlans.length === 1 ? 'chatA-messages.welcome.activePlanOne' : 'chatA-messages.welcome.activePlanMany', { count: activePlans.length })}
                   </span>
                 </div>
               )}
@@ -303,14 +270,13 @@ export function ChatWelcome({
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06]">
                   <Search className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   <span className="text-xs text-gray-400">
-                    <span className="text-amber-300 font-medium">{notesNeedingReview.length}</span>
-                    {' '}to review
+                    {t('chatA-messages.welcome.toReview', { count: notesNeedingReview.length })}
                   </span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06]">
                   <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span className="text-xs text-gray-500">All clear</span>
+                  <span className="text-xs text-gray-500">{t('chatA-messages.welcome.allClear')}</span>
                 </div>
               )}
 
@@ -319,8 +285,7 @@ export function ChatWelcome({
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06]">
                   <FileEdit className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   <span className="text-xs text-gray-400">
-                    <span className="text-gray-200 font-medium">{totalActiveNotes}</span>
-                    {' '}notes
+                    {t(totalActiveNotes === 1 ? 'chatA-messages.welcome.notesOne' : 'chatA-messages.welcome.notesMany', { count: totalActiveNotes })}
                   </span>
                 </div>
               )}
@@ -330,7 +295,7 @@ export function ChatWelcome({
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/[0.06]">
                   <RefreshCw className="w-3.5 h-3.5 text-gray-500 shrink-0" />
                   <span className="text-xs text-gray-500">
-                    Synced {relativeTime(lastSyncDate)}
+                    {t('chatA-messages.welcome.synced', { when: relativeTime(lastSyncDate, t) })}
                   </span>
                 </div>
               )}
@@ -339,12 +304,12 @@ export function ChatWelcome({
             {/* Top plan detail line */}
             {activePlans.length > 0 && (() => {
               const topPlan = activePlans[0]
-              const st = planStatusStyle(topPlan.status)
+              const st = planStatusStyle(topPlan.status, t)
               return (
                 <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-lg border border-white/[0.06]">
                   <Clock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                   <span className="text-xs text-gray-400 truncate min-w-0">
-                    {topPlan.title ?? 'Untitled'}
+                    {topPlan.title ?? t('chatA-messages.welcome.untitled')}
                   </span>
                   <span className={`text-[10px] font-medium ${st.cls} shrink-0`}>
                     {st.label}
@@ -362,14 +327,14 @@ export function ChatWelcome({
         {isLoading ? (
           <div className="opacity-0" style={{ animation: 'fadeSlideIn 300ms ease-out 500ms forwards' }}>
             <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">
-              Recent Conversations
+              {t('chatA-messages.welcome.recent')}
             </div>
             <SessionsSkeleton />
           </div>
         ) : recentSessions.length > 0 ? (
           <div className="opacity-0" style={{ animation: 'fadeSlideIn 300ms ease-out 500ms forwards' }}>
             <div className="text-[11px] font-medium text-gray-500 uppercase tracking-wider mb-2">
-              Recent Conversations
+              {t('chatA-messages.welcome.recent')}
             </div>
             <div className="space-y-1">
               {recentSessions.map((session) => (
@@ -380,10 +345,10 @@ export function ChatWelcome({
                 >
                   <MessageCircle className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-400 shrink-0 transition-colors" />
                   <span className="text-xs text-gray-400 group-hover:text-gray-300 truncate min-w-0 transition-colors">
-                    {session.title ?? session.preview ?? 'Untitled conversation'}
+                    {session.title ?? session.preview ?? t('chatA-messages.welcome.untitledConversation')}
                   </span>
                   <span className="text-[10px] text-gray-600 shrink-0 ml-auto">
-                    {relativeTime(session.updated_at ?? session.created_at)}
+                    {relativeTime(session.updated_at ?? session.created_at, t)}
                   </span>
                 </button>
               ))}

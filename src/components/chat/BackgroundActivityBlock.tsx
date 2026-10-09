@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { Activity, ChevronRight } from 'lucide-react'
+import { useT } from '@/i18n'
 import { chatBackgroundTasksAtom } from '@/atoms'
 import type { ContentBlock } from '@/types'
 import { ToneText } from '@/components/ui/Status'
@@ -23,6 +24,7 @@ const SUMMARY_ORDER: Array<{ key: keyof Omit<StatusCounts, 'total' | 'other'>; s
 ]
 
 export function StatusSummary({ counts }: { counts: StatusCounts }) {
+  const { t } = useT()
   const parts = SUMMARY_ORDER.filter(({ key }) => counts[key] > 0)
   return (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] leading-4">
@@ -30,12 +32,12 @@ export function StatusSummary({ counts }: { counts: StatusCounts }) {
         <ToneText
           key={key}
           tone={ACTIVITY_STATUS_META[status].tone}
-          label={`${counts[key]} ${ACTIVITY_STATUS_META[status].label.toLowerCase()}`}
+          label={t(`chatA-activity.bg.summary.${status}`, { count: counts[key] })}
           pulse={status === 'running'}
           className="tabular-nums"
         />
       ))}
-      {counts.other > 0 && <ToneText tone="muted" label={`${counts.other} ended`} className="tabular-nums" />}
+      {counts.other > 0 && <ToneText tone="muted" label={t('chatA-activity.bg.summary.ended', { count: counts.other })} className="tabular-nums" />}
     </span>
   )
 }
@@ -56,6 +58,7 @@ interface BackgroundActivityGroupProps {
  * is decided at mount so later ticks never re-flow the transcript.
  */
 export function BackgroundActivityGroup({ blocks }: BackgroundActivityGroupProps) {
+  const { t } = useT()
   const tasks = useAtomValue(chatBackgroundTasksAtom)
   const activities = useMemo(() => {
     const activeIds = new Set(tasks.map((t) => t.id))
@@ -85,13 +88,13 @@ export function BackgroundActivityGroup({ blocks }: BackgroundActivityGroupProps
           className={`w-3 h-3 text-gray-600 transition-transform motion-reduce:transition-none shrink-0 ${expanded ? 'rotate-90' : ''}`}
         />
         <Activity aria-hidden="true" className="w-3 h-3 text-gray-500 shrink-0" />
-        <span className="shrink-0">Background activity</span>
+        <span className="shrink-0">{t('chatA-activity.bg.title')}</span>
         <span aria-hidden="true" className="text-gray-700 shrink-0">·</span>
         <StatusSummary counts={counts} />
       </button>
 
       {expanded && (
-        <ol aria-label="Background activities" className="mb-2 ml-4 mr-3 space-y-1.5 border-l border-white/[0.06] pl-3">
+        <ol aria-label={t('chatA-activity.bg.listAria')} className="mb-2 ml-4 mr-3 space-y-1.5 border-l border-white/[0.06] pl-3">
           {activities.map((activity, i) => (
             <li key={blocks[i].id}>
               <ActivityCard
