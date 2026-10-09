@@ -79,7 +79,8 @@ describe('setup wizard: chat engine choice', () => {
     renderWith(<SetupWizard />)
     await screen.findByText('Claude Code CLI')
     fireEvent.click(screen.getByRole('radio', { name: /another provider/i }))
-    expect(screen.queryByText('Claude Code CLI')).toBeNull()
+    // The click re-renders asynchronously: wait for the Claude fields to go before asserting they are gone.
+    await waitFor(() => expect(screen.queryByText('Claude Code CLI')).toBeNull())
     expect(screen.queryByText('Default Model')).toBeNull()
     expect(screen.queryByText('Configure MCP')).toBeNull()
     expect(screen.getByTestId('setup-no-engine-note').textContent).toMatch(/Settings/)
