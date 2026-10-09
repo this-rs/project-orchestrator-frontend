@@ -54,9 +54,10 @@ export default {
     heading: "الأدوات المتاحة في هذه الجلسة",
     builtin: "الأدوات المدمجة",
     server: "خادم MCP {server}",
+    shortened: "أدوات MCP ذات اسم مختصر (مقطوع إلى 64 حرفًا)",
     count: "الأدوات: {count}",
     allowHeading: "الأنماط المسموح بها",
-    available: "متاح: {count} أدوات مطابقة",
+    available: "متاح — الأدوات المطابقة: {count}",
     unavailable: "غير متاح في هذه الجلسة",
   },
 } satisfies Translation<'session'>

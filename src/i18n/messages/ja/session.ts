@@ -54,6 +54,7 @@ export default {
     heading: "このセッションで提供されるツール",
     builtin: "組み込みツール",
     server: "MCP サーバー {server}",
+    shortened: "名前が短縮された MCP ツール（64 文字で切り詰め）",
     count: "ツール {count} 個",
     allowHeading: "許可されたパターン",
     available: "利用可能：一致するツール {count} 個",

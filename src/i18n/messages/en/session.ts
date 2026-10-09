@@ -44,17 +44,18 @@ export default {
   },
   init: {
     title: 'Session initialized',
-    tools: '{count} tools',
-    mcpServers: '{count} MCP servers',
+    tools: 'Tools: {count}',
+    mcpServers: 'MCP servers: {count}',
   },
   tools: {
     toggle: 'Show the tools offered in this session',
     heading: 'Tools offered in this session',
     builtin: 'Built-in tools',
     server: 'MCP server {server}',
-    count: '{count} tools',
+    shortened: 'MCP tools with a shortened name (cut to 64 characters)',
+    count: 'Tools: {count}',
     allowHeading: 'Allowed patterns',
-    available: 'Available: {count} matching tools',
+    available: 'Available — matching tools: {count}',
     unavailable: 'Not available in this session',
   },
 } as const

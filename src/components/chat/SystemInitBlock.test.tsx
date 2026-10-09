@@ -11,10 +11,10 @@ const block = (metadata: Record<string, unknown>): ContentBlock => ({ id: 'si', 
 describe('SystemInitBlock — tools really offered', () => {
   it('the tools chip is a keyboard-reachable disclosure with a visible focus', () => {
     render(<SystemInitBlock block={block({ model: 'deepseek-chat', tools: PO_TOOLS, tool_allow: DEEPSEEK_ALLOW })} />)
-    const toggle = screen.getByRole('button', { name: /3 tools/ })
+    const toggle = screen.getByRole('button', { name: /Tools: 3/ })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(toggle.className).toContain('focus-visible:ring')
-    expect(screen.queryByTestId('tool-inventory')).toBeNull()
+    expect((screen.getByTestId('tool-inventory') as HTMLElement).hidden).toBe(true)
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
     const panel = screen.getByTestId('tool-inventory')
@@ -23,7 +23,7 @@ describe('SystemInitBlock — tools really offered', () => {
 
   it('groups the offered tools by MCP server', () => {
     render(<SystemInitBlock block={block({ tools: [...PO_TOOLS, 'mcp__nexus__Read'] })} />)
-    fireEvent.click(screen.getByRole('button', { name: /4 tools/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Tools: 4/ }))
     const groups = screen.getAllByTestId('tool-group')
     expect(groups.map((g) => g.getAttribute('data-server'))).toEqual(['nexus', 'project-orchestrator'])
     expect(groups[1].textContent).toMatch(/MCP server project-orchestrator/)
@@ -32,7 +32,7 @@ describe('SystemInitBlock — tools really offered', () => {
 
   it('DeepSeek: allow patterns that match no offered tool say "Not available in this session", in words', () => {
     render(<SystemInitBlock block={block({ tools: PO_TOOLS, tool_allow: DEEPSEEK_ALLOW })} />)
-    fireEvent.click(screen.getByRole('button', { name: /3 tools/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Tools: 3/ }))
     const rows = screen.getAllByTestId('allow-pattern')
     const status = Object.fromEntries(rows.map((r) => [r.querySelector('code')!.textContent, r.getAttribute('data-available')]))
     expect(status).toEqual({
@@ -46,20 +46,20 @@ describe('SystemInitBlock — tools really offered', () => {
     })
     for (const row of rows) {
       const text = row.textContent ?? ''
-      if (row.getAttribute('data-available') === 'true') expect(text).toMatch(/Available: 3 matching tools/)
+      if (row.getAttribute('data-available') === 'true') expect(text).toMatch(/Available — matching tools: 3/)
       else expect(text).toMatch(/Not available in this session/)
     }
   })
 
   it('Read and Bash(git *) are available when the nexus server offers them', () => {
     render(<SystemInitBlock block={block({ tools: ['mcp__nexus__Read', 'mcp__nexus__Bash'], tool_allow: ['Read', 'Bash(git *)', 'Edit'] })} />)
-    fireEvent.click(screen.getByRole('button', { name: /2 tools/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Tools: 2/ }))
     expect(screen.getAllByTestId('allow-pattern').map((r) => r.getAttribute('data-available'))).toEqual(['true', 'true', 'false'])
   })
 
   it('an older block with only a count stays a plain chip', () => {
     render(<SystemInitBlock block={block({ tools_count: 12 })} />)
-    expect(screen.getByText('12 tools')).toBeTruthy()
+    expect(screen.getByText('Tools: 12')).toBeTruthy()
     expect(screen.queryByRole('button')).toBeNull()
   })
 })

@@ -54,6 +54,7 @@ export default {
     heading: "此会话提供的工具",
     builtin: "内置工具",
     server: "MCP 服务器 {server}",
+    shortened: "名称被缩短的 MCP 工具（截断为 64 个字符）",
     count: "{count} 个工具",
     allowHeading: "允许的模式",
     available: "可用：{count} 个匹配工具",

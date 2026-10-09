@@ -11,7 +11,11 @@
 // Mapping: a bare name or a name with an argument (`Read`, `Bash(git *)`)
 // designates the canonical tool of the `nexus` server (`mcp__nexus__Read`,
 // `mcp__nexus__Bash`) — or the built-in tool of that name on a Claude Code
-// session, whose tools carry no `mcp__` prefix.
+// session, whose tools carry no `mcp__` prefix. Like nexus, the glob is also
+// matched against the full offered name, so a bare `*` designates every tool.
+//
+// An EMPTY or absent `tools` is not "no tool": the Codex and ACP adapters do not
+// know their list and report none. Nothing is claimed then.
 
 /** The server whose tools are the canonical `Read`, `Bash`, `Edit`… of the agent engine. */
 export const CANONICAL_TOOL_SERVER = 'nexus'
@@ -27,8 +31,18 @@ export function parseMcpTool(name: string): { server: string; tool: string } | n
   return { server: rest.slice(0, sep), tool: rest.slice(sep + 2) }
 }
 
+/**
+ * Group of the MCP tools whose name nexus cut to 64 characters inside the server
+ * name: the server can no longer be read, but the tool is still an MCP tool.
+ * Never a real server name: nexus keeps only `[A-Za-z0-9_-]` in those.
+ */
+export const SHORTENED_SERVER = '…'
+
 export interface ToolGroup {
-  /** MCP server name; `null` = built-in tools (no `mcp__` prefix). */
+  /**
+   * MCP server name; `null` = built-in tools (no `mcp__` prefix);
+   * {@link SHORTENED_SERVER} = MCP tools whose name was cut before the server ended.
+   */
   server: string | null
   /** Short names (`note`, `Read`), sorted. */
   tools: string[]
@@ -40,14 +54,21 @@ export function groupTools(tools: readonly string[]): ToolGroup[] {
   for (const name of tools) {
     if (typeof name !== 'string' || !name) continue
     const mcp = parseMcpTool(name)
-    const server = mcp ? mcp.server : null
+    // `mcp__…` with no readable server: a name cut to 64 characters (hash suffix). Still MCP.
+    const shortened = !mcp && name.startsWith(MCP_PREFIX)
+    const server = mcp ? mcp.server : shortened ? SHORTENED_SERVER : null
     const tool = mcp ? mcp.tool : name
     if (!groups.has(server)) groups.set(server, new Set())
     groups.get(server)!.add(tool)
   }
   return [...groups]
     .map(([server, set]) => ({ server, tools: [...set].sort((a, b) => a.localeCompare(b)) }))
-    .sort((a, b) => (a.server === null ? -1 : b.server === null ? 1 : a.server.localeCompare(b.server)))
+    .sort((a, b) => groupRank(a.server) - groupRank(b.server) || (a.server ?? '').localeCompare(b.server ?? ''))
+}
+
+/** Built-ins first, named servers next, shortened names last. */
+function groupRank(server: string | null): number {
+  return server === null ? 0 : server === SHORTENED_SERVER ? 2 : 1
 }
 
 function globToRegExp(glob: string): RegExp {
@@ -66,10 +87,11 @@ export function patternMatches(pattern: string, offered: readonly string[]): str
   const name = patternToolName(pattern)
   if (!name) return []
   const re = globToRegExp(name)
-  if (name.startsWith(MCP_PREFIX)) return offered.filter((tool) => re.test(tool))
-  // A bare name: the built-in of that name, or the canonical tool of the nexus server.
+  // As nexus does (`ToolEntry::names`): the glob is matched against the offered name
+  // (a built-in `Bash`, or any `mcp__…`, so `*` matches everything), then, for a tool of
+  // the nexus server, against its canonical name (`Read` → `mcp__nexus__Read`).
   return offered.filter((tool) => {
-    if (re.test(tool) && !tool.startsWith(MCP_PREFIX)) return true
+    if (re.test(tool)) return true
     const mcp = parseMcpTool(tool)
     return mcp !== null && mcp.server === CANONICAL_TOOL_SERVER && re.test(mcp.tool)
   })

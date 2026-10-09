@@ -46,17 +46,18 @@ export default {
   },
   init: {
     title: "Sesión iniciada",
-    tools: "{count} herramientas",
-    mcpServers: "{count} servidores MCP",
+    tools: "Herramientas: {count}",
+    mcpServers: "Servidores MCP: {count}",
   },
   tools: {
     toggle: "Mostrar las herramientas ofrecidas en esta sesión",
     heading: "Herramientas ofrecidas en esta sesión",
     builtin: "Herramientas integradas",
     server: "Servidor MCP {server}",
-    count: "{count} herramientas",
+    shortened: "Herramientas MCP con nombre acortado (cortado a 64 caracteres)",
+    count: "Herramientas: {count}",
     allowHeading: "Patrones permitidos",
-    available: "Disponible: {count} herramientas coincidentes",
+    available: "Disponible — herramientas coincidentes: {count}",
     unavailable: "No disponible en esta sesión",
   },
 } satisfies Translation<'session'>

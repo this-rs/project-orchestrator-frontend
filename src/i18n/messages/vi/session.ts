@@ -54,6 +54,7 @@ export default {
     heading: "Công cụ được cung cấp trong phiên này",
     builtin: "Công cụ tích hợp",
     server: "Máy chủ MCP {server}",
+    shortened: "Công cụ MCP có tên bị rút gọn (cắt còn 64 ký tự)",
     count: "{count} công cụ",
     allowHeading: "Mẫu được cho phép",
     available: "Khả dụng: {count} công cụ khớp",
