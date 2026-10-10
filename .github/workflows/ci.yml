@@ -1,12 +1,17 @@
 name: CI
 
 on:
+  # integ/<lot>: integration branches (protocol integration-branch-delivery). A lot's PRs are
+  # reviewed and merged there on the same Quality gate; the lot reaches main through one PR.
   pull_request:
-    branches: [main]
+    branches: [main, "integ/**"]
+  push:
+    branches: ["integ/**"]
 
 # Cancel superseded runs on the same PR branch.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.head_ref }}
+  # head_ref is empty on a push to integ/**: fall back to the ref so pushes do not share a group.
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -39,7 +44,8 @@ jobs:
 
       - name: Patch coverage gate
         env:
-          BASE_REF: ${{ github.event.pull_request.base.sha }}
+          # On a push to integ/** there is no PR base: the patch is what the push added.
+          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
           PATCH_COVERAGE_THRESHOLD: '80'
         run: node scripts/check-patch-coverage.mjs
 
