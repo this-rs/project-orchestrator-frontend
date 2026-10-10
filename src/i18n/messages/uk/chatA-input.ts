@@ -46,5 +46,21 @@ export default {
     autoOn: "Автопродовження ввімкнено",
     autoOff: "Автопродовження вимкнено",
     drop: "Відпустіть, щоб прикріпити"
+  },
+  refs: {
+    picker: {
+      all: "Усі",
+      filterByKind: "Фільтр за типом",
+      hintActors: "учасники",
+      hintSearch: "пошук",
+      kindOnly: "Лише {kind}",
+      resultsOne: "Результатів: {count}",
+      resultsMany: "Результатів: {count}",
+      noResults: "Нічого не знайдено",
+      searching: "Пошук…",
+      noActors: "На цьому сервері немає доступних учасників",
+      needsProject: "Виберіть проєкт, щоб шукати персони та навички",
+      close: "Закрити посилання"
+    }
   }
 } satisfies Translation<'chatA-input'>
