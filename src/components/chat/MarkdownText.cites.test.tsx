@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import tokens from '@/refs/__fixtures__/tokens.json'
 import { MarkdownText } from './MarkdownText'
+import { REF_CHIP_HEIGHT, REF_CHIP_HIT } from './chipGeometry'
 import type { ReactNode } from 'react'
 
 const plan = tokens.valid[0]
@@ -45,12 +46,13 @@ describe('MarkdownText — entities cited by the agent', () => {
     expect(screen.getByRole('link').textContent).toContain('Références v3')
   })
 
-  it('names the kind for a screen reader, and is a 24px target (44px on touch)', () => {
+  it('names the kind for a screen reader, and is a 24px target that keeps the line height', () => {
     inWorkspace(<MarkdownText citeRefs content={plan.token} />)
     const link = screen.getByRole('link')
     expect(link.textContent).toMatch(/^Plan: /)
-    expect(link.className).toContain('min-h-6')
-    expect(link.className).toContain('[@media(pointer:coarse)]:min-h-11')
+    expect(link.className).toContain(REF_CHIP_HIT)
+    expect(link.className).toContain(REF_CHIP_HEIGHT)
+    expect(link.className).not.toContain('min-h-11')
     expect(link.className).toContain('focus-visible:ring-2')
   })
 
