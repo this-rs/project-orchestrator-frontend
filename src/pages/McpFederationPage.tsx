@@ -16,11 +16,11 @@ import {
   StatusDot,
   Textarea,
   hitArea,
-  pluralize,
   textLink,
   type StatusTone,
   ToneText,
 } from '@/components/ui'
+import { useT } from '@/i18n'
 import { Notice } from '@/components/settings/SettingRow'
 import { useToast } from '@/hooks'
 import { mcpFederationApi } from '@/services/mcpFederation'
@@ -38,19 +38,24 @@ import { NOMENCLATURE } from '@/constants/nomenclature'
 // LABELS
 // ============================================================================
 
-const STATUS: Record<ConnectionStatus, { label: string; tone: StatusTone }> = {
-  connected: { label: 'Connected', tone: 'success' },
-  disconnected: { label: 'Disconnected', tone: 'muted' },
-  error: { label: 'Error', tone: 'danger' },
-  reconnecting: { label: 'Reconnecting', tone: 'warning' },
+const STATUS_TONE: Record<ConnectionStatus, StatusTone> = {
+  connected: 'success',
+  disconnected: 'muted',
+  error: 'danger',
+  reconnecting: 'warning',
 }
 
-const CIRCUIT: Record<CircuitState, { label: string; tone: StatusTone; help: string }> = {
-  closed: { label: 'Closed', tone: 'success', help: 'normal, calls go through' },
-  open: { label: 'Open', tone: 'danger', help: 'too many errors, calls temporarily blocked' },
-  half_open: { label: 'Half open', tone: 'warning', help: 'a few trial calls to check recovery' },
+const CIRCUIT_TONE: Record<CircuitState, StatusTone> = {
+  closed: 'success',
+  open: 'danger',
+  half_open: 'warning',
 }
 
+const CIRCUIT_HELP = { closed: 'closedHelp', open: 'openHelp', half_open: 'halfOpenHelp' } as const
+
+const CATEGORIES = ['query', 'search', 'create', 'mutation', 'delete', 'unknown'] as const
+
+// Product names of the transports: not translated.
 const transportLabels: Record<McpTransportType, string> = {
   stdio: 'Stdio',
   sse: 'SSE',
@@ -96,6 +101,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 
 function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
+  const { t } = useT()
   const toast = useToast()
   const [serverId, setServerId] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -108,7 +114,7 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
 
   const handleSubmit = async () => {
     if (!serverId.trim()) {
-      toast.error('Server ID is required')
+      toast.error(t('mcpFederation.connect.idRequired'))
       return false
     }
     const body: ConnectServerRequest = {
@@ -118,7 +124,7 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
     }
     if (transport === 'stdio') {
       if (!command.trim()) {
-        toast.error('Command is required for Stdio transport')
+        toast.error(t('mcpFederation.connect.commandRequired'))
         return false
       }
       body.command = command.trim()
@@ -126,38 +132,38 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
       if (env.trim()) body.env = parseKeyValuePairs(env)
     } else {
       if (!url.trim()) {
-        toast.error('URL is required for SSE/HTTP transport')
+        toast.error(t('mcpFederation.connect.urlRequired'))
         return false
       }
       body.url = url.trim()
       if (headers.trim()) body.headers = parseKeyValuePairs(headers)
     }
     const res = await mcpFederationApi.connectServer(body)
-    toast.success(res.message || `Server ${serverId} connected`)
+    toast.success(res.message || t('mcpFederation.connect.connected', { id: serverId }))
     onSuccess()
   }
 
   return (
-    <FormDialog open={open} onClose={onClose} onSubmit={handleSubmit} title="Connect MCP server" submitLabel="Connect" size="lg">
+    <FormDialog open={open} onClose={onClose} onSubmit={handleSubmit} title={t('mcpFederation.connect.title')} submitLabel={t('mcpFederation.connect.submit')} size="lg">
       <div className="space-y-3">
         <p className="text-xs text-gray-500">
-          Plug in an external MCP server: its tools become available to the assistants, with error and latency tracking.
+          {t('mcpFederation.connect.intro')}
         </p>
-        <Field label="Server ID *">
+        <Field label={t('mcpFederation.connect.serverId')}>
           {(id) => <Input id={id} value={serverId} onChange={(e) => setServerId(e.target.value)} placeholder="my-mcp-server" />}
         </Field>
-        <Field label="Display name">
+        <Field label={t('mcpFederation.connect.displayName')}>
           {(id) => (
-            <Input id={id} value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="My MCP Server (optional)" />
+            <Input id={id} value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder={t('mcpFederation.connect.displayNamePlaceholder')} />
           )}
         </Field>
-        <Field label="Transport *" hint="Stdio: a process started locally. SSE / HTTP: a server already running, reached by URL.">
+        <Field label={t('mcpFederation.connect.transport')} hint={t('mcpFederation.connect.transportHint')}>
           {() => (
             <Select
               value={transport}
               onChange={(val) => setTransport(val as McpTransportType)}
               options={[
-                { value: 'stdio', label: 'Stdio (local process)' },
+                { value: 'stdio', label: t('mcpFederation.connect.transportStdio') },
                 { value: 'sse', label: 'SSE (Server-Sent Events)' },
                 { value: 'streamable_http', label: 'Streamable HTTP' },
               ]}
@@ -166,7 +172,7 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
         </Field>
         {transport === 'stdio' ? (
           <>
-            <Field label="Command *">
+            <Field label={t('mcpFederation.connect.command')}>
               {(id) => (
                 <Input
                   id={id}
@@ -177,10 +183,10 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
                 />
               )}
             </Field>
-            <Field label="Arguments" hint="Space-separated.">
+            <Field label={t('mcpFederation.connect.arguments')} hint={t('mcpFederation.connect.argumentsHint')}>
               {(id) => <Input id={id} value={args} onChange={(e) => setArgs(e.target.value)} placeholder="--port 3000 --verbose" className="font-mono" />}
             </Field>
-            <Field label="Environment variables" hint="One KEY=VALUE per line.">
+            <Field label={t('mcpFederation.connect.env')} hint={t('mcpFederation.connect.keyValueHint')}>
               {(id) => (
                 <Textarea id={id} value={env} onChange={(e) => setEnv(e.target.value)} placeholder={'KEY=value\nANOTHER_KEY=value'} rows={3} className="font-mono" />
               )}
@@ -188,10 +194,10 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
           </>
         ) : (
           <>
-            <Field label="URL *">
+            <Field label={t('mcpFederation.connect.url')}>
               {(id) => <Input id={id} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="http://localhost:3000/sse" />}
             </Field>
-            <Field label="Headers" hint="One KEY=VALUE per line.">
+            <Field label={t('mcpFederation.connect.headers')} hint={t('mcpFederation.connect.keyValueHint')}>
               {(id) => (
                 <Textarea
                   id={id}
@@ -215,6 +221,7 @@ function ConnectServerDialog({ open, onClose, onSuccess }: { open: boolean; onCl
 // ============================================================================
 
 function ServerDetail({ server }: { server: McpServerSummary }) {
+  const { t } = useT()
   const toast = useToast()
   const [tools, setTools] = useState<McpDiscoveredTool[]>([])
   const [loadingTools, setLoadingTools] = useState(true)
@@ -227,7 +234,7 @@ function ServerDetail({ server }: { server: McpServerSummary }) {
       // API returns either a raw array or { tools: [...] }
       setTools(Array.isArray(res) ? res : res.tools ?? [])
     } catch {
-      toast.error('Failed to load tools')
+      toast.error(t('mcpFederation.detail.loadToolsFailed'))
     } finally {
       setLoadingTools(false)
     }
@@ -242,76 +249,76 @@ function ServerDetail({ server }: { server: McpServerSummary }) {
     setProbing(true)
     try {
       await mcpFederationApi.probeServer(server.id)
-      toast.success('Probe completed')
+      toast.success(t('mcpFederation.detail.probeDone'))
       await fetchTools()
     } catch {
-      toast.error('Probe failed')
+      toast.error(t('mcpFederation.detail.probeFailed'))
     } finally {
       setProbing(false)
     }
   }
 
   const stats = server.stats
-  const circuit = CIRCUIT[server.circuit_breaker_state]
+  const circuitState = server.circuit_breaker_state
 
   return (
     <div className="space-y-3">
       <Facts
         columns={2}
         items={[
-          { label: 'Calls', value: <span className="tabular-nums">{stats.call_count.toLocaleString()}</span> },
+          { label: t('mcpFederation.detail.calls'), value: <span className="tabular-nums">{stats.call_count.toLocaleString()}</span> },
           {
-            label: 'Errors',
+            label: t('mcpFederation.detail.errors'),
             value: (
               <span>
                 <span className="tabular-nums">{stats.error_count.toLocaleString()}</span>
-                <span className="text-gray-500"> · {(stats.error_rate * 100).toFixed(1)}% of calls</span>
+                <span className="text-gray-500"> · {(stats.error_rate * 100).toFixed(1)}% {t('mcpFederation.detail.errorsOfCalls')}</span>
               </span>
             ),
           },
           {
-            label: 'Latency',
+            label: t('mcpFederation.detail.latency'),
             value:
               stats.latency_p50 != null ? (
                 <span>
                   <span className="tabular-nums">{stats.latency_p50} ms</span>
-                  <span className="text-gray-500"> median{stats.latency_p95 != null ? `, ${stats.latency_p95} ms at p95` : ''}</span>
+                  <span className="text-gray-500"> {stats.latency_p95 != null ? t('mcpFederation.detail.medianP95', { p95: stats.latency_p95 }) : t('mcpFederation.detail.median')}</span>
                 </span>
               ) : (
-                'N/A'
+                t('mcpFederation.detail.na')
               ),
           },
           {
-            label: 'Circuit',
+            label: t('mcpFederation.detail.circuit'),
             value: (
               <span>
-                <ToneText tone={circuit.tone} label={circuit.label} />
-                <span className="text-gray-500"> — {circuit.help}</span>
+                <ToneText tone={CIRCUIT_TONE[circuitState]} label={t(`mcpFederation.circuit.${circuitState}`)} />
+                <span className="text-gray-500"> — {t(`mcpFederation.circuit.${CIRCUIT_HELP[circuitState]}`)}</span>
               </span>
             ),
           },
-          { label: 'Last call', value: stats.last_call_at ? <RelativeTime date={stats.last_call_at} /> : 'Never' },
-          { label: 'Last error', value: stats.last_error ? <span className="text-red-300 break-words">{stats.last_error}</span> : null },
+          { label: t('mcpFederation.detail.lastCall'), value: stats.last_call_at ? <RelativeTime date={stats.last_call_at} /> : t('mcpFederation.detail.never') },
+          { label: t('mcpFederation.detail.lastError'), value: stats.last_error ? <span className="text-red-300 break-words">{stats.last_error}</span> : null },
         ]}
       />
 
       {/* Group header (ListGroup typography) — not a ListGroup because the empty state must not live inside a <ul>. */}
       <div className="flex items-center justify-between gap-2 min-h-9">
         <h4 className="text-[11px] font-medium text-gray-500">
-          Discovered tools <span className="tabular-nums text-gray-600">{tools.length}</span>
+          {t('mcpFederation.detail.discovered')} <span className="tabular-nums text-gray-600">{tools.length}</span>
         </h4>
         <Button size="sm" variant="ghost" onClick={handleProbe} loading={probing}>
           {!probing && <Scan className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />}
-          Probe tools
+          {t('mcpFederation.detail.probe')}
         </Button>
       </div>
 
       {loadingTools ? (
         <EntityListSkeleton rows={2} />
       ) : tools.length === 0 ? (
-        <EmptyState size="sm" title="No tools discovered" description="Run a probe to query the server." />
+        <EmptyState size="sm" title={t('mcpFederation.detail.noTools')} description={t('mcpFederation.detail.noToolsHint')} />
       ) : (
-        <EntityList variant="flush" aria-label={`Tools of ${server.display_name || server.id}`} className="rounded-lg border border-white/[0.05]">
+        <EntityList variant="flush" aria-label={t('mcpFederation.detail.toolsOf', { name: server.display_name || server.id })} className="rounded-lg border border-white/[0.05]">
           {tools.map((tool) => (
             <EntityRow
               key={tool.fqn}
@@ -320,8 +327,8 @@ function ServerDetail({ server }: { server: McpServerSummary }) {
               description={tool.description}
               trailing={tool.profile?.latency_ms != null ? `${tool.profile.latency_ms} ms` : undefined}
               meta={[
-                <ToneText key="c" tone={CATEGORY_TONE[tool.category] ?? 'neutral'} label={tool.category} />,
-                tool.profile?.response_shape ? `returns ${tool.profile.response_shape}` : null,
+                <ToneText key="c" tone={CATEGORY_TONE[tool.category] ?? 'neutral'} label={(CATEGORIES as readonly string[]).includes(tool.category) ? t(`mcpFederation.categories.${tool.category as (typeof CATEGORIES)[number]}`) : tool.category} />,
+                tool.profile?.response_shape ? t('mcpFederation.detail.returns', { shape: tool.profile.response_shape }) : null,
                 tool.similar_internal.length > 0 ? (
                   <span key="s" className="text-gray-500">
                     ≈{' '}
@@ -345,6 +352,7 @@ function ServerDetail({ server }: { server: McpServerSummary }) {
 // ============================================================================
 
 export function McpFederationPage() {
+  const { t } = useT()
   const toast = useToast()
   const [servers, setServers] = useState<McpServerSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -359,11 +367,11 @@ export function McpFederationPage() {
       setServers(await mcpFederationApi.listServers())
       setError(null)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load MCP servers')
+      setError(e instanceof Error ? e.message : t('mcpFederation.page.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     fetchData()
@@ -391,11 +399,11 @@ export function McpFederationPage() {
   const handleDisconnect = async (server: McpServerSummary) => {
     try {
       await mcpFederationApi.disconnectServer(server.id)
-      toast.success(`Server ${server.display_name || server.id} disconnected`)
+      toast.success(t('mcpFederation.page.disconnected', { name: server.display_name || server.id }))
       if (selectedServerId === server.id) setSelectedServerId(null)
       await fetchData()
     } catch {
-      toast.error('Failed to disconnect server')
+      toast.error(t('mcpFederation.page.disconnectFailed'))
     }
   }
 
@@ -404,14 +412,14 @@ export function McpFederationPage() {
     try {
       if (kind === 'reconnect') {
         await mcpFederationApi.reconnectServer(serverId)
-        toast.success('Reconnection initiated')
+        toast.success(t('mcpFederation.page.reconnectStarted'))
       } else {
         await mcpFederationApi.probeServer(serverId)
-        toast.success('Probe completed')
+        toast.success(t('mcpFederation.detail.probeDone'))
       }
       await fetchData()
     } catch {
-      toast.error(kind === 'reconnect' ? 'Failed to reconnect' : 'Probe failed')
+      toast.error(kind === 'reconnect' ? t('mcpFederation.page.reconnectFailed') : t('mcpFederation.detail.probeFailed'))
     } finally {
       setPending((p) => ({ ...p, [serverId]: undefined }))
     }
@@ -426,19 +434,19 @@ export function McpFederationPage() {
   return (
     <PageShell
       title={NOMENCLATURE.mcpFederation.plural}
-      description="External MCP servers plugged into the orchestrator: their tools add to the assistants' own. Tap a server for its statistics and tools. Refreshed every 10 seconds."
+      description={t('mcpFederation.description')}
       intro="mcpFederation"
       count={loading ? undefined : servers.length}
       width="wide"
       actions={
         <>
-          <Button size="sm" variant="ghost" onClick={fetchData} aria-label="Refresh">
+          <Button size="sm" variant="ghost" onClick={fetchData} aria-label={t('mcpFederation.page.refresh')}>
             <RefreshCw className="w-4 h-4" aria-hidden="true" />
-            <span className="hidden md:inline">Refresh</span>
+            <span className="hidden md:inline">{t('mcpFederation.page.refresh')}</span>
           </Button>
           <Button size="sm" onClick={openConnect}>
             <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
-            Connect
+            {t('mcpFederation.page.connect')}
           </Button>
         </>
       }
@@ -451,12 +459,12 @@ export function McpFederationPage() {
         ) : servers.length === 0 ? (
           <EmptyState
             icon={<Server className="w-6 h-6" />}
-            title="No MCP servers yet"
-            description="Connect an external MCP server to discover and use its tools."
+            title={t('mcpFederation.page.emptyTitle')}
+            description={t('mcpFederation.page.emptyDescription')}
             action={
               <Button size="sm" onClick={openConnect}>
                 <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
-                Connect server
+                {t('mcpFederation.page.connectServer')}
               </Button>
             }
           />
@@ -466,7 +474,7 @@ export function McpFederationPage() {
               <Notice tone="warning">
                 {error}{' '}
                 <button type="button" onClick={fetchData} className={`${textLink} ${hitArea}`}>
-                  Retry
+                  {t('mcpFederation.page.retry')}
                 </button>
               </Notice>
             )}
@@ -475,54 +483,57 @@ export function McpFederationPage() {
               columns={2}
               items={[
                 {
-                  label: 'Connected',
+                  label: t('mcpFederation.page.connectedLabel'),
                   value: (
                     <span>
                       <span className="tabular-nums">
                         {connectedCount} / {servers.length}
                       </span>
-                      <span className="text-gray-500"> servers reachable</span>
+                      <span className="text-gray-500"> {t('mcpFederation.page.serversReachable')}</span>
                     </span>
                   ),
                 },
                 {
-                  label: 'Tools',
+                  label: t('mcpFederation.page.tools'),
                   value: (
                     <span>
                       <span className="tabular-nums">{totalTools}</span>
-                      <span className="text-gray-500"> tools available</span>
+                      <span className="text-gray-500"> {t('mcpFederation.page.toolsAvailable')}</span>
                     </span>
                   ),
                 },
                 {
-                  label: 'Latency',
+                  label: t('mcpFederation.detail.latency'),
                   value: avgLatency > 0 ? (
                     <span>
                       <span className="tabular-nums">{avgLatency.toFixed(0)} ms</span>
-                      <span className="text-gray-500"> median, averaged</span>
+                      <span className="text-gray-500"> {t('mcpFederation.page.medianAveraged')}</span>
                     </span>
                   ) : (
-                    'N/A'
+                    t('mcpFederation.detail.na')
                   ),
                 },
                 {
-                  label: 'Errors',
+                  label: t('mcpFederation.detail.errors'),
                   value: (
                     <span>
                       <span className="tabular-nums">{(avgErrorRate * 100).toFixed(1)}%</span>
-                      <span className="text-gray-500"> of calls fail (average)</span>
+                      <span className="text-gray-500"> {t('mcpFederation.page.failAverage')}</span>
                     </span>
                   ),
                 },
               ]}
             />
 
-            <EntityList aria-label="MCP servers">
+            <EntityList aria-label={t('mcpFederation.page.listAria')}>
               {servers.map((server) => {
                 const name = server.display_name || server.id
                 const selected = selectedServerId === server.id
-                const status = STATUS[server.status] ?? { label: server.status, tone: 'neutral' as StatusTone }
-                const circuit = CIRCUIT[server.circuit_breaker_state]
+                const status =
+                  server.status in STATUS_TONE
+                    ? { label: t(`mcpFederation.status.${server.status}`), tone: STATUS_TONE[server.status] }
+                    : { label: server.status as string, tone: 'neutral' as StatusTone }
+                const circuitState = server.circuit_breaker_state
                 const busy = pending[server.id]
                 return (
                   <EntityRow
@@ -532,45 +543,45 @@ export function McpFederationPage() {
                     selected={selected}
                     expanded={selected}
                     leading={<StatusDot tone={status.tone} pulse={server.status === 'reconnecting'} label={status.label} />}
-                    trailing={server.connected_at ? <RelativeTime date={server.connected_at} prefix="since " /> : undefined}
+                    trailing={server.connected_at ? <RelativeTime date={server.connected_at} prefix={`${t('mcpFederation.page.since')} `} /> : undefined}
                     meta={[
                       busy ? (
-                        <ToneText key="busy" tone="progress" label={busy === 'probe' ? 'Probing…' : 'Reconnecting…'} pulse />
+                        <ToneText key="busy" tone="progress" label={busy === 'probe' ? t('mcpFederation.page.probing') : t('mcpFederation.page.reconnecting')} pulse />
                       ) : (
                         <ToneText key="st" tone={status.tone} label={status.label} dot={false} />
                       ),
                       transportLabels[server.transport_type] ?? server.transport_type,
                       server.circuit_breaker_state !== 'closed' ? (
-                        <ToneText key="cb" tone={circuit.tone} label={`Circuit ${circuit.label.toLowerCase()}`} />
+                        <ToneText key="cb" tone={CIRCUIT_TONE[circuitState]} label={t('mcpFederation.circuit.state', { state: t(`mcpFederation.circuit.${circuitState}`).toLowerCase() })} />
                       ) : null,
                       server.display_name && server.display_name !== server.id ? (
                         <span key="id" className="font-mono">{server.id}</span>
                       ) : null,
-                      pluralize(server.tool_count, 'tool'),
+                      t(server.tool_count === 1 ? 'mcpFederation.page.toolOne' : 'mcpFederation.page.toolMany', { n: server.tool_count }),
                     ]}
                     actions={[
                       {
-                        label: 'Reconnect',
+                        label: t('mcpFederation.page.reconnect'),
                         icon: RefreshCw,
                         hidden: server.status === 'connected',
                         disabled: !!busy,
                         onClick: () => runServerAction(server.id, 'reconnect'),
                       },
                       {
-                        label: 'Probe tools',
+                        label: t('mcpFederation.detail.probe'),
                         icon: Scan,
                         disabled: !!busy,
                         onClick: () => runServerAction(server.id, 'probe'),
                       },
                       {
-                        label: 'Disconnect',
+                        label: t('mcpFederation.page.disconnect'),
                         icon: Unplug,
                         variant: 'danger',
                         onClick: () => handleDisconnect(server),
                         confirm: {
-                          title: `Disconnect ${name}?`,
-                          description: `Disconnects the server and removes its ${server.tool_count} discovered tools.`,
-                          confirmLabel: 'Disconnect',
+                          title: t('mcpFederation.page.disconnectTitle', { name }),
+                          description: t('mcpFederation.page.disconnectDescription', { count: server.tool_count }),
+                          confirmLabel: t('mcpFederation.page.disconnect'),
                         },
                       },
                     ]}

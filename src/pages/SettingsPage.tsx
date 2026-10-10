@@ -23,6 +23,7 @@ import { Link, useNavigate, Navigate } from 'react-router-dom'
 import { useAtom, useAtomValue } from 'jotai'
 import { ArrowLeft } from 'lucide-react'
 import { Button, ConceptIntro, PageContainer, PageHeader, Section, inlineLink, surface } from '@/components/ui'
+import { useT } from '@/i18n'
 import type { ConceptExplain } from '@/constants/nomenclature'
 import { isTauri } from '@/services/env'
 import { UpdatesSection } from '@/components/settings/UpdatesSection'
@@ -35,13 +36,18 @@ import { workspacePath } from '@/utils/paths'
  * Settings is a screen, not a concept of the registry: its three lines live here, written with
  * the registry's rules (DESIGN.md § 5 — one sentence each, the product's words, no promise).
  */
-const SETTINGS_EXPLAIN: ConceptExplain = {
-  what: 'Settings are the choices of the desktop app itself: how assistants may act on this machine, and how the app updates.',
-  why: 'You decide once what an assistant may run, which tools it may use and which version you are on.',
-  different: 'Today these choices are spread across config files and terminal flags. Here they are one screen, applied to every conversation.',
+function useSettingsExplain(): ConceptExplain {
+  const { t } = useT()
+  return {
+    what: t('settingsPage.settings.explain.what'),
+    why: t('settingsPage.settings.explain.why'),
+    different: t('settingsPage.settings.explain.different'),
+  }
 }
 
 export function SettingsPage() {
+  const { t } = useT()
+  const settingsExplain = useSettingsExplain()
   const navigate = useNavigate()
   const [returnUrl, setReturnUrl] = useAtom(settingsReturnUrlAtom)
   const lastSlug = useAtomValue(activeWorkspaceSlugAtom)
@@ -85,34 +91,34 @@ export function SettingsPage() {
           <div className="space-y-1">
             <Button variant="ghost" size="sm" onClick={handleBack} className="-ml-3 text-gray-400">
               <ArrowLeft className="w-4 h-4 mr-1.5" aria-hidden="true" />
-              Back
+              {t('settingsPage.back')}
             </Button>
             <PageHeader
-              title="Settings"
-              description="Desktop app settings. They apply to every conversation with the assistants."
+              title={t('settingsPage.settings.title')}
+              description={t('settingsPage.settings.description')}
             />
-            <ConceptIntro concept={SETTINGS_EXPLAIN} storageKey="settings" />
+            <ConceptIntro concept={settingsExplain} storageKey="settings" />
           </div>
 
           <Section
-            title="Chat & AI"
-            description="Permission mode, allowed and denied tools, environment variables and the Claude Code CLI used by the assistants."
+            title={t('settingsPage.settings.chatTitle')}
+            description={t('settingsPage.settings.chatDescription')}
           >
             <div className={`${surface} overflow-hidden [&>div]:border-none`}>
               <PermissionSettingsPanel />
             </div>
           </Section>
 
-          <Section title="Updates" description="Check for a new version of the desktop app and install it.">
+          <Section title={t('settingsPage.settings.updatesTitle')} description={t('settingsPage.settings.updatesDescription')}>
             <div className={`${surface} overflow-hidden`}>
               <UpdatesSection />
             </div>
           </Section>
 
           <p className="text-xs text-gray-500">
-            Providers (instances, project consent, roles and model policy) have their own page:{' '}
+            {t('settingsPage.settings.providersNote')}{' '}
             <Link to="/providers" className={inlineLink}>
-              Providers → /providers
+              {t('settingsPage.settings.providersLink')}
             </Link>
           </p>
         </PageContainer>

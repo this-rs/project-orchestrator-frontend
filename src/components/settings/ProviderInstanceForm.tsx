@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Button, Input, Select } from '@/components/ui'
 import type { CredentialKind } from '@/constants/providerPresets'
 import {
-  COST_LABELS_FR,
+  COST_LABEL_KEYS,
   isProcessKind,
   validateBaseUrlFr,
   validateEnvName,
@@ -26,7 +26,8 @@ import {
   type ProviderInstance,
 } from '@/types/provider'
 import type { ProviderPatch, ProviderTestResult } from '@/types/providerSettings'
-import { REMOTE_KEY_HINT_FR, REMOTE_KIND, validateVaultKeyName } from '@/constants/remoteClaudeCode'
+import { REMOTE_KIND, validateVaultKeyName } from '@/constants/remoteClaudeCode'
+import { useT } from '@/i18n'
 import { ConfirmPanel } from './ConfirmPanel'
 import { RemoteHostFields, remoteErrors, type RemoteField, type RemoteState } from './RemoteHostFields'
 import { FieldNote, FormField } from './FormField'
@@ -48,13 +49,6 @@ function splitRef(ref: CredentialRef | null | undefined): { kind: CredentialKind
   return { kind: 'none', name: '' }
 }
 
-const COST_OPTIONS = COST_BASES.map((c) => ({ value: c, label: COST_LABELS_FR[c] }))
-const CRED_OPTIONS = [
-  { value: 'vault', label: 'Clé du coffre' },
-  { value: 'env', label: 'Variable d’environnement du serveur' },
-  { value: 'none', label: 'Aucune' },
-]
-
 /**
  * The list (`GET /chat/providers`) carries neither `base_url` nor
  * `default_model`: the form loads the stored instance first
@@ -62,6 +56,7 @@ const CRED_OPTIONS = [
  * refusal falls back to the list entry and SAYS what is unknown.
  */
 export function ProviderInstanceForm(props: ProviderInstanceFormProps) {
+  const { t } = useT()
   const { instance } = props
   const [stored, setStored] = useState<StoredInstance | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -80,20 +75,20 @@ export function ProviderInstanceForm(props: ProviderInstanceFormProps) {
         if (!live) return
         setLoadError(
           err instanceof ApiError && (err.status === 404 || err.status === 405)
-            ? 'Ce serveur ne sait pas encore relire une instance enregistrée (GET /api/chat/providers/{id} absent) : l’URL complète et le modèle par défaut ne sont pas disponibles.'
-            : `Impossible de relire l’instance enregistrée : ${wizardErrorMessage(err)}`
+            ? t('providerAdmin.form.loadUnsupported')
+            : t('providerAdmin.form.loadFailed', { error: wizardErrorMessage(err, t) })
         )
         setLoaded(true)
       })
     return () => {
       live = false
     }
-  }, [instance.id])
+  }, [instance.id, t])
 
   if (!loaded) {
     return (
       <div className="border-t border-white/[0.06] pt-4">
-        <Loading>Chargement de l’instance enregistrée…</Loading>
+        <Loading>{t('providerAdmin.form.loading')}</Loading>
       </div>
     )
   }
@@ -114,6 +109,13 @@ function EditForm({
   onSaved,
   onCancel,
 }: ProviderInstanceFormProps & { stored: StoredInstance | null; loadError: string | null }) {
+  const { t } = useT()
+  const COST_OPTIONS = COST_BASES.map((c) => ({ value: c, label: t(COST_LABEL_KEYS[c]) }))
+  const CRED_OPTIONS = [
+    { value: 'vault', label: t('providerAdmin.form.credVault') },
+    { value: 'env', label: t('providerAdmin.form.credEnv') },
+    { value: 'none', label: t('providerAdmin.form.credNone') },
+  ]
   const uid = useId().replace(/:/g, '')
   const savedRef = (stored?.credential_ref ?? instance.credential_ref ?? 'none') as CredentialRef
   const savedUrl = stored?.base_url ?? instance.base_url ?? ''
@@ -150,7 +152,7 @@ function EditForm({
   }
   const [remote, setRemote] = useState<RemoteState>(savedRemote)
   const [remoteTouched, setRemoteTouched] = useState<Partial<Record<RemoteField, boolean>>>({})
-  const remoteErrs = useMemo(() => (isRemote ? remoteErrors(remote) : {}), [isRemote, remote])
+  const remoteErrs = useMemo(() => (isRemote ? remoteErrors(remote, t) : {}), [isRemote, remote, t])
   /** Anything about the machine differs from what is saved: a test needs the saved instance first. */
   const remoteDirty =
     isRemote &&
@@ -203,20 +205,20 @@ function EditForm({
   const errors = useMemo(() => {
     const e: Partial<Record<'url' | 'cred', string>> = {}
     if (!process && !(urlUnknown && !baseUrl.trim())) {
-      const url = validateBaseUrlFr(baseUrl)
+      const url = validateBaseUrlFr(baseUrl, t)
       if (url) e.url = url
     }
     if (credKind === 'vault' && isRemote) {
-      const bad = validateVaultKeyName(credName)
+      const bad = validateVaultKeyName(credName, t)
       if (bad) e.cred = bad
     } else if (credKind === 'vault' && !credName.trim())
-      e.cred = 'Choisissez la clé du coffre utilisée.'
+      e.cred = t('providerAdmin.form.chooseVaultKey')
     if (credKind === 'env') {
-      const env = validateEnvName(credName)
+      const env = validateEnvName(credName, t)
       if (env) e.cred = env
     }
     return e
-  }, [baseUrl, credKind, credName, process, urlUnknown, isRemote])
+  }, [baseUrl, credKind, credName, process, urlUnknown, isRemote, t])
   const valid = Object.keys(errors).length === 0 && Object.keys(remoteErrs).length === 0
 
   const patch = (): ProviderPatch => {
@@ -261,14 +263,14 @@ function EditForm({
   /** Why the server would refuse to test this draft, or null. */
   const whyNoTest = (): string | null => {
     if (urlUnknown && !baseUrl.trim()) {
-      return 'L’URL complète de cette instance n’est pas connue : saisissez-la pour tester.'
+      return t('providerAdmin.form.urlUnknownTest')
     }
     // A test that sends a key runs only on the SAVED instance, same origin and same key reference.
     if (
       credentialRef !== 'none' &&
       (credentialRef !== savedRef || remoteDirty || (!process && originNow !== savedOrigin))
     ) {
-      return 'Enregistrez d’abord l’instance : un test qui envoie une clé exige une instance enregistrée, avec la même URL et la même référence de clé.'
+      return t('providerAdmin.form.saveFirst')
     }
     return null
   }
@@ -292,7 +294,7 @@ function EditForm({
         } as ProviderPatch),
       })
     } catch (err) {
-      setTest({ error: toProviderError(err), message: wizardErrorMessage(err) })
+      setTest({ error: toProviderError(err), message: wizardErrorMessage(err, t) })
     } finally {
       testingRef.current = false
       setTesting(false)
@@ -314,7 +316,7 @@ function EditForm({
       await providersApi.update(instance.id, patch())
       await onSaved()
     } catch (err) {
-      setSaveError(wizardErrorMessage(err))
+      setSaveError(wizardErrorMessage(err, t))
     } finally {
       setSaving(false)
       setConfirmSave(false)
@@ -336,7 +338,7 @@ function EditForm({
 
   return (
     <form
-      aria-label={`Modifier ${instance.label}`}
+      aria-label={t('providerAdmin.form.editAria', { name: instance.label })}
       className="space-y-6 border-t border-white/[0.06] pt-4"
       onSubmit={(e) => {
         e.preventDefault()
@@ -345,7 +347,7 @@ function EditForm({
     >
       {loadError && <ErrorLine>{loadError}</ErrorLine>}
       <div className="grid gap-4 sm:grid-cols-2">
-        <FormField id={`${uid}-id`} label="Identifiant" help="Ne change jamais.">
+        <FormField id={`${uid}-id`} label={t('providerAdmin.form.id')} help={t('providerAdmin.form.idHelp')}>
           <Input
             id={`${uid}-id`}
             value={instance.id}
@@ -355,8 +357,8 @@ function EditForm({
         </FormField>
         <FormField
           id={`${uid}-label`}
-          label="Nom affiché"
-          help="Ce que l’on voit dans le sélecteur de provider."
+          label={t('providerAdmin.form.displayName')}
+          help={t('providerAdmin.form.displayNameHelp')}
         >
           <Input
             id={`${uid}-label`}
@@ -369,11 +371,11 @@ function EditForm({
           <FormField
             id={`${uid}-url`}
             className="sm:col-span-2"
-            label="URL de base"
+            label={t('providerAdmin.form.baseUrl')}
             help={
               urlUnknown
-                ? `URL enregistrée : ${savedOrigin ?? 'inconnue'} (le chemin n’est pas disponible). Laissez vide pour la garder, ou saisissez l’URL complète.`
-                : 'Changer l’URL invalide les autorisations des projets : il faudra les redonner.'
+                ? t('providerAdmin.form.urlSavedHelp', { origin: savedOrigin ?? t('providerAdmin.form.urlUnknownOrigin') })
+                : t('providerAdmin.form.urlChangeHelp')
             }
             error={shown('url')}
           >
@@ -409,13 +411,12 @@ function EditForm({
         )}
         {originMoved && (
           <p role="note" data-testid="remote-origin-moved" className="text-xs text-amber-300 sm:col-span-2">
-            Changer la machine, le port ou l’utilisateur révoque l’autorisation de chaque projet : il
-            faudra la redonner.
+            {t('providerAdmin.form.originMoved')}
           </p>
         )}
         <ModelField
           id={`${uid}-model`}
-          label="Modèle par défaut"
+          label={t('providerAdmin.form.defaultModel')}
           value={model}
           onChange={(m) => {
             setModel(m)
@@ -425,21 +426,21 @@ function EditForm({
           loading={catalog.loading}
           error={catalog.error}
           onRefresh={catalog.refresh}
-          noneLabel="Aucun (le serveur choisit le premier listé)"
-          help="Facultatif. Le test d’appel d’outil porte sur ce modèle."
+          noneLabel={t('providerAdmin.form.noDefaultModel')}
+          help={t('providerAdmin.form.modelHelp')}
         />
         <div className="min-w-0">
           <Select
-            label="Source du coût"
+            label={t('providerAdmin.form.costSource')}
             options={COST_OPTIONS}
             value={cost}
             onChange={(v) => setCost(v as CostBasis)}
           />
-          <FieldNote id={`${uid}-cost`} help="Comment le coût des sessions sera compté." />
+          <FieldNote id={`${uid}-cost`} help={t('providerAdmin.form.costHelp')} />
         </div>
         <div className="min-w-0">
           <Select
-            label="Référence de la clé"
+            label={t('providerAdmin.form.keyRef')}
             options={
               acp
                 ? CRED_OPTIONS.filter((o) => o.value === 'none')
@@ -458,10 +459,10 @@ function EditForm({
             id={`${uid}-ckind`}
             help={
               acp
-                ? 'Un agent ACP gère sa propre connexion.'
+                ? t('providerAdmin.form.keyRefAcp')
                 : isRemote
-                  ? 'La clé privée SSH, par son nom dans le coffre.'
-                  : 'Changer la référence invalide les autorisations des projets.'
+                  ? t('providerAdmin.form.keyRefRemote')
+                  : t('providerAdmin.form.keyRefChange')
             }
           />
         </div>
@@ -469,8 +470,8 @@ function EditForm({
           (vaultNames && vaultNames.length > 0 ? (
             <div className="min-w-0">
               <Select
-                label="Clé du coffre"
-                placeholder="Choisir une clé…"
+                label={t('providerAdmin.form.vaultKey')}
+                placeholder={t('providerAdmin.form.chooseKey')}
                 options={vaultNames.map((n) => ({ value: n, label: n }))}
                 value={credName}
                 onChange={(v) => {
@@ -481,14 +482,14 @@ function EditForm({
               <FieldNote
                 id={`${uid}-cname`}
                 error={shown('cred')}
-                help="Seuls les noms sont affichés, jamais les valeurs."
+                help={t('providerAdmin.form.namesOnly')}
               />
             </div>
           ) : (
             <FormField
               id={`${uid}-cname`}
-              label="Nom de la clé dans le coffre"
-              help="Le nom seulement."
+              label={t('providerAdmin.form.vaultKeyName')}
+              help={t('providerAdmin.form.nameOnly')}
               error={shown('cred')}
             >
               <Input
@@ -504,8 +505,8 @@ function EditForm({
         {credKind === 'env' && (
           <FormField
             id={`${uid}-cname`}
-            label="Nom de la variable"
-            help="Doit être déclarée dans CHAT_PROVIDER_ENV_CREDENTIALS."
+            label={t('providerAdmin.form.envName')}
+            help={t('providerAdmin.form.envHelp')}
             error={shown('cred')}
           >
             <Input
@@ -522,46 +523,45 @@ function EditForm({
 
       {isRemote && (
         <p data-testid="remote-key-hint" className="text-xs text-amber-300">
-          {REMOTE_KEY_HINT_FR}
+          {t('providerAdmin.remote.keyHint')}
         </p>
       )}
       <p className="text-xs text-gray-500">
-        La clé elle-même ne se saisit pas ici : seule sa référence est enregistrée.{' '}
+        {t('providerAdmin.form.keyNotHere')}{' '}
         <Link to={VAULT_PATH} className="text-indigo-400 underline hover:text-indigo-300">
-          Ajouter ou remplacer la clé dans le coffre
+          {t('providerAdmin.form.addKeyInVault')}
         </Link>
       </p>
 
       {test?.result && (
         <div role="status" data-testid="provider-test-result" className="text-sm text-gray-300">
           <p className="font-medium">
-            {test.result.ok ? 'La connexion fonctionne.' : 'La connexion a échoué.'}
+            {test.result.ok ? t('providerAdmin.form.testOk') : t('providerAdmin.form.testFail')}
           </p>
           {test.result.models && (
             <p className="text-xs text-gray-400">
-              {test.result.models.length} modèle{test.result.models.length > 1 ? 's' : ''} trouvé
-              {test.result.models.length > 1 ? 's' : ''}
+              {t(test.result.models.length === 1 ? 'providerAdmin.form.modelsFoundOne' : 'providerAdmin.form.modelsFoundMany', { n: test.result.models.length })}
               {test.result.models.length > 0 &&
-                ` : ${test.result.models
-                  .slice(0, 8)
-                  .map((m) => m.id)
-                  .join(', ')}`}
+                t('providerAdmin.form.listColon', {
+                  list: test.result.models
+                    .slice(0, 8)
+                    .map((m) => m.id)
+                    .join(', '),
+                })}
               {test.result.models.length > 8 && '…'}
             </p>
           )}
           {test.result.probe && (
             <p className="text-xs text-gray-400">
-              Appel d’outil :{' '}
-              {test.result.probe.tools
-                ? 'oui'
-                : 'non — ce modèle n’a pas appelé l’outil de test ; essayez un autre modèle listé'}
-              {model ? ` (modèle testé : ${model})` : ''}
+              {t('providerAdmin.form.toolCall', {
+                answer: test.result.probe.tools ? t('providerAdmin.form.toolCallYes') : t('providerAdmin.form.toolCallNo'),
+                model: model ? t('providerAdmin.form.modelTested', { model }) : '',
+              })}
             </p>
           )}
           {test.result.probe?.context_window != null && (
             <p className="text-xs text-gray-400">
-              Fenêtre de contexte : {test.result.probe.context_window.toLocaleString('fr-FR')}{' '}
-              tokens
+              {t('providerAdmin.form.contextWindow', { n: test.result.probe.context_window })}
             </p>
           )}
         </div>
@@ -584,25 +584,25 @@ function EditForm({
       )}
       {confirmSave && (
         <ConfirmPanel
-          title="Le test de connexion a échoué. Enregistrer quand même ?"
-          confirmLabel="Enregistrer quand même"
-          cancelLabel="Annuler"
+          title={t('providerAdmin.form.saveAnywayTitle')}
+          confirmLabel={t('providerAdmin.form.saveAnywayConfirm')}
+          cancelLabel={t('providerAdmin.ui.cancel')}
           onConfirm={save}
           onCancel={() => setConfirmSave(false)}
         >
-          Les conversations sur cette instance échoueront tant que le problème n’est pas réglé.
+          {t('providerAdmin.form.saveAnywayBody')}
         </ConfirmPanel>
       )}
 
       <div className="flex flex-wrap items-center justify-end gap-2">
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-          Annuler
+          {t('providerAdmin.ui.cancel')}
         </Button>
         <Button type="button" size="sm" variant="secondary" onClick={runTest} loading={testing}>
-          Tester
+          {t('providerAdmin.ui.test')}
         </Button>
         <Button type="submit" size="sm" variant="primary" loading={saving}>
-          Enregistrer
+          {t('providerAdmin.ui.save')}
         </Button>
       </div>
     </form>

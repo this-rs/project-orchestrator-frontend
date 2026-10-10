@@ -4,6 +4,16 @@
  *
  * Side-effect free: also imported by Node (scripts/check-i18n.mjs), hence no `@/` alias.
  */
+import type auth from './messages/en/auth.ts'
+import type workspaceSelector from './messages/en/workspaceSelector.ts'
+import type settingsPage from './messages/en/settingsPage.ts'
+import type settingsShared from './messages/en/settingsShared.ts'
+import type vault from './messages/en/vault.ts'
+import type sharing from './messages/en/sharing.ts'
+import type admin from './messages/en/admin.ts'
+import type mcpFederation from './messages/en/mcpFederation.ts'
+import type providerWizard from './messages/en/providerWizard.ts'
+import type providerAdmin from './messages/en/providerAdmin.ts'
 import type common from './messages/en/common.ts'
 import type architecture from './messages/en/architecture.ts'
 import type code from './messages/en/code.ts'
@@ -44,6 +54,16 @@ import type providerErrors from './messages/en/providerErrors.ts'
 import type intelConfig from './messages/en/intelConfig.ts'
 
 interface EnglishMessages {
+  auth: typeof auth
+  workspaceSelector: typeof workspaceSelector
+  settingsPage: typeof settingsPage
+  settingsShared: typeof settingsShared
+  vault: typeof vault
+  sharing: typeof sharing
+  admin: typeof admin
+  mcpFederation: typeof mcpFederation
+  providerWizard: typeof providerWizard
+  providerAdmin: typeof providerAdmin
   common: typeof common
   architecture: typeof architecture
   code: typeof code
@@ -90,6 +110,7 @@ export const NAMESPACES = [
   'ui', 'forms', 'composer', 'shell', 'nomenclature', 'glossary', 'toolPolicy', 'activity', 'fgModel', 'setupOidc', 'app', 'providers', 'providerErrors', 'intelConfig',
   'commits', 'deployments', 'kanban', 'milestones', 'pipeline', 'planDetail', 'plans', 'taskDetail', 'tasks', 'waves',
   'intelPage', 'intelDashboard', 'intelGraph', 'intelLearning', 'intelTimeline',
+  'auth', 'workspaceSelector', 'settingsPage', 'settingsShared', 'vault', 'sharing', 'admin', 'mcpFederation', 'providerWizard', 'providerAdmin',
 ] as const satisfies readonly Ns[]
 
 /** Every other language is a (possibly partial) overlay of the same shape. */

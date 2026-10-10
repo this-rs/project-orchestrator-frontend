@@ -5,42 +5,24 @@ import { Hash, Plus } from 'lucide-react'
 import { workspacesAtom } from '@/atoms'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
+import { useT } from '@/i18n'
 import { Button, ConceptIntro, EntityList, EntityListSkeleton, EntityRow, ErrorState, Fact, Input, RelativeTime, surface } from '@/components/ui'
 import type { ConceptExplain } from '@/constants/nomenclature'
 import { ProductMark, ScreenHeader, StandaloneScreen, StatusBanner } from '@/pages/setup'
 import type { Workspace } from '@/types'
-
-// i18n after #252
-const TEXT = {
-  title: 'Select a workspace',
-  // website features.pillars.projects: « Groups several projects in a workspace that shares context and objectives »
-  lead: 'A workspace groups the projects that share a context and objectives. Choose the one to work in.',
-  notFound: (slug: string) => `Workspace "${slug}" was not found`,
-  notFoundBody: 'It may have been deleted or renamed. Choose another one below.',
-  loading: 'Loading workspaces',
-  errorTitle: 'Connection error',
-  errorBody: 'Failed to load workspaces. Is the backend running?',
-  create: 'Create a workspace',
-  createSubmit: 'Create',
-  creating: 'Creating…',
-  cancel: 'Cancel',
-  namePlaceholder: 'Workspace name',
-  nameLabel: 'Workspace name',
-  welcome: 'Welcome to Project Orchestrator',
-  welcomeLead: 'Create your first workspace to get started.',
-  createFirst: 'Create workspace',
-  createFailed: 'Failed to create workspace',
-} as const
 
 /**
  * The three sentences that introduce a workspace (DESIGN.md § 5). Inline: the
  * registry has no `workspaces` concept (it lists the entries of ONE workspace's
  * sidebar), so the key is only used to remember the fold.
  */
-const WORKSPACE_EXPLAIN: ConceptExplain = {
-  what: 'A workspace groups several of your projects that share a context and objectives.',
-  why: 'You open one workspace and see its projects, plans, notes and decisions together, and Today shows what waits for you across all of them.',
-  different: 'Instead of one folder per project with nothing in between, the projects of a workspace share what was decided, so an Assistant working on one knows what the others settled.',
+function useWorkspaceExplain(): ConceptExplain {
+  const { t } = useT()
+  return {
+    what: t('workspaceSelector.explain.what'),
+    why: t('workspaceSelector.explain.why'),
+    different: t('workspaceSelector.explain.different'),
+  }
 }
 
 /**
@@ -50,6 +32,8 @@ const WORKSPACE_EXPLAIN: ConceptExplain = {
  * - The stored workspace no longer exists
  */
 export function WorkspaceSelectorPage() {
+  const { t } = useT()
+  const workspaceExplain = useWorkspaceExplain()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const notFoundSlug = searchParams.get('notFound')
@@ -65,11 +49,11 @@ export function WorkspaceSelectorPage() {
       const data = await workspacesApi.list({ limit: 100, sort_by: 'name', sort_order: 'asc' })
       setWorkspaces(data.items || [])
     } catch {
-      setError(TEXT.errorBody)
+      setError(t('workspaceSelector.errorBody'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     loadWorkspaces()
@@ -84,8 +68,8 @@ export function WorkspaceSelectorPage() {
 
   const header = (
     <>
-      <ScreenHeader kicker={<ProductMark />} title={TEXT.title} lead={TEXT.lead} />
-      <ConceptIntro concept={WORKSPACE_EXPLAIN} storageKey="workspaces" className="mt-3" />
+      <ScreenHeader kicker={<ProductMark />} title={t('workspaceSelector.title')} lead={t('workspaceSelector.lead')} />
+      <ConceptIntro concept={workspaceExplain} storageKey="workspaces" className="mt-3" />
     </>
   )
 
@@ -93,7 +77,7 @@ export function WorkspaceSelectorPage() {
     return (
       <StandaloneScreen width="sm">
         {header}
-        <div className="mt-6" aria-busy="true" aria-label={TEXT.loading}>
+        <div className="mt-6" aria-busy="true" aria-label={t('workspaceSelector.loading')}>
           <EntityListSkeleton rows={3} />
         </div>
       </StandaloneScreen>
@@ -103,7 +87,7 @@ export function WorkspaceSelectorPage() {
   if (error) {
     return (
       <StandaloneScreen width="sm" center>
-        <ErrorState title={TEXT.errorTitle} description={error} onRetry={loadWorkspaces} />
+        <ErrorState title={t('workspaceSelector.errorTitle')} description={error} onRetry={loadWorkspaces} />
       </StandaloneScreen>
     )
   }
@@ -118,12 +102,12 @@ export function WorkspaceSelectorPage() {
 
       <div className="mt-6 space-y-4">
         {notFoundSlug && (
-          <StatusBanner tone="warning" title={TEXT.notFound(notFoundSlug)} role="alert">
-            <p>{TEXT.notFoundBody}</p>
+          <StatusBanner tone="warning" title={t('workspaceSelector.notFound', { slug: notFoundSlug })} role="alert">
+            <p>{t('workspaceSelector.notFoundBody')}</p>
           </StatusBanner>
         )}
 
-        <EntityList aria-label="Workspaces">
+        <EntityList aria-label={t('nav.workspaces')}>
           {workspaces.map((ws) => (
             <EntityRow
               key={ws.id}
@@ -138,7 +122,7 @@ export function WorkspaceSelectorPage() {
                 </span>
               }
               description={ws.description || undefined}
-              trailing={ws.updated_at ? <RelativeTime date={ws.updated_at} prefix="updated " /> : undefined}
+              trailing={ws.updated_at ? <RelativeTime date={ws.updated_at} prefix={`${t('workspaceSelector.updated')} `} /> : undefined}
               meta={[
                 <Fact key="slug" icon={Hash} mono>
                   {ws.slug}
@@ -160,6 +144,7 @@ function useCreateWorkspace(
   navigate: ReturnType<typeof useNavigate>,
   setWorkspacesAtom: (fn: (prev: Workspace[]) => Workspace[]) => void,
 ) {
+  const { t } = useT()
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -177,7 +162,7 @@ function useCreateWorkspace(
       setWorkspacesAtom((prev) => [...prev, ws])
       navigate(workspacePath(ws.slug, '/overview'), { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : TEXT.createFailed)
+      setError(err instanceof Error ? err.message : t('workspaceSelector.createFailed'))
       setCreating(false)
     }
   }
@@ -201,6 +186,7 @@ function InlineCreateWorkspace({
   navigate: ReturnType<typeof useNavigate>
   setWorkspacesAtom: (fn: (prev: Workspace[]) => Workspace[]) => void
 }) {
+  const { t } = useT()
   const [showForm, setShowForm] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const { name, setName, creating, error, handleCreate, reset } = useCreateWorkspace(navigate, setWorkspacesAtom)
@@ -214,7 +200,7 @@ function InlineCreateWorkspace({
       <div className="flex justify-center">
         <Button onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4" aria-hidden="true" />
-          {TEXT.create}
+          {t('workspaceSelector.create')}
         </Button>
       </div>
     )
@@ -227,8 +213,8 @@ function InlineCreateWorkspace({
         type="text"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder={TEXT.namePlaceholder}
-        aria-label={TEXT.nameLabel}
+        placeholder={t('workspaceSelector.nameLabel')}
+        aria-label={t('workspaceSelector.nameLabel')}
         disabled={creating}
         error={error ?? undefined}
       />
@@ -244,10 +230,10 @@ function InlineCreateWorkspace({
           }}
           disabled={creating}
         >
-          {TEXT.cancel}
+          {t('workspaceSelector.cancel')}
         </Button>
         <Button type="submit" size="sm" className="flex-1" disabled={creating || !name.trim()} loading={creating}>
-          {creating ? TEXT.creating : TEXT.createSubmit}
+          {creating ? t('workspaceSelector.creating') : t('workspaceSelector.createSubmit')}
         </Button>
       </div>
     </form>
@@ -265,6 +251,8 @@ function EmptyWorkspaceOnboarding({
   navigate: ReturnType<typeof useNavigate>
   setWorkspacesAtom: (fn: (prev: Workspace[]) => Workspace[]) => void
 }) {
+  const { t } = useT()
+  const workspaceExplain = useWorkspaceExplain()
   const inputRef = useRef<HTMLInputElement>(null)
   const { name, setName, creating, error, handleCreate } = useCreateWorkspace(navigate, setWorkspacesAtom)
 
@@ -274,8 +262,8 @@ function EmptyWorkspaceOnboarding({
 
   return (
     <StandaloneScreen width="xs" center>
-      <ScreenHeader kicker={<ProductMark />} title={TEXT.welcome} lead={TEXT.welcomeLead} />
-      <ConceptIntro concept={WORKSPACE_EXPLAIN} storageKey="workspaces" className="mt-3" />
+      <ScreenHeader kicker={<ProductMark />} title={t('workspaceSelector.welcome')} lead={t('workspaceSelector.welcomeLead')} />
+      <ConceptIntro concept={workspaceExplain} storageKey="workspaces" className="mt-3" />
 
       <form onSubmit={handleCreate} className="mt-8 space-y-3">
         <Input
@@ -283,13 +271,13 @@ function EmptyWorkspaceOnboarding({
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="My Workspace"
-          aria-label={TEXT.nameLabel}
+          placeholder={t('workspaceSelector.namePlaceholder')}
+          aria-label={t('workspaceSelector.nameLabel')}
           disabled={creating}
           error={error ?? undefined}
         />
         <Button type="submit" className="w-full" disabled={creating || !name.trim()} loading={creating}>
-          {creating ? TEXT.creating : TEXT.createFirst}
+          {creating ? t('workspaceSelector.creating') : t('workspaceSelector.createFirst')}
         </Button>
       </form>
     </StandaloneScreen>

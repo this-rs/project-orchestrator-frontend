@@ -1,5 +1,5 @@
 /**
- * The assembled settings: anchored sections, the "Avancé" fold, the wizard
+ * The assembled settings: anchored sections, the "Advanced" fold, the wizard
  * entry point, and the single-provider empty state.
  *
  * Run with: npx vitest run src/components/settings/ProviderSettings.test.tsx
@@ -53,17 +53,17 @@ describe('ProviderSettings', () => {
     expect(container.querySelector('form, button, select, input')).toBeNull()
   })
 
-  it('renders the anchored sections; roles, aliases and policy are folded panels under "Avancé"', () => {
+  it('renders the anchored sections; roles, aliases and policy are folded panels under "Advanced"', () => {
     vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
     mountSettings(<ProviderSettings />)
     const { container } = { container: document.body }
     for (const id of ['instances', 'consent', 'routing', 'advanced'])
       expect(container.querySelector(`section#${id}`)).not.toBeNull()
-    expect(screen.getByRole('link', { name: 'Avancé' }).getAttribute('href')).toBe('#advanced')
+    expect(screen.getByRole('link', { name: 'Advanced' }).getAttribute('href')).toBe('#advanced')
     for (const id of ['roles-global', 'aliases-panel', 'policy-panel'])
       expect(screen.getByTestId(id).getAttribute('data-open')).toBe('false')
-    expect(screen.queryByLabelText('Pilote')).toBeNull()
-    const toggle = screen.getByRole('button', { name: 'Rôles' })
+    expect(screen.queryByLabelText('Pilot')).toBeNull()
+    const toggle = screen.getByRole('button', { name: 'Roles' })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(toggle)
     expect(screen.getByTestId('roles-global').getAttribute('data-open')).toBe('true')
@@ -78,23 +78,23 @@ describe('ProviderSettings', () => {
     expect(screen.getByTestId('roles-global').getAttribute('data-open')).toBe('false')
   })
 
-  it('"Ajouter un provider" opens the wizard in place of the button', () => {
+  it('"Add a provider" opens the wizard in place of the button', () => {
     vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
     mountSettings(<ProviderSettings />)
-    fireEvent.click(screen.getByRole('button', { name: /Ajouter un provider/ }))
-    expect(screen.getByRole('region', { name: 'Ajouter un provider' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /Ajouter un provider/ })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Annuler' }))
-    expect(screen.queryByRole('region', { name: 'Ajouter un provider' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Add a provider/ }))
+    expect(screen.getByRole('region', { name: 'Add a provider' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Add a provider/ })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('region', { name: 'Add a provider' })).toBeNull()
   })
 
   it('every button of the page is a kit Button, and the sections have one right-aligned footer each', async () => {
     vi.mocked(providersApi.list).mockResolvedValue(response([CLAUDE]))
     const { container } = mountSettings(<ProviderSettings />, { url: '/providers#advanced' })
-    for (const name of ['Rôles', 'Alias de modèles', 'Politique de modèle'])
+    for (const name of ['Roles', 'Model aliases', 'Model policy'])
       fireEvent.click(screen.getByRole('button', { name }))
-    await screen.findByRole('radio', { name: /Désactivée/ })
-    await screen.findByLabelText('Pilote')
+    await screen.findByRole('radio', { name: /Off/ })
+    await screen.findByLabelText('Pilot')
     for (const b of container.querySelectorAll('button')) {
       if (b.getAttribute('role') === 'combobox' || b.getAttribute('role') === 'option') continue
       if (b.getAttribute('aria-expanded') !== null) continue // the toggles of the folded panels
@@ -104,9 +104,9 @@ describe('ProviderSettings', () => {
       const footers = screen.getByTestId(id).querySelectorAll(':scope > footer')
       expect(footers).toHaveLength(1)
       expect(footers[0].className).toContain('justify-end')
-      const save = within(footers[0] as HTMLElement).getByRole('button', { name: 'Enregistrer' })
+      const save = within(footers[0] as HTMLElement).getByRole('button', { name: 'Save' })
       expect(save.className).toContain('btn-primary')
-      expect(within(footers[0] as HTMLElement).getByRole('button', { name: 'Annuler' }).className).toContain('btn-ghost')
+      expect(within(footers[0] as HTMLElement).getByRole('button', { name: 'Cancel' }).className).toContain('btn-ghost')
     }
   })
 })

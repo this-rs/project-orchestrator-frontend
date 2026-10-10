@@ -5,11 +5,12 @@ import { useProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
 import { originOf } from '@/constants/providerSettings'
 import {
-  CONSENT_STATE_FR,
+  CONSENT_STATE_KEYS,
   formatWhenFr,
-  kindLabelFr,
+  kindLabel,
   wizardErrorMessage,
 } from '@/constants/providerWizard'
+import { useT } from '@/i18n'
 import { isClaudeCodeProvider, providerDisplayName, type ProviderInstance } from '@/types/provider'
 import type { LlmConsent } from '@/types/providerSettings'
 import { ConfirmPanel } from './ConfirmPanel'
@@ -20,7 +21,7 @@ function instanceOrigin(instance: ProviderInstance): string | null {
   return instance.origin ?? (instance.base_url ? originOf(instance.base_url) : null)
 }
 
-type ConsentState = keyof typeof CONSENT_STATE_FR
+type ConsentState = keyof typeof CONSENT_STATE_KEYS
 
 /** Consent is a state: dot + word in its tone (DESIGN.md § 4), never a filled pill. */
 const TONE: Readonly<Record<ConsentState, StatusTone>> = {
@@ -37,6 +38,8 @@ const TONE: Readonly<Record<ConsentState, StatusTone>> = {
  * endpoint asks for it too: "local" says nothing about who is listening.
  */
 export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }) {
+  const tr = useT()
+  const { t } = tr
   const { providers } = useProviders()
   const projects = useProjectOptions()
   const [params, setParams] = useSearchParams()
@@ -61,19 +64,19 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
       .catch((err) => {
         if (!live) return
         setConsents(null)
-        setError(wizardErrorMessage(err))
+        setError(wizardErrorMessage(err, t))
       })
     return () => {
       live = false
     }
-  }, [slug, reloadTick])
+  }, [slug, reloadTick, t])
 
   const act = async (fn: () => Promise<unknown>) => {
     try {
       await fn()
       setError(null)
     } catch (err) {
-      setError(wizardErrorMessage(err))
+      setError(wizardErrorMessage(err, t))
     }
     setAllowing(null)
     setRevoking(null)
@@ -98,11 +101,11 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
     body = (
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-400">
-          Aucun provider enregistré : ajoutez-en un pour pouvoir l’autoriser.
+          {t('providerAdmin.consent.noProviders')}
         </p>
         {onAddProvider && (
           <Button size="sm" variant="secondary" onClick={onAddProvider}>
-            Ajouter un provider
+            {t('providerAdmin.consent.addProvider')}
           </Button>
         )}
       </div>
@@ -110,16 +113,16 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
   } else if (!slug) {
     body = (
       <p className="text-sm text-gray-400">
-        Choisissez un projet pour voir vers quelles origines il peut envoyer son contenu.
+        {t('providerAdmin.consent.chooseProject')}
       </p>
     )
   } else if (!consents && !error) {
-    body = <Loading>Chargement des autorisations…</Loading>
+    body = <Loading>{t('providerAdmin.consent.loading')}</Loading>
   } else if (consents) {
     body = (
       <ul
         className="-mx-4 -my-4 divide-y divide-white/[0.05]"
-        aria-label="Autorisation par provider"
+        aria-label={t('providerAdmin.consent.listAria')}
       >
         {external.map((p) => {
           const consent = consents.find((c) => c.provider_id === p.id)
@@ -135,15 +138,15 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
                 <div className="min-w-0 flex-[1_1_16rem]">
                   <p className="text-sm font-medium text-gray-100">
                     {providerDisplayName(p)}{' '}
-                    <span className="font-normal text-gray-500">· {kindLabelFr(p.kind)}</span>
+                    <span className="font-normal text-gray-500">· {kindLabel(t, p.kind)}</span>
                   </p>
                   <p className="break-all font-mono text-xs text-gray-400">
-                    {origin ?? 'origine inconnue'}
+                    {origin ?? t('providerAdmin.consent.unknownOrigin')}
                   </p>
                 </div>
                 <div className="flex w-full items-center justify-between gap-3 sm:w-auto">
                   <div className="flex sm:w-40 sm:justify-end">
-                    <ToneText tone={TONE[state]} icon label={CONSENT_STATE_FR[state]} className="text-xs" />
+                    <ToneText tone={TONE[state]} icon label={t(CONSENT_STATE_KEYS[state])} className="text-xs" />
                   </div>
                   <div className="flex justify-end sm:w-44">
                     {state === 'allowed' ? (
@@ -151,9 +154,9 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
                         size="sm"
                         variant="secondary"
                         onClick={() => setRevoking(p)}
-                        aria-label={`Retirer l’autorisation de ${providerDisplayName(p)}`}
+                        aria-label={t('providerAdmin.consent.revokeAria', { name: providerDisplayName(p) })}
                       >
-                        Retirer
+                        {t('providerAdmin.consent.revoke')}
                       </Button>
                     ) : (
                       <Button
@@ -162,9 +165,9 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
                         onClick={() => origin && setAllowing(p)}
                         aria-disabled={!origin || undefined}
                         aria-describedby={!origin ? `consent-${p.id}-noorigin` : undefined}
-                        aria-label={`Autoriser ${providerDisplayName(p)}`}
+                        aria-label={t('providerAdmin.consent.allowAria', { name: providerDisplayName(p) })}
                       >
-                        {state === 'invalidated' ? 'Autoriser à nouveau' : 'Autoriser'}
+                        {state === 'invalidated' ? t('providerAdmin.consent.allowAgain') : t('providerAdmin.consent.allow')}
                       </Button>
                     )}
                   </div>
@@ -172,43 +175,43 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
               </div>
               {!origin && (
                 <p id={`consent-${p.id}-noorigin`} className="mt-1 text-xs text-gray-500">
-                  L’origine de ce provider est inconnue : il n’y a encore rien à autoriser.
+                  {t('providerAdmin.consent.noOrigin')}
                 </p>
               )}
               {consent && state === 'allowed' && (
                 <p className="mt-1 text-xs text-gray-500">
-                  Autorisé pour {consent.origin} par {consent.consented_by},{' '}
-                  {formatWhenFr(consent.consented_at)}.
+                  {t('providerAdmin.consent.allowedFor', { origin: consent.origin, by: consent.consented_by, when: formatWhenFr(tr, consent.consented_at) })}
                 </p>
               )}
               {consent && state === 'invalidated' && (
                 <p className="mt-1 text-xs text-amber-300">
-                  L’origine ou la référence de clé a changé : l’autorisation donnée pour{' '}
-                  {consent.origin} ({consent.consented_by}, {formatWhenFr(consent.consented_at)}) ne
-                  vaut plus{origin ? ` pour ${origin}` : ''}. Rien n’est envoyé tant qu’elle n’est
-                  pas redonnée.
+                  {t(origin ? 'providerAdmin.consent.invalidatedFor' : 'providerAdmin.consent.invalidated', {
+                    origin: consent.origin,
+                    by: consent.consented_by,
+                    when: formatWhenFr(tr, consent.consented_at),
+                    now: origin ?? '',
+                  })}
                 </p>
               )}
               {allowing?.id === p.id && origin && (
                 <ConfirmPanel
-                  title={`Le contenu du projet ${projectName} partira vers ${origin}`}
-                  confirmLabel={`Autoriser ${origin}`}
+                  title={t('providerAdmin.consent.allowTitle', { project: projectName, origin })}
+                  confirmLabel={t('providerAdmin.consent.allowConfirm', { origin })}
                   onConfirm={() => act(() => providersApi.allow(slug, p.id, origin))}
                   onCancel={() => setAllowing(null)}
                 >
-                  Les prompts, fichiers et résultats d’outils des conversations de ce projet sur{' '}
-                  {providerDisplayName(p)} quittent cette machine pour cette origine.
+                  {t('providerAdmin.consent.allowBody', { provider: providerDisplayName(p) })}
                 </ConfirmPanel>
               )}
               {revoking?.id === p.id && (
                 <ConfirmPanel
-                  title={`Ne plus envoyer le contenu du projet ${projectName} à ${providerDisplayName(p)} ?`}
-                  confirmLabel="Retirer l’autorisation"
+                  title={t('providerAdmin.consent.revokeTitle', { project: projectName, provider: providerDisplayName(p) })}
+                  confirmLabel={t('providerAdmin.consent.revokeConfirm')}
                   tone="danger"
                   onConfirm={() => act(() => providersApi.revoke(slug, p.id))}
                   onCancel={() => setRevoking(null)}
                 >
-                  Les conversations de ce projet ne pourront plus utiliser {providerDisplayName(p)}.
+                  {t('providerAdmin.consent.revokeBody', { provider: providerDisplayName(p) })}
                 </ConfirmPanel>
               )}
             </li>
@@ -224,8 +227,8 @@ export function ProjectConsent({ onAddProvider }: { onAddProvider?: () => void }
       aside={
         <ProjectPicker id="consent-project" projects={projects} value={slug} onChange={choose} />
       }
-      title={slug ? `Origines autorisées pour ${projectName}` : 'Origines autorisées'}
-      description="Une conversation sans projet ne peut utiliser que Claude Code : aucun contenu de projet ne part ailleurs."
+      title={slug ? t('providerAdmin.consent.titleFor', { project: projectName }) : t('providerAdmin.consent.title')}
+      description={t('providerAdmin.consent.description')}
     >
       {body}
       {error && <ErrorLine>{error}</ErrorLine>}

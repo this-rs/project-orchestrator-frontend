@@ -80,47 +80,6 @@ export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> 
 })
 
 /**
- * French titles for the SETTINGS context (the Providers page and its cards).
- * The chat keeps `PROVIDER_ERROR_TITLES`; a code missing here falls back to it.
- */
-export const PROVIDER_ERROR_TITLES_SETTINGS_FR: Readonly<
-  Partial<Record<ProviderErrorCode, string>>
-> = {
-  auth_required: 'Connexion requise',
-  credentials_locked: 'Coffre verrouillé',
-  unauthorized: 'Clé refusée',
-  endpoint_unreachable: 'Point d’accès injoignable',
-  model_no_tools: 'Le modèle n’a pas appelé l’outil de test',
-  context_too_small: 'Fenêtre de contexte trop petite',
-  cli_not_found: 'Programme introuvable',
-  rate_limited: 'Trop de requêtes',
-  overloaded: 'Provider surchargé',
-  timeout: 'Délai dépassé',
-  process_exited: 'Le programme s’est arrêté',
-  protocol: 'Réponse incompréhensible',
-  unsupported: 'Non pris en charge par ce provider',
-  invalid_request: 'Requête refusée',
-  provider_unknown: 'Provider inconnu',
-  provider_unavailable: 'Provider indisponible',
-  provider_error: 'Échec du provider',
-  security_gate_closed: 'Providers tiers désactivés',
-  origin_mismatch: 'L’origine a changé',
-  endpoint_not_allowed: 'Origine non autorisée pour ce projet',
-  endpoint_invalid_url: 'URL invalide',
-  endpoint_scheme_not_allowed: 'Schéma d’URL refusé',
-  endpoint_http_outside_loopback: 'http refusé ici',
-  endpoint_credentials_in_url: 'Identifiants dans l’URL',
-  endpoint_host_missing: 'URL sans hôte',
-  endpoint_private_address: 'Adresse privée refusée',
-  endpoint_unresolvable: 'Hôte introuvable',
-  endpoint_redirects_not_allowed: 'Redirection refusée',
-  credential_test_requires_saved_instance: 'Enregistrez l’instance pour tester sa clé',
-}
-
-/** On the settings page, a retryable failure is retried with "Tester". */
-export const RETRY_BY_TESTING_TEXT_FR = 'Cliquez sur Tester pour réessayer.'
-
-/**
  * Trust ("Rock’n roll") refused because the provider has no sandbox
  * (`unsupported` with capability `sandbox`, backend A35).
  */

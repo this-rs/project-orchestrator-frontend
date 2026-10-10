@@ -1,6 +1,6 @@
 /**
- * "Ajouter un provider" wizard: steps, presets, validation, what blocks
- * "Suivant", the chain secret → instance → grant → test, a failure half-way,
+ * "Add a provider" wizard: steps, presets, validation, what blocks
+ * "Next", the chain secret → instance → grant → test, a failure half-way,
  * a locked vault, consent, and that only kit buttons are used.
  *
  * Run with: npx vitest run src/components/settings/ProviderWizard.test.tsx
@@ -85,7 +85,7 @@ function mount() {
 const field = (name: string | RegExp) => screen.getByLabelText(name) as HTMLInputElement
 const button = (name: string | RegExp) => screen.getByRole('button', { name })
 const current = () =>
-  screen.getByRole('list', { name: 'Étapes de l’assistant' }).querySelector('[aria-current="step"]')
+  screen.getByRole('list', { name: 'Wizard steps' }).querySelector('[aria-current="step"]')
     ?.textContent
 
 /** Pick an option of a kit Select (a combobox + listbox, not a native select). */
@@ -131,33 +131,33 @@ beforeEach(() => {
 })
 
 describe('ProviderWizard — steps and presets', () => {
-  it('shows five numbered steps and starts on "Modèle"', () => {
+  it('shows five numbered steps and starts on "Model"', () => {
     mount()
-    const steps = within(screen.getByRole('list', { name: 'Étapes de l’assistant' })).getAllByRole(
+    const steps = within(screen.getByRole('list', { name: 'Wizard steps' })).getAllByRole(
       'listitem'
     )
     expect(steps.map((s) => s.textContent)).toEqual([
-      '1Modèle',
-      '2Clé',
-      '3Connexion',
-      '4Projet',
-      '5Récapitulatif',
+      '1Model',
+      '2Key',
+      '3Connection',
+      '4Project',
+      '5Summary',
     ])
-    expect(current()).toContain('Modèle')
-    expect(screen.getByText('Étape 1 sur 5')).toBeTruthy()
+    expect(current()).toContain('Model')
+    expect(screen.getByText('Step 1 of 5')).toBeTruthy()
   })
 
   it('a preset pre-fills id, label, base URL, model, cost and the kind of key', () => {
     mount()
     fireEvent.click(screen.getByRole('radio', { name: /Ollama \(local\)/ }))
-    expect(field('Identifiant').value).toBe('ollama')
-    expect(field('Nom affiché').value).toBe('Ollama (local)')
-    expect(field('URL de base').value).toBe('http://localhost:11434/v1')
-    expect(screen.getByRole('combobox', { name: 'Source du coût' }).textContent).toContain(
-      'Gratuit (local)'
+    expect(field('Identifier').value).toBe('ollama')
+    expect(field('Display name').value).toBe('Ollama (local)')
+    expect(field('Base URL').value).toBe('http://localhost:11434/v1')
+    expect(screen.getByRole('combobox', { name: 'Cost source' }).textContent).toContain(
+      'Free (local)'
     )
-    fireEvent.click(button('Suivant'))
-    expect((screen.getByRole('radio', { name: /Aucune clé/ }) as HTMLInputElement).checked).toBe(
+    fireEvent.click(button('Next'))
+    expect((screen.getByRole('radio', { name: /No key/ }) as HTMLInputElement).checked).toBe(
       true
     )
     expect(screen.getByTestId('wizard-credential-ref').textContent).toBe('none')
@@ -165,116 +165,116 @@ describe('ProviderWizard — steps and presets', () => {
 
   it('DeepSeek pre-fills its model and a vault key named after the id', () => {
     mount()
-    fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
-    expect(field('Modèle par défaut').value).toBe('deepseek-chat')
-    expect(field('URL de base').value).toBe('https://api.deepseek.com')
-    fireEvent.click(button('Suivant'))
+    fireEvent.change(field('Identifier'), { target: { value: 'ds' } })
+    expect(field('Default model').value).toBe('deepseek-chat')
+    expect(field('Base URL').value).toBe('https://api.deepseek.com')
+    fireEvent.click(button('Next'))
     expect(
-      (screen.getByRole('radio', { name: /Saisir une nouvelle clé/ }) as HTMLInputElement).checked
+      (screen.getByRole('radio', { name: /Type a new key/ }) as HTMLInputElement).checked
     ).toBe(true)
-    expect(field('Nom dans le coffre').value).toBe('ds')
+    expect(field('Name in the vault').value).toBe('ds')
     expect(screen.getByTestId('wizard-credential-ref').textContent).toBe('vault:ds')
   })
 
   it('Codex and opencode (ACP) have no URL field; ACP only allows no key', () => {
     mount()
     fireEvent.click(screen.getByRole('radio', { name: /opencode \(ACP\)/ }))
-    expect(screen.queryByLabelText('URL de base')).toBeNull()
+    expect(screen.queryByLabelText('Base URL')).toBeNull()
     expect(screen.getByText(/CHAT_PROVIDER_ACP_COMMANDS/, { selector: 'p' })).toBeTruthy()
-    fireEvent.click(button('Suivant'))
+    fireEvent.click(button('Next'))
     expect(
-      (screen.getByRole('radio', { name: /Saisir une nouvelle clé/ }) as HTMLInputElement).disabled
+      (screen.getByRole('radio', { name: /Type a new key/ }) as HTMLInputElement).disabled
     ).toBe(true)
-    expect((screen.getByRole('radio', { name: /Aucune clé/ }) as HTMLInputElement).checked).toBe(
+    expect((screen.getByRole('radio', { name: /No key/ }) as HTMLInputElement).checked).toBe(
       true
     )
   })
 
-  it('"Précédent" goes back and keeps what was typed', () => {
+  it('"Previous" goes back and keeps what was typed', () => {
     mount()
     fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
-    fireEvent.change(field('Identifiant'), { target: { value: 'my-ollama' } })
-    fireEvent.click(button('Suivant'))
-    expect(current()).toContain('Clé')
-    fireEvent.click(button('Précédent'))
-    expect(current()).toContain('Modèle')
-    expect(field('Identifiant').value).toBe('my-ollama')
+    fireEvent.change(field('Identifier'), { target: { value: 'my-ollama' } })
+    fireEvent.click(button('Next'))
+    expect(current()).toContain('Key')
+    fireEvent.click(button('Previous'))
+    expect(current()).toContain('Model')
+    expect(field('Identifier').value).toBe('my-ollama')
   })
 })
 
-describe('ProviderWizard — validation blocks "Suivant"', () => {
+describe('ProviderWizard — validation blocks "Next"', () => {
   it('a taken id blocks the step and says why', () => {
     mount()
     // The DeepSeek preset suggests `deepseek`, which exists already.
-    expect((button('Suivant') as HTMLButtonElement).disabled).toBe(true)
+    expect((button('Next') as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByTestId('wizard-blocker').textContent).toContain(
-      'Un provider porte déjà cet identifiant.'
+      'A provider already has this identifier.'
     )
-    fireEvent.change(field('Identifiant'), { target: { value: 'deepseek-2' } })
-    expect((button('Suivant') as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.change(field('Identifier'), { target: { value: 'deepseek-2' } })
+    expect((button('Next') as HTMLButtonElement).disabled).toBe(false)
   })
 
   it.each([
-    ['Mon_ID', 'Lettres minuscules'],
-    ['claude-code', 'réservé'],
+    ['Mon_ID', 'Lowercase letters'],
+    ['claude-code', 'reserved'],
   ])('refuses the id %s', (id, msg) => {
     mount()
-    fireEvent.change(field('Identifiant'), { target: { value: id } })
-    fireEvent.blur(field('Identifiant'))
-    expect((button('Suivant') as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(field('Identifier'), { target: { value: id } })
+    fireEvent.blur(field('Identifier'))
+    expect((button('Next') as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByRole('alert').textContent).toContain(msg)
   })
 
   it('refuses plain http outside loopback', () => {
     mount()
-    fireEvent.change(field('Identifiant'), { target: { value: 'x' } })
-    fireEvent.change(field('URL de base'), { target: { value: 'http://example.com/v1' } })
-    fireEvent.blur(field('URL de base'))
-    expect((button('Suivant') as HTMLButtonElement).disabled).toBe(true)
-    expect(screen.getByRole('alert').textContent).toContain('Utilisez https')
+    fireEvent.change(field('Identifier'), { target: { value: 'x' } })
+    fireEvent.change(field('Base URL'), { target: { value: 'http://example.com/v1' } })
+    fireEvent.blur(field('Base URL'))
+    expect((button('Next') as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole('alert').textContent).toContain('Use https')
   })
 
   it('step 2: a new key must be typed, and an existing vault name is never overwritten', async () => {
     mount()
-    fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
-    fireEvent.click(button('Suivant'))
+    fireEvent.change(field('Identifier'), { target: { value: 'ds' } })
+    fireEvent.click(button('Next'))
     await screen.findByTestId('wizard-vault-open')
-    const go = button('Enregistrer et tester') as HTMLButtonElement
+    const go = button('Save and test') as HTMLButtonElement
     expect(go.disabled).toBe(true)
-    expect(screen.getByTestId('wizard-blocker').textContent).toContain('Saisissez la clé')
-    fireEvent.change(field('Clé d’API'), { target: { value: 'sk-x' } })
-    fireEvent.change(field('Nom dans le coffre'), { target: { value: 'old-key' } })
+    expect(screen.getByTestId('wizard-blocker').textContent).toContain('Enter the API key')
+    fireEvent.change(field('API key'), { target: { value: 'sk-x' } })
+    fireEvent.change(field('Name in the vault'), { target: { value: 'old-key' } })
     expect(go.disabled).toBe(true)
     expect(screen.getByTestId('wizard-blocker').textContent).toContain(
-      'Une clé porte déjà ce nom dans le coffre'
+      'A key already has this name in the vault'
     )
-    fireEvent.change(field('Nom dans le coffre'), { target: { value: 'ds-key' } })
+    fireEvent.change(field('Name in the vault'), { target: { value: 'ds-key' } })
     expect(go.disabled).toBe(false)
   })
 
   it('step 2: an env reference needs a variable name', () => {
     mount()
-    fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
-    fireEvent.click(button('Suivant'))
-    fireEvent.click(screen.getByRole('radio', { name: /Variable d’environnement/ }))
-    expect((button('Enregistrer et tester') as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.change(field('Nom de la variable'), { target: { value: 'DEEPSEEK_API_KEY' } })
+    fireEvent.change(field('Identifier'), { target: { value: 'ds' } })
+    fireEvent.click(button('Next'))
+    fireEvent.click(screen.getByRole('radio', { name: /Server environment variable/ }))
+    expect((button('Save and test') as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.change(field('Variable name'), { target: { value: 'DEEPSEEK_API_KEY' } })
     expect(screen.getByTestId('wizard-credential-ref').textContent).toBe('env:DEEPSEEK_API_KEY')
-    expect((button('Enregistrer et tester') as HTMLButtonElement).disabled).toBe(false)
+    expect((button('Save and test') as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('a locked vault: the unlock flow of the vault page is shown, and nothing is written', async () => {
     proof = false
     overview.mockResolvedValue({ ...OPEN_VAULT, unlocked_until: null })
     mount()
-    fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
-    fireEvent.click(button('Suivant'))
+    fireEvent.change(field('Identifier'), { target: { value: 'ds' } })
+    fireEvent.click(button('Next'))
     const locked = await screen.findByTestId('wizard-vault-locked')
     expect(within(locked).getByLabelText('Vault passphrase')).toBeTruthy()
-    fireEvent.change(field('Clé d’API'), { target: { value: 'sk-locked' } })
-    const go = button('Enregistrer et tester') as HTMLButtonElement
+    fireEvent.change(field('API key'), { target: { value: 'sk-locked' } })
+    const go = button('Save and test') as HTMLButtonElement
     expect(go.disabled).toBe(true)
-    expect(screen.getByTestId('wizard-blocker').textContent).toContain('Déverrouillez le coffre')
+    expect(screen.getByTestId('wizard-blocker').textContent).toContain('Unlock the vault')
     fireEvent.click(go)
     expect(putSecret).not.toHaveBeenCalled()
     expect(create).not.toHaveBeenCalled()
@@ -285,12 +285,12 @@ describe('ProviderWizard — the chain and the test', () => {
   it('no key (Ollama): create → test, readable verdict, consent bound to the origin, summary, finish', async () => {
     mount()
     fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
-    fireEvent.click(button('Suivant'))
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Save and test'))
     const result = await screen.findByTestId('wizard-test-result')
-    expect(result.textContent).toContain('La connexion fonctionne.')
-    expect(result.textContent).toContain('2 trouvés : qwen3, llama3')
-    expect(result.textContent).toContain('Appel d’outil')
+    expect(result.textContent).toContain('The connection works.')
+    expect(result.textContent).toContain('2 found: qwen3, llama3')
+    expect(result.textContent).toContain('Tool call')
     expect(result.textContent).toContain('131')
     expect(create).toHaveBeenCalledTimes(1)
     expect(create.mock.calls[0][0]).toMatchObject({
@@ -305,35 +305,35 @@ describe('ProviderWizard — the chain and the test', () => {
     expect(screen.getByTestId('wizard-task-test').getAttribute('data-state')).toBe('done')
     expect(screen.queryByTestId('wizard-task-secret')).toBeNull()
 
-    fireEvent.click(button('Suivant'))
-    expect(current()).toContain('Projet')
+    fireEvent.click(button('Next'))
+    expect(current()).toContain('Project')
     expect(screen.getByTestId('wizard-origin').textContent).toBe('http://localhost:11434')
     await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Projet' }).hasAttribute('disabled')).toBe(false)
+      expect(screen.getByRole('combobox', { name: 'Project' }).hasAttribute('disabled')).toBe(false)
     )
-    pick('Projet', 'Acme')
-    fireEvent.click(button('Autoriser http://localhost:11434'))
+    pick('Project', 'Acme')
+    fireEvent.click(button('Allow http://localhost:11434'))
     await screen.findByTestId('wizard-consented')
     expect(allow).toHaveBeenCalledWith('acme', 'ollama', 'http://localhost:11434')
 
-    fireEvent.click(button('Suivant'))
+    fireEvent.click(button('Next'))
     const summary = screen.getByTestId('wizard-summary')
     expect(summary.textContent).toContain('ollama')
-    expect(summary.textContent).toContain('réussi')
-    expect(summary.textContent).toContain('acme autorisé')
-    fireEvent.click(button('Terminer'))
+    expect(summary.textContent).toContain('passed')
+    expect(summary.textContent).toContain('acme allowed')
+    fireEvent.click(button('Finish'))
     expect(onFinished).toHaveBeenCalledWith('ollama')
   })
 
   it('the project step can be skipped', async () => {
     mount()
     fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
-    fireEvent.click(button('Suivant'))
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Save and test'))
     await screen.findByTestId('wizard-test-result')
-    fireEvent.click(button('Suivant'))
-    fireEvent.click(button('Passer cette étape'))
-    expect(screen.getByTestId('wizard-summary').textContent).toContain('aucun autorisé')
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Skip this step'))
+    expect(screen.getByTestId('wizard-summary').textContent).toContain('none allowed')
   })
 
   it('a failed test is translated from its code, and does not hide that the instance exists', async () => {
@@ -343,20 +343,20 @@ describe('ProviderWizard — the chain and the test', () => {
     })
     mount()
     fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
-    fireEvent.click(button('Suivant'))
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Save and test'))
     const result = await screen.findByTestId('wizard-test-result')
-    expect(result.textContent).toContain('Échec du test')
+    expect(result.textContent).toContain('Test failed')
     expect(screen.getByTestId('wizard-test-problem').textContent).toBe(
-      'Le point d’accès ne répond pas. Vérifiez l’URL et que le service tourne.'
+      'The endpoint does not answer. Check the URL and that the service is running.'
     )
-    expect(result.textContent).toContain('Non')
-    expect(screen.getByText(/Vous pouvez continuer : l’instance existe/)).toBeTruthy()
+    expect(result.textContent).toContain('No')
+    expect(screen.getByText(/You can continue: the instance exists/)).toBeTruthy()
     test.mockResolvedValue({ ok: true, health: { state: 'ok' }, models: [] })
-    fireEvent.click(button('Tester à nouveau'))
+    fireEvent.click(button('Test again'))
     await waitFor(() =>
       expect(screen.getByTestId('wizard-test-result').textContent).toContain(
-        'La connexion fonctionne.'
+        'The connection works.'
       )
     )
     expect(create).toHaveBeenCalledTimes(1)
@@ -364,12 +364,12 @@ describe('ProviderWizard — the chain and the test', () => {
 
   it('a new key: secret → instance → grant → test, in that order, with the reference only in the instance body', async () => {
     mount()
-    fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
-    fireEvent.click(button('Suivant'))
+    fireEvent.change(field('Identifier'), { target: { value: 'ds' } })
+    fireEvent.click(button('Next'))
     await screen.findByTestId('wizard-vault-open')
-    fireEvent.change(field('Clé d’API'), { target: { value: 'sk-very-secret' } })
-    pick('Durée de l’accord', '7 jours')
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.change(field('API key'), { target: { value: 'sk-very-secret' } })
+    pick('Grant duration', '7 days')
+    fireEvent.click(button('Save and test'))
     await screen.findByTestId('wizard-test-result')
     expect(putSecret).toHaveBeenCalledWith('ds', 'sk-very-secret', expect.any(String))
     expect(createGrant).toHaveBeenCalledWith({
@@ -393,12 +393,12 @@ describe('ProviderWizard — the chain and the test', () => {
 
   it('a key already in the vault: no secret is written, the grant names that key', async () => {
     mount()
-    fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
-    fireEvent.click(button('Suivant'))
+    fireEvent.change(field('Identifier'), { target: { value: 'ds' } })
+    fireEvent.click(button('Next'))
     await screen.findByTestId('wizard-vault-open')
-    fireEvent.click(screen.getByRole('radio', { name: /Clé déjà dans le coffre/ }))
-    pick('Clé du coffre', 'old-key')
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.click(screen.getByRole('radio', { name: /Key already in the vault/ }))
+    pick('Vault key', 'old-key')
+    fireEvent.click(button('Save and test'))
     await screen.findByTestId('wizard-test-result')
     expect(putSecret).not.toHaveBeenCalled()
     expect(create.mock.calls[0][0]).toMatchObject({ credential_ref: 'vault:old-key' })
@@ -412,80 +412,80 @@ describe('ProviderWizard — the chain and the test', () => {
       new ApiError(409, '{"error":"security_gate_closed: authentication is off"}')
     )
     mount()
-    fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
-    fireEvent.click(button('Suivant'))
+    fireEvent.change(field('Identifier'), { target: { value: 'ds' } })
+    fireEvent.click(button('Next'))
     await screen.findByTestId('wizard-vault-open')
-    fireEvent.change(field('Clé d’API'), { target: { value: 'sk-half-way' } })
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.change(field('API key'), { target: { value: 'sk-half-way' } })
+    fireEvent.click(button('Save and test'))
     const failure = await screen.findByTestId('wizard-failure')
-    expect(failure.textContent).toContain('Échec : Créer l’instance.')
-    expect(failure.textContent).toContain('authentification soit activée')
+    expect(failure.textContent).toContain('Failed: Create the instance.')
+    expect(failure.textContent).toContain('require authentication to be enabled')
     expect(screen.getByTestId('wizard-already-done').textContent).toBe(
-      'Déjà fait : la clé « ds » est enregistrée dans le coffre. Rien d’autre n’a été créé.'
+      'Already done: the key “ds” is saved in the vault. Nothing else was created.'
     )
     expect(screen.getByTestId('wizard-task-secret').getAttribute('data-state')).toBe('done')
     expect(screen.getByTestId('wizard-task-instance').getAttribute('data-state')).toBe('error')
     expect(screen.getByTestId('wizard-task-grant').getAttribute('data-state')).toBe('todo')
-    expect((button('Suivant') as HTMLButtonElement).disabled).toBe(true)
-    expect((button('Précédent') as HTMLButtonElement).disabled).toBe(true)
+    expect((button('Next') as HTMLButtonElement).disabled).toBe(true)
+    expect((button('Previous') as HTMLButtonElement).disabled).toBe(true)
     expect(document.body.innerHTML).not.toContain('sk-half-way')
 
     // Cancel: removes the secret THIS wizard wrote, and nothing else.
     fireEvent.click(
-      within(failure).getByRole('button', { name: 'Annuler et supprimer ce qui a été créé' })
+      within(failure).getByRole('button', { name: 'Cancel and delete what was created' })
     )
     const confirm = screen.getByRole('alertdialog')
-    expect(confirm.textContent).toContain('la clé « ds » est enregistrée dans le coffre')
-    fireEvent.click(within(confirm).getByRole('button', { name: 'Supprimer ce qui a été créé' }))
+    expect(confirm.textContent).toContain('the key “ds” is saved in the vault')
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Delete what was created' }))
     await waitFor(() => expect(deleteSecret).toHaveBeenCalledWith('ds'))
     expect(remove).not.toHaveBeenCalled()
     expect(revokeGrant).not.toHaveBeenCalled()
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
-  it('"Reprendre" continues from the failed sub-step without writing the secret again', async () => {
+  it('"Resume" continues from the failed sub-step without writing the secret again', async () => {
     createGrant.mockRejectedValueOnce(
       new ApiError(400, '{"error":"a provider grant names its secret"}')
     )
     mount()
-    fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
-    fireEvent.click(button('Suivant'))
+    fireEvent.change(field('Identifier'), { target: { value: 'ds' } })
+    fireEvent.click(button('Next'))
     await screen.findByTestId('wizard-vault-open')
-    fireEvent.change(field('Clé d’API'), { target: { value: 'sk-resume' } })
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.change(field('API key'), { target: { value: 'sk-resume' } })
+    fireEvent.click(button('Save and test'))
     await screen.findByTestId('wizard-failure')
     expect(screen.getByTestId('wizard-already-done').textContent).toContain(
-      'l’instance « ds » est créée'
+      'the instance “ds” is created'
     )
-    fireEvent.click(button('Reprendre'))
+    fireEvent.click(button('Resume'))
     await screen.findByTestId('wizard-test-result')
     expect(putSecret).toHaveBeenCalledTimes(1)
     expect(create).toHaveBeenCalledTimes(1)
     expect(createGrant).toHaveBeenCalledTimes(2)
-    expect((button('Suivant') as HTMLButtonElement).disabled).toBe(false)
+    expect((button('Next') as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('a failure before anything exists says so, and sends back to the key step', async () => {
     putSecret.mockRejectedValueOnce(new ApiError(409, '{"error":"vault locked"}'))
     mount()
-    fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
-    fireEvent.click(button('Suivant'))
+    fireEvent.change(field('Identifier'), { target: { value: 'ds' } })
+    fireEvent.click(button('Next'))
     await screen.findByTestId('wizard-vault-open')
-    fireEvent.change(field('Clé d’API'), { target: { value: 'sk-first' } })
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.change(field('API key'), { target: { value: 'sk-first' } })
+    fireEvent.click(button('Save and test'))
     await screen.findByTestId('wizard-failure')
     expect(screen.getByTestId('wizard-already-done').textContent).toBe(
-      'Rien n’a été créé : ni clé, ni instance, ni accord.'
+      'Nothing was created: no key, no instance, no grant.'
     )
     expect(create).not.toHaveBeenCalled()
-    fireEvent.click(button('Revenir à l’étape Clé'))
-    expect(current()).toContain('Clé')
-    expect(field('Clé d’API').value).toBe('')
+    fireEvent.click(button('Back to the Key step'))
+    expect(current()).toContain('Key')
+    expect(field('API key').value).toBe('')
   })
 
   it('cancelling with nothing created just closes', () => {
     mount()
-    fireEvent.click(button('Annuler'))
+    fireEvent.click(button('Cancel'))
     expect(onClose).toHaveBeenCalled()
   })
 })
@@ -511,8 +511,8 @@ describe('ProviderWizard — buttons', () => {
       expect(sizes).toEqual(new Set([true]))
     }
     check()
-    fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
-    fireEvent.click(button('Suivant'))
+    fireEvent.change(field('Identifier'), { target: { value: 'ds' } })
+    fireEvent.click(button('Next'))
     await screen.findByTestId('wizard-vault-locked')
     check()
   })
@@ -522,7 +522,7 @@ describe('ProviderWizard — buttons', () => {
     const footers = container.querySelectorAll('[data-testid="provider-wizard"] footer')
     expect(footers).toHaveLength(1)
     const right = within(footers[0] as HTMLElement).getByRole('button', {
-      name: 'Suivant',
+      name: 'Next',
     }).parentElement!
     expect(right.className).toContain('justify-end')
   })
@@ -538,8 +538,8 @@ describe('ProviderWizard — list refresh', () => {
     })
     const before = list.mock.calls.length
     fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
-    fireEvent.click(button('Suivant'))
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Save and test'))
     await screen.findByTestId('wizard-test-result')
     await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(before))
   })
@@ -556,13 +556,13 @@ describe('ProviderWizard — the model the tool test is about', () => {
   /** DeepSeek preset (model `deepseek-chat`), a new key, up to the first verdict. */
   async function toFirstVerdict(model?: string) {
     mount()
-    fireEvent.change(field('Identifiant'), { target: { value: 'ds' } })
+    fireEvent.change(field('Identifier'), { target: { value: 'ds' } })
     if (model !== undefined)
-      fireEvent.change(field('Modèle par défaut'), { target: { value: model } })
-    fireEvent.click(button('Suivant'))
+      fireEvent.change(field('Default model'), { target: { value: model } })
+    fireEvent.click(button('Next'))
     await screen.findByTestId('wizard-vault-open')
-    fireEvent.change(field('Clé d’API'), { target: { value: 'sk-model-test' } })
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.change(field('API key'), { target: { value: 'sk-model-test' } })
+    fireEvent.click(button('Save and test'))
     await screen.findByTestId('wizard-test-result')
   }
   const radio = (name: string) =>
@@ -572,25 +572,25 @@ describe('ProviderWizard — the model the tool test is about', () => {
     test.mockResolvedValue(NO_TOOLS)
     await toFirstVerdict('deepseek-flash')
     const result = screen.getByTestId('wizard-test-result')
-    expect(result.textContent).toContain('Modèle testé')
+    expect(result.textContent).toContain('Model tested')
     expect(result.textContent).toContain('deepseek-flash')
     expect(screen.getByTestId('wizard-test-problem').textContent).toBe(
-      'Ce modèle n’a pas appelé l’outil de test (certains modèles de raisonnement ne le font pas) : essayez un autre modèle listé.'
+      'This model did not call the test tool (some reasoning models do not): try another listed model.'
     )
     expect(result.textContent).not.toContain('ne peut pas appeler')
     const picker = screen.getByTestId('wizard-model-picker')
-    expect(within(picker).getByText('Modèle à tester')).toBeTruthy()
+    expect(within(picker).getByText('Model to test')).toBeTruthy()
     expect(radio('deepseek-flash').checked).toBe(true)
     expect(
-      within(picker).getByRole('radio', { name: /deepseek-flash.*Testé : échec/ })
+      within(picker).getByRole('radio', { name: /deepseek-flash.*Tested: failed/ })
     ).toBeTruthy()
     expect(
-      within(picker).getByRole('radio', { name: /deepseek-v4-pro.*Pas encore testé/ })
+      within(picker).getByRole('radio', { name: /deepseek-v4-pro.*Not tested yet/ })
     ).toBeTruthy()
     expect(test.mock.calls[0][0]).toMatchObject({ default_model: 'deepseek-flash' })
   })
 
-  it('(b) "Tester ce modèle" posts a test with the chosen model, and touches neither the vault nor the instance', async () => {
+  it('(b) "Test this model" posts a test with the chosen model, and touches neither the vault nor the instance', async () => {
     test.mockResolvedValue(NO_TOOLS)
     await toFirstVerdict('deepseek-flash')
     const before = {
@@ -605,7 +605,7 @@ describe('ProviderWizard — the model the tool test is about', () => {
       probe: { tools: true, context_window: 1048576 },
     })
     fireEvent.click(radio('deepseek-v4-pro'))
-    fireEvent.click(button('Tester ce modèle'))
+    fireEvent.click(button('Test this model'))
     await waitFor(() => expect(test).toHaveBeenCalledTimes(2))
     const body = test.mock.calls[1][0] as Record<string, unknown>
     expect(body).toMatchObject({
@@ -620,17 +620,17 @@ describe('ProviderWizard — the model the tool test is about', () => {
     expect(overview).toHaveBeenCalledTimes(1) // the initial read, nothing since
     await waitFor(() =>
       expect(screen.getByTestId('wizard-test-result').textContent).toContain(
-        'La connexion fonctionne.'
+        'The connection works.'
       )
     )
     expect(screen.getByTestId('wizard-test-result').textContent).toContain('deepseek-v4-pro')
   })
 
-  it('(c) success with another model: "Utiliser ce modèle par défaut" updates that single field', async () => {
+  it('(c) success with another model: "Use this model as default" updates that single field', async () => {
     test.mockResolvedValue(NO_TOOLS)
     await toFirstVerdict('deepseek-flash')
     expect(screen.getByTestId('wizard-saved-default').textContent).toContain('deepseek-flash')
-    expect(screen.queryByRole('button', { name: 'Utiliser ce modèle par défaut' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Use this model as default' })).toBeNull()
     test.mockResolvedValue({
       ...NO_TOOLS,
       ok: true,
@@ -638,10 +638,10 @@ describe('ProviderWizard — the model the tool test is about', () => {
       probe: { tools: true },
     })
     fireEvent.click(radio('deepseek-v4-pro'))
-    fireEvent.click(button('Tester ce modèle'))
-    const offer = await screen.findByRole('button', { name: 'Utiliser ce modèle par défaut' })
+    fireEvent.click(button('Test this model'))
+    const offer = await screen.findByRole('button', { name: 'Use this model as default' })
     expect(screen.getByTestId('wizard-default-offer').textContent).toContain(
-      'deepseek-v4-pro a réussi le test'
+      'deepseek-v4-pro passed the test'
     )
     fireEvent.click(offer)
     await waitFor(() =>
@@ -650,9 +650,9 @@ describe('ProviderWizard — the model the tool test is about', () => {
     await waitFor(() =>
       expect(screen.getByTestId('wizard-saved-default').textContent).toContain('deepseek-v4-pro')
     )
-    expect(screen.queryByRole('button', { name: 'Utiliser ce modèle par défaut' })).toBeNull()
-    fireEvent.click(button('Suivant'))
-    fireEvent.click(button('Passer cette étape'))
+    expect(screen.queryByRole('button', { name: 'Use this model as default' })).toBeNull()
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Skip this step'))
     expect(screen.getByTestId('wizard-summary').textContent).toContain('deepseek-v4-pro')
   })
 
@@ -664,9 +664,9 @@ describe('ProviderWizard — the model the tool test is about', () => {
       probe: { tools: true },
     })
     await toFirstVerdict('deepseek-flash')
-    expect(screen.queryByRole('button', { name: 'Utiliser ce modèle par défaut' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Use this model as default' })).toBeNull()
     expect(screen.getByTestId('wizard-saved-default').textContent).toBe(
-      'Modèle enregistré par défaut pour cette instance : deepseek-flash.'
+      'Model saved as default for this instance: deepseek-flash.'
     )
   })
 
@@ -675,11 +675,11 @@ describe('ProviderWizard — the model the tool test is about', () => {
     await toFirstVerdict() // DeepSeek preset suggests deepseek-chat
     expect(test.mock.calls[0][0]).toMatchObject({ default_model: 'deepseek-chat' })
     expect(screen.getByTestId('wizard-model-missing').textContent).toContain(
-      'Le modèle proposé par défaut (deepseek-chat) n’est pas proposé par ce serveur'
+      'The model suggested by default (deepseek-chat) is not offered by this server'
     )
     expect(radio('deepseek-flash').checked).toBe(true)
     expect(screen.queryByRole('radio', { name: /deepseek-chat/ })).toBeNull()
-    fireEvent.click(button('Tester ce modèle'))
+    fireEvent.click(button('Test this model'))
     await waitFor(() => expect(test).toHaveBeenCalledTimes(2))
     expect(test.mock.calls[1][0]).toMatchObject({ default_model: 'deepseek-flash' })
   })
@@ -687,16 +687,16 @@ describe('ProviderWizard — the model the tool test is about', () => {
   it('the step explains that the tool test depends on the model', async () => {
     test.mockResolvedValue(NO_TOOLS)
     await toFirstVerdict()
-    expect(screen.getByText(/Le test d’appel d’outil porte sur UN modèle/)).toBeTruthy()
+    expect(screen.getByText(/The tool-call test is about ONE model/)).toBeTruthy()
   })
 })
 
 describe('ProviderWizard — test button robustness', () => {
-  it('a double click on "Enregistrer et tester" runs the chain once', async () => {
+  it('a double click on "Save and test" runs the chain once', async () => {
     mount()
     fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
-    fireEvent.click(button('Suivant'))
-    const go = button('Enregistrer et tester')
+    fireEvent.click(button('Next'))
+    const go = button('Save and test')
     fireEvent.click(go)
     fireEvent.click(go)
     await screen.findByTestId('wizard-test-result')
@@ -704,7 +704,7 @@ describe('ProviderWizard — test button robustness', () => {
     expect(test).toHaveBeenCalledTimes(1)
   })
 
-  it('a double click on "Tester ce modèle" sends one test', async () => {
+  it('a double click on "Test this model" sends one test', async () => {
     test.mockResolvedValue({
       ok: false,
       health: { state: 'ok', code: 'model_no_tools' },
@@ -713,10 +713,10 @@ describe('ProviderWizard — test button robustness', () => {
     })
     mount()
     fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
-    fireEvent.click(button('Suivant'))
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Save and test'))
     await screen.findByTestId('wizard-model-picker')
-    const b = button('Tester ce modèle')
+    const b = button('Test this model')
     fireEvent.click(b)
     fireEvent.click(b)
     await waitFor(() => expect(test).toHaveBeenCalledTimes(2))
@@ -732,13 +732,13 @@ describe('ProviderWizard — test button robustness', () => {
     })
     mount()
     fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
-    fireEvent.click(button('Suivant'))
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Save and test'))
     const picker = await screen.findByTestId('wizard-model-picker')
-    const box = within(picker).getByRole('combobox', { name: 'Modèle à tester' }) as HTMLInputElement
+    const box = within(picker).getByRole('combobox', { name: 'Model to test' }) as HTMLInputElement
     expect(box.value).toBe('model-0')
     fireEvent.click(box)
-    expect(within(picker).getByText('12 modèles')).toBeTruthy()
+    expect(within(picker).getByText('12 models')).toBeTruthy()
     fireEvent.change(box, { target: { value: 'model-11' } })
     expect(within(picker).queryByRole('option', { name: 'model-3' })).toBeNull()
     expect(within(picker).getByRole('option', { name: 'model-11' })).toBeTruthy()
@@ -755,116 +755,116 @@ const HOST_KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPinnedPublicKeyOfTheMachi
 
 function pickRemote() {
   mount()
-  fireEvent.click(screen.getByRole('radio', { name: /Claude Code distant \(SSH\)/ }))
+  fireEvent.click(screen.getByRole('radio', { name: /Claude Code remote \(SSH\)/ }))
 }
 
 async function fillRemote({ confirm = true }: { confirm?: boolean } = {}) {
   sshHostKey.mockResolvedValue({ host_key: HOST_KEY, host_key_fingerprint: FINGERPRINT })
-  fireEvent.change(field('Nom de la machine'), { target: { value: 'lab' } })
-  fireEvent.change(field('Machine (nom ou adresse)'), { target: { value: 'lab.example.com' } })
-  fireEvent.change(field('Utilisateur'), { target: { value: 'me' } })
-  fireEvent.change(field('Port SSH'), { target: { value: '2222' } })
-  fireEvent.change(field('Dossier de travail sur la machine'), { target: { value: '/srv/work' } })
-  fireEvent.click(button('Récupérer la clé de la machine'))
+  fireEvent.change(field('Machine name'), { target: { value: 'lab' } })
+  fireEvent.change(field('Machine (name or address)'), { target: { value: 'lab.example.com' } })
+  fireEvent.change(field('User'), { target: { value: 'me' } })
+  fireEvent.change(field('SSH port'), { target: { value: '2222' } })
+  fireEvent.change(field('Working folder on the machine'), { target: { value: '/srv/work' } })
+  fireEvent.click(button('Fetch the machine’s key'))
   await screen.findByTestId('remote-fingerprint')
-  if (confirm) fireEvent.click(screen.getByRole('checkbox', { name: /Je confirme que cette empreinte est bien celle de la machine/ }))
+  if (confirm) fireEvent.click(screen.getByRole('checkbox', { name: /I confirm this fingerprint is the machine’s/ }))
 }
 
 describe('ProviderWizard — Claude Code distant (SSH)', () => {
   it('offers the kind, with machine fields and no URL', () => {
     pickRemote()
-    expect(screen.getByText('Claude Code distant (SSH)', { selector: 'span, div, strong' })).toBeTruthy()
-    expect(screen.queryByLabelText('URL de base')).toBeNull()
+    expect(screen.getByText('Claude Code remote (SSH)', { selector: 'span, div, strong' })).toBeTruthy()
+    expect(screen.queryByLabelText('Base URL')).toBeNull()
     expect(screen.getByTestId('remote-fields')).toBeTruthy()
   })
 
   it('refuses an invalid host (leading dash, forbidden characters) and says so', () => {
     pickRemote()
-    fireEvent.change(field('Nom de la machine'), { target: { value: 'lab' } })
-    const host = field('Machine (nom ou adresse)')
+    fireEvent.change(field('Machine name'), { target: { value: 'lab' } })
+    const host = field('Machine (name or address)')
     fireEvent.change(host, { target: { value: '-oProxyCommand=evil' } })
     fireEvent.blur(host)
-    expect(screen.getAllByText(/ne peut pas commencer par « - »/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/cannot start with “-”/).length).toBeGreaterThan(0)
     fireEvent.change(host, { target: { value: 'lab; rm -rf /' } })
-    expect(screen.getAllByText(/lettres, chiffres et/i).length).toBeGreaterThan(0)
-    expect(button('Suivant').hasAttribute('disabled')).toBe(true)
-    fireEvent.change(field('Port SSH'), { target: { value: '70000' } })
-    fireEvent.blur(field('Port SSH'))
-    expect(screen.getByText('Un port entre 1 et 65535.')).toBeTruthy()
+    expect(screen.getAllByText(/letters, digits and/i).length).toBeGreaterThan(0)
+    expect(button('Next').hasAttribute('disabled')).toBe(true)
+    fireEvent.change(field('SSH port'), { target: { value: '70000' } })
+    fireEvent.blur(field('SSH port'))
+    expect(screen.getByText('A port between 1 and 65535.')).toBeTruthy()
   })
 
-  it('shows the fetched fingerprint and blocks "Suivant" until the human confirms it', async () => {
+  it('shows the fetched fingerprint and blocks "Next" until the human confirms it', async () => {
     pickRemote()
     await fillRemote({ confirm: false })
     expect(sshHostKey).toHaveBeenCalledWith({ host: 'lab.example.com', ssh_port: 2222 })
     expect(screen.getByTestId('remote-fingerprint').textContent).toContain(FINGERPRINT)
-    expect(button('Suivant').hasAttribute('disabled')).toBe(true)
-    expect(screen.getByTestId('wizard-blocker').textContent).toContain('Confirmez que l’empreinte')
-    fireEvent.click(screen.getByRole('checkbox', { name: /Je confirme que cette empreinte est bien celle de la machine/ }))
-    expect(button('Suivant').hasAttribute('disabled')).toBe(false)
+    expect(button('Next').hasAttribute('disabled')).toBe(true)
+    expect(screen.getByTestId('wizard-blocker').textContent).toContain('Confirm that the fingerprint')
+    fireEvent.click(screen.getByRole('checkbox', { name: /I confirm this fingerprint is the machine’s/ }))
+    expect(button('Next').hasAttribute('disabled')).toBe(false)
   })
 
   it('changing the host after the confirmation drops the pinned key and the confirmation', async () => {
     pickRemote()
     await fillRemote()
-    fireEvent.change(field('Machine (nom ou adresse)'), { target: { value: 'other.example.com' } })
+    fireEvent.change(field('Machine (name or address)'), { target: { value: 'other.example.com' } })
     expect(screen.queryByTestId('remote-fingerprint')).toBeNull()
-    expect(button('Suivant').hasAttribute('disabled')).toBe(true)
+    expect(button('Next').hasAttribute('disabled')).toBe(true)
   })
 
   it('refuses a pasted private key as the host key, and never offers to confirm it', () => {
     pickRemote()
-    const box = field('Clé publique de la machine')
+    const box = field('Machine public key')
     fireEvent.change(box, { target: { value: '-----BEGIN OPENSSH PRIVATE KEY-----' } })
     fireEvent.blur(box)
-    expect(screen.getByText(/ressemble à une clé privée/)).toBeTruthy()
+    expect(screen.getByText(/looks like a private key/)).toBeTruthy()
     expect(screen.queryByTestId('remote-fingerprint')).toBeNull()
-    expect(button('Suivant').hasAttribute('disabled')).toBe(true)
+    expect(button('Next').hasAttribute('disabled')).toBe(true)
   })
 
   it('accepts a pasted public key, but still requires the confirmation', () => {
     pickRemote()
-    fireEvent.change(field('Clé publique de la machine'), { target: { value: HOST_KEY } })
-    expect(screen.getByTestId('remote-fingerprint').textContent).toContain('calculée par le serveur')
-    expect(screen.getByRole('checkbox', { name: /Je confirme/ })).toBeTruthy()
+    fireEvent.change(field('Machine public key'), { target: { value: HOST_KEY } })
+    expect(screen.getByTestId('remote-fingerprint').textContent).toContain('computed by the server')
+    expect(screen.getByRole('checkbox', { name: /I confirm/ })).toBeTruthy()
   })
 
   it('"Rock’n roll" is off by default and warned', () => {
     pickRemote()
-    const box = screen.getByRole('checkbox', { name: /Autoriser le mode « Rock’n roll » sur cette machine/ }) as HTMLInputElement
+    const box = screen.getByRole('checkbox', { name: /Allow “Rock’n roll” mode on this machine/ }) as HTMLInputElement
     expect(box.checked).toBe(false)
-    expect(screen.getByRole('note').textContent).toContain('sans demander de confirmation')
+    expect(screen.getByRole('note').textContent).toContain('without asking for confirmation')
   })
 
   it('the key step only offers a vault key: no field to type a private key', async () => {
     pickRemote()
     await fillRemote()
-    fireEvent.click(button('Suivant'))
-    expect(screen.queryByLabelText('Clé d’API')).toBeNull()
+    fireEvent.click(button('Next'))
+    expect(screen.queryByLabelText('API key')).toBeNull()
     expect(document.querySelector('input[type="password"]')).toBeNull()
-    expect((screen.getByRole('radio', { name: /Saisir une nouvelle clé/ }) as HTMLInputElement).disabled).toBe(true)
-    expect((screen.getByRole('radio', { name: /Aucune clé/ }) as HTMLInputElement).disabled).toBe(true)
-    expect((screen.getByRole('radio', { name: /Clé déjà dans le coffre/ }) as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByRole('radio', { name: /Type a new key/ }) as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('radio', { name: /No key/ }) as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('radio', { name: /Key already in the vault/ }) as HTMLInputElement).checked).toBe(true)
     expect(screen.getByTestId('wizard-remote-key-note')).toBeTruthy()
-    expect(button('Enregistrer et tester').hasAttribute('disabled')).toBe(true)
+    expect(button('Save and test').hasAttribute('disabled')).toBe(true)
   })
 
   it('tells the key must be dedicated and without passphrase', async () => {
     pickRemote()
     await fillRemote()
-    fireEvent.click(button('Suivant'))
+    fireEvent.click(button('Next'))
     expect(screen.getByTestId('remote-key-hint').textContent).toBe(
-      'Utilisez une clé dédiée, sans phrase secrète : la connexion est non interactive et n’utilise pas d’agent SSH.'
+      'Use a dedicated key without a passphrase: the connection is non-interactive and does not use an SSH agent.'
     )
   })
 
   it('runs the chain with the pinned key and a vault reference, shows the ssh origin, and sends allow_trust=false', async () => {
     pickRemote()
     await fillRemote()
-    fireEvent.click(button('Suivant'))
-    pick('Clé du coffre', 'old-key')
+    fireEvent.click(button('Next'))
+    pick('Vault key', 'old-key')
     expect(screen.getByTestId('wizard-credential-ref').textContent).toBe('vault:old-key')
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.click(button('Save and test'))
     await screen.findByTestId('wizard-test-result')
     expect(putSecret).not.toHaveBeenCalled()
     expect(create).toHaveBeenCalledTimes(1)
@@ -886,13 +886,13 @@ describe('ProviderWizard — Claude Code distant (SSH)', () => {
       expect.objectContaining({ scope: { kind: 'provider', value: 'claude-code@lab' } })
     )
     expect(test).toHaveBeenCalled()
-    fireEvent.click(button('Suivant'))
+    fireEvent.click(button('Next'))
     expect(screen.getByTestId('wizard-origin').textContent).toBe('ssh:me@lab.example.com:2222')
     await waitFor(() =>
-      expect(screen.getByRole('combobox', { name: 'Projet' }).hasAttribute('disabled')).toBe(false)
+      expect(screen.getByRole('combobox', { name: 'Project' }).hasAttribute('disabled')).toBe(false)
     )
-    pick('Projet', 'Acme')
-    fireEvent.click(button('Autoriser ssh:me@lab.example.com:2222'))
+    pick('Project', 'Acme')
+    fireEvent.click(button('Allow ssh:me@lab.example.com:2222'))
     await screen.findByTestId('wizard-consented')
     expect(allow).toHaveBeenCalledWith('acme', 'claude-code@lab', 'ssh:me@lab.example.com:2222')
   })
@@ -901,9 +901,9 @@ describe('ProviderWizard — Claude Code distant (SSH)', () => {
     create.mockResolvedValue({ id: 'claude-code@claude-code-distant' })
     pickRemote()
     await fillRemote()
-    fireEvent.click(button('Suivant'))
-    pick('Clé du coffre', 'old-key')
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.click(button('Next'))
+    pick('Vault key', 'old-key')
+    fireEvent.click(button('Save and test'))
     await screen.findByTestId('wizard-test-result')
     expect(createGrant).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -915,10 +915,10 @@ describe('ProviderWizard — Claude Code distant (SSH)', () => {
   it('sends allow_trust=true only when the human ticked it', async () => {
     pickRemote()
     await fillRemote()
-    fireEvent.click(screen.getByRole('checkbox', { name: /Autoriser le mode « Rock’n roll »/ }))
-    fireEvent.click(button('Suivant'))
-    pick('Clé du coffre', 'old-key')
-    fireEvent.click(button('Enregistrer et tester'))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Allow “Rock’n roll” mode/ }))
+    fireEvent.click(button('Next'))
+    pick('Vault key', 'old-key')
+    fireEvent.click(button('Save and test'))
     await screen.findByTestId('wizard-test-result')
     expect((create.mock.calls[0][0] as Record<string, unknown>).allow_trust).toBe(true)
   })
@@ -926,11 +926,11 @@ describe('ProviderWizard — Claude Code distant (SSH)', () => {
   it('a failed host-key scan is said, and nothing is pinned', async () => {
     pickRemote()
     sshHostKey.mockRejectedValue(new ApiError(502, 'ssh-keyscan failed'))
-    fireEvent.change(field('Nom de la machine'), { target: { value: 'lab' } })
-    fireEvent.change(field('Machine (nom ou adresse)'), { target: { value: 'lab.example.com' } })
-    fireEvent.click(button('Récupérer la clé de la machine'))
+    fireEvent.change(field('Machine name'), { target: { value: 'lab' } })
+    fireEvent.change(field('Machine (name or address)'), { target: { value: 'lab.example.com' } })
+    fireEvent.click(button('Fetch the machine’s key'))
     await waitFor(() => expect(screen.getAllByRole('alert').length).toBeGreaterThan(0))
     expect(screen.queryByTestId('remote-fingerprint')).toBeNull()
-    expect(button('Suivant').hasAttribute('disabled')).toBe(true)
+    expect(button('Next').hasAttribute('disabled')).toBe(true)
   })
 })

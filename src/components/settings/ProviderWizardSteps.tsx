@@ -1,5 +1,5 @@
 /**
- * Bodies of the five steps of the "Ajouter un provider" wizard. Presentational:
+ * Bodies of the five steps of the "Add a provider" wizard. Presentational:
  * the state, the validation and the calls live in `ProviderWizard.tsx`.
  *
  * The one field that takes a secret (the API key, step 2) is UNCONTROLLED: its
@@ -11,20 +11,22 @@ import { Link } from 'react-router-dom'
 import { Check, CircleDashed, Loader2, Lock, LockOpen, X } from 'lucide-react'
 import { Button, Facts, Input, Select, ToneText, surface } from '@/components/ui'
 import { CreateVault, LockPanel } from '@/pages/VaultPage'
-import { PROVIDER_PRESETS, type ProviderPresetInfo } from '@/constants/providerPresets'
+import { PROVIDER_PRESETS, presetLabel, type ProviderPresetInfo } from '@/constants/providerPresets'
 import {
-  COST_LABELS_FR,
-  GRANT_CHOICES_FR,
-  TASK_LABELS,
+  COST_LABEL_KEYS,
+  GRANT_CHOICES,
+  TASK_LABEL_KEYS,
   isProcessKind,
-  kindLabelFr,
+  kindLabel,
   type TaskKey,
   type TaskState,
 } from '@/constants/providerWizard'
+import { useT } from '@/i18n'
 import { VAULT_PATH } from '@/constants/providerErrors'
-import { REMOTE_ID_PREFIX, REMOTE_KEY_HINT_FR, REMOTE_KIND } from '@/constants/remoteClaudeCode'
+import { REMOTE_ID_PREFIX, REMOTE_KIND } from '@/constants/remoteClaudeCode'
 import { COST_BASES, type CostBasis } from '@/types/provider'
 import type { VaultOverview } from '@/services/vault'
+import type { Translator } from '@/i18n/translate'
 import { ChoiceRow, FieldNote, FormField } from './FormField'
 import { ModelField } from './ModelField'
 import type { ProjectOption } from './useProjectOptions'
@@ -51,8 +53,6 @@ export function StepIntro({
     </div>
   )
 }
-
-const COST_OPTIONS = COST_BASES.map((c) => ({ value: c, label: COST_LABELS_FR[c] }))
 
 // ---------------------------------------------------------------------------
 // Step 1 — preset and identity
@@ -91,18 +91,20 @@ export function PresetStep({
   /** The machine fields of a `claude_code_remote` preset. */
   remoteSlot?: ReactNode
 }) {
+  const { t } = useT()
+  const COST_OPTIONS = COST_BASES.map((c) => ({ value: c, label: t(COST_LABEL_KEYS[c]) }))
   const process = isProcessKind(preset.kind)
   const remote = preset.kind === REMOTE_KIND
   const shown = (f: IdentityField) => (touched[f] ? errors[f] : undefined)
   return (
     <div className="space-y-6">
       <StepIntro
-        title="1. Choisir un modèle"
-        what="Choisissez le type de provider : les champs dessous sont préremplis avec des valeurs proposées, que vous pouvez modifier."
-        why="L’identifiant nomme l’instance dans les sessions et les rôles ; l’URL de base est l’endroit où partira le contenu des projets que vous autoriserez."
+        title={t('providerWizard.step1.title')}
+        what={t('providerWizard.step1.what')}
+        why={t('providerWizard.step1.why')}
       />
       <fieldset>
-        <legend className="mb-2 text-sm font-medium text-gray-300">Modèle prédéfini</legend>
+        <legend className="mb-2 text-sm font-medium text-gray-300">{t('providerWizard.step1.presetLegend')}</legend>
         <div className="grid gap-2 sm:grid-cols-2">
           {PROVIDER_PRESETS.map((p) => (
             <ChoiceRow
@@ -113,11 +115,11 @@ export function PresetStep({
               onChange={onPreset}
               title={
                 <>
-                  {p.label}{' '}
-                  <span className="font-normal text-gray-500">· {kindLabelFr(p.kind)}</span>
+                  {presetLabel(t, p)}{' '}
+                  <span className="font-normal text-gray-500">· {kindLabel(t, p.kind)}</span>
                 </>
               }
-              description={p.description}
+              description={t(p.description)}
             />
           ))}
         </div>
@@ -126,11 +128,11 @@ export function PresetStep({
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField
           id={`${uid}-id`}
-          label={remote ? 'Nom de la machine' : 'Identifiant'}
+          label={remote ? t('providerWizard.step1.machineName') : t('providerWizard.step1.identifier')}
           help={
             remote
-              ? `Lettres minuscules, chiffres et « - ». L’instance s’appellera « ${REMOTE_ID_PREFIX}${identity.id.trim() || '<nom>'} » : ce nom la distingue partout du Claude Code local. Ne pourra plus changer.`
-              : 'Lettres minuscules, chiffres et « - ». Ne pourra plus changer.'
+              ? t('providerWizard.step1.idHelpRemote', { id: `${REMOTE_ID_PREFIX}${identity.id.trim() || t('providerWizard.step1.namePlaceholderToken')}` })
+              : t('providerWizard.step1.idHelp')
           }
           error={shown('id')}
         >
@@ -147,15 +149,15 @@ export function PresetStep({
         </FormField>
         <FormField
           id={`${uid}-label`}
-          label="Nom affiché"
-          help="Ce que l’on voit dans le sélecteur de provider."
+          label={t('providerAdmin.form.displayName')}
+          help={t('providerAdmin.form.displayNameHelp')}
         >
           <Input
             id={`${uid}-label`}
             value={identity.label}
             onChange={(e) => onChange({ label: e.target.value })}
             aria-describedby={`${uid}-label-help`}
-            placeholder={preset.label}
+            placeholder={presetLabel(t, preset)}
           />
         </FormField>
         {remote ? (
@@ -164,16 +166,16 @@ export function PresetStep({
           <div className="sm:col-span-2">
             <p className={`${surface} px-3 py-2 text-xs text-gray-400`}>
               {preset.kind === 'codex'
-                ? 'Pas d’URL : le serveur lance le programme « codex » de son PATH. Rien n’est envoyé ailleurs que là où Codex envoie lui-même.'
-                : 'Pas d’URL : le serveur lance l’agent déclaré sous ce nom dans CHAT_PROVIDER_ACP_COMMANDS. Une requête ne transporte jamais de ligne de commande.'}
+                ? t('providerWizard.step1.codexNoUrl')
+                : t('providerWizard.step1.acpNoUrl')}
             </p>
           </div>
         ) : (
           <FormField
             id={`${uid}-url`}
             className="sm:col-span-2"
-            label="URL de base"
-            help="https obligatoire, sauf pour localhost, 127.0.0.1 et ::1."
+            label={t('providerAdmin.form.baseUrl')}
+            help={t('providerWizard.step1.urlHelp')}
             error={shown('url')}
           >
             <Input
@@ -191,8 +193,8 @@ export function PresetStep({
         )}
         <FormField
           id={`${uid}-model`}
-          label="Modèle par défaut"
-          help="Facultatif, valeur proposée : le modèle utilisé quand rien d’autre n’est choisi. Le test vous montrera les modèles que le serveur propose vraiment."
+          label={t('providerAdmin.form.defaultModel')}
+          help={t('providerWizard.step1.modelHelp')}
         >
           <Input
             id={`${uid}-model`}
@@ -206,12 +208,12 @@ export function PresetStep({
         </FormField>
         <div className="min-w-0">
           <Select
-            label="Source du coût"
+            label={t('providerAdmin.form.costSource')}
             options={COST_OPTIONS}
             value={identity.cost}
             onChange={(v) => onChange({ cost: v as CostBasis })}
           />
-          <FieldNote id={`${uid}-cost`} help="Comment le coût des sessions sera compté." />
+          <FieldNote id={`${uid}-cost`} help={t('providerAdmin.form.costHelp')} />
         </div>
       </div>
     </div>
@@ -236,13 +238,8 @@ export interface KeyState {
 
 export type KeyField = 'secret' | 'secretName' | 'existingName' | 'envName'
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+function formatTime(date: Translator['date'], iso: string): string {
+  return date(iso, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 /** State of the vault, and the in-place create / unlock flow of the vault page. */
@@ -257,18 +254,19 @@ function VaultState({
   canWrite: boolean
   onChange: () => void
 }) {
+  const { t, date } = useT()
   if (vaultError) {
     return (
       <p role="alert" className="text-xs text-red-400">
-        Le coffre est inaccessible : {vaultError}
+        {t('providerWizard.vaultState.unreachable', { error: vaultError })}
       </p>
     )
   }
-  if (!vault) return <p className="text-xs text-gray-500">Lecture de l’état du coffre…</p>
+  if (!vault) return <p className="text-xs text-gray-500">{t('providerWizard.vaultState.reading')}</p>
   if (vault.unavailable) {
     return (
       <p role="alert" className="text-xs text-red-400">
-        Le fichier du coffre ne peut pas être lu : rien ne peut y être enregistré.
+        {t('providerWizard.vaultState.fileUnreadable')}
       </p>
     )
   }
@@ -276,7 +274,7 @@ function VaultState({
     return (
       <div className="space-y-2" data-testid="wizard-vault-create">
         <p className="text-xs text-amber-300">
-          Le coffre n’existe pas encore : créez-le ici, puis revenez à la clé.
+          {t('providerWizard.vaultState.notYet')}
         </p>
         <CreateVault onDone={onChange} />
       </div>
@@ -287,8 +285,7 @@ function VaultState({
       <div className="space-y-2" data-testid="wizard-vault-locked">
         <p className="flex items-center gap-2 text-xs text-amber-300">
           <Lock className="h-3.5 w-3.5" aria-hidden="true" />
-          Le coffre est verrouillé (ou ouvert sans preuve depuis cet onglet). Déverrouillez-le pour
-          continuer : rien n’est enregistré sans la phrase secrète.
+          {t('providerWizard.vaultState.locked')}
         </p>
         <LockPanel overview={vault} onChange={onChange} />
       </div>
@@ -297,8 +294,9 @@ function VaultState({
   return (
     <p className="flex items-center gap-2 text-xs text-emerald-400" data-testid="wizard-vault-open">
       <LockOpen className="h-3.5 w-3.5" aria-hidden="true" />
-      Coffre déverrouillé
-      {vault.unlocked_until ? ` jusqu’à ${formatTime(vault.unlocked_until)}` : ''}.
+      {vault.unlocked_until
+        ? t('providerWizard.vaultState.unlockedUntil', { time: formatTime(date, vault.unlocked_until) })
+        : `${t('providerWizard.vaultState.unlocked')}.`}
     </p>
   )
 }
@@ -334,6 +332,7 @@ export function KeyStep({
   onKeyTyped: (typed: boolean) => void
   onVaultChange: () => void
 }) {
+  const { t } = useT()
   const acp = preset.kind === 'acp'
   // A remote Claude Code: only a vault reference to the SSH key; no key is ever typed here.
   const remote = preset.kind === REMOTE_KIND
@@ -344,21 +343,21 @@ export function KeyStep({
   return (
     <div className="space-y-6">
       <StepIntro
-        title="2. La clé"
+        title={t('providerWizard.step2.title')}
         what={
           <>
-            Dites où se trouve la clé d’API. L’instance n’enregistre qu’une{' '}
-            <strong>référence</strong> :{' '}
-            <code className="font-mono text-gray-200">vault:&lt;nom&gt;</code> (une clé du coffre),{' '}
-            <code className="font-mono text-gray-200">env:&lt;VAR&gt;</code> (une variable du
-            serveur) ou <code className="font-mono text-gray-200">none</code>.
+            {t('providerWizard.step2.whatLead')} <strong>{t('providerWizard.step2.whatRef')}</strong> :{' '}
+            <code className="font-mono text-gray-200">vault:&lt;name&gt;</code>
+            {t('providerWizard.step2.whatVault')}{' '}
+            <code className="font-mono text-gray-200">env:&lt;VAR&gt;</code>
+            {t('providerWizard.step2.whatEnv')} <code className="font-mono text-gray-200">none</code>.
           </>
         }
-        why="La clé reste chiffrée dans le coffre : la configuration du provider ne la reçoit jamais, et le serveur ne la lit que pour ce provider, grâce à un accord limité dans le temps."
+        why={t('providerWizard.step2.why')}
       />
 
       <fieldset>
-        <legend className="mb-2 text-sm font-medium text-gray-300">Où est la clé ?</legend>
+        <legend className="mb-2 text-sm font-medium text-gray-300">{t('providerWizard.step2.whereLegend')}</legend>
         <div className="grid gap-2 sm:grid-cols-2">
           <ChoiceRow
             name={`${uid}-keymode`}
@@ -366,8 +365,8 @@ export function KeyStep({
             checked={keyState.mode === 'new'}
             disabled={acp || remote}
             onChange={(v) => onChange({ mode: v as KeyMode })}
-            title="Saisir une nouvelle clé"
-            description="Tapée ici, elle part directement dans le coffre, chiffrée."
+            title={t('providerWizard.step2.newTitle')}
+            description={t('providerWizard.step2.newDesc')}
           />
           <ChoiceRow
             name={`${uid}-keymode`}
@@ -375,11 +374,11 @@ export function KeyStep({
             checked={keyState.mode === 'existing'}
             disabled={acp || (vault !== null && names.length === 0)}
             onChange={(v) => onChange({ mode: v as KeyMode })}
-            title="Clé déjà dans le coffre"
+            title={t('providerWizard.step2.existingTitle')}
             description={
               vault !== null && names.length === 0
-                ? 'Le coffre ne contient encore aucune clé.'
-                : 'Choisissez-la par son nom.'
+                ? t('providerWizard.step2.existingNone')
+                : t('providerWizard.step2.existingChoose')
             }
           />
           <ChoiceRow
@@ -388,8 +387,8 @@ export function KeyStep({
             checked={keyState.mode === 'env'}
             disabled={acp || remote}
             onChange={(v) => onChange({ mode: v as KeyMode })}
-            title="Variable d’environnement du serveur"
-            description="Refusée si la variable n’est pas déclarée dans CHAT_PROVIDER_ENV_CREDENTIALS."
+            title={t('providerAdmin.form.credEnv')}
+            description={t('providerWizard.step2.envDesc')}
           />
           <ChoiceRow
             name={`${uid}-keymode`}
@@ -397,13 +396,13 @@ export function KeyStep({
             checked={keyState.mode === 'none'}
             disabled={remote}
             onChange={(v) => onChange({ mode: v as KeyMode })}
-            title="Aucune clé"
+            title={t('providerWizard.step2.noneTitle')}
             description={
               remote
-                ? 'Une connexion SSH exige une clé.'
+                ? t('providerWizard.step2.noneRemote')
                 : acp
-                ? 'Un agent ACP gère sa propre connexion.'
-                : 'Modèle local (Ollama…) ou programme qui gère sa connexion.'
+                ? t('providerWizard.step2.noneAcp')
+                : t('providerWizard.step2.noneLocal')
             }
           />
         </div>
@@ -411,16 +410,14 @@ export function KeyStep({
 
       {remote && (
         <p data-testid="wizard-remote-key-note" className="text-xs text-gray-400">
-          Ici, on ne choisit que le <strong>nom</strong> de la clé privée SSH déjà enregistrée dans le
-          coffre : elle n’est jamais saisie ni collée dans cet assistant.{' '}
-          {vault !== null && names.length === 0 && (
-            <>Le coffre ne contient encore aucune clé : enregistrez-y d’abord la clé SSH. </>
-          )}
+          {t('providerWizard.step2.remoteNoteLead')} <strong>{t('providerWizard.step2.remoteNoteName')}</strong>{' '}
+          {t('providerWizard.step2.remoteNoteTail')}{' '}
+          {vault !== null && names.length === 0 && <>{t('providerWizard.step2.remoteNoKeys')} </>}
           <Link to={VAULT_PATH} className="text-indigo-400 underline hover:text-indigo-300">
-            Ouvrir le coffre
+            {t('providerWizard.step2.openVault')}
           </Link>
           <span data-testid="remote-key-hint" className="mt-1 block text-amber-300">
-            {REMOTE_KEY_HINT_FR}
+            {t('providerAdmin.remote.keyHint')}
           </span>
         </p>
       )}
@@ -429,8 +426,8 @@ export function KeyStep({
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
             id={`${uid}-secret`}
-            label="Clé d’API"
-            help="Chiffrée dans le coffre, jamais enregistrée dans l’instance. Le champ est vidé dès l’envoi ; la clé ne sera plus jamais affichée."
+            label={t('providerWizard.step2.apiKey')}
+            help={t('providerWizard.step2.apiKeyHelp')}
             error={shown('secret')}
           >
             <Input
@@ -447,8 +444,8 @@ export function KeyStep({
           </FormField>
           <FormField
             id={`${uid}-secret-name`}
-            label="Nom dans le coffre"
-            help="Proposé à partir de l’identifiant. Un nom déjà pris n’est jamais écrasé."
+            label={t('providerWizard.step2.secretName')}
+            help={t('providerWizard.step2.secretNameHelp')}
             error={shown('secretName')}
           >
             <Input
@@ -471,8 +468,8 @@ export function KeyStep({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="min-w-0">
             <Select
-              label="Clé du coffre"
-              placeholder="Choisir une clé…"
+              label={t('providerAdmin.form.vaultKey')}
+              placeholder={t('providerAdmin.form.chooseKey')}
               options={names.map((n) => ({ value: n, label: n }))}
               value={keyState.existingName}
               onChange={(v) => {
@@ -483,7 +480,7 @@ export function KeyStep({
             />
             <FieldNote
               id={`${uid}-existing`}
-              help="Seuls les noms sont affichés, jamais les valeurs."
+              help={t('providerAdmin.form.namesOnly')}
             />
           </div>
         </div>
@@ -493,8 +490,8 @@ export function KeyStep({
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
             id={`${uid}-env`}
-            label="Nom de la variable"
-            help="Le nom seulement (par exemple DEEPSEEK_API_KEY), jamais sa valeur."
+            label={t('providerAdmin.form.envName')}
+            help={t('providerWizard.step2.envNameHelp')}
             error={shown('envName')}
           >
             <Input
@@ -515,14 +512,14 @@ export function KeyStep({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="min-w-0">
             <Select
-              label="Durée de l’accord"
-              options={GRANT_CHOICES_FR}
+              label={t('providerWizard.step2.grantDuration')}
+              options={GRANT_CHOICES.map((c) => ({ value: c.value, label: t(c.label) }))}
               value={String(keyState.grantMinutes)}
               onChange={(v) => onChange({ grantMinutes: Number(v) })}
             />
             <FieldNote
               id={`${uid}-grant`}
-              help="Pendant cette durée, le serveur peut lire cette clé pour l’envoyer à ce provider, et à lui seul. Ensuite, renouvelez l’accord depuis le coffre."
+              help={t('providerWizard.step2.grantHelp')}
             />
           </div>
         </div>
@@ -538,7 +535,7 @@ export function KeyStep({
       )}
 
       <p className="text-xs text-gray-400">
-        Référence enregistrée dans l’instance :{' '}
+        {t('providerWizard.step2.refSaved')}{' '}
         <code data-testid="wizard-credential-ref" className="font-mono text-gray-200">
           {credentialRef}
         </code>
@@ -546,7 +543,7 @@ export function KeyStep({
           <>
             {' · '}
             <Link to={VAULT_PATH} className="text-indigo-400 underline hover:text-indigo-300">
-              Ouvrir le coffre
+              {t('providerWizard.step2.openVault')}
             </Link>
           </>
         )}
@@ -558,13 +555,6 @@ export function KeyStep({
 // ---------------------------------------------------------------------------
 // Step 3 — connection: the chain of sub-steps and the test verdict
 // ---------------------------------------------------------------------------
-
-const TASK_STATE_LABELS: Readonly<Record<TaskState, string>> = {
-  todo: 'En attente',
-  running: 'En cours…',
-  done: 'Fait',
-  error: 'Échec',
-}
 
 function TaskIcon({ state }: { state: TaskState }) {
   if (state === 'done') return <Check className="h-4 w-4 text-emerald-400" aria-hidden="true" />
@@ -581,21 +571,22 @@ export function TaskList({
   tasks: Record<TaskKey, TaskState>
   plan: readonly TaskKey[]
 }) {
+  const { t } = useT()
   return (
-    <ol className={`${surface} divide-y divide-white/[0.05]`} aria-label="Ce que fait l’assistant">
-      {plan.map((t) => (
+    <ol className={`${surface} divide-y divide-white/[0.05]`} aria-label={t('providerWizard.chain.tasksAria')}>
+      {plan.map((task) => (
         <li
-          key={t}
-          data-testid={`wizard-task-${t}`}
-          data-state={tasks[t]}
+          key={task}
+          data-testid={`wizard-task-${task}`}
+          data-state={tasks[task]}
           className="flex items-center gap-3 px-3 py-2.5"
         >
-          <TaskIcon state={tasks[t]} />
-          <span className="min-w-0 flex-1 text-sm text-gray-200">{TASK_LABELS[t]}</span>
+          <TaskIcon state={tasks[task]} />
+          <span className="min-w-0 flex-1 text-sm text-gray-200">{t(TASK_LABEL_KEYS[task])}</span>
           <span
-            className={`text-xs ${tasks[t] === 'error' ? 'text-red-400' : tasks[t] === 'done' ? 'text-emerald-400' : 'text-gray-500'}`}
+            className={`text-xs ${tasks[task] === 'error' ? 'text-red-400' : tasks[task] === 'done' ? 'text-emerald-400' : 'text-gray-500'}`}
           >
-            {TASK_STATE_LABELS[tasks[t]]}
+            {t(`providerWizard.taskState.${tasks[task]}`)}
           </span>
         </li>
       ))}
@@ -614,29 +605,30 @@ export interface VerdictView {
 }
 
 export function Verdict({ verdict, testedModel }: { verdict: VerdictView; testedModel: string }) {
+  const { t } = useT()
   return (
     <div role="status" data-testid="wizard-test-result" className={`${surface} space-y-3 p-3`}>
       <div className="flex items-center gap-2">
-        <ToneText tone={verdict.ok ? 'success' : 'danger'} icon label={verdict.ok ? 'Connexion OK' : 'Échec du test'} className="text-xs" />
+        <ToneText tone={verdict.ok ? 'success' : 'danger'} icon label={verdict.ok ? t('providerWizard.verdictView.ok') : t('providerWizard.verdictView.failed')} className="text-xs" />
         <span className="text-sm text-gray-200">
-          {verdict.ok ? 'La connexion fonctionne.' : 'La connexion ne fonctionne pas encore.'}
+          {verdict.ok ? t('providerWizard.verdictView.works') : t('providerWizard.verdictView.notYet')}
         </span>
       </div>
       <Facts
         columns={2}
         items={[
           {
-            label: 'Modèle testé',
+            label: t('providerWizard.verdictView.modelTested'),
             value: testedModel ? (
               <span className="font-mono">{testedModel}</span>
             ) : (
-              'aucun indiqué (le serveur sonde le premier de sa liste)'
+              t('providerWizard.verdictView.noneGiven')
             ),
           },
-          { label: 'Joignable', value: verdict.reachable },
-          { label: 'Modèles', value: verdict.models },
-          { label: 'Appel d’outil', value: verdict.tools },
-          { label: 'Fenêtre', value: verdict.context },
+          { label: t('providerWizard.verdictView.reachable'), value: verdict.reachable },
+          { label: t('providerWizard.verdictView.models'), value: verdict.models },
+          { label: t('providerWizard.verdictView.toolCall'), value: verdict.tools },
+          { label: t('providerWizard.verdictView.window'), value: verdict.context },
         ]}
       />
       {verdict.problem && (
@@ -646,7 +638,7 @@ export function Verdict({ verdict, testedModel }: { verdict: VerdictView; tested
       )}
       {verdict.loginHint && (
         <p className="text-xs text-gray-400">
-          Commande à lancer sur le serveur :{' '}
+          {t('providerWizard.verdictView.loginCommand')}{' '}
           <code className="font-mono text-gray-200">{verdict.loginHint}</code>
         </p>
       )}
@@ -689,6 +681,7 @@ export function ModelPicker({
   onTest: () => void
   onUseAsDefault: () => void
 }) {
+  const { t } = useT()
   // Offered for the model that just PASSED, when the saved default is another one.
   const offerDefault =
     lastOk && !!testedModel && savedDefault !== null && savedDefault !== testedModel
@@ -696,27 +689,26 @@ export function ModelPicker({
     <div data-testid="wizard-model-picker" className={`${surface} space-y-3 p-3`}>
       {proposedMissing && (
         <p data-testid="wizard-model-missing" className="text-sm text-amber-200">
-          Le modèle proposé par défaut ({proposedMissing}) n’est pas proposé par ce serveur. Le
-          premier modèle listé est présélectionné ci-dessous.
+          {t('providerWizard.picker.missing', { model: proposedMissing })}
         </p>
       )}
       {models.length > 8 ? (
         <ModelField
           id={`${uid}-model-to-test`}
-          label="Modèle à tester"
+          label={t('providerWizard.picker.toTest')}
           value={selected}
           onChange={onSelect}
           models={models.map((id) => ({ id }))}
           disabled={running}
           help={
             testedModel
-              ? `Modèle testé : ${testedModel} (${lastOk ? 'réussi' : 'échec'}).`
+              ? t('providerWizard.picker.testedHelp', { model: testedModel, result: lastOk ? t('providerWizard.picker.resultOk') : t('providerWizard.picker.resultFail') })
               : undefined
           }
         />
       ) : (
         <fieldset>
-          <legend className="mb-2 text-sm font-medium text-gray-300">Modèle à tester</legend>
+          <legend className="mb-2 text-sm font-medium text-gray-300">{t('providerWizard.picker.toTest')}</legend>
           <div className="grid gap-2 sm:grid-cols-2">
             {models.map((m) => (
               <ChoiceRow
@@ -730,32 +722,30 @@ export function ModelPicker({
                 description={
                   m === testedModel
                     ? lastOk
-                      ? 'Testé : réussi'
-                      : 'Testé : échec'
-                    : 'Pas encore testé'
+                      ? t('providerWizard.picker.testedOk')
+                      : t('providerWizard.picker.testedFail')
+                    : t('providerWizard.picker.notTested')
                 }
               />
             ))}
           </div>
           <p className="mt-1 text-xs text-gray-500">
-            L’appel d’outil dépend du modèle : un modèle qui échoue n’empêche pas un autre du même
-            serveur de réussir.
+            {t('providerWizard.picker.toolDepends')}
           </p>
         </fieldset>
       )}
       <p data-testid="wizard-saved-default" className="text-xs text-gray-400">
-        Modèle enregistré par défaut pour cette instance :{' '}
+        {t('providerWizard.picker.savedDefault')}{' '}
         {savedDefault ? (
           <code className="font-mono text-gray-200">{savedDefault}</code>
         ) : (
-          'aucun (le serveur choisit le premier de sa liste)'
+          t('providerWizard.picker.noSaved')
         )}
         .
       </p>
       {offerDefault && (
         <p data-testid="wizard-default-offer" className="text-sm text-emerald-300">
-          {testedModel} a réussi le test, mais l’instance enregistre{' '}
-          {savedDefault ? savedDefault : 'aucun modèle'} par défaut.
+          {t('providerWizard.picker.offer', { tested: testedModel, saved: savedDefault ? savedDefault : t('providerWizard.picker.noModel') })}
         </p>
       )}
       {defaultError && (
@@ -772,7 +762,7 @@ export function ModelPicker({
             loading={defaultBusy}
             disabled={running}
           >
-            Utiliser ce modèle par défaut
+            {t('providerWizard.picker.useAsDefault')}
           </Button>
         )}
         <Button
@@ -782,7 +772,7 @@ export function ModelPicker({
           loading={running}
           disabled={!selected}
         >
-          Tester ce modèle
+          {t('providerWizard.picker.testThis')}
         </Button>
       </div>
     </div>
@@ -810,24 +800,25 @@ export function ProjectStep({
   onProject: (slug: string) => void
   allowButton: ReactNode
 }) {
+  const { t } = useT()
   const project = projects?.find((p) => p.slug === projectSlug)
   return (
     <div className="space-y-6">
       <StepIntro
-        title="4. Autoriser un projet"
-        what="Choisissez un projet qui pourra envoyer son contenu (prompts, fichiers, résultats d’outils) à ce provider."
-        why="Sans autorisation, un projet n’envoie rien ici. L’autorisation est liée à l’origine affichée et à la référence de clé : si l’une change, elle cesse de valoir. Cette étape est facultative."
+        title={t('providerWizard.projectStep.title')}
+        what={t('providerWizard.projectStep.what')}
+        why={t('providerWizard.projectStep.why')}
       />
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="min-w-0">
           <Select
-            label="Projet"
+            label={t('providerWizard.projectStep.project')}
             placeholder={
               projects === null
-                ? 'Chargement…'
+                ? t('providerWizard.projectStep.loading')
                 : projects.length === 0
-                  ? 'Aucun projet'
-                  : 'Choisir un projet…'
+                  ? t('providerWizard.projectStep.noProject')
+                  : t('providerWizard.projectStep.choose')
             }
             options={(projects ?? []).map((p) => ({ value: p.slug, label: p.name }))}
             value={projectSlug}
@@ -836,24 +827,25 @@ export function ProjectStep({
           />
           <FieldNote
             id="wizard-project"
-            help="Une conversation sans projet ne peut utiliser que Claude Code."
+            help={t('providerWizard.projectStep.noProjectHelp')}
           />
         </div>
         <div className="min-w-0">
-          <span className="mb-1 block text-sm font-medium text-gray-300">Origine</span>
+          <span className="mb-1 block text-sm font-medium text-gray-300">{t('providerWizard.projectStep.origin')}</span>
           <p
             data-testid="wizard-origin"
             className={`${surface} break-all px-3 py-2 font-mono text-sm text-gray-200`}
           >
-            {origin ?? 'inconnue'}
+            {origin ?? t('providerWizard.projectStep.unknown')}
           </p>
-          <FieldNote id="wizard-origin-note" help="L’endroit exact où le contenu partira." />
+          <FieldNote id="wizard-origin-note" help={t('providerWizard.projectStep.exactPlace')} />
         </div>
       </div>
       {projectSlug && origin && !consented && (
         <div className={`${surface} flex flex-wrap items-center justify-between gap-3 p-3`}>
           <p className="min-w-0 flex-1 text-sm text-gray-300">
-            Le contenu du projet <strong>{project?.name ?? projectSlug}</strong> sera envoyé à{' '}
+            {t('providerWizard.projectStep.sentLead')} <strong>{project?.name ?? projectSlug}</strong>{' '}
+            {t('providerWizard.projectStep.sentMid')}{' '}
             <code className="font-mono">{origin}</code>.
           </p>
           {allowButton}
@@ -861,8 +853,7 @@ export function ProjectStep({
       )}
       {consented && (
         <p role="status" data-testid="wizard-consented" className="text-sm text-emerald-400">
-          Projet {projects?.find((p) => p.slug === consented.slug)?.name ?? consented.slug} autorisé
-          pour {consented.origin}.
+          {t('providerWizard.projectStep.consented', { name: projects?.find((p) => p.slug === consented.slug)?.name ?? consented.slug, origin: consented.origin })}
         </p>
       )}
       {consentError && (

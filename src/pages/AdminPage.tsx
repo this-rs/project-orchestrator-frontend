@@ -28,6 +28,7 @@ import {
   Switch,
   ConfirmDialog,
 } from '@/components/ui'
+import { useT } from '@/i18n'
 import { ActionRow, Notice, SettingRow, SettingsList } from '@/components/settings/SettingRow'
 import { adminApi, workspacesApi } from '@/services'
 import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
@@ -40,6 +41,7 @@ import { NOMENCLATURE } from '@/constants/nomenclature'
 // ============================================================================
 
 export function AdminPage() {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
 
   // Projects for scoping the Knowledge Fabric actions
@@ -65,7 +67,7 @@ export function AdminPage() {
       <PageHeader
         title={NOMENCLATURE.admin.plural}
         intro="admin"
-        description="Server maintenance: code sync, search index, embeddings, graph analyses and cleanup. Each action says what it does and what it costs; destructive ones ask for confirmation."
+        description={t('admin.description')}
       />
 
       <SyncWatchersSection />
@@ -92,6 +94,7 @@ interface WsProjects {
 }
 
 function SyncWatchersSection() {
+  const { t } = useT()
   const [watchStatus, setWatchStatus] = useState<WatchStatus | null>(null)
   const [wsProjectGroups, setWsProjectGroups] = useState<WsProjects[]>([])
   const [syncPath, setSyncPath] = useState('')
@@ -153,18 +156,18 @@ function SyncWatchersSection() {
       if (currentlyWatched) {
         if (projectId) {
           await adminApi.stopWatch(projectId)
-          toast.success(`Watcher stopped for ${projectName}`)
+          toast.success(t('admin.sync.stoppedFor', { name: projectName ?? path }))
         } else {
           await adminApi.stopWatch()
-          toast.success('Watcher stopped')
+          toast.success(t('admin.sync.stopped'))
         }
       } else {
         await adminApi.startWatch({ path, project_id: projectId })
-        toast.success(`Watcher started for ${projectName ?? path}`)
+        toast.success(t('admin.sync.startedFor', { name: projectName ?? path }))
       }
       fetchWatchStatus()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to toggle watcher')
+      toast.error(err instanceof Error ? err.message : t('admin.sync.toggleFailed'))
     } finally {
       setTogglingPaths((prev) => {
         const next = new Set(prev)
@@ -182,10 +185,10 @@ function SyncWatchersSection() {
     setSyncing(true)
     try {
       const res = await adminApi.syncDirectory({ path: syncPath.trim() })
-      toast.success(`Synced ${res.files_synced} files (${res.files_skipped} skipped, ${res.files_deleted} deleted)`)
+      toast.success(t('admin.sync.synced', { synced: res.files_synced, skipped: res.files_skipped, deleted: res.files_deleted }))
       setSyncPath('')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Sync failed')
+      toast.error(err instanceof Error ? err.message : t('admin.sync.syncFailed'))
     } finally {
       setSyncing(false)
     }
@@ -195,23 +198,23 @@ function SyncWatchersSection() {
     if (!syncPath.trim()) return
     try {
       await adminApi.startWatch({ path: syncPath.trim() })
-      toast.success(`Watcher started for ${syncPath.trim()}`)
+      toast.success(t('admin.sync.startedFor', { name: syncPath.trim() }))
       setSyncPath('')
       fetchWatchStatus()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to start watcher')
+      toast.error(err instanceof Error ? err.message : t('admin.sync.startFailed'))
     }
   }
 
   const handleStopAll = () => {
     confirmDialog.open({
-      title: 'Stop all watchers',
-      description: 'No project will be resynced automatically any more. You can start them again at any time.',
+      title: t('admin.sync.stopAllTitle'),
+      description: t('admin.sync.stopAllDescription'),
       variant: 'warning',
-      confirmLabel: 'Stop all',
+      confirmLabel: t('admin.sync.stopAll'),
       onConfirm: async () => {
         await adminApi.stopWatch()
-        toast.success('All watchers stopped')
+        toast.success(t('admin.sync.allStopped'))
         fetchWatchStatus()
       },
     })
@@ -221,13 +224,13 @@ function SyncWatchersSection() {
 
   return (
     <Section
-      title="Sync & watchers"
-      description="A watcher follows a project's files and updates the code graph on every change."
+      title={t('admin.sync.title')}
+      description={t('admin.sync.description')}
       action={
         watchStatus?.running && activeCount > 0 ? (
           <Button size="sm" variant="danger" onClick={handleStopAll}>
             <Square className="w-3.5 h-3.5" aria-hidden="true" />
-            Stop all
+            {t('admin.sync.stopAll')}
           </Button>
         ) : undefined
       }
@@ -238,7 +241,7 @@ function SyncWatchersSection() {
             <StatusText
               status={watchStatus.running ? 'running' : 'idle'}
               kind="run"
-              label={watchStatus.running ? `Watching ${activeCount} path${activeCount === 1 ? '' : 's'}` : 'No watcher running'}
+              label={watchStatus.running ? (activeCount === 1 ? t('admin.sync.watchingOne') : t('admin.sync.watchingMany', { n: activeCount })) : t('admin.sync.noWatcher')}
             />
           </p>
         )}
@@ -263,7 +266,7 @@ function SyncWatchersSection() {
                           checked={watched}
                           disabled={togglingPaths.has(project.root_path)}
                           onChange={() => handleToggleWatchPath(project.root_path, project.id, project.name, watched)}
-                          ariaLabel={`Watch ${project.name}`}
+                          ariaLabel={t('admin.sync.watchAria', { name: project.name })}
                         />
                       }
                     />
@@ -272,7 +275,7 @@ function SyncWatchersSection() {
               </ListGroup>
             ))}
             {unlinkedPaths.length > 0 && (
-              <ListGroup title="Unlinked paths" count={unlinkedPaths.length}>
+              <ListGroup title={t('admin.sync.unlinked')} count={unlinkedPaths.length}>
                 {unlinkedPaths.map((path) => (
                   <SettingRow
                     key={path}
@@ -281,13 +284,13 @@ function SyncWatchersSection() {
                         {path}
                       </code>
                     }
-                    description="Watched folder that matches no known project."
+                    description={t('admin.sync.unlinkedDescription')}
                     control={
                       <Switch
                         checked
                         disabled={togglingPaths.has(path)}
                         onChange={() => handleToggleWatchPath(path, undefined, undefined, true)}
-                        ariaLabel={`Watch ${path}`}
+                        ariaLabel={t('admin.sync.watchAria', { name: path })}
                       />
                     }
                   />
@@ -299,14 +302,14 @@ function SyncWatchersSection() {
 
         <SettingsList>
           <SettingRow
-            label="Sync or watch a directory"
-            description="Sync: a one-off analysis of all the code in the folder (Tree-sitter, seconds to minutes). Watch: then resyncs automatically on every change."
+            label={t('admin.sync.syncOrWatch')}
+            description={t('admin.sync.syncOrWatchDescription')}
           >
             <div className="flex flex-wrap gap-2">
               <div className="flex-[1_1_12rem] min-w-0">
                 <Input
-                  placeholder="/absolute/path/to/project"
-                  aria-label="Directory path"
+                  placeholder={t('admin.sync.pathPlaceholder')}
+                  aria-label={t('admin.sync.pathAria')}
                   value={syncPath}
                   onChange={(e) => setSyncPath(e.target.value)}
                   className="h-9 py-1.5"
@@ -314,11 +317,11 @@ function SyncWatchersSection() {
               </div>
               <Button variant="secondary" size="sm" onClick={handleSync} loading={syncing} disabled={!syncPath.trim()}>
                 {!syncing && <FolderSync className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />}
-                Sync
+                {t('admin.sync.sync')}
               </Button>
               <Button variant="secondary" size="sm" onClick={handleStartWatch} disabled={!syncPath.trim()}>
                 <Eye className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-                Watch
+                {t('admin.sync.watch')}
               </Button>
             </div>
           </SettingRow>
@@ -334,6 +337,7 @@ function SyncWatchersSection() {
 // ============================================================================
 
 function SearchEngineSection() {
+  const { t } = useT()
   const [stats, setStats] = useState<MeilisearchStats | null>(null)
 
   useEffect(() => {
@@ -345,8 +349,8 @@ function SearchEngineSection() {
 
   return (
     <Section
-      title="Search engine"
-      description="Full-text index (Meilisearch) used by code search."
+      title={t('admin.search.title')}
+      description={t('admin.search.description')}
       collapsible
       defaultOpen={false}
     >
@@ -354,23 +358,23 @@ function SearchEngineSection() {
         <Facts
           items={[
             {
-              label: 'Documents',
+              label: t('admin.search.documents'),
               value: stats ? (
                 <span>
                   <span className="tabular-nums">{stats.code_documents.toLocaleString()}</span>
-                  <span className="text-gray-500"> files indexed</span>
+                  <span className="text-gray-500"> {t('admin.search.filesIndexed')}</span>
                 </span>
               ) : (
                 '—'
               ),
             },
             {
-              label: 'Status',
+              label: t('admin.search.status'),
               value: stats ? (
                 <StatusText
                   kind="run"
                   status={stats.is_indexing ? 'running' : 'completed'}
-                  label={stats.is_indexing ? 'Indexing — results incomplete' : 'Ready'}
+                  label={stats.is_indexing ? t('admin.search.indexing') : t('admin.search.ready')}
                   pulse={stats.is_indexing}
                 />
               ) : (
@@ -381,19 +385,19 @@ function SearchEngineSection() {
         />
         <SettingsList>
           <ActionRow
-            label="Clean orphan documents"
-            description="Removes from the index the documents whose file no longer exists in the graph."
-            cost="A few seconds · safe"
+            label={t('admin.search.cleanLabel')}
+            description={t('admin.search.cleanDescription')}
+            cost={t('admin.search.cleanCost')}
             icon={<Trash2 />}
-            buttonLabel="Clean"
+            buttonLabel={t('admin.search.clean')}
             confirm={{
-              title: 'Clean orphan documents',
-              description: 'Removes from Meilisearch the documents that no longer exist in Neo4j. Safe.',
+              title: t('admin.search.cleanLabel'),
+              description: t('admin.search.confirmDescription'),
               variant: 'info',
             }}
             onAction={async () => {
               const res = await adminApi.deleteMeilisearchOrphans()
-              return res.message || 'Orphans cleaned'
+              return res.message || t('admin.search.cleaned')
             }}
           />
         </SettingsList>
@@ -417,6 +421,7 @@ interface BackfillRowProps {
 
 /** Long-running backfill job: status, progress (polled every 3 s while running), start / cancel. */
 function BackfillRow({ label, description, cost, getStatus, onStart, onCancel }: BackfillRowProps) {
+  const { t } = useT()
   const [status, setStatus] = useState<BackfillJobStatus | null>(null)
   const [busy, setBusy] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -453,14 +458,14 @@ function BackfillRow({ label, description, cost, getStatus, onStart, onCancel }:
     try {
       if (isRunning) {
         await onCancel()
-        toast.success(`${label} cancelled`)
+        toast.success(t('admin.embeddings.cancelled', { label }))
       } else {
         await onStart()
-        toast.success(`${label} started`)
+        toast.success(t('admin.embeddings.started', { label }))
       }
       await fetchStatus()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : isRunning ? 'Failed to cancel' : 'Failed to start')
+      toast.error(err instanceof Error ? err.message : isRunning ? t('admin.embeddings.cancelFailed') : t('admin.embeddings.startFailed'))
     } finally {
       setBusy(false)
     }
@@ -477,7 +482,7 @@ function BackfillRow({ label, description, cost, getStatus, onStart, onCancel }:
           key="s"
           kind="run"
           status={state === 'idle' ? 'pending' : state}
-          label={state === 'idle' ? 'Idle' : undefined}
+          label={state === 'idle' ? t('admin.embeddings.idle') : undefined}
           pulse={isRunning}
         />,
         isRunning && progress ? (
@@ -485,7 +490,7 @@ function BackfillRow({ label, description, cost, getStatus, onStart, onCancel }:
             {progress.current} / {progress.total} · {progress.percentage.toFixed(1)}%
           </span>
         ) : null,
-        !isRunning && status?.finished_at ? <RelativeTime key="f" date={status.finished_at} prefix="finished " /> : null,
+        !isRunning && status?.finished_at ? <RelativeTime key="f" date={status.finished_at} prefix={`${t('admin.embeddings.finished')} `} /> : null,
         cost,
       ]}
       control={
@@ -494,10 +499,10 @@ function BackfillRow({ label, description, cost, getStatus, onStart, onCancel }:
           size="sm"
           onClick={handle}
           loading={busy}
-          aria-label={`${isRunning ? 'Cancel' : 'Start'} — ${label}`}
+          aria-label={`${isRunning ? t('admin.embeddings.cancel') : t('admin.embeddings.start')} — ${label}`}
         >
           {!busy && (isRunning ? <Square className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" /> : <Play className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />)}
-          {isRunning ? 'Cancel' : 'Start'}
+          {isRunning ? t('admin.embeddings.cancel') : t('admin.embeddings.start')}
         </Button>
       }
     >
@@ -507,7 +512,7 @@ function BackfillRow({ label, description, cost, getStatus, onStart, onCancel }:
             <div
               className="h-1 w-full rounded-full bg-white/[0.06] overflow-hidden"
               role="progressbar"
-              aria-label={`${label} progress`}
+              aria-label={t('admin.embeddings.progress', { label })}
               aria-valuenow={Math.round(progress.percentage)}
               aria-valuemin={0}
               aria-valuemax={100}
@@ -524,48 +529,49 @@ function BackfillRow({ label, description, cost, getStatus, onStart, onCancel }:
 }
 
 function EmbeddingsSection() {
+  const { t } = useT()
   return (
     <Section
-      title="Embeddings & backfills"
-      description="Computes the vectors behind semantic search and rebuilds missing links."
+      title={t('admin.embeddings.title')}
+      description={t('admin.embeddings.description')}
       collapsible
       defaultOpen={false}
     >
       <SettingsList>
         <BackfillRow
-          label="Note embeddings"
-          description="Embeds the notes that have no vector yet — required for semantic search."
-          cost="Background job · minutes depending on volume"
+          label={t('admin.embeddings.noteLabel')}
+          description={t('admin.embeddings.noteDescription')}
+          cost={t('admin.embeddings.backgroundCost')}
           getStatus={adminApi.getBackfillEmbeddingsStatus}
           onStart={() => adminApi.startBackfillEmbeddings()}
           onCancel={() => adminApi.cancelBackfillEmbeddings()}
         />
         <BackfillRow
-          label="Synapse backfill"
-          description="Links close notes with synapses (embedding similarity) so knowledge can propagate."
-          cost="Background job · minutes depending on volume"
+          label={t('admin.embeddings.synapseLabel')}
+          description={t('admin.embeddings.synapseDescription')}
+          cost={t('admin.embeddings.backgroundCost')}
           getStatus={adminApi.getBackfillSynapsesStatus}
           onStart={() => adminApi.startBackfillSynapses()}
           onCancel={() => adminApi.cancelBackfillSynapses()}
         />
         <ActionRow
-          label="Decision embeddings"
-          description="Embeds architectural decisions so semantic search can find them."
-          cost="A few seconds · safe"
+          label={t('admin.embeddings.decisionLabel')}
+          description={t('admin.embeddings.decisionDescription')}
+          cost={t('admin.embeddings.safeCost')}
           icon={<Zap />}
           onAction={async () => {
             const res = await adminApi.backfillDecisionEmbeddings()
-            return `Processed ${res.decisions_processed} decisions, created ${res.embeddings_created} embeddings`
+            return t('admin.embeddings.decisionResult', { decisions: res.decisions_processed, embeddings: res.embeddings_created })
           }}
         />
         <ActionRow
-          label="Backfill discussed"
-          description="Links files and functions to the past conversations where they were analysed."
-          cost="Seconds to minutes · safe"
+          label={t('admin.embeddings.discussedLabel')}
+          description={t('admin.embeddings.discussedDescription')}
+          cost={t('admin.embeddings.discussedCost')}
           icon={<Zap />}
           onAction={async () => {
             const res = await adminApi.backfillDiscussed()
-            return `Processed ${res.sessions_processed} sessions, found ${res.entities_found} entities, created ${res.relations_created} relations`
+            return t('admin.embeddings.discussedResult', { sessions: res.sessions_processed, entities: res.entities_found, relations: res.relations_created })
           }}
         />
       </SettingsList>
@@ -584,29 +590,25 @@ interface KnowledgeFabricSectionProps {
   onProjectChange: (id: string) => void
 }
 
-const levelOptions = [
-  { value: 'hourly', label: 'Hourly' },
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'full', label: 'Full' },
-]
+const LEVELS = ['hourly', 'daily', 'weekly', 'full'] as const
 
 function KnowledgeFabricSection({ projects, projectId, projectSlug, onProjectChange }: KnowledgeFabricSectionProps) {
+  const { t } = useT()
   const [maintenanceLevel, setMaintenanceLevel] = useState<MaintenanceLevel>('daily')
   const projectRequired = !projectId
 
   return (
     <Section
-      title="Knowledge Fabric"
-      description="Knowledge graph analyses (communities, centrality, risks) and synapse upkeep."
+      title={t('admin.fabric.title')}
+      description={t('admin.fabric.description')}
       collapsible
       defaultOpen={false}
     >
       <div className="space-y-3">
         <SettingsList>
           <SettingRow
-            label="Project"
-            description="The pipeline and skills actions apply to this project only."
+            label={t('admin.fabric.project')}
+            description={t('admin.fabric.projectDescription')}
             control={
               projects.length > 0 ? (
                 <Select
@@ -616,105 +618,106 @@ function KnowledgeFabricSection({ projects, projectId, projectSlug, onProjectCha
                   className="w-44"
                 />
               ) : (
-                <span className="text-xs text-gray-500">No project</span>
+                <span className="text-xs text-gray-500">{t('admin.fabric.noProject')}</span>
               )
             }
           />
         </SettingsList>
-        {projectRequired && <Notice tone="warning">Add a project to the workspace to enable the project-scoped actions.</Notice>}
+        {projectRequired && <Notice tone="warning">{t('admin.fabric.addProject')}</Notice>}
 
-        <ListGroup title="Pipeline">
+        <ListGroup title={t('admin.fabric.pipeline')}>
           <ActionRow
-            label="Bootstrap Knowledge Fabric"
-            description="Builds the whole pipeline: git links, embeddings, graph scores, churn, density and risks."
-            cost="Several minutes · non-destructive"
+            label={t('admin.fabric.bootstrapLabel')}
+            description={t('admin.fabric.bootstrapDescription')}
+            cost={t('admin.fabric.bootstrapCost')}
             icon={<Sparkles />}
-            buttonLabel="Bootstrap"
+            buttonLabel={t('admin.fabric.bootstrapButton')}
             buttonVariant="primary"
             disabled={projectRequired}
             confirm={{
-              title: 'Bootstrap Knowledge Fabric',
-              description: 'Runs the full pipeline. Can take several minutes depending on the project size.',
+              title: t('admin.fabric.bootstrapLabel'),
+              description: t('admin.fabric.bootstrapConfirm'),
             }}
             onAction={async () => {
               const res = await adminApi.bootstrapKnowledgeFabric({ project_id: projectId })
               const ok = res.steps_completed.length
               const fail = res.steps_failed.length
-              return `${ok} steps completed${fail > 0 ? `, ${fail} failed` : ''} in ${(res.total_time_ms / 1000).toFixed(1)}s`
+              const seconds = (res.total_time_ms / 1000).toFixed(1)
+              return fail > 0 ? t('admin.fabric.bootstrapResultFailed', { ok, fail, seconds }) : t('admin.fabric.bootstrapResult', { ok, seconds })
             }}
           />
           <ActionRow
-            label="Update fabric scores"
-            description="Recomputes communities (Louvain), PageRank, centrality, churn, density and risks."
-            cost="A few seconds · safe"
+            label={t('admin.fabric.scoresLabel')}
+            description={t('admin.fabric.scoresDescription')}
+            cost={t('admin.embeddings.safeCost')}
             icon={<BarChart3 />}
-            buttonLabel="Update"
+            buttonLabel={t('admin.fabric.update')}
             disabled={projectRequired}
             confirm={{
-              title: 'Update fabric scores',
-              description: 'Recomputes every graph analysis score. Safe, usually a few seconds.',
+              title: t('admin.fabric.scoresLabel'),
+              description: t('admin.fabric.scoresConfirm'),
             }}
             onAction={async () => {
               const res = await adminApi.updateFabricScores({ project_id: projectId })
-              return `Updated ${res.nodes_updated} nodes, ${res.communities} communities in ${(res.computation_ms / 1000).toFixed(1)}s`
+              return t('admin.fabric.scoresResult', { nodes: res.nodes_updated, communities: res.communities, seconds: (res.computation_ms / 1000).toFixed(1) })
             }}
           />
           <ActionRow
-            label="Backfill touches"
-            description="Walks the whole git history to link each commit to the files it changed."
-            cost="Depends on repository size · non-destructive"
+            label={t('admin.fabric.touchesLabel')}
+            description={t('admin.fabric.touchesDescription')}
+            cost={t('admin.fabric.touchesCost')}
             icon={<GitCommitHorizontal />}
-            buttonLabel="Start"
+            buttonLabel={t('admin.embeddings.start')}
             disabled={projectRequired || !projectSlug}
             confirm={{
-              title: 'Backfill TOUCHES',
-              description: 'Walks the full git history to rebuild the Commit → File links. Duration depends on the repository size.',
+              title: t('admin.fabric.touchesConfirmTitle'),
+              description: t('admin.fabric.touchesConfirm'),
             }}
             onAction={async () => {
               const res = await adminApi.backfillTouches(projectSlug)
-              return `Parsed ${res.commits_parsed} commits, backfilled ${res.commits_backfilled}, created ${res.touches_created} touches`
+              return t('admin.fabric.touchesResult', { parsed: res.commits_parsed, backfilled: res.commits_backfilled, created: res.touches_created })
             }}
           />
         </ListGroup>
 
-        <ListGroup title="Skills & hooks">
+        <ListGroup title={t('admin.fabric.skillsGroup')}>
           <ActionRow
-            label="Detect skills"
-            description="Spots the areas of expertise emerging from clusters of connected notes."
-            cost="A few seconds · safe"
+            label={t('admin.fabric.detectLabel')}
+            description={t('admin.fabric.detectDescription')}
+            cost={t('admin.embeddings.safeCost')}
             icon={<Brain />}
             disabled={projectRequired}
             onAction={async () => {
               const res = await adminApi.detectSkills(projectId)
-              return `Detected ${res.skills_detected} skills (${res.skills_created} new, ${res.skills_updated} updated)`
+              return t('admin.fabric.detectResult', { detected: res.skills_detected, created: res.skills_created, updated: res.skills_updated })
             }}
           />
           <ActionRow
-            label="Install git hooks"
-            description="Adds a post-commit hook that links each new commit to its files in real time."
-            cost="Instant · existing hooks kept"
+            label={t('admin.fabric.hooksLabel')}
+            description={t('admin.fabric.hooksDescription')}
+            cost={t('admin.fabric.hooksCost')}
             icon={<Wrench />}
-            buttonLabel="Install"
+            buttonLabel={t('admin.fabric.install')}
             disabled={projectRequired}
             confirm={{
-              title: 'Install git hooks',
-              description: 'Adds a post-commit hook in the project’s .git/hooks. Existing hooks are kept.',
+              title: t('admin.fabric.hooksLabel'),
+              description: t('admin.fabric.hooksConfirm'),
             }}
             onAction={async () => {
               await adminApi.installHooks({ project_id: projectId })
-              return 'Git hooks installed'
+              return t('admin.fabric.hooksInstalled')
             }}
           />
           <ActionRow
-            label="Skill maintenance"
-            description="Weakens rarely used synapses, removes dead links and detects new skills. Hourly = light, Full = complete recompute."
-            cost="Seconds (Hourly) to minutes (Full)"
+            label={t('admin.fabric.maintenanceLabel')}
+            description={t('admin.fabric.maintenanceDescription')}
+            cost={t('admin.fabric.maintenanceCost')}
             icon={<Activity />}
-            buttonLabel="Run"
+            buttonLabel={t('admin.fabric.run')}
             disabled={projectRequired}
             extra={
               <Select
-                options={levelOptions}
+                options={LEVELS.map((l) => ({ value: l, label: t(`admin.levels.${l}`) }))}
                 value={maintenanceLevel}
                 onChange={(v) => setMaintenanceLevel(v as MaintenanceLevel)}
                 className="w-28"
@@ -722,46 +725,46 @@ function KnowledgeFabricSection({ projects, projectId, projectSlug, onProjectCha
             }
             onAction={async () => {
               const res = await adminApi.skillMaintenance({ project_id: projectId, level: maintenanceLevel })
-              return `${res.level} maintenance: ${res.synapses_decayed} decayed, ${res.synapses_pruned} pruned, ${res.skills_detected} skills in ${(res.elapsed_ms / 1000).toFixed(1)}s`
+              return t('admin.fabric.maintenanceResult', { level: (LEVELS as readonly string[]).includes(res.level) ? t(`admin.levels.${res.level as (typeof LEVELS)[number]}`) : res.level, decayed: res.synapses_decayed, pruned: res.synapses_pruned, skills: res.skills_detected, seconds: (res.elapsed_ms / 1000).toFixed(1) })
             }}
           />
         </ListGroup>
 
         {/* These three are global (no project parameter): never disabled. */}
-        <ListGroup title="Neural maintenance · all projects">
+        <ListGroup title={t('admin.fabric.neuralGroup')}>
           <ActionRow
-            label="Update staleness scores"
-            description="Recomputes note freshness from their last update; stale notes come back up for review."
-            cost="A few seconds · safe"
+            label={t('admin.fabric.stalenessLabel')}
+            description={t('admin.fabric.stalenessDescription')}
+            cost={t('admin.embeddings.safeCost')}
             icon={<RefreshCw />}
             onAction={async () => {
               const res = await adminApi.updateStaleness()
-              return `Updated staleness for ${res.notes_updated} notes`
+              return t('admin.fabric.stalenessResult', { n: res.notes_updated })
             }}
           />
           <ActionRow
-            label="Update energy scores"
-            description="Lets note energy decay over time unless the notes are reused."
-            cost="A few seconds · safe"
+            label={t('admin.fabric.energyLabel')}
+            description={t('admin.fabric.energyDescription')}
+            cost={t('admin.embeddings.safeCost')}
             icon={<Zap />}
             onAction={async () => {
               const res = await adminApi.updateEnergy()
-              return `Updated energy for ${res.notes_updated} notes (half-life: ${res.half_life_days}d)`
+              return t('admin.fabric.energyResult', { n: res.notes_updated, days: res.half_life_days })
             }}
           />
           <ActionRow
-            label="Decay synapses"
-            description="Lowers every synapse weight by 0.01 and removes those under 0.1 — routine upkeep."
-            cost="A few seconds · removes weak links"
+            label={t('admin.fabric.decayLabel')}
+            description={t('admin.fabric.decayDescription')}
+            cost={t('admin.fabric.decayCost')}
             icon={<Activity />}
-            buttonLabel="Run decay"
+            buttonLabel={t('admin.fabric.decayButton')}
             confirm={{
-              title: 'Decay synapses',
-              description: 'Lowers every weight by 0.01 and removes the synapses under 0.1. Routine upkeep.',
+              title: t('admin.fabric.decayLabel'),
+              description: t('admin.fabric.decayConfirm'),
             }}
             onAction={async () => {
               const res = await adminApi.decayNeurons()
-              return `Decayed ${res.synapses_decayed} synapses, pruned ${res.synapses_pruned}`
+              return t('admin.fabric.decayResult', { decayed: res.synapses_decayed, pruned: res.synapses_pruned })
             }}
           />
         </ListGroup>
@@ -775,81 +778,82 @@ function KnowledgeFabricSection({ projects, projectId, projectSlug, onProjectCha
 // ============================================================================
 
 function CleanupSection() {
+  const { t } = useT()
   return (
     <Section
-      title="Cleanup"
-      description="Removes wrong or obsolete data from the graph. Irreversible: each action asks for confirmation."
+      title={t('admin.cleanup.title')}
+      description={t('admin.cleanup.description')}
       collapsible
       defaultOpen={false}
     >
       <SettingsList>
         <ActionRow
-          label="Cross-project calls"
-          description="Removes calls between functions of different projects — usually misresolved homonyms."
-          cost="Irreversible · seconds"
+          label={t('admin.cleanup.crossLabel')}
+          description={t('admin.cleanup.crossDescription')}
+          cost={t('admin.cleanup.irreversibleCost')}
           icon={<Trash2 />}
-          buttonLabel="Clean"
+          buttonLabel={t('admin.cleanup.clean')}
           buttonVariant="danger"
           confirm={{
-            title: 'Cleanup cross-project calls',
-            description: 'Removes the CALLS relations between different projects (false positives from homonyms). This cannot be undone.',
+            title: t('admin.cleanup.crossConfirmTitle'),
+            description: t('admin.cleanup.crossConfirm'),
             variant: 'danger',
-            confirmLabel: 'Clean',
+            confirmLabel: t('admin.cleanup.clean'),
           }}
           onAction={async () => {
             const res = await adminApi.cleanupCrossProjectCalls()
-            return `Deleted ${res.deleted_count} cross-project calls`
+            return t('admin.cleanup.crossResult', { n: res.deleted_count })
           }}
         />
         <ActionRow
-          label="Builtin calls"
-          description="Removes calls to the standard library that were misresolved during code analysis."
-          cost="Irreversible · seconds"
+          label={t('admin.cleanup.builtinLabel')}
+          description={t('admin.cleanup.builtinDescription')}
+          cost={t('admin.cleanup.irreversibleCost')}
           icon={<Trash2 />}
-          buttonLabel="Clean"
+          buttonLabel={t('admin.cleanup.clean')}
           buttonVariant="danger"
           confirm={{
-            title: 'Cleanup builtin calls',
-            description: 'Removes the CALLS relations to misresolved standard/builtin functions. This cannot be undone.',
+            title: t('admin.cleanup.builtinConfirmTitle'),
+            description: t('admin.cleanup.builtinConfirm'),
             variant: 'danger',
-            confirmLabel: 'Clean',
+            confirmLabel: t('admin.cleanup.clean'),
           }}
           onAction={async () => {
             const res = await adminApi.cleanupBuiltinCalls()
-            return `Deleted ${res.deleted_count} builtin calls`
+            return t('admin.cleanup.builtinResult', { n: res.deleted_count })
           }}
         />
         <ActionRow
-          label="Migrate call confidence"
-          description="Moves calls to the new confidence computation, without deleting anything."
-          cost="Seconds · non-destructive"
+          label={t('admin.cleanup.migrateLabel')}
+          description={t('admin.cleanup.migrateDescription')}
+          cost={t('admin.cleanup.migrateCost')}
           icon={<RefreshCw />}
-          buttonLabel="Migrate"
+          buttonLabel={t('admin.cleanup.migrate')}
           confirm={{
-            title: 'Migrate calls confidence',
-            description: 'Updates the CALLS relations to the new confidence score. Non-destructive.',
+            title: t('admin.cleanup.migrateConfirmTitle'),
+            description: t('admin.cleanup.migrateConfirm'),
           }}
           onAction={async () => {
             const res = await adminApi.migrateCallsConfidence()
-            return `Migrated ${res.updated_count} call relationships`
+            return t('admin.cleanup.migrateResult', { n: res.updated_count })
           }}
         />
         <ActionRow
-          label="Cleanup sync data"
-          description="Removes file-tracking metadata that no longer matches any file."
-          cost="Irreversible · seconds"
+          label={t('admin.cleanup.syncLabel')}
+          description={t('admin.cleanup.syncDescription')}
+          cost={t('admin.cleanup.irreversibleCost')}
           icon={<Trash2 />}
-          buttonLabel="Clean"
+          buttonLabel={t('admin.cleanup.clean')}
           buttonVariant="danger"
           confirm={{
-            title: 'Cleanup sync data',
-            description: 'Removes orphaned sync metadata from the graph. This cannot be undone.',
+            title: t('admin.cleanup.syncConfirmTitle'),
+            description: t('admin.cleanup.syncConfirm'),
             variant: 'danger',
-            confirmLabel: 'Clean',
+            confirmLabel: t('admin.cleanup.clean'),
           }}
           onAction={async () => {
             const res = await adminApi.cleanupSyncData()
-            return res.message || `Deleted ${res.deleted_count} sync entries`
+            return res.message || t('admin.cleanup.syncResult', { n: res.deleted_count })
           }}
         />
       </SettingsList>

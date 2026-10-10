@@ -94,7 +94,7 @@ describe('VaultPage', () => {
     expect(screen.getByText(/→ project po/)).toBeTruthy()
     expect(screen.getByText(/Open until/)).toBeTruthy()
     // The only value-bearing field is the empty "add a secret" input.
-    const valueField = screen.getByLabelText('Valeur du secret') as HTMLTextAreaElement
+    const valueField = screen.getByLabelText('Secret value') as HTMLTextAreaElement
     expect(valueField.dataset.masked).toBe('true')
     expect(valueField.value).toBe('')
   })
@@ -104,7 +104,7 @@ describe('VaultPage', () => {
     overview.mockResolvedValue(OPEN)
     mount()
     expect(await screen.findByText(/enter the passphrase to make changes/)).toBeTruthy()
-    expect(screen.queryByLabelText('Valeur du secret')).toBeNull()
+    expect(screen.queryByLabelText('Secret value')).toBeNull()
     expect((screen.getByRole('button', { name: 'Grant' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
@@ -149,14 +149,14 @@ describe('VaultPage', () => {
       grants: [{ ...OPEN.grants[0], id: 'g2', scope: { kind: 'provider', value: 'deepseek' } }],
     })
     mount()
-    expect(await screen.findByText(/→ Instance de provider : deepseek/)).toBeTruthy()
+    expect(await screen.findByText(/→ Provider instance: deepseek/)).toBeTruthy()
   })
 
   describe('secrets', () => {
     const KEY = '-----BEGIN OPENSSH PRIVATE KEY-----\nTOPSECRETLINE1\nTOPSECRETLINE2\n-----END OPENSSH PRIVATE KEY-----\n'
     const fill = (name: string, value: string) => {
-      fireEvent.change(screen.getByLabelText('Nom du secret'), { target: { value: name } })
-      fireEvent.change(screen.getByLabelText('Valeur du secret'), { target: { value } })
+      fireEvent.change(screen.getByLabelText('Secret name'), { target: { value: name } })
+      fireEvent.change(screen.getByLabelText('Secret value'), { target: { value } })
     }
     const consoleSpies = () =>
       (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}))
@@ -164,28 +164,28 @@ describe('VaultPage', () => {
     it('is masked by default, toggles, and gives the SSH hint', async () => {
       overview.mockResolvedValue(OPEN)
       mount()
-      const field = (await screen.findByLabelText('Valeur du secret')) as HTMLTextAreaElement
+      const field = (await screen.findByLabelText('Secret value')) as HTMLTextAreaElement
       expect(field.tagName).toBe('TEXTAREA')
       expect(field.dataset.masked).toBe('true')
       expect(field.className).toContain('text-security')
       expect(field.getAttribute('autocomplete')).toBe('off')
       expect(field.getAttribute('spellcheck')).toBe('false')
-      fireEvent.click(screen.getByRole('button', { name: 'Afficher' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Show' }))
       expect(field.dataset.masked).toBe('false')
-      fireEvent.click(screen.getByRole('button', { name: 'Masquer' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Hide' }))
       expect(field.dataset.masked).toBe('true')
-      expect(screen.getByText(/clé dédiée, sans phrase/)).toBeTruthy()
+      expect(screen.getByText(/dedicated key without a passphrase/)).toBeTruthy()
     })
 
     it('sends exactly {name, value} (multi-line kept) and clears the field', async () => {
       overview.mockResolvedValue(OPEN)
       mount()
-      await screen.findByLabelText('Nom du secret')
+      await screen.findByLabelText('Secret name')
       fill('ssh-vps', KEY)
-      fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
       await waitFor(() => expect(putSecret).toHaveBeenCalledTimes(1))
       expect(putSecret).toHaveBeenCalledWith('ssh-vps', KEY, undefined)
-      await waitFor(() => expect((screen.getByLabelText('Valeur du secret') as HTMLTextAreaElement).value).toBe(''))
+      await waitFor(() => expect((screen.getByLabelText('Secret value') as HTMLTextAreaElement).value).toBe(''))
       expect(document.body.innerHTML).not.toContain('TOPSECRETLINE')
     })
 
@@ -194,12 +194,12 @@ describe('VaultPage', () => {
       putSecret.mockRejectedValue(new ApiError(409, `vault is locked (${KEY})`))
       overview.mockResolvedValue(OPEN)
       mount()
-      await screen.findByLabelText('Nom du secret')
+      await screen.findByLabelText('Secret name')
       fill('ssh-vps', KEY)
-      fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }))
-      const alert = await screen.findByText(/Le coffre est verrouillé/)
-      expect(alert.textContent).toContain('déverrouillez-le')
-      expect((screen.getByLabelText('Valeur du secret') as HTMLTextAreaElement).value).toBe('')
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      const alert = await screen.findByText(/The vault is locked/)
+      expect(alert.textContent).toContain('unlock it')
+      expect((screen.getByLabelText('Secret value') as HTMLTextAreaElement).value).toBe('')
       expect(document.body.innerHTML).not.toContain('TOPSECRETLINE')
       for (const spy of spies) expect(JSON.stringify(spy.mock.calls)).not.toContain('TOPSECRET')
       spies.forEach((x) => x.mockRestore())
@@ -208,33 +208,33 @@ describe('VaultPage', () => {
     it('rejects names the backend would reject', async () => {
       overview.mockResolvedValue(OPEN)
       mount()
-      await screen.findByLabelText('Nom du secret')
+      await screen.findByLabelText('Secret name')
       fill('bad name/x', KEY)
-      expect(screen.getByText(/Nom invalide/)).toBeTruthy()
-      expect((screen.getByRole('button', { name: 'Enregistrer' }) as HTMLButtonElement).disabled).toBe(true)
+      expect(screen.getByText(/Invalid name/)).toBeTruthy()
+      expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true)
     })
 
     it('asks before overwriting an existing name', async () => {
       overview.mockResolvedValue(OPEN)
       mount()
-      await screen.findByLabelText('Nom du secret')
+      await screen.findByLabelText('Secret name')
       fill('acme-api-token', KEY)
-      fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
       expect(putSecret).not.toHaveBeenCalled()
-      expect(screen.getByText(/existe déjà/)).toBeTruthy()
-      fireEvent.click(screen.getByRole('button', { name: 'Annuler' }))
+      expect(screen.getByText(/already exists/)).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
       expect(putSecret).not.toHaveBeenCalled()
-      fireEvent.click(screen.getByRole('button', { name: 'Enregistrer' }))
-      fireEvent.click(screen.getByRole('button', { name: 'Remplacer' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Replace' }))
       await waitFor(() => expect(putSecret).toHaveBeenCalledWith('acme-api-token', KEY, undefined))
     })
 
     it('deletes only after a second explicit click', async () => {
       overview.mockResolvedValue(OPEN)
       mount()
-      fireEvent.click(await screen.findByRole('button', { name: 'Supprimer le secret acme-api-token' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete the secret acme-api-token' }))
       expect(deleteSecret).not.toHaveBeenCalled()
-      fireEvent.click(screen.getByRole('button', { name: 'Confirmer la suppression' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm deletion' }))
       await waitFor(() => expect(deleteSecret).toHaveBeenCalledWith('acme-api-token'))
     })
 
@@ -243,7 +243,7 @@ describe('VaultPage', () => {
       mount()
       fireEvent.click(await screen.findByRole('button', { name: 'Revoke' }))
       expect(revokeGrant).not.toHaveBeenCalled()
-      fireEvent.click(screen.getByRole('button', { name: 'Confirmer la révocation' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm revocation' }))
       await waitFor(() => expect(revokeGrant).toHaveBeenCalledWith('g1'))
     })
 
@@ -253,7 +253,7 @@ describe('VaultPage', () => {
         secrets: [{ ...OPEN.secrets[0], value: 'LEAKED-VALUE', size: 12 } as never],
       })
       mount()
-      await screen.findByText(/créé .* modifié/)
+      await screen.findByText(/created .* modified/)
       expect(document.body.innerHTML).not.toContain('LEAKED-VALUE')
     })
 
@@ -265,7 +265,7 @@ describe('VaultPage', () => {
         ],
       })
       mount()
-      expect(await screen.findByText('Demandes en attente')).toBeTruthy()
+      expect(await screen.findByText('Pending requests')).toBeTruthy()
       expect(screen.getByText('deploy-key')).toBeTruthy()
     })
   })

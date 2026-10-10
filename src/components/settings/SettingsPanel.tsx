@@ -9,7 +9,7 @@
  * ├──────────────────────────────────────────────────────────┤
  * │ body (grid of fields: labels above, constant width)     │
  * ├──────────────────────────────────────────────────────────┤
- * │ status message                  [Annuler] [Enregistrer] │  ONE footer, actions on the right
+ * │ status message                    [Cancel] [Save]       │  ONE footer, actions on the right
  * └──────────────────────────────────────────────────────────┘
  * ```
  */
@@ -17,6 +17,7 @@ import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight, Loader2 } from 'lucide-react'
 import { ToneText, focusRing, surface } from '@/components/ui'
+import { useT } from '@/i18n'
 import { FIELD_LABEL, NativeSelect } from './FormField'
 import type { ProjectOption } from './useProjectOptions'
 
@@ -108,7 +109,7 @@ export function Panel({
   )
 }
 
-/** "Chargement…" line. */
+/** "Loading…" line. */
 export function Loading({ children }: { children: ReactNode }) {
   return (
     <p role="status" className="flex items-center gap-2 text-sm text-gray-400">
@@ -127,21 +128,22 @@ export function ErrorLine({ children }: { children: ReactNode }) {
   )
 }
 
-/** "Enregistré." / error, for the left of a footer. */
+/** "Saved." / error, for the left of a footer. */
 export function SaveStatus({
   error,
   done,
-  doneText = 'Enregistré.',
+  doneText,
 }: {
   error: string | null
   done: boolean
   doneText?: string
 }) {
+  const { t } = useT()
   if (error) return <ErrorLine>{error}</ErrorLine>
   if (done)
     return (
       <span role="status">
-        <ToneText tone="success" label={doneText} />
+        <ToneText tone="success" label={doneText ?? t('settingsShared.panel.saved')} />
       </span>
     )
   return null
@@ -157,7 +159,7 @@ export function ProjectPicker({
   value,
   onChange,
   allLabel,
-  label = 'Projet',
+  label,
 }: {
   id: string
   projects: ProjectOption[] | null
@@ -166,11 +168,12 @@ export function ProjectPicker({
   allLabel?: string
   label?: string
 }) {
+  const { t } = useT()
   const empty = projects !== null && projects.length === 0
   return (
     <div>
       <label htmlFor={id} className={FIELD_LABEL}>
-        {label}
+        {label ?? t('settingsShared.panel.project')}
       </label>
       <NativeSelect
         id={id}
@@ -184,10 +187,10 @@ export function ProjectPicker({
         ) : (
           <option value="">
             {projects === null
-              ? 'Chargement des projets…'
+              ? t('settingsShared.panel.loadingProjects')
               : empty
-                ? 'Aucun projet'
-                : 'Choisir un projet…'}
+                ? t('settingsShared.panel.noProject')
+                : t('settingsShared.panel.chooseProject')}
           </option>
         )}
         {(projects ?? []).map((p) => (
@@ -198,12 +201,12 @@ export function ProjectPicker({
       </NativeSelect>
       {empty && (
         <p id={`${id}-empty`} className="mt-1 text-xs text-gray-500">
-          Aucun projet.{' '}
+          {t('settingsShared.panel.noProject')}.{' '}
           <Link
             to="/workspace-selector"
             className="text-indigo-400 underline hover:text-indigo-300"
           >
-            Créer un projet dans un espace de travail
+            {t('settingsShared.panel.noProjectLink')}
           </Link>
         </p>
       )}

@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui'
+import { useT } from '@/i18n'
 
 interface ConfirmPanelProps {
   title: string
@@ -21,11 +22,12 @@ export function ConfirmPanel({
   title,
   children,
   confirmLabel,
-  cancelLabel = 'Annuler',
+  cancelLabel,
   tone = 'info',
   onConfirm,
   onCancel,
 }: ConfirmPanelProps) {
+  const { t } = useT()
   const titleId = useId()
   const [busy, setBusy] = useState(false)
   const run = async () => {
@@ -52,7 +54,7 @@ export function ConfirmPanel({
       {children && <div className="text-xs leading-5 opacity-90">{children}</div>}
       <div className="flex flex-wrap justify-end gap-2">
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
-          {cancelLabel}
+          {cancelLabel ?? t('settingsShared.cancel')}
         </Button>
         <Button
           size="sm"

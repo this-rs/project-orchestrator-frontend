@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { useT } from '@/i18n'
 import { useProviders } from '@/hooks/useProviders'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, KeyRound, Lock, LockOpen, Trash2 } from 'lucide-react'
@@ -42,10 +43,13 @@ const input =
 const select = `${input} text-gray-300`
 
 /** The vault is a screen, not a concept of the registry: its three lines live here (DESIGN.md § 5). */
-const VAULT_EXPLAIN: ConceptExplain = {
-  what: 'The vault keeps the passwords and keys your assistants need, encrypted with a passphrase only you know.',
-  why: 'An assistant uses a secret for a limited scope and time without ever reading it, and you are asked only when it matters.',
-  different: 'Today a secret is pasted into a chat or a config file and stays there. Here it is typed once, never shown again, and access can be taken back.',
+function useVaultExplain(): ConceptExplain {
+  const { t } = useT()
+  return {
+    what: t('vault.explain.what'),
+    why: t('vault.explain.why'),
+    different: t('vault.explain.different'),
+  }
 }
 
 function formatUntil(iso: string): string {
@@ -56,26 +60,38 @@ function formatUntil(iso: string): string {
     : d.toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-function describeScope(scope: GrantScope): string {
+type T = ReturnType<typeof useT>['t']
+
+function describeScope(t: T, scope: GrantScope): string {
   switch (scope.kind) {
     case 'anywhere':
-      return 'every agent'
+      return t('vault.grants.scopeAnywhere')
     case 'project':
-      return `project ${scope.value}`
+      return t('vault.grants.describeProject', { value: scope.value })
     case 'session':
-      return `conversation ${scope.value.slice(0, 8)}`
+      return t('vault.grants.describeSession', { id: scope.value.slice(0, 8) })
     case 'provider':
-      return `Instance de provider : ${scope.value} (lecture côté serveur, jamais un agent)`
+      return t('vault.grants.describeProvider', { value: scope.value })
   }
 }
 
-function describeSecrets(s: SecretSelector): string {
-  return s.kind === 'all' ? 'all secrets' : s.names.join(', ')
+function describeSecrets(t: T, s: SecretSelector): string {
+  return s.kind === 'all' ? t('vault.grants.allSecrets') : s.names.join(', ')
+}
+
+/** "15 min", "4 h", "7 days": the service gives the minutes, the words come from the catalog. */
+function durationLabel(t: T, minutes: number): string {
+  if (minutes < 60) return t('vault.duration.minutes', { n: minutes })
+  if (minutes < 1440) return t('vault.duration.hours', { n: minutes / 60 })
+  const n = minutes / 1440
+  return t(n === 1 ? 'vault.duration.dayOne' : 'vault.duration.dayMany', { n })
 }
 
 /** Stand-alone page (`/vault`, linked from chat cards): page chrome + panel. */
 export function VaultPage() {
   const navigate = useNavigate()
+  const { t } = useT()
+  const explain = useVaultExplain()
   return (
     <div className="h-dvh overflow-y-auto bg-[var(--bg-primary)]">
       <div className="px-4 md:px-6">
@@ -83,13 +99,10 @@ export function VaultPage() {
           <div className="space-y-1">
             <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="-ml-3 text-gray-400">
               <ArrowLeft className="w-4 h-4 mr-1.5" aria-hidden="true" />
-              Back
+              {t('settingsPage.back')}
             </Button>
-            <PageHeader
-              title="Vault"
-              description="Secrets assistants can use without ever seeing them. Values are encrypted with your passphrase and are never displayed again."
-            />
-            <ConceptIntro concept={VAULT_EXPLAIN} storageKey="vault" />
+            <PageHeader title={t('vault.title')} description={t('vault.description')} />
+            <ConceptIntro concept={explain} storageKey="vault" />
           </div>
           <VaultPanel />
         </PageContainer>
@@ -103,6 +116,7 @@ export function VaultPage() {
  * (where users look for it) and in the stand-alone `/vault` page.
  */
 export function VaultPanel() {
+  const { t: tr } = useT()
   const [overview, setOverview] = useState<VaultOverview | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -142,7 +156,7 @@ export function VaultPanel() {
           )}
           {overview?.unavailable && (
             <p className="text-sm text-red-400" role="alert">
-              The vault file cannot be read: {overview.unavailable}. Nothing can be stored or read until it is repaired.
+              {tr('vault.unavailable', { reason: overview.unavailable })}
             </p>
           )}
 
@@ -162,6 +176,7 @@ export function VaultPanel() {
 
 /** Exported for the provider wizard, which creates the vault in place. */
 export function CreateVault({ onDone }: { onDone: () => void }) {
+  const { t } = useT()
   const [pass, setPass] = useState('')
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
@@ -170,8 +185,8 @@ export function CreateVault({ onDone }: { onDone: () => void }) {
 
   return (
     <Section
-      title="Create the vault"
-      description="Choose a passphrase of at least 12 characters. It is never stored: if you lose it, the secrets cannot be recovered."
+      title={t('vault.create.title')}
+      description={t('vault.create.description')}
     >
       <form
         className={`${surface} space-y-3 p-4`}
@@ -195,28 +210,28 @@ export function CreateVault({ onDone }: { onDone: () => void }) {
           type="password"
           autoComplete="new-password"
           className={`${input} w-full`}
-          placeholder="Passphrase"
+          placeholder={t('vault.create.passphrase')}
           value={pass}
           onChange={(e) => setPass(e.target.value)}
-          aria-label="Passphrase"
+          aria-label={t('vault.create.passphrase')}
         />
         <input
           type="password"
           autoComplete="new-password"
           className={`${input} w-full`}
-          placeholder="Confirm passphrase"
+          placeholder={t('vault.create.confirm')}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          aria-label="Confirm passphrase"
+          aria-label={t('vault.create.confirm')}
         />
-        {mismatch && <p className="text-xs text-red-400">The two passphrases differ.</p>}
+        {mismatch && <p className="text-xs text-red-400">{t('vault.create.mismatch')}</p>}
         {error && (
           <p className="text-xs text-red-400" role="alert">
             {error}
           </p>
         )}
         <Button type="submit" disabled={busy || pass.length < 12 || pass !== confirm}>
-          Create vault
+          {t('vault.create.submit')}
         </Button>
       </form>
     </Section>
@@ -225,6 +240,7 @@ export function CreateVault({ onDone }: { onDone: () => void }) {
 
 /** Exported for the provider wizard, which unlocks the vault in place (same flow, same proof). */
 export function LockPanel({ overview, onChange }: { overview: VaultOverview; onChange: () => void }) {
+  const { t } = useT()
   const [pass, setPass] = useState('')
   const [minutes, setMinutes] = useState(60)
   const [busy, setBusy] = useState(false)
@@ -236,7 +252,7 @@ export function LockPanel({ overview, onChange }: { overview: VaultOverview; onC
       <div className={`${surface} flex flex-wrap items-center gap-3 p-4`}>
         <LockOpen className="h-5 w-5 text-emerald-400" aria-hidden />
         <p className="flex-1 text-sm text-gray-300">
-          Open until <strong>{formatUntil(until)}</strong> — granted assistants can use their secrets without asking you.
+          {t('vault.lock.openUntil')} <strong>{formatUntil(until)}</strong> {t('vault.lock.openUntilTail')}
         </p>
         <Button
           variant="secondary"
@@ -246,7 +262,7 @@ export function LockPanel({ overview, onChange }: { overview: VaultOverview; onC
             onChange()
           }}
         >
-          <Lock className="mr-1.5 h-4 w-4" aria-hidden /> Lock now
+          <Lock className="mr-1.5 h-4 w-4" aria-hidden /> {t('vault.lock.lockNow')}
         </Button>
       </div>
     )
@@ -272,26 +288,26 @@ export function LockPanel({ overview, onChange }: { overview: VaultOverview; onC
     >
       <Lock className="h-5 w-5 text-gray-500" aria-hidden />
       <span className="text-sm text-gray-300">
-        {until ? `Open until ${formatUntil(until)} — enter the passphrase to make changes` : 'Locked'}
+        {until ? t('vault.lock.changeNeedsPassphrase', { time: formatUntil(until) }) : t('vault.lock.locked')}
       </span>
       <input
         type="password"
         autoComplete="current-password"
         className={`${input} flex-1`}
-        placeholder="Passphrase"
+        placeholder={t('vault.create.passphrase')}
         value={pass}
         onChange={(e) => setPass(e.target.value)}
-        aria-label="Vault passphrase"
+        aria-label={t('vault.lock.passphraseAria')}
       />
-      <select className={select} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} aria-label="Unlock duration">
+      <select className={select} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} aria-label={t('vault.lock.durationAria')}>
         {DURATION_CHOICES.map((d) => (
           <option key={d.minutes} value={d.minutes}>
-            for {d.label}
+            {t('vault.duration.for', { label: durationLabel(t, d.minutes) })}
           </option>
         ))}
       </select>
       <Button type="submit" size="sm" disabled={busy || !pass}>
-        {until ? 'Confirm' : 'Unlock'}
+        {until ? t('vault.lock.confirm') : t('vault.lock.unlock')}
       </Button>
       {error && (
         <p className="w-full text-xs text-red-400" role="alert">
@@ -305,10 +321,8 @@ export function LockPanel({ overview, onChange }: { overview: VaultOverview; onC
 /** Same rules as the backend (`validate_name`): 1-64 chars of [A-Za-z0-9_.-]. */
 export const SECRET_NAME_RE = /^[A-Za-z0-9_.-]{1,64}$/
 
-function secretError(e: unknown): string {
-  return isVaultLockedError(e)
-    ? 'Le coffre est verrouillé ou la confirmation a expiré : déverrouillez-le avec votre phrase secrète ci-dessus, puis réessayez.'
-    : vaultErrorMessage(e)
+function secretError(t: T, e: unknown): string {
+  return isVaultLockedError(e) ? t('vault.secrets.lockedError') : vaultErrorMessage(e)
 }
 
 function SecretsPanel({
@@ -320,6 +334,7 @@ function SecretsPanel({
   unlocked: boolean
   onChange: () => void
 }) {
+  const { t } = useT()
   const [name, setName] = useState('')
   const [value, setValue] = useState('')
   const [description, setDescription] = useState('')
@@ -345,20 +360,20 @@ function SecretsPanel({
       setDescription('')
       onChange()
     } catch (err) {
-      setError(secretError(err))
+      setError(secretError(t, err))
     }
   }
 
   return (
     <Section
-      title="Secrets"
+      title={t('vault.secrets.title')}
       count={overview.secrets.length}
       description={
-        unlocked ? 'Noms uniquement : les valeurs ne sont jamais affichées.' : 'Déverrouillez le coffre pour ajouter ou remplacer un secret.'
+        unlocked ? t('vault.secrets.descriptionUnlocked') : t('vault.secrets.descriptionLocked')
       }
     >
       <div className={`${surface} divide-y divide-white/[0.06]`}>
-        {overview.secrets.length === 0 && <p className="p-4 text-sm text-gray-500">Aucun secret pour l&apos;instant.</p>}
+        {overview.secrets.length === 0 && <p className="p-4 text-sm text-gray-500">{t('vault.secrets.none')}</p>}
         {overview.secrets.map((s) => (
           <div key={s.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
             <KeyRound className="h-4 w-4 text-gray-500" aria-hidden />
@@ -367,7 +382,7 @@ function SecretsPanel({
               {s.description && <p className="text-xs text-gray-500 break-words">{s.description}</p>}
             </div>
             <span className="text-[11px] leading-4 text-gray-500 tabular-nums">
-              créé {formatUntil(s.created_at)} · modifié {formatUntil(s.updated_at)}
+              {t('vault.secrets.createdModified', { created: formatUntil(s.created_at), updated: formatUntil(s.updated_at) })}
             </span>
             {confirmDelete === s.name ? (
               <span className="flex items-center gap-1">
@@ -381,14 +396,14 @@ function SecretsPanel({
                       onChange()
                     } catch (e) {
                       setConfirmDelete(null)
-                      setError(secretError(e))
+                      setError(secretError(t, e))
                     }
                   }}
                 >
-                  Confirmer la suppression
+                  {t('vault.secrets.confirmDelete')}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>
-                  Annuler
+                  {t('vault.secrets.cancel')}
                 </Button>
               </span>
             ) : (
@@ -396,7 +411,7 @@ function SecretsPanel({
                 type="button"
                 className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} -mr-2`}
                 onClick={() => setConfirmDelete(s.name)}
-                aria-label={`Supprimer le secret ${s.name}`}
+                aria-label={t('vault.secrets.deleteAria', { name: s.name })}
               >
                 <Trash2 className="h-4 w-4" aria-hidden />
               </button>
@@ -418,7 +433,7 @@ function SecretsPanel({
           >
             <input
               className={`${input} w-full font-mono sm:w-72`}
-              placeholder="nom (lettres, chiffres, _ - .)"
+              placeholder={t('vault.secrets.namePlaceholder')}
               value={name}
               autoComplete="off"
               autoCapitalize="off"
@@ -427,12 +442,12 @@ function SecretsPanel({
                 setName(e.target.value)
                 setConfirmOverwrite(false)
               }}
-              aria-label="Nom du secret"
+              aria-label={t('vault.secrets.nameLabel')}
               aria-invalid={nameInvalid}
             />
             {nameInvalid && (
               <p className="text-xs text-red-400">
-                Nom invalide : 1 à 64 caractères parmi lettres, chiffres, « _ », « - » et « . ».
+                {t('vault.secrets.nameInvalid')}
               </p>
             )}
             <textarea
@@ -443,41 +458,40 @@ function SecretsPanel({
               spellCheck={false}
               data-masked={reveal ? 'false' : 'true'}
               className={`${input} w-full font-mono ${reveal ? '' : '[-webkit-text-security:disc]'}`}
-              placeholder="valeur (peut tenir sur plusieurs lignes)"
+              placeholder={t('vault.secrets.valuePlaceholder')}
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              aria-label="Valeur du secret"
+              aria-label={t('vault.secrets.valueLabel')}
             />
             <Button type="button" variant="ghost" size="sm" flat className="-ml-3" onClick={() => setReveal((r) => !r)} aria-pressed={reveal}>
               {reveal ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
-              {reveal ? 'Masquer' : 'Afficher'}
+              {reveal ? t('vault.secrets.hide') : t('vault.secrets.show')}
             </Button>
             <p className="text-xs text-gray-500">
-              Pour une clé SSH : collez la clé privée complète (-----BEGIN … END-----). Utilisez une clé dédiée, sans phrase
-              secrète : la connexion distante est non interactive et n&apos;utilise pas d&apos;agent SSH.
+              {t('vault.secrets.sshHint')}
             </p>
             <input
               className={`${input} w-full`}
-              placeholder="À quoi il sert (facultatif, visible des agents)"
+              placeholder={t('vault.secrets.descPlaceholder')}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              aria-label="Description du secret"
+              aria-label={t('vault.secrets.descLabel')}
             />
             {confirmOverwrite ? (
               <div className="flex flex-wrap items-center gap-2" role="alert">
                 <span className="text-xs text-amber-300">
-                  Un secret nommé « {trimmed} » existe déjà : sa valeur sera remplacée.
+                  {t('vault.secrets.overwrite', { name: trimmed })}
                 </span>
                 <Button type="button" variant="danger" size="sm" onClick={() => void save()}>
-                  Remplacer
+                  {t('vault.secrets.replace')}
                 </Button>
                 <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmOverwrite(false)}>
-                  Annuler
+                  {t('vault.secrets.cancel')}
                 </Button>
               </div>
             ) : (
               <Button type="submit" size="sm" disabled={!trimmed || nameInvalid || value.length < 8}>
-                Enregistrer
+                {t('vault.secrets.save')}
               </Button>
             )}
           </form>
@@ -494,9 +508,10 @@ function SecretsPanel({
 
 /** Secrets agents are waiting for (all conversations): same card as in the chat, so one answering path. */
 function RequestsPanel({ overview, onChange }: { overview: VaultOverview; onChange: () => void }) {
+  const { t } = useT()
   if (overview.requests.length === 0) return null
   return (
-    <Section title="Demandes en attente" count={overview.requests.length} description="Secrets demandés par des agents.">
+    <Section title={t('vault.requests.title')} count={overview.requests.length} description={t('vault.requests.description')}>
       <div className="space-y-2">
         {overview.requests.map((r) => (
           <SecretRequestCard
@@ -522,6 +537,7 @@ function GrantsPanel({
   canChange: boolean
   onChange: () => void
 }) {
+  const { t } = useT()
   const [which, setWhich] = useState<string>('__all__')
   const [scopeKind, setScopeKind] = useState<'anywhere' | 'project' | 'provider'>('project')
   const [project, setProject] = useState('')
@@ -551,21 +567,21 @@ function GrantsPanel({
 
   return (
     <Section
-      title="Agent access"
+      title={t('vault.grants.title')}
       count={overview.grants.length}
-      description="Who may use what, until when. Grants also work while you are away — as long as the vault is unlocked."
+      description={t('vault.grants.description')}
     >
       <div className={`${surface} divide-y divide-white/[0.06]`}>
         {overview.grants.length === 0 && (
-          <p className="p-4 text-sm text-gray-500">No access granted. Assistants will ask you in the chat when they need a secret.</p>
+          <p className="p-4 text-sm text-gray-500">{t('vault.grants.none')}</p>
         )}
         {overview.grants.map((g: VaultGrant) => (
           <div key={g.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
             <div className="min-w-0 flex-[1_1_12rem] text-gray-300 break-words">
-              <span className="text-gray-100">{describeSecrets(g.secrets)}</span> → {describeScope(g.scope)}
+              <span className="text-gray-100">{describeSecrets(t, g.secrets)}</span> → {describeScope(t, g.scope)}
               {g.note && <p className="text-xs text-gray-500 break-words">{g.note}</p>}
             </div>
-            <span className="text-[11px] leading-4 text-gray-500 tabular-nums">until {formatUntil(g.expires_at)}</span>
+            <span className="text-[11px] leading-4 text-gray-500 tabular-nums">{t('vault.grants.until', { time: formatUntil(g.expires_at) })}</span>
             {confirmRevoke === g.id ? (
               <span className="flex items-center gap-1">
                 <Button
@@ -582,26 +598,26 @@ function GrantsPanel({
                     }
                   }}
                 >
-                  Confirmer la révocation
+                  {t('vault.grants.confirmRevoke')}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setConfirmRevoke(null)}>
-                  Annuler
+                  {t('vault.grants.cancel')}
                 </Button>
               </span>
             ) : (
               <Button variant="secondary" size="sm" flat onClick={() => setConfirmRevoke(g.id)}>
-                Revoke
+                {t('vault.grants.revoke')}
               </Button>
             )}
           </div>
         ))}
         <div className="flex flex-wrap items-center gap-2 p-4 text-sm text-gray-400">
-          <span>Allow</span>
-          <select className={select} value={which} onChange={(e) => setWhich(e.target.value)} aria-label="Secrets">
+          <span>{t('vault.grants.allow')}</span>
+          <select className={select} value={which} onChange={(e) => setWhich(e.target.value)} aria-label={t('vault.grants.secretsAria')}>
             {scopeKind === 'provider' ? (
-              <option value="">choose a secret…</option>
+              <option value="">{t('vault.grants.chooseSecret')}</option>
             ) : (
-              <option value="__all__">all secrets</option>
+              <option value="__all__">{t('vault.grants.allSecrets')}</option>
             )}
             {overview.secrets.map((s) => (
               <option key={s.name} value={s.name}>
@@ -609,7 +625,7 @@ function GrantsPanel({
               </option>
             ))}
           </select>
-          <span>to</span>
+          <span>{t('vault.grants.to')}</span>
           <select
             className={select}
             value={scopeKind}
@@ -619,16 +635,16 @@ function GrantsPanel({
               // A provider reads ONE named secret: "all secrets" cannot carry over to it.
               setWhich(kind === 'provider' ? '' : '__all__')
             }}
-            aria-label="Scope"
+            aria-label={t('vault.grants.scopeAria')}
           >
-            <option value="project">project…</option>
-            <option value="anywhere">every agent</option>
-            <option value="provider">provider…</option>
+            <option value="project">{t('vault.grants.scopeProject')}</option>
+            <option value="anywhere">{t('vault.grants.scopeAnywhere')}</option>
+            <option value="provider">{t('vault.grants.scopeProvider')}</option>
           </select>
           {scopeKind === 'provider' &&
             (instances.length > 0 ? (
-              <select className={select} value={instance} onChange={(e) => setInstance(e.target.value)} aria-label="Provider instance">
-                <option value="">choose an instance…</option>
+              <select className={select} value={instance} onChange={(e) => setInstance(e.target.value)} aria-label={t('vault.grants.instanceAria')}>
+                <option value="">{t('vault.grants.chooseInstance')}</option>
                 {instances.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.label || p.id}
@@ -638,42 +654,39 @@ function GrantsPanel({
             ) : (
               <input
                 className={`${input} w-40 font-mono`}
-                placeholder="instance-id"
+                placeholder={t('vault.grants.instancePlaceholder')}
                 value={instance}
                 onChange={(e) => setInstance(e.target.value)}
-                aria-label="Provider instance"
+                aria-label={t('vault.grants.instanceAria')}
               />
             ))}
           {scopeKind === 'project' && (
             <input
               className={`${input} w-40 font-mono`}
-              placeholder="project-slug"
+              placeholder={t('vault.grants.projectPlaceholder')}
               value={project}
               onChange={(e) => setProject(e.target.value)}
-              aria-label="Project slug"
+              aria-label={t('vault.grants.projectAria')}
             />
           )}
-          <select className={select} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} aria-label="Duration">
+          <select className={select} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} aria-label={t('vault.grants.durationAria')}>
             {GRANT_DURATION_CHOICES.map((d) => (
               <option key={d.minutes} value={d.minutes}>
-                for {d.label}
+                {t('vault.duration.for', { label: durationLabel(t, d.minutes) })}
               </option>
             ))}
           </select>
           <Button size="sm" onClick={create} disabled={!canChange || (scopeKind === 'project' && !project.trim()) || (scopeKind === 'provider' && (!instance.trim() || !which))}>
-            Grant
+            {t('vault.grants.grant')}
           </Button>
         </div>
       </div>
       {scopeKind === 'provider' && (
         <p className="mt-2 text-xs text-gray-500">
-          The server reads this one secret to sign in to the instance. Pick the secret named by the instance&apos;s credential
-          reference; it is never given to an agent.
+          {t('vault.grants.providerNote')}
           {(!instance.trim() || !which) && (
             <span data-testid="provider-grant-why" className="mt-1 block text-amber-300">
-              Grant is disabled until you choose {!instance.trim() ? 'the instance' : ''}
-              {!instance.trim() && !which ? ' and ' : ''}
-              {!which ? 'one secret' : ''}.
+              {t(!instance.trim() && !which ? 'vault.grants.disabledBoth' : !instance.trim() ? 'vault.grants.disabledInstance' : 'vault.grants.disabledSecret')}
             </span>
           )}
         </p>

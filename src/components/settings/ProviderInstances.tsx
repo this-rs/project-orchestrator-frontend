@@ -5,13 +5,14 @@ import { Button, Facts, ToneText, surface, type StatusTone } from '@/components/
 import { useProviders, useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
 import {
-  COST_LABELS_FR,
+  COST_LABEL_KEYS,
   credentialLabelFr,
   formatWhenFr,
   instanceStatus,
-  kindLabelFr,
+  kindLabel,
   wizardErrorMessage,
 } from '@/constants/providerWizard'
+import { useT } from '@/i18n'
 import { credentialLabel } from '@/constants/providerSettings'
 import {
   isClaudeCodeProvider,
@@ -40,7 +41,7 @@ function healthError(instance: ProviderInstance, health: ProviderHealth): Provid
 
 /**
  * One provider as a card: its state at a glance (badge), what it points at,
- * and the useful actions in one click — Tester, Modifier, Supprimer (with a
+ * and the useful actions in one click — Test, Edit, Delete (with a
  * confirmation). Actions sit on the right of a single footer.
  */
 function InstanceCard({
@@ -58,6 +59,8 @@ function InstanceCard({
   onCloseEdit: () => void
   onDelete: () => Promise<void>
 }) {
+  const tr = useT()
+  const { t } = tr
   const refresh = useRefreshProviders()
   const [fresh, setFresh] = useState<ProviderHealth | null>(null)
   const [checking, setChecking] = useState(false)
@@ -75,7 +78,7 @@ function InstanceCard({
       setFresh(await providersApi.status(instance.id))
       await refresh()
     } catch (err) {
-      setCheckError(wizardErrorMessage(err))
+      setCheckError(wizardErrorMessage(err, t))
     } finally {
       setChecking(false)
     }
@@ -93,7 +96,7 @@ function InstanceCard({
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold text-gray-100">{providerDisplayName(instance)}</h3>
           <p className="text-xs text-gray-500">
-            {kindLabelFr(instance.kind)}
+            {kindLabel(t, instance.kind)}
             {instance.id.toLowerCase() !== instance.label.toLowerCase() &&
               instance.id.replace(/-/g, ' ') !== instance.label.toLowerCase() && (
                 <>
@@ -102,11 +105,11 @@ function InstanceCard({
                 </>
               )}
             {health.checked_at && (
-              <span className="text-gray-600"> · vérifié {formatWhenFr(health.checked_at)}</span>
+              <span className="text-gray-600"> · {t('providerAdmin.instances.checked', { when: formatWhenFr(tr, health.checked_at) })}</span>
             )}
           </p>
         </div>
-        <ToneText tone={STATUS_TONE[status.variant]} icon label={status.label} className="text-xs" />
+        <ToneText tone={STATUS_TONE[status.variant]} icon label={t(status.label)} className="text-xs" />
       </div>
 
       {!editing && (
@@ -115,39 +118,39 @@ function InstanceCard({
           columns={2}
           items={[
             {
-              label: 'Point d’accès',
+              label: t('providerAdmin.instances.endpoint'),
               value: (
                 <span className="break-all">
-                  {instance.origin ?? (builtin ? 'programme local' : 'inconnu')}
+                  {instance.origin ?? (builtin ? t('providerAdmin.instances.localProgram') : t('providerAdmin.instances.unknown'))}
                 </span>
               ),
             },
             // Only the lines that say something: the list carries no default model, an unknown cost or version says nothing.
-            { label: 'Modèle', value: instance.default_model, hidden: !instance.default_model },
+            { label: t('providerAdmin.instances.model'), value: instance.default_model, hidden: !instance.default_model },
             {
-              label: 'Coût',
-              value: COST_LABELS_FR[instance.cost_source ?? 'unknown'],
+              label: t('providerAdmin.instances.cost'),
+              value: t(COST_LABEL_KEYS[instance.cost_source ?? 'unknown']),
               hidden: !instance.cost_source || instance.cost_source === 'unknown',
             },
             {
-              label: 'Clé',
+              label: t('providerAdmin.instances.key'),
               value: builtin ? (
-                'gérée par le programme'
+                t('providerAdmin.instances.keyManaged')
               ) : (
                 <span title={credentialLabel(instance.credential_ref)}>
-                  {credentialLabelFr(instance.credential_ref)}
+                  {credentialLabelFr(t, instance.credential_ref)}
                 </span>
               ),
             },
-            { label: 'Version', value: health.version, hidden: !health.version },
+            { label: t('providerAdmin.instances.version'), value: health.version, hidden: !health.version },
             {
-              label: 'Empreinte de la machine',
+              label: t('providerAdmin.instances.fingerprint'),
               value: <code className="break-all font-mono">{instance.host_key_fingerprint}</code>,
               hidden: !instance.host_key_fingerprint,
             },
             {
-              label: 'Rock’n roll',
-              value: instance.allow_trust ? 'autorisé sur cette machine' : 'non autorisé',
+              label: t('providerAdmin.instances.trustLabel'),
+              value: instance.allow_trust ? t('providerAdmin.instances.trustAllowed') : t('providerAdmin.instances.trustDenied'),
               hidden: instance.kind !== 'claude_code_remote',
             },
           ]}
@@ -160,7 +163,7 @@ function InstanceCard({
           data-testid={`instance-reason-${instance.id}`}
           className="mt-3 break-words rounded-lg border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-xs text-red-200"
         >
-          Injoignable : {health.error.message}
+          {t('providerAdmin.instances.unreachable', { message: health.error.message })}
         </p>
       )}
       {error && (
@@ -178,9 +181,9 @@ function InstanceCard({
 
       {confirmDelete && (
         <ConfirmPanel
-          title={`Supprimer ${instance.label} ?`}
-          confirmLabel={`Supprimer ${instance.label}`}
-          cancelLabel="Garder"
+          title={t('providerAdmin.instances.deleteTitle', { name: instance.label })}
+          confirmLabel={t('providerAdmin.instances.deleteConfirm', { name: instance.label })}
+          cancelLabel={t('providerAdmin.instances.keep')}
           tone="danger"
           onConfirm={async () => {
             await onDelete()
@@ -188,8 +191,7 @@ function InstanceCard({
           }}
           onCancel={() => setConfirmDelete(false)}
         >
-          Les conversations existantes sur {instance.label} ne pourront plus être reprises. La clé
-          reste dans le coffre.
+          {t('providerAdmin.instances.deleteBody', { name: instance.label })}
         </ConfirmPanel>
       )}
 
@@ -211,9 +213,9 @@ function InstanceCard({
             variant="secondary"
             onClick={recheck}
             loading={checking}
-            aria-label={`Tester ${instance.label}`}
+            aria-label={t('providerAdmin.instances.testAria', { name: instance.label })}
           >
-            Tester
+            {t('providerAdmin.ui.test')}
           </Button>
           {!builtin && (
             <>
@@ -221,17 +223,17 @@ function InstanceCard({
                 size="sm"
                 variant="secondary"
                 onClick={onEdit}
-                aria-label={`Modifier ${instance.label}`}
+                aria-label={t('providerAdmin.instances.editAria', { name: instance.label })}
               >
-                Modifier
+                {t('providerAdmin.ui.edit')}
               </Button>
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={() => setConfirmDelete(true)}
-                aria-label={`Supprimer ${instance.label}`}
+                aria-label={t('providerAdmin.instances.deleteAria', { name: instance.label })}
               >
-                Supprimer
+                {t('providerAdmin.ui.delete')}
               </Button>
             </>
           )}
@@ -247,19 +249,20 @@ function InstanceCard({
  * are, not only by a button above them. It opens the same wizard.
  */
 function AddProviderCard({ onAdd }: { onAdd: () => void }) {
+  const { t } = useT()
   return (
     <li
       className={`${surface} flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-dashed p-4`}
     >
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-gray-100">Un autre provider ?</p>
+        <p className="text-sm font-semibold text-gray-100">{t('providerAdmin.instances.another')}</p>
         <p className="text-xs text-gray-500">
-          Une clé d’API, un serveur local ou une autre machine : l’assistant vous guide.
+          {t('providerAdmin.instances.anotherHint')}
         </p>
       </div>
       <Button type="button" size="sm" variant="secondary" onClick={onAdd}>
         <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-        Connecter un provider
+        {t('providerAdmin.instances.connect')}
       </Button>
     </li>
   )
@@ -274,6 +277,7 @@ const STATUS_TONE: Readonly<Record<'success' | 'warning' | 'error' | 'default', 
 }
 
 export function ProviderInstances({ onAdd }: { onAdd?: () => void } = {}) {
+  const { t } = useT()
   const { providers, refresh } = useProviders()
   const [params] = useSearchParams()
   const focus = params.get('instance')
@@ -291,10 +295,10 @@ export function ProviderInstances({ onAdd }: { onAdd?: () => void } = {}) {
         await providersApi.remove(instance.id)
         await refresh()
       } catch (err) {
-        setError(wizardErrorMessage(err))
+        setError(wizardErrorMessage(err, t))
       }
     },
-    [refresh]
+    [refresh, t]
   )
 
   const thirdParty = providers.filter((p) => !(p.builtin || isClaudeCodeProvider(p.id, p.kind)))
@@ -303,11 +307,10 @@ export function ProviderInstances({ onAdd }: { onAdd?: () => void } = {}) {
     <div className="space-y-3">
       {thirdParty.length === 0 && (
         <p className="text-sm text-gray-500">
-          Aucun provider tiers pour l’instant : seul Claude Code est disponible. « Ajouter un
-          provider » vous guide.
+          {t('providerAdmin.instances.none')}
         </p>
       )}
-      <ul className="grid gap-3" aria-label="Providers">
+      <ul className="grid gap-3" aria-label={t('providerAdmin.instances.listAria')}>
         {providers.map((p) => (
           <InstanceCard
             key={p.id}

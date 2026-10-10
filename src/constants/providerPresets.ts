@@ -13,6 +13,7 @@
 //   is a vault reference, the host key is pinned by a human.
 // Every value is a suggestion the user can change.
 
+import type { MessageKey } from '@/i18n/catalog'
 import type { CostBasis, ProviderPreset } from '@/types/provider'
 
 export type CredentialKind = 'vault' | 'env' | 'none'
@@ -24,9 +25,12 @@ export interface ProviderPresetInfo {
   kind: PresetKind
   /** What is sent as `preset` (null: none). For `acp`, the declared agent's name. */
   preset: ProviderPreset | 'opencode' | null
+  /** Product name; a preset without one in the catalog (`labelKey`) shows it as is. */
   label: string
-  /** One plain-French line under the choice. */
-  description: string
+  /** Catalog key of the label when the name is words, not a product name. */
+  labelKey?: MessageKey
+  /** Catalog key of the one plain line under the choice. */
+  description: MessageKey
   /** Suggested instance id (backend rule: lowercase, digits, dashes). */
   id: string
   base_url: string
@@ -44,7 +48,7 @@ export const PROVIDER_PRESETS: readonly ProviderPresetInfo[] = [
     kind: 'openai_compatible',
     preset: 'deepseek',
     label: 'DeepSeek',
-    description: 'API hébergée de DeepSeek. Demande une clé d’API.',
+    description: 'providerWizard.presets.deepseek',
     id: 'deepseek',
     base_url: 'https://api.deepseek.com',
     default_model: 'deepseek-chat',
@@ -56,7 +60,7 @@ export const PROVIDER_PRESETS: readonly ProviderPresetInfo[] = [
     kind: 'openai_compatible',
     preset: 'nim',
     label: 'NVIDIA NIM',
-    description: 'API hébergée de NVIDIA. Demande une clé d’API.',
+    description: 'providerWizard.presets.nim',
     id: 'nim',
     base_url: 'https://integrate.api.nvidia.com/v1',
     default_model: '',
@@ -69,7 +73,7 @@ export const PROVIDER_PRESETS: readonly ProviderPresetInfo[] = [
     kind: 'openai_compatible',
     preset: 'ollama',
     label: 'Ollama (local)',
-    description: 'Modèles locaux servis par Ollama sur ce poste. Sans clé, gratuit.',
+    description: 'providerWizard.presets.ollama',
     id: 'ollama',
     base_url: 'http://localhost:11434/v1',
     default_model: '',
@@ -82,7 +86,7 @@ export const PROVIDER_PRESETS: readonly ProviderPresetInfo[] = [
     kind: 'openai_compatible',
     preset: 'vllm',
     label: 'vLLM (local)',
-    description: 'Serveur vLLM local. Sans clé, gratuit.',
+    description: 'providerWizard.presets.vllm',
     id: 'vllm',
     base_url: 'http://localhost:8000/v1',
     default_model: '',
@@ -94,7 +98,7 @@ export const PROVIDER_PRESETS: readonly ProviderPresetInfo[] = [
     kind: 'openai_compatible',
     preset: 'llama_server',
     label: 'llama-server (local)',
-    description: 'Serveur llama.cpp local. Sans clé, gratuit.',
+    description: 'providerWizard.presets.llama_server',
     id: 'llama-server',
     base_url: 'http://localhost:8080/v1',
     default_model: '',
@@ -105,8 +109,9 @@ export const PROVIDER_PRESETS: readonly ProviderPresetInfo[] = [
     key: 'custom',
     kind: 'openai_compatible',
     preset: null,
-    label: 'OpenAI-compatible (générique)',
-    description: 'Tout point d’accès qui parle l’API OpenAI (/v1/chat/completions).',
+    label: 'OpenAI-compatible (generic)',
+    labelKey: 'providerWizard.presets.labelCustom',
+    description: 'providerWizard.presets.custom',
     id: '',
     base_url: '',
     default_model: '',
@@ -118,7 +123,7 @@ export const PROVIDER_PRESETS: readonly ProviderPresetInfo[] = [
     kind: 'codex',
     preset: null,
     label: 'Codex',
-    description: 'Le programme « codex » installé sur le serveur, avec sa propre connexion (codex login) ou une clé.',
+    description: 'providerWizard.presets.codex',
     id: 'codex',
     base_url: '',
     default_model: '',
@@ -130,7 +135,7 @@ export const PROVIDER_PRESETS: readonly ProviderPresetInfo[] = [
     kind: 'acp',
     preset: 'opencode',
     label: 'opencode (ACP)',
-    description: 'Agent ACP déclaré côté serveur dans CHAT_PROVIDER_ACP_COMMANDS. Il gère sa propre connexion.',
+    description: 'providerWizard.presets.opencode',
     id: 'opencode',
     base_url: '',
     default_model: '',
@@ -141,9 +146,9 @@ export const PROVIDER_PRESETS: readonly ProviderPresetInfo[] = [
     key: 'claude_code_remote',
     kind: 'claude_code_remote',
     preset: null,
-    label: 'Claude Code distant (SSH)',
-    description:
-      'Le Claude Code d’une autre machine, joint en SSH avec une clé du coffre. Le contenu des projets autorisés part vers cette machine.',
+    label: 'Claude Code remote (SSH)',
+    labelKey: 'providerWizard.presets.labelRemote',
+    description: 'providerWizard.presets.claude_code_remote',
     id: '',
     base_url: '',
     default_model: '',
@@ -154,4 +159,9 @@ export const PROVIDER_PRESETS: readonly ProviderPresetInfo[] = [
 
 export function presetByKey(key: string | null | undefined): ProviderPresetInfo {
   return PROVIDER_PRESETS.find((p) => p.key === key) ?? PROVIDER_PRESETS.find((p) => p.key === 'custom')!
+}
+
+/** The name of a preset in the viewer's language (a product name stays as it is). */
+export function presetLabel(t: (key: MessageKey) => string, p: ProviderPresetInfo): string {
+  return p.labelKey ? t(p.labelKey) : p.label
 }

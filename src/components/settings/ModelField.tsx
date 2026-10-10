@@ -3,9 +3,9 @@
  * free typing as a fallback.
  *
  * ```
- * Modèle par défaut                                 [Actualiser]
+ * Default model                                    [Refresh]
  * [ deepseek-v4-pro                               v ]   search + list
- *   (list: "3 sur 12", capabilities under each model, « Utiliser “x” »)
+ *   (list: "3 of 12", capabilities under each model, “Use ‘x’”)
  * help / capabilities / error
  * ```
  *
@@ -19,9 +19,8 @@ import { RefreshCw } from 'lucide-react'
 import { Button, Input, SearchableSelect, type SearchableOption } from '@/components/ui'
 import type { ProviderModel } from '@/types/provider'
 import { modelCapabilities } from '@/constants/providerWizard'
+import { useT } from '@/i18n'
 import { FIELD_LABEL } from './FormField'
-
-const MODEL_NOUN = { one: 'modèle', other: 'modèles' }
 
 interface ModelFieldProps {
   id?: string
@@ -52,36 +51,37 @@ export function ModelField({
   help,
   disabled,
 }: ModelFieldProps) {
+  const tr = useT()
+  const { t } = tr
+  const MODEL_NOUN = { one: t('providerAdmin.models.nounOne'), other: t('providerAdmin.models.nounOther') }
   const autoId = useId().replace(/:/g, '')
   const fieldId = id ?? `model-${autoId}`
   const listed = !!models && models.some((m) => m.id === value)
-  /** After "Actualiser": a short confirmation of what came back. */
+  /** After "Refresh": a short confirmation of what came back. */
   const [refreshed, setRefreshed] = useState(false)
   const free = !models || models.length === 0
   const options = useMemo<SearchableOption[]>(
     () =>
       (models ?? []).map((m) => {
-        const caps = modelCapabilities(m)
+        const caps = modelCapabilities(tr, m)
         return {
           value: m.id,
           label: m.label ?? m.id,
           description: [m.label && m.label !== m.id ? m.id : null, caps].filter(Boolean).join(' · ') || undefined,
         }
       }),
-    [models],
+    [models, tr],
   )
   const current = models?.find((m) => m.id === value)
-  const caps = modelCapabilities(current)
+  const caps = modelCapabilities(tr, current)
 
   let note: string
   if (refreshed && !loading && !error && models)
-    note = `${models.length} modèle${models.length > 1 ? 's' : ''} trouvé${models.length > 1 ? 's' : ''}.`
-  else if (error) note = `Catalogue indisponible : ${error} Saisissez le nom du modèle.`
-  else if (loading && !models) note = 'Chargement du catalogue de modèles…'
-  else if (models && models.length === 0)
-    note = 'Ce provider ne liste aucun modèle : saisissez le nom.'
-  else if (value && models && !listed)
-    note = `« ${value} » n’est pas dans le catalogue de ce provider.`
+    note = t(models.length === 1 ? 'providerAdmin.models.foundOne' : 'providerAdmin.models.foundMany', { n: models.length })
+  else if (error) note = t('providerAdmin.models.unavailable', { error })
+  else if (loading && !models) note = t('providerAdmin.models.loading')
+  else if (models && models.length === 0) note = t('providerAdmin.models.empty')
+  else if (value && models && !listed) note = t('providerAdmin.models.notInCatalog', { value })
   // The capabilities are already under each option: the note keeps the help.
   else note = help ?? caps ?? ''
 
@@ -103,10 +103,10 @@ export function ModelField({
             loading={loading}
             disabled={disabled}
             className="-my-2 -mr-3"
-            aria-label={`Actualiser la liste des modèles (${label})`}
+            aria-label={t('providerAdmin.models.refreshAria', { label })}
           >
             {!loading && <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />}
-            Actualiser
+            {t('providerAdmin.ui.refresh')}
           </Button>
         )}
       </div>
@@ -116,7 +116,7 @@ export function ModelField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          placeholder="nom du modèle"
+          placeholder={t('providerAdmin.models.namePlaceholder')}
           autoComplete="off"
           spellCheck={false}
           aria-describedby={note ? `${fieldId}-note` : undefined}
@@ -130,7 +130,7 @@ export function ModelField({
           noneLabel={noneLabel}
           allowCustom
           noun={MODEL_NOUN}
-          placeholder={noneLabel === undefined ? 'Choisir un modèle…' : undefined}
+          placeholder={noneLabel === undefined ? t('providerAdmin.models.choose') : undefined}
           loading={loading}
           disabled={disabled}
           aria-describedby={note ? `${fieldId}-note` : undefined}

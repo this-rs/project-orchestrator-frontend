@@ -25,6 +25,7 @@ import { modelCapabilities } from '@/constants/providerWizard'
 import { isClaudeCodeProvider, type ModelAlias, type ProviderInstance, type ProviderModel } from '@/types/provider'
 import type { RoleTarget } from '@/types/providerSettings'
 import { loadModelCatalog } from './useModelCatalog'
+import type { Translator } from '@/i18n/translate'
 
 // ---------------------------------------------------------------------------
 // Encoding of a target
@@ -51,15 +52,17 @@ export const decodeTarget = (value: string): RoleTarget | undefined => {
 }
 
 export function describeTarget(
-  t: { provider: string; model?: string | null; alias?: string | null },
+  tr: Translator['t'],
+  target: { provider: string; model?: string | null; alias?: string | null },
   instances: readonly ProviderInstance[]
 ): string {
-  const label = instances.find((p) => p.id === t.provider)?.label ?? t.provider
-  return `${label} · ${t.alias ? `alias ${t.alias}` : (t.model ?? 'modèle par défaut')}`
+  const label = instances.find((p) => p.id === target.provider)?.label ?? target.provider
+  return `${label} · ${target.alias ? tr('providerAdmin.common.alias', { name: target.alias }) : (target.model ?? tr('providerAdmin.common.unknownModel'))}`
 }
 
 /** The current target stays visible when no catalog lists it any more. */
 export const withCurrentTarget = (
+  tr: Translator['t'],
   options: SearchableOption[],
   current: RoleTarget | undefined,
   instances: readonly ProviderInstance[]
@@ -67,7 +70,7 @@ export const withCurrentTarget = (
   const value = encodeTarget(current)
   return !current || options.some((o) => o.value === value)
     ? options
-    : [{ value, label: describeTarget(current, instances) }, ...options]
+    : [{ value, label: describeTarget(tr, current, instances) }, ...options]
 }
 
 /** An instance whose credential sits in the vault cannot run while the vault is locked. */
@@ -110,7 +113,8 @@ function mergeModels(listed: readonly ProviderModel[], catalog: readonly Provide
 }
 
 export function useModelTargets({ instances, aliases = [], withDefault, withAliases, disallowed }: ModelTargetsOptions): ModelTargets {
-  const { t } = useT()
+  const tr = useT()
+  const { t } = tr
   const claudeCatalog = useAtomValue(modelCatalogAtom)
   const claudeLoaded = useAtomValue(modelCatalogLoadedAtom)
   const setClaudeCatalog = useSetAtom(modelCatalogAtom)
@@ -159,11 +163,11 @@ export function useModelTargets({ instances, aliases = [], withDefault, withAlia
         const own = withAliases ? aliases.filter((a) => a.provider === p.id) : []
         const head: SearchableOption[] = [
           ...(withDefault
-            ? [{ value: `d|${p.id}|`, label: `${p.label} · modèle par défaut`, description: note, group: p.label, disabled: blocked }]
+            ? [{ value: `d|${p.id}|`, label: `${p.label} · ${t('providerAdmin.common.unknownModel')}`, description: note, group: p.label, disabled: blocked }]
             : []),
           ...own.map((a) => ({
             value: `a|${p.id}|${a.alias}`,
-            label: `${p.label} · alias ${a.alias}`,
+            label: `${p.label} · ${t('providerAdmin.common.alias', { name: a.alias })}`,
             description: note,
             group: p.label,
             keywords: [a.model],
@@ -190,14 +194,14 @@ export function useModelTargets({ instances, aliases = [], withDefault, withAlia
           ...models.map((m) => ({
             value: `m|${p.id}|${m.id}`,
             label: `${p.label} · ${m.label ?? m.id}`,
-            description: [modelCapabilities(m), note].filter(Boolean).join(' · ') || undefined,
+            description: [modelCapabilities(tr, m), note].filter(Boolean).join(' · ') || undefined,
             group: p.label,
             keywords: [m.id],
             disabled: blocked,
           })),
         ]
       }),
-    [instances, aliases, withDefault, withAliases, disallowed, catalog, claudeCatalog, catalogs, legacy]
+    [instances, aliases, withDefault, withAliases, disallowed, catalog, claudeCatalog, catalogs, legacy, tr, t]
   )
 
   return { options, catalog, refresh }

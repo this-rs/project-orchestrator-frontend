@@ -3,18 +3,9 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
 import { authApi, setAuthToken } from '@/services'
+import { useT } from '@/i18n'
 import { Button, Spinner } from '@/components/ui'
 import { ProductMark, ScreenHeader, StandaloneScreen, StatusBanner } from '@/pages/setup'
-
-// i18n after #252
-const TEXT = {
-  signingIn: 'Signing you in...',
-  failedTitle: 'Authentication failed',
-  failedLead: 'The sign-in provider did not complete the sign-in. You can start again from the sign-in page.',
-  reason: 'What the provider said',
-  backToLogin: 'Back to sign in',
-  missingCode: 'Missing authorization code',
-} as const
 
 /**
  * OAuth/OIDC callback page.
@@ -27,6 +18,7 @@ const TEXT = {
  * falls back to the legacy Google endpoint for backward compatibility.
  */
 export function AuthCallbackPage() {
+  const { t } = useT()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const setToken = useSetAtom(authTokenAtom)
@@ -53,7 +45,7 @@ export function AuthCallbackPage() {
     if (err) return desc ? `${err}: ${desc}` : err
     return null
   }, [searchParams])
-  const error = providerError ?? (code ? exchangeError : TEXT.missingCode)
+  const error = providerError ?? (code ? exchangeError : t('auth.callback.missingCode'))
 
   useEffect(() => {
     if (!code) return
@@ -91,19 +83,19 @@ export function AuthCallbackPage() {
         navigate('/', { replace: true })
       })
       .catch((e) => {
-        setExchangeError(e instanceof Error ? e.message : 'Authentication failed')
+        setExchangeError(e instanceof Error ? e.message : t('auth.callback.failed'))
       })
-  }, [code, navigate, setToken, setUser])
+  }, [code, navigate, setToken, setUser, t])
 
   if (error) {
     return (
       <StandaloneScreen width="xs" center>
-        <ScreenHeader kicker={<ProductMark />} title={TEXT.failedTitle} lead={TEXT.failedLead} />
+        <ScreenHeader kicker={<ProductMark />} title={t('auth.callback.failedTitle')} lead={t('auth.callback.failedLead')} />
         <div className="mt-8 space-y-6">
-          <StatusBanner tone="danger" title={TEXT.reason} role="alert">
+          <StatusBanner tone="danger" title={t('auth.callback.reason')} role="alert">
             <p className="break-words">{error}</p>
           </StatusBanner>
-          <Button onClick={() => navigate('/login')}>{TEXT.backToLogin}</Button>
+          <Button onClick={() => navigate('/login')}>{t('auth.callback.backToLogin')}</Button>
         </div>
       </StandaloneScreen>
     )
@@ -113,7 +105,7 @@ export function AuthCallbackPage() {
     <StandaloneScreen width="xs" center>
       <div className="flex flex-col items-center gap-4 text-center" role="status">
         <Spinner size="lg" />
-        <p className="text-sm text-gray-400">{TEXT.signingIn}</p>
+        <p className="text-sm text-gray-400">{t('auth.callback.signingIn')}</p>
       </div>
     </StandaloneScreen>
   )
