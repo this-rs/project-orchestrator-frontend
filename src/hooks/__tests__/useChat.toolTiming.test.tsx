@@ -556,6 +556,22 @@ describe('useChat — an echo never swallows a new message with the same text', 
     expect(users.map((m) => !!m.awaitingEcho)).toEqual([false, false])
   })
 
+  it('an echo received only as a replay (reconnect snapshot) ends the wait: the next identical message is its own bubble', async () => {
+    const { emit, result: hook } = await setup()
+    await act(async () => {
+      await hook.current.sendMessage('ok')
+    })
+    // The socket dropped before the live echo; the reconnect snapshot replays it.
+    emit({ type: 'user_message', replaying: true, seq: 0, created_at: T, data: { content: 'ok' } })
+    expect(hook.current.messages.filter((m) => m.role === 'user').map((m) => !!m.awaitingEcho)).toEqual([false])
+    emit({ type: 'stream_delta', text: 'done', created_at: T + 1, seq: 0 })
+    emit({ type: 'result', session_id: 'sess-1', duration_ms: 1000, created_at: T + 1, seq: 0 })
+    // Another tab sends "ok" again.
+    emit({ type: 'user_message', content: 'ok', created_at: T + 50, seq: 0 })
+    expect(userTexts(hook.current.messages)).toEqual(['ok', 'ok'])
+    expect(hook.current.messages.filter((m) => m.role === 'user')[1].timestamp.getTime()).toBe((T + 50) * 1000)
+  })
+
   it('the same message shown again (a replay of the turn in progress) adds no bubble', async () => {
     const { emit, result: hook } = await setup()
     emit({ type: 'user_message', content: 'ok', created_at: T, seq: 0 })

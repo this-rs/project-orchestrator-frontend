@@ -609,13 +609,14 @@ export function useChat() {
           const needsAttachments = sentAttachments.length > 0 && !msg.attachments?.length
           // The optimistic bubble already knows the labels of its refs: keep them.
           const needsRefs = sentRefs.length > 0 && !msg.refs?.length
-          // A live echo is THE echo of a waiting bubble: the bubble stops waiting
-          // (a later message with the same text gets its own bubble). It was stamped
-          // on the browser's estimate of the server's clock (exact only once a frame
-          // taught it the gap); the echo carries the server's own time: the turn
+          // An echo, live or replayed (a reconnect snapshot may be the only one this
+          // tab gets), is THE echo of a waiting bubble: the bubble stops waiting (a
+          // later message with the same text gets its own bubble). It was stamped on
+          // the browser's estimate of the server's clock (exact only once a frame
+          // taught it the gap); a LIVE echo carries the server's own time: the turn
           // starts there. A replayed frame only says the server has the message.
-          const echoed = target.awaiting && !event.replaying
-          const serverStamp = echoed && serverTime ? new Date(serverTime) : undefined
+          const echoed = target.awaiting
+          const serverStamp = echoed && !event.replaying && serverTime ? new Date(serverTime) : undefined
           if (needsAttachments || needsRefs || echoed) {
             const next = [...prev]
             next[i] = {

@@ -185,6 +185,11 @@ describe('userEchoTarget — which bubble a user_message echo belongs to', () =>
     expect(userEchoTarget(msgs, 'ok')).toEqual({ index: 0, awaiting: true })
   })
 
+  it('never a waiting bubble a turn result has gone past (its echo will not come any more)', () => {
+    const msgs = [user('ok', { awaitingEcho: true }), assistant({ duration_ms: 10 }), user('next'), assistant({ duration_ms: 10 })]
+    expect(userEchoTarget(msgs, 'ok')).toBeNull()
+  })
+
   it('else the bubble opening the turn in progress (a replay of it)', () => {
     expect(userEchoTarget([user('ok'), assistant()], 'ok')).toEqual({ index: 0, awaiting: false })
   })
