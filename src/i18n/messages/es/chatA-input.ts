@@ -46,5 +46,21 @@ export default {
     autoOn: "Continuación automática activada",
     autoOff: "Continuación automática desactivada",
     drop: "Suelta para adjuntar"
+  },
+  refs: {
+    picker: {
+      all: "Todo",
+      filterByKind: "Filtrar por tipo",
+      hintActors: "actores",
+      hintSearch: "buscar",
+      kindOnly: "Solo {kind}",
+      resultsOne: "{count} resultado",
+      resultsMany: "{count} resultados",
+      noResults: "Sin resultados",
+      searching: "Buscando…",
+      noActors: "No hay actores disponibles en este servidor",
+      needsProject: "Selecciona un proyecto para buscar personas y skills",
+      close: "Cerrar referencias"
+    }
   }
 } satisfies Translation<'chatA-input'>

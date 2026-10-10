@@ -13,6 +13,7 @@ import { Provider, createStore } from 'jotai'
 import { chatServerFeaturesAtom } from '@/atoms'
 import type { RefSearchItem } from '@/refs/refsApi'
 import { clearRefSearchCache } from '@/refs/useRefSearch'
+import { HISTORICAL_KINDS, setActiveKinds } from '@/refs/kinds'
 import { ChatInput } from './ChatInput'
 
 const { searchMock } = vi.hoisted(() => ({ searchMock: vi.fn() }))
@@ -24,8 +25,12 @@ vi.mock('@/refs/refsApi', async (importOriginal) => {
 })
 
 const ROW = 44
-/** Grab handle + the one-line header (query, kind chips, close). */
-const HEADER = 52
+/**
+ * Everything in the sheet that is not a row: the header (8px top padding with the grab handle, the
+ * 44px line with the query, chips and close, 1px border = 53px), then the list's own 4px top padding
+ * and its 4px bottom padding (at least: the safe area may add to it) = 61px.
+ */
+const CHROME = 8 + 44 + 1 + 4 + 4
 
 const KINDS = ['task', 'plan', 'note']
 const items: RefSearchItem[] = Array.from({ length: 20 }, (_, i) => ({
@@ -74,7 +79,7 @@ const type = (text: string) => {
   fireEvent.select(ta)
 }
 const settle = () => act(async () => { await vi.advanceTimersByTimeAsync(160) })
-const rowsThatFit = () => Math.floor((parseFloat(screen.getByTestId('ref-picker').style.maxHeight) - HEADER) / ROW)
+const rowsThatFit = () => Math.floor((parseFloat(screen.getByTestId('ref-picker').style.maxHeight) - CHROME) / ROW)
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
@@ -177,6 +182,61 @@ describe('ChatInput - the reference sheet on a phone, keyboard open', () => {
     expect(new Set(screen.getAllByTestId('ref-option').map((o) => o.dataset.kind)).size).toBe(KINDS.length)
     expect(within(group).getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true')
     expect(document.activeElement).toBe(box())
+  })
+
+  it('a new `#` at the same place starts on "All" again: after a pick and a send, and after erasing', async () => {
+    phone({ visible: 500, composerTop: 391 })
+    const { onSend } = mount()
+    const chooseTask = async () => {
+      fireEvent.click(within(screen.getByRole('group', { name: /filter by kind/i })).getByRole('button', { name: /task/i }))
+      await settle()
+      expect(searchMock).toHaveBeenLastCalledWith(expect.objectContaining({ kinds: ['task'] }), expect.anything())
+    }
+    const expectAll = () => {
+      const group = screen.getByRole('group', { name: /filter by kind/i })
+      expect(within(group).getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true')
+      expect(within(group).getByRole('button', { name: /task/i }).getAttribute('aria-pressed')).toBe('false')
+      expect(new Set(screen.getAllByTestId('ref-option').map((o) => o.dataset.kind)).size).toBe(KINDS.length)
+    }
+    // Pick under Task, send, then `#` at position 0 of the next message.
+    type('#')
+    await settle()
+    await chooseTask()
+    fireEvent.click(screen.getAllByTestId('ref-option')[0])
+    // On a phone Enter is a new line: the send button sends.
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    expect(onSend).toHaveBeenCalledTimes(1)
+    type('#')
+    await settle()
+    expectAll()
+    // Choose Task, erase the `#`, type it again at the same place.
+    await chooseTask()
+    type('')
+    type('#')
+    await settle()
+    expectAll()
+  })
+
+  it('a Task chip chosen under `#` does not filter an `@` typed at the same place', async () => {
+    setActiveKinds([...HISTORICAL_KINDS, { kind: 'persona', idFormat: 'uuid', sensitive: false }, { kind: 'skill', idFormat: 'uuid', sensitive: false }])
+    try {
+      phone({ visible: 500, composerTop: 391 })
+      mount()
+      type('#')
+      await settle()
+      fireEvent.click(within(screen.getByRole('group', { name: /filter by kind/i })).getByRole('button', { name: /task/i }))
+      await settle()
+      expect(searchMock).toHaveBeenLastCalledWith(expect.objectContaining({ kinds: ['task'] }), expect.anything())
+      // The `#` becomes an `@` in one edit: the trigger never vanished in between.
+      type('@')
+      await settle()
+      expect(searchMock).toHaveBeenLastCalledWith(expect.objectContaining({ kinds: ['persona', 'skill'] }), expect.anything())
+      const group = screen.getByRole('group', { name: /filter by kind/i })
+      expect(within(group).getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true')
+      expect(within(group).queryByRole('button', { name: /task/i })).toBeNull()
+    } finally {
+      setActiveKinds(HISTORICAL_KINDS)
+    }
   })
 
   it('no chips when a kind prefix is typed: the text already chose', async () => {

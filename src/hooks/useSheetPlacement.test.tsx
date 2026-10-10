@@ -56,9 +56,9 @@ describe('useSheetPlacement', () => {
     })
     expect(result.current.maxHeight).toBeLessThan(before)
     // All the room above the composer (320 - 8), not half of the visible area (200: one or two rows once
-    // the header was paid): a 52px header and five 44px rows at least.
+    // the header was paid): 61px of chrome (header, list padding) and five 44px rows at least.
     expect(result.current.maxHeight).toBe(312)
-    expect(result.current.maxHeight).toBeGreaterThanOrEqual(52 + 5 * 44)
+    expect(result.current.maxHeight).toBeGreaterThanOrEqual(61 + 5 * 44)
     // The sheet never extends above the visible area: it stays under the top edge of the visual viewport.
     expect(result.current.maxHeight).toBeLessThanOrEqual(320 - vv.offsetTop - 8)
   })
@@ -75,10 +75,26 @@ describe('useSheetPlacement', () => {
     expect(result.current.maxHeight).toBe(242)
   })
 
-  it('keeps a usable minimum when almost nothing is left above the composer', () => {
-    top = 40
+  it('keeps the 140px floor (header + two rows) when the room is there, giving up the top margin first', () => {
+    // 145px above the composer: the margin would leave 137, the floor wins and takes 140 of the 145.
+    top = 145
     const { result } = renderHook(() => useSheetPlacement(anchor, true))
-    expect(result.current.maxHeight).toBeGreaterThanOrEqual(88)
+    expect(result.current.maxHeight).toBe(140)
+    expect(result.current.maxHeight).toBeLessThanOrEqual(top - vv.offsetTop)
+  })
+
+  it('never climbs above the visible area, even under the floor (landscape phone, keyboard up)', () => {
+    const { result } = renderHook(() => useSheetPlacement(anchor, true))
+    act(() => {
+      // ~160px visible, a ~100px composer at its bottom: about 60px left above it.
+      vv.height = 160
+      vv.offsetTop = 200
+      top = 260
+      vv.dispatchEvent(new Event('resize'))
+    })
+    // The sheet's top edge (anchor top - maxHeight) stays at or under the visible top edge.
+    expect(result.current.maxHeight).toBe(60)
+    expect(top - result.current.maxHeight).toBeGreaterThanOrEqual(vv.offsetTop)
   })
 
   it('does not listen when closed, and stops listening on unmount', () => {

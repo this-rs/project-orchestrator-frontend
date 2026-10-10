@@ -10,6 +10,9 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { RefSearchItem } from '@/refs/refsApi'
 import { REF_KINDS } from '@/refs/types'
 import { refKindDef } from '@/refs/registry'
+import { I18nContext } from '@/i18n/context'
+import { loadLocale } from '@/i18n/store'
+import { createTranslator } from '@/i18n/translate'
 import { RefPicker } from './RefPicker'
 
 afterEach(cleanup)
@@ -118,5 +121,51 @@ describe('RefPicker as a bottom sheet', () => {
   it('shows no hover-only affordance: rows are selectable by tap alone (no group-hover/opacity-0 reveal)', () => {
     sheet()
     for (const row of screen.getAllByTestId('ref-option')) expect(row.innerHTML).not.toMatch(/group-hover|opacity-0/)
+  })
+
+  it('kind chips are 44px touch targets (36px drawn, the ::before extends the hit area 4px above and below)', () => {
+    sheet({ onChipKind: vi.fn() })
+    const chips = screen.getAllByTestId('ref-kind-chip')
+    expect(chips.length).toBeGreaterThan(1)
+    for (const c of chips) {
+      expect(c.className).toMatch(/\bh-9\b/)
+      expect(c.className).toMatch(/\brelative\b/)
+      expect(c.className).toMatch(/\bbefore:-inset-y-1\b/)
+    }
+    // The row keeps 4px above and below the chips (py-1), so the extended area is not clipped by the scroller.
+    expect(screen.getByTestId('ref-kind-chips').className).toMatch(/\bpy-1\b/)
+  })
+
+  it('the chip row fades out on the right and ends with a spacer, so a narrow screen shows that it scrolls', () => {
+    sheet({ onChipKind: vi.fn() })
+    const row = screen.getByTestId('ref-kind-chips')
+    expect(row.className).toMatch(/mask-image:linear-gradient\(to_right/)
+    expect(row.className).toMatch(/\boverflow-x-auto\b/)
+    expect(row.lastElementChild?.getAttribute('aria-hidden')).toBe('true')
+  })
+
+  it('counts results with a singular and a plural', () => {
+    sheet({ search: { status: 'ready', items: items.slice(0, 1) } as never })
+    expect(screen.getByTestId('ref-picker-status').textContent).toBe('1 result')
+    cleanup()
+    sheet()
+    expect(screen.getByTestId('ref-picker-status').textContent).toBe(`${items.length} results`)
+  })
+
+  it('speaks the language of the interface', async () => {
+    const bundle = await loadLocale('fr')
+    const value = { ...createTranslator('fr', bundle), requested: 'fr' as const, setLocale: () => {} }
+    const anchor = document.createElement('div')
+    document.body.append(anchor)
+    render(
+      <I18nContext.Provider value={value}>
+        <RefPicker listId="L" search={{ status: 'ready', items } as never} activeIndex={0} full={false} onPick={vi.fn()} onHover={vi.fn()} sheet anchor={anchor} onClose={vi.fn()} onChipKind={vi.fn()} />
+      </I18nContext.Provider>,
+    )
+    expect(screen.getByRole('group', { name: 'Filtrer par type' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Tout' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Fermer les références' })).toBeTruthy()
+    expect(screen.getByTestId('ref-picker-query').textContent).toBe('#rechercher')
+    expect(screen.getByTestId('ref-picker-status').textContent).toBe(`${items.length} résultats`)
   })
 })

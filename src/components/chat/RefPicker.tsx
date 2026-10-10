@@ -9,6 +9,7 @@ import { refStatusLabel } from '@/refs/statusLabel'
 import type { RefSearchState } from '@/refs/useRefSearch'
 import type { RefSearchItem } from '@/refs/refsApi'
 import { useActiveKinds } from '@/refs/useActiveKinds'
+import { useT } from '@/i18n'
 import { MAX_REFS_PER_MESSAGE, type RefKind } from '@/refs/types'
 
 export const refOptionId = (listId: string, index: number) => `${listId}-opt-${index}`
@@ -67,23 +68,29 @@ export function RefPicker(props: RefPickerProps) {
 }
 
 /** What the status line says (also read by screen readers through `role="status"`). */
-function statusOf({ search, needsProject = false }: RefPickerProps, noKinds: boolean): string {
-  if (noKinds) return 'No actors available on this server'
+function statusOf({ search, needsProject = false }: RefPickerProps, noKinds: boolean, t: Translate): string {
+  if (noKinds) return t('chatA-input.refs.picker.noActors')
   if (search.status === 'error') return search.message
   if (search.status === 'ready' && search.items.length === 0)
-    return needsProject ? 'Select a project to search personas and skills' : 'No results'
-  if (search.status === 'ready') return `${search.items.length} result${search.items.length > 1 ? 's' : ''}`
-  return 'Searching…'
+    return t(needsProject ? 'chatA-input.refs.picker.needsProject' : 'chatA-input.refs.picker.noResults')
+  if (search.status === 'ready') {
+    const count = search.items.length
+    return t(count === 1 ? 'chatA-input.refs.picker.resultsOne' : 'chatA-input.refs.picker.resultsMany', { count })
+  }
+  return t('chatA-input.refs.picker.searching')
 }
+
+type Translate = ReturnType<typeof useT>['t']
 
 const kindsOfSigil = (sigil: RefSigil): readonly RefKind[] => (sigil === '@' ? actorKinds() : entityKinds())
 
 function useCommon(props: RefPickerProps) {
+  const { t } = useT()
   const sigil = props.sigil ?? '#'
   const kinds = kindsOfSigil(sigil)
   const noKinds = kinds.length === 0
   const loading = !noKinds && (props.search.status === 'loading' || props.search.status === 'idle')
-  return { sigil, kinds, noKinds, loading, status: statusOf(props, noKinds) }
+  return { t, sigil, kinds, noKinds, loading, status: statusOf(props, noKinds, t) }
 }
 
 function LimitNotice() {
@@ -222,7 +229,7 @@ function RefPopover(props: RefPickerProps) {
 function RefSheet(props: RefPickerProps) {
   const { search, kindFilter, full, anchor = null, onClose, query = '', chipKind, onChipKind } = props
   const placement = useSheetPlacement(anchor, true)
-  const { sigil, kinds, loading, status } = useCommon(props)
+  const { t, sigil, kinds, loading, status } = useCommon(props)
   const hasItems = search.items.length > 0
   const isError = search.status === 'error'
   // An error stays visible even over the previous results: it carries the retry.
@@ -238,7 +245,8 @@ function RefSheet(props: RefPickerProps) {
         aria-pressed={on}
         data-testid="ref-kind-chip"
         onClick={() => onChipKind?.(kind)}
-        className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+        // 36px to the eye, 44px to the finger: the ::before extends the hit area 4px above and below.
+        className={`relative inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
           on ? 'border-indigo-400/60 bg-indigo-500/25 text-indigo-100' : 'border-white/[0.1] bg-white/[0.04] text-slate-300 active:bg-white/[0.1]'
         }`}
       >
@@ -267,21 +275,25 @@ function RefSheet(props: RefPickerProps) {
           >
             {sigil}
             {kindFilter ? `${kindFilter} ` : ''}
-            {query || <span className="font-sans text-slate-400">{sigil === '@' ? 'actors' : 'search'}</span>}
+            {query || <span className="font-sans text-slate-400">{t(sigil === '@' ? 'chatA-input.refs.picker.hintActors' : 'chatA-input.refs.picker.hintSearch')}</span>}
           </span>
-          {kindFilter && <span className="truncate text-xs text-slate-400">{refKindDef(kindFilter).name} only</span>}
+          {kindFilter && <span className="truncate text-xs text-slate-400">{t('chatA-input.refs.picker.kindOnly', { kind: refKindDef(kindFilter).name })}</span>}
           {/* The scroll lives on this row alone: the page never scrolls sideways. */}
           {chips ? (
             <div
               role="group"
-              aria-label="Filter by kind"
-              className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto overscroll-x-contain py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              aria-label={t('chatA-input.refs.picker.filterByKind')}
+              data-testid="ref-kind-chips"
+              // The right edge fades out: a chip cut by the fade says the row scrolls (the scrollbar is hidden).
+              // A trailing spacer (not padding: some engines leave a flex scroller's end padding out) lets the last chip leave the fade.
+              className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto overscroll-x-contain py-1 [mask-image:linear-gradient(to_right,#000_calc(100%-1.5rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-              {chip(undefined, 'All')}
+              {chip(undefined, t('chatA-input.refs.picker.all'))}
               {chips.map((k) => {
                 const def = refKindDef(k)
                 return chip(k, def.name, def.Icon)
               })}
+              <span aria-hidden="true" className="w-5 shrink-0" />
             </div>
           ) : (
             <span className="min-w-0 flex-1" />
@@ -289,7 +301,7 @@ function RefSheet(props: RefPickerProps) {
           {loading && <Loader2 data-testid="ref-picker-spinner" className="size-4 shrink-0 animate-spin text-indigo-300" aria-hidden />}
           <button
             type="button"
-            aria-label="Close references"
+            aria-label={t('chatA-input.refs.picker.close')}
             onClick={onClose}
             className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-slate-300 hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
           >

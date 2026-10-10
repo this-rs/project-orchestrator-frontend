@@ -31,7 +31,8 @@ import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget
 import { ReferenceChip } from './ReferenceChip'
 import { COMPOSER_CHIP } from './chipGeometry'
 import { RefPicker, refOptionId } from './RefPicker'
-import { detectTrigger, isReferenceQuery } from '@/refs/trigger'
+import { detectTrigger, isReferenceQuery, type RefSigil } from '@/refs/trigger'
+import { actorKinds, entityKinds } from '@/refs/kinds'
 import { useActiveKinds } from '@/refs/useActiveKinds'
 import { useRefSearch } from '@/refs/useRefSearch'
 import { countRefTokens, reconcileRefs, refKey, removeRefFromText } from '@/refs/refState'
@@ -185,8 +186,20 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const pickerOpen = trigger !== null && trigger.start !== dismissedAt
   useActiveKinds() // the trigger and the picker follow the kinds the server lists
   // Mobile sheet: a kind chip narrows THIS trigger's search (a prefix typed in the text wins); a new trigger starts on "All".
-  const [kindChip, setKindChip] = useState<{ start: number; kind: RefKind } | null>(null)
-  const chipKind = isMobile && trigger && !trigger.kinds && kindChip?.start === trigger.start ? kindChip.kind : undefined
+  // The chip belongs to one trigger: its position AND its sigil, and the kind must be one that sigil offers
+  // (a Task chip chosen under `#` never filters an `@` typed at the same place). It is dropped as soon as
+  // there is no trigger (the reference was picked, the text erased), on send and on close.
+  const [kindChip, setKindChip] = useState<{ start: number; sigil: RefSigil; kind: RefKind } | null>(null)
+  if (kindChip && !trigger) setKindChip(null)
+  const chipKind =
+    isMobile &&
+    trigger &&
+    !trigger.kinds &&
+    kindChip?.start === trigger.start &&
+    kindChip.sigil === trigger.sigil &&
+    (trigger.sigil === '@' ? actorKinds() : entityKinds()).includes(kindChip.kind)
+      ? kindChip.kind
+      : undefined
   const refSearch = useRefSearch({ query: trigger?.query ?? '', kinds: trigger?.kinds ?? (chipKind ? [chipKind] : undefined), sigil: trigger?.sigil, enabled: pickerOpen })
   const activeRef = Math.min(refActive, refSearch.items.length - 1)
   // The option Enter/Tab would take, and the one aria-activedescendant names: the same thing, or nothing
@@ -637,6 +650,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
       case 'send':
         break
     }
+    setKindChip(null)
 
     // ── Layer 2 — when does it leave? ──────────────────────────────────
     // Only a complete message may enter the queue. Queueing one whose upload
@@ -750,6 +764,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           e.preventDefault()
           e.stopPropagation()
           setDismissedAt(trigger.start)
+          setKindChip(null)
           return true
       }
     }
@@ -930,12 +945,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             chipKind={chipKind}
             onChipKind={(kind) => {
               setRefActive(0)
-              setKindChip(kind && trigger ? { start: trigger.start, kind } : null)
+              setKindChip(kind && trigger ? { start: trigger.start, sigil: trigger.sigil, kind } : null)
             }}
             onClose={() => {
               // Focus first: focusing the composer re-arms the picker, closing comes after.
               textareaRef.current?.focus()
               if (trigger) setDismissedAt(trigger.start)
+              setKindChip(null)
             }}
           />
         )}

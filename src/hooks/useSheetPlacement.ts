@@ -4,8 +4,11 @@ export interface SheetPlacement {
   /** `bottom` of a `position: fixed` sheet (px, layout viewport): its lower edge rests on the anchor. */
   bottom: number
   /**
-   * Tallest the sheet may be (px): the room the VISIBLE area leaves above the anchor (never above
-   * its top edge), up to 70% of the visible area — but never less than COMFORT_HEIGHT for that cap.
+   * Tallest the sheet may be (px): the room the VISIBLE area leaves above the anchor, capped at
+   * max(COMFORT_HEIGHT, 70% of the visible area) — so on a visible area under 600px the cap is 420px,
+   * more than 70% of it (with the keyboard up, the room above the composer decides in practice).
+   * MIN_HEIGHT is a floor only while there is room for it: the sheet never climbs above the top
+   * edge of the visible area, where its header (query, chips, close) would be out of reach.
    */
   maxHeight: number
 }
@@ -13,7 +16,7 @@ export interface SheetPlacement {
 const GAP = 0
 /** Kept free between the sheet and the top of the visible area (the sheet must look like a sheet). */
 const EDGE = 8
-/** Header (~52px) + two 44px rows: below that a sheet is useless, whatever the room. */
+/** Header (~53px) + two 44px rows: the floor, as long as the visible area has that room (it gives up EDGE first). */
 const MIN_HEIGHT = 140
 /**
  * The cap never goes under this (header + about eight 44px rows). It used to be half of the
@@ -40,11 +43,12 @@ export function useSheetPlacement(anchor: HTMLElement | null, enabled: boolean):
       const rect = anchor.getBoundingClientRect()
       const visibleHeight = vv?.height ?? window.innerHeight
       const visibleTop = vv?.offsetTop ?? 0
+      // Room above the anchor up to the top edge of the visible area (landscape + keyboard: maybe 50px).
+      const visibleRoom = Math.max(0, rect.top - visibleTop)
+      const comfortable = Math.min(visibleRoom - EDGE, Math.max(COMFORT_HEIGHT, visibleHeight * VISIBLE_SHARE))
       const next = {
         bottom: Math.round(window.innerHeight - rect.top + GAP),
-        maxHeight: Math.round(
-          Math.max(MIN_HEIGHT, Math.min(rect.top - visibleTop - EDGE, Math.max(COMFORT_HEIGHT, visibleHeight * VISIBLE_SHARE))),
-        ),
+        maxHeight: Math.round(Math.max(Math.min(MIN_HEIGHT, visibleRoom), comfortable)),
       }
       setPlacement((prev) => (prev.bottom === next.bottom && prev.maxHeight === next.maxHeight ? prev : next))
     }
