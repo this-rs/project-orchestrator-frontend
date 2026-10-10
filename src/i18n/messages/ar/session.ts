@@ -13,6 +13,10 @@ export default {
   },
   degradation: {
     title: "بعض الميزات غير متاحة في هذه المحادثة",
+    installation: {
+      heading: "ناقص في هذا التثبيت",
+      note: "يُصلَح على الخادم: ليس نقصًا في المحرك ولا حدًّا للنموذج.",
+    },
     harness: {
       heading: "لا يدعمه محرك الوكيل في Project Orchestrator بعد",
       note: "العمل جارٍ من جهتنا: هذا ليس حدًا للنموذج.",
@@ -25,6 +29,9 @@ export default {
       heading: "لم يُقَس بعد",
       note: "المجهول لا يعني الغائب.",
     },
+  },
+  installation: {
+    nexus_tools: "لم يُعثر على الملف التنفيذي nexus-tools: ثبّته بجوار الواجهة الخلفية لـ Project Orchestrator، أو اضبط NEXUS_TOOLS_PATH على موقعه. عندها تحصل الجلسات الأصلية على Bash وRead وEdit وWebFetch.",
   },
   harness: {
     hooks: "الخطافات (المهارات، وإعادات التوجيه بعد الأدوات) لا تعمل بعد",

@@ -11,6 +11,10 @@ export default {
   },
   degradation: {
     title: 'Some features are not available in this conversation',
+    installation: {
+      heading: "Missing from this installation",
+      note: "To fix on the server: not a gap in the engine, not a limit of the model.",
+    },
     harness: {
       heading: 'Not yet carried by the Project Orchestrator agent engine',
       note: 'Work in progress on our side: this is not a limit of the model.',
@@ -23,6 +27,9 @@ export default {
       heading: 'Not measured yet',
       note: 'Unknown does not mean missing.',
     },
+  },
+  installation: {
+    nexus_tools: "The nexus-tools executable was not found: install it next to the Project Orchestrator backend, or set NEXUS_TOOLS_PATH to its location. Native sessions then get Bash, Read, Edit and WebFetch.",
   },
   harness: {
     hooks: 'Hooks (skills, post-tool redirects) do not run yet',

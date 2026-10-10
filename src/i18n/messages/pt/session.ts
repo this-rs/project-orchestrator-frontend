@@ -13,6 +13,10 @@ export default {
   },
   degradation: {
     title: "Alguns recursos não estão disponíveis nesta conversa",
+    installation: {
+      heading: "Falta nesta instalação",
+      note: "A corrigir no servidor: não é uma lacuna do motor nem um limite do modelo.",
+    },
     harness: {
       heading: "Ainda não suportado pelo motor de agente do Project Orchestrator",
       note: "Trabalho em andamento do nosso lado: não é um limite do modelo.",
@@ -25,6 +29,9 @@ export default {
       heading: "Ainda não medido",
       note: "Desconhecido não significa ausente.",
     },
+  },
+  installation: {
+    nexus_tools: "O executável nexus-tools não foi encontrado: instale-o ao lado do backend do Project Orchestrator ou defina NEXUS_TOOLS_PATH com a sua localização. As sessões nativas passam então a ter Bash, Read, Edit e WebFetch.",
   },
   harness: {
     hooks: "Os hooks (skills, redirecionamentos após ferramenta) ainda não são executados",
