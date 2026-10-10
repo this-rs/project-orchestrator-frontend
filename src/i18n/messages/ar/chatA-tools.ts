@@ -153,5 +153,18 @@ export default {
       assertion: "تأكيد",
       decision: "قرار"
     }
+  },
+  permission: {
+    actions: "الرد على طلب الإذن هذا",
+    allowOnce: "السماح مرة واحدة",
+    allowSession: "لهذه الجلسة",
+    allowAlways: "دائمًا",
+    deny: "رفض",
+    sessionHint: "لن يُطلب مجددًا في هذه المحادثة",
+    alwaysHint: "لن يُطلب مجددًا في هذا المشروع، حتى بعد إعادة التشغيل",
+    allowed: "مسموح",
+    allowedSession: "مسموح للجلسة",
+    allowedAlways: "مسموح دائمًا",
+    denied: "مرفوض"
   }
 } satisfies Translation<'chatA-tools'>

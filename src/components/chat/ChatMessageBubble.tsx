@@ -27,7 +27,7 @@ import { messageBodyToMarkdown } from '@/utils/chatExport'
 import { ProviderStateCard } from './ProviderStateCard'
 import { CostDisplay } from '@/components/ui/CostDisplay'
 import { costOfMessage } from '@/utils/cost'
-import type { ProviderErrorInfo, SubagentsSupport } from '@/types/provider'
+import type { PermissionScope, ProviderErrorInfo, SubagentsSupport } from '@/types/provider'
 import { useChatCapabilities } from './ChatSessionContext'
 
 // ============================================================================
@@ -162,7 +162,7 @@ function formatDuration(ms: number): string {
 interface ChatMessageBubbleProps {
   message: ChatMessage
   isStreaming?: boolean
-  onRespondPermission: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => boolean | void
+  onRespondPermission: (toolCallId: string, allowed: boolean, scope?: PermissionScope) => boolean | void
   onRespondInput: (requestId: string, response: string) => boolean | void
   onContinue?: () => void
 }

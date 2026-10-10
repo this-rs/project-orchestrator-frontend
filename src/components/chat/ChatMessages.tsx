@@ -2,6 +2,7 @@ import { memo, useEffect, useLayoutEffect, useRef, useState, useCallback } from 
 import { useAtom } from 'jotai'
 import { chatScrollToTurnAtom } from '@/atoms'
 import type { ChatMessage, Project } from '@/types'
+import type { PermissionScope } from '@/types/provider'
 import { ChatMessageBubble } from './ChatMessageBubble'
 import { CompactionFlow } from './CompactionFlow'
 import { ChatWelcome } from './ChatWelcome'
@@ -28,7 +29,7 @@ interface ChatMessagesProps {
   hasLiveActivity?: boolean
   /** Jump directly to the tail of conversation (reloads last messages) */
   onJumpToTail?: () => Promise<void>
-  onRespondPermission: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => boolean | void
+  onRespondPermission: (toolCallId: string, allowed: boolean, scope?: PermissionScope) => boolean | void
   onRespondInput: (requestId: string, response: string) => boolean | void
   onContinue?: () => void
   /** Quick action callback — inserts prompt into chat textarea */
