@@ -8,11 +8,22 @@ import { positionFloating } from '@/components/ui/menuPosition'
 import { panelGlass } from '@/components/ui/panelGlass'
 import { EngineGapsDetail } from './EngineBanner'
 
+const TABBABLE = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/** The next control after `el` in the page's tab order (outside the popover). */
+function nextTabbable(el: HTMLElement | null): HTMLElement | null {
+  if (!el) return null
+  const all = Array.from(document.querySelectorAll<HTMLElement>(TABBABLE)).filter((n) => !n.closest('[role="dialog"][data-testid="capability-gaps-popover"]'))
+  const i = all.indexOf(el)
+  return i >= 0 ? (all[i + 1] ?? null) : null
+}
+
 /**
  * The capability banner, put away: an amber warning icon in the chat header with the number of
  * missing features next to it (said in words to assistive tech and in the tooltip — never by
- * colour alone). It opens the same list in a popover anchored to it; Escape, a tap outside or
- * Tab out closes it and focus returns to the icon. "Show above the message box" puts the banner
+ * colour alone). It opens the same list in a popover anchored to it; Escape or Shift+Tab out closes
+ * it with focus back on the icon, Tab out closes it with focus on the next control, a tap outside
+ * closes it. "Show above the message box" puts the banner
  * back in place.
  */
 export function CapabilityGapsButton({
@@ -68,16 +79,30 @@ export function CapabilityGapsButton({
   }, [open, close, reposition, triggerRef])
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key !== 'Escape') return
-    e.preventDefault()
-    e.stopPropagation()
-    close(true)
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      close(true)
+      return
+    }
+    if (e.key !== 'Tab' || !panelRef.current) return
+    // The popover is portalled to the end of <body>: Tab past its edges would leave the page.
+    // Leaving it closes it and puts focus where the icon's neighbours are: back on the icon
+    // (Shift+Tab), or on the control after the icon (Tab).
+    const inside = Array.from(panelRef.current.querySelectorAll<HTMLElement>(TABBABLE))
+    const active = document.activeElement
+    if (e.shiftKey ? active === panelRef.current || active === inside[0] : inside.length === 0 || active === inside[inside.length - 1]) {
+      e.preventDefault()
+      setOpen(false)
+      if (e.shiftKey) triggerRef.current?.focus()
+      else (nextTabbable(triggerRef.current) ?? triggerRef.current)?.focus()
+    }
   }
 
-  // Tab out of the popover (not back to its own icon): it closes, focus stays where it went.
+  // Focus that leaves by other means (a click elsewhere, another window): it closes, focus stays where it went.
   const onBlur = (e: FocusEvent) => {
     const next = e.relatedTarget as Node | null
-    if (!next || panelRef.current?.contains(next) || triggerRef.current?.contains(next)) return
+    if (panelRef.current?.contains(next) || triggerRef.current?.contains(next)) return
     close(false)
   }
 

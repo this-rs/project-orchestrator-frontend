@@ -240,6 +240,53 @@ describe('capability banner — collapse into a header icon', () => {
     expect(banner()).toBeNull()
   })
 
+  it('keyboard: Tab out of the popover closes it, forward to the next header control, backward to the icon', () => {
+    renderPanel({ degraded: ['message_queue', 'images'] })
+    collapse()
+    const button = icon()!
+    fireEvent.click(button)
+    const popover = screen.getByRole('dialog')
+    const expand = within(popover).getByRole('button', { name: 'Show above the message box' })
+    expand.focus()
+    fireEvent.keyDown(expand, { key: 'Tab' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // The control right after the icon in the header: "New chat".
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'New chat' }))
+    expect(banner()).toBeNull()
+
+    fireEvent.click(button)
+    const again = screen.getByRole('dialog')
+    expect(document.activeElement).toBe(again)
+    fireEvent.keyDown(again, { key: 'Tab', shiftKey: true })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(button)
+  })
+
+  it('phone, full screen: Tree, Copy and Exit full screen live under the ⋯ menu, Close stays in the header', () => {
+    window.matchMedia = ((q: string) => ({
+      matches: q.includes('max-width'), media: q, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })) as unknown as typeof window.matchMedia
+    chatStub.messages = [{ id: 'm1', role: 'user', blocks: [{ type: 'text', content: 'hi' }], timestamp: new Date(0) }]
+    renderPanel({ mode: 'fullscreen', degraded: ['message_queue', 'images'] })
+    collapse()
+    expect(icon()).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Exit fullscreen' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Copy chat as markdown' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Conversation actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Exit fullscreen' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Copy chat as markdown' })).toBeTruthy()
+  })
+
+  it('desktop, full screen: Copy and Exit full screen stay as header buttons', () => {
+    chatStub.messages = [{ id: 'm1', role: 'user', blocks: [{ type: 'text', content: 'hi' }], timestamp: new Date(0) }]
+    renderPanel({ mode: 'fullscreen', degraded: ['message_queue'] })
+    expect(screen.getByRole('button', { name: 'Exit fullscreen' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Copy chat as markdown' })).toBeTruthy()
+  })
+
   it('survives a storage that throws (private window)', () => {
     const realGet = Storage.prototype.getItem
     const realSet = Storage.prototype.setItem

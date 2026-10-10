@@ -615,7 +615,7 @@ export function ChatPanel() {
                 <AttachSessionButton variant="icon" sessionId={chat.sessionId} projectSlug={chat.sessionMeta?.projectSlug} />
               )}
               {/* Agent Tree toggle — visible when session has children */}
-              {hasChildren && chat.sessionId && (
+              {!isMobile && hasChildren && chat.sessionId && (
                 <button
                   type="button"
                   onClick={toggleTree}
@@ -642,7 +642,7 @@ export function ChatPanel() {
                 )}
               </button>
               {/* Copy chat to clipboard */}
-              {chat.messages.length > 0 && (
+              {!isMobile && chat.messages.length > 0 && (
                 <button
                   type="button"
                   onClick={handleCopyChat}
@@ -653,9 +653,23 @@ export function ChatPanel() {
                   {copiedChat ? <Check className="w-4 h-4" aria-hidden="true" /> : <ClipboardCopy className="w-4 h-4" aria-hidden="true" />}
                 </button>
               )}
-              <button type="button" onClick={() => setMode('open')} className={chromeIcon()} title={t('chatA-messages.panel.exitFullscreen')} aria-label={t('chatA-messages.panel.exitFullscreen')}>
-                <Minimize2 className="w-4 h-4" aria-hidden="true" />
-              </button>
+              {isMobile ? (
+                // A 360 px phone has no room for seven buttons beside the title (and the capability icon):
+                // the less frequent ones go under the ⋯ menu, as in the docked panel.
+                <OverflowMenu
+                  size="sm"
+                  label={t('chatA-messages.panel.actions')}
+                  actions={[
+                    { label: treeShown ? t('chatA-messages.panel.hideTree') : t('chatA-messages.panel.showTree'), icon: TreePine, hidden: !(hasChildren && chat.sessionId), onClick: toggleTree },
+                    { label: copiedChat ? t('chatA-messages.panel.copied') : t('chatA-messages.panel.copyChat'), icon: copiedChat ? Check : ClipboardCopy, hidden: chat.messages.length === 0, onClick: handleCopyChat },
+                    { label: t('chatA-messages.panel.exitFullscreen'), icon: Minimize2, onClick: () => setMode('open') },
+                  ]}
+                />
+              ) : (
+                <button type="button" onClick={() => setMode('open')} className={chromeIcon()} title={t('chatA-messages.panel.exitFullscreen')} aria-label={t('chatA-messages.panel.exitFullscreen')}>
+                  <Minimize2 className="w-4 h-4" aria-hidden="true" />
+                </button>
+              )}
               <button type="button" onClick={() => setMode('closed')} className={chromeIcon()} title={t('chatA-messages.panel.close')} aria-label={t('chatA-messages.panel.close')}>
                 <X className="w-4 h-4" aria-hidden="true" />
               </button>
