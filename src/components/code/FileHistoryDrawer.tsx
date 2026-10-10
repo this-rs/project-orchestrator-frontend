@@ -54,8 +54,8 @@ export function FileHistoryDrawer({
   const dialogRef = useRef<HTMLDivElement>(null)
 
   // Focus into the sheet (its close button), Tab kept inside, the page behind inert,
-  // focus back to the trigger.
-  useModalFocus(dialogRef)
+  // focus back to the trigger. Escape closes it, when it is the topmost view.
+  useModalFocus(dialogRef, { onEscape: onClose })
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -83,15 +83,6 @@ export function FileHistoryDrawer({
   useEffect(() => {
     loadData()
   }, [loadData])
-
-  // Close on Escape
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
 
   // Lock body scroll
   useEffect(() => {

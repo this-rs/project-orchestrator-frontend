@@ -3,7 +3,7 @@
  * full-screen view on a phone (the `md` breakpoint, read through matchMedia).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, renderHook, screen } from '@testing-library/react'
+import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import type { ChatMessage } from '@/types'
@@ -16,6 +16,7 @@ vi.mock('@/hooks/useConversationTrace', () => ({
 }))
 
 import { ChatTimelinePanel } from './ChatTimelinePanel'
+import { Dialog } from '@/components/ui/Dialog'
 import { useResetTimelineOnPhone } from './useResetTimelineOnPhone'
 
 /** A window `width` px wide: media queries and `innerWidth` answer from it. */
@@ -324,6 +325,33 @@ describe('<ChatTimelinePanel>', () => {
         fireEvent.keyDown(document, { key: 'Escape' })
         expect(container.hasAttribute('inert')).toBe(false)
         expect(container.getAttribute('aria-hidden')).toBeNull()
+        expect(document.activeElement).toBe(toggle)
+      })
+
+      it('a Dialog over the view: one Escape closes only the Dialog, the next one the view', async () => {
+        function WithDialog() {
+          const [dialog, setDialog] = useState(false)
+          return (
+            <>
+              <Harness />
+              <button type="button" onClick={() => setDialog(true)}>Ask</button>
+              <Dialog open={dialog} onClose={() => setDialog(false)} title="Confirm">
+                <button type="button">OK</button>
+              </Dialog>
+            </>
+          )
+        }
+        render(<WithDialog />)
+        const toggle = openWithToggle()
+        const close = screen.getByRole('button', { name: 'Hide the timeline' })
+        fireEvent.click(screen.getByRole('button', { name: 'Ask', hidden: true }))
+        expect(screen.getByRole('dialog', { name: 'Confirm' })).toBeTruthy()
+        fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Confirm' })).toBeNull())
+        expect(screen.getByRole('dialog', { name: 'Timeline' })).toBeTruthy()
+        expect(document.activeElement).toBe(close)
+        fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+        expect(screen.queryByRole('dialog', { name: 'Timeline' })).toBeNull()
         expect(document.activeElement).toBe(toggle)
       })
     })

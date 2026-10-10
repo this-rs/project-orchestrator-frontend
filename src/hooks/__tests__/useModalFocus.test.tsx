@@ -238,3 +238,73 @@ describe('useModalFocus: nested views', () => {
     expect(modalStackDepth()).toBe(0)
   })
 })
+
+describe('useModalFocus: live regions in the hidden part', () => {
+  it('a live region nested in the background stays exposed; what is around it is hidden', () => {
+    const app = document.createElement('div')
+    app.innerHTML = '<header id="h"><button>Menu</button></header><div id="wrap"><p id="beside">x</p><div id="banner" role="status">Update ready</div></div>'
+    document.body.append(app)
+    const { rerender } = render(<Modal name="A" />)
+    const byId = (id: string) => document.getElementById(id)!
+    for (const el of [app, byId('wrap'), byId('banner')]) {
+      expect(el.hasAttribute('inert')).toBe(false)
+      expect(el.getAttribute('aria-hidden')).toBeNull()
+    }
+    for (const el of [byId('h'), byId('beside')]) {
+      expect(el.hasAttribute('inert')).toBe(true)
+      expect(el.getAttribute('aria-hidden')).toBe('true')
+    }
+    rerender(<Modal name="A" active={false} />)
+    for (const el of [byId('h'), byId('beside')]) {
+      expect(el.hasAttribute('inert')).toBe(false)
+      expect(el.getAttribute('aria-hidden')).toBeNull()
+    }
+  })
+})
+
+describe('useModalFocus: a parent and a child opened in the same render', () => {
+  function Harness({ onParentEscape, onChildEscape }: { onParentEscape: () => void; onChildEscape: () => void }) {
+    const [open, setOpen] = useState(false)
+    const [child, setChild] = useState(true)
+    return (
+      <>
+        <button type="button" onClick={() => setOpen(true)}>Open both</button>
+        {open && (
+          <Modal name="Parent" onEscape={() => { onParentEscape(); setOpen(false) }}>
+            <button type="button">Parent first</button>
+            {child && (
+              <Modal name="Child" onEscape={() => { onChildEscape(); setChild(false) }} />
+            )}
+          </Modal>
+        )}
+      </>
+    )
+  }
+
+  it('the child is on top: it holds focus, Escape and the background; closing it hands over to the parent', () => {
+    const onParentEscape = vi.fn()
+    const onChildEscape = vi.fn()
+    render(<Harness onParentEscape={onParentEscape} onChildEscape={onChildEscape} />)
+    const trigger = button('Open both')
+    trigger.focus()
+    fireEvent.click(trigger)
+    const parent = screen.getByTestId('Parent')
+    const child = screen.getByTestId('Child')
+    expect(child.contains(document.activeElement)).toBe(true)
+    expect(parent.hasAttribute('inert')).toBe(true)
+    expect(child.hasAttribute('inert')).toBe(false)
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(onChildEscape).toHaveBeenCalledTimes(1)
+    expect(onParentEscape).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('Child')).toBeNull()
+    // The trigger is still behind the parent: focus goes into the parent instead.
+    expect(parent.hasAttribute('inert')).toBe(false)
+    expect(document.activeElement).toBe(button('Parent first'))
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(onParentEscape).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(trigger)
+    expect(modalStackDepth()).toBe(0)
+  })
+})

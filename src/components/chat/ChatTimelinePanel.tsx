@@ -153,18 +153,14 @@ function FullScreenTimeline({ onClose, ...strip }: StripProps & { onClose: () =>
   const ref = useRef<HTMLDivElement>(null)
   const titleId = useId()
   // Focus into the view (its close control), Tab kept inside, the page behind inert,
-  // focus back to the toggle on close.
-  useModalFocus(ref, { initialFocus: () => ref.current?.querySelector<HTMLElement>('[data-timeline-close]') })
-
-  // Escape closes — the detail sheet first, when one is open (it handles its own Escape).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || ref.current?.querySelector('[data-testid="trace-sheet"]')) return
-      onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  // focus back to the toggle on close. Escape closes it when it is the topmost view —
+  // the detail sheet first, when one is open (it handles its own Escape).
+  useModalFocus(ref, {
+    initialFocus: () => ref.current?.querySelector<HTMLElement>('[data-timeline-close]'),
+    onEscape: () => {
+      if (!ref.current?.querySelector('[data-testid="trace-sheet"]')) onClose()
+    },
+  })
 
   // The page behind does not scroll.
   useEffect(() => {

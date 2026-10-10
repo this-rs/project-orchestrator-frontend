@@ -27,17 +27,8 @@ export function Dialog({ open, onClose, title, children, size = 'sm' }: DialogPr
   const variants = useVariants(DIALOG_MOTION)
 
   // Focus on the close button, Tab kept inside, the page behind inert, focus back to the trigger.
-  useModalFocus(containerRef, { active: open, initialFocus: closeRef })
-
-  // Escape key
-  useEffect(() => {
-    if (!open) return
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [open, onClose])
+  // Escape closes it, when it is the topmost view (a dialog over another view closes alone).
+  useModalFocus(containerRef, { active: open, initialFocus: closeRef, onEscape: onClose })
 
   // Body scroll lock
   useEffect(() => {
