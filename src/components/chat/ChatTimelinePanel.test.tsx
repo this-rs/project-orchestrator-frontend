@@ -285,6 +285,48 @@ describe('<ChatTimelinePanel>', () => {
       fireEvent.keyDown(document, { key: 'Escape' })
       expect(screen.queryByRole('dialog', { name: 'Timeline' })).toBeNull()
     })
+
+    describe('focus trap (useModalFocus)', () => {
+      const tab = (shiftKey = false) => fireEvent.keyDown(document.activeElement!, { key: 'Tab', shiftKey })
+      const tabbable = (view: HTMLElement) =>
+        Array.from(view.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]')).filter((el) => el.tabIndex >= 0)
+
+      it('Tab from the last control goes back to the first, Shift+Tab from the first to the last', () => {
+        render(<Harness />)
+        openWithToggle()
+        const view = screen.getByRole('dialog', { name: 'Timeline' })
+        const items = tabbable(view)
+        expect(items.length).toBeGreaterThan(2)
+        items[items.length - 1].focus()
+        tab()
+        expect(document.activeElement).toBe(items[0])
+        tab(true)
+        expect(document.activeElement).toBe(items[items.length - 1])
+      })
+
+      it('Shift+Tab with focus on the view itself goes to its last control', () => {
+        render(<Harness />)
+        openWithToggle()
+        const view = screen.getByRole('dialog', { name: 'Timeline' })
+        view.focus()
+        expect(document.activeElement).toBe(view)
+        tab(true)
+        const items = tabbable(view)
+        expect(document.activeElement).toBe(items[items.length - 1])
+      })
+
+      it('makes the page behind inert and hidden while open, and gives it back on close', () => {
+        const { container } = render(<Harness />)
+        const toggle = openWithToggle()
+        expect(container.hasAttribute('inert')).toBe(true)
+        expect(container.getAttribute('aria-hidden')).toBe('true')
+        expect(screen.getByRole('dialog', { name: 'Timeline' }).closest('[inert]')).toBeNull()
+        fireEvent.keyDown(document, { key: 'Escape' })
+        expect(container.hasAttribute('inert')).toBe(false)
+        expect(container.getAttribute('aria-hidden')).toBeNull()
+        expect(document.activeElement).toBe(toggle)
+      })
+    })
   })
 })
 

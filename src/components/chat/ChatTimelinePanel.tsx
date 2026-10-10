@@ -5,17 +5,18 @@
  *   conversation. Non-modal — the transcript and the composer stay usable.
  *   In the docked chat it sits against the chat panel's left edge; in the
  *   full-screen chat it is a right-hand column, like the assistant tree.
- * - Phone: a full-screen view (100dvh, safe areas). Modal: focus moves to its
- *   close control, Escape closes, the page behind does not scroll, and focus
- *   goes back to what opened it.
+ * - Phone: a full-screen view (100dvh, safe areas). Modal (useModalFocus): focus
+ *   moves to its close control and Tab stays inside, the page behind is inert and
+ *   does not scroll, Escape closes, and focus goes back to what opened it.
  *
  * Both carry a link to the dedicated page (`/chat/:id/timeline`).
  */
-import { useCallback, useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { ChartNoAxesGantt, Maximize2, X } from 'lucide-react'
 import { useIsMobile } from '@/hooks'
+import { useModalFocus, useRestoreFocus } from '@/hooks/useModalFocus'
 import { useT } from '@/i18n'
 import { focusRing, glassFlat, iconButton } from '@/components/ui/classes'
 import { workspacePath } from '@/utils/paths'
@@ -61,19 +62,6 @@ export function ChatTimelinePanel({ onClose, placement, dockOffset = 0, ...strip
   return isMobile
     ? <FullScreenTimeline onClose={onClose} {...strip} />
     : <SideTimeline onClose={onClose} placement={placement} dockOffset={dockOffset} {...strip} />
-}
-
-/** Focus goes back to the opener (the toggle) when the panel closes with focus inside it or lost. */
-function useRestoreFocus(container: RefObject<HTMLElement | null>) {
-  useEffect(() => {
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const node = container.current
-    return () => {
-      const active = document.activeElement
-      const lost = !active || active === document.body || (node?.contains(active) ?? false)
-      if (lost && opener?.isConnected) opener.focus()
-    }
-  }, [container])
 }
 
 function Header({ titleId, sessionId, workspaceSlug, onClose, mobile }: { titleId: string; sessionId: string | null; workspaceSlug?: string | null; onClose: () => void; mobile: boolean }) {
@@ -164,12 +152,9 @@ function SideTimeline({ onClose, placement, dockOffset, ...strip }: StripProps &
 function FullScreenTimeline({ onClose, ...strip }: StripProps & { onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
   const titleId = useId()
-  useRestoreFocus(ref)
-
-  // Focus into the view: its close control.
-  useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('[data-timeline-close]')?.focus()
-  }, [])
+  // Focus into the view (its close control), Tab kept inside, the page behind inert,
+  // focus back to the toggle on close.
+  useModalFocus(ref, { initialFocus: () => ref.current?.querySelector<HTMLElement>('[data-timeline-close]') })
 
   // Escape closes — the detail sheet first, when one is open (it handles its own Escape).
   useEffect(() => {
