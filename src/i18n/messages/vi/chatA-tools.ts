@@ -153,5 +153,18 @@ export default {
       assertion: "khẳng định",
       decision: "quyết định"
     }
+  },
+  permission: {
+    actions: "Trả lời yêu cầu cấp quyền này",
+    allowOnce: "Cho phép một lần",
+    allowSession: "Cho phiên này",
+    allowAlways: "Luôn luôn",
+    deny: "Từ chối",
+    sessionHint: "Không hỏi lại trong cuộc trò chuyện này",
+    alwaysHint: "Không hỏi lại trong dự án này, kể cả sau khi khởi động lại",
+    allowed: "Đã cho phép",
+    allowedSession: "Đã cho phép cho phiên",
+    allowedAlways: "Luôn cho phép",
+    denied: "Đã từ chối"
   }
 } satisfies Translation<'chatA-tools'>

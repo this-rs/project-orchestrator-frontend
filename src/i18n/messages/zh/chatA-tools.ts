@@ -153,5 +153,18 @@ export default {
       assertion: "断言",
       decision: "决策"
     }
+  },
+  permission: {
+    actions: "回应此权限请求",
+    allowOnce: "允许一次",
+    allowSession: "本次会话",
+    allowAlways: "始终",
+    deny: "拒绝",
+    sessionHint: "本对话中不再询问",
+    alwaysHint: "本项目中不再询问，重启后也是",
+    allowed: "已允许",
+    allowedSession: "本次会话已允许",
+    allowedAlways: "已始终允许",
+    denied: "已拒绝"
   }
 } satisfies Translation<'chatA-tools'>

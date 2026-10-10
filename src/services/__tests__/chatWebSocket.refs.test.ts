@@ -87,3 +87,20 @@ describe('sendUserMessage frames', () => {
     expect(sent(socket)).toEqual({ type: 'user_message', content: 'hi', queue: true })
   })
 })
+
+describe('sendPermissionResponse frames', () => {
+  const sent = (socket: { send: ReturnType<typeof vi.fn> }) => JSON.parse(socket.send.mock.calls.at(-1)![0] as string)
+
+  it('carries a lasting scope, and is the old frame for once and for a refusal', async () => {
+    const { ws, socket } = await connected()
+    socket.receive({ type: 'auth_ok' })
+    ws.sendPermissionResponse('p1', true, 'session')
+    expect(sent(socket)).toEqual({ type: 'permission_response', id: 'p1', allow: true, scope: 'session' })
+    ws.sendPermissionResponse('p1', true, 'always')
+    expect(sent(socket)).toEqual({ type: 'permission_response', id: 'p1', allow: true, scope: 'always' })
+    ws.sendPermissionResponse('p1', true, 'once')
+    expect(sent(socket)).toEqual({ type: 'permission_response', id: 'p1', allow: true })
+    ws.sendPermissionResponse('p1', false, 'always')
+    expect(sent(socket)).toEqual({ type: 'permission_response', id: 'p1', allow: false })
+  })
+})

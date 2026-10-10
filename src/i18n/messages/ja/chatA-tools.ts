@@ -153,5 +153,18 @@ export default {
       assertion: "アサーション",
       decision: "決定"
     }
+  },
+  permission: {
+    actions: "この許可リクエストに応答",
+    allowOnce: "今回のみ許可",
+    allowSession: "このセッション中",
+    allowAlways: "常に",
+    deny: "拒否",
+    sessionHint: "この会話では再確認しません",
+    alwaysHint: "このプロジェクトでは再起動後も再確認しません",
+    allowed: "許可済み",
+    allowedSession: "セッション中は許可",
+    allowedAlways: "常に許可",
+    denied: "拒否済み"
   }
 } satisfies Translation<'chatA-tools'>

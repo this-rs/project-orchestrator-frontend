@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { ContentBlock } from '@/types'
-import { supportsScope, type ToolCategory } from '@/types/provider'
+import { supportsScope, type PermissionScope, type ToolCategory } from '@/types/provider'
+import { useT } from '@/i18n'
 import { policyOnlyRequestText } from '@/constants/capabilities'
 import { useChatCapabilities } from './ChatSessionContext'
 import { useBlockProviderKind } from './useBlockProviderKind'
@@ -165,7 +166,7 @@ function CategoryIcon({ category, className }: { category: ToolCategory; classNa
 
 interface PermissionRequestBlockProps {
   block: ContentBlock
-  onRespond: (toolCallId: string, allowed: boolean, remember?: { toolName: string }) => boolean | void
+  onRespond: (toolCallId: string, allowed: boolean, scope?: PermissionScope) => boolean | void
   disabled?: boolean
 }
 
@@ -178,15 +179,17 @@ export function PermissionRequestBlock({
   const toolName = (block.metadata?.tool_name as string) || ''
   const toolInput = block.metadata?.tool_input as Record<string, unknown> | undefined
 
-  // Decision can come from: auto_approved (live), decided (persisted/broadcast)
-  const autoApproved = !!(block.metadata?.auto_approved)
+  // A decision already made (persisted, or broadcast by another tab)
   const persistedDecision = block.metadata?.decided
     ? (block.metadata.decision as 'allowed' | 'denied')
     : null
 
-  // What the provider of this conversation can do: ask at all, and remember an answer.
+  const { t } = useT()
+  // What the provider of this conversation can do: ask at all, and how long an
+  // approval may last (only the scopes the session declares are offered).
   const caps = useChatCapabilities()
-  const canRemember = supportsScope(caps, 'session')
+  const lastingScopes = (['session', 'always'] as const).filter((s) => supportsScope(caps, s))
+  const decisionScope = block.metadata?.decision_scope as PermissionScope | undefined
   const providerKind = useBlockProviderKind()
 
   const category = getToolCategory(toolName, {
@@ -197,11 +200,10 @@ export function PermissionRequestBlock({
   const styles = CATEGORY_STYLES[category]
   const { summary, detail, language } = formatToolSummary(toolName, toolInput, category)
 
-  // Response state — auto-approved or persisted decisions start as already responded
-  const initialDecision = autoApproved ? 'allowed' : persistedDecision
+  // Response state — a persisted decision starts as already responded
+  const initialDecision = persistedDecision
   const [responded, setResponded] = useState(!!initialDecision)
   const [decision, setDecision] = useState<'allowed' | 'denied' | null>(initialDecision)
-  const [rememberChecked, setRememberChecked] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
   const [sendFailed, setSendFailed] = useState(false)
 
@@ -219,12 +221,11 @@ export function PermissionRequestBlock({
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  const handleRespond = (allowed: boolean) => {
+  const handleRespond = (allowed: boolean, scope: PermissionScope = 'once') => {
     if (responded) return
-    const remember = canRemember && rememberChecked && allowed ? { toolName } : undefined
     // Only show the decision once it was actually delivered: on a dead socket
     // onRespond returns false and the agent is still waiting for an answer.
-    if (onRespond(toolCallId, allowed, remember) === false) {
+    if (onRespond(toolCallId, allowed, allowed ? scope : undefined) === false) {
       setSendFailed(true)
       return
     }
@@ -252,12 +253,16 @@ export function PermissionRequestBlock({
         {decision === 'allowed' ? (
           <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400/80 shrink-0">
             <Check className="w-3 h-3" />
-            {autoApproved ? 'Auto' : 'Allowed'}
+            {decisionScope === 'always'
+              ? t('chatA-tools.permission.allowedAlways')
+              : decisionScope === 'session'
+                ? t('chatA-tools.permission.allowedSession')
+                : t('chatA-tools.permission.allowed')}
           </span>
         ) : (
           <span className="flex items-center gap-1 text-[11px] font-medium text-red-400/80 shrink-0">
             <X className="w-3 h-3" />
-            Denied
+            {t('chatA-tools.permission.denied')}
           </span>
         )}
       </div>
@@ -346,36 +351,39 @@ export function PermissionRequestBlock({
           </div>
         )}
 
-        {/* Actions: buttons + remember inline */}
-        <div className="flex items-center gap-2">
+        {/* Actions: allow once, for the session, always (only the scopes the session offers), deny */}
+        <div role="group" aria-label={t('chatA-tools.permission.actions')} className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => handleRespond(true)}
+            type="button"
+            onClick={() => handleRespond(true, 'once')}
             disabled={disabled}
             className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 transition-colors disabled:opacity-50 flex items-center gap-1"
           >
-            <Check className="w-3 h-3" />
-            Allow
+            <Check className="w-3 h-3" aria-hidden="true" />
+            {t('chatA-tools.permission.allowOnce')}
           </button>
+          {lastingScopes.map((scope) => (
+            <button
+              key={scope}
+              type="button"
+              data-scope={scope}
+              onClick={() => handleRespond(true, scope)}
+              disabled={disabled}
+              title={t(scope === 'session' ? 'chatA-tools.permission.sessionHint' : 'chatA-tools.permission.alwaysHint')}
+              className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-600/10 text-emerald-300 hover:bg-emerald-600/20 transition-colors disabled:opacity-50"
+            >
+              {t(scope === 'session' ? 'chatA-tools.permission.allowSession' : 'chatA-tools.permission.allowAlways')}
+            </button>
+          ))}
           <button
+            type="button"
             onClick={() => handleRespond(false)}
             disabled={disabled}
             className="px-2.5 py-1 text-[11px] font-medium rounded bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors disabled:opacity-50 flex items-center gap-1"
           >
-            <X className="w-3 h-3" />
-            Deny
+            <X className="w-3 h-3" aria-hidden="true" />
+            {t('chatA-tools.permission.deny')}
           </button>
-{/* Offered only when the provider can remember an answer for the session. */}
-          {canRemember && (
-                    <label className="flex items-center gap-1 cursor-pointer ml-auto">
-              <input
-                type="checkbox"
-                checked={rememberChecked}
-                onChange={(e) => setRememberChecked(e.target.checked)}
-                className="w-3 h-3 rounded border-gray-600 bg-white/[0.04] text-indigo-500 focus:ring-indigo-500/30 focus:ring-offset-0"
-              />
-              <span className="text-[10px] text-gray-500">Remember</span>
-            </label>
-          )}
         </div>
         {sendFailed && (
           <p role="alert" className="mt-1.5 text-[10px] text-red-400">

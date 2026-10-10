@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pickModelResolver } from '@/constants/providers'
 import { distinctModels } from '@/utils/routingSelection'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -45,7 +45,7 @@ import {
   type BackgroundTick,
 } from '@/utils/chatAssembly'
 import { tr } from '@/i18n/lazy'
-import { toProviderRef, toToolPolicy, type ToolPolicyMode } from '@/types/provider'
+import { toProviderRef, toToolPolicy, type PermissionScope, type ToolPolicyMode } from '@/types/provider'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
 
 /** Number of messages to load per page via REST */
@@ -249,7 +249,6 @@ export function useChat() {
   const [wsStatus, setWsStatus] = useAtom(chatWsStatusAtom)
   const [isReplaying, setIsReplaying] = useAtom(chatReplayingAtom)
   const _setPermissionOverride = useSetAtom(chatSessionPermissionOverrideAtom)
-  const _setAutoApprovedTools = useSetAtom(chatAutoApprovedToolsAtom)
   const _setSessionModel = useSetAtom(chatSessionModelAtom)
   // Live Jotai store — lets callbacks read the CURRENT atom value at call time
   // instead of relying on `*Ref.current`, which only tracks writes made through
@@ -354,7 +353,6 @@ export function useChat() {
   // while rendering ChatPanel" warning in React 19 — both components read
   // these atoms, and updating them during handleEvent caused cross-component
   // setState-during-render. Tracked setters keep refs in sync for callback access.
-  const autoApprovedToolsRef = useRef<Set<string>>(new Set())
   const permissionOverrideRef = useRef<ToolPolicyMode | null>(null)
   const sessionModelRef = useRef<string | null>(null)
 
@@ -363,19 +361,6 @@ export function useChat() {
     permissionOverrideRef.current = value
     _setPermissionOverride(value)
   }, [_setPermissionOverride])
-
-  const setAutoApprovedTools = useCallback((value: Set<string> | ((prev: Set<string>) => Set<string>)) => {
-    if (typeof value === 'function') {
-      _setAutoApprovedTools((prev: Set<string>) => {
-        const next = value(prev)
-        autoApprovedToolsRef.current = next
-        return next
-      })
-    } else {
-      autoApprovedToolsRef.current = value
-      _setAutoApprovedTools(value)
-    }
-  }, [_setAutoApprovedTools])
 
   // The permission mode of a NEW session, in the form its backend reads: the
   // legacy Claude string, unless the session opens on another provider (then
@@ -486,48 +471,6 @@ export function useChat() {
       return
     }
 
-    // Auto-approve: if this is a live permission_request and the tool was remembered,
-    // auto-respond Allow via WS and show the block as already-approved.
-    if (event.type === 'permission_request' && !event.replaying) {
-      const toolName = (event as { tool?: string }).tool ?? ''
-      const toolCallId = (event as { id?: string }).id ?? ''
-      // Auto-respond via WS. On a dead socket nothing was delivered: do not
-      // claim "Auto" approval, fall through so the card stays answerable.
-      const ws = wsRef.current
-      if (
-        autoApprovedToolsRef.current.has(toolName) &&
-        (!(ws && toolCallId) || ws.sendPermissionResponse(toolCallId, true))
-      ) {
-        // Still add the block to messages but pre-mark as auto-approved
-        // (by not passing through the normal flow — we add a special metadata flag)
-        setMessages((prev) => {
-          const updated = [...prev]
-          let lastMsg = updated[updated.length - 1]
-          if (!lastMsg || lastMsg.role !== 'assistant') {
-            lastMsg = { id: nextMessageId(), role: 'assistant', blocks: [], timestamp: new Date() }
-            updated.push(lastMsg)
-          } else {
-            lastMsg = { ...lastMsg, blocks: [...lastMsg.blocks] }
-            updated[updated.length - 1] = lastMsg
-          }
-          const apParent = getParentToolUseId(event)
-          lastMsg.blocks.push({
-            id: nextBlockId(),
-            type: 'permission_request',
-            content: `Tool "${toolName}" wants to execute`,
-            metadata: withParent({
-              tool_call_id: toolCallId,
-              tool_name: toolName,
-              tool_input: (event as { input?: Record<string, unknown> }).input,
-              auto_approved: true,
-            }, apParent),
-          })
-          return updated
-        })
-        return
-      }
-    }
-
     // streaming_status — set isStreaming flag without touching messages
     // Broadcast by backend to ALL connected clients (multi-tab support)
     if (event.type === 'streaming_status') {
@@ -551,13 +494,14 @@ export function useChat() {
         : event
       const decisionId = (data as { id?: string }).id
       const allowed = (data as { allow?: boolean }).allow
+      const lasting = (data as { scope?: string }).scope
       if (decisionId) {
         setMessages((prev) =>
           prev.map((msg) => ({
             ...msg,
             blocks: msg.blocks.map((block) => {
               if (block.type === 'permission_request' && block.metadata?.tool_call_id === decisionId) {
-                return { ...block, metadata: { ...block.metadata, decided: true, decision: allowed ? 'allowed' : 'denied' } }
+                return { ...block, metadata: { ...block.metadata, decided: true, decision: allowed ? 'allowed' : 'denied', decision_scope: lasting } }
               }
               return block
             }),
@@ -2193,23 +2137,13 @@ export function useChat() {
   const respondPermission = useCallback((
     toolCallId: string,
     allowed: boolean,
-    remember?: { toolName: string },
+    scope?: PermissionScope,
   ): boolean => {
     if (!sessionId) return false
-    const ws = getWs()
-    // Not delivered (dead socket): skip the local side effects.
-    if (!ws.sendPermissionResponse(toolCallId, allowed)) return false
-    // If "Remember for this session" was checked and user clicked Allow,
-    // add the tool name to the auto-approved set.
-    if (remember && allowed) {
-      setAutoApprovedTools((prev: Set<string>) => {
-        const next = new Set<string>(prev)
-        next.add(remember.toolName)
-        return next
-      })
-    }
-    return true
-  }, [sessionId, getWs, setAutoApprovedTools])
+    // How long an approval lasts is kept by the provider (`session`) or by the
+    // backend / the CLI (`always`): the backend says so with `permission_decision.scope`.
+    return getWs().sendPermissionResponse(toolCallId, allowed, scope)
+  }, [sessionId, getWs])
 
   /**
    * Answer a question the agent asked. Returns true when the answer was handed
@@ -2409,7 +2343,6 @@ export function useChat() {
     setHasLiveActivity(false)
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
     // Reset session-scoped state
-    setAutoApprovedTools(new Set<string>())
     setPermissionOverride(null)
     setSessionModel(null)
     setAutoContinue(false)
@@ -2417,7 +2350,7 @@ export function useChat() {
     store.set(chatSessionRoutingAtom, null)
     store.set(chatForcedTargetAtom, false)
     store.set(chatSessionOpenErrorAtom, null)
-  }, [store, getWs, setSessionId, setIsStreaming, setIsReplaying, setAutoApprovedTools, setPermissionOverride, setSessionModel, setAutoContinue, sessionId, applySessionRuntime])
+  }, [store, getWs, setSessionId, setIsStreaming, setIsReplaying, setPermissionOverride, setSessionModel, setAutoContinue, sessionId, applySessionRuntime])
 
   const changePermissionMode = useCallback((mode: ToolPolicyMode) => {
     if (!sessionId) return
