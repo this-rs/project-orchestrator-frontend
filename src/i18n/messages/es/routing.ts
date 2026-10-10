@@ -33,6 +33,11 @@ export default {
     over_budget: 'Presupuesto superado',
     trust_without_sandbox: 'Modo de confianza sin sandbox',
     remote: 'Remoto, no permitido aquí',
+    window_unknown: "Ventana de contexto desconocida",
+  },
+  rejectionWindow: {
+    catalog_offline: "Ventana de contexto desconocida: catálogo sin conexión",
+    not_in_catalog: "Ventana de contexto desconocida: modelo ausente del catálogo",
   },
   badge: { poChooses: 'Auto', why: '¿Por qué?' },
   settings: {

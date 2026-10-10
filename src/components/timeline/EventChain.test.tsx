@@ -33,8 +33,28 @@ describe('<EventChain> routing', () => {
     const box = screen.getByTestId('event-routing')
     expect(box.textContent).toContain('0.82')
     expect(box.textContent).toContain('best reward per dollar')
-    expect(box.textContent).toContain('no tools')
+    expect(box.textContent).toContain('Cannot call tools')
     expect(box.textContent).toContain('reward 0.90')
     expect(box.textContent).toContain('$0.0123')
+  })
+
+  it('names a window_unknown rejection in words (backend #649), with its cause when known', () => {
+    const routing = {
+      id: 'd', at: '2026-10-10T12:00:00Z', mode: 'full', stage: 'auto', applied: true, task_class: 'complex',
+      provider_id: 'openai', model: 'gpt-5', score: 0.7, explored: false, reason: 'best fit',
+      alternatives: [
+        { provider_id: 'claude-code', model: 'claude-opus-4-1', score: null, rejected: 'window_unknown' },
+        { provider_id: 'claude-code', model: 'claude-sonnet-4-5', score: null, rejected: 'window_unknown', why: 'catalog_offline' },
+        { provider_id: 'claude-code', model: 'claude-haiku-4-5', score: null, rejected: 'window_unknown', why: 'not_in_catalog' },
+      ],
+      outcome: null,
+    } as never
+    render(<EventChain item={item('r', 'go', { kind: 'request', provider: 'openai', model: 'gpt-5', routing })} upstream={[]} downstream={[]} />)
+    const cells = screen.getAllByRole('row').slice(1).map((row) => row.lastElementChild?.textContent)
+    expect(cells).toEqual([
+      'Context window unknown',
+      'Context window unknown: catalog offline',
+      'Context window unknown: model not in the catalog',
+    ])
   })
 })

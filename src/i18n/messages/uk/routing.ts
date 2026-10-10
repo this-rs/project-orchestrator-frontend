@@ -33,6 +33,11 @@ export default {
     over_budget: 'Перевищено бюджет',
     trust_without_sandbox: 'Режим довіри без пісочниці',
     remote: 'Віддалений, тут не дозволений',
+    window_unknown: "Контекстне вікно невідоме",
+  },
+  rejectionWindow: {
+    catalog_offline: "Контекстне вікно невідоме: каталог недоступний",
+    not_in_catalog: "Контекстне вікно невідоме: моделі немає в каталозі",
   },
   badge: { poChooses: 'Auto', why: 'Чому?' },
   settings: {

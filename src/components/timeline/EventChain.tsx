@@ -8,6 +8,8 @@
 import { StatusIcon } from '@/components/ui'
 import { TONE_CLASSES } from '@/components/ui/statusMeta'
 import { focusRing } from '@/components/ui/classes'
+import { useT } from '@/i18n'
+import { routingRejectionLabel } from '@/constants/routing'
 import { STATUS_TONE, DEFAULT_TIMELINE_LABELS, formatItemDuration, type TimelineLabels } from './status'
 import { shortModel, type TimelineItem } from './model'
 
@@ -104,6 +106,7 @@ function Where({ item }: { item: TimelineItem }) {
 
 /** The routing decision: what was chosen, why, and what lost. */
 function RoutingDetail({ item }: { item: TimelineItem }) {
+  const { t } = useT()
   const d = item.routing
   if (!d) return null
   const pct = (n: number | null | undefined) => (n == null ? '—' : n.toFixed(2))
@@ -144,7 +147,7 @@ function RoutingDetail({ item }: { item: TimelineItem }) {
                 <tr key={`${a.provider_id}/${a.model ?? ''}/${i}`} className="text-gray-300">
                   <td className="py-0.5 pr-3">{a.provider_id}{a.model ? ` / ${shortModel(a.model)}` : ''}</td>
                   <td className="py-0.5 pr-3 tabular-nums">{pct(a.score)}</td>
-                  <td className="py-0.5">{a.rejected ? a.rejected.replace(/_/g, ' ') : 'outscored'}</td>
+                  <td className="py-0.5">{a.rejected ? routingRejectionLabel(t, a.rejected, a.why) : 'outscored'}</td>
                 </tr>
               ))}
             </tbody>

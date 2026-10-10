@@ -33,6 +33,11 @@ export default {
     over_budget: 'Orçamento excedido',
     trust_without_sandbox: 'Modo de confiança sem sandbox',
     remote: 'Remoto, não permitido aqui',
+    window_unknown: "Janela de contexto desconhecida",
+  },
+  rejectionWindow: {
+    catalog_offline: "Janela de contexto desconhecida: catálogo offline",
+    not_in_catalog: "Janela de contexto desconhecida: modelo ausente do catálogo",
   },
   badge: { poChooses: 'Auto', why: 'Por quê?' },
   settings: {

@@ -91,6 +91,7 @@ export type KnownRoutingRejection =
   | 'over_budget'
   | 'trust_without_sandbox'
   | 'remote'
+  | 'window_unknown'
 export const ROUTING_REJECTIONS: readonly KnownRoutingRejection[] = [
   'not_allowed',
   'unhealthy',
@@ -100,8 +101,16 @@ export const ROUTING_REJECTIONS: readonly KnownRoutingRejection[] = [
   'over_budget',
   'trust_without_sandbox',
   'remote',
+  'window_unknown',
 ]
 export type RoutingRejection = KnownRoutingRejection | (string & {})
+
+/**
+ * Why a `window_unknown` rejection has no window (backend #649,
+ * `UnknownWindow`): the live model catalog is offline, or does not list the
+ * model with a window. Open-ended like the codes.
+ */
+export type UnknownWindowCause = 'catalog_offline' | 'not_in_catalog' | (string & {})
 
 export interface RoutingAlternative {
   provider_id: ProviderId
@@ -110,6 +119,11 @@ export interface RoutingAlternative {
   score: number | null
   /** Rejection reason, `null` when the candidate was merely outscored. */
   rejected: RoutingRejection | null
+  /**
+   * Cause of a `window_unknown` rejection (`RejectReason::WindowUnknown.why`),
+   * when the server sends it. Absent: the label without a cause.
+   */
+  why?: UnknownWindowCause | null
 }
 
 /** What happened after the decision. Every unknown figure is `null`, never 0. */

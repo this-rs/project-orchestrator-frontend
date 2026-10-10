@@ -33,6 +33,11 @@ export default {
     over_budget: '예산 초과',
     trust_without_sandbox: '샌드박스 없는 신뢰 모드',
     remote: '원격, 여기서는 허용되지 않음',
+    window_unknown: "컨텍스트 윈도우 알 수 없음",
+  },
+  rejectionWindow: {
+    catalog_offline: "컨텍스트 윈도우 알 수 없음: 카탈로그 오프라인",
+    not_in_catalog: "컨텍스트 윈도우 알 수 없음: 카탈로그에 없는 모델",
   },
   badge: { poChooses: 'Auto', why: '이유' },
   settings: {
