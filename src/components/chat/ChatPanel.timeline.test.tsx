@@ -1,14 +1,16 @@
 /**
- * The full-screen chat makes room for its timeline column (timelineRoom): below lg it hides
- * the conversations sidebar, so the panel never lies over the conversation or the composer.
+ * The full-screen chat makes room for its timeline column (timelineRoom): it hides the
+ * conversations sidebar (and, below lg, the assistant tree) instead of covering anything,
+ * and what it hides stays reachable from the header.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import { MemoryRouter } from 'react-router-dom'
 import { useEffect, type ReactNode } from 'react'
 import { chatPanelModeAtom, chatTimelineOpenAtom } from '@/atoms'
 
+const detached = vi.hoisted(() => ({ value: { runs: [] as unknown[], hasActiveRuns: false } }))
 const chatStub = {
   sessionId: 's1',
   isSending: false,
@@ -38,7 +40,7 @@ const chatStub = {
 vi.mock('@/hooks', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/hooks')>()),
   useChat: () => chatStub,
-  useDetachedRuns: () => ({ runs: [], hasActiveRuns: false }),
+  useDetachedRuns: () => detached.value,
   useVisualViewportHeight: () => undefined,
   useWindowFullscreen: () => false,
   useWorkspaceSlug: () => 'ws',
@@ -46,7 +48,7 @@ vi.mock('@/hooks', async (importOriginal) => ({
 vi.mock('@/hooks/useChatUrlSync', () => ({ useChatUrlSync: () => undefined }))
 vi.mock('@/services/chat', () => ({ chatApi: { getSession: vi.fn().mockResolvedValue(null) } }))
 vi.mock('@/components/discussions/AttachSessionButton', () => ({ AttachSessionButton: () => null }))
-vi.mock('@/components/discussions/DiscussionTreeView', () => ({ DiscussionTreeView: () => null }))
+vi.mock('@/components/discussions/DiscussionTreeView', () => ({ DiscussionTreeView: () => <div data-testid="tree" /> }))
 vi.mock('./ChatMessages', () => ({
   ChatMessages: ({ bottomInset }: { bottomInset?: number }) => <div data-testid="messages" data-inset={bottomInset} />,
 }))
@@ -60,7 +62,7 @@ vi.mock('./ChatInput', () => ({ ChatInput: () => <div data-testid="input" /> }))
 vi.mock('./CompactionBanner', () => ({ CompactionBanner: () => null }))
 vi.mock('./SecretRequestTray', () => ({ SecretRequestTray: () => null }))
 vi.mock('./DetachedRunsPanel', () => ({ DetachedRunsPanel: () => null }))
-vi.mock('./SessionList', () => ({ SessionList: () => null }))
+vi.mock('./SessionList', () => ({ SessionList: () => <div data-testid="session-list" /> }))
 vi.mock('./ProjectSelect', () => ({ ProjectSelect: () => null }))
 vi.mock('./PermissionSettingsPanel', () => ({ PermissionSettingsPanel: () => null }))
 vi.mock('./SessionBreadcrumb', () => ({ SessionBreadcrumb: () => null }))
@@ -70,17 +72,20 @@ vi.mock('./ChatTimelinePanel', () => ({
 
 import { ChatPanel } from './ChatPanel'
 
+import { CHAT_COLUMN_WIDTH, CHAT_SIDEBAR_WIDTH } from './timelineRoom'
+
 function renderFullscreen(timelineOpen: boolean) {
   const store = createStore()
   store.set(chatPanelModeAtom, 'fullscreen')
   store.set(chatTimelineOpenAtom, timelineOpen)
-  return render(
+  render(
     <Provider store={store}>
       <MemoryRouter>
         <ChatPanel />
       </MemoryRouter>
     </Provider>,
   )
+  return store
 }
 
 function setWidth(width: number) {
@@ -96,29 +101,116 @@ function setWidth(width: number) {
   }) as unknown as typeof window.matchMedia
 }
 
-beforeEach(() => localStorage.clear())
+const sidebar = () => screen.getByTestId('chat-sessions-sidebar')
+/** The sidebar column is on screen from md: `hidden md:flex`; set aside: `hidden` alone. */
+const sidebarShown = () => sidebar().className.split(/\s+/).includes('md:flex')
+const treeButton = () => screen.getByRole('button', { name: 'Assistant tree' })
+/** A header button only for a compact layout carries `md:hidden`: from md it is not on screen. */
+const onScreenFromMd = (el: HTMLElement) => !el.className.split(/\s+/).includes('md:hidden')
+
+beforeEach(() => {
+  localStorage.clear()
+  detached.value = { runs: [], hasActiveRuns: false }
+})
 
 describe('ChatPanel full screen: room for the timeline column', () => {
-  it.each([800, 900])('at %i px the sidebar steps aside while the timeline is open, and comes back', async (width) => {
+  it.each([800, 900])('at %i px the sidebar steps aside while the timeline is open', async (width) => {
     setWidth(width)
     renderFullscreen(true)
-    const timeline = await screen.findByTestId('timeline')
-    expect(timeline.dataset.placement).toBe('column')
-    expect(screen.getByTestId('chat-sessions-sidebar').className).not.toContain('md:flex')
+    expect((await screen.findByTestId('timeline')).dataset.placement).toBe('column')
+    expect(sidebarShown()).toBe(false)
   })
 
-  it('keeps the sidebar while the timeline is closed', async () => {
+  it('at 900 px with the timeline open, the conversations stay reachable from the header', async () => {
+    setWidth(900)
+    renderFullscreen(true)
+    await screen.findByTestId('timeline')
+    const sessions = screen.getByRole('button', { name: 'Sessions' })
+    expect(onScreenFromMd(sessions)).toBe(true)
+    expect(onScreenFromMd(screen.getByRole('button', { name: 'New chat' }))).toBe(true)
+    // One list so far: the one in the sidebar, set aside (display: none).
+    expect(screen.getAllByTestId('session-list')).toHaveLength(1)
+    fireEvent.click(sessions)
+    // The full-screen list opens over everything, as on a phone.
+    const lists = screen.getAllByTestId('session-list')
+    expect(lists).toHaveLength(2)
+    const overlay = lists[1].parentElement!
+    expect(overlay.className).toContain('fixed inset-0')
+    expect(within(overlay).getByText('Conversations')).toBeTruthy()
+  })
+
+  it('keeps the sidebar, and the header without its compact buttons, while the timeline is closed', async () => {
     setWidth(900)
     renderFullscreen(false)
     await screen.findByTestId('messages')
     expect(screen.queryByTestId('timeline')).toBeNull()
-    expect(screen.getByTestId('chat-sessions-sidebar').className).toContain('md:flex')
+    expect(sidebarShown()).toBe(true)
+    expect(sidebar().className).toContain(CHAT_SIDEBAR_WIDTH.className)
+    expect(onScreenFromMd(screen.getByRole('button', { name: 'Sessions' }))).toBe(false)
+    expect(onScreenFromMd(screen.getByRole('button', { name: 'New chat' }))).toBe(false)
   })
 
-  it.each([1024, 1280])('at %i px the sidebar, the conversation and the column fit side by side', async (width) => {
-    setWidth(width)
+  it('at 1024 px without the tree: sidebar, conversation and timeline side by side, header unchanged', async () => {
+    setWidth(1024)
     renderFullscreen(true)
     await screen.findByTestId('timeline')
-    expect(screen.getByTestId('chat-sessions-sidebar').className).toContain('md:flex')
+    expect(sidebarShown()).toBe(true)
+    expect(onScreenFromMd(screen.getByRole('button', { name: 'Sessions' }))).toBe(false)
+  })
+
+  describe('with the assistant tree (a session with children)', () => {
+    beforeEach(() => {
+      detached.value = { runs: [{ sessionId: 'kid', title: 'Kid', isStreaming: false, startedAt: new Date(0).toISOString() }], hasActiveRuns: false }
+    })
+
+    it('at 900 px the tree is set aside while the timeline is open, and its button says so', async () => {
+      setWidth(900)
+      renderFullscreen(false)
+      fireEvent.click(await screen.findByRole('button', { name: 'Assistant tree' }))
+      expect(screen.getByTestId('tree')).toBeTruthy()
+      expect(treeButton().getAttribute('aria-pressed')).toBe('true')
+    })
+
+    it('at 900 px asking for the tree closes the timeline: one column, the last asked for', async () => {
+      setWidth(900)
+      const store = renderFullscreen(true)
+      await screen.findByTestId('timeline')
+      expect(screen.queryByTestId('tree')).toBeNull()
+      expect(treeButton().getAttribute('aria-pressed')).toBe('false')
+      fireEvent.click(treeButton())
+      expect(store.get(chatTimelineOpenAtom)).toBe(false)
+      expect(screen.queryByTestId('timeline')).toBeNull()
+      expect(screen.getByTestId('tree')).toBeTruthy()
+      expect(treeButton().getAttribute('aria-pressed')).toBe('true')
+      // Opening the timeline again sets the tree aside, and the button follows.
+      act(() => store.set(chatTimelineOpenAtom, true))
+      expect(screen.getByTestId('timeline')).toBeTruthy()
+      expect(screen.queryByTestId('tree')).toBeNull()
+      expect(treeButton().getAttribute('aria-pressed')).toBe('false')
+    })
+
+    it('at 1024 px the tree and the timeline both stay, the sidebar steps aside (reachable from the header)', async () => {
+      setWidth(1024)
+      renderFullscreen(true)
+      await screen.findByTestId('timeline')
+      fireEvent.click(treeButton())
+      expect(screen.getByTestId('tree')).toBeTruthy()
+      expect(screen.getByTestId('chat-tree-column').className).toContain(CHAT_COLUMN_WIDTH.className)
+      expect(screen.getByTestId('timeline')).toBeTruthy()
+      expect(treeButton().getAttribute('aria-pressed')).toBe('true')
+      expect(sidebarShown()).toBe(false)
+      expect(onScreenFromMd(screen.getByRole('button', { name: 'Sessions' }))).toBe(true)
+    })
+
+    it('at 1280 px everything fits: sidebar, conversation, timeline and tree', async () => {
+      setWidth(1280)
+      renderFullscreen(true)
+      await screen.findByTestId('timeline')
+      fireEvent.click(treeButton())
+      expect(screen.getByTestId('tree')).toBeTruthy()
+      expect(screen.getByTestId('timeline')).toBeTruthy()
+      expect(sidebarShown()).toBe(true)
+      expect(onScreenFromMd(screen.getByRole('button', { name: 'Sessions' }))).toBe(false)
+    })
   })
 })

@@ -9,6 +9,11 @@
  *
  * Hidden, not covered: nothing focusable stays under the panel.
  */
+/** The full-screen chat's conversations sidebar (18rem). */
+export const CHAT_SIDEBAR_WIDTH = { className: 'w-72', px: 288 } as const
+/** A right-hand column of the chat: the timeline, the assistant tree (20rem). */
+export const CHAT_COLUMN_WIDTH = { className: 'w-80', px: 320 } as const
+
 export function timelineRoom({ timelineOpen, treeOpen, lg, xl }: { timelineOpen: boolean; treeOpen: boolean; lg: boolean; xl: boolean }) {
   if (!timelineOpen || xl || (lg && !treeOpen)) return { hideSidebar: false, hideTree: false }
   return { hideSidebar: true, hideTree: !lg && treeOpen }

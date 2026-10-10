@@ -144,6 +144,31 @@ describe('<ChatTimelinePanel>', () => {
       }
     })
 
+    it('Escape closes the detail sheet first, then the panel', () => {
+      // The 320 px panel: the trace's detail is a bottom sheet, inside the panel.
+      vi.stubGlobal('ResizeObserver', class {
+        constructor(private cb: ResizeObserverCallback) {}
+        observe() { this.cb([{ contentRect: { width: 300 } } as ResizeObserverEntry], this as unknown as ResizeObserver) }
+        disconnect() {}
+        unobserve() {}
+      })
+      render(<Harness />)
+      const toggle = openWithToggle()
+      const panel = screen.getByTestId('chat-timeline-panel')
+      fireEvent.click(screen.getByRole('treeitem', { name: /Bash · ls/ }))
+      const sheet = screen.getByTestId('trace-sheet')
+      expect(panel.contains(sheet)).toBe(true)
+      expect(document.activeElement).toBe(sheet)
+      fireEvent.keyDown(sheet, { key: 'Escape' })
+      expect(screen.queryByTestId('trace-sheet')).toBeNull()
+      expect(screen.getByTestId('chat-timeline-panel')).toBeTruthy()
+      const close = screen.getByRole('button', { name: 'Hide the timeline' })
+      close.focus()
+      fireEvent.keyDown(close, { key: 'Escape' })
+      expect(screen.queryByTestId('chat-timeline-panel')).toBeNull()
+      expect(document.activeElement).toBe(toggle)
+    })
+
     it('ignores an Escape pressed elsewhere (the chat keeps its keys)', () => {
       render(<Harness />)
       openWithToggle()

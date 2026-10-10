@@ -20,6 +20,7 @@ import { useT } from '@/i18n'
 import { focusRing, glassFlat, iconButton } from '@/components/ui/classes'
 import { workspacePath } from '@/utils/paths'
 import { ChatTimelineStrip } from './ChatTimelineStrip'
+import { CHAT_COLUMN_WIDTH } from './timelineRoom'
 
 type StripProps = Omit<ComponentProps<typeof ChatTimelineStrip>, 'maxRowsHeight' | 'onShown'>
 
@@ -32,8 +33,8 @@ export interface ChatTimelinePanelProps extends StripProps {
 }
 
 /** Same width as the other side panels of the chat (assistant tree, the chat panel's minimum width). */
-const SIDE_WIDTH = 'w-80'
-const SIDE_WIDTH_PX = 320
+const SIDE_WIDTH = CHAT_COLUMN_WIDTH.className
+const SIDE_WIDTH_PX = CHAT_COLUMN_WIDTH.px
 /** The docked chat's resize handle (`w-1` on its left edge): an overlay starts right of it. */
 const RESIZE_HANDLE_PX = 4
 

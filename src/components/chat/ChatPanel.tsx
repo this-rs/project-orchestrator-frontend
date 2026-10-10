@@ -35,7 +35,7 @@ import { FollowNotice } from './FollowNotice'
 import { ComposerDock } from './ComposerDock'
 import { ChatTimelinePanel } from './ChatTimelinePanel'
 import { useResetTimelineOnPhone } from './useResetTimelineOnPhone'
-import { timelineRoom } from './timelineRoom'
+import { CHAT_COLUMN_WIDTH, CHAT_SIDEBAR_WIDTH, timelineRoom } from './timelineRoom'
 import { collectRunning } from './runningActivity'
 import type { RunActions } from './ActivityBar'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
@@ -444,6 +444,19 @@ export function ChatPanel() {
 
   // While the timeline column is open, what the full-screen chat sets aside for the conversation.
   const room = timelineRoom({ timelineOpen, treeOpen: showAgentTree && !!rootSessionId, lg: isLg, xl: isXl })
+  // No sidebar column (a phone, or set aside for the timeline): the list opens full screen
+  // from the header, and the header carries "New conversation".
+  const compactSidebar = isMobile || room.hideSidebar
+  const compactOnly = room.hideSidebar ? '' : 'md:hidden'
+  // The tree as the reader sees it: set aside for the timeline below lg, it is not "on".
+  const treeShown = showAgentTree && !room.hideTree
+  const toggleTree = () => {
+    setShowSettings(false)
+    if (treeShown) { setShowAgentTree(false); return }
+    setShowAgentTree(true)
+    // Below lg the tree and the timeline share one column: the last one asked for wins.
+    if (timelineRoom({ timelineOpen, treeOpen: true, lg: isLg, xl: isXl }).hideTree) setTimelineOpen(false)
+  }
 
   // --- FULLSCREEN LAYOUT: sidebar + conversation side by side ---
   // On mobile (<768px): sidebar is a full-screen overlay toggled via hamburger
@@ -461,7 +474,7 @@ export function ChatPanel() {
         {panelDrop.over && <RefDropOverlay />}
         {/* Left sidebar — hidden on mobile, permanent on desktop */}
         {/* Desktop: static sidebar */}
-        <div className={`hidden w-72 shrink-0 flex-col border-r border-white/[0.06] ${room.hideSidebar ? '' : 'md:flex'}`} data-testid="chat-sessions-sidebar">
+        <div className={`hidden ${CHAT_SIDEBAR_WIDTH.className} shrink-0 flex-col border-r border-white/[0.06] ${room.hideSidebar ? '' : 'md:flex'}`} data-testid="chat-sessions-sidebar">
           {/* Sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
           <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
             <span className="text-sm font-medium text-gray-300">{t('chatA-messages.panel.conversations')}</span>
@@ -485,8 +498,8 @@ export function ChatPanel() {
           />
         </div>
 
-        {/* Mobile: full-screen overlay sidebar */}
-        {isMobile && showMobileSidebar && (
+        {/* Compact: full-screen overlay sidebar (a phone, or the sidebar set aside for the timeline) */}
+        {compactSidebar && showMobileSidebar && (
           <div className="fixed inset-0 z-40 flex flex-col bg-surface-raised">
             {/* Mobile sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
             <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
@@ -529,8 +542,8 @@ export function ChatPanel() {
               {/* Mobile: hamburger to toggle sidebar */}
               <button
                 type="button"
-                onClick={() => { if (isMobile) setShowMobileSidebar(true) }}
-                className={`shrink-0 md:hidden ${chromeIcon(showMobileSidebar)}`}
+                onClick={() => { if (compactSidebar) setShowMobileSidebar(true) }}
+                className={`shrink-0 ${compactOnly} ${chromeIcon(showMobileSidebar)}`}
                 title={t('chatA-messages.panel.sessions')}
                 aria-label={t('chatA-messages.panel.sessions')}
                 aria-expanded={showMobileSidebar}
@@ -560,7 +573,7 @@ export function ChatPanel() {
                 type="button"
                 onClick={handleNewSession}
                 disabled={isNewConversation}
-                className={`md:hidden ${isNewConversation ? chromeIconDisabled : chromeIcon()}`}
+                className={`${compactOnly} ${isNewConversation ? chromeIconDisabled : chromeIcon()}`}
                 title={t('chatA-messages.panel.newChat')}
                 aria-label={t('chatA-messages.panel.newChat')}
               >
@@ -574,11 +587,11 @@ export function ChatPanel() {
               {hasChildren && chat.sessionId && (
                 <button
                   type="button"
-                  onClick={() => { setShowAgentTree(!showAgentTree); setShowSettings(false) }}
-                  className={chromeIcon(showAgentTree)}
+                  onClick={toggleTree}
+                  className={chromeIcon(treeShown)}
                   title={t('chatA-messages.panel.assistantTree')}
                   aria-label={t('chatA-messages.panel.assistantTree')}
-                  aria-pressed={showAgentTree}
+                  aria-pressed={treeShown}
                 >
                   <TreePine className="w-4 h-4" aria-hidden="true" />
                 </button>
@@ -728,8 +741,8 @@ export function ChatPanel() {
                 <ChatTimelinePanel placement="column" onClose={closeTimeline} sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
               )}
               {/* Agent Tree right panel — fullscreen layout */}
-              {showAgentTree && rootSessionId && !room.hideTree && (
-                <div className="w-80 shrink-0 border-l border-white/[0.06] flex flex-col overflow-y-auto p-3">
+              {treeShown && rootSessionId && (
+                <div className={`${CHAT_COLUMN_WIDTH.className} shrink-0 border-l border-white/[0.06] flex flex-col overflow-y-auto p-3`} data-testid="chat-tree-column">
                   <DiscussionTreeView sessionId={rootSessionId} onNavigate={handleTreeNavigate} />
                 </div>
               )}
