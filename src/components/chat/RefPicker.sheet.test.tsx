@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { RefSearchItem } from '@/refs/refsApi'
 import { REF_KINDS } from '@/refs/types'
+import { refKindDef } from '@/refs/registry'
 import { RefPicker } from './RefPicker'
 
 afterEach(cleanup)
@@ -61,7 +62,8 @@ describe('RefPicker as a bottom sheet', () => {
     const rows = screen.getAllByTestId('ref-option')
     expect(rows).toHaveLength(items.length)
     for (const row of rows) expect(row.className).toMatch(/\bmin-h-11\b/)
-    expect(new Set(rows.map((r) => r.querySelector('span')?.textContent)).size).toBe(new Set(items.map((i) => i.kind)).size)
+    // Each row says what it is (the kind's name on its second line).
+    rows.forEach((r, i) => expect(r.textContent).toContain(refKindDef(items[i].kind).name))
   })
 
   it('takes its height and its position from the visual viewport placement', () => {
@@ -102,7 +104,9 @@ describe('RefPicker as a bottom sheet', () => {
     sheet()
     const el = screen.getByTestId('ref-picker')
     expect(el.className).toMatch(/motion-safe:animate-ref-sheet-in/)
-    expect(el.className).toMatch(/overscroll-contain/)
+    // The list scrolls on its own (the header stays put), without chaining to the page.
+    expect(el.querySelector('[data-ref-scroll]')?.className).toMatch(/overflow-y-auto/)
+    expect(el.querySelector('[data-ref-scroll]')?.className).toMatch(/overscroll-contain/)
   })
 
   it('stays inside the side safe areas (notch in landscape)', () => {

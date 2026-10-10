@@ -35,7 +35,7 @@ import { detectTrigger, isReferenceQuery } from '@/refs/trigger'
 import { useActiveKinds } from '@/refs/useActiveKinds'
 import { useRefSearch } from '@/refs/useRefSearch'
 import { countRefTokens, reconcileRefs, refKey, removeRefFromText } from '@/refs/refState'
-import { MAX_REFS_PER_MESSAGE, type ChatReference } from '@/refs/types'
+import { MAX_REFS_PER_MESSAGE, type ChatReference, type RefKind } from '@/refs/types'
 import type { RefSearchItem } from '@/refs/refsApi'
 import { findRefTokens, refToken } from '@/utils/messageRefs'
 import { useT } from '@/i18n'
@@ -184,7 +184,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const trigger = found && isReferenceQuery(found) ? found : null
   const pickerOpen = trigger !== null && trigger.start !== dismissedAt
   useActiveKinds() // the trigger and the picker follow the kinds the server lists
-  const refSearch = useRefSearch({ query: trigger?.query ?? '', kinds: trigger?.kinds, sigil: trigger?.sigil, enabled: pickerOpen })
+  // Mobile sheet: a kind chip narrows THIS trigger's search (a prefix typed in the text wins); a new trigger starts on "All".
+  const [kindChip, setKindChip] = useState<{ start: number; kind: RefKind } | null>(null)
+  const chipKind = isMobile && trigger && !trigger.kinds && kindChip?.start === trigger.start ? kindChip.kind : undefined
+  const refSearch = useRefSearch({ query: trigger?.query ?? '', kinds: trigger?.kinds ?? (chipKind ? [chipKind] : undefined), sigil: trigger?.sigil, enabled: pickerOpen })
   const activeRef = Math.min(refActive, refSearch.items.length - 1)
   // The option Enter/Tab would take, and the one aria-activedescendant names: the same thing, or nothing
   // (loading, error and an empty list have none: Enter then sends the message).
@@ -923,6 +926,12 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             onHover={setRefActive}
             sheet={isMobile}
             anchor={composerBoxEl}
+            query={trigger?.query}
+            chipKind={chipKind}
+            onChipKind={(kind) => {
+              setRefActive(0)
+              setKindChip(kind && trigger ? { start: trigger.start, kind } : null)
+            }}
             onClose={() => {
               // Focus first: focusing the composer re-arms the picker, closing comes after.
               textareaRef.current?.focus()

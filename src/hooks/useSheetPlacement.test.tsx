@@ -39,9 +39,10 @@ describe('useSheetPlacement', () => {
     expect(result.current.bottom).toBe(740 - 660)
   })
 
-  it('never takes more than half of what the visual viewport leaves visible', () => {
+  it('takes the room above the anchor, up to 70% of the visible area when there is plenty', () => {
     const { result } = renderHook(() => useSheetPlacement(anchor, true))
-    expect(result.current.maxHeight).toBe(370)
+    // 652px above the composer, 70% of 740 = 518
+    expect(result.current.maxHeight).toBe(518)
   })
 
   it('follows the visual viewport when the virtual keyboard opens (resize event)', () => {
@@ -54,7 +55,10 @@ describe('useSheetPlacement', () => {
       vv.dispatchEvent(new Event('resize'))
     })
     expect(result.current.maxHeight).toBeLessThan(before)
-    expect(result.current.maxHeight).toBe(200)
+    // All the room above the composer (320 - 8), not half of the visible area (200: one or two rows once
+    // the header was paid): a 52px header and five 44px rows at least.
+    expect(result.current.maxHeight).toBe(312)
+    expect(result.current.maxHeight).toBeGreaterThanOrEqual(52 + 5 * 44)
     // The sheet never extends above the visible area: it stays under the top edge of the visual viewport.
     expect(result.current.maxHeight).toBeLessThanOrEqual(320 - vv.offsetTop - 8)
   })
@@ -67,8 +71,8 @@ describe('useSheetPlacement', () => {
       top = 500
       vv.dispatchEvent(new Event('scroll'))
     })
-    // available above the anchor inside the visible area: 500 - 250 - 8 = 242, half of 300 = 150
-    expect(result.current.maxHeight).toBe(150)
+    // available above the anchor inside the visible area: 500 - 250 - 8 = 242
+    expect(result.current.maxHeight).toBe(242)
   })
 
   it('keeps a usable minimum when almost nothing is left above the composer', () => {
@@ -101,12 +105,12 @@ describe('useSheetPlacement', () => {
   it('falls back on the window when there is no visualViewport', () => {
     Object.defineProperty(window, 'visualViewport', { value: undefined, configurable: true })
     const { result } = renderHook(() => useSheetPlacement(anchor, true))
-    expect(result.current.maxHeight).toBe(370)
+    expect(result.current.maxHeight).toBe(518)
     act(() => {
       ;(window as { innerHeight: number }).innerHeight = 500
       top = 420
       window.dispatchEvent(new Event('resize'))
     })
-    expect(result.current.maxHeight).toBe(250)
+    expect(result.current.maxHeight).toBe(412)
   })
 })
