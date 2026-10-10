@@ -14,7 +14,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { StrictMode, type ReactNode } from 'react'
 import { Provider, createStore } from 'jotai'
 import { chatSessionIdAtom } from '@/atoms'
 import { historyEventsToMessages } from '@/utils/chatAssembly'
@@ -95,10 +95,12 @@ import { useChat } from '../useChat'
 type FakeWs = { callbacks: { onEvent: (event: Record<string, unknown>) => void } }
 const FakeWS = ChatWebSocket as unknown as { instances: FakeWs[] }
 
-async function setup(sessionId: string | null = 'sess-1') {
+async function setup(sessionId: string | null = 'sess-1', opts: { strict?: boolean } = {}) {
   const store = createStore()
   if (sessionId) store.set(chatSessionIdAtom, sessionId)
-  const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>
+  // StrictMode replays state updaters: an updater that reads a holder emptied after it shows.
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    opts.strict ? <StrictMode><Provider store={store}>{children}</Provider></StrictMode> : <Provider store={store}>{children}</Provider>
   const rendered = renderHook(() => useChat(), { wrapper })
   if (sessionId) {
     await waitFor(() => {
@@ -229,13 +231,23 @@ describe('useChat — tool_timing (live)', () => {
     expect(third?.metadata?.created_at).toBe(new Date((T + 35) * 1000).toISOString())
   })
 
-  it('drops a timing still waiting for its call when the turn ends', async () => {
+  it('keeps a live timing whose call is not on screen past the turn end, and drops one whose call is', async () => {
+    // A live timing with no call shown, then the turn ends: it is kept (its call
+    // may be on an older page), so a call that then shows up still gets it.
     const { emit, result: hook } = await setup()
     emit({ ...timing })
     emit({ type: 'result', session_id: 's', duration_ms: 10 })
-    emit({ type: 'user_message', content: 'again' })
     emit({ ...use })
-    expect(blocksOf(hook.current.messages, 'tool_use')[0].metadata).not.toHaveProperty('tool_timing')
+    expect(blocksOf(hook.current.messages, 'tool_use')[0].metadata?.tool_timing).toMatchObject({ ended_at: T + 12 })
+    // A timing placed on its call is not held past the turn: a later call of the same id gets none.
+    emit({ ...use, id: 'toolu_4' })
+    emit({ ...timing, id: 'toolu_4' })
+    emit({ type: 'result', session_id: 's', duration_ms: 10 })
+    emit({ type: 'user_message', content: 'again' })
+    emit({ ...use, id: 'toolu_4' })
+    const fourth = blocksOf(hook.current.messages, 'tool_use').filter((b) => b.metadata?.tool_call_id === 'toolu_4')
+    expect(fourth).toHaveLength(2)
+    expect(fourth[1].metadata).not.toHaveProperty('tool_timing')
   })
 
   it('forgets the timings it held when a reconnect rebuilds the tail from REST', async () => {
@@ -359,5 +371,126 @@ describe('useChat — a timing on a newer page than its call', () => {
     })
     const call = blocksOf(hook.current.messages, 'tool_use').find((b) => b.metadata?.tool_call_id === 'toolu_1')
     expect(call?.metadata?.tool_timing).toMatchObject({ run_started_at: T + 8, ended_at: T + 12 })
+  })
+
+  /** Serve `all` as the REST history (chronological pagination). */
+  const serve = (all: Record<string, unknown>[]) =>
+    vi.mocked(chatApi.getMessages).mockImplementation(async (_sid: string, opts?: { limit?: number; offset?: number }) => {
+      const offset = opts?.offset ?? 0
+      const limit = opts?.limit ?? 50
+      return { total_count: all.length, messages: all.slice(offset, offset + limit) } as never
+    })
+  const fill = (n: number, from: number) => Array.from({ length: n }, (_, i) => ({ type: 'assistant_text', content: `line ${from + i}`, created_at: T + from + i }))
+  const timingOf = (ended: number) => ({ ...timing, permission_outcome: 'allowed', run_started_at: T + 8, ended_at: T + ended, created_at: T + ended })
+  const callTiming = (messages: { blocks: Block[] }[]) => blocksOf(messages, 'tool_use').find((b) => b.metadata?.tool_call_id === 'toolu_1')?.metadata?.tool_timing
+  /** Open `sess-2` on a window centered near its start (a search hit), so newer pages remain. */
+  const openCentered = async (hook: { current: ReturnType<typeof useChat> }) => {
+    await act(async () => {
+      await hook.current.loadSession('sess-2', T + 1)
+    })
+    await waitFor(() => {
+      expect(hook.current.isLoadingHistory).toBe(false)
+      expect(hook.current.hasNewerMessages).toBe(true)
+    })
+  }
+
+  it('the older page stores a timing before its call, on the page shown: the call gets it when the older page loads', async () => {
+    // Older page (2 events) ends with the timing; its tool_use opens the tail page.
+    serve([
+      { type: 'user_message', content: 'build', created_at: T },
+      timingOf(12),
+      { ...use, created_at: T + 1 },
+      { ...result, is_error: false, result: 'ok', created_at: T + 12 },
+      ...fill(48, 20),
+    ])
+    const { result: hook } = await setup('sess-1', { strict: true })
+    await waitFor(() => expect(hook.current.hasOlderMessages).toBe(true))
+    expect(callTiming(hook.current.messages)).toBeUndefined()
+    await act(async () => {
+      await hook.current.loadOlderMessages()
+    })
+    expect(callTiming(hook.current.messages)).toMatchObject({ run_started_at: T + 8, ended_at: T + 12 })
+  })
+
+  it('a window that ends with a timing gives it to the call that then comes live', async () => {
+    serve([{ type: 'user_message', content: 'build', created_at: T }, timingOf(12)])
+    const { emit, result: hook } = await setup()
+    emit({ ...use, created_at: T + 1, seq: 0 })
+    expect(callTiming(hook.current.messages)).toMatchObject({ ended_at: T + 12 })
+  })
+
+  it('loadNewerMessages puts a timing of the newer page on its call shown, even when React replays the updater', async () => {
+    // Centered window = events 0..49 with the call; its timing is event 55, on the newer page.
+    serve([
+      { type: 'user_message', content: 'build', created_at: T },
+      { ...use, created_at: T + 1 },
+      ...fill(53, 2),
+      timingOf(55),
+      ...fill(64, 56),
+    ])
+    const { result: hook } = await setup('sess-1', { strict: true })
+    await openCentered(hook)
+    expect(callTiming(hook.current.messages)).toBeUndefined()
+    await act(async () => {
+      await hook.current.loadNewerMessages()
+    })
+    expect(callTiming(hook.current.messages)).toMatchObject({ ended_at: T + 55 })
+  })
+
+  it('loadNewerMessages gives a timing held at the end of the window to its call on the newer page', async () => {
+    serve([
+      { type: 'user_message', content: 'build', created_at: T },
+      ...fill(48, 1),
+      timingOf(49),
+      { ...use, created_at: T + 50 },
+      ...fill(69, 51),
+    ])
+    const { result: hook } = await setup('sess-1', { strict: true })
+    await openCentered(hook)
+    await act(async () => {
+      await hook.current.loadNewerMessages()
+    })
+    expect(callTiming(hook.current.messages)).toMatchObject({ ended_at: T + 49 })
+  })
+})
+
+describe('useChat — the echo of a message re-dates only the bubble waiting for it', () => {
+  beforeEach(() => {
+    FakeWS.instances.length = 0
+    vi.clearAllMocks()
+  })
+  afterEach(() => {
+    vi.mocked(chatApi.getMessages).mockResolvedValue({ total_count: 0, messages: [] } as never)
+  })
+
+  it('an "ok" sent from another tab does not move an older "ok" of the history after its calls', async () => {
+    vi.mocked(chatApi.getMessages).mockResolvedValue({
+      total_count: 4,
+      messages: [
+        { type: 'user_message', content: 'ok', created_at: T },
+        { ...use, created_at: T + 1 },
+        { ...result, created_at: T + 3 },
+        { type: 'result', session_id: 'sess-1', duration_ms: 3000, created_at: T + 4 },
+      ],
+    } as never)
+    const { emit, result: hook } = await setup()
+    await waitFor(() => expect(hook.current.messages.length).toBeGreaterThan(0))
+    emit({ type: 'user_message', content: 'ok', created_at: T + 100, seq: 0 })
+    const first = hook.current.messages.find((m) => m.role === 'user')
+    expect(first?.timestamp.getTime()).toBe(T * 1000)
+    const { items } = buildTimeline({ messages: hook.current.messages as ChatMessage[], sessionId: 's' })
+    expect(items.find((i) => i.kind === 'request')?.startedAt).toBeLessThanOrEqual(items.find((i) => i.id === 'toolu_1')!.startedAt)
+  })
+
+  it('a bubble re-dated by its echo is not re-dated again', async () => {
+    const { emit, result: hook } = await setup()
+    await act(async () => {
+      await hook.current.sendMessage('ok')
+    })
+    emit({ type: 'user_message', content: 'ok', created_at: T, seq: 0 })
+    emit({ type: 'user_message', content: 'ok', created_at: T + 50, seq: 0 })
+    const users = hook.current.messages.filter((m) => m.role === 'user')
+    expect(users[0].timestamp.getTime()).toBe(T * 1000)
+    expect(users[0].awaitingEcho).toBeFalsy()
   })
 })

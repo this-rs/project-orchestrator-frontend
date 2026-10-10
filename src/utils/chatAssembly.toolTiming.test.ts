@@ -3,8 +3,8 @@
  * is not a message: it lands on the `tool_use` block of its call, where the trace
  * reads it, and it changes nothing else in the conversation.
  */
-import { describe, it, expect } from 'vitest'
-import { EARLY_TOOL_TIMINGS_MAX, EarlyToolTimings, ServerClock, historyEventsToMessages, historyEventsToWindow } from './chatAssembly'
+import { describe, it, expect, vi } from 'vitest'
+import { EARLY_TOOL_TIMINGS_MAX, EarlyToolTimings, SERVER_CLOCK_WINDOW_MS, ServerClock, historyEventsToMessages, historyEventsToWindow, placeTimings } from './chatAssembly'
 import { buildTimeline } from '@/components/timeline/model'
 
 const timing = {
@@ -122,15 +122,19 @@ describe('history pages — a timing whose call is on an older page', () => {
     expect(historyEventsToWindow(events).unplacedTimings.size).toBe(0)
   })
 
-  it('placedOn places without changing the messages or the holder', () => {
+  it('placeTimings places from a snapshot, without changing the messages; the snapshot outlives the holder', () => {
     const tail = historyEventsToWindow(tailPage)
     const older = historyEventsToWindow(olderPage)
     const before = older.messages
-    const placed = tail.unplacedTimings.placedOn(before)
+    const snapshot = tail.unplacedTimings.snapshot()
+    tail.unplacedTimings.moveTo(new EarlyToolTimings())
+    expect(tail.unplacedTimings.size).toBe(0)
+    const placed = placeTimings(before, snapshot)
     expect(placed).not.toBe(before)
     expect(before.flatMap((m) => m.blocks).find((b) => b.type === 'tool_use')?.metadata).not.toHaveProperty('tool_timing')
     expect(placed.flatMap((m) => m.blocks).find((b) => b.type === 'tool_use')?.metadata?.tool_timing).toMatchObject({ ended_at: 1_700_000_009.5 })
-    expect(tail.unplacedTimings.size).toBe(1)
+    // Twice (a replayed updater): the same result.
+    expect(placeTimings(before, snapshot)).toEqual(placed)
   })
 })
 
@@ -158,6 +162,28 @@ describe('ServerClock', () => {
     clock.observe({ type: 'tool_use', replaying: true, created_at: (browser - 86_400_000) / 1000 })
     clock.observe({ type: 'streaming_status', is_streaming: true })
     expect(Math.abs(clock.now().getTime() - (browser - 3_600_000))).toBeLessThan(1000)
+  })
+})
+
+describe('ServerClock — a late frame', () => {
+  it('keeps the largest recent gap: a burst delivered late does not drag the clock back, an old sample expires', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const server = 1_700_000_000_000
+      const clock = new ServerClock()
+      vi.setSystemTime(server + 3_600_000)
+      clock.observe({ type: 'x', created_at: server / 1000 })
+      // 5 s later (browser), a frame created 4 s ago arrives: its gap is 4 s short.
+      vi.setSystemTime(server + 3_605_000)
+      clock.observe({ type: 'x', created_at: (server + 1000) / 1000 })
+      expect(clock.offset).toBe(-3_600_000)
+      // Past the window, only the late sample is left.
+      vi.setSystemTime(server + 3_605_000 + SERVER_CLOCK_WINDOW_MS + 1)
+      clock.observe({ type: 'x', created_at: (server + 5000 + SERVER_CLOCK_WINDOW_MS + 1 - 4000) / 1000 })
+      expect(clock.offset).toBe(-3_604_000)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

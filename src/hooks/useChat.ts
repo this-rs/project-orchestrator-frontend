@@ -45,6 +45,7 @@ import {
   ServerClock,
   hasToolUse,
   historyEventsToWindow,
+  placeTimings,
   serverTimeOf,
   permissionCallOf,
   type SystemInitRuntime,
@@ -330,6 +331,9 @@ export function useChat() {
   // before the window, its timing is inside it): placed when `loadOlderMessages`
   // brings that page. Replaced with each window loaded from scratch.
   const unplacedTimingsRef = useRef(new EarlyToolTimings())
+  // The calls (`tool_use` ids) seen live in this turn: on screen even before the
+  // render catches up. Cleared at the turn's end and with each window loaded.
+  const liveCallIdsRef = useRef(new Set<string>())
   // The server's clock (gap learnt from each live frame): what the browser stamps
   // itself is on it, like what the server stamps.
   const serverClockRef = useRef(new ServerClock())
@@ -660,15 +664,17 @@ export function useChat() {
             // The optimistic bubble was stamped on the browser's estimate of the
             // server's clock (exact only once a frame taught it the gap); the live
             // echo carries the server's own time: the turn starts there.
-            const serverStamp = !event.replaying && serverTime ? new Date(serverTime) : undefined
-            const needsStamp = serverStamp != null && serverStamp.getTime() !== msg.timestamp.getTime()
+            // Only a bubble of this browser still waiting for its echo: a message that
+            // already has a server time (the history, an earlier turn) is never re-dated.
+            const serverStamp = msg.awaitingEcho && !event.replaying && serverTime ? new Date(serverTime) : undefined
+            const needsStamp = serverStamp != null
             if (needsAttachments || needsRefs || needsStamp) {
               const next = [...prev]
               next[i] = {
                 ...msg,
                 ...(needsAttachments ? { attachments: sentAttachments } : {}),
                 ...(needsRefs ? { refs: refsFromBlock(sentRefs) } : {}),
-                ...(needsStamp ? { timestamp: serverStamp } : {}),
+                ...(needsStamp ? { timestamp: serverStamp, awaitingEcho: undefined } : {}),
               }
               return next
             }
@@ -719,10 +725,17 @@ export function useChat() {
     {
       const payload = (event.replaying ? (event as { data?: Record<string, unknown> }).data ?? event : event) as Record<string, unknown>
       if (event.type === 'tool_timing') earlyTimingsRef.current.hold(payload)
-      else if (event.type === 'tool_use' && typeof payload.id === 'string') earlyTiming = earlyTimingsRef.current.take(payload.id)
-      else if (event.type === 'result') {
+      else if (event.type === 'tool_use' && typeof payload.id === 'string') {
+        // Its timing came first: live, or at the end of the window loaded from REST.
+        earlyTiming = earlyTimingsRef.current.take(payload.id) ?? unplacedTimingsRef.current.take(payload.id)
+        liveCallIdsRef.current.add(payload.id)
+      } else if (event.type === 'result') {
+        // A call seen in this turn is on screen even when the render has not caught
+        // up yet (`messagesRef` lags behind a synchronous burst of frames).
         const shown = messagesRef.current
-        earlyTimingsRef.current.moveTo(unplacedTimingsRef.current, (id) => !hasToolUse(shown, id))
+        const seen = liveCallIdsRef.current
+        earlyTimingsRef.current.moveTo(unplacedTimingsRef.current, (id) => !seen.has(id) && !hasToolUse(shown, id))
+        seen.clear()
       }
     }
     setMessages((prev) => {
@@ -1527,6 +1540,7 @@ export function useChat() {
         // The tail is rebuilt: what was held for the old one goes with it (the
         // live events since then are buffered and replayed below).
         earlyTimingsRef.current.clear()
+        liveCallIdsRef.current.clear()
         unplacedTimingsRef.current = win.unplacedTimings
         paginationRef.current = {
           offset: win.offset,
@@ -1706,6 +1720,7 @@ export function useChat() {
     historyLoadedRef.current = false
     pendingEventsRef.current = []
     earlyTimingsRef.current.clear()
+    liveCallIdsRef.current.clear()
     unplacedTimingsRef.current = new EarlyToolTimings()
 
     // Phase 1: Connect WS IMMEDIATELY for live streaming (parallel with REST).
@@ -1910,10 +1925,15 @@ export function useChat() {
         // A call of this page whose timing came on a newer one gets it now; the
         // timings of this page whose call is older still wait for their page.
         unplacedTimingsRef.current.placeIn(olderMessages)
-        older.unplacedTimings.moveTo(unplacedTimingsRef.current)
-
+        // The other way: a timing stored before its call, at the end of this page,
+        // whose tool_use is on the page already shown. Placed from an immutable
+        // snapshot (the holder is emptied below, the updater may be replayed).
+        const olderTimings = older.unplacedTimings.snapshot()
         // Prepend older messages to the beginning
-        setMessages((prev) => [...olderMessages, ...prev])
+        setMessages((prev) => placeTimings([...olderMessages, ...prev], olderTimings))
+        // What found no call on screen waits for an even older page.
+        const shown = messagesRef.current
+        older.unplacedTimings.moveTo(unplacedTimingsRef.current, (id) => !hasToolUse(shown, id))
 
         // Move the offset cursor back (tailOffset unchanged — we only prepended)
         paginationRef.current = {
@@ -1960,9 +1980,14 @@ export function useChat() {
         const newerMessages = newer.messages
         const unplaced = newer.unplacedTimings
 
-        // Append newer messages to the end; a timing of this page whose call is
-        // on screen goes on it (pure: `placedOn` changes neither side).
-        setMessages((prev) => unplaced.placedOn([...prev, ...newerMessages]))
+        // Append newer messages to the end. A timing of this page whose call is on
+        // screen goes on it, and a timing held from the pages shown (stored before
+        // its call) goes on its call in this page. From immutable snapshots: the
+        // holders change right below, and the updater may be replayed.
+        const timings = [...unplaced.snapshot(), ...unplacedTimingsRef.current.snapshot()]
+        setMessages((prev) => placeTimings([...prev, ...newerMessages], timings))
+        // A held timing whose call came with this page is placed: no longer held.
+        for (const { id } of timings) if (hasToolUse(newerMessages, id)) unplacedTimingsRef.current.take(id)
         // The others belong to calls on a page not loaded yet.
         const shown = messagesRef.current
         unplaced.moveTo(unplacedTimingsRef.current, (id) => !hasToolUse(shown, id))
@@ -2102,6 +2127,7 @@ export function useChat() {
         // The chips of the bubble: the labels the composer already knows.
         ...(sentRefs ? { refs } : {}),
         timestamp: serverClockRef.current.now(),
+        awaitingEcho: true,
       })
       return updated
     })
@@ -2351,6 +2377,7 @@ export function useChat() {
           role: 'user' as const,
           blocks: [{ id: nextBlockId(), type: 'text' as const, content: response }],
           timestamp: serverClockRef.current.now(),
+          awaitingEcho: true,
         },
       ]
     })

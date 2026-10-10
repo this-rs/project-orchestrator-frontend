@@ -927,6 +927,13 @@ export interface ChatMessage {
   /** References of a user message: chips in the bubble, statuses from `refs_resolved`. */
   refs?: ChatReference[]
   timestamp: Date
+  /**
+   * A user message this browser showed before the server had it (optimistic): its
+   * `timestamp` is the browser's estimate of the server clock. The live echo of it
+   * gives it the server's own time and clears the flag; a message without it is
+   * never re-dated by an echo.
+   */
+  awaitingEcho?: boolean
   /** Total turn duration in ms (from backend result event) */
   duration_ms?: number
   /** Total turn cost in USD (from backend result event). Absent when there is no figure — never zero by default. */
