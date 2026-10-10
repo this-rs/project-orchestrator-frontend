@@ -14,7 +14,7 @@ import { EntityList, MetaLine, focusRingInset, surface, ToneText } from '@/compo
 import type { ActiveAgentSnapshot } from '@/services/runner'
 import type { AgentExecution } from '@/types'
 import { formatElapsed, getWaveStatus, runCost, waveStateMeta } from './shared'
-import { COST_SUM_PARTIAL_HELP, formatCostSum, sumCosts } from '@/utils/cost'
+import { costSumPartialHelp, formatCostSum, sumCosts } from '@/utils/cost'
 import { WaveAgentCard } from './WaveAgentCard'
 import { InlineConversation } from './InlineConversation'
 import { LiveProgress } from './LiveProgress'
@@ -81,7 +81,7 @@ export function WaveSection({
               `${totalCount} ${totalCount === 1 ? 'task' : 'tasks'}`,
               failedCount > 0 ? <span key="f" className="text-red-400">{failedCount} failed</span> : null,
               waveCost ? (
-                <span key="c" className="font-mono tabular-nums" title={waveCostSum.unknown > 0 ? COST_SUM_PARTIAL_HELP : undefined}>
+                <span key="c" className="font-mono tabular-nums" title={waveCostSum.unknown > 0 ? costSumPartialHelp() : undefined}>
                   {waveCost}
                 </span>
               ) : null,

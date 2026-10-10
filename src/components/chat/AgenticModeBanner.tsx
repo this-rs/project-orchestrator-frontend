@@ -16,7 +16,7 @@
  * pollute the normal chat surface.
  */
 
-import { COST_SUM_PARTIAL_HELP, costReport, costToText, formatCostSum, formatUsd2, sumCosts, type CostReport } from '@/utils/cost'
+import { costSumPartialHelp, costReport, costToText, formatCostSum, formatUsd2, sumCosts, type CostReport } from '@/utils/cost'
 import { memo, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bot, Eye, Square, ExternalLink, Cpu, MemoryStick } from 'lucide-react'
@@ -273,7 +273,7 @@ export const AgenticModeBanner = memo(function AgenticModeBanner({
             · {activeRuns.length} run{activeRuns.length > 1 ? 's' : ''} active
           </span>
           {cumulativeCost.usd > 0 && (
-            <span className="text-[11px] text-slate-500" title={cumulativeCost.unknown > 0 ? COST_SUM_PARTIAL_HELP : undefined}>
+            <span className="text-[11px] text-slate-500" title={cumulativeCost.unknown > 0 ? costSumPartialHelp() : undefined}>
               · cumulative {formatCostSum(cumulativeCost)}
             </span>
           )}

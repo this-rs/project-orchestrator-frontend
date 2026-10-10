@@ -316,7 +316,7 @@ describe('policy', () => {
     mountSettings(<ModelPolicy />, { providers: [CLAUDE, DEEPSEEK, LOCAL], list })
     const alert = await policyPanel().findByRole('alert')
     expect(alert.textContent).toBe(
-      'Le serveur a répondu autre chose que du JSON : GET /api/chat/model-policy → 200 (text/html)'
+      'The server answered something other than JSON: GET /api/chat/model-policy → 200 (text/html)'
     )
     expect(screen.queryByRole('radio', { name: /Désactivée/ })).toBeNull()
     expect(policyPanel().queryByRole('button', { name: 'Enregistrer' })).toBeNull()

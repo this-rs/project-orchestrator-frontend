@@ -134,7 +134,7 @@ describe('ProjectConsent', () => {
     consents.mockRejectedValue(new NonJsonResponseError(502, 'GET', '/api/projects/acme/llm-consent', 'text/html'))
     mountSettings(<ProjectConsent />, { url: '/providers?project=acme' })
     expect((await screen.findByRole('alert')).textContent).toBe(
-      'Le serveur a répondu autre chose que du JSON : GET /api/projects/acme/llm-consent → 502 (text/html)',
+      'The server answered something other than JSON: GET /api/projects/acme/llm-consent → 502 (text/html)',
     )
   })
 })

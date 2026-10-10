@@ -133,11 +133,6 @@ export function formatTokens(tokens: CostTokens | undefined): string | null {
   return parts.length > 0 ? parts.join(' · ') : null
 }
 
-/** English snapshots, kept for the callers that still import them: prefer the functions below, which follow the language on screen. */
-export const COST_ESTIMATED_BADGE = 'est.'
-export const COST_FREE_TEXT = 'local'
-export const COST_SUBSCRIPTION_TEXT = 'subscription'
-
 export const costEstimatedBadge = (): string => activeTranslator().t('ui.cost.estimated')
 export const costFreeText = (): string => activeTranslator().t('ui.cost.free')
 export const costSubscriptionText = (): string => activeTranslator().t('ui.cost.subscription')
@@ -251,6 +246,4 @@ export function formatCostSum(sum: CostSum, format: (usd: number) => string = fo
   return sum.unknown > 0 ? `≥ ${amount}` : amount
 }
 
-/** English snapshot (see above): prefer `costSumPartialHelp()`. */
-export const COST_SUM_PARTIAL_HELP = 'Some costs are unknown: the real total is at least this amount.'
 export const costSumPartialHelp = (): string => activeTranslator().t('ui.cost.partialHelp')
