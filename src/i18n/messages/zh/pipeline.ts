@@ -29,13 +29,6 @@ export default {
     completed: '已完成 {count}',
     failed: '失败 {count}',
     total: '共 {amount}',
-    groups: {
-      Today: '今天',
-      Yesterday: '昨天',
-      'Previous 7 days': '过去 7 天',
-      'Previous 30 days': '过去 30 天',
-      Older: '更早',
-    },
     ready: '可启动',
     readyDescription: '可以运行的已批准和进行中的计划。',
     readyList: '可启动的计划',

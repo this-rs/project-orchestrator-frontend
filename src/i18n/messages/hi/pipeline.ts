@@ -29,13 +29,6 @@ export default {
     completed: '{count} पूर्ण',
     failed: '{count} विफल',
     total: 'कुल {amount}',
-    groups: {
-      Today: 'आज',
-      Yesterday: 'कल',
-      'Previous 7 days': 'पिछले 7 दिन',
-      'Previous 30 days': 'पिछले 30 दिन',
-      Older: 'पुराने',
-    },
     ready: 'चलाने के लिए तैयार',
     readyDescription: 'स्वीकृत और प्रगति में चल रहे योजना जिन्हें निष्पादित किया जा सकता है।',
     readyList: 'चलाने के लिए तैयार योजना',

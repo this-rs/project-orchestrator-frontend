@@ -29,13 +29,6 @@ export default {
     completed: '완료 {count}',
     failed: '실패 {count}',
     total: '총 {amount}',
-    groups: {
-      Today: '오늘',
-      Yesterday: '어제',
-      'Previous 7 days': '지난 7일',
-      'Previous 30 days': '지난 30일',
-      Older: '이전',
-    },
     ready: '시작 가능',
     readyDescription: '실행할 수 있는 승인된 플랜과 진행 중인 플랜입니다.',
     readyList: '시작 가능한 플랜',

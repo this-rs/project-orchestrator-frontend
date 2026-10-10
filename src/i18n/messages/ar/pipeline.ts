@@ -29,13 +29,6 @@ export default {
     completed: '{count} مكتملة',
     failed: '{count} فاشلة',
     total: 'الإجمالي {amount}',
-    groups: {
-      Today: 'اليوم',
-      Yesterday: 'أمس',
-      'Previous 7 days': 'آخر 7 أيام',
-      'Previous 30 days': 'آخر 30 يومًا',
-      Older: 'أقدم',
-    },
     ready: 'جاهزة للتشغيل',
     readyDescription: 'الخطط المعتمدة وقيد التنفيذ التي يمكن تنفيذها.',
     readyList: 'الخطط الجاهزة للتشغيل',

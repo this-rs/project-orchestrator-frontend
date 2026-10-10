@@ -25,13 +25,6 @@ export default {
     completed: '{count} completed',
     failed: '{count} failed',
     total: '{amount} total',
-    groups: {
-      Today: 'Today',
-      Yesterday: 'Yesterday',
-      'Previous 7 days': 'Previous 7 days',
-      'Previous 30 days': 'Previous 30 days',
-      Older: 'Older',
-    },
     ready: 'Ready to run',
     readyDescription: 'Approved and in-progress plans that can be executed.',
     readyList: 'Plans ready to run',

@@ -29,13 +29,6 @@ export default {
     completed: 'Завершено: {count}',
     failed: 'Зі збоєм: {count}',
     total: 'Усього: {amount}',
-    groups: {
-      Today: 'Сьогодні',
-      Yesterday: 'Учора',
-      'Previous 7 days': 'Останні 7 днів',
-      'Previous 30 days': 'Останні 30 днів',
-      Older: 'Раніше',
-    },
     ready: 'Готові до запуску',
     readyDescription: 'Затверджені плани та плани в роботі, які можна запустити.',
     readyList: 'Плани, готові до запуску',

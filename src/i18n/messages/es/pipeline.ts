@@ -29,13 +29,6 @@ export default {
     completed: '{count} completadas',
     failed: '{count} fallidas',
     total: '{amount} en total',
-    groups: {
-      Today: 'Hoy',
-      Yesterday: 'Ayer',
-      'Previous 7 days': 'Últimos 7 días',
-      'Previous 30 days': 'Últimos 30 días',
-      Older: 'Anteriores',
-    },
     ready: 'Listos para ejecutar',
     readyDescription: 'Planes aprobados y en curso que se pueden ejecutar.',
     readyList: 'Planes listos para ejecutar',

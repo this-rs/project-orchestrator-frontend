@@ -29,13 +29,6 @@ export default {
     completed: 'Завершено: {count}',
     failed: 'Со сбоем: {count}',
     total: 'Всего: {amount}',
-    groups: {
-      Today: 'Сегодня',
-      Yesterday: 'Вчера',
-      'Previous 7 days': 'Последние 7 дней',
-      'Previous 30 days': 'Последние 30 дней',
-      Older: 'Ранее',
-    },
     ready: 'Готовы к запуску',
     readyDescription: 'Утверждённые планы и планы в работе, которые можно запустить.',
     readyList: 'Планы, готовые к запуску',

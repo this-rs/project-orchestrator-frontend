@@ -29,13 +29,6 @@ export default {
     completed: '{count} abgeschlossen',
     failed: '{count} fehlgeschlagen',
     total: '{amount} insgesamt',
-    groups: {
-      Today: 'Heute',
-      Yesterday: 'Gestern',
-      'Previous 7 days': 'Letzte 7 Tage',
-      'Previous 30 days': 'Letzte 30 Tage',
-      Older: 'Älter',
-    },
     ready: 'Bereit zur Ausführung',
     readyDescription: 'Genehmigte und laufende Pläne, die ausgeführt werden können.',
     readyList: 'Zur Ausführung bereite Pläne',

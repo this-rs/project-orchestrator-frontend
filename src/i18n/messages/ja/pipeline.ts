@@ -29,13 +29,6 @@ export default {
     completed: '完了 {count}',
     failed: '失敗 {count}',
     total: '合計 {amount}',
-    groups: {
-      Today: '今日',
-      Yesterday: '昨日',
-      'Previous 7 days': '過去 7 日間',
-      'Previous 30 days': '過去 30 日間',
-      Older: 'それ以前',
-    },
     ready: '起動可能',
     readyDescription: '実行できる承認済みおよび進行中のプランです。',
     readyList: '起動可能なプラン',

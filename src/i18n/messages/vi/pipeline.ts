@@ -29,13 +29,6 @@ export default {
     completed: '{count} hoàn thành',
     failed: '{count} thất bại',
     total: 'Tổng cộng {amount}',
-    groups: {
-      Today: 'Hôm nay',
-      Yesterday: 'Hôm qua',
-      'Previous 7 days': '7 ngày qua',
-      'Previous 30 days': '30 ngày qua',
-      Older: 'Cũ hơn',
-    },
     ready: 'Sẵn sàng chạy',
     readyDescription: 'Các kế hoạch đã duyệt và đang thực hiện có thể được chạy.',
     readyList: 'Các kế hoạch sẵn sàng chạy',
