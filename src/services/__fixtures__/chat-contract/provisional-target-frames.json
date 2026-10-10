@@ -418,6 +418,40 @@
       "type": "session_closed",
       "session_id": "5b0c7c1e-2f4a-4d6b-9a3e-1c2d3e4f5a6b",
       "reason": "closed"
+    },
+    {
+      "type": "conversation_relayed",
+      "conversation_id": "conv-7f1c2a30",
+      "from_provider": "claude-code",
+      "from_session_id": "5b0c7c1e-2f4a-4d6b-9a3e-1c2d3e4f5a6b",
+      "moved_by": "user",
+      "omitted_entries": 3,
+      "relayed_entries": 12,
+      "to_provider": "local",
+      "to_session_id": "7f1c2a30-5b6d-4e8f-9a0b-1c2d3e4f5a6b"
+    },
+    {
+      "type": "refs_resolved",
+      "refs": [
+        {
+          "entity_status": "in_progress",
+          "id": "57cf05c9-25b6-495d-ab07-de4b11d64736",
+          "kind": "plan",
+          "label": "Chat : références #/@",
+          "project": {
+            "id": "00333b5f-2d0a-4467-9c98-155e55d2b7e5",
+            "name": "Project Orchestrator",
+            "slug": "project-orchestrator"
+          },
+          "status": "ok",
+          "subtitle": "12 tâches"
+        },
+        {
+          "id": "3adeffc9-c8b0-4e2f-a674-55bfcb293433",
+          "kind": "task",
+          "status": "not_found"
+        }
+      ]
     }
   ],
   "control_frames": [
