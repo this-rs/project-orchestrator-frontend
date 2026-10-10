@@ -264,13 +264,11 @@ export class EarlyToolTimings {
   }
 
   /**
-   * `messages` with each held timing whose call is in them placed on it, as a new
-   * array; neither `messages` nor the holder is changed (safe in a React updater).
+   * The held timings as an immutable list, for a React updater: the holder may be
+   * emptied right after (`moveTo`), and an updater React replays must still see them.
    */
-  placedOn(messages: ReadonlyArray<ChatMessage>): ChatMessage[] {
-    const out = [...messages]
-    for (const [id, timing] of this.byId) attachToolTiming(out, { ...timing, id })
-    return out
+  snapshot(): ReadonlyArray<HeldTiming> {
+    return Object.freeze([...this.byId].map(([id, timing]) => Object.freeze({ id, timing })))
   }
 
   /** Move the held timings into `into` (all, or those `keep` accepts), leaving this holder empty. */
@@ -280,6 +278,22 @@ export class EarlyToolTimings {
     }
     this.byId.clear()
   }
+}
+
+/** A timing held for call `id` (see `EarlyToolTimings.snapshot`). */
+export interface HeldTiming {
+  readonly id: string
+  readonly timing: Record<string, unknown>
+}
+
+/**
+ * `messages` with each timing of `held` whose call is in them placed on it, as a
+ * new array; `messages` is not changed (pure: safe in a React updater, even replayed).
+ */
+export function placeTimings(messages: ReadonlyArray<ChatMessage>, held: ReadonlyArray<HeldTiming>): ChatMessage[] {
+  const out = [...messages]
+  for (const { id, timing } of held) attachToolTiming(out, { ...timing, id })
+  return out
 }
 
 /** Whether a `tool_use` block of call `id` is in `messages`. */
@@ -300,6 +314,10 @@ export function serverTimeOf(evt: unknown): string | undefined {
   return Number.isFinite(ms) ? new Date(ms).toISOString() : undefined
 }
 
+/** How long a sample of the clock gap counts (browser ms). */
+export const SERVER_CLOCK_WINDOW_MS = 60_000
+const SERVER_CLOCK_SAMPLES_MAX = 256
+
 /**
  * The server's clock, as seen from the browser: the gap between the `created_at`
  * of the latest LIVE frame and the browser's clock when it came. What the browser
@@ -310,12 +328,24 @@ export function serverTimeOf(evt: unknown): string | undefined {
  */
 export class ServerClock {
   private offsetMs = 0
+  /** Recent samples (browser time seen, gap), newest last, within `SERVER_CLOCK_WINDOW_MS`. */
+  private samples: Array<{ at: number; offset: number }> = []
 
-  /** Learn the gap from a frame (ignored when replayed or without `created_at`). */
+  /**
+   * Learn the gap from a frame (ignored when replayed or without `created_at`).
+   * A frame that came late (a burst delivered after a stall) understates the gap
+   * by its delay, never overstates it: the gap kept is the LARGEST of the recent
+   * samples, so one late frame does not drag the clock back.
+   */
   observe(evt: unknown): void {
     if (typeof evt !== 'object' || evt === null || (evt as { replaying?: unknown }).replaying) return
     const t = serverTimeOf(evt)
-    if (t) this.offsetMs = Date.parse(t) - Date.now()
+    if (!t) return
+    const at = Date.now()
+    this.samples.push({ at, offset: Date.parse(t) - at })
+    // A sample from the browser's future (its clock went back) is dropped too.
+    this.samples = this.samples.filter((s) => s.at <= at && at - s.at <= SERVER_CLOCK_WINDOW_MS).slice(-SERVER_CLOCK_SAMPLES_MAX)
+    this.offsetMs = Math.max(...this.samples.map((s) => s.offset))
   }
 
   /** The server's time now (browser clock + gap). */
