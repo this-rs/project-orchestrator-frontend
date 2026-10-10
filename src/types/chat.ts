@@ -277,6 +277,8 @@ export interface ChatSession {
   routed_by?: RoutedBy | null
   /** Routing mode in force when the session opened (`primary` when absent). */
   routing_mode?: ProviderRoutingMode | null
+  /** The models ticked for THIS conversation (mixed: PO routes among them; strict: the one). */
+  routing_pool?: { provider: ProviderId; model: string }[] | null
   /** Readable reason of an automatic choice (`routed_by: 'auto'`); `null` otherwise. */
   route_reason?: string | null
   /** Where the session's cost figure comes from. Absent = `reported` (Claude Code). */

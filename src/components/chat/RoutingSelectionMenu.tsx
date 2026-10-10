@@ -20,6 +20,7 @@ import {
   chatSessionProviderAtom,
   chatSessionRoutingAtom,
   chatTargetProviderIdAtom,
+  sessionRoutingOf,
   loadRoutingSettingsAtom,
   modelCatalogAtom,
   modelCatalogLoadedAtom,
@@ -42,7 +43,8 @@ import {
   routedByKey,
 } from '@/constants/providers'
 import { useT } from '@/i18n'
-import { changeConversationRouting } from '@/services/chat'
+import { changeConversationRouting, conversationRoutingRefusal, type ConversationRoutingChange, type ConversationRoutingRefusal } from '@/services/chat'
+import type { LearningStage } from '@/types/routing'
 import { isClaudeCodeProvider, providerDisplayName, providerKindLabel, type ProviderInstance, type ProviderModel, type RoutedBy } from '@/types/provider'
 import {
   distinctModels,
@@ -167,11 +169,13 @@ export function RoutingSelectionMenu(props: RoutingSelectionMenuProps) {
  * Claude keeps its families and versions: one line per family, one stop per
  * version on a stepped track, each stop tickable.
  *
- * An existing chat stays on its provider and runs one model at a time: ticking
- * a model of that provider switches it live (when the provider can), the other
- * providers are listed but off, and the gestures on many models are not offered.
+ * An existing chat stays on its provider. Its changes go to the server
+ * (`PUT /chat/sessions/{id}/routing`) and the menu shows what the server answers:
+ * Auto, or its ticked models (one = strict, several = mixed among them). On Auto
+ * the list stays usable: picking a model takes the hand back. The other providers
+ * are listed but off, and the gestures on many models are not offered.
  */
-function RoutingMenu({ sessionId, open, onOpenChange, onChangeModel, onNewConversation, autoByDefault }: RoutingSelectionMenuProps & { autoByDefault: boolean }) {
+function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByDefault }: RoutingSelectionMenuProps & { autoByDefault: boolean }) {
   const { t } = useT()
   const list = useAtomValue(providersAtom)
   const catalog = useAtomValue(modelCatalogAtom)
@@ -195,6 +199,10 @@ function RoutingMenu({ sessionId, open, onOpenChange, onChangeModel, onNewConver
   const isOpen = open === 'target'
   /** The chat in which the user just took the hand back from PO by picking a model. */
   const [tookControlIn, setTookControlIn] = useState<string | null>(null)
+  /** A routing change of this chat on its way to the server, and the last refusal. */
+  const [pending, setPending] = useState(false)
+  const [refusal, setRefusal] = useState<{ sessionId: string; reason: ConversationRoutingRefusal } | null>(null)
+  const settings = useAtomValue(chatRoutingSettingsAtom)
 
   const instances = useMemo(() => list?.providers ?? [], [list])
   const claudeGroups = useMemo(() => groupModelsByFamily(catalog), [catalog])
@@ -204,12 +212,15 @@ function RoutingMenu({ sessionId, open, onOpenChange, onChangeModel, onNewConver
   // A chat the user gave its own model (recorded when they tick one) is no longer PO's to decide.
   const ownChoice = hasSession && sessionRouting?.routed_by === 'request'
   const auto = hasSession ? sessionMode === 'full' && !ownChoice : (autoDraft ?? autoByDefault)
-  /** The chat runs one model, the one it was opened with or switched to. */
+  /** The model the chat runs now, the one it was opened with or switched to. */
   const liveModel = sessionModel ?? defaultModel
-  const selection = useMemo<RoutingPick[]>(
-    () => (hasSession ? (liveModel ? [{ provider: targetId, model: liveModel }] : []) : draftSelection),
-    [hasSession, liveModel, targetId, draftSelection],
-  )
+  /** An existing chat: its ticked models as the server holds them (mixed), else the one it runs. */
+  const selection = useMemo<RoutingPick[]>(() => {
+    if (!hasSession) return draftSelection
+    const pool = sessionRouting?.routing_mode === 'mixed' ? (sessionRouting.routing_pool ?? []).filter((p) => p.provider === targetId) : []
+    if (pool.length > 1) return pool
+    return liveModel ? [{ provider: targetId, model: liveModel }] : []
+  }, [hasSession, liveModel, targetId, draftSelection, sessionRouting])
   /** An existing chat can change model live only if its provider can. */
   const liveLocked = hasSession && !capabilities.set_model_live
 
@@ -221,17 +232,35 @@ function RoutingMenu({ sessionId, open, onOpenChange, onChangeModel, onNewConver
   const selectable = instances.filter((p) => !lockReason(p))
   const total = selectable.reduce((n, p) => n + modelsOf(p).length, 0)
 
+  /**
+   * An existing chat: the change goes to the server (`PUT .../routing`) and the menu shows
+   * what it answers - never a local guess. A refusal keeps the previous state and says why.
+   */
+  const sendRouting = (change: ConversationRoutingChange, tookControl: boolean) => {
+    if (!sessionId || pending) return
+    const sid = sessionId
+    setPending(true)
+    setRefusal(null)
+    changeConversationRouting(sid, change)
+      .then((session) => {
+        setSessionRouting(sessionRoutingOf(session) ?? { routed_by: null, route_reason: null, routing_mode: change.auto ? 'full' : null })
+        if (session.model) setSessionModel(session.model)
+        setTookControlIn(tookControl ? sid : null)
+      })
+      .catch((err) => setRefusal({ sessionId: sid, reason: conversationRoutingRefusal(err) }))
+      .finally(() => setPending(false))
+  }
+
   /** Draft: every change goes through here - the draft's atoms, and the single pick the rest of the composer reads. */
   const commit = (nextAuto: boolean, next: RoutingPick[]) => {
     if (hasSession) {
-      // One model at a time: the pick that was just added replaces the running one.
+      if (liveLocked) return
+      // On Auto, picking a model takes the hand back on that model alone (strict).
+      // Otherwise the ticks are the pool: one = strict, several = mixed; never none.
       const added = next.find((p) => !isPicked(selection, p))
-      if (!added || added.provider !== targetId || liveLocked) return
-      // Picking a model while PO had the hand takes it back - said in the menu.
-      if (auto) setTookControlIn(sessionId ?? null)
-      if (onChangeModel) onChangeModel(added.model)
-      else setSessionModel(added.model)
-      setSessionRouting({ routed_by: 'request', route_reason: null, routing_mode: 'primary' })
+      const pool = auto ? (added ? [added] : []) : distinctModels(next, pickModelResolver(list))
+      if (pool.length === 0) return
+      sendRouting({ auto: false, routing_pool: pool.map(({ provider, model }) => ({ provider, model })) }, auto)
       return
     }
     setAutoDraft(nextAuto)
@@ -244,10 +273,9 @@ function RoutingMenu({ sessionId, open, onOpenChange, onChangeModel, onNewConver
   /** The switch, both ways, for this conversation only ("hand it back to PO" = on). */
   const setAuto = (on: boolean) => {
     if (hasSession) {
-      const routing_mode = on ? 'full' : 'primary'
-      setTookControlIn(null)
-      setSessionRouting({ routed_by: on ? null : (sessionRouting?.routed_by ?? null), route_reason: sessionRouting?.route_reason ?? null, routing_mode })
-      if (sessionId) void changeConversationRouting(sessionId, { routing_mode })
+      // Off: the chat keeps the model it runs now, imposed (strict).
+      if (on) sendRouting({ auto: true }, false)
+      else if (liveModel) sendRouting({ auto: false, routing_pool: [{ provider: targetId, model: liveModel }] }, true)
       return
     }
     commit(on, selection)
@@ -304,13 +332,24 @@ function RoutingMenu({ sessionId, open, onOpenChange, onChangeModel, onNewConver
 
       {isOpen && (
         <div data-testid="target-picker-popover" className={POPOVER}>
-          <AutoSwitch checked={auto} onChange={setAuto} />
+          <AutoSwitch checked={auto} onChange={setAuto} disabled={pending} />
           {auto && hasSession && (
             <AutoPanel
               model={liveModel ? nameOf(targetId, liveModel) : null}
               reason={sessionRouting?.route_reason ?? null}
               routedBy={sessionRouting?.routed_by ?? null}
+              stage={settings?.stage ?? null}
             />
+          )}
+          {auto && !hasSession && settings && settings.stage !== 'auto' && (
+            <p data-testid="routing-stage-note" className="px-3 py-2 text-[11px] leading-snug text-amber-200/90 border-b border-white/[0.06]">
+              {t('routing.menu.observing', { stage: t(`routing.stages.${settings.stage}.label`) })}
+            </p>
+          )}
+          {refusal && refusal.sessionId === sessionId && (
+            <p role="alert" data-testid="routing-refusal" className="px-3 py-2 text-[11px] leading-snug text-red-300 border-b border-white/[0.06]">
+              {t(`routing.menu.refused.${refusal.reason}`)}
+            </p>
           )}
           {!auto && hasSession && (
             <div data-testid="routing-own-choice" className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 border-b border-white/[0.06]">
@@ -319,7 +358,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onChangeModel, onNewConver
                   {t('routing.menu.tookControl', { model: nameOf(targetId, liveModel) })}
                 </p>
               )}
-              <button type="button" data-testid="routing-hand-back" onClick={() => setAuto(true)} className={BTN}>
+              <button type="button" data-testid="routing-hand-back" disabled={pending} onClick={() => setAuto(true)} className={BTN}>
                 {t('routing.menu.handBack')}
               </button>
             </div>
@@ -332,7 +371,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onChangeModel, onNewConver
 
           {/* A draft on Auto: PO decides, the rest is off. An existing chat on Auto keeps
               its list usable: picking a model there takes the hand back. */}
-          <div inert={auto && !hasSession} className={auto && !hasSession ? 'opacity-40' : undefined} data-testid="routing-selection">
+          <div inert={(auto && !hasSession) || pending} aria-busy={pending || undefined} className={auto && !hasSession ? 'opacity-40' : undefined} data-testid="routing-selection">
             <div className="flex items-center gap-2 px-3 py-1.5 border-b border-white/[0.06]">
               <p data-testid="routing-summary" aria-live="polite" className="min-w-0 flex-1 text-[10px] leading-snug text-gray-400">
                 {modeLabel && <span className="text-gray-200">{modeLabel} · </span>}
@@ -457,15 +496,22 @@ function RoutingMenu({ sessionId, open, onOpenChange, onChangeModel, onNewConver
   )
 }
 
-/** Auto, once the conversation exists: what PO chose and why, and how to take the hand back. */
-function AutoPanel({ model, reason, routedBy }: { model: string | null; reason: string | null; routedBy: RoutedBy | null }) {
+/**
+ * Auto, once the conversation exists: what PO chose and why, and how to take the hand
+ * back. Before the `auto` learning stage PO only observes: the server records its
+ * decisions but does not switch models, and the panel says so instead of "PO chose".
+ */
+function AutoPanel({ model, reason, routedBy, stage }: { model: string | null; reason: string | null; routedBy: RoutedBy | null; stage: LearningStage | null }) {
   const { t } = useT()
-  const lines = [
-    model ? t('routing.menu.autoChose', { model }) : null,
-    reason ? t('routing.reason', { reason }) : null,
-    routedBy ? t('routing.picker.routedBy', { by: t(routedByKey(routedBy)) }) : null,
-    t('routing.menu.autoHint'),
-  ].filter(Boolean)
+  const applies = stage === null || stage === 'auto'
+  const lines = applies
+    ? [
+        model ? t('routing.menu.autoChose', { model }) : null,
+        reason ? t('routing.reason', { reason }) : null,
+        routedBy ? t('routing.picker.routedBy', { by: t(routedByKey(routedBy)) }) : null,
+        t('routing.menu.autoHint'),
+      ]
+    : [t('routing.menu.observing', { stage: t(`routing.stages.${stage}.label`) }), model ? t('routing.menu.running', { model }) : null, t('routing.menu.autoHint')]
   return (
     <p data-testid="routing-auto-panel" className="whitespace-pre-line px-3 py-2.5 text-[11px] leading-snug text-gray-400 border-b border-white/[0.06]">
       {lines.join('\n')}

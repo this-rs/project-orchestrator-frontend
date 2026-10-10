@@ -10,6 +10,8 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
 import { routingApi } from '@/services/routing'
+import { providersApi } from '@/services/providers'
+import { clearModelCatalogCache } from '@/components/settings/useModelCatalog'
 import {
   chatDraftAutoAtom,
   chatDraftRoutingModeAtom,
@@ -40,8 +42,23 @@ import { ChatHeaderTitle } from './ChatHeaderTitle'
 import { ModelChangedBlock } from './ModelChangedBlock'
 
 vi.mock('@/hooks', () => ({ useIsMobile: () => false }))
-const changeConversationRouting = vi.hoisted(() => vi.fn(() => Promise.resolve('local' as const)))
-vi.mock('@/services/chat', () => ({ chatApi: { getPermissionConfig: () => new Promise(() => {}) }, changeConversationRouting }))
+/**
+ * The server of `PUT /chat/sessions/{id}/routing`, as backend #638 answers: Auto = full and
+ * routed by PO; one model = strict, imposed, routed_by request; several = mixed.
+ */
+type RoutingChange = { auto: true } | { auto: false; routing_pool: { provider: string; model: string }[] }
+const serverAnswer = (change: RoutingChange, model = 'qwen') =>
+  change.auto
+    ? { id: 's1', routing_mode: 'full', routed_by: 'auto', route_reason: null, routing_pool: null, model }
+    : change.routing_pool.length === 1
+      ? { id: 's1', routing_mode: 'primary', routed_by: 'request', route_reason: null, routing_pool: change.routing_pool, model: change.routing_pool[0].model }
+      : { id: 's1', routing_mode: 'mixed', routed_by: 'auto', route_reason: null, routing_pool: change.routing_pool, model: change.routing_pool[0].model }
+const changeConversationRouting = vi.hoisted(() => vi.fn())
+vi.mock('@/services/chat', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/chat')>()),
+  chatApi: { getPermissionConfig: () => new Promise(() => {}) },
+  changeConversationRouting,
+}))
 vi.mock('@/services/providers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/providers')>()),
   providersApi: { models: vi.fn().mockResolvedValue({ models: [] }), list: vi.fn() },
@@ -105,6 +122,9 @@ describe('RoutingSelectionMenu', () => {
     vi.clearAllMocks()
     // The picked target is persisted: one test's pick must not reach the next.
     localStorage.clear()
+    clearModelCatalogCache()
+    vi.mocked(providersApi.models).mockResolvedValue({ models: [] } as never)
+    changeConversationRouting.mockReset().mockImplementation((_id: string, change: RoutingChange) => Promise.resolve(serverAnswer(change)))
     vaultApiMock.overview.mockReset().mockResolvedValue({ initialized: true, unlocked_until: '2099-01-01T00:00:00Z', secret_count: 0, unavailable: null, secrets: [], grants: [], requests: [] })
   })
 
@@ -205,23 +225,30 @@ describe('RoutingSelectionMenu', () => {
     expect(routingApi.putProject).not.toHaveBeenCalled()
   })
 
-  it('an existing chat: Auto can be handed to PO and taken back, for THIS chat only', () => {
+  it('an existing chat: Auto on and off go to the server, and the menu shows what it answers', async () => {
     const store = mount('primary', {
       sessionId: 's1',
-      prepare: (s) => s.set(chatSessionRoutingAtom, { routed_by: 'request', route_reason: null, routing_mode: 'primary' }),
+      prepare: (s) => {
+        s.set(chatSessionProviderAtom, { id: 'local-llama' })
+        s.set(chatSessionModelAtom, 'qwen')
+        s.set(providersAtom, { ...PROVIDERS, providers: [PROVIDERS.providers[0], { ...PROVIDERS.providers[1], models: [{ id: 'qwen' }, { id: 'phi' }, { id: 'mistral' }] }] })
+        s.set(chatSessionCapabilitiesSnapshotAtom, { set_model_live: true })
+        s.set(chatSessionRoutingAtom, { routed_by: 'request', route_reason: null, routing_mode: 'primary' })
+      },
     })
     openMenu()
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
-    // "Hand it to PO": the chat now reads Auto; its list stays visible and usable below.
+    // "Hand it to PO".
     fireEvent.click(screen.getByRole('switch'))
-    expect(store.get(chatRoutingModeAtom)).toBe('full')
+    expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', { auto: true })
+    await waitFor(() => expect(store.get(chatRoutingModeAtom)).toBe('full'))
     expect(screen.getByTestId('target-chip').textContent).toContain('Auto')
+    // Its list stays visible and usable below the panel.
     expect(screen.getByTestId('routing-selection').hasAttribute('inert')).toBe(false)
-    expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', { routing_mode: 'full' })
-    // ...and back to a model of its own.
+    // Off again: the chat keeps the model it runs, imposed.
     fireEvent.click(screen.getByRole('switch'))
-    expect(store.get(chatRoutingModeAtom)).toBe('primary')
-    expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', { routing_mode: 'primary' })
+    expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', { auto: false, routing_pool: [{ provider: 'local-llama', model: 'qwen' }] })
+    await waitFor(() => expect(store.get(chatRoutingModeAtom)).toBe('primary'))
     // Nothing global was written, and no draft was touched.
     expect(routingApi.put).not.toHaveBeenCalled()
     expect(routingApi.putProject).not.toHaveBeenCalled()
@@ -229,38 +256,122 @@ describe('RoutingSelectionMenu', () => {
     expect(store.get(chatDraftSelectionAtom)).toEqual([])
   })
 
-  it('an existing chat on Auto: switching Auto off keeps it on its provider', () => {
-    const store = mount('primary', {
-      sessionId: 's1',
-      prepare: (s) => s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheap', routing_mode: 'full' }),
-    })
-    expect(store.get(chatRoutingModeAtom)).toBe('full')
-    openMenu()
-    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
-    fireEvent.click(screen.getByRole('switch'))
-    expect(screen.queryByTestId('routing-auto-panel')).toBeNull()
-    expect(store.get(chatRoutingModeAtom)).toBe('primary')
-  })
-
-  it('an existing chat: ticking a model of its provider switches it live; no mass gestures, other providers are off', () => {
+  it('an existing chat: one tick = strict, several = mixed, sent to the route; no mass gestures, other providers are off', async () => {
+    // The catalog read when the menu opens lists the same models (it replaces the listing's).
+    clearModelCatalogCache()
+    vi.mocked(providersApi.models).mockImplementation((id: string) =>
+      Promise.resolve({ models: id === 'local-llama' ? [{ id: 'qwen' }, { id: 'phi' }, { id: 'mistral' }] : [] } as never),
+    )
     const onChangeModel = vi.fn()
-    mount('primary', {
+    const store = mount('primary', {
       sessionId: 's1',
       onChangeModel,
       prepare: (s) => {
         s.set(chatSessionProviderAtom, { id: 'local-llama' })
         s.set(chatSessionModelAtom, 'qwen')
-        s.set(providersAtom, { ...PROVIDERS, providers: [PROVIDERS.providers[0], { ...PROVIDERS.providers[1], models: [{ id: 'qwen' }, { id: 'phi' }] }] })
+        s.set(providersAtom, { ...PROVIDERS, providers: [PROVIDERS.providers[0], { ...PROVIDERS.providers[1], models: [{ id: 'qwen' }, { id: 'phi' }, { id: 'mistral' }] }] })
         s.set(chatSessionCapabilitiesSnapshotAtom, { set_model_live: true })
+        s.set(chatSessionRoutingAtom, { routed_by: 'request', route_reason: null, routing_mode: 'primary' })
       },
     })
     openMenu()
     expect(screen.queryByTestId('routing-select-all')).toBeNull()
     expect(screen.queryByTestId('routing-provider-check-local-llama')).toBeNull()
     expect(within(screen.getByTestId('target-provider-claude-code')).getByText(/stays on its provider/i)).toBeTruthy()
-    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
+    // A second model ticked: mixed among the two.
     tick('local-llama', 'phi')
-    expect(onChangeModel).toHaveBeenCalledWith('phi')
+    expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', {
+      auto: false,
+      routing_pool: [
+        { provider: 'local-llama', model: 'qwen' },
+        { provider: 'local-llama', model: 'phi' },
+      ],
+    })
+    await waitFor(() => expect(store.get(chatRoutingModeAtom)).toBe('mixed'))
+    await waitFor(() => expect(screen.getByTestId('routing-selection').hasAttribute('aria-busy')).toBe(false))
+    expect(screen.getByTestId('routing-summary').textContent).toContain('Mixed: 2 models')
+    // One path only: the route, not the set_model frame as well.
+    expect(onChangeModel).not.toHaveBeenCalled()
+    // Unticking back to one: strict on that one.
+    tick('local-llama', 'qwen')
+    expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', { auto: false, routing_pool: [{ provider: 'local-llama', model: 'phi' }] })
+    await waitFor(() => expect(store.get(chatRoutingModeAtom)).toBe('primary'))
+    expect(store.get(chatSessionModelAtom)).toBe('phi')
+    await waitFor(() => expect(screen.getByTestId('routing-selection').hasAttribute('aria-busy')).toBe(false))
+    // The last model cannot be unticked (a chat runs on something): nothing is sent.
+    changeConversationRouting.mockClear()
+    tick('local-llama', 'phi')
+    expect(changeConversationRouting).not.toHaveBeenCalled()
+  })
+
+  it('an existing chat shows the state the server returned, not a local guess', async () => {
+    changeConversationRouting.mockImplementation((_id: string, change: RoutingChange) => Promise.resolve(serverAnswer(change, 'mistral')))
+    const store = mount('primary', {
+      sessionId: 's1',
+      prepare: (s) => {
+        s.set(chatSessionProviderAtom, { id: 'local-llama' })
+        s.set(chatSessionModelAtom, 'qwen')
+        s.set(providersAtom, { ...PROVIDERS, providers: [PROVIDERS.providers[0], { ...PROVIDERS.providers[1], models: [{ id: 'qwen' }, { id: 'phi' }, { id: 'mistral' }] }] })
+        s.set(chatSessionCapabilitiesSnapshotAtom, { set_model_live: true })
+        s.set(chatSessionRoutingAtom, { routed_by: 'request', route_reason: null, routing_mode: 'primary' })
+      },
+    })
+    openMenu()
+    fireEvent.click(screen.getByRole('switch'))
+    // While the call runs the list is busy and nothing has changed yet.
+    expect(screen.getByTestId('routing-selection').getAttribute('aria-busy')).toBe('true')
+    expect(store.get(chatRoutingModeAtom)).toBe('primary')
+    await waitFor(() => expect(store.get(chatRoutingModeAtom)).toBe('full'))
+    // The model the server says the chat runs on.
+    expect(store.get(chatSessionModelAtom)).toBe('mistral')
+    expect(screen.getByTestId('routing-auto-panel').textContent).toContain('PO chose: mistral')
+  })
+
+  it('a refusal (routing_pool_other_provider) keeps the previous state and says why', async () => {
+    const { ApiError } = await import('@/services/api')
+    changeConversationRouting.mockRejectedValue(
+      new ApiError(400, JSON.stringify({ error: 'not on this provider', code: 'routing_pool_other_provider', retryable: false })),
+    )
+    const store = mount('primary', {
+      sessionId: 's1',
+      prepare: (s) => {
+        s.set(chatSessionProviderAtom, { id: 'local-llama' })
+        s.set(chatSessionModelAtom, 'qwen')
+        s.set(providersAtom, { ...PROVIDERS, providers: [PROVIDERS.providers[0], { ...PROVIDERS.providers[1], models: [{ id: 'qwen' }, { id: 'phi' }, { id: 'mistral' }] }] })
+        s.set(chatSessionCapabilitiesSnapshotAtom, { set_model_live: true })
+        s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheap', routing_mode: 'full' })
+      },
+    })
+    openMenu()
+    tick('local-llama', 'phi')
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain('another provider')
+    expect(store.get(chatRoutingModeAtom)).toBe('full')
+    expect(store.get(chatSessionModelAtom)).toBe('qwen')
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('Auto before the auto learning stage: the panel says PO observes and does not switch models yet', () => {
+    mount('primary', {
+      sessionId: 's1',
+      prepare: (s) => {
+        s.set(routingSettingsAtom(''), { state: 'ready', settings: { ...settings('primary'), stage: 'shadow' } })
+        s.set(chatSessionModelAtom, 'qwen')
+        s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheap', routing_mode: 'full' })
+      },
+    })
+    openMenu()
+    const panel = screen.getByTestId('routing-auto-panel').textContent!
+    expect(panel).toContain('PO observes this conversation but does not switch models yet (learning stage: Shadow)')
+    expect(panel).toContain('Running:')
+    expect(panel).not.toContain('PO chose')
+  })
+
+  it('a new conversation on Auto before the auto stage says it too', () => {
+    mount('full', { prepare: (s) => s.set(routingSettingsAtom(''), { state: 'ready', settings: { ...settings('full'), stage: 'advisory' } }) })
+    openMenu()
+    expect(screen.getByTestId('routing-stage-note').textContent).toContain('does not switch models yet')
   })
 
   it('the vault is unlocked from this menu too: a locked vault shows the passphrase field', async () => {
@@ -357,7 +468,7 @@ describe('RoutingSelectionMenu', () => {
     expect(screen.getByTestId('routing-summary').textContent).toContain('Strict: 1 model')
   })
 
-  it('an existing chat on Auto: the panel says what PO chose; picking a model takes the hand back and says so; "Hand it back to PO" restores Auto', () => {
+  it('an existing chat on Auto: the panel says what PO chose; picking a model takes the hand back and says so; "Hand it back to PO" restores Auto', async () => {
     const onChangeModel = vi.fn()
     const store = mount('primary', {
       sessionId: 's1',
@@ -365,7 +476,7 @@ describe('RoutingSelectionMenu', () => {
       prepare: (s) => {
         s.set(chatSessionProviderAtom, { id: 'local-llama' })
         s.set(chatSessionModelAtom, 'qwen')
-        s.set(providersAtom, { ...PROVIDERS, providers: [PROVIDERS.providers[0], { ...PROVIDERS.providers[1], models: [{ id: 'qwen' }, { id: 'phi' }] }] })
+        s.set(providersAtom, { ...PROVIDERS, providers: [PROVIDERS.providers[0], { ...PROVIDERS.providers[1], models: [{ id: 'qwen' }, { id: 'phi' }, { id: 'mistral' }] }] })
         s.set(chatSessionCapabilitiesSnapshotAtom, { set_model_live: true })
         s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheap', routing_mode: 'full' })
       },
@@ -373,17 +484,18 @@ describe('RoutingSelectionMenu', () => {
     openMenu()
     expect(screen.getByTestId('routing-auto-panel').textContent).toContain('PO chose: qwen')
     expect(screen.queryByTestId('routing-hand-back')).toBeNull()
-    // The list is still there, below the panel, and usable.
+    // The list is still there, below the panel, and usable: picking ONE model takes the hand back on it.
     tick('local-llama', 'phi')
-    expect(onChangeModel).toHaveBeenCalledWith('phi')
+    expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', { auto: false, routing_pool: [{ provider: 'local-llama', model: 'phi' }] })
+    expect((await screen.findByRole('status')).textContent).toContain('You took the hand back: phi')
     expect(store.get(chatRoutingModeAtom)).toBe('primary')
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
-    expect(screen.getByRole('status').textContent).toContain('You took the hand back')
+    expect(onChangeModel).not.toHaveBeenCalled()
     // Hand it back.
     fireEvent.click(screen.getByTestId('routing-hand-back'))
-    expect(store.get(chatRoutingModeAtom)).toBe('full')
+    expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', { auto: true })
+    await waitFor(() => expect(store.get(chatRoutingModeAtom)).toBe('full'))
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
-    expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', { routing_mode: 'full' })
     expect(routingApi.put).not.toHaveBeenCalled()
   })
 

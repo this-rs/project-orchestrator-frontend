@@ -1,4 +1,4 @@
-import { api, buildQuery } from './api'
+import { ApiError, api, buildQuery } from './api'
 import type { ModelDefinition } from '@/constants/models'
 import type {
   AgentExecution,
@@ -227,22 +227,41 @@ export const chatApi = {
     api.post(`/chat/sessions/${sessionId}/associate`, { entity_type: entityType, entity_id: entityId, source }),
 }
 
-/** A change of routing asked on an EXISTING conversation from the routing menu. */
-export interface ConversationRoutingChange {
-  /** `full` = Auto (also "hand it back to PO"), `primary` = one model, `mixed` = a pool. */
-  routing_mode: NonNullable<CreateSessionRequest['routing_mode']>
-  /** `mixed` only: the (provider, model) pairs PO may route among. */
-  routing_pool?: NonNullable<CreateSessionRequest['routing_pool']>
+/** One (provider, model) a conversation may be routed to. */
+export interface RoutingPoolEntry {
+  provider: string
+  model: string
 }
 
 /**
- * The one place a routing change of an existing conversation reaches the server.
- * The server has no route for it yet: the change stays in this conversation's
- * state on the client, and `'local'` says so. A model picked by hand is not
- * routed through here: it is the live `set_model` frame, which the server knows.
+ * A change of routing asked on an EXISTING conversation from the routing menu:
+ * Auto ("hand it back to PO"), or the models ticked (one = strict, several = mixed,
+ * all on the session's provider).
  */
-export function changeConversationRouting(sessionId: string, change: ConversationRoutingChange): Promise<'local'> {
-  void sessionId
-  void change
-  return Promise.resolve('local')
+export type ConversationRoutingChange = { auto: true } | { auto: false; routing_pool: RoutingPoolEntry[] }
+
+/** Why the server refused a routing change (`PUT /chat/sessions/{id}/routing`). */
+export type ConversationRoutingRefusal = 'invalid_routing_pool' | 'routing_pool_other_provider' | 'not_found' | 'forbidden' | 'failed'
+
+/**
+ * `PUT /api/chat/sessions/{id}/routing`: changes how THIS conversation is routed from
+ * its next turn on, and answers the session as the server now holds it (routing_mode,
+ * routing_pool, routed_by, model). Never touches the global or project settings.
+ */
+export function changeConversationRouting(sessionId: string, change: ConversationRoutingChange): Promise<ChatSession> {
+  return api.put<ChatSession>(`/chat/sessions/${sessionId}/routing`, change)
+}
+
+/** The typed reason of a refused routing change, read from what the call threw. */
+export function conversationRoutingRefusal(err: unknown): ConversationRoutingRefusal {
+  if (!(err instanceof ApiError)) return 'failed'
+  if (err.status === 404) return 'not_found'
+  if (err.status === 401 || err.status === 403) return 'forbidden'
+  try {
+    const code = (JSON.parse(err.message) as { code?: unknown }).code
+    if (code === 'invalid_routing_pool' || code === 'routing_pool_other_provider') return code
+  } catch {
+    // Not the typed body: the generic refusal.
+  }
+  return 'failed'
 }
