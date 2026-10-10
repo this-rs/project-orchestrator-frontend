@@ -20,6 +20,17 @@ const toolResult = (callId: string, s: number, extra: Record<string, unknown> = 
 })
 
 describe('buildTimeline', () => {
+  it('draws a call from the run the engine saw (tool_timing) when there is one, not from the announcement', () => {
+    const t0 = at(0).getTime() / 1000
+    const waited = { ...toolUse('w', 'Bash', { command: 'ls' }, 1), metadata: { ...toolUse('w', 'Bash', { command: 'ls' }, 1).metadata, tool_timing: { permission_requested_at: t0 + 1.2, permission_resolved_at: t0 + 9.25, run_started_at: t0 + 9.25, ended_at: t0 + 9.5 } } }
+    const denied = { ...toolUse('d', 'Bash', { command: 'rm' }, 10), metadata: { ...toolUse('d', 'Bash', { command: 'rm' }, 10).metadata, tool_timing: { permission_outcome: 'denied', ended_at: t0 + 12 } } }
+    const msgs = [user('m1', 'go', 0), assistant('m2', [waited, toolResult('w', 20), denied, toolResult('d', 20, { is_error: true })], 1)]
+    const { items } = buildTimeline({ messages: msgs, sessionId: 's' })
+    expect(items.find((i) => i.id === 'w')).toMatchObject({ startedAt: at(9).getTime() + 250, endedAt: at(9).getTime() + 500, durationMs: 250 })
+    // No run start seen (denied): the call keeps its announced start, and ends when the engine said.
+    expect(items.find((i) => i.id === 'd')).toMatchObject({ startedAt: at(10).getTime(), endedAt: at(12).getTime(), durationMs: 2000 })
+  })
+
   it('marks a tool call without result as running while streaming, unknown (not done) once the turn ended', () => {
     const msgs = [user('m1', 'list files', 0), assistant('m2', [toolUse('t1', 'Bash', { command: 'ls' }, 1)], 1)]
     expect(buildTimeline({ messages: msgs, sessionId: 's', isStreaming: true }).items.find((i) => i.id === 't1')?.status).toBe('running')

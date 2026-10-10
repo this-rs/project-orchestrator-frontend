@@ -41,6 +41,7 @@ import {
   isQuestionToolUse,
   questionMetadata,
   answerSyntheticQuestion,
+  attachToolTiming,
   type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
@@ -960,6 +961,16 @@ export function useChat() {
               ...(trDurationMs != null && { duration_ms: trDurationMs }),
             }, trParent),
           })
+          break
+        }
+
+        case 'tool_timing': {
+          // Not a message: the timing of a call already shown, put on its tool_use block.
+          const ttData = (event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event) as Record<string, unknown>
+          // (an empty boundary message opened for this event is dropped by `finalize`)
+          attachToolTiming(updated, ttData)
           break
         }
 
