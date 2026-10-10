@@ -54,6 +54,18 @@ describe('<TraceView>', () => {
     expect(screen.getByText('Spans: 4')).toBeTruthy()
   })
 
+  it('says when the engine timing of a call is incomplete or the call never ran', () => {
+    render(<TraceView lanes={[lane([
+      item('req', { kind: 'request', label: 'clean', startedAt: T0, endedAt: T0 + 6000, durationMs: 6000 }),
+      item('part', { label: 'Bash · make', parentId: 'req', timingIncomplete: true, run: 'ran' }),
+      item('no', { label: 'Bash · rm', parentId: 'req', status: 'error', run: 'denied', startedAt: T0 + 3000, endedAt: T0 + 4000, durationMs: 1000 }),
+    ])]} />)
+    expect(row(/Bash · make/).getAttribute('title')).toContain('Timing incomplete: a wait may be missing')
+    expect(within(row(/Bash · make/)).getByTestId('timing-incomplete')).toBeTruthy()
+    expect(row(/Bash · rm/).getAttribute('aria-label')).toContain('Did not run: the permission was denied')
+    expect(within(row(/Bash · rm/)).queryByTestId('timing-incomplete')).toBeNull()
+  })
+
   it('says how far the history has loaded, and offers to retry a failure', () => {
     const retry = vi.fn()
     const { rerender } = render(<TraceView lanes={turn()} loading={{ loaded: 500, total: 1234 }} />)
