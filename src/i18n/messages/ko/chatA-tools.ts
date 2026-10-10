@@ -153,5 +153,18 @@ export default {
       assertion: "단언",
       decision: "결정"
     }
+  },
+  permission: {
+    actions: "이 권한 요청에 응답",
+    allowOnce: "한 번 허용",
+    allowSession: "이 세션 동안",
+    allowAlways: "항상",
+    deny: "거부",
+    sessionHint: "이 대화에서는 다시 묻지 않음",
+    alwaysHint: "이 프로젝트에서는 재시작 후에도 다시 묻지 않음",
+    allowed: "허용됨",
+    allowedSession: "세션 동안 허용됨",
+    allowedAlways: "항상 허용됨",
+    denied: "거부됨"
   }
 } satisfies Translation<'chatA-tools'>

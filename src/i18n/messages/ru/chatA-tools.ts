@@ -153,5 +153,18 @@ export default {
       assertion: "утверждение",
       decision: "решение"
     }
+  },
+  permission: {
+    actions: "Ответить на этот запрос разрешения",
+    allowOnce: "Разрешить один раз",
+    allowSession: "На этот сеанс",
+    allowAlways: "Всегда",
+    deny: "Запретить",
+    sessionHint: "Больше не спрашивать в этом разговоре",
+    alwaysHint: "Больше не спрашивать в этом проекте, даже после перезапуска",
+    allowed: "Разрешено",
+    allowedSession: "Разрешено на сеанс",
+    allowedAlways: "Разрешено всегда",
+    denied: "Запрещено"
   }
 } satisfies Translation<'chatA-tools'>
