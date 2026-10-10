@@ -6,7 +6,7 @@
  * | status | `code`               | what the interface does                         |
  * |--------|----------------------|-------------------------------------------------|
  * | 409    | `owner_unreachable`  | "already stopped": nothing runs, nothing to retry |
- * | 504    | `owner_timeout`      | may still happen; retry only if `retryable`     |
+ * | 504    | `owner_timeout`      | may still happen: pending, never retried        |
  * | 410    | `session_gone`       | retry only if `retryable`                       |
  * | 502    | `owner_*`/`relay_failed` | failed                                      |
  * | 422    | `unsupported`        | the provider cannot                              |
@@ -83,9 +83,18 @@ export function chipOutcomeOfNotice(code: string, reason?: string): { reason: st
   return { reason: reason ?? code }
 }
 
-/** The outcome a Stop chip shows for the reason of a failed cancel. */
-export function chipOutcomeOfReason(reason: string): 'already_stopped' | 'failed' {
-  return reason === 'owner_unreachable' ? 'already_stopped' : 'failed'
+/** What a Stop chip shows once its cancel was refused or failed. */
+export type ChipOutcome = 'already_stopped' | 'pending' | 'failed'
+
+/**
+ * The outcome a Stop chip shows for the reason of a failed cancel:
+ * `owner_unreachable` → already stopped; `owner_timeout` → pending (no answer in
+ * time, the stop may still happen); anything else → failed. None re-enables it.
+ */
+export function chipOutcomeOfReason(reason: string): ChipOutcome {
+  if (reason === 'owner_unreachable') return 'already_stopped'
+  if (reason === 'owner_timeout') return 'pending'
+  return 'failed'
 }
 
 /**

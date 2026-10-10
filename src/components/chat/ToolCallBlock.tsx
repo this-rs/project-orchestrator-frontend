@@ -12,7 +12,7 @@ import { useBlockProviderKind } from './useBlockProviderKind'
 import { toolCancelUnsupportedText } from '@/constants/capabilities'
 import { ChevronRight, Square } from 'lucide-react'
 import { useT } from '@/i18n'
-import { chipOutcomeOfReason, readCancelFailure } from '@/utils/cancelFailure'
+import { chipOutcomeOfReason, readCancelFailure, type ChipOutcome } from '@/utils/cancelFailure'
 
 const MCP_PREFIX = 'mcp__project-orchestrator__'
 
@@ -40,9 +40,10 @@ interface ToolCallBlockProps {
 export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const [stopRequested, setStopRequested] = useState(false)
-  // What a refused stop left: `already_stopped` (409 owner_unreachable) or `failed`
-  // (not retryable). Both keep the chip disabled.
-  const [restOutcome, setRestOutcome] = useState<'already_stopped' | 'failed' | null>(null)
+  // What a refused stop left: `already_stopped` (409 owner_unreachable), `pending`
+  // (504 owner_timeout: it may still happen) or `failed` (not retryable). All keep
+  // the chip disabled.
+  const [restOutcome, setRestOutcome] = useState<ChipOutcome | null>(null)
   // When the click was sent; a failure announced on the stream before it is not ours.
   const [stopClickedAt, setStopClickedAt] = useState<number | null>(null)
   const { t } = useT()
@@ -139,9 +140,11 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
     } catch (err) {
       // Typed refusal (`{error, code, retryable}`): the chip comes back only when the
       // backend says asking again is safe — a cancel-tools retried after a timeout
-      // would stop the tools started since.
+      // would stop the tools started since. A timeout is said first, retryable or not
+      // (as in the ActivityBar): the stop may still happen, the chip waits.
       const failure = readCancelFailure(err)
       if (failure.alreadyStopped) setRestOutcome('already_stopped')
+      else if (failure.code === 'owner_timeout') setRestOutcome('pending')
       else if (failure.retryable) setTimeout(() => setStopRequested(false), 2000)
       else setRestOutcome('failed')
     }
@@ -218,6 +221,14 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
               data-stop-outcome="already_stopped"
             >
               {t('chatA-activity.cancel.alreadyStopped')}
+            </span>
+          ) : stopOutcome === 'pending' ? (
+            <span
+              className="ml-2 text-[10px] font-mono text-amber-300 shrink-0"
+              title={t('chatA-activity.cancel.timeoutNotice')}
+              data-stop-outcome="pending"
+            >
+              {t('chatA-activity.cancel.timeoutNotice')}
             </span>
           ) : stopOutcome === 'failed' ? (
             <span
