@@ -58,6 +58,13 @@ const PAGE_SIZE = 50
 const INTERRUPT_ACK_TIMEOUT_MS = 4000
 
 /**
+ * How long a "for the session" answer waits for the backend's confirmation
+ * (`permission_decision`) or refusal before its block is answerable again
+ * (P11b). The backend answers in milliseconds; past this, the answer was lost.
+ */
+export const SCOPE_CONFIRMATION_TIMEOUT_MS = 15_000
+
+/**
  * Upper bound for the tail widening in `fetchRenderableTail`. 16 pages is
  * enough to clear a long burst of non-renderable events, and small enough not
  * to drag a whole multi-thousand-event conversation over the wire on open.
@@ -276,10 +283,43 @@ export function useChat() {
   }, [messages])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
-  // The permission request last answered with a lasting scope and not yet confirmed: a
-  // `permission_scope_unsupported` error refers to it (the backend refused the scope, the
-  // request still waits).
-  const pendingScopedAnswerRef = useRef<string | null>(null)
+  // The permission requests answered with a lasting scope and not yet confirmed, by id, each
+  // with the timer that bounds the wait: the backend confirms with `permission_decision` or
+  // refuses with a `permission_scope_unsupported` error naming the request (`request_id`).
+  // Neither coming back (another error, a socket cut right after the send) must not leave
+  // the block waiting forever: the timer, or a reconnect, marks it unconfirmed (P11b).
+  const pendingScopedAnswersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  /** Stamps `patch` onto the metadata of the permission blocks of these request ids. */
+  const stampPermissionBlocks = useCallback((ids: string[], patch: Record<string, unknown>) => {
+    if (ids.length === 0) return
+    const wanted = new Set(ids)
+    setMessages((prev) =>
+      prev.map((msg) => ({
+        ...msg,
+        blocks: msg.blocks.map((block) =>
+          block.type === 'permission_request' && wanted.has(block.metadata?.tool_call_id as string)
+            ? { ...block, metadata: { ...block.metadata, ...patch } }
+            : block,
+        ),
+      })),
+    )
+  }, [])
+  /** Forgets a scoped answer (confirmed, refused or answered again): its timer stops. */
+  const releaseScopedAnswer = useCallback((id: string) => {
+    const timer = pendingScopedAnswersRef.current.get(id)
+    if (timer !== undefined) clearTimeout(timer)
+    pendingScopedAnswersRef.current.delete(id)
+  }, [])
+  /** Every scoped answer still waiting becomes unconfirmed: its block is answerable again. */
+  const abandonScopedAnswers = useCallback(() => {
+    const ids = [...pendingScopedAnswersRef.current.keys()]
+    for (const id of ids) releaseScopedAnswer(id)
+    stampPermissionBlocks(ids, { scope_unconfirmed: { at: Date.now() } })
+  }, [releaseScopedAnswer, stampPermissionBlocks])
+  useEffect(() => () => {
+    for (const timer of pendingScopedAnswersRef.current.values()) clearTimeout(timer)
+    pendingScopedAnswersRef.current.clear()
+  }, [])
   const [isSending, setIsSending] = useState(false)
   const [sessionMeta, setSessionMeta] = useState<SessionMeta | null>(null)
 
@@ -493,27 +533,21 @@ export function useChat() {
 
     // A lasting scope the backend refused: the request still waits; its block shows the
     // refusal and can be answered again (never shown as allowed).
+    // The refusal names its request (`request_id`); an older backend does not, and then it is
+    // the oldest answer still waiting (answers are refused in the order they were sent).
     if (
       event.type === 'error' &&
       !event.replaying &&
-      (event as { code?: string }).code === 'permission_scope_unsupported' &&
-      pendingScopedAnswerRef.current
+      (event as { code?: string }).code === 'permission_scope_unsupported'
     ) {
-      const refusedId = pendingScopedAnswerRef.current
-      pendingScopedAnswerRef.current = null
-      const refusedScope = (event as { reason?: string }).reason
-      const at = Date.now()
-      setMessages((prev) =>
-        prev.map((msg) => ({
-          ...msg,
-          blocks: msg.blocks.map((block) =>
-            block.type === 'permission_request' && block.metadata?.tool_call_id === refusedId
-              ? { ...block, metadata: { ...block.metadata, scope_refused: { scope: refusedScope, at } } }
-              : block,
-          ),
-        })),
-      )
-      return
+      const named = (event as { request_id?: string }).request_id
+      const refusedId = named ?? pendingScopedAnswersRef.current.keys().next().value
+      if (refusedId) {
+        releaseScopedAnswer(refusedId)
+        const refusedScope = (event as { reason?: string }).reason
+        stampPermissionBlocks([refusedId], { scope_refused: { scope: refusedScope, at: Date.now() } })
+        return
+      }
     }
 
     // permission_decision — stamp the decision onto the matching permission_request block
@@ -525,9 +559,7 @@ export function useChat() {
       const allowed = (data as { allow?: boolean }).allow
       const lasting = (data as { scope?: string }).scope
       const rule = (data as { rule?: string }).rule
-      if (decisionId && decisionId === pendingScopedAnswerRef.current) {
-        pendingScopedAnswerRef.current = null
-      }
+      if (decisionId) releaseScopedAnswer(decisionId)
       if (decisionId) {
         setMessages((prev) =>
           prev.map((msg) => ({
@@ -1384,7 +1416,7 @@ export function useChat() {
       return finalize(updated)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
-  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks, setSecretRequests, applySessionRuntime])
+  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks, setSecretRequests, applySessionRuntime, releaseScopedAnswer, stampPermissionBlocks])
 
   // ========================================================================
   // REST resync — after a reconnect that the server cannot replay
@@ -1482,6 +1514,9 @@ export function useChat() {
           setIsStreaming(false)
           setIsCompacting(false)
         }
+        // An answer sent on the socket that died may never be confirmed: its block is
+        // answerable again (a decision replayed after the reconnect still wins).
+        if (status === 'reconnecting' || status === 'disconnected') abandonScopedAnswers()
       },
       onFeatures: (features) => store.set(chatServerFeaturesAtom, features),
       onResync: () => {
@@ -1514,7 +1549,7 @@ export function useChat() {
         }
       },
     })
-  }, [getWs, handleEvent, resyncFromRest, setWsStatus, setIsReplaying, setIsStreaming, setIsCompacting, store])
+  }, [getWs, handleEvent, resyncFromRest, setWsStatus, setIsReplaying, setIsStreaming, setIsCompacting, store, abandonScopedAnswers])
 
   // ========================================================================
   // References capability before the first socket (see refs/refsCapability.ts)
@@ -2177,10 +2212,17 @@ export function useChat() {
     // `permission_decision` (scope + rule) or refuses with `permission_scope_unsupported`.
     const sent = getWs().sendPermissionResponse(toolCallId, allowed, scope)
     if (sent && allowed && scope && scope !== 'once') {
-      pendingScopedAnswerRef.current = toolCallId
+      releaseScopedAnswer(toolCallId)
+      pendingScopedAnswersRef.current.set(
+        toolCallId,
+        setTimeout(() => {
+          pendingScopedAnswersRef.current.delete(toolCallId)
+          stampPermissionBlocks([toolCallId], { scope_unconfirmed: { at: Date.now() } })
+        }, SCOPE_CONFIRMATION_TIMEOUT_MS),
+      )
     }
     return sent
-  }, [sessionId, getWs])
+  }, [sessionId, getWs, releaseScopedAnswer, stampPermissionBlocks])
 
   /**
    * Answer a question the agent asked. Returns true when the answer was handed

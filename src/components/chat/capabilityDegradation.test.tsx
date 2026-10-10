@@ -152,6 +152,48 @@ describe('permission_scopes', () => {
     expect(screen.getByText('Allowed')).toBeTruthy()
   })
 
+  it('a refusal of "session" is not offered again: the button is gone, once / deny stay (#323-3)', () => {
+    const onRespond = vi.fn(() => true)
+    const update = stage(onRespond)
+    fireEvent.click(screen.getByRole('button', { name: 'For this session' }))
+    update(withMeta({ scope_refused: { scope: 'session', at: 1 } }))
+    expect(screen.queryByRole('button', { name: 'For this session' })).toBeNull()
+    expect(screen.queryByTestId('permission-session-scope')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Allow once' })).toHaveProperty('disabled', false)
+    expect(screen.getByRole('button', { name: 'Deny' })).toHaveProperty('disabled', false)
+  })
+
+  it('what "session" covers is shown before the click: this exact call (#323-4)', () => {
+    mount(<PermissionRequestBlock block={permissionBlock} onRespond={() => true} />)
+    const scope = screen.getByTestId('permission-session-scope')
+    expect(scope.textContent).toMatch(/covers only/)
+    expect(scope.textContent).toContain('Bash: ls')
+    expect(screen.getByRole('button', { name: 'For this session' }).getAttribute('aria-describedby')).toBe(scope.id)
+  })
+
+  it('what "session" covers, for a tool that is not a command: its exact input', () => {
+    const read: ContentBlock = {
+      ...permissionBlock,
+      metadata: { tool_call_id: 'c2', tool_name: 'mcp__nexus__Read', tool_input: { offset: 1, file_path: 'a.rs' } },
+    }
+    mount(<PermissionRequestBlock block={read} onRespond={() => true} />)
+    expect(screen.getByTestId('permission-session-scope').textContent).toContain(
+      'mcp__nexus__Read {"file_path":"a.rs","offset":1}',
+    )
+  })
+
+  it('a "session" answer never confirmed: the wait ends, the request can be answered again (#323-2)', () => {
+    const onRespond = vi.fn(() => true)
+    const update = stage(onRespond)
+    fireEvent.click(screen.getByRole('button', { name: 'For this session' }))
+    expect(screen.getByRole('status').textContent).toMatch(/Waiting for the confirmation/)
+    update(withMeta({ scope_unconfirmed: { at: 2 } }))
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toMatch(/No confirmation came back/)
+    expect(screen.getByRole('button', { name: 'For this session' })).toHaveProperty('disabled', false)
+    expect(screen.getByRole('button', { name: 'Allow once' })).toHaveProperty('disabled', false)
+  })
+
   it('deny carries no scope', () => {
     const onRespond = vi.fn(() => true)
     mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />)

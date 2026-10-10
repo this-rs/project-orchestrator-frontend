@@ -489,6 +489,8 @@ export type ChatEvent =
       code?: string
       index?: number
       reason?: string
+      /** The permission request a refusal is about (`permission_scope_unsupported`, `permission_forbidden`): the `id` of the refused answer. */
+      request_id?: string
     } & Nested)
   | { type: 'streaming_status'; is_streaming: boolean }
   | { type: 'permission_mode_changed'; mode: string; tool_policy?: ToolPolicy | ToolPolicyMode; policy_mode?: ToolPolicyMode }
@@ -581,7 +583,7 @@ export const CHAT_EVENT_FIELDS = {
   permission_decision: { id: 'required', allow: 'required', scope: 'optional', rule: 'optional' },
   ask_user_question: { questions: 'required', tool_call_id: 'optional', id: 'optional', input: 'optional', synthetic: 'optional', parent_tool_use_id: 'optional' },
   result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional', stop_reason: 'optional', error: 'optional' },
-  error: { message: 'required', code: 'optional', index: 'optional', reason: 'optional', parent_tool_use_id: 'optional' },
+  error: { message: 'required', code: 'optional', index: 'optional', reason: 'optional', parent_tool_use_id: 'optional', request_id: 'optional' },
   streaming_status: { is_streaming: 'required' },
   permission_mode_changed: { mode: 'required', tool_policy: 'optional', policy_mode: 'optional' },
   model_changed: { model: 'required', reason: 'optional' },
