@@ -11,10 +11,24 @@ interface SwitchProps {
   icon?: ReactNode
   disabled?: boolean
   className?: string
+  /** Id of the element that describes the switch (a note under it). */
+  ariaDescribedBy?: string
+  /** Extra classes of the switch button itself (`hitArea` for a 24px+ target). */
+  controlClassName?: string
 }
 
 /** Accessible on/off switch (role="switch"). With `label`, renders a full-width row. */
-export function Switch({ checked, onChange, label, ariaLabel, icon, disabled, className = '' }: SwitchProps) {
+export function Switch({
+  checked,
+  onChange,
+  label,
+  ariaLabel,
+  icon,
+  disabled,
+  className = '',
+  ariaDescribedBy,
+  controlClassName = '',
+}: SwitchProps) {
   const labelId = useId()
   const control = (
     <button
@@ -23,9 +37,10 @@ export function Switch({ checked, onChange, label, ariaLabel, icon, disabled, cl
       aria-checked={checked}
       aria-labelledby={label ? labelId : undefined}
       aria-label={label ? undefined : ariaLabel}
+      aria-describedby={ariaDescribedBy}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${focusRing} ${
+      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${focusRing} ${controlClassName} ${
         checked ? 'bg-indigo-500/70' : 'bg-white/[0.08]'
       }`}
     >
