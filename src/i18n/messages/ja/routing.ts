@@ -33,6 +33,11 @@ export default {
     over_budget: '予算超過',
     trust_without_sandbox: 'サンドボックスなしの信頼モード',
     remote: 'リモートはここでは許可されていません',
+    window_unknown: "コンテキストウィンドウ不明",
+  },
+  rejectionWindow: {
+    catalog_offline: "コンテキストウィンドウ不明：カタログがオフライン",
+    not_in_catalog: "コンテキストウィンドウ不明：モデルがカタログにない",
   },
   badge: { poChooses: 'Auto', why: '理由' },
   settings: {

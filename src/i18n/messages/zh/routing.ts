@@ -33,6 +33,11 @@ export default {
     over_budget: '超出预算',
     trust_without_sandbox: '无沙箱的信任模式',
     remote: '远程，此处不允许',
+    window_unknown: "上下文窗口未知",
+  },
+  rejectionWindow: {
+    catalog_offline: "上下文窗口未知：目录离线",
+    not_in_catalog: "上下文窗口未知：模型不在目录中",
   },
   badge: { poChooses: 'Auto', why: '为什么？' },
   settings: {

@@ -33,6 +33,11 @@ export default {
     over_budget: 'Budget überschritten',
     trust_without_sandbox: 'Vertrauensmodus ohne Sandbox',
     remote: 'Remote, hier nicht erlaubt',
+    window_unknown: "Kontextfenster unbekannt",
+  },
+  rejectionWindow: {
+    catalog_offline: "Kontextfenster unbekannt: Katalog offline",
+    not_in_catalog: "Kontextfenster unbekannt: Modell nicht im Katalog",
   },
   badge: { poChooses: 'Auto', why: 'Warum?' },
   settings: {

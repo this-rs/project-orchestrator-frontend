@@ -33,6 +33,11 @@ export default {
     over_budget: 'Vượt ngân sách',
     trust_without_sandbox: 'Chế độ tin cậy không có sandbox',
     remote: 'Từ xa, không được phép ở đây',
+    window_unknown: "Không rõ cửa sổ ngữ cảnh",
+  },
+  rejectionWindow: {
+    catalog_offline: "Không rõ cửa sổ ngữ cảnh: danh mục ngoại tuyến",
+    not_in_catalog: "Không rõ cửa sổ ngữ cảnh: mô hình không có trong danh mục",
   },
   badge: { poChooses: 'Auto', why: 'Vì sao?' },
   settings: {

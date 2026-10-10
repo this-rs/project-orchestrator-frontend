@@ -33,6 +33,11 @@ export default {
     over_budget: 'बजट से अधिक',
     trust_without_sandbox: 'बिना सैंडबॉक्स का विश्वास मोड',
     remote: 'रिमोट, यहाँ अनुमत नहीं',
+    window_unknown: "कॉन्टेक्स्ट विंडो अज्ञात",
+  },
+  rejectionWindow: {
+    catalog_offline: "कॉन्टेक्स्ट विंडो अज्ञात: कैटलॉग ऑफ़लाइन",
+    not_in_catalog: "कॉन्टेक्स्ट विंडो अज्ञात: मॉडल कैटलॉग में नहीं",
   },
   badge: { poChooses: 'Auto', why: 'क्यों?' },
   settings: {

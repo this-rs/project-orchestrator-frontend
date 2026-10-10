@@ -33,6 +33,11 @@ export default {
     over_budget: 'تجاوز الميزانية',
     trust_without_sandbox: 'وضع الثقة دون صندوق رمل',
     remote: 'بعيد، غير مسموح هنا',
+    window_unknown: "نافذة السياق غير معروفة",
+  },
+  rejectionWindow: {
+    catalog_offline: "نافذة السياق غير معروفة: الكتالوج غير متصل",
+    not_in_catalog: "نافذة السياق غير معروفة: النموذج غير موجود في الكتالوج",
   },
   badge: { poChooses: 'Auto', why: 'لماذا؟' },
   settings: {

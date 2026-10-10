@@ -31,6 +31,11 @@ export default {
     over_budget: 'Over budget',
     trust_without_sandbox: 'Trust mode without a sandbox',
     remote: 'Remote, not allowed here',
+    window_unknown: "Context window unknown",
+  },
+  rejectionWindow: {
+    catalog_offline: "Context window unknown: catalog offline",
+    not_in_catalog: "Context window unknown: model not in the catalog",
   },
   badge: { poChooses: 'Auto', why: 'Why?' },
   settings: {
