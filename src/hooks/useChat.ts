@@ -10,14 +10,13 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pickModelResolver } from '@/constants/providers'
 import { distinctModels } from '@/utils/routingSelection'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
 import { chatApi, ChatWebSocket } from '@/services'
 import { applyQueueOp, enqueue, mergeServerQueue, type QueueOp, type QueuedMessage } from '@/components/chat/messageQueue'
-import type { ChatMessage, ChatSession, ChatStreamEvent, ContentBlock, PermissionMode } from '@/types'
-import type { ChatSessionRouting } from '@/atoms'
+import type { ChatMessage, ChatStreamEvent, ContentBlock, PermissionMode } from '@/types'
 import { isTrustAllowed, readToolPolicyMode, toWireMode, TRUST_FALLBACK_MODE, usableMode } from '@/constants/toolPolicy'
 import {
   historyEventsToMessages,
@@ -239,12 +238,6 @@ export interface SessionMeta {
   workspaceSlug?: string
   /** Origin of this session if spawned (null = normal conversation) */
   spawnedBy?: import('@/types').SpawnedBy | null
-}
-
-/** `routed_by` / `route_reason` of a session record, `null` when it says nothing about routing. */
-function routingOf(session: { routed_by?: ChatSession['routed_by']; route_reason?: string | null; routing_mode?: ChatSession['routing_mode'] }): ChatSessionRouting | null {
-  const { routed_by = null, route_reason = null, routing_mode = null } = session
-  return routed_by || route_reason || routing_mode ? { routed_by, route_reason, routing_mode } : null
 }
 
 export function useChat() {
@@ -2070,7 +2063,7 @@ export function useChat() {
             .then(() => chatApi.getSession(response.session_id))
             .then((session) => {
               if (store.get(chatSessionIdAtom) !== response.session_id) return
-              const record = routingOf(session)
+              const record = sessionRoutingOf(session)
               // A server that does not echo the mode yet: keep the one this chat was opened with.
               store.set(chatSessionRoutingAtom, record && !record.routing_mode ? { ...record, routing_mode: mode } : (record ?? { routed_by: null, route_reason: null, routing_mode: mode }))
             })
@@ -2446,7 +2439,7 @@ export function useChat() {
       if (provider || session.capabilities || session.engine) {
         applySessionRuntime({ provider, capabilities: session.capabilities ?? null, toolPolicy: null, engine: session.engine ?? null, degradedFeatures: session.degraded_features ?? [] })
       }
-      store.set(chatSessionRoutingAtom, routingOf(session))
+      store.set(chatSessionRoutingAtom, sessionRoutingOf(session))
       setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug, workspaceSlug: session.workspace_slug, spawnedBy: session.spawned_by ?? null })
       // Restore the session's permission mode override
       setPermissionOverride(session.permission_mode ? readToolPolicyMode(session.permission_mode) : null)

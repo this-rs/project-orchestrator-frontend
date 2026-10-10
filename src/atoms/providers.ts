@@ -281,8 +281,22 @@ export interface ChatSessionRouting {
   routed_by: RoutedBy | null
   route_reason: string | null
   routing_mode: ProviderRoutingMode | null
+  /** The models ticked for this conversation, when its record names them. */
+  routing_pool?: { provider: string; model: string }[] | null
 }
 export const chatSessionRoutingAtom = atom<ChatSessionRouting | null>(null)
+
+/** The routing part of a session record, `null` when it says nothing about routing. */
+export function sessionRoutingOf(session: {
+  routed_by?: RoutedBy | null
+  route_reason?: string | null
+  routing_mode?: ProviderRoutingMode | null
+  routing_pool?: { provider: string; model: string }[] | null
+}): ChatSessionRouting | null {
+  const { routed_by = null, route_reason = null, routing_mode = null, routing_pool } = session
+  if (!routed_by && !route_reason && !routing_mode) return null
+  return routing_pool && routing_pool.length > 0 ? { routed_by, route_reason, routing_mode, routing_pool } : { routed_by, route_reason, routing_mode }
+}
 
 /**
  * Provider the composer's capabilities and menus are about: the session's, or
