@@ -533,6 +533,25 @@ export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   ...ROUTING_ERROR_CODES,
 ]
 
+/** A model the conversation can open on without the locked vault. */
+export interface ProviderFallback {
+  provider_id: ProviderId
+  model: string
+}
+
+/** The `fallbacks` of an error body: well-formed entries only. */
+function readFallbacks(v: unknown): ProviderFallback[] | undefined {
+  if (!Array.isArray(v)) return undefined
+  const out = v.flatMap((f): ProviderFallback[] =>
+    typeof f === 'object' && f !== null &&
+    typeof (f as Record<string, unknown>).provider_id === 'string' &&
+    typeof (f as Record<string, unknown>).model === 'string'
+      ? [{ provider_id: (f as Record<string, string>).provider_id, model: (f as Record<string, string>).model }]
+      : [],
+  )
+  return out
+}
+
 /** A provider error as the interface handles it. Never carries a credential. */
 export interface ProviderErrorInfo {
   code: ProviderErrorCode
@@ -557,6 +576,8 @@ export interface ProviderErrorInfo {
   origin?: string
   project_slug?: string
   model?: string
+  /** `credentials_locked` on an Auto opening: models that need no vault, best first (present, maybe empty, only then). */
+  fallbacks?: ProviderFallback[]
   /** HTTP status the error arrived with, when it came over REST. */
   status?: number
 }
@@ -600,6 +621,7 @@ export function readProviderError(body: unknown, status?: number): ProviderError
     origin: str(b.origin),
     project_slug: str(b.project_slug),
     model: str(b.model),
+    fallbacks: readFallbacks(b.fallbacks),
     status,
   }
 }

@@ -11,6 +11,11 @@ import type { ProviderErrorInfo } from '@/types/provider'
 
 const status = vi.fn()
 const list = vi.fn()
+const unlock = vi.fn()
+vi.mock('@/services/vault', async (orig) => ({
+  ...(await orig<typeof import('@/services/vault')>()),
+  vaultApi: { unlock: (...a: unknown[]) => unlock(...a) },
+}))
 vi.mock('@/services/providers', () => ({
   providersApi: { status: (...a: unknown[]) => status(...a), list: (...a: unknown[]) => list(...a) },
 }))
@@ -41,6 +46,7 @@ const err = (code: ProviderErrorInfo['code'], extra: Partial<ProviderErrorInfo> 
 beforeEach(() => {
   status.mockReset()
   list.mockReset()
+  unlock.mockReset()
 })
 
 describe('ProviderStateCard', () => {
@@ -104,6 +110,32 @@ describe('ProviderStateCard', () => {
     const { card, link } = mount(err('credentials_locked'))
     expect(card.textContent).toContain('There is no fallback to another provider')
     expect(link(/vault/i).getAttribute('href')).toBe('/vault')
+  })
+
+  it('credentials_locked on Auto — unlocks in place, then sends again', async () => {
+    const onRetry = vi.fn()
+    unlock.mockResolvedValue({})
+    const { card } = mount(err('credentials_locked', { fallbacks: [] }), { onRetry, onRetryWith: vi.fn() })
+    expect(card.textContent).toContain('Unlock it to send your message.')
+    expect(within(card).queryByTestId('locked-vault-fallback')).toBeNull()
+    fireEvent.change(within(card).getByPlaceholderText(/passphrase/i), { target: { value: 'secret phrase' } })
+    fireEvent.click(within(card).getByRole('button', { name: /^unlock$/i }))
+    await waitFor(() => expect(onRetry).toHaveBeenCalledTimes(1))
+    expect(unlock).toHaveBeenCalledWith('secret phrase', 60)
+  })
+
+  it('credentials_locked on Auto — offers the models that need no vault', () => {
+    const onRetryWith = vi.fn()
+    const fallbacks = [
+      { provider_id: 'ollama', model: 'qwen3' },
+      { provider_id: 'codex', model: 'gpt-5' },
+    ]
+    const { card } = mount(err('credentials_locked', { fallbacks }), { onRetry: vi.fn(), onRetryWith })
+    expect(card.textContent).toContain('or continue on a model that needs no vault')
+    const buttons = within(card).getAllByTestId('locked-vault-fallback')
+    expect(buttons.map((b) => b.textContent)).toEqual(['Use qwen3 (ollama)', 'Use gpt-5 (codex)'])
+    fireEvent.click(buttons[1])
+    expect(onRetryWith).toHaveBeenCalledWith(fallbacks[1])
   })
 
   it('unauthorized — links to the instance in the settings', () => {

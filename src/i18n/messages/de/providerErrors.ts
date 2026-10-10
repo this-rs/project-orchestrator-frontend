@@ -79,6 +79,8 @@ export default {
     no_provider: 'Keine Provider-Instanz ist gesund und für dieses Projekt erlaubt, daher kann keine Unterhaltung gestartet werden. Fügen Sie in den Provider-Einstellungen eine hinzu oder reparieren Sie eine.',
     auth_required: 'Dieser Provider verlangt, dass Sie sich anmelden. Führen Sie den Befehl unten in einem Terminal aus und prüfen Sie dann erneut. Project Orchestrator meldet Sie nicht für Sie an.',
     credentials_locked: 'Die Zugangsdaten dieses Providers liegen im Tresor, und der Tresor ist gesperrt. Entsperren Sie ihn, um fortzufahren. Es gibt keinen Rückfall auf einen anderen Provider.',
+    credentialsLockedAuto: "Auto würde zu Providern routen, deren Schlüssel im Tresor liegt, und der Tresor ist gesperrt. Entsperren Sie ihn, um Ihre Nachricht zu senden.",
+    credentialsLockedAutoFallbacks: "Auto würde zu Providern routen, deren Schlüssel im Tresor liegt, und der Tresor ist gesperrt. Entsperren Sie ihn, um Ihre Nachricht zu senden, oder fahren Sie mit einem Modell fort, das ihn nicht braucht.",
     unauthorized: 'Der Provider hat die Zugangsdaten dieser Instanz abgelehnt. Prüfen Sie in den Instanzeinstellungen den Schlüssel, auf den sie verweist.',
     endpoint_unreachable: 'Der Endpunkt dieses Providers hat nicht geantwortet.',
     instance_not_found: 'Die Provider-Instanz, auf der diese Unterhaltung lief, wurde gelöscht. Sie kann nicht fortgesetzt werden: Starten Sie eine neue Unterhaltung.',

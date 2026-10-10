@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  lockedVault: {
+    resent: "保管庫のロックを解除しました：メッセージを再送信しています。",
+    fallbacksLabel: "または保管庫なしで続ける：",
+    useModel: "{model} を使う（{provider}）",
+  },
   vaultUnlock: {
     locked: "保管庫はロックされています",
     placeholder: "保管庫のパスフレーズ",
