@@ -15,6 +15,7 @@ export default {
     title: "Certaines fonctions ne sont pas disponibles dans cette conversation",
     collapse: "Réduire en icône",
     collapsedLabel: "Fonctions indisponibles : {count}. Afficher le détail",
+    count: "Fonctions indisponibles : {count}",
     expand: "Afficher au-dessus de la saisie",
     installation: {
       heading: "Manque dans cette installation",

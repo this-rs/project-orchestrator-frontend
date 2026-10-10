@@ -15,6 +15,7 @@ export default {
     title: "Einige Funktionen sind in dieser Unterhaltung nicht verfügbar",
     collapse: "Zu einem Symbol verkleinern",
     collapsedLabel: "Nicht verfügbare Funktionen: {count}. Details anzeigen",
+    count: "Nicht verfügbare Funktionen: {count}",
     expand: "Über dem Eingabefeld anzeigen",
     installation: {
       heading: "Fehlt in dieser Installation",

@@ -15,6 +15,7 @@ export default {
     title: "Một số tính năng không khả dụng trong cuộc trò chuyện này",
     collapse: "Thu gọn thành biểu tượng",
     collapsedLabel: "Tính năng không khả dụng: {count}. Xem chi tiết",
+    count: "Tính năng không khả dụng: {count}",
     expand: "Hiển thị phía trên ô nhập tin nhắn",
     installation: {
       heading: "Thiếu trong bản cài đặt này",

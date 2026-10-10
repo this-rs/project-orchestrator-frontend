@@ -15,6 +15,7 @@ export default {
     title: "بعض الميزات غير متاحة في هذه المحادثة",
     collapse: "تصغير إلى أيقونة",
     collapsedLabel: "الميزات غير المتاحة: {count}. عرض التفاصيل",
+    count: "الميزات غير المتاحة: {count}",
     expand: "العرض فوق مربع الرسالة",
     installation: {
       heading: "ناقص في هذا التثبيت",

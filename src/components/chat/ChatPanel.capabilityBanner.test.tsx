@@ -262,22 +262,68 @@ describe('capability banner — collapse into a header icon', () => {
     expect(document.activeElement).toBe(button)
   })
 
-  it('phone, full screen: Tree, Copy and Exit full screen live under the ⋯ menu, Close stays in the header', () => {
+  const onPhone = () => {
     window.matchMedia = ((q: string) => ({
       matches: q.includes('max-width'), media: q, onchange: null,
       addEventListener: vi.fn(), removeEventListener: vi.fn(),
       addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
     })) as unknown as typeof window.matchMedia
+  }
+
+  it('phone, full screen: Attach, Tree, Copy and Exit full screen live under the ⋯ menu, Close stays in the header', () => {
+    onPhone()
     chatStub.messages = [{ id: 'm1', role: 'user', blocks: [{ type: 'text', content: 'hi' }], timestamp: new Date(0) }]
     renderPanel({ mode: 'fullscreen', degraded: ['message_queue', 'images'] })
-    collapse()
-    expect(icon()).not.toBeNull()
     expect(screen.queryByRole('button', { name: 'Exit fullscreen' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Copy chat as markdown' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Close' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Conversation actions' }))
     expect(screen.getByRole('menuitem', { name: 'Exit fullscreen' })).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: 'Copy chat as markdown' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /Attach to/ })).toBeTruthy()
+  })
+
+  it.each(['open', 'fullscreen'] as const)('phone, %s: collapsed, the gaps fold into the ⋯ button as an amber count, and its menu opens the list', async (mode) => {
+    onPhone()
+    renderPanel({ mode, degraded: ['message_queue', 'nats', 'images'] })
+    collapse()
+    // No extra header button on a phone: the title keeps its room.
+    expect(icon()).toBeNull()
+    const more = screen.getByRole('button', { name: 'Conversation actions, Unavailable features: 3' })
+    expect(more.getAttribute('title')).toBe('Conversation actions, Unavailable features: 3')
+    // The amber signal stays visible on the ⋯ button, with the count written.
+    expect(screen.getByTestId('overflow-menu-badge').textContent).toBe('3')
+    await flushFrames()
+    expect(document.activeElement).toBe(more)
+
+    fireEvent.click(more)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unavailable features: 3' }))
+    const popover = screen.getByRole('dialog', { name: 'Some features are not available in this conversation' })
+    expect(popover.querySelectorAll('li[data-feature]')).toHaveLength(3)
+    expect(document.activeElement).toBe(popover)
+    fireEvent.keyDown(popover, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(more)
+
+    // From the popover, the banner comes back in place and the badge goes.
+    fireEvent.click(more)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Unavailable features: 3' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Show above the message box' }))
+    expect(banner()).not.toBeNull()
+    expect(screen.queryByTestId('overflow-menu-badge')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Conversation actions' })).toBeTruthy()
+  })
+
+  it('phone: no badge and no gaps entry while the banner is shown, or when nothing is missing', () => {
+    onPhone()
+    const { unmount } = renderPanel({ degraded: ['message_queue'] })
+    expect(screen.queryByTestId('overflow-menu-badge')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Conversation actions' }))
+    expect(screen.queryByRole('menuitem', { name: /Unavailable features/ })).toBeNull()
+    unmount()
+    window.localStorage.setItem(CAPABILITY_BANNER_COLLAPSED_KEY, JSON.stringify({ seen: ['message_queue'] }))
+    renderPanel({ degraded: [] })
+    expect(screen.queryByTestId('overflow-menu-badge')).toBeNull()
   })
 
   it('desktop, full screen: Copy and Exit full screen stay as header buttons', () => {

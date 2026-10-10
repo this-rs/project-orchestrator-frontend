@@ -15,6 +15,7 @@ export default {
     title: "Alguns recursos não estão disponíveis nesta conversa",
     collapse: "Reduzir a um ícone",
     collapsedLabel: "Recursos indisponíveis: {count}. Ver detalhes",
+    count: "Recursos indisponíveis: {count}",
     expand: "Mostrar acima da caixa de mensagem",
     installation: {
       heading: "Falta nesta instalação",

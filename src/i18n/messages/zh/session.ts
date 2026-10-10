@@ -15,6 +15,7 @@ export default {
     title: "此对话中部分功能不可用",
     collapse: "折叠为图标",
     collapsedLabel: "不可用的功能：{count}。查看详情",
+    count: "不可用的功能：{count}",
     expand: "显示在消息输入框上方",
     installation: {
       heading: "此安装中缺少的内容",

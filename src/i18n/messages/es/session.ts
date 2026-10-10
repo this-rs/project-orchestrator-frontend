@@ -15,6 +15,7 @@ export default {
     title: "Algunas funciones no están disponibles en esta conversación",
     collapse: "Reducir a un icono",
     collapsedLabel: "Funciones no disponibles: {count}. Ver detalles",
+    count: "Funciones no disponibles: {count}",
     expand: "Mostrar encima del cuadro de mensaje",
     installation: {
       heading: "Falta en esta instalación",
