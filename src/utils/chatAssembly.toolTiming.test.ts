@@ -4,7 +4,8 @@
  * reads it, and it changes nothing else in the conversation.
  */
 import { describe, it, expect } from 'vitest'
-import { EARLY_TOOL_TIMINGS_MAX, EarlyToolTimings, historyEventsToMessages } from './chatAssembly'
+import { EARLY_TOOL_TIMINGS_MAX, EarlyToolTimings, ServerClock, historyEventsToMessages, historyEventsToWindow } from './chatAssembly'
+import { buildTimeline } from '@/components/timeline/model'
 
 const timing = {
   type: 'tool_timing',
@@ -86,6 +87,77 @@ describe('historyEventsToMessages — tool_timing', () => {
     ]
     const use = historyEventsToMessages(events).flatMap((m) => m.blocks).find((b) => b.type === 'tool_use')
     expect(use?.metadata).not.toHaveProperty('tool_timing')
+  })
+})
+
+describe('history pages — a timing whose call is on an older page', () => {
+  // Raw events of one conversation, cut in two pages between the call and its timing.
+  const events = [
+    { type: 'user_message', content: 'build', created_at: 1_700_000_000 },
+    { type: 'tool_use', id: 't1', tool: 'Bash', input: { command: 'make' }, created_at: 1_700_000_001 },
+    // ---- page boundary ----
+    { type: 'tool_result', id: 't1', result: 'ok', created_at: 1_700_000_009.5 },
+    timing,
+    { type: 'result', session_id: 's', duration_ms: 9500, created_at: 1_700_000_010 },
+  ]
+  const olderPage = events.slice(0, 2)
+  const tailPage = events.slice(2)
+
+  it('the tail page returns the timing it could not place, and the older page takes it when it comes', () => {
+    const tail = historyEventsToWindow(tailPage)
+    expect(tail.unplacedTimings.size).toBe(1)
+    const older = historyEventsToWindow(olderPage)
+    tail.unplacedTimings.placeIn(older.messages)
+    expect(tail.unplacedTimings.size).toBe(0)
+    const all = [...older.messages, ...tail.messages]
+    const whole = historyEventsToMessages(events)
+    const use = (msgs: typeof all) => msgs.flatMap((m) => m.blocks).find((b) => b.type === 'tool_use')?.metadata?.tool_timing
+    // The same timing as when both are in one page, and the trace draws the same run.
+    expect(use(all)).toEqual(use(whole))
+    const runOf = (msgs: typeof all) => buildTimeline({ messages: msgs, sessionId: 's' }).items.find((i) => i.id === 't1')
+    expect(runOf(all)).toMatchObject({ startedAt: 1_700_000_008_000, endedAt: 1_700_000_009_500, run: 'ran' })
+  })
+
+  it('a timing placed in its page is not returned', () => {
+    expect(historyEventsToWindow(events).unplacedTimings.size).toBe(0)
+  })
+
+  it('placedOn places without changing the messages or the holder', () => {
+    const tail = historyEventsToWindow(tailPage)
+    const older = historyEventsToWindow(olderPage)
+    const before = older.messages
+    const placed = tail.unplacedTimings.placedOn(before)
+    expect(placed).not.toBe(before)
+    expect(before.flatMap((m) => m.blocks).find((b) => b.type === 'tool_use')?.metadata).not.toHaveProperty('tool_timing')
+    expect(placed.flatMap((m) => m.blocks).find((b) => b.type === 'tool_use')?.metadata?.tool_timing).toMatchObject({ ended_at: 1_700_000_009.5 })
+    expect(tail.unplacedTimings.size).toBe(1)
+  })
+})
+
+describe('historyEventsToMessages — permission time', () => {
+  it('stamps a permission (and a question) with its own time, not the time of the message it joins', () => {
+    const msgs = historyEventsToMessages([
+      { type: 'user_message', content: 'go', created_at: 1_700_000_000 },
+      { type: 'tool_use', id: 't1', tool: 'Bash', input: {}, created_at: 1_700_000_001 },
+      { type: 'permission_request', id: 'ctl-1', tool: 'Bash', input: {}, tool_use_id: 't1', created_at: 1_700_000_005 },
+      { type: 'ask_user_question', tool_call_id: 'q1', questions: [{ question: 'Which?' }], created_at: 1_700_000_006 },
+    ])
+    const blocks = msgs.flatMap((m) => m.blocks)
+    expect(blocks.find((b) => b.type === 'permission_request')?.metadata?.created_at).toBe(new Date(1_700_000_005_000).toISOString())
+    expect(blocks.find((b) => b.type === 'ask_user_question')?.metadata?.created_at).toBe(new Date(1_700_000_006_000).toISOString())
+  })
+})
+
+describe('ServerClock', () => {
+  it('learns the gap from a live frame, ignores a replayed one, and gives the server time', () => {
+    const clock = new ServerClock()
+    const browser = Date.now()
+    expect(Math.abs(clock.now().getTime() - browser)).toBeLessThan(1000)
+    clock.observe({ type: 'tool_use', created_at: (browser - 3_600_000) / 1000 })
+    expect(Math.abs(clock.offset + 3_600_000)).toBeLessThan(1000)
+    clock.observe({ type: 'tool_use', replaying: true, created_at: (browser - 86_400_000) / 1000 })
+    clock.observe({ type: 'streaming_status', is_streaming: true })
+    expect(Math.abs(clock.now().getTime() - (browser - 3_600_000))).toBeLessThan(1000)
   })
 })
 
