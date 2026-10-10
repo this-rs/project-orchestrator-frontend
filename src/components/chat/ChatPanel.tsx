@@ -366,11 +366,9 @@ export function ChatPanel() {
     if (!isFullscreen) {
       setShowSessions(false)
     }
-    // Close mobile sidebar overlay on selection
-    if (isMobile) {
-      setShowMobileSidebar(false)
-    }
-  }, [chat.loadSession, setScrollToTurn, isFullscreen, isMobile])
+    // Close the full-screen list on selection (a phone, or the sidebar set aside for the timeline)
+    setShowMobileSidebar(false)
+  }, [chat.loadSession, setScrollToTurn, isFullscreen])
 
   // Determine header title
   const headerTitle = isNewConversation
@@ -448,6 +446,13 @@ export function ChatPanel() {
   // from the header, and the header carries "New conversation".
   const compactSidebar = isMobile || room.hideSidebar
   const compactOnly = room.hideSidebar ? '' : 'md:hidden'
+  // Back to a sidebar column (timeline closed, window widened): the full-screen list is put away,
+  // so it does not come back unasked when the layout turns compact again.
+  const [wasCompact, setWasCompact] = useState(compactSidebar)
+  if (wasCompact !== compactSidebar) {
+    setWasCompact(compactSidebar)
+    if (!compactSidebar) setShowMobileSidebar(false)
+  }
   // The tree as the reader sees it: set aside for the timeline below lg, it is not "on".
   const treeShown = showAgentTree && !room.hideTree
   const toggleTree = () => {

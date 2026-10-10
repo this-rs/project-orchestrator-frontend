@@ -62,7 +62,11 @@ vi.mock('./ChatInput', () => ({ ChatInput: () => <div data-testid="input" /> }))
 vi.mock('./CompactionBanner', () => ({ CompactionBanner: () => null }))
 vi.mock('./SecretRequestTray', () => ({ SecretRequestTray: () => null }))
 vi.mock('./DetachedRunsPanel', () => ({ DetachedRunsPanel: () => null }))
-vi.mock('./SessionList', () => ({ SessionList: () => <div data-testid="session-list" /> }))
+vi.mock('./SessionList', () => ({
+  SessionList: ({ onSelect }: { onSelect: (id: string) => void }) => (
+    <div data-testid="session-list"><button type="button" onClick={() => onSelect('other')}>Pick other</button></div>
+  ),
+}))
 vi.mock('./ProjectSelect', () => ({ ProjectSelect: () => null }))
 vi.mock('./PermissionSettingsPanel', () => ({ PermissionSettingsPanel: () => null }))
 vi.mock('./SessionBreadcrumb', () => ({ SessionBreadcrumb: () => null }))
@@ -110,6 +114,7 @@ const onScreenFromMd = (el: HTMLElement) => !el.className.split(/\s+/).includes(
 
 beforeEach(() => {
   localStorage.clear()
+  chatStub.loadSession.mockClear()
   detached.value = { runs: [], hasActiveRuns: false }
 })
 
@@ -137,6 +142,34 @@ describe('ChatPanel full screen: room for the timeline column', () => {
     const overlay = lists[1].parentElement!
     expect(overlay.className).toContain('fixed inset-0')
     expect(within(overlay).getByText('Conversations')).toBeTruthy()
+  })
+
+  it('at 900 px picking a conversation in the full-screen list loads it and puts the list away', async () => {
+    setWidth(900)
+    renderFullscreen(true)
+    await screen.findByTestId('timeline')
+    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }))
+    const lists = screen.getAllByTestId('session-list')
+    expect(lists).toHaveLength(2)
+    fireEvent.click(within(lists[1]).getByRole('button', { name: 'Pick other' }))
+    expect(chatStub.loadSession).toHaveBeenCalledWith('other', undefined)
+    expect(screen.getAllByTestId('session-list')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Sessions' }).getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('the full-screen list does not come back unasked when the timeline closes and reopens', async () => {
+    setWidth(900)
+    const store = renderFullscreen(true)
+    await screen.findByTestId('timeline')
+    const counts: number[] = []
+    fireEvent.click(screen.getByRole('button', { name: 'Sessions' }))
+    counts.push(screen.getAllByTestId('session-list').length)
+    act(() => store.set(chatTimelineOpenAtom, false))
+    counts.push(screen.getAllByTestId('session-list').length)
+    act(() => store.set(chatTimelineOpenAtom, true))
+    counts.push(screen.getAllByTestId('session-list').length)
+    expect(counts).toEqual([2, 1, 1])
+    expect(screen.getByRole('button', { name: 'Sessions' }).getAttribute('aria-expanded')).toBe('false')
   })
 
   it('keeps the sidebar, and the header without its compact buttons, while the timeline is closed', async () => {
