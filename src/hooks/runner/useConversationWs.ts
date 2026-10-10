@@ -109,7 +109,8 @@ export function useConversationWs(sessionId: string | null) {
               if (data.type === 'auth_ok') { authenticatedRef.current = true; setStatus('connected'); return }
               if (data.type === 'auth_error') { shouldReconnectRef.current = false; wsRef.current?.close(); return }
             }
-            if (data.type === 'session_closed') { shouldReconnectRef.current = false; setStatus('disconnected'); return }
+            // Closed by the server: no reconnect, and the transcript says so (chatAssembly renders it).
+            if (data.type === 'session_closed') { shouldReconnectRef.current = false; setStatus('disconnected'); setRawEvents(prev => [...prev, data]); return }
             // Skip control events — don't accumulate them
             if (CONTROL_EVENTS.has(data.type)) return
             // Accumulate raw event for assembly

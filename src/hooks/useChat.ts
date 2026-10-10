@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pickModelResolver } from '@/constants/providers'
 import { distinctModels } from '@/utils/routingSelection'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoApprovedToolsAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -32,6 +32,7 @@ import {
   sessionErrorText,
   sessionErrorMetadata,
   toolsCancelledText,
+  sessionEventBlock,
   readSystemInitRuntime,
   lastSystemInitRuntime,
   systemInitProviderMetadata,
@@ -653,6 +654,25 @@ export function useChat() {
       return
     }
 
+    // The conversation moved to another provider while this tab shows the session it
+    // LEFT: follow it to `to_session_id` (the server closes this one right after) instead
+    // of going silently "disconnected". A replayed move is history: its block offers the
+    // way to the continuation, nothing moves on its own.
+    if (event.type === 'conversation_relayed' && !event.replaying) {
+      const current = store.get(chatSessionIdAtom)
+      if (current && event.from_session_id === current && event.to_session_id && event.to_session_id !== current) {
+        // Moved from THIS tab (switch route in flight): the user knows, no notice.
+        const fromHere = store.get(chatSwitchingSessionAtom) === current
+        store.set(chatFollowRequestAtom, {
+          sessionId: event.to_session_id,
+          fromSessionId: current,
+          notice: fromHere ? null : { fromProvider: event.from_provider, toProvider: event.to_provider, movedBy: event.moved_by },
+        })
+      }
+    }
+    // A closed session streams nothing more.
+    if (event.type === 'session_closed' && !event.replaying) setIsStreaming(false)
+
     setMessages((prev) => {
       const updated = [...prev]
       let lastMsg = updated[updated.length - 1]
@@ -1178,6 +1198,16 @@ export function useChat() {
           if (!event.replaying) {
             setIsStreaming(true) // backend will retry shortly
           }
+          break
+        }
+
+        case 'conversation_relayed':
+        case 'session_closed':
+        case 'compaction_recovery': {
+          // Same block as the history reducer (chatAssembly.sessionEventBlock).
+          const payload = event.replaying ? (event as { data?: Record<string, unknown> }).data ?? event : event
+          const block = sessionEventBlock({ ...payload, type: event.type })
+          if (block) lastMsg.blocks.push({ id: nextBlockId(), ...block })
           break
         }
 
@@ -2454,6 +2484,27 @@ export function useChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setPermissionOverride and setSessionModel are stable Jotai setters
   }, [sessionId, getWs, setSessionId, setIsStreaming, setIsReplaying, applySessionRuntime, store])
 
+  // Follow a conversation that moved to another provider (see `chatFollowRequestAtom`):
+  // open the session that continues it; a draft typed on the old one goes with it.
+  const followRequest = useAtomValue(chatFollowRequestAtom)
+  useEffect(() => {
+    if (!followRequest) return
+    store.set(chatFollowRequestAtom, null)
+    store.set(moveChatDraftAtom, { from: followRequest.fromSessionId, to: followRequest.sessionId })
+    store.set(chatFollowNoticeAtom, followRequest.notice ? { sessionId: followRequest.sessionId, ...followRequest.notice } : null)
+    void loadSession(followRequest.sessionId)
+  }, [followRequest, loadSession, store])
+
+  /**
+   * Cancel the running tools over the socket (`cancel_tools` frame) when it is open on
+   * this session. False = not sent: the caller falls back to REST.
+   */
+  const cancelToolsLive = useCallback((): boolean => {
+    const ws = wsRef.current
+    if (!sessionId || !ws || ws.sessionId !== sessionId || ws.status !== 'connected') return false
+    return ws.sendCancelTools()
+  }, [sessionId])
+
   return {
     messages,
     isStreaming,
@@ -2484,5 +2535,6 @@ export function useChat() {
     changePermissionMode,
     changeModel,
     changeAutoContinue,
+    cancelToolsLive,
   }
 }

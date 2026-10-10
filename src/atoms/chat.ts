@@ -295,3 +295,25 @@ export const refsAnnouncementAtom = atom<string>('')
  * reload: the chips then fall back to "Kind shortid" until the server resolves them.
  */
 export const chatRefLabelsAtom = atom<Record<string, import('@/refs/types').ChatReference>>({})
+
+/**
+ * A conversation that moved to another provider and that this tab must follow
+ * (`conversation_relayed` on the thread it left, the switch route's answer, or the
+ * "open the continuation" link of a closed thread). `useChat` consumes it: it opens
+ * `sessionId` and clears the request.
+ */
+export interface ChatFollowRequest {
+  /** The session that continues the conversation. */
+  sessionId: string
+  /** The session it left (its draft, if any, follows the conversation). */
+  fromSessionId: string
+  /** Shown above the composer once followed; null when the user moved it from this tab. */
+  notice: { fromProvider: string; toProvider: string; movedBy: string } | null
+}
+export const chatFollowRequestAtom = atom<ChatFollowRequest | null>(null)
+
+/** What this tab says after following a conversation moved elsewhere, for that session only. */
+export const chatFollowNoticeAtom = atom<{ sessionId: string; fromProvider: string; toProvider: string; movedBy: string } | null>(null)
+
+/** The session this tab is moving to another provider right now (switch route in flight). */
+export const chatSwitchingSessionAtom = atom<string | null>(null)

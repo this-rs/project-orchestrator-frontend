@@ -340,10 +340,13 @@ export class ChatWebSocket {
               return
             }
 
-            // Handle session_closed (explicit close — future use)
+            // The server closed the session (`close_session`, or a move to another
+            // provider right after `conversation_relayed`): never reconnect, and let
+            // the transcript say so instead of going silently "disconnected".
             if (data.type === 'session_closed') {
               this.shouldReconnect = false
               this.setStatus('disconnected')
+              this.onEvent?.(data as ChatStreamEvent & { seq?: number; replaying?: boolean })
               return
             }
 

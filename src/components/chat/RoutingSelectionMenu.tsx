@@ -8,6 +8,9 @@ import { loadModelCatalog } from '@/components/settings/useModelCatalog'
 import { useRefreshProviders } from '@/hooks/useProviders'
 import {
   chatDefaultModelAtom,
+  chatDraftInputAtom,
+  chatFollowRequestAtom,
+  chatSwitchingSessionAtom,
   chatDraftAutoAtom,
   chatDraftSelectionAtom,
   chatForcedTargetAtom,
@@ -43,7 +46,15 @@ import {
   routedByKey,
 } from '@/constants/providers'
 import { useT } from '@/i18n'
-import { changeConversationRouting, conversationRoutingRefusal, type ConversationRoutingChange, type ConversationRoutingRefusal } from '@/services/chat'
+import {
+  changeConversationRouting,
+  conversationRoutingRefusal,
+  switchConversationProvider,
+  switchProviderRefusal,
+  type ConversationRoutingChange,
+  type ConversationRoutingRefusal,
+  type SwitchProviderRefusal,
+} from '@/services/chat'
 import type { LearningStage } from '@/types/routing'
 import { isClaudeCodeProvider, providerDisplayName, providerKindLabel, type ProviderInstance, type ProviderModel, type RoutedBy } from '@/types/provider'
 import {
@@ -56,6 +67,7 @@ import {
   type RoutingPick,
 } from '@/utils/routingSelection'
 import { ProviderModelPicker, RefreshClaudeModels, type ProviderModelMenu } from './ProviderModelPicker'
+import { SwitchProviderDialog } from './SwitchProviderDialog'
 import { VaultUnlock } from './VaultUnlock'
 import { useVaultLocked } from './useVaultLocked'
 
@@ -129,7 +141,7 @@ interface RoutingSelectionMenuProps {
   onOpenChange: (open: ProviderModelMenu) => void
   /** Change the model of a LIVE session (sent over the socket). */
   onChangeModel?: (model: string) => void
-  /** Start a new conversation - the way out of a session locked on its provider. */
+  /** Start a new conversation on another provider (the history stays where it is). */
   onNewConversation?: () => void
 }
 
@@ -169,11 +181,13 @@ export function RoutingSelectionMenu(props: RoutingSelectionMenuProps) {
  * Claude keeps its families and versions: one line per family, one stop per
  * version on a stepped track, each stop tickable.
  *
- * An existing chat stays on its provider. Its changes go to the server
- * (`PUT /chat/sessions/{id}/routing`) and the menu shows what the server answers:
- * Auto, or its ticked models (one = strict, several = mixed among them). On Auto
- * the list stays usable: picking a model takes the hand back. The other providers
- * are listed but off, and the gestures on many models are not offered.
+ * An existing chat: its changes go to the server (`PUT /chat/sessions/{id}/routing`)
+ * and the menu shows what the server answers: Auto, or its ticked models (one =
+ * strict, several = mixed among them). On Auto the list stays usable: picking a
+ * model takes the hand back. A model of ANOTHER provider moves the conversation
+ * there (`POST .../switch-provider`) after a confirmation that says what happens
+ * and takes the message to continue with; the tab then follows the new session.
+ * The gestures on many models are not offered.
  */
 function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByDefault }: RoutingSelectionMenuProps & { autoByDefault: boolean }) {
   const { t } = useT()
@@ -203,6 +217,15 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
   const [pending, setPending] = useState(false)
   const [refusal, setRefusal] = useState<{ sessionId: string; reason: ConversationRoutingRefusal } | null>(null)
   const settings = useAtomValue(chatRoutingSettingsAtom)
+  /** A move to another provider being confirmed: the model picked there, and the route's answer. */
+  const [switchTarget, setSwitchTarget] = useState<{ sessionId: string; pick: RoutingPick } | null>(null)
+  const [switchPending, setSwitchPending] = useState(false)
+  const [switchRefusal, setSwitchRefusal] = useState<SwitchProviderRefusal | null>(null)
+  const [draft, setDraft] = useAtom(chatDraftInputAtom)
+  const follow = useSetAtom(chatFollowRequestAtom)
+  const setSwitching = useSetAtom(chatSwitchingSessionAtom)
+  const chipRef = useRef<HTMLButtonElement>(null)
+  const projectSlug = useAtomValue(chatRoutingSlugAtom)
 
   const instances = useMemo(() => list?.providers ?? [], [list])
   const claudeGroups = useMemo(() => groupModelsByFamily(catalog), [catalog])
@@ -226,9 +249,9 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
 
   const modelsOf = (p: ProviderInstance): string[] =>
     isClaudeCodeProvider(p.id, p.kind) ? catalog.map((m) => m.id) : (loaded[p.id] ?? p.models ?? []).map((m) => m.id)
-  // An existing chat stays on its provider: moving it to another one needs the server's
-  // provider switch. This is where that choice would be offered.
-  const lockReason = (p: ProviderInstance) => providerUnavailableReason(p) ?? (hasSession && p.id !== targetId ? t('routing.menu.locked') : null)
+  // Only an unavailable provider (unhealthy, not allowed here) is off. On an existing chat,
+  // a model of ANOTHER provider moves the conversation there (switch route, confirmed first).
+  const lockReason = (p: ProviderInstance) => providerUnavailableReason(p)
   const selectable = instances.filter((p) => !lockReason(p))
   const total = selectable.reduce((n, p) => n + modelsOf(p).length, 0)
 
@@ -254,10 +277,17 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
   /** Draft: every change goes through here - the draft's atoms, and the single pick the rest of the composer reads. */
   const commit = (nextAuto: boolean, next: RoutingPick[]) => {
     if (hasSession) {
+      const added = next.find((p) => !isPicked(selection, p))
+      // A model of another provider: the conversation moves there, once confirmed.
+      if (added && added.provider !== targetId && sessionId) {
+        setSwitchRefusal(null)
+        setSwitchTarget({ sessionId, pick: added })
+        onOpenChange(null)
+        return
+      }
       if (liveLocked) return
       // On Auto, picking a model takes the hand back on that model alone (strict).
       // Otherwise the ticks are the pool: one = strict, several = mixed; never none.
-      const added = next.find((p) => !isPicked(selection, p))
       const pool = auto ? (added ? [added] : []) : distinctModels(next, pickModelResolver(list))
       if (pool.length === 0) return
       sendRouting({ auto: false, routing_pool: pool.map(({ provider, model }) => ({ provider, model })) }, auto)
@@ -285,6 +315,31 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
       false,
       on ? selectable.flatMap((p) => modelsOf(p).map((model) => ({ provider: p.id, model }))) : [],
     )
+
+  /**
+   * Move the conversation (`POST .../switch-provider`): on success the tab follows the new
+   * session and the draft that was sent is cleared; a refusal is said in the dialog and
+   * nothing changes.
+   */
+  const confirmSwitch = (message: string) => {
+    if (!switchTarget || switchPending) return
+    const { sessionId: sid, pick } = switchTarget
+    setSwitchPending(true)
+    setSwitchRefusal(null)
+    setSwitching(sid)
+    switchConversationProvider(sid, { provider: pick.provider, model: pick.model, message })
+      .then((move) => {
+        // The message left with the move: the old conversation's draft is spent.
+        if (draft.trim() && message.trim() === draft.trim()) setDraft('')
+        setSwitchTarget(null)
+        follow({ sessionId: move.session_id, fromSessionId: sid, notice: null })
+      })
+      .catch((err) => setSwitchRefusal(switchProviderRefusal(err)))
+      .finally(() => {
+        setSwitchPending(false)
+        setSwitching(null)
+      })
+  }
 
   const nameOf = (provider: string, model: string) => {
     const p = instances.find((x) => x.id === provider) ?? null
@@ -319,6 +374,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
         aria-label={`${t('routing.menu.aria')}: ${modeLabel && modeLabel !== chipText ? `${modeLabel} · ` : ''}${chipText}`}
         aria-haspopup="true"
         aria-expanded={isOpen}
+        ref={chipRef}
         data-testid="target-chip"
         data-mode={mode}
         className={CHIP}
@@ -407,7 +463,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
               </div>
             )}
 
-            <div inert={liveLocked} className={liveLocked ? 'opacity-60' : undefined}>
+            <div>
               {instances.length === 0 && <div className="px-3 py-2 text-xs text-gray-500">{t('routing.menu.noProvider')}</div>}
               {instances.map((p) => {
                 const reason = lockReason(p)
@@ -415,10 +471,14 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
                 const claude = isClaudeCodeProvider(p.id, p.kind)
                 const state = providerState(selection, p.id, models)
                 const picked = models.filter((m) => isPicked(selection, { provider: p.id, model: m })).length
-                const isExpanded = !reason && (expanded[p.id] ?? (hasSession ? true : claude || state !== 'none'))
+                // An existing chat: its own provider open; the others closed until asked (picking there moves the chat).
+                const other = hasSession && p.id !== targetId
+                const isExpanded = !reason && (expanded[p.id] ?? (hasSession ? !other : claude || state !== 'none'))
+                // A provider that cannot change model live keeps its own models off; the others still offer a move.
+                const sectionLocked = liveLocked && !other
                 const sectionId = `${baseId}-${p.id}`
                 return (
-                  <div key={p.id} data-testid={`target-provider-${p.id}`} className="border-b border-white/[0.04] last:border-b-0">
+                  <div key={p.id} data-testid={`target-provider-${p.id}`} inert={sectionLocked} className={`border-b border-white/[0.04] last:border-b-0 ${sectionLocked ? 'opacity-60' : ''}`}>
                     <div className="flex items-center gap-2 px-3 py-1.5">
                       {!hasSession && (
                         <button
@@ -461,6 +521,11 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
                       </button>
                     </div>
                     {reason && <p className={`px-3 pb-1.5 text-[10px] leading-snug text-gray-500 ${hasSession ? '' : 'pl-9'}`}>{reason}</p>}
+                    {!reason && other && (
+                      <p data-testid={`routing-switch-hint-${p.id}`} className="px-3 pb-1.5 text-[10px] leading-snug text-gray-500">
+                        {t('routing.switch.hint')}
+                      </p>
+                    )}
                     {isExpanded && (
                       <div id={sectionId} className="mb-1 ml-5 border-l border-white/[0.08]">
                         {claude ? (
@@ -491,6 +556,25 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
             </div>
           </div>
         </div>
+      )}
+      {switchTarget && switchTarget.sessionId === sessionId && (
+        <SwitchProviderDialog
+          target={`${(() => {
+            const p = instances.find((x) => x.id === switchTarget.pick.provider)
+            return p ? providerDisplayName(p) : switchTarget.pick.provider
+          })()} › ${nameOf(switchTarget.pick.provider, switchTarget.pick.model)}`}
+          current={liveModel ? `${sessionLabel} › ${nameOf(targetId, liveModel)}` : sessionLabel}
+          initialMessage={draft}
+          pending={switchPending}
+          refusal={switchRefusal}
+          projectSlug={projectSlug}
+          onConfirm={confirmSwitch}
+          onCancel={() => {
+            setSwitchTarget(null)
+            setSwitchRefusal(null)
+          }}
+          returnFocus={() => chipRef.current}
+        />
       )}
     </div>
   )

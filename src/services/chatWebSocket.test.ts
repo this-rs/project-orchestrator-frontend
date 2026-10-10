@@ -169,13 +169,16 @@ describe('ChatWebSocket — dormant mode', () => {
     expect(events).toHaveLength(0)
   })
 
-  it('should not forward session_closed as a ChatEvent to callback', () => {
+  it('forwards session_closed to the transcript (no silent drop) and stops reconnecting', () => {
     const events: Array<{ type: string }> = []
     ws.setCallbacks({ onEvent: (ev) => events.push(ev) })
 
-    mock.serverSend({ type: 'session_closed', message: 'closed' })
+    mock.serverSend({ type: 'session_closed', session_id: 'test-session-id', reason: 'closed' })
 
-    expect(events).toHaveLength(0)
+    expect(events).toEqual([{ type: 'session_closed', session_id: 'test-session-id', reason: 'closed' }])
+    expect(ws.status).toBe('disconnected')
+    mock.triggerClose()
+    expect(ws.status).toBe('disconnected')
   })
 
   it('should forward regular events after session_dormant', () => {

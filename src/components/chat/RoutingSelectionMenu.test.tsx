@@ -256,7 +256,7 @@ describe('RoutingSelectionMenu', () => {
     expect(store.get(chatDraftSelectionAtom)).toEqual([])
   })
 
-  it('an existing chat: one tick = strict, several = mixed, sent to the route; no mass gestures, other providers are off', async () => {
+  it('an existing chat: one tick = strict, several = mixed, sent to the route; no mass gestures, other providers offer a move', async () => {
     // The catalog read when the menu opens lists the same models (it replaces the listing's).
     clearModelCatalogCache()
     vi.mocked(providersApi.models).mockImplementation((id: string) =>
@@ -277,7 +277,7 @@ describe('RoutingSelectionMenu', () => {
     openMenu()
     expect(screen.queryByTestId('routing-select-all')).toBeNull()
     expect(screen.queryByTestId('routing-provider-check-local-llama')).toBeNull()
-    expect(within(screen.getByTestId('target-provider-claude-code')).getByText(/stays on its provider/i)).toBeTruthy()
+    expect(screen.getByTestId('routing-switch-hint-claude-code').textContent).toMatch(/moves this conversation there/i)
     // A second model ticked: mixed among the two.
     tick('local-llama', 'phi')
     expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', {

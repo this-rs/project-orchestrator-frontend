@@ -12,6 +12,7 @@ import { AgentGroup } from './AgentGroup'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
 import { AskUserQuestionBlock } from './AskUserQuestionBlock'
 import { CompactBoundaryBlock } from './CompactBoundaryBlock'
+import { SessionEventBlock } from './SessionEventBlock'
 import { ModelChangedBlock } from './ModelChangedBlock'
 import { ResultMaxTurnsBlock } from './ResultMaxTurnsBlock'
 import { ResultErrorBlock } from './ResultErrorBlock'
@@ -322,6 +323,11 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
                   block={block}
                 />
               )
+
+            case 'conversation_relayed':
+            case 'session_closed':
+            case 'compaction_recovery':
+              return <SessionEventBlock key={block.id} block={block} />
 
             case 'compact_boundary':
               return (
