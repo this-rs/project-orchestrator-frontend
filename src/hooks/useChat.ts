@@ -65,6 +65,13 @@ const INTERRUPT_ACK_TIMEOUT_MS = 4000
  */
 const MAX_RENDERABLE_TAIL = PAGE_SIZE * 16
 
+/**
+ * A stream event as `handleEvent` sees it. `receivedAt` is `Date.now()` when this
+ * tab first got it: an event buffered (history loading, resync, not at the tail)
+ * and handled later keeps the moment it arrived, not the moment it was handled.
+ */
+type LiveEvent = ChatStreamEvent & { seq?: number; replaying?: boolean; receivedAt?: number }
+
 /** One loaded window of history, assembled and with its raw-event bookkeeping. */
 interface LoadedWindow {
   messages: ChatMessage[]
@@ -300,7 +307,7 @@ export function useChat() {
   // Whether the loaded message window includes the tail (end) of the conversation.
   // When false (pagination centrée), live WS events are buffered to avoid disorder.
   const isAtTailRef = useRef(true)
-  const pendingTailEventsRef = useRef<Array<ChatStreamEvent & { seq?: number; replaying?: boolean }>>([])
+  const pendingTailEventsRef = useRef<Array<LiveEvent>>([])
   // True when live WS events are being buffered (user is viewing centered pagination)
   const [hasLiveActivity, setHasLiveActivity] = useState(false)
 
@@ -309,7 +316,7 @@ export function useChat() {
   // The auto-connect useEffect sets it to false before starting REST,
   // then back to true after setMessages(history) + replaying buffered events.
   const historyLoadedRef = useRef(true)
-  const pendingEventsRef = useRef<Array<ChatStreamEvent & { seq?: number; replaying?: boolean }>>([])
+  const pendingEventsRef = useRef<Array<LiveEvent>>([])
 
   // ------------------------------------------------------------------------
   // Replay reconciliation — APPEND-ONLY, NEVER DESTRUCTIVE.
@@ -421,7 +428,9 @@ export function useChat() {
   // ========================================================================
   // Event handler — processes LIVE events only (no more replay)
   // ========================================================================
-  const handleEvent = useCallback((event: ChatStreamEvent & { seq?: number; replaying?: boolean }) => {
+  const handleEvent = useCallback((incoming: LiveEvent) => {
+    // Stamped once, on receipt: a buffered event replayed later keeps this time.
+    const event: LiveEvent = incoming.receivedAt === undefined ? { ...incoming, receivedAt: Date.now() } : incoming
     // The messages the session holds until the running turn ends — always the
     // full list, published to EVERY device connected to the session, so a
     // message queued on one shows on the others. It replaces what we showed for
@@ -617,6 +626,23 @@ export function useChat() {
     }
     // A closed session streams nothing more.
     if (event.type === 'session_closed' && !event.replaying) setIsStreaming(false)
+
+    // A live cancel notice answers the Stop chips whose request went over the socket.
+    // Written HERE, not in the message updater below: an updater must stay pure (React
+    // may call it twice). `at` is when the frame arrived, and an older notice handled
+    // late (buffered during a resync) never replaces a newer one.
+    if (event.type === 'error' && !event.replaying) {
+      const notice = cancelNoticeMetadata(event)
+      const chip = notice ? chipOutcomeOfNotice(notice.code, notice.reason) : null
+      const noticeSid = chip ? store.get(chatSessionIdAtom) : null
+      if (chip && noticeSid) {
+        const at = event.receivedAt ?? Date.now()
+        const current = store.get(chatLastCancelFailureAtom)
+        if (!current || current.sessionId !== noticeSid || current.at <= at) {
+          store.set(chatLastCancelFailureAtom, { sessionId: noticeSid, reason: chip.reason, at })
+        }
+      }
+    }
 
     setMessages((prev) => {
       const updated = [...prev]
@@ -1015,12 +1041,7 @@ export function useChat() {
           if (!event.replaying && !cancelNotice) {
             setIsStreaming(false)
           }
-          // The Stop chips whose request went over the socket get their answer here.
-          const noticeSid = cancelNotice && !event.replaying ? store.get(chatSessionIdAtom) : null
-          if (cancelNotice && noticeSid) {
-            const chip = chipOutcomeOfNotice(cancelNotice.code, cancelNotice.reason)
-            if (chip) store.set(chatLastCancelFailureAtom, { sessionId: noticeSid, reason: chip.reason, at: Date.now() })
-          }
+          // The Stop chips are told before this updater (it must stay pure).
           break
         }
 

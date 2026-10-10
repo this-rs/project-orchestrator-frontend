@@ -60,12 +60,24 @@ afterEach(() => {
 })
 
 describe('ToolCallBlock — Stop after a refused cancel', () => {
-  it('504 owner_timeout, retryable:false: Stop does NOT come back, the chip says "not stopped"', async () => {
+  const TIMEOUT_NOTICE = 'The stop got no answer in time — it may still happen.'
+
+  it('504 owner_timeout, retryable:false: Stop does NOT come back, the chip is pending ("may still happen"), not "not stopped"', async () => {
     cancelTools.mockRejectedValueOnce(refusal(504, 'owner_timeout', false))
     mount(<ToolCallBlock block={running} />)
     await clickStopAndWait(10_000)
     expect(stopChip()).toBeNull()
-    expect(screen.getByText('not stopped — use the global Stop').getAttribute('data-stop-outcome')).toBe('failed')
+    expect(screen.getByText(TIMEOUT_NOTICE).getAttribute('data-stop-outcome')).toBe('pending')
+    expect(screen.queryByText('not stopped — use the global Stop')).toBeNull()
+    expect(cancelTools).toHaveBeenCalledTimes(1)
+  })
+
+  it('504 owner_timeout, retryable:true: still pending, Stop does NOT come back (the stop may still happen)', async () => {
+    cancelTools.mockRejectedValueOnce(refusal(504, 'owner_timeout', true))
+    mount(<ToolCallBlock block={running} />)
+    await clickStopAndWait(10_000)
+    expect(stopChip()).toBeNull()
+    expect(screen.getByText(TIMEOUT_NOTICE).getAttribute('data-stop-outcome')).toBe('pending')
     expect(cancelTools).toHaveBeenCalledTimes(1)
   })
 
@@ -111,6 +123,16 @@ describe('ToolCallBlock — Stop sent over the socket', () => {
     await act(() => vi.advanceTimersByTimeAsync(10_000))
     expect(stopChip()).toBeNull()
     expect(cancelTools).not.toHaveBeenCalled()
+  })
+
+  it('owner_timeout: pending ("may still happen"), never re-enabled', async () => {
+    const { store } = mount(<ToolCallBlock block={running} />, overSocket)
+    fireEvent.click(stopChip()!)
+    announce(store, 'owner_timeout')
+    expect(screen.getByText('The stop got no answer in time — it may still happen.').getAttribute('data-stop-outcome')).toBe('pending')
+    expect(screen.queryByText('not stopped — use the global Stop')).toBeNull()
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+    expect(stopChip()).toBeNull()
   })
 
   it('any other reason: "not stopped", never re-enabled', async () => {

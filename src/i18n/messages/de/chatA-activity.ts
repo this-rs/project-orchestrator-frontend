@@ -59,7 +59,7 @@ export default {
     retryNotice: "Noch nicht beendet — versuche es gleich noch einmal.",
     timeoutNotice: "Der Stopp wurde nicht rechtzeitig beantwortet — er kann noch erfolgen.",
     failedNotice: "Die Tools konnten nicht beendet werden — nutze stattdessen den globalen Stopp.",
-    taskRefusedNotice: "Dieser Provider kann eine einzelne Hintergrundaufgabe nicht stoppen. Mit Stopp im Eingabefeld unterbrechen Sie den gesamten Zug."
+    taskRefusedNotice: "Dieser Provider kann eine einzelne Hintergrundaufgabe nicht stoppen. Mit Stopp im Eingabefeld unterbrichst du den gesamten Zug."
   },
   agent: {
     subAgent: "Sub-Agent",
