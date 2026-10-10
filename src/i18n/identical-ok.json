@@ -482,6 +482,7 @@
     "ru:chatA-activity.banner.cpu", "ru:chatA-messages.welcome.title",
     "uk:chatA-activity.banner.cpu", "uk:chatA-messages.welcome.title",
     "hi:chatA-activity.banner.cpu", "hi:chatA-messages.welcome.title",
-    "ar:chatA-messages.welcome.title"
+    "ar:chatA-messages.welcome.title",
+    "networkTools.engines.kind.brave", "de:networkTools.browser.title"
   ]
 }

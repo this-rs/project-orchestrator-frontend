@@ -8,6 +8,7 @@ import { useProviders } from '@/hooks/useProviders'
 import { useT, type MessageKey } from '@/i18n'
 import { providerInstancePath } from '@/constants/providerErrors'
 import { ModelPolicy } from './ModelPolicy'
+import { NetworkTools } from './NetworkTools'
 import { ProjectConsent } from './ProjectConsent'
 import { ProviderInstances } from './ProviderInstances'
 import { ProviderRoles } from './ProviderRoles'
@@ -17,6 +18,7 @@ import { RoutingSettings } from './RoutingSettings'
 const SECTIONS = [
   { id: 'instances', title: 'providerAdmin.settings.sectionInstances' },
   { id: 'consent', title: 'providerAdmin.settings.sectionConsent' },
+  { id: 'network-tools', title: 'networkTools.sectionTitle' },
   { id: 'routing', title: 'routing.settings.title' },
   { id: 'advanced', title: 'providerAdmin.settings.sectionAdvanced' },
 ] as const satisfies readonly { id: string; title: MessageKey }[]
@@ -99,6 +101,13 @@ export function ProviderSettings() {
         description={t('providerAdmin.settings.consentDescription')}
       >
         <ProjectConsent onAddProvider={() => setAdding(true)} />
+      </Section>
+      <Section
+        id="network-tools"
+        title={t('networkTools.sectionTitle')}
+        description={t('networkTools.sectionDescription')}
+      >
+        <NetworkTools />
       </Section>
       <Section id="routing" title={t('routing.settings.title')}>
         <RoutingSettings />
