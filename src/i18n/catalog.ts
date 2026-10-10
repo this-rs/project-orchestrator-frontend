@@ -89,8 +89,7 @@ export const NAMESPACES = [
   'common', 'nav', 'routing', 'session', 'architecture', 'code', 'featureGraphs', 'graph', 'projects',
   'ui', 'forms', 'composer', 'shell', 'nomenclature', 'glossary', 'toolPolicy', 'activity', 'fgModel', 'setupOidc', 'app', 'providers', 'providerErrors', 'intelConfig',
   'commits', 'deployments', 'kanban', 'milestones', 'pipeline', 'planDetail', 'plans', 'taskDetail', 'tasks', 'waves',
-  'intelPage', 'intelDashboard', 'intelGraph', 'intelLearning',
-  'intelTimeline',
+  'intelPage', 'intelDashboard', 'intelGraph', 'intelLearning', 'intelTimeline',
 ] as const satisfies readonly Ns[]
 
 /** Every other language is a (possibly partial) overlay of the same shape. */
