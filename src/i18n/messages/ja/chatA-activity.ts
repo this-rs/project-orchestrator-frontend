@@ -54,11 +54,12 @@ export default {
   },
   cancel: {
     alreadyStopped: "停止済み",
-    notStopped: "停止されていません",
+    notStopped: "停止されていません — 全体の停止を使ってください",
     alreadyStoppedNotice: "すでに停止しています。実行中のものはありませんでした。",
     retryNotice: "まだ停止していません。少し待ってから再試行してください。",
     timeoutNotice: "停止の応答が時間内にありませんでした。停止はまだ行われる可能性があります。",
-    failedNotice: "ツールを停止できませんでした。代わりに全体の停止を使ってください。"
+    failedNotice: "ツールを停止できませんでした。代わりに全体の停止を使ってください。",
+    taskRefusedNotice: "このプロバイダーは個別のバックグラウンドタスクを停止できません。コンポーザーの「停止」でターン全体を中断してください。"
   },
   agent: {
     subAgent: "サブエージェント",

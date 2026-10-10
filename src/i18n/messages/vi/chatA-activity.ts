@@ -54,11 +54,12 @@ export default {
   },
   cancel: {
     alreadyStopped: "đã dừng",
-    notStopped: "chưa dừng",
+    notStopped: "chưa dừng — hãy dùng nút Dừng toàn cục",
     alreadyStoppedNotice: "Đã dừng — không còn gì đang chạy.",
     retryNotice: "Chưa dừng được — hãy thử lại sau giây lát.",
     timeoutNotice: "Lệnh dừng không nhận được phản hồi kịp thời — việc dừng vẫn có thể xảy ra.",
-    failedNotice: "Không dừng được các công cụ — hãy dùng nút Dừng toàn cục."
+    failedNotice: "Không dừng được các công cụ — hãy dùng nút Dừng toàn cục.",
+    taskRefusedNotice: "Nhà cung cấp này không thể dừng một tác vụ nền riêng lẻ. Dùng Dừng trong khung soạn để ngắt cả lượt."
   },
   agent: {
     subAgent: "Sub-agent",

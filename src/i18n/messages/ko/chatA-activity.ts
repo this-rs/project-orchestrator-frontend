@@ -54,11 +54,12 @@ export default {
   },
   cancel: {
     alreadyStopped: "이미 중지됨",
-    notStopped: "중지되지 않음",
+    notStopped: "중지되지 않음 — 전체 중지를 사용하세요",
     alreadyStoppedNotice: "이미 중지되었습니다. 더 이상 실행 중인 것이 없었습니다.",
     retryNotice: "아직 중지되지 않았습니다. 잠시 후 다시 시도하세요.",
     timeoutNotice: "중지 요청에 제때 응답이 없었습니다. 중지가 아직 일어날 수 있습니다.",
-    failedNotice: "도구를 중지하지 못했습니다. 대신 전체 중지를 사용하세요."
+    failedNotice: "도구를 중지하지 못했습니다. 대신 전체 중지를 사용하세요.",
+    taskRefusedNotice: "이 제공자는 백그라운드 작업 하나만 중지할 수 없습니다. 입력창의 중지를 눌러 턴 전체를 중단하세요."
   },
   agent: {
     subAgent: "하위 에이전트",

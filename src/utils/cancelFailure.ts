@@ -74,11 +74,30 @@ export function cancelNoticeMetadata(evt: unknown): { cancel_notice: true; code:
 }
 
 /**
+ * What a Stop chip whose request went over the socket reads from a cancel notice
+ * of its session: `null` when the notice is not about the running tools (a refused
+ * background-task cancel). The frame has no `retryable`: never a retry.
+ */
+export function chipOutcomeOfNotice(code: string, reason?: string): { reason: string } | null {
+  if (code === 'cancel_refused' && reason === 'background_tasks') return null
+  return { reason: reason ?? code }
+}
+
+/** The outcome a Stop chip shows for the reason of a failed cancel. */
+export function chipOutcomeOfReason(reason: string): 'already_stopped' | 'failed' {
+  return reason === 'owner_unreachable' ? 'already_stopped' : 'failed'
+}
+
+/**
  * The i18n key of the sentence for a cancel notice on the turn. The socket frame
  * carries no `retryable`: it never invites a retry.
  */
 export function cancelNoticeKey(code: string, reason?: string): MessageKey {
-  if (code === 'cancel_refused') return 'providers.capabilities.toolCancelUnsupported'
+  if (code === 'cancel_refused') {
+    return reason === 'background_tasks'
+      ? 'chatA-activity.cancel.taskRefusedNotice'
+      : 'providers.capabilities.toolCancelUnsupported'
+  }
   if (reason === 'owner_unreachable') return 'chatA-activity.cancel.alreadyStoppedNotice'
   if (reason === 'owner_timeout') return 'chatA-activity.cancel.timeoutNotice'
   return 'chatA-activity.cancel.failedNotice'

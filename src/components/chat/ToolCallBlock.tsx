@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
-import { chatBackgroundTasksAtom } from '@/atoms'
+import { chatBackgroundTasksAtom, chatLastCancelFailureAtom } from '@/atoms'
 import { buildActivityFromToolCall } from '@/utils/backgroundActivity'
 import { ActivityCard } from './BackgroundActivityCard'
 import type { ContentBlock } from '@/types'
@@ -12,7 +12,7 @@ import { useBlockProviderKind } from './useBlockProviderKind'
 import { toolCancelUnsupportedText } from '@/constants/capabilities'
 import { ChevronRight, Square } from 'lucide-react'
 import { useT } from '@/i18n'
-import { readCancelFailure } from '@/utils/cancelFailure'
+import { chipOutcomeOfReason, readCancelFailure } from '@/utils/cancelFailure'
 
 const MCP_PREFIX = 'mcp__project-orchestrator__'
 
@@ -42,7 +42,9 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const [stopRequested, setStopRequested] = useState(false)
   // What a refused stop left: `already_stopped` (409 owner_unreachable) or `failed`
   // (not retryable). Both keep the chip disabled.
-  const [stopOutcome, setStopOutcome] = useState<'already_stopped' | 'failed' | null>(null)
+  const [restOutcome, setRestOutcome] = useState<'already_stopped' | 'failed' | null>(null)
+  // When the click was sent; a failure announced on the stream before it is not ours.
+  const [stopClickedAt, setStopClickedAt] = useState<number | null>(null)
   const { t } = useT()
   const sessionId = useChatSessionId()
   const cancelToolsLive = useCancelToolsLive()
@@ -101,6 +103,16 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   // POST /api/chat/sessions/{id}/cancel-tools which sends SIGINT to
   // the CLI's descendant process(es). The agent receives a cancelled
   // tool_result and continues its turn (does NOT end it).
+  // Over the socket there is no REST answer: the failure comes back on the stream as a
+  // cancel notice (`chatLastCancelFailureAtom`). Its frame has no `retryable`, so the
+  // chip is never re-enabled from it.
+  const lastCancelFailure = useAtomValue(chatLastCancelFailureAtom)
+  const streamOutcome =
+    stopRequested && stopClickedAt !== null && lastCancelFailure !== null &&
+    lastCancelFailure.sessionId === sessionId && lastCancelFailure.at >= stopClickedAt
+      ? chipOutcomeOfReason(lastCancelFailure.reason)
+      : null
+  const stopOutcome = restOutcome ?? streamOutcome
   const canStop = isLoading && !isCancelled && sessionId !== null && !stopRequested
   // The provider cannot stop one tool: the chip stays where it is expected,
   // disabled, and says what to use instead (the turn-level Stop still works).
@@ -110,6 +122,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
     e.stopPropagation()
     if (!sessionId || !stopSupported) return
     setStopRequested(true)
+    setStopClickedAt(Date.now())
     // The open chat socket first (`cancel_tools` frame): the cancelled tool_result and
     // `tools_cancelled` come back on the stream like for the REST call. REST otherwise.
     if (cancelToolsLive?.()) return
@@ -128,9 +141,9 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
       // backend says asking again is safe — a cancel-tools retried after a timeout
       // would stop the tools started since.
       const failure = readCancelFailure(err)
-      if (failure.alreadyStopped) setStopOutcome('already_stopped')
+      if (failure.alreadyStopped) setRestOutcome('already_stopped')
       else if (failure.retryable) setTimeout(() => setStopRequested(false), 2000)
-      else setStopOutcome('failed')
+      else setRestOutcome('failed')
     }
   }
 

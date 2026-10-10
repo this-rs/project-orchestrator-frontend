@@ -15,21 +15,22 @@ import type { ChatMessage, ContentBlock } from '@/types'
 const cancelTools = vi.fn()
 vi.mock('@/services', () => ({ chatApi: { cancelTools: (...a: unknown[]) => cancelTools(...a) } }))
 
-import { chatSessionIdAtom } from '@/atoms'
+import { chatLastCancelFailureAtom, chatSessionIdAtom } from '@/atoms'
 import { ApiError } from '@/services/api'
 import { toolCancelUnsupportedText } from '@/constants/capabilities'
 import { ChatSessionProvider } from './ChatSessionContext'
 import { ChatMessageBubble } from './ChatMessageBubble'
 import { ToolCallBlock } from './ToolCallBlock'
 
-function mount(ui: ReactNode) {
+function mount(ui: ReactNode, cancelToolsLive?: () => boolean) {
   const store = createStore()
   store.set(chatSessionIdAtom, 's1')
-  return render(
+  const view = render(
     <Provider store={store}>
-      <ChatSessionProvider sessionId="s1">{ui}</ChatSessionProvider>
+      <ChatSessionProvider sessionId="s1" cancelToolsLive={cancelToolsLive}>{ui}</ChatSessionProvider>
     </Provider>,
   )
+  return { ...view, store }
 }
 
 const running: ContentBlock = {
@@ -64,7 +65,7 @@ describe('ToolCallBlock — Stop after a refused cancel', () => {
     mount(<ToolCallBlock block={running} />)
     await clickStopAndWait(10_000)
     expect(stopChip()).toBeNull()
-    expect(screen.getByText('not stopped').getAttribute('data-stop-outcome')).toBe('failed')
+    expect(screen.getByText('not stopped — use the global Stop').getAttribute('data-stop-outcome')).toBe('failed')
     expect(cancelTools).toHaveBeenCalledTimes(1)
   })
 
@@ -73,7 +74,7 @@ describe('ToolCallBlock — Stop after a refused cancel', () => {
     mount(<ToolCallBlock block={running} />)
     await clickStopAndWait(2_000)
     expect(stopChip()).not.toBeNull()
-    expect(screen.queryByText('not stopped')).toBeNull()
+    expect(screen.queryByText('not stopped — use the global Stop')).toBeNull()
   })
 
   it('an error without a typed body (network) is not retryable either', async () => {
@@ -92,6 +93,50 @@ describe('ToolCallBlock — Stop after a refused cancel', () => {
     expect(label.getAttribute('data-stop-outcome')).toBe('already_stopped')
     expect(label.getAttribute('title')).toBe('Already stopped — nothing was running any more.')
     expect(screen.queryByText('stopping…')).toBeNull()
+  })
+})
+
+describe('ToolCallBlock — Stop sent over the socket', () => {
+  const overSocket = () => true
+  const announce = (store: ReturnType<typeof createStore>, reason: string, sessionId = 's1') =>
+    act(() => store.set(chatLastCancelFailureAtom, { sessionId, reason, at: Date.now() }))
+
+  it('owner_unreachable announced after the click: "already stopped", never re-enabled', async () => {
+    const { store } = mount(<ToolCallBlock block={running} />, overSocket)
+    fireEvent.click(stopChip()!)
+    expect(screen.getByText('stopping…')).toBeTruthy()
+    await act(() => vi.advanceTimersByTimeAsync(5))
+    announce(store, 'owner_unreachable')
+    expect(screen.getByText('already stopped').getAttribute('data-stop-outcome')).toBe('already_stopped')
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+    expect(stopChip()).toBeNull()
+    expect(cancelTools).not.toHaveBeenCalled()
+  })
+
+  it('any other reason: "not stopped", never re-enabled', async () => {
+    const { store } = mount(<ToolCallBlock block={running} />, overSocket)
+    fireEvent.click(stopChip()!)
+    announce(store, 'session_gone')
+    expect(screen.getByText('not stopped — use the global Stop').getAttribute('data-stop-outcome')).toBe('failed')
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+    expect(stopChip()).toBeNull()
+  })
+
+  it('a failure announced before the click, or for another session, is not this chip\'s', async () => {
+    const { store } = mount(<ToolCallBlock block={running} />, overSocket)
+    announce(store, 'owner_unreachable')
+    await act(() => vi.advanceTimersByTimeAsync(5))
+    fireEvent.click(stopChip()!)
+    announce(store, 'owner_timeout', 'other-session')
+    expect(screen.getByText('stopping…')).toBeTruthy()
+    expect(screen.queryByText('already stopped')).toBeNull()
+  })
+
+  it('a chip that was not clicked ignores it', () => {
+    const { store } = mount(<ToolCallBlock block={running} />, overSocket)
+    announce(store, 'owner_unreachable')
+    expect(stopChip()).not.toBeNull()
+    expect(screen.queryByText('already stopped')).toBeNull()
   })
 })
 
@@ -116,6 +161,13 @@ describe('ChatMessageBubble — a cancel error frame is a notice on the turn', (
   it('cancel_failed / owner_timeout: may still happen', () => {
     bubble({ id: 'e', type: 'error', content: 'Error: timeout', metadata: { cancel_notice: true, code: 'cancel_failed', reason: 'owner_timeout' } })
     expect(screen.getByRole('status').textContent).toBe('The stop got no answer in time — it may still happen.')
+  })
+
+  it('cancel_refused / background_tasks: its own sentence, not the one about a tool', () => {
+    bubble({ id: 'e', type: 'error', content: 'Error: unsupported', metadata: { cancel_notice: true, code: 'cancel_refused', reason: 'background_tasks' } })
+    expect(screen.getByRole('status').textContent).toBe(
+      'This provider cannot stop a single background task. Use Stop in the composer to interrupt the whole turn.',
+    )
   })
 
   it('cancel_refused: the provider cannot stop one tool', () => {

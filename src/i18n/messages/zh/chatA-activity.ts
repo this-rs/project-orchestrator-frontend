@@ -54,11 +54,12 @@ export default {
   },
   cancel: {
     alreadyStopped: "已停止",
-    notStopped: "未停止",
+    notStopped: "未停止——请改用全局停止",
     alreadyStoppedNotice: "已停止——已没有任何内容在运行。",
     retryNotice: "尚未停止——请稍后重试。",
     timeoutNotice: "停止请求未及时得到响应——停止仍可能生效。",
-    failedNotice: "无法停止工具——请改用全局停止。"
+    failedNotice: "无法停止工具——请改用全局停止。",
+    taskRefusedNotice: "此提供方无法停止单个后台任务。请使用输入框中的“停止”来中断整个回合。"
   },
   agent: {
     subAgent: "子智能体",

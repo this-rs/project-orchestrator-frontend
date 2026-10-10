@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { Provider, createStore } from 'jotai'
-import { chatDraftInputAtom, chatDraftsMapAtom, chatFollowNoticeAtom, chatSessionIdAtom, chatSwitchingSessionAtom } from '@/atoms'
+import { chatDraftInputAtom, chatDraftsMapAtom, chatFollowNoticeAtom, chatLastCancelFailureAtom, chatSessionIdAtom, chatSwitchingSessionAtom } from '@/atoms'
 import { historyEventsToMessages } from '@/utils/chatAssembly'
 
 vi.mock('@/services', () => {
@@ -231,9 +231,35 @@ describe('useChat — a failed or refused cancel does not end the turn', () => {
     expect(result.current.isStreaming).toBe(false)
   })
 
-  it('the live block is the one the history reducer builds', async () => {
+  // `cancel_refused` is the one the backend persists (broadcast); `cancel_failed` goes to the asker only.
+  const CANCEL_REFUSED = { type: 'error', message: 'Error: unsupported', code: 'cancel_refused', reason: 'tool_cancel' }
+
+  it('the live block is the one the history reducer builds (cancel_refused, as persisted)', async () => {
     const { emit, blocks } = await setup()
-    emit({ ...CANCEL_FAILED })
-    expect(shape(blocks())).toEqual(fromHistory([{ ...CANCEL_FAILED }]))
+    emit({ ...CANCEL_REFUSED })
+    expect(shape(blocks())).toEqual(fromHistory([{ ...CANCEL_REFUSED }]))
+    expect(blocks()[0].metadata).toEqual({ cancel_notice: true, code: 'cancel_refused', reason: 'tool_cancel' })
+  })
+
+  it('the replayed form ({replaying, data}) gives the same block, without touching the stream', async () => {
+    const { result, emit, blocks } = await setup()
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'error', replaying: true, data: { ...CANCEL_REFUSED } })
+    expect(shape(blocks())).toEqual(fromHistory([{ ...CANCEL_REFUSED }]))
+    expect(result.current.isStreaming).toBe(true)
+  })
+
+  it('a live cancel notice tells the Stop chips (lastCancelFailure); a replayed one does not', async () => {
+    const { store, emit } = await setup()
+    emit({ type: 'error', replaying: true, data: { ...CANCEL_FAILED, reason: 'owner_unreachable' } })
+    expect(store.get(chatLastCancelFailureAtom)).toBeNull()
+    emit({ ...CANCEL_FAILED, reason: 'owner_unreachable' })
+    expect(store.get(chatLastCancelFailureAtom)).toMatchObject({ sessionId: 'sess-1', reason: 'owner_unreachable' })
+  })
+
+  it('a refused background-task cancel is not about the running tools: the chips are not told', async () => {
+    const { store, emit } = await setup()
+    emit({ type: 'error', message: 'Error: unsupported', code: 'cancel_refused', reason: 'background_tasks' })
+    expect(store.get(chatLastCancelFailureAtom)).toBeNull()
   })
 })

@@ -47,5 +47,6 @@ describe('cancelNoticeKey', () => {
     expect(cancelNoticeKey('cancel_failed', 'owner_timeout')).toBe('chatA-activity.cancel.timeoutNotice')
     expect(cancelNoticeKey('cancel_failed', 'session_gone')).toBe('chatA-activity.cancel.failedNotice')
     expect(cancelNoticeKey('cancel_refused', 'tool_cancel')).toBe('providers.capabilities.toolCancelUnsupported')
+    expect(cancelNoticeKey('cancel_refused', 'background_tasks')).toBe('chatA-activity.cancel.taskRefusedNotice')
   })
 })

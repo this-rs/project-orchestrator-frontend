@@ -54,11 +54,12 @@ export default {
   },
   cancel: {
     alreadyStopped: "já parado",
-    notStopped: "não parado",
+    notStopped: "não parado — use o Parar global",
     alreadyStoppedNotice: "Já parado — nada estava mais em execução.",
     retryNotice: "Ainda não parado — tente de novo em instantes.",
     timeoutNotice: "A parada não teve resposta a tempo — ela ainda pode acontecer.",
-    failedNotice: "Não foi possível parar as ferramentas — use o Parar global."
+    failedNotice: "Não foi possível parar as ferramentas — use o Parar global.",
+    taskRefusedNotice: "Este provedor não consegue parar uma única tarefa em segundo plano. Use Parar no campo de mensagem para interromper o turno inteiro."
   },
   agent: {
     subAgent: "Subagente",

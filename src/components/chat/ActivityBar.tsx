@@ -224,10 +224,11 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
       if (failure.alreadyStopped) {
         // 409 owner_unreachable: nothing runs any more, nothing to retry.
         flash({ kind: 'stopped', message: t('chatA-activity.cancel.alreadyStoppedNotice') })
+      } else if (failure.code === 'owner_timeout') {
+        // No answer in time: it may still happen (retryable or not, say that first).
+        flash({ kind: 'error', message: t('chatA-activity.cancel.timeoutNotice') })
       } else if (failure.retryable) {
         flash({ kind: 'error', message: t('chatA-activity.cancel.retryNotice') })
-      } else if (failure.code === 'owner_timeout') {
-        flash({ kind: 'error', message: t('chatA-activity.cancel.timeoutNotice') })
       } else {
         flash({ kind: 'error', message: t('chatA-activity.bar.cancelFailed') })
       }

@@ -208,9 +208,20 @@ describe('<ActivityBar />', () => {
     expect(screen.getByRole('status')).not.toHaveTextContent('Failed to cancel task')
   })
 
-  it('a retryable refusal (504 owner_timeout, retryable:true) invites a retry', async () => {
+  it('504 owner_timeout (retryable:true for a task) says it may still happen', async () => {
     vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(
       new ApiError(504, JSON.stringify({ error: 'no answer in time', code: 'owner_timeout', retryable: true })),
+    )
+    mount([shell])
+    expand()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('The stop got no answer in time — it may still happen.'))
+    expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
+  })
+
+  it('a retryable refusal (410 session_gone, retryable:true) invites a retry', async () => {
+    vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(
+      new ApiError(410, JSON.stringify({ error: 'moved', code: 'session_gone', retryable: true })),
     )
     mount([shell])
     expand()

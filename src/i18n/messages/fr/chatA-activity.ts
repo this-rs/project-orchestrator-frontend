@@ -54,11 +54,12 @@ export default {
   },
   cancel: {
     alreadyStopped: "déjà arrêté",
-    notStopped: "non arrêté",
+    notStopped: "non arrêté — utilisez l’arrêt global",
     alreadyStoppedNotice: "Déjà arrêté — plus rien ne tournait.",
     retryNotice: "Pas encore arrêté — réessayez dans un instant.",
     timeoutNotice: "L’arrêt n’a pas reçu de réponse à temps — il peut encore avoir lieu.",
-    failedNotice: "Les outils n’ont pas pu être arrêtés — utilisez plutôt l’arrêt global."
+    failedNotice: "Les outils n’ont pas pu être arrêtés — utilisez plutôt l’arrêt global.",
+    taskRefusedNotice: "Ce provider ne peut pas arrêter une seule tâche de fond. Utilisez Arrêter dans la zone de saisie pour interrompre tout le tour."
   },
   agent: {
     subAgent: "Sous-agent",
