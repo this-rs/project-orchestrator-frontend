@@ -64,6 +64,13 @@ function messagesOf(events: RawEvent[]): ChatMessage[] {
 
 export function useConversationTrace(rootId: string | null, opts: { isStreaming?: boolean; refreshKey?: unknown; rootTitle?: string } = {}): ConversationTraceData {
   const [state, setState] = useState<ReadonlyMap<string, SessionState>>(new Map())
+  // Another conversation: forget the previous one in this very render, so not even one frame
+  // shows its trace under the new title. (A retry keeps what is loaded and reloads what failed.)
+  const [stateRoot, setStateRoot] = useState(rootId)
+  if (stateRoot !== rootId) {
+    setStateRoot(rootId)
+    setState(new Map())
+  }
   const [attempt, setAttempt] = useState(0)
   const stateRef = useRef(state)
   stateRef.current = state
@@ -129,7 +136,6 @@ export function useConversationTrace(rootId: string | null, opts: { isStreaming?
 
   // First load: the root, its relays, then its children (two at a time).
   useEffect(() => {
-    setState(new Map())
     busy.current.clear()
     if (!rootId) return
     let stop = false
@@ -216,9 +222,11 @@ export function useConversationTrace(rootId: string | null, opts: { isStreaming?
     return () => window.clearTimeout(id)
   }, [opts.refreshKey, refresh])
 
+  // A session shows once it has something to show: a lane with no events yet would replace
+  // what the reader already sees with an empty trace (the first page lands a moment later).
   const sessions = useMemo<TraceSession[]>(() => {
     const out: TraceSession[] = []
-    for (const s of state.values()) out.push({ ...s.meta, ...(s.meta.relation === 'root' && opts.isStreaming != null ? { isStreaming: opts.isStreaming || s.meta.isStreaming } : {}), messages: messagesOf(s.events) })
+    for (const s of state.values()) if (s.events.length > 0 || s.status === 'ready') out.push({ ...s.meta, ...(s.meta.relation === 'root' && opts.isStreaming != null ? { isStreaming: opts.isStreaming || s.meta.isStreaming } : {}), messages: messagesOf(s.events) })
     return out
   }, [state, opts.isStreaming])
 

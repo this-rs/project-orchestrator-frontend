@@ -80,6 +80,29 @@ describe('useConversationTrace', () => {
     await waitFor(() => expect(result.current.sessions[0]?.messages.length).toBeGreaterThan(0))
   })
 
+  it('a retry reloads what failed and keeps what is on screen', async () => {
+    histories.set('root', turns(2, 'r'))
+    histories.set('kid', turns(1, 'k'))
+    tree.nodes = [
+      { session_id: 'root', depth: 0, is_streaming: false },
+      { session_id: 'kid', parent_session_id: 'root', depth: 1, title: 'Delegated', is_streaming: false },
+    ]
+    failing.add('kid')
+    const { result } = renderHook(() => useConversationTrace('root'))
+    await waitFor(() => expect(result.current.failed).toBe(true))
+    // The child that could not be read is not a lane with nothing in it.
+    expect(result.current.sessions.map((s) => s.id)).toEqual(['root'])
+    failing.clear()
+    vi.mocked(chatApi.getMessages).mockClear()
+    act(() => result.current.retry())
+    // Same render as the retry: the root is still there.
+    expect(result.current.sessions.map((s) => s.id)).toContain('root')
+    await waitFor(() => expect(result.current.failed).toBe(false))
+    expect(result.current.sessions.map((s) => s.id).sort()).toEqual(['kid', 'root'])
+    // Only the child was asked again.
+    expect(vi.mocked(chatApi.getMessages).mock.calls.every((c) => c[0] === 'kid')).toBe(true)
+  })
+
   it('fetches only the new events while a turn streams', async () => {
     histories.set('root', turns(1, 'r'))
     const { result, rerender } = renderHook(({ key }) => useConversationTrace('root', { isStreaming: true, refreshKey: key }), { initialProps: { key: 1 } })
