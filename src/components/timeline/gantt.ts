@@ -11,13 +11,10 @@
  * The cut is drawn (a break, with its real length), never hidden.
  */
 import type { TimelineItem, TimelineLane } from './model'
+import { buildAxis, toX, GAP_MS, type Axis } from './axis'
 
-/** A silence longer than this is cut. */
-export const GAP_MS = 30_000
-/** What a cut silence is worth on the axis, in ms of active time. */
-const GAP_WIDTH_MS = 4_000
-/** The axis never spans less than this, so one instant is not a full-width line. */
-const MIN_SPAN_MS = 1_000
+export { GAP_MS }
+
 /** Kinds that count as "a call in flight" for the concurrency track. */
 const CALL_KINDS: ReadonlySet<TimelineItem['kind']> = new Set(['tool', 'agent', 'run'])
 const MAX_DEPTH = 3
@@ -74,15 +71,13 @@ export interface GanttLayout {
   spanMs: number
 }
 
-interface Segment {
-  from: number
-  to: number
-  /** Where this stretch starts on the compressed axis, in ms. */
-  at: number
+/** Where an item's bar ends, in real time. A call still open is drawn up to `now`. */
+/** Whether an item has a real date (work items without one carry 0). */
+export function isDated(item: TimelineItem): boolean {
+  return item.startedAt > 0
 }
 
-/** Where an item's bar ends, in real time. A call still open is drawn up to `now`. */
-function endOf(item: TimelineItem, now: number): number {
+export function endOf(item: TimelineItem, now: number): number {
   if (item.endedAt != null) return Math.max(item.endedAt, item.startedAt)
   if (item.status === 'running' || item.status === 'blocked') return Math.max(now, item.startedAt)
   return item.startedAt
@@ -108,44 +103,21 @@ function niceStep(activeMs: number): number {
 }
 
 export function layoutGantt(lanes: ReadonlyArray<TimelineLane>, now: number, gapMs: number = GAP_MS): GanttLayout {
-  const filled = lanes.filter((l) => l.items.length > 0)
+  // An item with no date (a plan, a step: startedAt 0) has no place on a time axis.
+  const filled = lanes.map((l) => ({ ...l, items: l.items.filter(isDated) })).filter((l) => l.items.length > 0)
   const all = filled.flatMap((l) => l.items)
   if (all.length === 0) return { sections: [], ticks: [], breaks: [], concurrency: [], peak: 0, count: 0, spanMs: 0 }
   const byId = new Map(all.map((i) => [i.id, i]))
 
-  // Stretches where something happens: intervals closer than `gapMs` are one stretch.
   // A wait for the reader (a permission nobody answered) is not activity: it must not stretch the axis over
   // the hours it stayed open. Its start counts; its bar is drawn up to the edge of the axis.
-  const spans = all
-    .map((i) => [i.startedAt, i.status === 'blocked' && i.endedAt == null ? i.startedAt : endOf(i, now)] as const)
-    .sort((a, b) => a[0] - b[0] || a[1] - b[1])
-  const stretches: Array<{ from: number; to: number }> = []
-  for (const [from, to] of spans) {
-    const last = stretches[stretches.length - 1]
-    if (last && from - last.to <= gapMs) last.to = Math.max(last.to, to)
-    else stretches.push({ from, to })
-  }
-  const segments: Segment[] = []
-  const breaks: Array<{ atMs: number; ms: number }> = []
-  let width = 0
-  stretches.forEach((s, i) => {
-    if (i > 0) {
-      breaks.push({ atMs: width + GAP_WIDTH_MS / 2, ms: s.from - (stretches[i - 1] as { to: number }).to })
-      width += GAP_WIDTH_MS
-    }
-    segments.push({ from: s.from, to: s.to, at: width })
-    width += s.to - s.from
-  })
-  const total = Math.max(width, MIN_SPAN_MS)
-  const first = (stretches[0] as { from: number }).from
-  const last = (stretches[stretches.length - 1] as { to: number }).to
-
+  const axis = buildAxis(
+    all.map((i) => [i.startedAt, i.status === 'blocked' && i.endedAt == null ? i.startedAt : endOf(i, now)] as const),
+    gapMs,
+  ) as Axis
+  const { segments, total, first, last } = axis
   /** Real time → percent of the axis. */
-  const pos = (t: number): number => {
-    const seg = segments.find((s) => t <= s.to) ?? (segments[segments.length - 1] as Segment)
-    const within = Math.min(Math.max(t - seg.from, 0), seg.to - seg.from)
-    return ((seg.at + within) / total) * 100
-  }
+  const pos = (t: number): number => (toX(axis, t) / total) * 100
 
   const sections: GanttSection[] = filled.map((lane) => ({
     lane,
@@ -181,9 +153,24 @@ export function layoutGantt(lanes: ReadonlyArray<TimelineLane>, now: number, gap
     if (!prev || c.pct - prev.pct >= MIN_TICK_GAP_PCT) ticks.push(c)
   }
 
-  // Concurrency: how many calls are open at once, over the axis.
+  const { concurrency, peak } = concurrencyOf(all, now, pos)
+
+  return {
+    sections,
+    ticks,
+    breaks: axis.breaks.map((b) => ({ pct: ((b.at + b.width / 2) / total) * 100, ms: b.ms })),
+    concurrency,
+    peak,
+    count: sections.reduce((n, s) => n + s.rows.length, 0),
+    spanMs: last - first,
+  }
+}
+
+/** How many calls are open at once, as runs over the axis (`pos`: real time → percent). */
+export function concurrencyOf(items: ReadonlyArray<TimelineItem>, now: number, pos: (t: number) => number): { concurrency: GanttConcurrency[]; peak: number } {
   const edges: Array<[number, number]> = []
-  for (const item of all) {
+  for (const item of items) {
+    if (!isDated(item)) continue
     const end = endOf(item, now)
     if (CALL_KINDS.has(item.kind) && end > item.startedAt) edges.push([item.startedAt, 1], [end, -1])
   }
@@ -201,14 +188,5 @@ export function layoutGantt(lanes: ReadonlyArray<TimelineLane>, now: number, gap
       concurrency.push({ leftPct: left, widthPct: pos(next[0]) - left, n: open })
     }
   }
-
-  return {
-    sections,
-    ticks,
-    breaks: breaks.map((b) => ({ pct: (b.atMs / total) * 100, ms: b.ms })),
-    concurrency,
-    peak,
-    count: sections.reduce((n, s) => n + s.rows.length, 0),
-    spanMs: last - first,
-  }
+  return { concurrency, peak }
 }

@@ -23,4 +23,7 @@ describe('resolveTarget', () => {
   it('sends a request or a routing decision to its detail, with the id encoded', () => {
     expect(resolveTarget(item({ id: 'routing:a b', kind: 'routing' }), ctx())).toMatchObject({ to: '/workspace/ws/chat/sess/timeline?item=routing%3Aa%20b' })
   })
+  it('from the timeline page itself, opens the conversation where it happened', () => {
+    expect(resolveTarget(item({ id: 'c', laneId: 'child' }), { ...ctx(), fallback: 'conversation' as const })).toMatchObject({ to: '/workspace/ws/chat/child' })
+  })
 })

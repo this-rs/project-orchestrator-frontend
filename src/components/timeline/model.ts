@@ -62,6 +62,12 @@ export interface TimelineLane {
   title: string
   items: TimelineItem[]
   context?: TimelineLaneContext
+  /** The lane this one was spawned from (a child session hangs below its parent's lane). */
+  parentLaneId?: string
+  /** How this lane relates to the conversation the reader opened. */
+  relation?: 'work' | 'root' | 'child' | 'relay'
+  /** The lane as one span (a child session: from its first event to its last). */
+  span?: TimelineItem
 }
 
 export interface TimelineRunInput {
@@ -205,12 +211,22 @@ export function buildTimeline(input: TimelineInput): Timeline {
   const mainLane: TimelineLane = { id: sessionId, title: input.title?.trim() || 'Conversation', items: [], context: input.session }
   const byId = new Map<string, TimelineItem>()
   let requestId: string | undefined
+  /** The time of the latest thing seen in the current turn, to close the turn's span. */
+  let turnLast = 0
   let provider = input.session?.provider
   let model = input.session?.model
 
   const push = (item: TimelineItem) => {
     mainLane.items.push(item)
     byId.set(item.id, item)
+  }
+  /** A turn is over when the next request comes: its span ends at the last thing it did. */
+  const closeTurn = () => {
+    const req = requestId ? byId.get(requestId) : undefined
+    if (req && req.endedAt == null && turnLast > req.startedAt) {
+      req.endedAt = turnLast
+      req.durationMs = turnLast - req.startedAt
+    }
   }
   /** Where an item ran: the provider and model in force right now. */
   const ran = () => ({ ...(provider && { provider }), ...(model && { model }) })
@@ -219,7 +235,9 @@ export function buildTimeline(input: TimelineInput): Timeline {
     const msgTime = msg.timestamp.getTime()
     if (msg.role === 'user') {
       const text = msg.blocks.map((b) => b.content).join('\n')
+      closeTurn()
       requestId = `request:${msg.id}`
+      turnLast = msgTime
       push({
         id: requestId,
         kind: 'request',
@@ -233,7 +251,9 @@ export function buildTimeline(input: TimelineInput): Timeline {
       return
     }
     const isLastMessage = mi === messages.length - 1
+    turnLast = Math.max(turnLast, msgTime)
     for (const block of msg.blocks) {
+      turnLast = Math.max(turnLast, blockTime(block, msgTime))
       const callId = str(block.metadata?.tool_call_id) ?? block.id
       const parentCall = str(block.metadata?.parent_tool_use_id)
       const parentId = parentCall && parentCall !== callId ? parentCall : requestId
@@ -320,6 +340,19 @@ export function buildTimeline(input: TimelineInput): Timeline {
           output: reason,
           ...ran(),
         })
+      } else if (block.type === 'conversation_relayed') {
+        const to = str(block.metadata?.to_provider)
+        push({
+          id: block.id,
+          kind: 'marker',
+          status: 'done',
+          label: clip(block.content) || `→ ${to ?? ''}`,
+          startedAt: blockTime(block, msgTime),
+          laneId: sessionId,
+          requestId,
+          ...(str(block.metadata?.to_session_id) !== sessionId && str(block.metadata?.to_session_id) ? { sessionId: str(block.metadata?.to_session_id) } : {}),
+          ...ran(),
+        })
       } else if (block.type === 'compact_boundary') {
         push({
           id: block.id,
@@ -333,6 +366,20 @@ export function buildTimeline(input: TimelineInput): Timeline {
         })
       }
     }
+    // The result of a turn says how long it took.
+    if (msg.duration_ms != null && requestId) {
+      const req = byId.get(requestId)
+      if (req) {
+        const end = Math.max(req.startedAt + msg.duration_ms, turnLast)
+        req.endedAt = Math.max(req.endedAt ?? 0, end)
+        req.durationMs = req.endedAt - req.startedAt
+      }
+    }
+    if (isLastMessage && isStreaming && msg.duration_ms == null && requestId) {
+      // The turn is still going: its span grows until the result comes.
+      const req = byId.get(requestId)
+      if (req) req.status = 'running'
+    }
     if (isLastMessage && msg.duration_ms != null) {
       // The turn is over. A call with no result is not known to be running: it may be a background task. Only the last message can hold a running call, so only it is scanned.
       for (const item of mainLane.items) {
@@ -340,6 +387,11 @@ export function buildTimeline(input: TimelineInput): Timeline {
       }
     }
   })
+
+  // A turn the stream left without a result (an older page, an interrupted turn) still ends at its last event.
+  const lastReq = requestId ? byId.get(requestId) : undefined
+  if (lastReq && isStreaming && messages[messages.length - 1]?.role === 'user') lastReq.status = 'running'
+  if (lastReq?.status !== 'running') closeTurn()
 
   // Routing: one item per recorded decision, under the request it served.
   const requests = mainLane.items.filter((i) => i.kind === 'request')

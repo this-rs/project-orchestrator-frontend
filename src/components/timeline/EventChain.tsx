@@ -105,7 +105,7 @@ function Where({ item }: { item: TimelineItem }) {
 }
 
 /** The routing decision: what was chosen, why, and what lost. */
-function RoutingDetail({ item }: { item: TimelineItem }) {
+export function RoutingDetail({ item }: { item: TimelineItem }) {
   const { t } = useT()
   const d = item.routing
   if (!d) return null
