@@ -151,12 +151,12 @@ describe('useChat (regression: a failed ws.send must not apply optimistic effect
 
     FakeWS.sendResult = true
     await act(async () => {
-      ok = await result.current.respondPermission('t1', true, 'always')
+      ok = await result.current.respondPermission('t1', true, 'once')
     })
     expect(ok).toBe(true)
     expect(ws.permissionCalls).toEqual([
       ['t1', true, 'session'],
-      ['t1', true, 'always'],
+      ['t1', true, 'once'],
     ])
   })
 
@@ -178,16 +178,35 @@ describe('useChat (regression: a failed ws.send must not apply optimistic effect
     expect(store.get(chatStreamingAtom)).toBe(true)
   })
 
-  it('a decision that outlives the call stamps its scope on the request block', async () => {
+  it('a session decision stamps its scope and the granted rule on the request block', async () => {
     const { result, ws } = await setup()
     act(() => {
       ws.callbacks.onEvent({ type: 'permission_request', id: 'p1', tool: 'Bash', input: {} })
     })
     act(() => {
-      ws.callbacks.onEvent({ type: 'permission_decision', id: 'p1', allow: true, scope: 'always' })
+      ws.callbacks.onEvent({ type: 'permission_decision', id: 'p1', allow: true, scope: 'session', rule: 'Bash: git status' })
     })
     const block = result.current.messages.flatMap((m) => m.blocks).find((b) => b.type === 'permission_request')
     expect(block?.metadata?.decision).toBe('allowed')
-    expect(block?.metadata?.decision_scope).toBe('always')
+    expect(block?.metadata?.decision_scope).toBe('session')
+    expect(block?.metadata?.decision_rule).toBe('Bash: git status')
+  })
+
+  it('permission_scope_unsupported marks the request answered with that scope as refused, not as an error turn', async () => {
+    const { result, ws } = await setup()
+    act(() => {
+      ws.callbacks.onEvent({ type: 'permission_request', id: 'p1', tool: 'Bash', input: {} })
+    })
+    await act(async () => {
+      await result.current.respondPermission('p1', true, 'session')
+    })
+    act(() => {
+      ws.callbacks.onEvent({ type: 'error', message: 'refused', code: 'permission_scope_unsupported', reason: 'session' })
+    })
+    const blocks = result.current.messages.flatMap((m) => m.blocks)
+    const block = blocks.find((b) => b.type === 'permission_request')
+    expect((block?.metadata?.scope_refused as { scope: string }).scope).toBe('session')
+    expect(block?.metadata?.decided).toBeFalsy()
+    expect(blocks.some((b) => b.type === 'error')).toBe(false)
   })
 })

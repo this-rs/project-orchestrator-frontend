@@ -158,13 +158,12 @@ export default {
     actions: "Trả lời yêu cầu cấp quyền này",
     allowOnce: "Cho phép một lần",
     allowSession: "Cho phiên này",
-    allowAlways: "Luôn luôn",
     deny: "Từ chối",
-    sessionHint: "Không hỏi lại trong cuộc trò chuyện này",
-    alwaysHint: "Không hỏi lại trong dự án này, kể cả sau khi khởi động lại",
+    sessionHint: "Không hỏi lại trong cuộc trò chuyện này cho đúng lệnh gọi này (mọi lệnh gọi, với công cụ chỉ đọc)",
+    awaiting: "Đang chờ xác nhận…",
+    scopeRefused: "Quyền này không thể giữ cho phiên (lệnh gọi chạy một lệnh khác, hoặc phiên không cung cấp). Hãy cho phép một lần hoặc từ chối.",
     allowed: "Đã cho phép",
     allowedSession: "Đã cho phép cho phiên",
-    allowedAlways: "Luôn cho phép",
     denied: "Đã từ chối"
   }
 } satisfies Translation<'chatA-tools'>

@@ -158,13 +158,12 @@ export default {
     actions: "Diese Berechtigungsanfrage beantworten",
     allowOnce: "Einmal erlauben",
     allowSession: "Für diese Sitzung",
-    allowAlways: "Immer",
     deny: "Ablehnen",
-    sessionHint: "In dieser Unterhaltung nicht mehr gefragt",
-    alwaysHint: "In diesem Projekt nicht mehr gefragt, auch nach einem Neustart",
+    sessionHint: "In dieser Unterhaltung für genau diesen Aufruf nicht mehr gefragt (jeder Aufruf bei einem nur lesenden Werkzeug)",
+    awaiting: "Warte auf die Bestätigung…",
+    scopeRefused: "Diese Erlaubnis kann nicht für die Sitzung behalten werden (der Aufruf startet einen anderen Befehl, oder die Sitzung bietet es nicht an). Einmal erlauben oder ablehnen.",
     allowed: "Erlaubt",
     allowedSession: "Für die Sitzung erlaubt",
-    allowedAlways: "Immer erlaubt",
     denied: "Abgelehnt"
   }
 } satisfies Translation<'chatA-tools'>

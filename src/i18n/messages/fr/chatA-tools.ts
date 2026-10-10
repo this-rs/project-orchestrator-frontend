@@ -158,13 +158,12 @@ export default {
     actions: "Répondre à cette demande d'autorisation",
     allowOnce: "Autoriser une fois",
     allowSession: "Pour la session",
-    allowAlways: "Toujours",
     deny: "Refuser",
-    sessionHint: "Plus demandé dans cette conversation",
-    alwaysHint: "Plus demandé dans ce projet, même après un redémarrage",
+    sessionHint: "Plus demandé dans cette conversation pour cet appel exact (tout appel, pour un outil en lecture seule)",
+    awaiting: "En attente de la confirmation…",
+    scopeRefused: "Cette autorisation ne peut pas être gardée pour la session (l'appel lance une autre commande, ou la session ne le propose pas). Répondez une fois ou refusez.",
     allowed: "Autorisé",
     allowedSession: "Autorisé pour la session",
-    allowedAlways: "Toujours autorisé",
     denied: "Refusé"
   }
 } satisfies Translation<'chatA-tools'>
