@@ -25,7 +25,7 @@ import { TONE_CLASSES } from '@/components/ui/statusMeta'
 import { buildAxis, toX, type Axis } from './axis'
 import { concurrencyOf } from './gantt'
 import type { TimelineItem, TimelineLane } from './model'
-import { DEFAULT_TIMELINE_LABELS, STATUS_TONE, describeContext, formatItemDuration, type TimelineLabels } from './status'
+import { DEFAULT_TIMELINE_LABELS, STATUS_TONE, describeContext, formatItemDuration, runNote, type TimelineLabels } from './status'
 import { TraceDetail } from './TraceDetail'
 import { TraceMinimap } from './TraceMinimap'
 import { KIND_BAR, KIND_SWATCH, statusBar } from './traceStyle'
@@ -129,6 +129,16 @@ function sameRow(a: RowProps, b: RowProps): boolean {
   )
 }
 
+/** "≈" before a duration the engine may have measured short (a wait it missed). */
+function IncompleteMark({ label }: { label: string }) {
+  return (
+    <span className="me-0.5 text-amber-300" title={label} data-testid="timing-incomplete">
+      <span aria-hidden="true">≈</span>
+      <span className="sr-only">{label}</span>
+    </span>
+  )
+}
+
 function Bar({ node, view, axis }: { node: TraceNode; view: View; axis: Axis | null }) {
   if (!axis || node.start == null || node.end == null) return null
   const left = viewPct(view, toX(axis, node.start))
@@ -168,6 +178,7 @@ const Row = memo(function Row({ node, top, height, view, axis, wide, selected, f
   const title = isLane ? node.lane.title : (item?.label ?? '')
   const context = isLane ? [relation, describeContext(node.lane.context ?? (item ? { provider: item.provider, model: item.model } : undefined))].filter(Boolean).join(' · ') : ''
   const self = node.children.length > 0 && node.start != null ? `${L.detail.self}: ${formatItemDuration(node.selfMs)}` : ''
+  const timingNote = runNote(item, L.detail)
   const hasChildren = node.children.length > 0
   const indent = node.depth * (wide ? INDENT_PX : 10)
 
@@ -209,8 +220,8 @@ const Row = memo(function Row({ node, top, height, view, axis, wide, selected, f
       aria-posinset={posInSet}
       aria-expanded={hasChildren ? expanded : undefined}
       aria-selected={selected}
-      aria-label={[kindWord, title, statusWord, duration, self, item?.model].filter(Boolean).join(' — ')}
-      title={[title, statusWord, duration, self, item?.provider, item?.model].filter(Boolean).join(' — ')}
+      aria-label={[kindWord, title, statusWord, duration, self, timingNote, item?.model].filter(Boolean).join(' — ')}
+      title={[title, statusWord, duration, self, timingNote, item?.provider, item?.model].filter(Boolean).join(' — ')}
       tabIndex={focused ? 0 : -1}
       data-row-key={node.key}
       data-timeline-item={item?.id}
@@ -225,13 +236,13 @@ const Row = memo(function Row({ node, top, height, view, axis, wide, selected, f
         <div className="grid h-full items-center gap-x-2 pe-2" style={{ gridTemplateColumns: `${TREE_COLUMN} minmax(0,1fr) 4rem` }}>
           {label}
           {track}
-          <span className="text-end tabular-nums text-[10px] text-gray-400">{duration ?? '—'}</span>
+          <span className="text-end tabular-nums text-[10px] text-gray-400">{item?.timingIncomplete && <IncompleteMark label={L.detail.incomplete} />}{duration ?? '—'}</span>
         </div>
       ) : (
         <div className="flex h-full flex-col justify-center px-1">
           <div className="flex min-h-0 items-center gap-2">
             <span className="min-w-0 flex-1">{label}</span>
-            <span className="shrink-0 tabular-nums text-[11px] text-gray-400">{duration ?? '—'}</span>
+            <span className="shrink-0 tabular-nums text-[11px] text-gray-400">{item?.timingIncomplete && <IncompleteMark label={L.detail.incomplete} />}{duration ?? '—'}</span>
           </div>
           <div className="h-3.5">{track}</div>
         </div>
