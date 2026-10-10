@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  lockedVault: {
+    resent: "保险库已解锁：正在重新发送您的消息。",
+    fallbacksLabel: "或不使用保险库继续：",
+    useModel: "使用 {model}（{provider}）",
+  },
   vaultUnlock: {
     locked: "保险库已锁定",
     placeholder: "保险库口令",

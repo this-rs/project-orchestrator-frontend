@@ -1,6 +1,7 @@
 import { AlertTriangle, X } from 'lucide-react'
 import type { ChatSessionOpenError } from '@/atoms'
 import { ProviderStateCard } from './ProviderStateCard'
+import type { ProviderFallback } from '@/types/provider'
 import { panelGlass } from '@/components/ui/panelGlass'
 
 interface SessionOpenErrorProps {
@@ -8,6 +9,8 @@ interface SessionOpenErrorProps {
   onDismiss: () => void
   /** Send the unsent message again. */
   onRetry?: () => void
+  /** Send the unsent message again on this model (a vault-free fallback). */
+  onRetryWith?: (fallback: ProviderFallback) => void
   /** Project the conversation was about (names it in the consent card). */
   projectSlug?: string | null
 }
@@ -20,13 +23,14 @@ interface SessionOpenErrorProps {
  * per `error.info.code` (`ProviderStateCard`). An untyped failure keeps the
  * plain alert with the server's sentence.
  */
-export function SessionOpenError({ error, onDismiss, onRetry, projectSlug }: SessionOpenErrorProps) {
+export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, projectSlug }: SessionOpenErrorProps) {
   if (error.info) {
     return (
       <ProviderStateCard
         error={error.info.message ? error.info : { ...error.info, message: error.message }}
         projectSlug={projectSlug}
         onRetry={onRetry}
+        onRetryWith={onRetryWith}
         onDismiss={onDismiss}
         floating
         className="mx-3 mb-1"

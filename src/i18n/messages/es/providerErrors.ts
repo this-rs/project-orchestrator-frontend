@@ -79,6 +79,8 @@ export default {
     no_provider: 'Ninguna instancia de proveedor está sana y permitida para este proyecto, así que no se puede iniciar una conversación. Añade o repara una en los ajustes de proveedores.',
     auth_required: 'Este proveedor necesita que inicies sesión. Ejecuta el comando de abajo en un terminal y vuelve a comprobar. Project Orchestrator no inicia sesión por ti.',
     credentials_locked: 'La credencial de este proveedor está en la bóveda, y la bóveda está bloqueada. Desbloquéala para continuar. No hay respaldo en otro proveedor.',
+    credentialsLockedAuto: "Auto enrutaría a proveedores cuya clave está en la bóveda, y la bóveda está bloqueada. Desbloquéala para enviar tu mensaje.",
+    credentialsLockedAutoFallbacks: "Auto enrutaría a proveedores cuya clave está en la bóveda, y la bóveda está bloqueada. Desbloquéala para enviar tu mensaje, o continúa con un modelo que no la necesita.",
     unauthorized: 'El proveedor rechazó la credencial de esta instancia. Comprueba la clave a la que se refiere en los ajustes de la instancia.',
     endpoint_unreachable: 'El endpoint de este proveedor no respondió.',
     instance_not_found: 'La instancia de proveedor en la que se ejecutaba esta conversación se eliminó. No se puede retomar: inicia una nueva conversación.',

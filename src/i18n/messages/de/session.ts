@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  lockedVault: {
+    resent: "Tresor entsperrt: Ihre Nachricht wird erneut gesendet.",
+    fallbacksLabel: "Oder ohne Tresor fortfahren:",
+    useModel: "{model} verwenden ({provider})",
+  },
   vaultUnlock: {
     locked: "Tresor gesperrt",
     placeholder: "Passphrase des Tresors",

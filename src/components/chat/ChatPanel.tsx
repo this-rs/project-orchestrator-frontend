@@ -5,7 +5,8 @@ import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
 import { useT } from '@/i18n'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom } from '@/atoms'
+import type { ProviderFallback } from '@/types/provider'
 import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
@@ -290,6 +291,19 @@ export function ChatPanel() {
     handleSend(draft || sessionOpenError.text, sessionOpenError.attachments.length > 0 ? sessionOpenError.attachments : undefined)
   }, [sessionOpenError, store, handleSend])
 
+  /** Same, on a model that needs no vault: the draft becomes strict on it, as if ticked in the menu. */
+  const retrySessionOpenWith = useCallback(
+    (fallback: ProviderFallback) => {
+      store.set(chatDraftAutoAtom, false)
+      store.set(chatDraftSelectionAtom, [{ provider: fallback.provider_id, model: fallback.model }])
+      store.set(chatSelectedProviderAtom, fallback.provider_id)
+      store.set(chatSessionModelAtom, fallback.model)
+      store.set(chatForcedTargetAtom, true)
+      retrySessionOpen()
+    },
+    [store, retrySessionOpen],
+  )
+
   const handleContinue = useCallback(() => {
     chat.sendContinue()
   }, [chat.sendContinue])
@@ -420,6 +434,7 @@ export function ChatPanel() {
           error={sessionOpenError}
           onDismiss={dismissSessionOpenError}
           onRetry={retrySessionOpen}
+          onRetryWith={retrySessionOpenWith}
           projectSlug={selectedProject?.slug}
         />
       )}

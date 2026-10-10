@@ -20,9 +20,11 @@ const UNLOCK_MINUTES = 60
 interface VaultUnlockProps {
   /** Called once the vault is open: the caller re-reads the providers that depend on it. */
   onUnlocked: () => void
+  /** The status line once unlocked; the default says the providers were refreshed. */
+  doneText?: string
 }
 
-export function VaultUnlock({ onUnlocked }: VaultUnlockProps) {
+export function VaultUnlock({ onUnlocked, doneText }: VaultUnlockProps) {
   const { t } = useT()
   const inputId = useId()
   const [passphrase, setPassphrase] = useState('')
@@ -61,7 +63,7 @@ export function VaultUnlock({ onUnlocked }: VaultUnlockProps) {
     return (
       <p ref={doneRef} tabIndex={-1} role="status" className="flex items-center gap-1.5 text-xs text-emerald-200 focus:outline-none">
         <Check className="h-3 w-3 shrink-0" aria-hidden="true" />
-        {t('session.vaultUnlock.done')}
+        {doneText ?? t('session.vaultUnlock.done')}
       </p>
     )
   }

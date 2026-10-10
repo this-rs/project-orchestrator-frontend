@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  lockedVault: {
+    resent: "Bóveda desbloqueada: tu mensaje se está enviando de nuevo.",
+    fallbacksLabel: "O continuar sin la bóveda:",
+    useModel: "Usar {model} ({provider})",
+  },
   vaultUnlock: {
     locked: "Bóveda bloqueada",
     placeholder: "Frase de contraseña de la bóveda",

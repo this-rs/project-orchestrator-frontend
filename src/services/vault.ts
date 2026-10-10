@@ -140,8 +140,14 @@ export function isVaultLockedError(e: unknown): boolean {
   return e instanceof ApiError && (e.status === 409 || (e.status === 403 && /passphrase/i.test(e.message)))
 }
 
-/** The server answers `{"error": "..."}`; show the sentence, not the JSON. */
-export const vaultErrorMessage = apiErrorMessage
+/**
+ * The server answers `{"error": "..."}`; show the sentence, not the JSON.
+ * A function, not an alias: read when called, so a module that imports this file
+ * (the chat cards, through `VaultUnlock`) still loads where `@/services/api` is mocked.
+ */
+export function vaultErrorMessage(e: unknown): string {
+  return apiErrorMessage(e)
+}
 
 /** Durations offered everywhere, so choices stay consistent. */
 export const DURATION_CHOICES: { label: string; minutes: number }[] = [

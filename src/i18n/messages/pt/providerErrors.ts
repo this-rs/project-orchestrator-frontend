@@ -79,6 +79,8 @@ export default {
     no_provider: 'Nenhuma instância de provedor está saudável e permitida para este projeto, então não é possível iniciar uma conversa. Adicione ou conserte uma nas configurações de provedores.',
     auth_required: 'Este provedor exige que você faça login. Execute o comando abaixo em um terminal e verifique de novo. O Project Orchestrator não faz o login por você.',
     credentials_locked: 'A credencial deste provedor está no cofre, e o cofre está bloqueado. Desbloqueie-o para continuar. Não há reserva em outro provedor.',
+    credentialsLockedAuto: "O Auto encaminharia para provedores cuja chave está no cofre, e o cofre está bloqueado. Desbloqueie-o para enviar sua mensagem.",
+    credentialsLockedAutoFallbacks: "O Auto encaminharia para provedores cuja chave está no cofre, e o cofre está bloqueado. Desbloqueie-o para enviar sua mensagem, ou continue com um modelo que não precisa dele.",
     unauthorized: 'O provedor recusou a credencial desta instância. Verifique a chave a que ela se refere nas configurações da instância.',
     endpoint_unreachable: 'O endpoint deste provedor não respondeu.',
     instance_not_found: 'A instância de provedor em que esta conversa rodava foi excluída. Ela não pode ser retomada: inicie uma nova conversa.',

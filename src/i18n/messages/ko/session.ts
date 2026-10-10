@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  lockedVault: {
+    resent: "보관함 잠금 해제됨: 메시지를 다시 보내는 중입니다.",
+    fallbacksLabel: "또는 보관함 없이 계속:",
+    useModel: "{model} 사용 ({provider})",
+  },
   vaultUnlock: {
     locked: "보관함이 잠겨 있습니다",
     placeholder: "보관함 암호 구절",

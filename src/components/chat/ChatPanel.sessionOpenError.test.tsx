@@ -18,6 +18,13 @@ import {
   type ChatSessionOpenError,
 } from '@/atoms'
 import type { Project } from '@/types'
+import {
+  chatDraftAutoAtom,
+  chatDraftSelectionAtom,
+  chatForcedTargetAtom,
+  chatSelectedProviderAtom,
+  chatSessionModelAtom,
+} from '@/atoms'
 
 const chatStub = {
   sessionId: null as string | null,
@@ -174,5 +181,33 @@ describe('ChatPanel — a conversation that could not be opened', () => {
       process.off('unhandledRejection', unhandled)
       logged.mockRestore()
     }
+  })
+})
+
+describe('ChatPanel — Auto refused on a locked vault', () => {
+  it('a fallback model makes the draft strict on it and sends the message again', async () => {
+    const store = renderPanel('open', (s) => {
+      s.set(chatDraftAutoAtom, true)
+      s.set(chatSessionOpenErrorAtom, {
+        info: {
+          code: 'credentials_locked',
+          message: 'The credential store is locked. Unlock it and try again.',
+          fallbacks: [{ provider_id: 'ollama', model: 'qwen3' }],
+          status: 423,
+        },
+        message: 'The credential store is locked. Unlock it and try again.',
+        text: 'Plan the release',
+        attachments: [],
+      })
+    })
+    const alert = await screen.findByRole('alert')
+    fireEvent.click(within(alert).getByTestId('locked-vault-fallback'))
+    expect(store.get(chatDraftAutoAtom)).toBe(false)
+    expect(store.get(chatDraftSelectionAtom)).toEqual([{ provider: 'ollama', model: 'qwen3' }])
+    expect(store.get(chatSelectedProviderAtom)).toBe('ollama')
+    expect(store.get(chatSessionModelAtom)).toBe('qwen3')
+    expect(store.get(chatForcedTargetAtom)).toBe(true)
+    expect(chatStub.sendMessage).toHaveBeenCalledTimes(1)
+    expect(chatStub.sendMessage.mock.calls[0][0]).toBe('Plan the release')
   })
 })
