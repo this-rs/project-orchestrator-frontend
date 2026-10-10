@@ -276,6 +276,10 @@ export function useChat() {
   }, [messages])
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const wsRef = useRef<ChatWebSocket | null>(null)
+  // The permission request last answered with a lasting scope and not yet confirmed: a
+  // `permission_scope_unsupported` error refers to it (the backend refused the scope, the
+  // request still waits).
+  const pendingScopedAnswerRef = useRef<string | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [sessionMeta, setSessionMeta] = useState<SessionMeta | null>(null)
 
@@ -487,6 +491,31 @@ export function useChat() {
       return
     }
 
+    // A lasting scope the backend refused: the request still waits; its block shows the
+    // refusal and can be answered again (never shown as allowed).
+    if (
+      event.type === 'error' &&
+      !event.replaying &&
+      (event as { code?: string }).code === 'permission_scope_unsupported' &&
+      pendingScopedAnswerRef.current
+    ) {
+      const refusedId = pendingScopedAnswerRef.current
+      pendingScopedAnswerRef.current = null
+      const refusedScope = (event as { reason?: string }).reason
+      const at = Date.now()
+      setMessages((prev) =>
+        prev.map((msg) => ({
+          ...msg,
+          blocks: msg.blocks.map((block) =>
+            block.type === 'permission_request' && block.metadata?.tool_call_id === refusedId
+              ? { ...block, metadata: { ...block.metadata, scope_refused: { scope: refusedScope, at } } }
+              : block,
+          ),
+        })),
+      )
+      return
+    }
+
     // permission_decision — stamp the decision onto the matching permission_request block
     if (event.type === 'permission_decision') {
       const data = event.replaying
@@ -495,13 +524,17 @@ export function useChat() {
       const decisionId = (data as { id?: string }).id
       const allowed = (data as { allow?: boolean }).allow
       const lasting = (data as { scope?: string }).scope
+      const rule = (data as { rule?: string }).rule
+      if (decisionId && decisionId === pendingScopedAnswerRef.current) {
+        pendingScopedAnswerRef.current = null
+      }
       if (decisionId) {
         setMessages((prev) =>
           prev.map((msg) => ({
             ...msg,
             blocks: msg.blocks.map((block) => {
               if (block.type === 'permission_request' && block.metadata?.tool_call_id === decisionId) {
-                return { ...block, metadata: { ...block.metadata, decided: true, decision: allowed ? 'allowed' : 'denied', decision_scope: lasting } }
+                return { ...block, metadata: { ...block.metadata, decided: true, decision: allowed ? 'allowed' : 'denied', decision_scope: lasting, decision_rule: rule } }
               }
               return block
             }),
@@ -2140,9 +2173,13 @@ export function useChat() {
     scope?: PermissionScope,
   ): boolean => {
     if (!sessionId) return false
-    // How long an approval lasts is kept by the provider (`session`) or by the
-    // backend / the CLI (`always`): the backend says so with `permission_decision.scope`.
-    return getWs().sendPermissionResponse(toolCallId, allowed, scope)
+    // How long an approval lasts is the backend's business: it confirms with
+    // `permission_decision` (scope + rule) or refuses with `permission_scope_unsupported`.
+    const sent = getWs().sendPermissionResponse(toolCallId, allowed, scope)
+    if (sent && allowed && scope && scope !== 'once') {
+      pendingScopedAnswerRef.current = toolCallId
+    }
+    return sent
   }, [sessionId, getWs])
 
   /**

@@ -158,13 +158,12 @@ export default {
     actions: "Responder a este pedido de permissão",
     allowOnce: "Permitir uma vez",
     allowSession: "Para esta sessão",
-    allowAlways: "Sempre",
     deny: "Negar",
-    sessionHint: "Não será perguntado de novo nesta conversa",
-    alwaysHint: "Não será perguntado de novo neste projeto, nem após reiniciar",
+    sessionHint: "Não será perguntado de novo nesta conversa para esta chamada exata (qualquer chamada, para uma ferramenta só de leitura)",
+    awaiting: "Aguardando a confirmação…",
+    scopeRefused: "Esta permissão não pode ser mantida para a sessão (a chamada executa outro comando, ou a sessão não a oferece). Responda uma vez ou negue.",
     allowed: "Permitido",
     allowedSession: "Permitido para a sessão",
-    allowedAlways: "Sempre permitido",
     denied: "Negado"
   }
 } satisfies Translation<'chatA-tools'>

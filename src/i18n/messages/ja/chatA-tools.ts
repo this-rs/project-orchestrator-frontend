@@ -158,13 +158,12 @@ export default {
     actions: "この許可リクエストに応答",
     allowOnce: "今回のみ許可",
     allowSession: "このセッション中",
-    allowAlways: "常に",
     deny: "拒否",
-    sessionHint: "この会話では再確認しません",
-    alwaysHint: "このプロジェクトでは再起動後も再確認しません",
+    sessionHint: "この会話では同じ呼び出しを再確認しません（読み取り専用ツールは全呼び出し）",
+    awaiting: "確認を待っています…",
+    scopeRefused: "この許可はセッション中保持できません（別のコマンドを実行する呼び出し、またはセッションが提供していません）。今回のみ許可するか拒否してください。",
     allowed: "許可済み",
     allowedSession: "セッション中は許可",
-    allowedAlways: "常に許可",
     denied: "拒否済み"
   }
 } satisfies Translation<'chatA-tools'>
