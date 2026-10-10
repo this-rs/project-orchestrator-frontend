@@ -1,23 +1,19 @@
 /**
- * The trace strip above the transcript.
+ * The conversation's trace, as the chat shows it (inside `<ChatTimelinePanel>`:
+ * a side panel on desktop, a full-screen view on a phone).
  *
  * Glue only: it loads the WHOLE conversation (every page of the history, its
  * relayed threads and its child sessions — `useConversationTrace`), turns it
  * into lanes (`buildConversationTimeline`) and hands them to the reusable
  * `<TraceView>`. Until the history arrives it shows what the transcript holds.
- * "Show in the conversation" scrolls the transcript to the block; the link
- * opens the dedicated page.
+ * "Show in the conversation" scrolls the transcript to the block.
  */
 import { memo, useCallback, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Maximize2 } from 'lucide-react'
-import { focusRing } from '@/components/ui/classes'
-import { useT } from '@/i18n'
+import { useNavigate } from 'react-router-dom'
 import { useTimelineLabels } from '@/hooks/useTimelineLabels'
 import { useConversationTrace } from '@/hooks/useConversationTrace'
 import type { ChatMessage } from '@/types'
 import { TraceView, buildConversationTimeline, buildTimeline, resolveTarget, type TimelineItem, type TimelineRunInput } from '@/components/timeline'
-import { workspacePath } from '@/utils/paths'
 import { useTimelineContext } from '@/hooks/useTimelineContext'
 
 interface ChatTimelineStripProps {
@@ -28,10 +24,13 @@ interface ChatTimelineStripProps {
   /** Detached runs known to the chat: shown until the session tree is loaded. */
   runs?: ReadonlyArray<TimelineRunInput>
   workspaceSlug?: string | null
+  /** Height of the rows area, in px (the panel gives what it has). */
+  maxRowsHeight?: number
+  /** Called after "Show in the conversation" scrolled to the block (the full-screen view closes so it can be seen). */
+  onShown?: () => void
 }
 
-export const ChatTimelineStrip = memo(function ChatTimelineStrip({ sessionId, messages, isStreaming, title, runs, workspaceSlug }: ChatTimelineStripProps) {
-  const { t } = useT()
+export const ChatTimelineStrip = memo(function ChatTimelineStrip({ sessionId, messages, isStreaming, title, runs, workspaceSlug, maxRowsHeight = 224, onShown }: ChatTimelineStripProps) {
   const labels = useTimelineLabels()
   // Re-read the routing decisions and the work graph when a turn ends, not on every token.
   const context = useTimelineContext(sessionId, isStreaming)
@@ -50,34 +49,24 @@ export const ChatTimelineStrip = memo(function ChatTimelineStrip({ sessionId, me
     const findBlock = (anchorId: string) =>
       Array.from(document.querySelectorAll<HTMLElement>('[data-tool-call-id]')).find((el) => el.dataset.toolCallId === anchorId)
     const target = resolveTarget(item, { workspaceSlug, sessionId, blockInPage: (a) => !!findBlock(a) })
-    if (target.type === 'scroll') findBlock(target.anchorId)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
-    else navigate(target.to)
-  }, [navigate, sessionId, workspaceSlug])
+    if (target.type === 'scroll') {
+      findBlock(target.anchorId)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+      onShown?.()
+    } else navigate(target.to)
+  }, [navigate, sessionId, workspaceSlug, onShown])
 
   return (
-    <div className="flex max-h-[min(60dvh,36rem)] shrink-0 items-start gap-2 overflow-y-auto border-b border-white/10 bg-slate-900/60 px-3 py-1" data-testid="chat-timeline-strip">
-      <div className="min-w-0 flex-1">
-        <TraceView
-          lanes={timeline.lanes}
-          onOpen={handleOpen}
-          labels={labels}
-          maxRowsHeight={224}
-          detail="below"
-          loading={sessionId ? trace.loading : null}
-          failed={trace.failed}
-          onRetry={trace.retry}
-        />
-      </div>
-      {sessionId && workspaceSlug && (
-        <Link
-          to={workspacePath(workspaceSlug, `/chat/${sessionId}/timeline`)}
-          className={`inline-flex size-11 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200 md:size-8 ${focusRing}`}
-          title={t('session.timeline.openPage')}
-          aria-label={t('session.timeline.openPage')}
-        >
-          <Maximize2 className="size-4" aria-hidden="true" />
-        </Link>
-      )}
+    <div className="min-w-0" data-testid="chat-timeline-strip">
+      <TraceView
+        lanes={timeline.lanes}
+        onOpen={handleOpen}
+        labels={labels}
+        maxRowsHeight={maxRowsHeight}
+        detail="below"
+        loading={sessionId ? trace.loading : null}
+        failed={trace.failed}
+        onRetry={trace.retry}
+      />
     </div>
   )
 })

@@ -29,11 +29,10 @@ const goTo = (name: RegExp) => {
 }
 
 describe('<ChatTimelineStrip>', () => {
-  it('shows the work lane, the conversation with its provider · model, and links to the page', () => {
+  it('shows the work lane and the conversation with its provider · model', () => {
     strip()
     expect(screen.getByRole('treeitem', { name: /Ship/ })).toBeTruthy()
     expect(screen.getByText('native · deepseek-chat')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Open the full timeline' }).getAttribute('href')).toBe('/workspace/ws/chat/s/timeline')
   })
 
   it('scrolls to a call whose block is on the page', () => {

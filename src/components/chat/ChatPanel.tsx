@@ -33,7 +33,7 @@ import { SecretRequestTray } from './SecretRequestTray'
 import { SessionOpenError } from './SessionOpenError'
 import { FollowNotice } from './FollowNotice'
 import { ComposerDock } from './ComposerDock'
-import { ChatTimelineStrip } from './ChatTimelineStrip'
+import { ChatTimelinePanel } from './ChatTimelinePanel'
 import { collectRunning } from './runningActivity'
 import type { RunActions } from './ActivityBar'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
@@ -77,7 +77,13 @@ export function ChatPanel() {
   const [panelWidth, setPanelWidth] = useAtom(chatPanelWidthAtom)
   const [showSessions, setShowSessions] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const timelineOpen = useAtomValue(chatTimelineOpenAtom)
+  const [timelineOpen, setTimelineOpen] = useAtom(chatTimelineOpenAtom)
+  const closeTimeline = useCallback(() => setTimelineOpen(false), [setTimelineOpen])
+  // On a phone the timeline is a full-screen view: one left open on a previous visit
+  // must not cover the chat when it opens again. (Desktop keeps remembering it.)
+  useEffect(() => {
+    if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches) setTimelineOpen(false)
+  }, [setTimelineOpen])
   // Height of the composer floating over the bottom of the transcript (see ComposerDock)
   const [dockHeight, setDockHeight] = useState(0)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
@@ -665,9 +671,6 @@ export function ChatPanel() {
                     onStopRun={handleStopRun}
                   />
                 )}
-                {timelineOpen && (
-                  <ChatTimelineStrip sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
-                )}
                 {/* The composer floats over the transcript: the messages scroll under its glass. */}
                 <div className="relative flex flex-1 min-h-0 flex-col">
                   <RefsAnnouncer />
@@ -717,6 +720,10 @@ export function ChatPanel() {
                 </div>
               </div>
 
+              {/* Timeline: a right-hand column on desktop, a full-screen view on a phone */}
+              {timelineOpen && (
+                <ChatTimelinePanel placement="column" onClose={closeTimeline} sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
+              )}
               {/* Agent Tree right panel — fullscreen layout */}
               {showAgentTree && rootSessionId && (
                 <div className="w-80 shrink-0 border-l border-white/[0.06] flex flex-col overflow-y-auto p-3">
@@ -905,9 +912,6 @@ export function ChatPanel() {
               onStopRun={handleStopRun}
             />
           )}
-          {timelineOpen && (
-            <ChatTimelineStrip sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
-          )}
           {/* The composer floats over the transcript: the messages scroll under its glass. */}
           <div className="relative flex flex-1 min-h-0 flex-col">
             <RefsAnnouncer />
@@ -958,6 +962,10 @@ export function ChatPanel() {
         </>
       )}
     </div>
+    {/* Timeline: a side panel against the docked chat on desktop, a full-screen view on a phone */}
+    {isOpen && timelineOpen && (
+      <ChatTimelinePanel placement="docked" dockOffset={panelWidth} onClose={closeTimeline} sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
+    )}
     </ChatCapabilitiesProvider>
     </ChatSessionProvider>
   )
