@@ -85,10 +85,10 @@ describe('chat contract — field level', () => {
     expect(checkContract(target!)).toEqual([])
   })
 
-  it('counts 33 event variants and 9 client messages', () => {
-    expect(Object.keys(CHAT_EVENT_FIELDS)).toHaveLength(33)
+  it('counts 35 event variants and 9 client messages', () => {
+    expect(Object.keys(CHAT_EVENT_FIELDS)).toHaveLength(35)
     expect(Object.keys(WS_CLIENT_MESSAGE_TYPES)).toHaveLength(9)
-    expect(new Set(contract.events.map((e) => e.type)).size).toBe(33)
+    expect(new Set(contract.events.map((e) => e.type)).size).toBe(35)
   })
 
   it('no longer treats partial_text and viz_block as events, and knows compaction_recovery and cancel_tools', () => {
@@ -231,6 +231,12 @@ describe('provider-additions routing enums', () => {
   it('accepts routed_by "auto" and every other value of the fixture', () => {
     expect(checkProviderAdditions(additions)).toEqual([])
     expect(additions.rest?.ChatSession?.routed_by).toMatchObject({ enum: expect.arrayContaining(['auto']) })
+  })
+
+  it('reads the routing mode a new conversation may ask for (CreateSessionRequest.routing_mode)', () => {
+    expect(additions.rest?.CreateSessionRequest?.routing_mode).toMatchObject({ enum: ['primary', 'mixed', 'full'] })
+    const bad = { rest: { CreateSessionRequest: { routing_mode: { enum: ['primary', 'random'] } } } } as ProviderAdditionsFile
+    expect(checkProviderAdditions(bad)).toEqual(['`CreateSessionRequest.routing_mode` may be `random` on the wire but the frontend does not know that value'])
   })
 
   it('flags a routed_by value the frontend does not know', () => {

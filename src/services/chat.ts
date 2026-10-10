@@ -23,7 +23,11 @@ import type {
   SessionInfo,
   SessionTreeNode,
   SessionWithLinks,
+  SwitchProviderRequest,
+  SwitchProviderResponse,
 } from '@/types'
+import type { ProviderErrorInfo } from '@/types/provider'
+import { toProviderError } from './providers'
 
 interface ListSessionsParams {
   limit?: number
@@ -264,4 +268,41 @@ export function conversationRoutingRefusal(err: unknown): ConversationRoutingRef
     // Not the typed body: the generic refusal.
   }
   return 'failed'
+}
+
+/**
+ * `POST /api/chat/sessions/{id}/switch-provider`: continue THIS conversation on another
+ * provider. The server opens a new session there, replays the history to it as text
+ * (the oldest entries may be left out to fit), sends `message`, then closes this one.
+ * A refusal leaves the current session untouched.
+ */
+export function switchConversationProvider(sessionId: string, body: SwitchProviderRequest): Promise<SwitchProviderResponse> {
+  return api.post<SwitchProviderResponse>(`/chat/sessions/${sessionId}/switch-provider`, body)
+}
+
+/** Why a provider switch was refused: a typed provider failure (consent, endpoint guard…), or one of the route's own refusals. */
+export type SwitchProviderRefusal =
+  | { kind: 'provider'; info: ProviderErrorInfo }
+  | { kind: 'forbidden' | 'not_found' | 'empty_message' | 'same_provider' | 'failed' }
+
+/** The typed reason of a refused switch, read from what the call threw. Never invents a code. */
+export function switchProviderRefusal(err: unknown): SwitchProviderRefusal {
+  const info = toProviderError(err)
+  if (info) return { kind: 'provider', info }
+  if (!(err instanceof ApiError)) return { kind: 'failed' }
+  if (err.status === 404) return { kind: 'not_found' }
+  if (err.status === 401 || err.status === 403) return { kind: 'forbidden' }
+  if (err.status === 400) {
+    // The route's own refusals are plain sentences (`{"error": "..."}`): told apart by their wording.
+    let text = err.message
+    try {
+      const body = JSON.parse(err.message) as { error?: unknown }
+      if (typeof body.error === 'string') text = body.error
+    } catch {
+      // Not JSON: the raw text.
+    }
+    if (/message is needed/i.test(text)) return { kind: 'empty_message' }
+    if (/already on/i.test(text)) return { kind: 'same_provider' }
+  }
+  return { kind: 'failed' }
 }

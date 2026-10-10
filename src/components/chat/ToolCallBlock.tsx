@@ -7,7 +7,7 @@ import type { ContentBlock } from '@/types'
 import { chatApi } from '@/services'
 import { ToolContent, getToolSummary, getToolIcon } from './tools'
 import { useElapsedMs, formatDurationShort } from './useElapsedMs'
-import { useChatCapabilities, useChatSessionId } from './ChatSessionContext'
+import { useCancelToolsLive, useChatCapabilities, useChatSessionId } from './ChatSessionContext'
 import { useBlockProviderKind } from './useBlockProviderKind'
 import { toolCancelUnsupportedText } from '@/constants/capabilities'
 import { ChevronRight, Square } from 'lucide-react'
@@ -39,6 +39,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const [stopRequested, setStopRequested] = useState(false)
   const sessionId = useChatSessionId()
+  const cancelToolsLive = useCancelToolsLive()
   const toolName = block.metadata?.tool_name as string || block.content
   const toolInput = (block.metadata?.tool_input as Record<string, unknown>) ?? {}
   const isError = resultBlock?.metadata?.is_error as boolean | undefined
@@ -103,6 +104,9 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
     e.stopPropagation()
     if (!sessionId || !stopSupported) return
     setStopRequested(true)
+    // The open chat socket first (`cancel_tools` frame): the cancelled tool_result and
+    // `tools_cancelled` come back on the stream like for the REST call. REST otherwise.
+    if (cancelToolsLive?.()) return
     try {
       const result = await chatApi.cancelTools(sessionId)
       if (result.capped) {

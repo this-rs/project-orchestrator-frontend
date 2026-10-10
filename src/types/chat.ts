@@ -347,6 +347,39 @@ export interface CreateSessionRequest {
 export interface CreateSessionResponse {
   session_id: string
   stream_url: string
+  /**
+   * `neutral` when the host made an empty working directory (no `cwd` sent); absent = `project`.
+   * Typed, deliberately ignored: this interface always sends a `cwd`.
+   */
+  execution_place?: 'project' | 'neutral'
+  /** Things the caller should know about how the session opened. Typed, not shown yet. */
+  notices?: string[]
+}
+
+/** Body of `POST /api/chat/sessions/{id}/switch-provider` (human only: an agent token gets 403). */
+export interface SwitchProviderRequest {
+  /** Provider instance the conversation moves to. */
+  provider: ProviderId
+  /** Model on that provider; absent = the instance's default. */
+  model?: string
+  /** The next message: required, sent on the new provider after the relayed history. */
+  message: string
+}
+
+/**
+ * What `POST /api/chat/sessions/{id}/switch-provider` answers: the conversation now
+ * runs in `session_id`, `previous_session_id` is closed.
+ */
+export interface SwitchProviderResponse {
+  session_id: string
+  stream_url: string
+  previous_session_id: string
+  /** Earlier entries replayed (as text) to the new provider. */
+  relayed_entries: number
+  /** Oldest entries left out to fit the target's context window (stated to the model). */
+  omitted_entries: number
+  /** The memory conversation both sessions share. Typed, not used by the interface yet. */
+  conversation_id?: string
 }
 
 // ============================================================================
@@ -445,13 +478,43 @@ export type ChatEvent =
       /** Classified failure behind `is_error` (nexus contract v2 `done.error`): a ProviderError with its `kind`. */
       error?: { kind: string; [field: string]: unknown }
     }
-  | ({ type: 'error'; message: string } & Nested)
+  | ({
+      type: 'error'
+      message: string
+      /**
+       * Typed refusal (`refs_invalid`…), with the index of the offending entry and why
+       * (`unknown_kind`…). Typed for the contract; the transcript shows `message`.
+       */
+      code?: string
+      index?: number
+      reason?: string
+    } & Nested)
   | { type: 'streaming_status'; is_streaming: boolean }
   | { type: 'permission_mode_changed'; mode: string; tool_policy?: ToolPolicy | ToolPolicyMode; policy_mode?: ToolPolicyMode }
   | { type: 'model_changed'; model: string; reason?: string | null }
   | { type: 'compaction_started'; trigger: string }
-  /** Emitted by `close_session`: the session is gone, do not reconnect. */
+  /** Emitted by `close_session`: the session is gone, do not reconnect. `reason`: `closed`, `idle` or `error`. */
   | { type: 'session_closed'; session_id: string; reason?: string }
+  /**
+   * The conversation moved to another provider. On the thread it LEFT: stored, then
+   * `session_closed` (an open tab follows `to_session_id`). On the thread it REACHED:
+   * before the user message, "N entries replayed, M left out".
+   */
+  | {
+      type: 'conversation_relayed'
+      from_session_id: string
+      to_session_id: string
+      from_provider: string
+      to_provider: string
+      relayed_entries: number
+      omitted_entries: number
+      /** `user` (the switch route) or `auto` (reserved for the router). */
+      moved_by: string
+      /** Shared memory conversation. Typed, not used by the interface yet. */
+      conversation_id?: string
+    }
+  /** How the server read the references of the user message above (contract C5). */
+  | RefsResolvedEvent
   | { type: 'compaction_recovery'; hint_tokens: number; build_latency_ms: number; recovery_success: boolean }
   | { type: 'compact_boundary'; trigger: string; pre_tokens?: number }
   | {
@@ -517,12 +580,23 @@ export const CHAT_EVENT_FIELDS = {
   permission_decision: { id: 'required', allow: 'required' },
   ask_user_question: { questions: 'required', tool_call_id: 'optional', id: 'optional', input: 'optional', synthetic: 'optional', parent_tool_use_id: 'optional' },
   result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional', stop_reason: 'optional', error: 'optional' },
-  error: { message: 'required', parent_tool_use_id: 'optional' },
+  error: { message: 'required', code: 'optional', index: 'optional', reason: 'optional', parent_tool_use_id: 'optional' },
   streaming_status: { is_streaming: 'required' },
   permission_mode_changed: { mode: 'required', tool_policy: 'optional', policy_mode: 'optional' },
   model_changed: { model: 'required', reason: 'optional' },
   compaction_started: { trigger: 'required' },
   session_closed: { session_id: 'required', reason: 'optional' },
+  conversation_relayed: {
+    from_session_id: 'required',
+    to_session_id: 'required',
+    from_provider: 'required',
+    to_provider: 'required',
+    relayed_entries: 'required',
+    omitted_entries: 'required',
+    moved_by: 'required',
+    conversation_id: 'optional',
+  },
+  refs_resolved: { refs: 'required' },
   compaction_recovery: { hint_tokens: 'required', build_latency_ms: 'required', recovery_success: 'required' },
   compact_boundary: { trigger: 'required', pre_tokens: 'optional' },
   system_init: { cli_session_id: 'optional', model: 'optional', tools: 'optional', mcp_servers: 'optional', permission_mode: 'optional', provider: 'optional', capabilities: 'optional', tool_policy: 'optional', policy_mode: 'optional', engine: 'optional', degraded_features: 'optional' },
@@ -561,19 +635,9 @@ export type ChatControlFrame =
 export type ChatLocalEvent =
   | { type: 'viz_block'; viz_type: string; data: Record<string, unknown>; interactive?: boolean; fallback_text: string; title?: string; max_height?: number }
 
-/**
- * Events the backend will emit (plan 57cf05c9, PR 3) but whose sample frames
- * are not in the vendored contract yet. Kept OUT of `ChatEvent` so the
- * contract test ("every variant has a frame") stays truthful; move it into
- * `ChatEvent` + `CHAT_EVENT_FIELDS` when the backend contract is re-vendored.
- * Its shape is checked against the golden fixture in `refs/__tests__`.
- */
-export type ChatPendingContractEvent = RefsResolvedEvent
-
 /** What the live reducer (`useChat.handleEvent`) receives. */
 export type ChatStreamEvent =
   | ChatEvent
-  | ChatPendingContractEvent
   | Extract<ChatControlFrame, { type: 'partial_text' }>
   | ChatLocalEvent
 
@@ -770,7 +834,7 @@ export interface MessageSearchResult {
 
 export interface ContentBlock {
   id: string
-  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init' | 'system_hint' | 'continue_indicator' | 'retry_indicator' | 'viz' | 'background_activity'
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init' | 'system_hint' | 'continue_indicator' | 'retry_indicator' | 'viz' | 'background_activity' | 'conversation_relayed' | 'session_closed' | 'compaction_recovery'
   content: string
   metadata?: Record<string, unknown>
 }

@@ -30,6 +30,7 @@ import { EngineBanner } from './EngineBanner'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { SecretRequestTray } from './SecretRequestTray'
 import { SessionOpenError } from './SessionOpenError'
+import { FollowNotice } from './FollowNotice'
 import { ComposerDock } from './ComposerDock'
 import { ChatTimelineStrip } from './ChatTimelineStrip'
 import { collectRunning } from './runningActivity'
@@ -404,6 +405,7 @@ export function ChatPanel() {
   // Everything said above the composer about the provider, shared by both layouts.
   const composerNotices = (
     <>
+      <FollowNotice sessionId={chat.sessionId} />
       {sessionOpenError && (
         <SessionOpenError
           error={sessionOpenError}
@@ -436,6 +438,7 @@ export function ChatPanel() {
   // On desktop: sidebar is a permanent 288px column
   if (isFullscreen) {
     return (
+      <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive}>
       <ChatCapabilitiesProvider capabilities={capabilities}>
       <div
         ref={panelRef}
@@ -722,12 +725,13 @@ export function ChatPanel() {
         </div>
       </div>
       </ChatCapabilitiesProvider>
+      </ChatSessionProvider>
     )
   }
 
   // --- PANEL LAYOUT (non-fullscreen): toggle-based session list ---
   return (
-    <ChatSessionProvider sessionId={chat.sessionId ?? null}>
+    <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive}>
     <ChatCapabilitiesProvider capabilities={capabilities}>
     <div
       ref={panelRef}

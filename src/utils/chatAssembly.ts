@@ -249,6 +249,66 @@ export function sessionErrorMetadata(evt: unknown): { code?: string; provider_er
   return info ? { code: info.code, provider_error: info } : {}
 }
 
+/**
+ * The block of a session-level event the transcript states on its own line:
+ * `conversation_relayed` (the conversation moved to another provider),
+ * `session_closed` (the server closed the session) and `compaction_recovery`
+ * (the context re-injected after a compaction). `null` for any other event.
+ * Shared by BOTH reducers; `content` is the plain sentence (export, screen
+ * readers), the component renders from `metadata` in the viewer's language.
+ */
+export function sessionEventBlock(evt: unknown): Omit<ContentBlock, 'id'> | null {
+  if (typeof evt !== 'object' || evt === null) return null
+  const e = evt as Record<string, unknown>
+  const str = (v: unknown) => (typeof v === 'string' ? v : '')
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+  switch (e.type) {
+    case 'conversation_relayed': {
+      const metadata = {
+        from_session_id: str(e.from_session_id),
+        to_session_id: str(e.to_session_id),
+        from_provider: str(e.from_provider),
+        to_provider: str(e.to_provider),
+        relayed_entries: num(e.relayed_entries),
+        omitted_entries: num(e.omitted_entries),
+        moved_by: str(e.moved_by) || 'user',
+      }
+      return {
+        type: 'conversation_relayed',
+        content: tr('app.chat.relayed', { from: metadata.from_provider, to: metadata.to_provider, relayed: metadata.relayed_entries, omitted: metadata.omitted_entries }),
+        metadata,
+      }
+    }
+    case 'session_closed': {
+      const reason = str(e.reason) || 'closed'
+      return { type: 'session_closed', content: sessionClosedText(reason), metadata: { reason } }
+    }
+    case 'compaction_recovery': {
+      const metadata = {
+        hint_tokens: num(e.hint_tokens),
+        build_latency_ms: num(e.build_latency_ms),
+        recovery_success: e.recovery_success === true,
+      }
+      return {
+        type: 'compaction_recovery',
+        content: metadata.recovery_success
+          ? tr('app.chat.compactionRecovered', { tokens: metadata.hint_tokens, ms: metadata.build_latency_ms })
+          : tr('app.chat.compactionRecoveryFailed', { ms: metadata.build_latency_ms }),
+        metadata,
+      }
+    }
+    default:
+      return null
+  }
+}
+
+/** The sentence of a closed session, by the reason the server gave (`closed`, `idle`, `error`). */
+export function sessionClosedText(reason: string): string {
+  if (reason === 'idle') return tr('app.chat.sessionClosed.idle')
+  if (reason === 'error') return tr('app.chat.sessionClosed.error')
+  return tr('app.chat.sessionClosed.closed')
+}
+
 /** Human text for a `tools_cancelled` event: how many processes were killed, and by whom. */
 export function toolsCancelledText(evt: { killed_count?: number; requested_by?: string }): string {
   const n = evt.killed_count ?? 0
@@ -547,6 +607,14 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
           content: sessionErrorText(evt),
           ...(typed.code ? { metadata: typed } : {}),
         })
+        break
+      }
+
+      case 'conversation_relayed':
+      case 'session_closed':
+      case 'compaction_recovery': {
+        const block = sessionEventBlock(evt)
+        if (block) lastAssistant(createdAt).blocks.push({ id: nextBlockId(), ...block })
         break
       }
 

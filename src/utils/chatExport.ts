@@ -57,6 +57,11 @@ function blockToMarkdown(block: ContentBlock): string {
     case 'compact_boundary':
       return `---\n*Context compacted*\n---`
 
+    case 'conversation_relayed':
+    case 'session_closed':
+    case 'compaction_recovery':
+      return `> *${block.content}*`
+
     case 'system_init': {
       // Which harness and model answered: a session without provider predates
       // providers, i.e. Claude Code.
