@@ -686,7 +686,8 @@ export function TraceView({
               <TraceMinimap axis={axis} view={view} overview={overview} onChange={(v) => move(v)} label={L.overview} windowLabel={L.window} idleLabel={labels.idle} tall={!wide} />
             </div>
           )}
-          <p className="truncate px-1 pb-1 text-[10px] text-gray-400" title={wide ? L.help : L.helpTouch}>{wide ? L.help : L.helpTouch}</p>
+          {/* A div, not a p: the global `p { text-wrap: pretty }` would undo `truncate` and wrap it. */}
+          <div className="truncate px-1 pb-1 text-[10px] text-gray-400" title={wide ? L.help : L.helpTouch} data-testid="trace-help">{wide ? L.help : L.helpTouch}</div>
 
           <div
             ref={gestureRef}
