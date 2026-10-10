@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pickModelResolver } from '@/constants/providers'
 import { distinctModels } from '@/utils/routingSelection'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -44,6 +44,7 @@ import {
   type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
+import { cancelNoticeMetadata, chipOutcomeOfNotice } from '@/utils/cancelFailure'
 import { tr } from '@/i18n/lazy'
 import { toProviderRef, toToolPolicy, type PermissionScope, type ToolPolicyMode } from '@/types/provider'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
@@ -1002,14 +1003,23 @@ export function useChat() {
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event
           const errParent = getParentToolUseId(event)
+          // A failed or refused cancel (`cancel_failed`, `cancel_refused`) is a notice
+          // on the turn: the turn goes on, so the stream is NOT stopped.
+          const cancelNotice = cancelNoticeMetadata(data)
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'error',
             content: (data as { message?: string }).message ?? tr('app.chat.unknownError'),
-            metadata: withParent(undefined, errParent),
+            metadata: withParent(cancelNotice ?? undefined, errParent),
           })
-          if (!event.replaying) {
+          if (!event.replaying && !cancelNotice) {
             setIsStreaming(false)
+          }
+          // The Stop chips whose request went over the socket get their answer here.
+          const noticeSid = cancelNotice && !event.replaying ? store.get(chatSessionIdAtom) : null
+          if (cancelNotice && noticeSid) {
+            const chip = chipOutcomeOfNotice(cancelNotice.code, cancelNotice.reason)
+            if (chip) store.set(chatLastCancelFailureAtom, { sessionId: noticeSid, reason: chip.reason, at: Date.now() })
           }
           break
         }

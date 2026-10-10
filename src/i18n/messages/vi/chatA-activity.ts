@@ -52,6 +52,15 @@ export default {
     stoppedMany: "Đã dừng {count} tiến trình con.",
     noPid: "Đã ghi nhận yêu cầu hủy nhưng không biết PID của tiến trình con — nếu tín hiệu vẫn tiếp tục đến, hãy dùng nút Dừng toàn cục."
   },
+  cancel: {
+    alreadyStopped: "đã dừng",
+    notStopped: "chưa dừng — hãy dùng nút Dừng toàn cục",
+    alreadyStoppedNotice: "Đã dừng — không còn gì đang chạy.",
+    retryNotice: "Chưa dừng được — hãy thử lại sau giây lát.",
+    timeoutNotice: "Lệnh dừng không nhận được phản hồi kịp thời — việc dừng vẫn có thể xảy ra.",
+    failedNotice: "Không dừng được các công cụ — hãy dùng nút Dừng toàn cục.",
+    taskRefusedNotice: "Nhà cung cấp này không thể dừng một tác vụ nền riêng lẻ. Dùng Dừng trong khung soạn để ngắt cả lượt."
+  },
   agent: {
     subAgent: "Sub-agent",
     toolOne: "{count} công cụ",
