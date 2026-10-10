@@ -10,7 +10,7 @@ import { focusRing } from '@/components/ui/classes'
 import { TONE_CLASSES } from '@/components/ui/statusMeta'
 import { RoutingDetail } from './EventChain'
 import { shortModel, type TimelineItem } from './model'
-import { DEFAULT_TIMELINE_LABELS, STATUS_TONE, formatItemDuration, type TimelineLabels } from './status'
+import { DEFAULT_TIMELINE_LABELS, STATUS_TONE, formatItemDuration, runNote, type TimelineLabels } from './status'
 import type { TraceNode } from './trace'
 import { KIND_SWATCH } from './traceStyle'
 import { formatClock, formatOffset } from './viewport'
@@ -117,6 +117,7 @@ export function TraceDetail({ node, origin, labels = DEFAULT_TIMELINE_LABELS, on
         ) : (
           <Fact name={L.detail.start}>{L.noDate}</Fact>
         )}
+        {item && runNote(item, L.detail) && <Fact name={L.detail.status}>{runNote(item, L.detail)}</Fact>}
         {item?.model && <Fact name={L.detail.model}>{shortModel(item.model)}</Fact>}
         {item?.provider && <Fact name={L.detail.provider}>{item.provider}</Fact>}
       </dl>

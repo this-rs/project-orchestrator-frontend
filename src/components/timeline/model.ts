@@ -46,6 +46,14 @@ export interface TimelineItem {
   routing?: RoutingDecision
   input?: unknown
   output?: string
+  /**
+   * What the engine's `tool_timing` says of a call's run: `ran` (the bar is the
+   * run), `denied` (the permission was refused: it never ran) or `unseen` (the
+   * engine did not see it start). Absent without a timing.
+   */
+  run?: 'ran' | 'denied' | 'unseen'
+  /** The engine's timing may have missed a wait (`tool_timing.incomplete`). */
+  timingIncomplete?: boolean
 }
 
 export interface TimelineLaneContext {
@@ -149,19 +157,71 @@ function toolLabel(name: string, input: Record<string, unknown>): string {
   return hint ? `${name} · ${clip(hint)}` : name
 }
 
+/** The run of a call as the engine saw it (`tool_timing`), all in epoch ms on the server's clock. */
+interface EngineRun {
+  /** The tool started running. Absent when it never ran or the engine did not see it start. */
+  start?: number
+  end: number
+  /** The model announced the call (`called_at`). */
+  called?: number
+  /** The wait for the user: asked, answered. */
+  asked?: number
+  answered?: number
+  denied: boolean
+  incomplete: boolean
+}
+
+const secondsToMs = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v * 1000 : undefined)
+
 /**
- * The run of a call as the engine saw it (`tool_timing`, seconds), in epoch ms.
- * `start` is absent when the engine did not see the tool start running (denied,
- * never answered, no host hook): the call keeps its announced start then.
+ * The run of a call from its `tool_timing` (seconds), or `null` without one.
+ * A denied call never ran: a `run_started_at` on it (sent by an older backend,
+ * equal to the answer) is not a run and is ignored.
  */
-function engineRun(timing: unknown): { start?: number; end: number } | null {
+function engineRun(timing: unknown): EngineRun | null {
   if (!timing || typeof timing !== 'object') return null
   const t = timing as Record<string, unknown>
-  if (typeof t.ended_at !== 'number') return null
+  const end = secondsToMs(t.ended_at)
+  if (end == null) return null
+  const denied = t.permission_outcome === 'denied'
+  const start = denied ? undefined : secondsToMs(t.run_started_at)
   return {
-    ...(typeof t.run_started_at === 'number' && { start: t.run_started_at * 1000 }),
-    end: t.ended_at * 1000,
+    ...(start != null && { start }),
+    end,
+    ...(secondsToMs(t.called_at) != null && { called: secondsToMs(t.called_at) }),
+    ...(secondsToMs(t.permission_requested_at) != null && { asked: secondsToMs(t.permission_requested_at) }),
+    ...(secondsToMs(t.permission_resolved_at) != null && { answered: secondsToMs(t.permission_resolved_at) }),
+    denied,
+    incomplete: t.incomplete === true,
   }
+}
+
+/**
+ * Draw a call from its engine run. With a run start, the bar is the run. Without
+ * one (denied, never answered, not seen), the call did not run as far as the
+ * engine knows: the bar goes from its announcement (the engine's `called_at`
+ * when there is one, so both ends are server times) to its end, and when the
+ * end comes before that start (two clocks), it gets no duration at all rather
+ * than a made-up 0 ms.
+ */
+function applyEngineRun(item: TimelineItem, run: EngineRun): void {
+  if (run.start != null) {
+    item.startedAt = run.start
+    item.endedAt = Math.max(run.end, run.start)
+    item.durationMs = item.endedAt - item.startedAt
+    item.run = 'ran'
+  } else {
+    if (run.called != null) item.startedAt = run.called
+    if (run.end >= item.startedAt) {
+      item.endedAt = run.end
+      item.durationMs = run.end - item.startedAt
+    } else {
+      delete item.endedAt
+      delete item.durationMs
+    }
+    item.run = run.denied ? 'denied' : 'unseen'
+  }
+  if (run.incomplete) item.timingIncomplete = true
 }
 
 function blockTime(block: ContentBlock, fallback: number): number {
@@ -227,6 +287,8 @@ export function buildTimeline(input: TimelineInput): Timeline {
   const byId = new Map<string, TimelineItem>()
   /** `tool_timing` of each call (on its tool_use block), when the backend sent one. */
   const timings = new Map<string, unknown>()
+  /** Permission items and the call each one is about, to place them once every timing is known. */
+  const permissions: Array<{ item: TimelineItem; callId: string }> = []
   let requestId: string | undefined
   /** The time of the latest thing seen in the current turn, to close the turn's span. */
   let turnLast = 0
@@ -282,7 +344,12 @@ export function buildTimeline(input: TimelineInput): Timeline {
         if (opener && !opener.model && model) opener.model = model
         if (opener && !opener.provider && provider) opener.provider = provider
       } else if (block.type === 'tool_use') {
-        if (block.metadata?.tool_timing) timings.set(callId, block.metadata.tool_timing)
+        if (block.metadata?.tool_timing) {
+          timings.set(callId, block.metadata.tool_timing)
+          // The turn lasts at least until the engine said the call ended.
+          const run = engineRun(block.metadata.tool_timing)
+          if (run) turnLast = Math.max(turnLast, run.end)
+        }
         const name = str(block.metadata?.tool_name) ?? block.content
         const toolInput = (block.metadata?.tool_input as Record<string, unknown> | undefined) ?? {}
         push({
@@ -311,9 +378,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
         if (run) {
           // The engine's own times: the run starts when the tool really started
           // (after a permission's answer), not when the model announced the call.
-          if (run.start != null) item.startedAt = run.start
-          item.endedAt = Math.max(run.end, item.startedAt)
-          item.durationMs = item.endedAt - item.startedAt
+          applyEngineRun(item, run)
         } else if (typeof duration === 'number') {
           item.durationMs = duration
           item.endedAt = item.startedAt + duration
@@ -322,7 +387,9 @@ export function buildTimeline(input: TimelineInput): Timeline {
           item.durationMs = Math.max(0, item.endedAt - item.startedAt)
         }
       } else if (block.type === 'permission_request' || block.type === 'ask_user_question') {
-        push({
+        // The call it is about: `tool_use_id` when the engine gave it (the control id is not the call's).
+        const aboutCall = str(block.metadata?.tool_use_id) ?? callId
+        const permission: TimelineItem = {
           id: `${block.type}:${callId}`,
           kind: 'permission',
           // The control id of a permission is not the tool call's id: the assembler stamps the answer on the block itself.
@@ -332,11 +399,13 @@ export function buildTimeline(input: TimelineInput): Timeline {
           label: clip(block.content) || 'Waiting for you',
           startedAt: blockTime(block, msgTime),
           laneId: sessionId,
-          parentId: byId.has(callId) ? callId : requestId,
+          parentId: byId.has(aboutCall) ? aboutCall : requestId,
           requestId,
-          anchorId: callId,
+          anchorId: aboutCall,
           ...ran(),
-        })
+        }
+        push(permission)
+        permissions.push({ item: permission, callId: aboutCall })
       } else if (block.type === 'error' || block.type === 'result_error') {
         push({
           id: block.id,
@@ -412,6 +481,22 @@ export function buildTimeline(input: TimelineInput): Timeline {
       }
     }
   })
+
+  // A permission the engine timed is the wait it measured: asked → answered, on
+  // the server's clock. It hangs below its call only when it falls inside it:
+  // the run of an allowed call starts at the answer, so the wait comes before
+  // the call's bar and goes beside it, under what the call hangs from.
+  for (const { item, callId } of permissions) {
+    const run = engineRun(timings.get(callId))
+    if (run?.asked != null) item.startedAt = run.asked
+    if (run?.answered != null && run.answered >= item.startedAt) {
+      item.endedAt = run.answered
+      item.durationMs = run.answered - item.startedAt
+      if (item.status === 'blocked') item.status = run.denied ? 'cancelled' : 'done'
+    }
+    const call = item.parentId ? byId.get(item.parentId) : undefined
+    if (call && call.id === callId && item.startedAt < call.startedAt) item.parentId = call.parentId ?? call.requestId
+  }
 
   // A turn the stream left without a result (an older page, an interrupted turn) still ends at its last event.
   const lastReq = requestId ? byId.get(requestId) : undefined

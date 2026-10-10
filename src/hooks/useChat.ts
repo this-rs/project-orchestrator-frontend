@@ -42,6 +42,9 @@ import {
   questionMetadata,
   answerSyntheticQuestion,
   attachToolTiming,
+  EarlyToolTimings,
+  serverTimeOf,
+  permissionCallOf,
   type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
@@ -311,6 +314,10 @@ export function useChat() {
   // then back to true after setMessages(history) + replaying buffered events.
   const historyLoadedRef = useRef(true)
   const pendingEventsRef = useRef<Array<ChatStreamEvent & { seq?: number; replaying?: boolean }>>([])
+  // The `tool_timing`s of this turn, by call id, for a call whose `tool_use` has
+  // not come yet. Read and written in handleEvent, never in a message updater
+  // (which must stay pure); cleared when the turn ends and on a session switch.
+  const earlyTimingsRef = useRef(new EarlyToolTimings())
 
   // ------------------------------------------------------------------------
   // Replay reconciliation — APPEND-ONLY, NEVER DESTRUCTIVE.
@@ -674,6 +681,19 @@ export function useChat() {
     // A closed session streams nothing more.
     if (event.type === 'session_closed' && !event.replaying) setIsStreaming(false)
 
+    // A timing may come before the tool_use of its call: it is held here, and the
+    // call takes it when it comes. Done before the updater, which must stay pure.
+    let earlyTiming: Record<string, unknown> | undefined
+    {
+      const payload = (event.replaying ? (event as { data?: Record<string, unknown> }).data ?? event : event) as Record<string, unknown>
+      if (event.type === 'tool_timing') earlyTimingsRef.current.hold(payload)
+      else if (event.type === 'tool_use' && typeof payload.id === 'string') earlyTiming = earlyTimingsRef.current.take(payload.id)
+      else if (event.type === 'result') earlyTimingsRef.current.clear()
+    }
+    // The server's time of this event (#662 envelope), when it carries one: a call
+    // is then measured on the server's clock, like its timing and like the history.
+    const serverTime = serverTimeOf(event)
+
     setMessages((prev) => {
       const updated = [...prev]
       let lastMsg = updated[updated.length - 1]
@@ -801,7 +821,7 @@ export function useChat() {
           const toolId = (data as { id?: string }).id ?? ''
           const toolInput = (data as { input?: Record<string, unknown> }).input ?? {}
           const tuParent = getParentToolUseId(event)
-          const tuTs = new Date().toISOString()
+          const tuTs = serverTime ?? new Date().toISOString()
 
           // Mid-stream join dedup: the WS snapshot replays the current stream
           // from its START, but the REST history already contains the events
@@ -878,6 +898,7 @@ export function useChat() {
                       ? { child_outputs: initialChildOutputs }
                       : {}),
                     ...(initialChildData ? { child_data: initialChildData } : {}),
+                    ...(earlyTiming ? { tool_timing: earlyTiming } : {}),
                   },
                   tuParent,
                 ),
@@ -939,7 +960,7 @@ export function useChat() {
           // Calculate tool duration from matching tool_use block
           let trDurationMs: number | undefined
           if (toolCallId) {
-            const now = Date.now()
+            const now = serverTime ? Date.parse(serverTime) : Date.now()
             for (let mi = updated.length - 1; mi >= 0; mi--) {
               const tuBlock = updated[mi].blocks.find(
                 (b) => b.type === 'tool_use' && b.metadata?.tool_call_id === toolCallId && b.metadata?.created_at,
@@ -965,7 +986,8 @@ export function useChat() {
         }
 
         case 'tool_timing': {
-          // Not a message: the timing of a call already shown, put on its tool_use block.
+          // Not a message: the timing of a call already shown, put on its tool_use block
+          // (one not shown yet takes it from `earlyTimingsRef` when it comes).
           const ttData = (event.replaying
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event) as Record<string, unknown>
@@ -1014,6 +1036,7 @@ export function useChat() {
               tool_name: (data as { tool?: string }).tool,
               tool_input: (data as { input?: Record<string, unknown> }).input,
               ...toolHintMetadata(data),
+              ...permissionCallOf(data),
             }, prParent),
           })
           break
@@ -1640,6 +1663,7 @@ export function useChat() {
     // will be queued in pendingEventsRef and replayed after setMessages().
     historyLoadedRef.current = false
     pendingEventsRef.current = []
+    earlyTimingsRef.current.clear()
 
     // Phase 1: Connect WS IMMEDIATELY for live streaming (parallel with REST).
     // This eliminates the latency of the old sequential approach where
