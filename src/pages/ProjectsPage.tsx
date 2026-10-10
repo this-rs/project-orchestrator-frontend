@@ -4,6 +4,7 @@ import { CheckSquare, Folder, Hash, Pencil, Trash2 } from 'lucide-react'
 import { projectRefreshAtom } from '@/atoms'
 import { projectsApi } from '@/services'
 import { workspacesApi } from '@/services/workspaces'
+import { useT } from '@/i18n'
 import type { EditProjectFormData } from '@/components/forms/EditProjectForm'
 import {
   BulkActionBar,
@@ -29,13 +30,7 @@ import type { TaskCounts } from '@/services/progress'
 import { CreateProjectForm, EditProjectForm } from '@/components/forms'
 import { workspacePath } from '@/utils/paths'
 import type { Project } from '@/types'
-import { NOMENCLATURE } from '@/constants/nomenclature'
 import { PROJECT_PROFILE_TEXT, hasCodebase, profileIcon, profileLabel, profileOf } from '@/constants/projectProfile'
-
-const TEXT = {
-  description: 'Projects with or without code',
-  emptyDescription: 'Create a project: a folder of code to index, or only plans, notes and documents.',
-} as const
 
 function matches(p: Project, q: string) {
   const needle = q.trim().toLowerCase()
@@ -44,6 +39,7 @@ function matches(p: Project, q: string) {
 }
 
 export function ProjectsPage() {
+  const { t } = useT()
   const confirmDialog = useConfirmDialog()
   const formDialog = useFormDialog()
   const editDialog = useFormDialog()
@@ -64,12 +60,12 @@ export function ProjectsPage() {
       const data = await workspacesApi.listProjects(wsSlug)
       setProjects(data)
     } catch {
-      setError('Failed to load projects')
+      setError(t('projects.list.loadFailed'))
       setProjects([])
     } finally {
       setLoading(false)
     }
-  }, [wsSlug])
+  }, [wsSlug, t])
 
   useEffect(() => {
     loadProjects()
@@ -89,7 +85,7 @@ export function ProjectsPage() {
       // Without this, they rely on the WebSocket CRUD event which has a 500ms
       // debounce and may race with the addProject call.
       bumpProjectRefresh((c) => c + 1)
-      toast.success('Project created')
+      toast.success(t('projects.list.created'))
       loadProjects()
     },
   })
@@ -108,23 +104,23 @@ export function ProjectsPage() {
       setProjects((prev) =>
         prev.map((p) => (p.id === editingProject.id ? { ...p, ...data, root_path: data.root_path || undefined } : p)),
       )
-      toast.success('Project updated')
+      toast.success(t('projects.list.updated'))
     },
   })
 
   const handleEdit = (project: Project) => {
     setEditingProject(project)
-    editDialog.open({ title: 'Edit project' })
+    editDialog.open({ title: t('projects.list.editTitle') })
   }
 
   const handleDelete = async (project: Project) => {
     await projectsApi.delete(project.slug)
     removeItems((p) => p.id === project.id)
     bumpProjectRefresh((c) => c + 1)
-    toast.success('Project deleted')
+    toast.success(t('projects.list.deleted'))
   }
 
-  const openCreateDialog = () => formDialog.open({ title: 'Create project' })
+  const openCreateDialog = () => formDialog.open({ title: t('projects.list.createTitle') })
 
   const visible = useMemo(() => projects.filter((p) => matches(p, search)), [projects, search])
   const multiSelect = useMultiSelect(visible, (p) => p.slug)
@@ -134,8 +130,8 @@ export function ProjectsPage() {
   const handleBulkDelete = () => {
     const count = multiSelect.selectionCount
     confirmDialog.open({
-      title: `Delete ${count} project${count > 1 ? 's' : ''}`,
-      description: `This will permanently delete ${count} project${count > 1 ? 's' : ''}.`,
+      title: t(count === 1 ? 'projects.list.bulkDeleteTitle.one' : 'projects.list.bulkDeleteTitle.other', { n: count }),
+      description: t(count === 1 ? 'projects.list.bulkDeleteDescription.one' : 'projects.list.bulkDeleteDescription.other', { n: count }),
       onConfirm: async () => {
         const items = multiSelect.selectedItems
         confirmDialog.setProgress({ current: 0, total: items.length })
@@ -147,23 +143,23 @@ export function ProjectsPage() {
         removeItems((p) => slugs.has(p.slug))
         multiSelect.clear()
         bumpProjectRefresh((c) => c + 1)
-        toast.success(`Deleted ${count} project${count > 1 ? 's' : ''}`)
+        toast.success(t(count === 1 ? 'projects.list.bulkDeleted.one' : 'projects.list.bulkDeleted.other', { n: count }))
       },
     })
   }
 
-  const selectAllLabel = multiSelect.isAllSelected ? 'Deselect all projects' : 'Select all projects'
+  const selectAllLabel = multiSelect.isAllSelected ? t('projects.list.deselectAll') : t('projects.list.selectAll')
 
   return (
     <PageShell
-      title={NOMENCLATURE.projects.plural}
-      description={TEXT.description}
+      title={t('nav.concepts.projects')}
+      description={t('projects.list.description')}
       intro="projects"
       count={loading || error ? undefined : projects.length}
       width="wide"
       actions={
         <Button size="sm" onClick={openCreateDialog}>
-          New project
+          {t('projects.list.newProject')}
         </Button>
       }
       filters={
@@ -171,7 +167,7 @@ export function ProjectsPage() {
           <FilterBar
             search={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Search projects…"
+            searchPlaceholder={t('projects.list.searchPlaceholder')}
             trailing={
               visible.length > 0 ? (
                 <button
@@ -193,32 +189,32 @@ export function ProjectsPage() {
       {loading ? (
         <EntityListSkeleton rows={6} />
       ) : error ? (
-        <ErrorState title="Failed to load" description={error} onRetry={loadProjects} />
+        <ErrorState title={t('projects.common.failedTitle')} description={error} onRetry={loadProjects} />
       ) : projects.length === 0 ? (
         <EmptyState
           size="page"
           variant="projects"
-          title="No projects yet"
-          description={TEXT.emptyDescription}
+          title={t('projects.list.emptyTitle')}
+          description={t('projects.list.emptyDescription')}
           action={
             <Button size="sm" onClick={openCreateDialog}>
-              New project
+              {t('projects.list.newProject')}
             </Button>
           }
         />
       ) : visible.length === 0 ? (
         <EmptyState
           variant="search"
-          title="No matching projects"
-          description="Try another search."
+          title={t('projects.list.noMatchTitle')}
+          description={t('projects.list.noMatchDescription')}
           action={
             <Button size="sm" variant="secondary" onClick={() => setSearch('')}>
-              Clear search
+              {t('projects.list.clearSearch')}
             </Button>
           }
         />
       ) : (
-        <EntityList aria-label="Projects">
+        <EntityList aria-label={t('nav.concepts.projects')}>
           {visible.map((project) => (
             <ProjectRow
               key={project.id}
@@ -265,6 +261,7 @@ function ProjectRow({
   onEdit: () => void
   onDelete: () => Promise<void>
 }) {
+  const { t } = useT()
   const profile = profileOf(project)
   // Only a codebase is synced: a project without code is never "behind".
   const neverSynced = hasCodebase(project) && !project.last_synced
@@ -273,12 +270,12 @@ function ProjectRow({
       title={project.name}
       href={workspacePath(wsSlug, `/projects/${project.slug}`)}
       selected={selected}
-      leading={<RowCheckbox checked={selected} onToggle={onToggleSelect} label={`Select ${project.name}`} />}
+      leading={<RowCheckbox checked={selected} onToggle={onToggleSelect} label={t('projects.list.selectRow', { name: project.name })} />}
       description={project.description || undefined}
       context={<TaskProgress counts={counts} />}
-      trailing={project.last_synced ? <RelativeTime date={project.last_synced} prefix="synced " /> : undefined}
+      trailing={project.last_synced ? <RelativeTime date={project.last_synced} prefix={`${t('projects.common.synced')} `} /> : undefined}
       tone={neverSynced ? 'warning' : undefined}
-      status={neverSynced ? [<ToneText key="never" tone="warning" icon label="Never synced" />] : undefined}
+      status={neverSynced ? [<ToneText key="never" tone="warning" icon label={t('projects.common.neverSynced')} />] : undefined}
       meta={[
         <Fact key="type" icon={profileIcon(profile)} title={PROJECT_PROFILE_TEXT.type}>
           {profileLabel(profile)}
@@ -293,13 +290,13 @@ function ProjectRow({
         ) : null,
       ]}
       actions={[
-        { label: 'Edit', icon: Pencil, onClick: onEdit },
+        { label: t('projects.common.edit'), icon: Pencil, onClick: onEdit },
         {
-          label: 'Delete',
+          label: t('projects.common.delete'),
           icon: Trash2,
           variant: 'danger',
           onClick: onDelete,
-          confirm: { title: 'Delete project?', description: `This will permanently delete “${project.name}”.` },
+          confirm: { title: t('projects.list.deleteTitle'), description: t('projects.list.deleteDescription', { name: project.name }) },
         },
       ]}
     />

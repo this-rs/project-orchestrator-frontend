@@ -49,7 +49,7 @@ describe('EntityGroupPanel', () => {
     expect(core.disabled).toBe(true)
     fireEvent.click(core)
     expect(onCycle).not.toHaveBeenCalled()
-    const code = screen.getByLabelText('Code: 1200 entities, Connections — click to cycle')
+    const code = screen.getByLabelText('Code: 1,200 entities, Connections — click to cycle')
     expect(code.textContent).toContain('1k+')
     expect(code.getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(code)
@@ -77,10 +77,10 @@ describe('EntityGroupPanel', () => {
     const { store } = setup()
     const btn = screen.getByLabelText(/^Code: /)
     fireEvent.mouseEnter(btn)
-    expect(screen.getByText(/1200 entities · Off · click to cycle/)).toBeTruthy()
+    expect(screen.getByText(/1,200 entities · Off · click to cycle/)).toBeTruthy()
     expect(store.get(highlightedGroupAtom)).toBeNull()
     fireEvent.mouseLeave(btn)
-    expect(screen.queryByText(/1200 entities · Off/)).toBeNull()
+    expect(screen.queryByText(/1,200 entities · Off/)).toBeNull()
   })
 
   it('highlights the hovered group, then clears it after a debounce', () => {

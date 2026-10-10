@@ -1,0 +1,47 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  componentTypes: {
+    service: '服务',
+    frontend: '前端',
+    worker: 'Worker',
+    database: '数据库',
+    message_queue: '队列',
+    cache: '缓存',
+    gateway: '网关',
+    external: '外部',
+    library: '库',
+    cli: 'CLI',
+    other: '其他',
+  },
+  tiers: {
+    entry: '入口',
+    gateway: '网关',
+    services: '服务',
+    libraries: '库、消息与缓存',
+    data: '数据与外部',
+    other: '其他',
+  },
+  legend: {
+    required: '必需',
+    optional: '可选 — 没有它系统也能运行',
+    direction: '从左到右：用户入口 → 服务 → 数据',
+    select: '选择一个组件，查看它停止后会影响什么',
+  },
+  panel: {
+    details: '{name} 详情',
+    close: '关闭详情',
+    optional: '可选',
+    dependedOnBy: '被依赖于 ({n})',
+    dependsOn: '依赖于 ({n})',
+    nothingDependsOnThis: '没有任何组件依赖它。',
+    dependsOnNothing: '不依赖任何组件。',
+    derivedFrom: '来源于 {source}',
+  },
+  description: '系统的实际构成：组件及其依赖关系。',
+  loadFailed: '无法加载架构',
+  emptyTitle: '暂无架构',
+  emptyDescription: '向工作区添加组件（服务、数据库、队列……），或让助手绘制系统结构。',
+  graphLabel: '架构图',
+  outline: '架构大纲',
+} satisfies Translation<'architecture'>

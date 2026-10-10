@@ -37,6 +37,7 @@ import {
   type NeighborhoodNode,
   type NeighborhoodParams,
 } from '@/services/neighborhood'
+import { useT } from '@/i18n'
 import { useNeighborhood } from './useNeighborhood'
 import { usePanZoom } from './usePanZoom'
 import { useReducedMotion } from './useReducedMotion'
@@ -126,6 +127,7 @@ export function EntityGraph({
   defaultExplainerOpen = false,
   className = '',
 }: EntityGraphProps) {
+  const { t } = useT()
   const allLayers = useMemo(
     () => new Set<NeighborhoodLayer>(initialLayers ?? NEIGHBORHOOD_LAYERS),
     [initialLayers]
@@ -209,7 +211,7 @@ export function EntityGraph({
   const refreshing = loading && !!layout
 
   return (
-    <section className={`flex flex-col gap-3 ${className}`} aria-label="Voisinage dans le graphe">
+    <section className={`flex flex-col gap-3 ${className}`} aria-label={t('graph.entity.label')}>
       <EntityGraphControls
         depth={depth}
         onDepthChange={setDepth}
@@ -251,29 +253,27 @@ export function EntityGraph({
           >
             <AlertTriangle size={14} aria-hidden />
             <span className="flex-1 min-w-[12rem]">
-              Could not load the neighborhood: {error.message}
+              {t('graph.entity.loadFailed', { message: error.message })}
             </span>
             <Button type="button" size="sm" variant="secondary" flat onClick={retry}>
-              Retry
+              {t('graph.entity.retry')}
             </Button>
           </div>
         )}
 
         {isEmpty && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-sm">
-            <p className="text-gray-300">No relation at this relief level</p>
-            <p className="text-xs text-gray-500 max-w-xs">
-              Lower the relief to reveal weak links, or increase the depth to go further.
-            </p>
+            <p className="text-gray-300">{t('graph.entity.noRelation')}</p>
+            <p className="text-xs text-gray-500 max-w-xs">{t('graph.entity.noRelationHint')}</p>
             <div className="flex gap-2">
               {relief > 0 && (
                 <Button type="button" size="sm" variant="secondary" flat onClick={() => setReliefNow(0)}>
-                  Lower the relief
+                  {t('graph.entity.lowerRelief')}
                 </Button>
               )}
               {depth < 3 && (
                 <Button type="button" size="sm" variant="secondary" flat onClick={() => setDepth((depth + 1) as NeighborhoodDepth)}>
-                  Go to depth {depth + 1}
+                  {t('graph.entity.goDepth', { n: depth + 1 })}
                 </Button>
               )}
             </div>
@@ -282,13 +282,13 @@ export function EntityGraph({
 
         {refreshing && (
           <span className="absolute top-2 right-3 text-[11px] text-gray-500" aria-live="polite">
-            Updating…
+            {t('graph.entity.updating')}
           </span>
         )}
 
         {shown?.truncated && !isEmpty && (
           <span className="absolute top-2 left-3 rounded bg-black/40 px-1.5 py-0.5 text-[11px] text-gray-300">
-            {shown.nodes.length} of {shown.stats.total_before_limit} nodes shown
+            {t('graph.entity.truncated', { shown: shown.nodes.length, total: shown.stats.total_before_limit })}
           </span>
         )}
 
@@ -314,6 +314,7 @@ export function EntityGraph({
 
 /** Static placeholder (no pulse, no spinner): the rings the graph will fill. */
 function GraphSkeleton() {
+  const { t } = useT()
   return (
     <div
       className="absolute inset-0 flex items-center justify-center"
@@ -333,7 +334,7 @@ function GraphSkeleton() {
         ))}
         <circle cx={50} cy={50} r={4} fill="rgba(255,255,255,0.1)" />
       </svg>
-      <span className="sr-only">Loading the neighborhood…</span>
+      <span className="sr-only">{t('graph.entity.loadingNeighborhood')}</span>
     </div>
   )
 }

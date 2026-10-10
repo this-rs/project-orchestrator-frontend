@@ -10,12 +10,13 @@ import {
   Skeleton,
   StatusDot,
   TONE_CLASSES,
-  pluralize,
   type StatusTone,
   Meter,
   StatTiles,
 } from '@/components/ui'
 import { codeApi } from '@/services'
+import { useT } from '@/i18n'
+import { useCodeCount, useRiskLevelLabel } from './useCodeCount'
 import type { CodeHealth, ChangeHotspot, KnowledgeGap, RiskFile, RiskAssessmentSummary } from '@/types'
 
 // ── Strip common base path ──────────────────────────────────────────────
@@ -65,16 +66,18 @@ function FilePath({ path, basePath }: { path: string; basePath: string }) {
 }
 
 function ShowMore({ remaining, loading, onClick }: { remaining: number; loading: boolean; onClick: () => void }) {
+  const { t } = useT()
   return (
     <Button variant="ghost" size="sm" className="mt-2" onClick={onClick} loading={loading}>
-      Show more ({remaining} remaining)
+      {t('code.common.showMore', { remaining })}
     </Button>
   )
 }
 
 function HealthSkeleton() {
+  const { t } = useT()
   return (
-    <div className="space-y-6" role="status" aria-label="Loading">
+    <div className="space-y-6" role="status" aria-label={t('code.common.loading')}>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-16 rounded-xl" />
@@ -88,6 +91,9 @@ function HealthSkeleton() {
 // ── Main component ──────────────────────────────────────────────────────
 
 export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
+  const { t } = useT()
+  const count = useCodeCount()
+  const levelLabel = useRiskLevelLabel()
   const [health, setHealth] = useState<CodeHealth | null>(null)
   const [hotspots, setHotspots] = useState<ChangeHotspot[]>([])
   const [knowledgeGaps, setKnowledgeGaps] = useState<KnowledgeGap[]>([])
@@ -123,11 +129,11 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
       setRiskTotal(riskData.total_files)
       setRiskSummary(riskData.summary)
     } catch {
-      setError('Could not load the health metrics.')
+      setError(t('code.healthTab.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [projectSlug, hotspotsLimit, gapsLimit, riskLimit])
+  }, [projectSlug, hotspotsLimit, gapsLimit, riskLimit, t])
 
   useEffect(() => {
     loadAll()
@@ -142,14 +148,14 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
   if (!projectSlug) {
     return (
       <EmptyState
-        title="Select a project"
-        description="Health analysis works on one project at a time — pick one in the filter above."
+        title={t('code.common.selectProject')}
+        description={t('code.healthTab.needProject')}
       />
     )
   }
 
   if (loading && !health) return <HealthSkeleton />
-  if (error) return <ErrorState title="Health check failed" description={error} onRetry={loadAll} />
+  if (error) return <ErrorState title={t('code.healthTab.failed')} description={error} onRetry={loadAll} />
   if (!health) return null
 
   const maxChurn = hotspots.length > 0 ? Math.max(...hotspots.map((h) => h.churn_score)) : 1
@@ -165,20 +171,20 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
       <StatTiles
         items={[
           {
-            label: 'God functions',
+            label: t('code.healthTab.godFunctions'),
             value: health.god_function_count,
-            sub: `threshold ${health.god_function_threshold}`,
+            sub: t('code.healthTab.threshold', { n: health.god_function_threshold }),
             tone: health.god_function_count > 5 ? 'warning' : undefined,
           },
-          { label: 'Orphan files', value: health.orphan_file_count, tone: health.orphan_file_count > 10 ? 'warning' : undefined },
+          { label: t('code.healthTab.orphanFiles'), value: health.orphan_file_count, tone: health.orphan_file_count > 10 ? 'warning' : undefined },
           {
-            label: 'Avg coupling',
+            label: t('code.healthTab.avgCoupling'),
             hidden: !coupling,
             value: coupling?.avg_clustering_coefficient.toFixed(3),
-            sub: coupling?.most_coupled_file ? `most coupled: ${stripBase(coupling.most_coupled_file, basePath)}` : undefined,
+            sub: coupling?.most_coupled_file ? t('code.healthTab.mostCoupled', { file: stripBase(coupling.most_coupled_file, basePath) }) : undefined,
           },
           {
-            label: 'Circular deps',
+            label: t('code.healthTab.circularDeps'),
             value: health.circular_dependency_count,
             tone: health.circular_dependency_count > 0 ? 'danger' : 'success',
           },
@@ -188,14 +194,14 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
       {neural && (
         <StatTiles
           items={[
-            { label: 'Active synapses', value: neural.active_synapses },
-            { label: 'Avg energy', value: `${(neural.avg_energy * 100).toFixed(0)}%` },
+            { label: t('code.healthTab.activeSynapses'), value: neural.active_synapses },
+            { label: t('code.healthTab.avgEnergy'), value: `${(neural.avg_energy * 100).toFixed(0)}%` },
             {
-              label: 'Weak synapses',
+              label: t('code.healthTab.weakSynapses'),
               value: `${(neural.weak_synapses_ratio * 100).toFixed(0)}%`,
               tone: neural.weak_synapses_ratio > 0.5 ? 'warning' : undefined,
             },
-            { label: 'Dead notes', value: neural.dead_notes_count, tone: neural.dead_notes_count > 10 ? 'danger' : undefined },
+            { label: t('code.healthTab.deadNotes'), value: neural.dead_notes_count, tone: neural.dead_notes_count > 10 ? 'danger' : undefined },
           ]}
         />
       )}
@@ -203,21 +209,21 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
       {/* ── Structural problems (lists behind the numbers) ───────── */}
       {godFunctions.length > 0 && (
         <Section
-          title="God functions"
+          title={t('code.healthTab.godFunctions')}
           count={godFunctions.length}
-          description="Functions with too many callers and callees — hard to change safely."
+          description={t('code.healthTab.godFunctionsDescription')}
           collapsible
           defaultOpen={false}
         >
-          <EntityList aria-label="God functions">
+          <EntityList aria-label={t('code.healthTab.godFunctions')}>
             {godFunctions.map((f) => (
               <EntityRow
                 key={`${f.file}-${f.name}`}
                 title={<span className="font-mono">{f.name}</span>}
-                ariaLabel={`History of ${f.file}`}
+                ariaLabel={t('code.common.historyOf', { path: f.file })}
                 onClick={() => onOpenFile(f.file)}
                 description={<FilePath path={f.file} basePath={basePath} />}
-                meta={[`${f.in_degree} in`, `${f.out_degree} out`]}
+                meta={[t('code.healthTab.inCount', { n: f.in_degree }), t('code.healthTab.outCount', { n: f.out_degree })]}
               />
             ))}
           </EntityList>
@@ -225,8 +231,8 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
       )}
 
       {circular.length > 0 && (
-        <Section title="Circular dependencies" count={circular.length} collapsible defaultOpen={false}>
-          <EntityList aria-label="Circular dependencies">
+        <Section title={t('code.healthTab.circularDependencies')} count={circular.length} collapsible defaultOpen={false}>
+          <EntityList aria-label={t('code.healthTab.circularDependencies')}>
             {circular.map((c, i) => (
               <EntityRow key={`${c}-${i}`} title={<span className="font-mono break-all">{c}</span>} ariaLabel={c} />
             ))}
@@ -236,18 +242,18 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
 
       {orphanFiles.length > 0 && (
         <Section
-          title="Orphan files"
+          title={t('code.healthTab.orphanFiles')}
           count={orphanFiles.length}
-          description="Files nothing imports and that import nothing."
+          description={t('code.healthTab.orphanFilesDescription')}
           collapsible
           defaultOpen={false}
         >
-          <EntityList aria-label="Orphan files">
+          <EntityList aria-label={t('code.healthTab.orphanFiles')}>
             {orphanFiles.map((path) => (
               <EntityRow
                 key={path}
                 title={<FilePath path={path} basePath={basePath} />}
-                ariaLabel={`History of ${path}`}
+                ariaLabel={t('code.common.historyOf', { path })}
                 onClick={() => onOpenFile(path)}
               />
             ))}
@@ -257,31 +263,31 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
 
       {/* ── Hotspots ─────────────────────────────────────────────── */}
       <Section
-        title="Hotspots"
+        title={t('code.healthTab.hotspots')}
         count={hotspotsTotal || hotspots.length}
-        description="Files that change the most: where bugs and merge conflicts concentrate."
+        description={t('code.healthTab.hotspotsDescription')}
       >
         {hotspots.length === 0 ? (
-          <EmptyState size="sm" title="No hotspots detected." />
+          <EmptyState size="sm" title={t('code.healthTab.noHotspots')} />
         ) : (
           <>
-            <EntityList aria-label="Hotspots">
+            <EntityList aria-label={t('code.healthTab.hotspots')}>
               {hotspots.map((h) => (
                 <EntityRow
                   key={h.path}
                   title={<FilePath path={h.path} basePath={basePath} />}
-                  ariaLabel={`History of ${h.path}`}
+                  ariaLabel={t('code.common.historyOf', { path: h.path })}
                   onClick={() => onOpenFile(h.path)}
-                  trailing={pluralize(h.commit_count, 'commit')}
+                  trailing={count('commit', h.commit_count)}
                   meta={[
                     <Meter
                       key="churn"
                       size="inline"
                       value={maxChurn > 0 ? h.churn_score / maxChurn : 0}
-                      display={`churn ${h.churn_score.toFixed(2)}`}
+                      display={t('code.healthTab.churn', { value: h.churn_score.toFixed(2) })}
                       tone={churnTone(maxChurn > 0 ? h.churn_score / maxChurn : 0)}
                     />,
-                    h.co_change_count > 0 ? `${h.co_change_count} co-changes` : null,
+                    h.co_change_count > 0 ? count('coChange', h.co_change_count) : null,
                   ]}
                 />
               ))}
@@ -295,31 +301,31 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
 
       {/* ── Knowledge gaps ───────────────────────────────────────── */}
       <Section
-        title="Knowledge gaps"
+        title={t('code.healthTab.knowledgeGaps')}
         count={gapsTotal || knowledgeGaps.length}
-        description="Important files with few notes or decisions attached: agents work there blind."
+        description={t('code.healthTab.knowledgeGapsDescription')}
       >
         {knowledgeGaps.length === 0 ? (
-          <EmptyState size="sm" title="No knowledge gaps detected." />
+          <EmptyState size="sm" title={t('code.healthTab.noKnowledgeGaps')} />
         ) : (
           <>
-            <EntityList aria-label="Knowledge gaps">
+            <EntityList aria-label={t('code.healthTab.knowledgeGaps')}>
               {knowledgeGaps.map((g) => (
                 <EntityRow
                   key={g.path}
                   title={<FilePath path={g.path} basePath={basePath} />}
-                  ariaLabel={`History of ${g.path}`}
+                  ariaLabel={t('code.common.historyOf', { path: g.path })}
                   onClick={() => onOpenFile(g.path)}
                   meta={[
                     <Meter
                       key="density"
                       size="inline"
                       value={g.knowledge_density}
-                      display={`${(g.knowledge_density * 100).toFixed(0)}% covered`}
+                      display={t('code.healthTab.covered', { percent: (g.knowledge_density * 100).toFixed(0) })}
                       tone={densityTone(g.knowledge_density)}
                     />,
-                    pluralize(g.note_count, 'note'),
-                    pluralize(g.decision_count, 'decision'),
+                    count('note', g.note_count),
+                    count('decision', g.decision_count),
                   ]}
                 />
               ))}
@@ -333,42 +339,42 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
 
       {/* ── Risk assessment ──────────────────────────────────────── */}
       <Section
-        title="Risk assessment"
+        title={t('code.healthTab.riskAssessment')}
         count={riskTotal || riskFiles.length}
         description={
           riskSummary ? (
             <span className="inline-flex flex-wrap gap-x-3">
-              <span className={TONE_CLASSES.danger.text}>{riskSummary.critical_count} critical</span>
-              <span className={TONE_CLASSES.warning.text}>{riskSummary.high_count} high</span>
-              <span className={TONE_CLASSES.info.text}>{riskSummary.medium_count} medium</span>
-              <span className={TONE_CLASSES.success.text}>{riskSummary.low_count} low</span>
+              <span className={TONE_CLASSES.danger.text}>{t('code.healthTab.critical', { n: riskSummary.critical_count })}</span>
+              <span className={TONE_CLASSES.warning.text}>{t('code.healthTab.high', { n: riskSummary.high_count })}</span>
+              <span className={TONE_CLASSES.info.text}>{t('code.healthTab.medium', { n: riskSummary.medium_count })}</span>
+              <span className={TONE_CLASSES.success.text}>{t('code.healthTab.low', { n: riskSummary.low_count })}</span>
             </span>
           ) : undefined
         }
       >
         {riskFiles.length === 0 ? (
-          <EmptyState size="sm" title="No risk data available." />
+          <EmptyState size="sm" title={t('code.healthTab.noRisk')} />
         ) : (
           <>
-            <EntityList aria-label="Risk assessment">
+            <EntityList aria-label={t('code.healthTab.riskAssessment')}>
               {riskFiles.map((r) => {
                 const tone = RISK_TONE[r.risk_level] ?? 'neutral'
                 return (
                   <EntityRow
                     key={r.path}
                     title={<FilePath path={r.path} basePath={basePath} />}
-                    ariaLabel={`History of ${r.path}`}
+                    ariaLabel={t('code.common.historyOf', { path: r.path })}
                     onClick={() => onOpenFile(r.path)}
-                    leading={<StatusDot tone={tone} label={`${r.risk_level} risk`} />}
+                    leading={<StatusDot tone={tone} label={t('code.healthTab.riskLevel', { level: levelLabel(r.risk_level) })} />}
                     trailing={r.risk_score.toFixed(3)}
                     meta={[
                       <span key="l" className={TONE_CLASSES[tone].text}>
-                        {r.risk_level}
+                        {levelLabel(r.risk_level)}
                       </span>,
-                      `PageRank ${r.factors.pagerank.toFixed(4)}`,
-                      `churn ${r.factors.churn.toFixed(3)}`,
-                      `knowledge gap ${r.factors.knowledge_gap.toFixed(3)}`,
-                      `betweenness ${r.factors.betweenness.toFixed(4)}`,
+                      t('code.healthTab.pagerank', { value: r.factors.pagerank.toFixed(4) }),
+                      t('code.healthTab.churn', { value: r.factors.churn.toFixed(3) }),
+                      t('code.healthTab.knowledgeGap', { value: r.factors.knowledge_gap.toFixed(3) }),
+                      t('code.healthTab.betweenness', { value: r.factors.betweenness.toFixed(4) }),
                     ]}
                   />
                 )

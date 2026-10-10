@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { Button, EmptyState, EntityList, EntityListSkeleton, EntityRow, ErrorState, FilterBar, pluralize } from '@/components/ui'
+import { Button, EmptyState, EntityList, EntityListSkeleton, EntityRow, ErrorState, FilterBar } from '@/components/ui'
+import { useT } from '@/i18n'
+import { useCodeCount } from './useCodeCount'
 import { codeApi } from '@/services'
 import type { SearchResult } from '@/services'
 
@@ -14,6 +16,8 @@ const MAX_SYMBOLS = 10
 const MAX_SIGNATURES = 5
 
 export function CodeExplorerTab({ projectSlug, workspaceSlug, onOpenFile }: CodeExplorerTabProps) {
+  const { t } = useT()
+  const count = useCodeCount()
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
@@ -32,7 +36,7 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug, onOpenFile }: Code
       setSearchResults(Array.isArray(response) ? response : [])
       setSearched(true)
     } catch {
-      setSearchError('The backend may be unreachable.')
+      setSearchError(t('code.common.backendUnreachable'))
       setSearchResults([])
     } finally {
       setLoading(false)
@@ -42,18 +46,18 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug, onOpenFile }: Code
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-500">
-        Semantic search across files, functions and structs, ranked by relevance. Tap a file to see its recent commits.
+        {t('code.explorer.intro')}
       </p>
 
       <form role="search" onSubmit={handleSearch}>
         <FilterBar
           search={searchQuery}
           onSearchChange={setSearchQuery}
-          searchPlaceholder="Search the code…"
-          searchLabel="Search the code"
+          searchPlaceholder={t('code.explorer.placeholder')}
+          searchLabel={t('code.explorer.label')}
           trailing={
             <Button type="submit" size="sm" loading={loading} disabled={!searchQuery.trim()}>
-              Search
+              {t('code.common.search')}
             </Button>
           }
         />
@@ -62,19 +66,15 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug, onOpenFile }: Code
       {loading ? (
         <EntityListSkeleton rows={5} />
       ) : searchError ? (
-        <ErrorState title="Search failed" description={searchError} onRetry={() => handleSearch()} />
+        <ErrorState title={t('code.common.searchFailed')} description={searchError} onRetry={() => handleSearch()} />
       ) : searchResults.length === 0 ? (
         <EmptyState
           variant="search"
-          title={searched ? 'No results' : 'Search the code'}
-          description={
-            searched
-              ? 'Try other words: the search matches meaning, not only the exact text.'
-              : 'Type a term to explore the code of your projects.'
-          }
+          title={searched ? t('code.explorer.noResults') : t('code.explorer.label')}
+          description={searched ? t('code.explorer.noResultsDescription') : t('code.explorer.emptyDescription')}
         />
       ) : (
-        <EntityList aria-label="Search results">
+        <EntityList aria-label={t('code.explorer.results')}>
           {searchResults.map((result) => {
             const doc = result.document
             const symbols = doc.symbols ?? []
@@ -84,9 +84,9 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug, onOpenFile }: Code
               <EntityRow
                 key={doc.id}
                 title={<span className="font-mono">{name}</span>}
-                ariaLabel={`History of ${doc.path}`}
+                ariaLabel={t('code.common.historyOf', { path: doc.path })}
                 onClick={() => onOpenFile(doc.path)}
-                trailing={<span title="Match">{(result.score * 100).toFixed(0)}%</span>}
+                trailing={<span title={t('code.explorer.match')}>{(result.score * 100).toFixed(0)}%</span>}
                 description={
                   <>
                     <span className="font-mono break-all">{doc.path}</span>
@@ -97,7 +97,7 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug, onOpenFile }: Code
                   <span key="lang" className="capitalize">
                     {doc.language}
                   </span>,
-                  symbols.length ? pluralize(symbols.length, 'symbol') : null,
+                  symbols.length ? count('symbol', symbols.length) : null,
                 ]}
                 context={
                   symbols.length > 0 || signatures.length > 0 ? (
@@ -113,7 +113,7 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug, onOpenFile }: Code
                             </span>
                           ))}
                           {symbols.length > MAX_SYMBOLS && (
-                            <span className="text-[11px] leading-5 text-gray-500">+{symbols.length - MAX_SYMBOLS} more</span>
+                            <span className="text-[11px] leading-5 text-gray-500">{t('code.common.more', { n: symbols.length - MAX_SYMBOLS })}</span>
                           )}
                         </div>
                       )}
@@ -122,7 +122,7 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug, onOpenFile }: Code
                           <code>{signatures.slice(0, MAX_SIGNATURES).join('\n')}</code>
                           {signatures.length > MAX_SIGNATURES && (
                             <span className="text-gray-500">
-                              {'\n'}… +{signatures.length - MAX_SIGNATURES} more
+                              {'\n'}… {t('code.common.more', { n: signatures.length - MAX_SIGNATURES })}
                             </span>
                           )}
                         </pre>

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { glass, segmentItem, segmented } from '@/components/ui/classes'
 import { highlightedGroupAtom } from '@/atoms/intelligence'
+import { useT, type MessageKey } from '@/i18n'
 import type { EntityGroup, EntityGroupConfig, GroupMode } from '@/types/fractal-graph'
 
 // ── Icon mapping ────────────────────────────────────────────────────────────
@@ -51,14 +52,6 @@ const GROUP_ACCENT: Record<EntityGroup, { text: string; dot: string }> = {
   sessions:   { text: 'text-indigo-400',  dot: 'bg-indigo-400' },
   features:   { text: 'text-fuchsia-400', dot: 'bg-fuchsia-400' },
   behavioral: { text: 'text-orange-400',  dot: 'bg-orange-400' },
-}
-
-// ── Mode labels ─────────────────────────────────────────────────────────────
-
-const MODE_LABELS: Record<GroupMode, string> = {
-  off: 'Off',
-  connections: 'Connections',
-  expanded: 'Expanded',
 }
 
 /** One item of the segmented control: 36px tap target on phones, 32px on desktop. */
@@ -100,6 +93,8 @@ export function EntityGroupPanel({
   className = '',
   enableHover = false,
 }: EntityGroupPanelProps) {
+  const { t } = useT()
+  const modeLabel = (mode: GroupMode) => t(`graph.groups.${mode}` as MessageKey)
   const setHighlightedGroup = useSetAtom(highlightedGroupAtom)
   const [tooltipGroup, setTooltipGroup] = useState<EntityGroup | null>(null)
 
@@ -162,7 +157,7 @@ export function EntityGroupPanel({
     <div className={`flex ${isHorizontal ? 'flex-row items-center' : 'flex-col items-start'} max-w-full px-2 py-1.5 ${className}`}>
       <div
         role="group"
-        aria-label="Entity groups"
+        aria-label={t('graph.groups.label')}
         className={`${segmented} ${
           isHorizontal
             ? 'max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
@@ -177,7 +172,11 @@ export function EntityGroupPanel({
           const Icon = GROUP_ICONS[group.icon] ?? Circle
           const isHovered = tooltipGroup === group.id
           const iconClass = mode === 'expanded' ? accent.text : mode === 'connections' ? `${accent.text} opacity-70` : 'text-gray-500'
-          const name = `${group.label}: ${count} entities, ${MODE_LABELS[mode]}${isCore ? '' : ' — click to cycle'}`
+          const name = t(isCore ? 'graph.groups.summary' : 'graph.groups.summaryCycle', {
+            group: group.label,
+            count,
+            mode: modeLabel(mode),
+          })
 
           return (
             <div key={group.id} className={`relative ${isHorizontal ? '' : 'w-full'}`}>
@@ -209,8 +208,7 @@ export function EntityGroupPanel({
                   <div className={`${glass} rounded-md px-2 py-1 text-[11px] leading-4`}>
                     <div className="font-medium text-gray-200">{group.label}</div>
                     <div className="text-gray-400">
-                      {count} entities · {MODE_LABELS[mode]}
-                      {!isCore && ' · click to cycle'}
+                      {t(isCore ? 'graph.groups.tooltip' : 'graph.groups.tooltipCycle', { count, mode: modeLabel(mode) })}
                     </div>
                   </div>
                 </div>
@@ -225,9 +223,9 @@ export function EntityGroupPanel({
           onClick={allExpanded ? onResetDefaults : onEnableAll}
           aria-pressed={allExpanded}
           className={`${segItem} ${isHorizontal ? 'ml-0.5' : 'mt-0.5 w-full justify-start'}`}
-          title={allExpanded ? 'Reset to defaults' : 'Expand all groups'}
+          title={allExpanded ? t('graph.groups.reset') : t('graph.groups.expandAll')}
         >
-          All
+          {t('graph.groups.all')}
         </button>
       </div>
     </div>

@@ -2,8 +2,10 @@ import { X } from 'lucide-react'
 import { Gauge, MetaLine } from '@/components/ui'
 import { focusRing, glass, glassFlat, iconButton, popIn } from '@/components/ui/classes'
 import type { StatusTone } from '@/components/ui/statusMeta'
-import { ROLE_META } from '@/utils/featureGraphModel'
-import { cleanDocstring, ROLE_PLAIN, type EntityNeighbours, type EntityView, type ImportanceLevel } from '@/utils/featureGraphReadable'
+import { useT } from '@/i18n'
+import { cleanDocstring, type EntityNeighbours, type EntityView, type ImportanceLevel } from '@/utils/featureGraphReadable'
+
+import { useFeatureGraphLabels } from './useFeatureGraphLabels'
 
 export const IMPORTANCE_TONE: Record<ImportanceLevel, StatusTone> = { key: 'info', supporting: 'neutral', minor: 'muted' }
 
@@ -20,6 +22,7 @@ function LinkList({
   viewById: Map<string, EntityView>
   onSelect: (id: string) => void
 }) {
+  const { t } = useT()
   if (refs.length === 0) return null
   const shown = refs.slice(0, MAX_LINKS)
   return (
@@ -46,7 +49,7 @@ function LinkList({
           )
         })}
       </ul>
-      {refs.length > MAX_LINKS && <p className="px-1.5 text-[11px] text-gray-500">+{refs.length - MAX_LINKS} more</p>}
+      {refs.length > MAX_LINKS && <p className="px-1.5 text-[11px] text-gray-500">{t('featureGraphs.panel.more', { n: refs.length - MAX_LINKS })}</p>}
     </div>
   )
 }
@@ -70,9 +73,11 @@ export function EntityDetailPanel({
   onClose: () => void
   floating?: boolean
 }) {
+  const { t } = useT()
+  const labels = useFeatureGraphLabels()
   const e = view.entity
   const doc = cleanDocstring(e.docstring)
-  const roleHint = ROLE_META[view.role]?.description
+  const roleHint = labels.roleDescription(view.role)
   const callers = (neighbours?.incoming ?? []).filter((r) => r.relationType === 'CALLS')
   const callees = (neighbours?.outgoing ?? []).filter((r) => r.relationType === 'CALLS')
   const other = [
@@ -85,16 +90,16 @@ export function EntityDetailPanel({
     : 'rounded-xl border border-white/[0.07] bg-white/[0.03] p-3'
 
   return (
-    <aside aria-label={`Details of ${view.title}`} className={shell}>
+    <aside aria-label={t('featureGraphs.panel.details', { title: view.title })} className={shell}>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-medium text-gray-100 break-words">{view.title}</h4>
           <code className="block text-xs font-mono text-gray-400 break-all">{view.codeName}</code>
           <MetaLine
             items={[
-              view.typeLabel,
-              <span key="r" title={[roleHint, ROLE_PLAIN[view.role]?.plain].filter(Boolean).join(' — ')}>
-                {view.roleWord}
+              labels.typeLabel(e.entity_type),
+              <span key="r" title={[roleHint, labels.rolePlain(view.role)].filter(Boolean).join(' — ')}>
+                {labels.roleWord(view.role)}
               </span>,
               e.visibility ?? null,
             ]}
@@ -103,7 +108,7 @@ export function EntityDetailPanel({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close entity details"
+          aria-label={t('featureGraphs.panel.close')}
           className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} shrink-0 -m-1`}
         >
           <X className="w-4 h-4" aria-hidden="true" />
@@ -116,31 +121,31 @@ export function EntityDetailPanel({
 
       <div className="mt-2 text-xs">
         <Gauge
-          label="Importance"
+          label={t('featureGraphs.browser.importance')}
           value={view.importance.value}
-          level={view.importance.label}
+          level={labels.importanceLabel(view.importance.level)}
           tone={IMPORTANCE_TONE[view.importance.level]}
-          title={`${view.importance.label} for this feature`}
+          title={t('featureGraphs.browser.importanceFor', { level: labels.importanceLabel(view.importance.level) })}
         />
       </div>
 
       {e.signature && (
-        <pre aria-label="Signature" className="mt-2 overflow-x-auto rounded-md bg-white/[0.04] px-2 py-1.5 text-xs font-mono text-gray-300">
+        <pre aria-label={t('featureGraphs.panel.signature')} className="mt-2 overflow-x-auto rounded-md bg-white/[0.04] px-2 py-1.5 text-xs font-mono text-gray-300">
           {e.signature}
         </pre>
       )}
       {location && (
         <p className="mt-2 text-xs text-gray-400">
-          <span className="text-gray-500">Defined in </span>
+          <span className="text-gray-500">{t('featureGraphs.panel.definedIn')}</span>
           <code className="font-mono text-gray-300 break-all">{location}</code>
         </p>
       )}
       <code className="mt-2 block text-[11px] text-gray-500 font-mono break-all">{e.entity_id}</code>
 
       <div className="mt-3 space-y-2">
-        <LinkList title="Called by" refs={callers} viewById={viewById} onSelect={onSelectId} />
-        <LinkList title="Calls" refs={callees} viewById={viewById} onSelect={onSelectId} />
-        <LinkList title="Other relations" refs={other} viewById={viewById} onSelect={onSelectId} />
+        <LinkList title={t('featureGraphs.panel.calledBy')} refs={callers} viewById={viewById} onSelect={onSelectId} />
+        <LinkList title={t('featureGraphs.panel.calls')} refs={callees} viewById={viewById} onSelect={onSelectId} />
+        <LinkList title={t('featureGraphs.panel.otherRelations')} refs={other} viewById={viewById} onSelect={onSelectId} />
       </div>
     </aside>
   )

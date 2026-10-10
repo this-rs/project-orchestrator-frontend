@@ -31,10 +31,10 @@ import {
 import { EmptyState, EntityListSkeleton, ErrorState, PageShell, focusRing } from '@/components/ui'
 import { glassFlat, iconButton } from '@/components/ui/classes'
 import { useWorkspaceSlug } from '@/hooks'
+import { useT, type MessageKey } from '@/i18n'
 import { workspacesApi } from '@/services/workspaces'
 import { workspacePath } from '@/utils/paths'
 import {
-  COMPONENT_LABEL,
   NODE_H,
   NODE_W,
   buildArchitecture,
@@ -44,7 +44,6 @@ import {
   type ArchNode,
 } from '@/utils/architecture'
 import type { ComponentType } from '@/types'
-import { NOMENCLATURE } from '@/constants/nomenclature'
 import '@xyflow/react/dist/style.css'
 
 const ICONS: Record<ComponentType, LucideIcon> = {
@@ -61,6 +60,14 @@ const ICONS: Record<ComponentType, LucideIcon> = {
   other: Box,
 }
 
+const TIER_KEYS: readonly MessageKey[] = [
+  'architecture.tiers.entry',
+  'architecture.tiers.gateway',
+  'architecture.tiers.services',
+  'architecture.tiers.libraries',
+  'architecture.tiers.data',
+]
+
 /** What a node is to the current selection. Drives emphasis, never visibility. */
 type Relation = 'none' | 'selected' | 'neighbour' | 'faded'
 
@@ -70,6 +77,7 @@ interface NodeData extends Record<string, unknown> {
 }
 
 function ComponentNode({ data }: NodeProps<Node<NodeData>>) {
+  const { t } = useT()
   const { node: n, relation } = data
   const Icon = ICONS[n.type]
   const selected = relation === 'selected'
@@ -97,7 +105,7 @@ function ComponentNode({ data }: NodeProps<Node<NodeData>>) {
         <span className="truncate text-sm font-medium text-gray-100">{n.name}</span>
       </div>
       <p className="mt-1 truncate text-[11px] leading-4 text-gray-500">
-        {COMPONENT_LABEL[n.type]}
+        {t(`architecture.componentTypes.${n.type}` as MessageKey)}
         {n.runtime ? ` · ${n.runtime}` : ''}
       </p>
       {n.project && <p className="truncate text-[11px] leading-4 text-gray-600">{n.project}</p>}
@@ -159,22 +167,23 @@ function toFlow(
 }
 
 function Legend() {
+  const { t } = useT()
   return (
     <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] leading-4 text-gray-500">
       <li className="flex items-center gap-1.5">
         <svg width="22" height="6" aria-hidden className="shrink-0">
           <line x1="0" y1="3" x2="22" y2="3" stroke={EDGE_IDLE} strokeWidth="1.5" />
         </svg>
-        Required
+        {t('architecture.legend.required')}
       </li>
       <li className="flex items-center gap-1.5">
         <svg width="22" height="6" aria-hidden className="shrink-0">
           <line x1="0" y1="3" x2="22" y2="3" stroke={EDGE_IDLE} strokeWidth="1.5" strokeDasharray="5 4" />
         </svg>
-        Optional — the system runs without it
+        {t('architecture.legend.optional')}
       </li>
-      <li>Left to right: where people enter → services → data</li>
-      <li>Select a component to see what it would take down</li>
+      <li>{t('architecture.legend.direction')}</li>
+      <li>{t('architecture.legend.select')}</li>
     </ul>
   )
 }
@@ -193,6 +202,7 @@ interface DetailPanelProps {
  * that answers "what breaks if I touch this" — it is deliberately first.
  */
 function DetailPanel({ node, graph, projectSlugByName, wsSlug, onClose, onSelect }: DetailPanelProps) {
+  const { t } = useT()
   const nameById = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n.name])), [graph.nodes])
   const outgoing = graph.edges.filter((e) => e.from === node.id)
   const incoming = graph.edges.filter((e) => e.to === node.id)
@@ -220,7 +230,7 @@ function DetailPanel({ node, graph, projectSlugByName, wsSlug, onClose, onSelect
                 <Arrow className="h-3 w-3 shrink-0 text-gray-600" aria-hidden />
                 <span className="truncate">{nameById.get(otherId) ?? otherId}</span>
                 {e.protocol && <span className="shrink-0 text-gray-500">{e.protocol}</span>}
-                {!e.required && <span className="shrink-0 text-gray-600">optional</span>}
+                {!e.required && <span className="shrink-0 text-gray-600">{t('architecture.panel.optional')}</span>}
               </button>
             </li>
           )
@@ -231,7 +241,7 @@ function DetailPanel({ node, graph, projectSlugByName, wsSlug, onClose, onSelect
 
   return (
     <aside
-      aria-label={`${node.name} details`}
+      aria-label={t('architecture.panel.details', { name: node.name })}
       className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3"
     >
       <div className="flex items-start gap-2">
@@ -239,14 +249,14 @@ function DetailPanel({ node, graph, projectSlugByName, wsSlug, onClose, onSelect
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold text-gray-100">{node.name}</h2>
           <p className="text-[11px] leading-4 text-gray-500">
-            {COMPONENT_LABEL[node.type]}
+            {t(`architecture.componentTypes.${node.type}` as MessageKey)}
             {node.runtime ? ` · ${node.runtime}` : ''}
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close details"
+          aria-label={t('architecture.panel.close')}
           className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} -mr-2 -mt-2`}
         >
           <X className="h-4 w-4" aria-hidden />
@@ -273,20 +283,20 @@ function DetailPanel({ node, graph, projectSlugByName, wsSlug, onClose, onSelect
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <h3 className="mb-1 text-[11px] font-medium text-gray-500">
-            Depended on by ({incoming.length})
+            {t('architecture.panel.dependedOnBy', { n: incoming.length })}
           </h3>
-          {edgeList(incoming, 'in', 'Nothing depends on this.')}
+          {edgeList(incoming, 'in', t('architecture.panel.nothingDependsOnThis'))}
         </div>
         <div>
           <h3 className="mb-1 text-[11px] font-medium text-gray-500">
-            Depends on ({outgoing.length})
+            {t('architecture.panel.dependsOn', { n: outgoing.length })}
           </h3>
-          {edgeList(outgoing, 'out', 'Depends on nothing.')}
+          {edgeList(outgoing, 'out', t('architecture.panel.dependsOnNothing'))}
         </div>
       </div>
 
       {node.tags.length > 0 && (
-        <p className="text-[11px] leading-4 text-gray-500">{node.tags.map((t) => `#${t}`).join(' ')}</p>
+        <p className="text-[11px] leading-4 text-gray-500">{node.tags.map((tag) => `#${tag}`).join(' ')}</p>
       )}
 
       {node.provenance && (
@@ -294,7 +304,7 @@ function DetailPanel({ node, graph, projectSlugByName, wsSlug, onClose, onSelect
         // against. Naming the file and line that implied this node is what turns
         // a generated graph into one that can be verified.
         <p className="text-[11px] leading-4 text-gray-600">
-          Derived from {formatProvenance(node.provenance)}
+          {t('architecture.panel.derivedFrom', { source: formatProvenance(node.provenance) })}
         </p>
       )}
     </aside>
@@ -313,6 +323,7 @@ function DetailPanel({ node, graph, projectSlugByName, wsSlug, onClose, onSelect
  * a pointer.
  */
 export function ArchitecturePage() {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const [graph, setGraph] = useState<ArchGraph | null>(null)
   const [projectSlugByName, setProjectSlugByName] = useState<Map<string, string>>(new Map())
@@ -325,11 +336,11 @@ export function ArchitecturePage() {
     try {
       setGraph(buildArchitecture(await workspacesApi.getTopology(wsSlug)))
     } catch {
-      setError('Failed to load the architecture')
+      setError(t('architecture.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [wsSlug])
+  }, [wsSlug, t])
 
   useEffect(() => {
     setLoading(true)
@@ -399,8 +410,8 @@ export function ArchitecturePage() {
 
   return (
     <PageShell
-      title={NOMENCLATURE.architecture.plural}
-      description={NOMENCLATURE.architecture.description}
+      title={t('nav.concepts.architecture')}
+      description={t('architecture.description')}
       intro="architecture"
       width="wide"
       count={graph?.nodes.length}
@@ -411,15 +422,15 @@ export function ArchitecturePage() {
         <ErrorState description={error} onRetry={load} />
       ) : !graph || graph.nodes.length === 0 ? (
         <EmptyState
-          title="No architecture yet"
-          description="Add components (services, databases, queues…) to the workspace, or ask an assistant to map the system."
+          title={t('architecture.emptyTitle')}
+          description={t('architecture.emptyDescription')}
         />
       ) : (
         <div className="space-y-4">
           <div
             className="rounded-xl border border-white/[0.06] bg-gray-950 overflow-hidden"
             style={{ height }}
-            aria-label="Architecture graph"
+            aria-label={t('architecture.graphLabel')}
           >
             <ReactFlow
               nodes={flow!.nodes}
@@ -450,12 +461,12 @@ export function ArchitecturePage() {
             />
           )}
 
-          <section aria-label="Architecture outline" className="space-y-3">
-            {tiers.map((t) => (
-              <div key={t.tier}>
-                <h2 className="text-[11px] font-medium text-gray-500">{t.label}</h2>
+          <section aria-label={t('architecture.outline')} className="space-y-3">
+            {tiers.map((tier) => (
+              <div key={tier.tier}>
+                <h2 className="text-[11px] font-medium text-gray-500">{t(TIER_KEYS[tier.tier] ?? 'architecture.tiers.other')}</h2>
                 <ul className="mt-1 divide-y divide-white/[0.06] rounded-xl border border-white/[0.06]">
-                  {t.nodes.map((n) => {
+                  {tier.nodes.map((n) => {
                     const deps = graph.edges.filter((e) => e.from === n.id)
                     const byId = new Map(graph.nodes.map((x) => [x.id, x.name]))
                     const isSelected = n.id === selectedId
@@ -473,7 +484,7 @@ export function ArchitecturePage() {
                         >
                           <span className="font-medium text-gray-100">{n.name}</span>
                           <span className="text-xs text-gray-500">
-                            {COMPONENT_LABEL[n.type]}
+                            {t(`architecture.componentTypes.${n.type}` as MessageKey)}
                             {n.runtime ? ` · ${n.runtime}` : ''}
                             {n.project ? ` · ${n.project}` : ''}
                           </span>

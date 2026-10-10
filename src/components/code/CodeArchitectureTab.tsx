@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { EmptyState, EntityList, EntityListSkeleton, EntityRow, ErrorState, Section, Skeleton, StatTiles, pluralize } from '@/components/ui'
+import { EmptyState, EntityList, EntityListSkeleton, EntityRow, ErrorState, Section, Skeleton, StatTiles } from '@/components/ui'
+import { useT } from '@/i18n'
+import { useCodeCount } from './useCodeCount'
 import { codeApi } from '@/services'
 import type { ArchitectureOverview } from '@/services'
 
@@ -12,6 +14,8 @@ interface CodeArchitectureTabProps {
 const basename = (path: string) => path.split('/').pop() || path
 
 export function CodeArchitectureTab({ projectSlug, workspaceSlug, onOpenFile }: CodeArchitectureTabProps) {
+  const { t } = useT()
+  const count = useCodeCount()
   const [architecture, setArchitecture] = useState<ArchitectureOverview | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -24,11 +28,11 @@ export function CodeArchitectureTab({ projectSlug, workspaceSlug, onOpenFile }: 
       const workspace_slug = projectSlug ? undefined : workspaceSlug
       setArchitecture(await codeApi.getArchitecture({ project_slug, workspace_slug }))
     } catch {
-      setError('Could not load the architecture overview.')
+      setError(t('code.architectureTab.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [projectSlug, workspaceSlug])
+  }, [projectSlug, workspaceSlug, t])
 
   useEffect(() => {
     loadArchitecture()
@@ -36,7 +40,7 @@ export function CodeArchitectureTab({ projectSlug, workspaceSlug, onOpenFile }: 
 
   if (loading) {
     return (
-      <div className="space-y-6" role="status" aria-label="Loading">
+      <div className="space-y-6" role="status" aria-label={t('code.common.loading')}>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-16 rounded-xl" />
@@ -46,8 +50,8 @@ export function CodeArchitectureTab({ projectSlug, workspaceSlug, onOpenFile }: 
       </div>
     )
   }
-  if (error) return <ErrorState title="Architecture unavailable" description={error} onRetry={loadArchitecture} />
-  if (!architecture) return <EmptyState title="No architecture data" description="Sync the project first to analyse its code." />
+  if (error) return <ErrorState title={t('code.architectureTab.unavailable')} description={error} onRetry={loadArchitecture} />
+  if (!architecture) return <EmptyState title={t('code.architectureTab.noData')} description={t('code.architectureTab.noDataDescription')} />
 
   const keyFiles = architecture.key_files ?? []
   const languages = architecture.languages ?? []
@@ -57,44 +61,44 @@ export function CodeArchitectureTab({ projectSlug, workspaceSlug, onOpenFile }: 
     <div className="space-y-6">
       <StatTiles
         items={[
-          { label: 'Files', value: architecture.total_files.toLocaleString() },
-          { label: 'Languages', value: languages.length },
-          { label: 'Key files', value: keyFiles.length },
-          { label: 'Modules', value: modules.length },
+          { label: t('code.architectureTab.files'), value: architecture.total_files.toLocaleString() },
+          { label: t('code.architectureTab.languages'), value: languages.length },
+          { label: t('code.architectureTab.keyFiles'), value: keyFiles.length },
+          { label: t('code.architectureTab.modules'), value: modules.length },
         ]}
       />
 
-      <Section title="Key files" count={keyFiles.length} description="The most depended-on files — changing them ripples furthest.">
+      <Section title={t('code.architectureTab.keyFiles')} count={keyFiles.length} description={t('code.architectureTab.keyFilesDescription')}>
         {keyFiles.length === 0 ? (
-          <EmptyState size="sm" title="No key files yet." />
+          <EmptyState size="sm" title={t('code.architectureTab.noKeyFiles')} />
         ) : (
-          <EntityList aria-label="Key files">
+          <EntityList aria-label={t('code.architectureTab.keyFiles')}>
             {keyFiles.map((file) => (
               <EntityRow
                 key={file.path}
                 title={<span className="font-mono">{basename(file.path)}</span>}
-                ariaLabel={`History of ${file.path}`}
+                ariaLabel={t('code.common.historyOf', { path: file.path })}
                 onClick={() => onOpenFile(file.path)}
                 description={<span className="font-mono break-all">{file.path}</span>}
-                meta={[pluralize(file.dependents, 'dependent'), pluralize(file.imports, 'import')]}
+                meta={[count('dependent', file.dependents), count('import', file.imports)]}
               />
             ))}
           </EntityList>
         )}
       </Section>
 
-      <Section title="Languages" count={languages.length}>
+      <Section title={t('code.architectureTab.languages')} count={languages.length}>
         {languages.length === 0 ? (
-          <EmptyState size="sm" title="No languages detected." />
+          <EmptyState size="sm" title={t('code.architectureTab.noLanguages')} />
         ) : (
-          <EntityList aria-label="Languages">
+          <EntityList aria-label={t('code.architectureTab.languages')}>
             {languages.map((lang) => (
               <EntityRow
                 key={lang.language}
                 title={<span className="capitalize">{lang.language}</span>}
                 ariaLabel={lang.language}
-                trailing={pluralize(lang.file_count, 'file')}
-                meta={[pluralize(lang.function_count, 'function'), pluralize(lang.struct_count, 'struct')]}
+                trailing={count('file', lang.file_count)}
+                meta={[count('function', lang.function_count), count('struct', lang.struct_count)]}
               />
             ))}
           </EntityList>
@@ -102,15 +106,15 @@ export function CodeArchitectureTab({ projectSlug, workspaceSlug, onOpenFile }: 
       </Section>
 
       {modules.length > 0 && (
-        <Section title="Modules" count={modules.length} collapsible defaultOpen={modules.length <= 8}>
-          <EntityList aria-label="Modules">
+        <Section title={t('code.architectureTab.modules')} count={modules.length} collapsible defaultOpen={modules.length <= 8}>
+          <EntityList aria-label={t('code.architectureTab.modules')}>
             {modules.map((m) => (
               <EntityRow
                 key={m.path}
                 title={<span className="font-mono break-all">{m.path}</span>}
                 ariaLabel={m.path}
-                trailing={pluralize(m.files, 'file')}
-                meta={[m.public_api?.length ? `${pluralize(m.public_api.length, 'public symbol')}` : null]}
+                trailing={count('file', m.files)}
+                meta={[m.public_api?.length ? count('publicSymbol', m.public_api.length) : null]}
               />
             ))}
           </EntityList>

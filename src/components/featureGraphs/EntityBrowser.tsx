@@ -2,15 +2,18 @@ import { Fragment, useMemo, useState } from 'react'
 import { File, Layers, Package, Shapes, Zap, Database, Link as LinkIcon } from 'lucide-react'
 import { EmptyState, EntityRow, Fact, FilterBar, Gauge, ViewTabs, WindowedList, type WindowedItem } from '@/components/ui'
 import { Button } from '@/components/ui'
-import { ROLE_META, roleLabel } from '@/utils/featureGraphModel'
+import { useT } from '@/i18n'
 import {
   groupEntityViews,
-  ROLE_PLAIN,
   type EntityNeighbours,
   type EntityView,
   type GroupBy,
 } from '@/utils/featureGraphReadable'
 import { EntityDetailPanel, IMPORTANCE_TONE } from './EntityDetailPanel'
+import { useFeatureGraphLabels } from './useFeatureGraphLabels'
+
+/** Key of the "no file" group (see `groupEntityViews`). */
+const NO_FILE = '\uFFFF'
 
 export const ROW_HEIGHT = 108
 export const HEADER_HEIGHT = 36
@@ -30,12 +33,6 @@ export function EntityIcon({ type, className = 'w-4 h-4 shrink-0' }: { type: str
       return <Package className={`${className} text-gray-500`} aria-hidden="true" />
   }
 }
-
-const GROUP_TABS: { id: GroupBy; label: string }[] = [
-  { id: 'role', label: 'Role' },
-  { id: 'file', label: 'File' },
-  { id: 'type', label: 'Type' },
-]
 
 type Flat = WindowedItem & ({ kind: 'header'; label: string; path: string[]; count: number; hint?: string } | { kind: 'row'; view: EntityView; pos: number })
 
@@ -75,6 +72,13 @@ export function EntityBrowser({
   neighbours: Map<string, EntityNeighbours>
   viewById: Map<string, EntityView>
 }) {
+  const { t } = useT()
+  const labels = useFeatureGraphLabels()
+  const groupTabs: { id: GroupBy; label: string }[] = [
+    { id: 'role', label: t('featureGraphs.browser.role') },
+    { id: 'file', label: t('featureGraphs.browser.file') },
+    { id: 'type', label: t('featureGraphs.browser.type') },
+  ]
   const [query, setQuery] = useState('')
   const [by, setBy] = useState<GroupBy>('role')
   const [selected, setSelected] = useState<EntityView | null>(null)
@@ -87,21 +91,23 @@ export function EntityBrowser({
   const flat = useMemo<Flat[]>(() => {
     const out: Flat[] = []
     let pos = 0
-    for (const g of groupEntityViews(matching, by, roleLabel)) {
+    for (const g of groupEntityViews(matching, by, labels.roleLabel)) {
+      const noFile = by === 'file' && g.key === NO_FILE
+      const label = by === 'type' ? labels.typePlural(g.key) : noFile ? t('featureGraphs.browser.noFile') : g.label
       out.push({
         kind: 'header',
         key: `h:${by}:${g.key}`,
         height: HEADER_HEIGHT,
         header: true,
-        label: g.label,
-        path: g.path,
+        label,
+        path: noFile || by !== 'file' ? [label] : g.path,
         count: g.views.length,
-        hint: by === 'role' ? ROLE_META[g.key]?.description : undefined,
+        hint: by === 'role' ? labels.roleDescription(g.key) : undefined,
       })
       for (const view of g.views) out.push({ kind: 'row', key: `r:${view.index}`, height: ROW_HEIGHT, view, pos: ++pos })
     }
     return out
-  }, [matching, by])
+  }, [matching, by, t, labels])
 
   const selectById = (id: string) => {
     const v = viewById.get(id)
@@ -113,8 +119,15 @@ export function EntityBrowser({
     if (item.kind === 'header') return <GroupHeader item={item} by={by} />
     const { view } = item
     const e = view.entity
-    const roleHint = [ROLE_META[view.role]?.description, ROLE_PLAIN[view.role]?.plain].filter(Boolean).join(' — ')
-    const where = view.file && by !== 'file' ? (e.line_start != null ? `${view.file}:${e.line_start}` : view.file) : e.line_start != null ? `line ${e.line_start}` : null
+    const roleHint = [labels.roleDescription(view.role), labels.rolePlain(view.role)].filter(Boolean).join(' — ')
+    const where =
+      view.file && by !== 'file'
+        ? e.line_start != null
+          ? `${view.file}:${e.line_start}`
+          : view.file
+        : e.line_start != null
+          ? t('featureGraphs.browser.line', { n: e.line_start })
+          : null
     return (
       <article aria-posinset={item.pos} aria-setsize={matching.length} aria-label={view.title} className="h-full overflow-hidden">
         <EntityRow
@@ -128,15 +141,15 @@ export function EntityBrowser({
           description={<span className="block truncate" title={view.summary}>{view.summary}</span>}
           status={[
             <span key="role" title={roleHint}>
-              {view.roleWord}
+              {labels.roleWord(view.role)}
             </span>,
             <Gauge
               key="imp"
-              label="Importance"
+              label={t('featureGraphs.browser.importance')}
               value={view.importance.value}
-              level={view.importance.label}
+              level={labels.importanceLabel(view.importance.level)}
               tone={IMPORTANCE_TONE[view.importance.level]}
-              title={`${view.importance.label} for this feature`}
+              title={t('featureGraphs.browser.importanceFor', { level: labels.importanceLabel(view.importance.level) })}
             />,
           ]}
           meta={[
@@ -146,7 +159,7 @@ export function EntityBrowser({
               </Fact>
             ) : null,
             <Fact key="type" icon={Shapes}>
-              {view.typeLabel}
+              {labels.typeLabel(e.entity_type)}
             </Fact>,
           ]}
         />
@@ -160,18 +173,18 @@ export function EntityBrowser({
       <FilterBar
         search={query}
         onSearchChange={setQuery}
-        searchPlaceholder="Search entities…"
-        trailing={<ViewTabs tabs={GROUP_TABS} value={by} onChange={setBy} label="Group entities by" />}
+        searchPlaceholder={t('featureGraphs.browser.search')}
+        trailing={<ViewTabs tabs={groupTabs} value={by} onChange={setBy} label={t('featureGraphs.browser.groupBy')} />}
       />
       {matching.length === 0 ? (
         <EmptyState
           size="sm"
           icon={<Package />}
-          title="No matching entities"
-          description="Try another name, path, type or word from the description."
+          title={t('featureGraphs.browser.noMatch')}
+          description={t('featureGraphs.browser.noMatchDescription')}
           action={
             <Button size="sm" variant="secondary" onClick={() => setQuery('')}>
-              Clear
+              {t('featureGraphs.browser.clear')}
             </Button>
           }
         />
@@ -180,13 +193,13 @@ export function EntityBrowser({
           <p className="flex items-center gap-1.5 text-xs text-gray-500 tabular-nums" role="status">
             <Layers className="w-3 h-3" aria-hidden="true" />
             {hasQuery
-              ? `${matching.length.toLocaleString()} of ${views.length.toLocaleString()} entities match`
-              : `${views.length.toLocaleString()} entities — scroll the list to see them all`}
+              ? t('featureGraphs.browser.matches', { shown: matching.length, total: views.length })
+              : t('featureGraphs.browser.scrollAll', { total: views.length })}
           </p>
           <WindowedList
             items={flat}
             renderItem={renderItem}
-            label={`Entities grouped by ${by}`}
+            label={t(`featureGraphs.browser.groupedBy.${by}`)}
             resetKey={`${by}|${query}`}
           />
         </div>

@@ -5,20 +5,15 @@ import { PageShell, Select, TabLayout } from '@/components/ui'
 import type { TabItem } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
+import { useT } from '@/i18n'
 import { CodeExplorerTab } from '@/components/code/CodeExplorerTab'
 import { CodeArchitectureFullTab } from '@/components/code/CodeArchitectureFullTab'
 import { CodeSanteTab } from '@/components/code/CodeSanteTab'
 import { FileHistoryDrawer } from '@/components/code/FileHistoryDrawer'
-import { NOMENCLATURE } from '@/constants/nomenclature'
 
 type CodeTab = 'explorer' | 'architecture' | 'health'
 
-const TABS: TabItem[] = [
-  { id: 'explorer', label: 'Explorer', icon: <Search /> },
-  { id: 'architecture', label: 'Architecture', icon: <Blocks /> },
-  { id: 'health', label: 'Health', icon: <HeartPulse /> },
-]
-const TAB_IDS = TABS.map((t) => t.id)
+const TAB_IDS: string[] = ['explorer', 'architecture', 'health']
 /** Older links (`?tab=sante`) keep working. */
 const LEGACY_TAB_IDS: Record<string, CodeTab> = { sante: 'health' }
 
@@ -27,6 +22,12 @@ const LEGACY_TAB_IDS: Record<string, CodeTab> = { sante: 'health' }
  *   ?tab=explorer|architecture|health  ?project=<slug>  ?file=<path> (opens the file history sheet)
  */
 export function CodePage() {
+  const { t } = useT()
+  const tabs: TabItem[] = [
+    { id: 'explorer', label: t('code.page.tabs.explorer'), icon: <Search /> },
+    { id: 'architecture', label: t('code.page.tabs.architecture'), icon: <Blocks /> },
+    { id: 'health', label: t('code.page.tabs.health'), icon: <HeartPulse /> },
+  ]
   const wsSlug = useWorkspaceSlug()
   const [params, setParams] = useSearchParams()
 
@@ -72,14 +73,14 @@ export function CodePage() {
   const projectSlug = selectedProject !== 'all' ? selectedProject : null
 
   const projectOptions = [
-    { value: 'all', label: 'Whole workspace' },
+    { value: 'all', label: t('code.page.wholeWorkspace') },
     ...projects.map((p) => ({ value: p.slug, label: p.name })),
   ]
 
   return (
     <PageShell
-      title={NOMENCLATURE.code.plural}
-      description="Search, architecture and health of your projects' code."
+      title={t('nav.concepts.code')}
+      description={t('code.page.description')}
       intro="code"
       width="wide"
       filters={
@@ -96,10 +97,10 @@ export function CodePage() {
       }
     >
       <TabLayout
-        tabs={TABS}
+        tabs={tabs}
         activeTab={activeTab}
         onTabChange={(id) => setParam('tab', id === 'explorer' ? null : id)}
-        label="Code sections"
+        label={t('code.page.sections')}
         className="pt-4"
       >
         {activeTab === 'explorer' && <CodeExplorerTab projectSlug={projectSlug} workspaceSlug={wsSlug} onOpenFile={openFile} />}

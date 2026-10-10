@@ -22,7 +22,6 @@ import {
   WatcherToggle,
   formatAbsolute,
   formatDay,
-  pluralize,
   ProgressLine,
 } from '@/components/ui'
 import { glassFlat, iconButton } from '@/components/ui/classes'
@@ -36,6 +35,7 @@ import {
   IntelPulse,
 } from '@/components/intelligence/IntelligenceDashboard'
 import { projectsApi } from '@/services'
+import { useT, type MessageKey } from '@/i18n'
 import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import {
@@ -52,6 +52,9 @@ import { PROJECT_PROFILE_TEXT, hasCodebase, profileIcon, profileLabel, profileOf
 // ─── Main Page ──────────────────────────────────────────────────────────────
 
 export function ProjectDetailPage() {
+  const { t } = useT()
+  const count = (n: number, key: 'milestone' | 'release' | 'task' | 'commit') =>
+    t(`projects.counts.${key}.${n === 1 ? 'one' : 'other'}` as MessageKey, { n })
   const { projectSlug: slug } = useParams<{ projectSlug: string }>()
   const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
@@ -94,12 +97,12 @@ export function ProjectDetailPage() {
     } catch (err) {
       if (signal?.aborted) return
       console.error('Failed to fetch project:', err)
-      setError('Failed to load project')
+      setError(t('projects.detail.loadFailed'))
     } finally {
       if (!signal?.aborted && isInitialLoad) setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- project is a data object (would cause loop); setSuggestedProjectId is a stable Jotai setter
-  }, [slug, projectRefresh, planRefresh, milestoneRefresh, taskRefresh])
+  }, [slug, t, projectRefresh, planRefresh, milestoneRefresh, taskRefresh])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -122,10 +125,10 @@ export function ProjectDetailPage() {
       await projectsApi.sync(slug)
       const projectData = await projectsApi.get(slug)
       setProject(projectData)
-      toast.success('Codebase synced')
+      toast.success(t('projects.detail.codebaseSynced'))
     } catch (err) {
       console.error('Failed to sync project:', err)
-      toast.error('Failed to sync project')
+      toast.error(t('projects.detail.syncFailed'))
     } finally {
       setSyncing(false)
     }
@@ -134,9 +137,9 @@ export function ProjectDetailPage() {
   const copyPath = async (path: string) => {
     try {
       await navigator.clipboard.writeText(path)
-      toast.success('Path copied')
+      toast.success(t('projects.detail.pathCopied'))
     } catch {
-      toast.error('Could not copy path')
+      toast.error(t('projects.detail.pathCopyFailed'))
     }
   }
 
@@ -144,7 +147,7 @@ export function ProjectDetailPage() {
     onSubmit: async (data) => {
       if (!project) return
       await projectsApi.createMilestone(project.id, data)
-      toast.success('Milestone added')
+      toast.success(t('projects.detail.milestoneAdded'))
       await reloadRoadmap(project.id)
     },
   })
@@ -153,7 +156,7 @@ export function ProjectDetailPage() {
     onSubmit: async (data) => {
       if (!project) return
       await projectsApi.createRelease(project.id, data)
-      toast.success('Release added')
+      toast.success(t('projects.detail.releaseAdded'))
       await reloadRoadmap(project.id)
     },
   })
@@ -170,11 +173,11 @@ export function ProjectDetailPage() {
       if (!project) return
       await projectsApi.update(project.slug, data)
       setProject({ ...project, ...data, root_path: data.root_path || undefined })
-      toast.success('Project updated')
+      toast.success(t('projects.detail.updated'))
     },
   })
 
-  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
+  if (error) return <ErrorState title={t('projects.common.failedTitle')} description={error} onRetry={fetchData} />
   if (loading || !project) return <LoadingPage />
 
   const milestones = roadmap?.milestones ?? []
@@ -190,10 +193,10 @@ export function ProjectDetailPage() {
       to: workspacePath(wsSlug, `/projects/${project.slug}/intelligence`),
       icon: Brain,
       label: 'Intelligence',
-      desc: 'Layers, neural, behavioral',
+      desc: t('projects.detail.intelligenceDesc'),
     },
-    { to: workspacePath(wsSlug, '/skills'), icon: Sparkles, label: 'Skills', desc: 'Skill maturity & profiles' },
-    { to: workspacePath(wsSlug, '/feature-graphs'), icon: Network, label: 'Feature graphs', desc: 'Entity graphs & flows' },
+    { to: workspacePath(wsSlug, '/skills'), icon: Sparkles, label: t('nav.concepts.skills'), desc: t('projects.detail.skillsDesc') },
+    { to: workspacePath(wsSlug, '/feature-graphs'), icon: Network, label: t('nav.concepts.featureGraphs'), desc: t('projects.detail.featureGraphsDesc') },
   ]
 
   return (
@@ -210,45 +213,45 @@ export function ProjectDetailPage() {
             {project.slug}
           </span>,
           !codebase ? null : project.last_synced ? (
-            <RelativeTime key="sync" date={project.last_synced} prefix="synced " />
+            <RelativeTime key="sync" date={project.last_synced} prefix={`${t('projects.common.synced')} `} />
           ) : (
-            <ToneText key="sync" tone="warning" label="Never synced" />
+            <ToneText key="sync" tone="warning" label={t('projects.common.neverSynced')} />
           ),
-          pluralize(milestones.length, 'milestone'),
-          releases.length > 0 ? pluralize(releases.length, 'release') : null,
+          count(milestones.length, 'milestone'),
+          releases.length > 0 ? count(releases.length, 'release') : null,
         ]}
         actions={
           <>
             {codebase && (
-              <Button size="sm" variant="secondary" onClick={handleSync} loading={syncing} aria-label="Sync codebase">
+              <Button size="sm" variant="secondary" onClick={handleSync} loading={syncing} aria-label={t('projects.detail.syncAria')}>
                 {!syncing && <RefreshCw className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />}
-                {syncing ? 'Syncing…' : 'Sync'}
+                {syncing ? t('projects.detail.syncing') : t('projects.detail.sync')}
               </Button>
             )}
             {codebase && project.root_path && <WatcherToggle projectId={project.id} rootPath={project.root_path} className="min-h-9" />}
           </>
         }
         overflowActions={[
-          { label: 'Edit', icon: Pencil, onClick: () => editProjectDialog.open({ title: 'Edit project' }) },
+          { label: t('projects.common.edit'), icon: Pencil, onClick: () => editProjectDialog.open({ title: t('projects.detail.editTitle') }) },
           {
-            label: 'Copy root path',
+            label: t('projects.detail.copyRootPath'),
             icon: Clipboard,
             hidden: !project.root_path,
             onClick: () => { if (project.root_path) copyPath(project.root_path) },
           },
           {
-            label: 'Delete',
+            label: t('projects.common.delete'),
             icon: Trash2,
             variant: 'danger',
             onClick: async () => {
               await projectsApi.delete(project.slug)
-              toast.success('Project deleted')
+              toast.success(t('projects.detail.deleted'))
               navigate(workspacePath(wsSlug, '/projects'))
             },
             confirm: {
-              title: 'Delete project?',
-              description: 'This will permanently delete this project and all associated data.',
-              confirmLabel: 'Delete',
+              title: t('projects.detail.deleteTitle'),
+              description: t('projects.detail.deleteDescription'),
+              confirmLabel: t('projects.common.delete'),
             },
           },
         ]}
@@ -256,18 +259,22 @@ export function ProjectDetailPage() {
 
       {/* ── Progress (only when the roadmap has tasks) ───────────────────── */}
       {progress && progress.total_tasks > 0 && (
-        <section aria-label="Project progress" className="space-y-1.5">
-          <ProgressLine value={progress.percentage} size="md" label="Project progress" />
+        <section aria-label={t('projects.detail.progress')} className="space-y-1.5">
+          <ProgressLine value={progress.percentage} size="md" label={t('projects.detail.progress')} />
           <p className="text-[11px] leading-4 text-gray-500 tabular-nums">
-            {progress.completed_tasks} / {progress.total_tasks} tasks completed · {Math.round(progress.percentage)}%
-            {progress.in_progress_tasks > 0 && ` · ${progress.in_progress_tasks} in progress`}
-            {progress.pending_tasks > 0 && ` · ${progress.pending_tasks} pending`}
+            {t('projects.detail.tasksCompleted', {
+              done: progress.completed_tasks,
+              total: progress.total_tasks,
+              percent: Math.round(progress.percentage),
+            })}
+            {progress.in_progress_tasks > 0 && ` · ${t('projects.detail.inProgress', { n: progress.in_progress_tasks })}`}
+            {progress.pending_tasks > 0 && ` · ${t('projects.detail.pending', { n: progress.pending_tasks })}`}
           </p>
         </section>
       )}
 
       {/* ── Health: key numbers + breakdown ──────────────────────────────── */}
-      <Section title="Health" action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
+      <Section title={t('projects.common.health')} action={intelReady ? <IntelRefreshButton data={intelligence} /> : undefined}>
         {intelReady && intelligence.summary ? (
           <IntelPulse data={intelligence} />
         ) : (
@@ -280,27 +287,27 @@ export function ProjectDetailPage() {
 
       {/* ── Milestones ───────────────────────────────────────────────────── */}
       <Section
-        title="Milestones"
+        title={t('projects.detail.milestones')}
         count={milestones.length}
         action={
-          <Button size="sm" variant="ghost" onClick={() => milestoneFormDialog.open({ title: 'Add milestone' })}>
-            Add
+          <Button size="sm" variant="ghost" onClick={() => milestoneFormDialog.open({ title: t('projects.detail.addMilestone') })}>
+            {t('projects.common.add')}
           </Button>
         }
       >
         {milestones.length === 0 ? (
           <EmptyState
             size="sm"
-            title="No milestones yet"
-            description="Group plans into milestones to track delivery."
+            title={t('projects.detail.noMilestones')}
+            description={t('projects.detail.noMilestonesDescription')}
             action={
-              <Button size="sm" variant="secondary" onClick={() => milestoneFormDialog.open({ title: 'Add milestone' })}>
-                Add
+              <Button size="sm" variant="secondary" onClick={() => milestoneFormDialog.open({ title: t('projects.detail.addMilestone') })}>
+                {t('projects.common.add')}
               </Button>
             }
           />
         ) : (
-          <EntityList aria-label="Milestones">
+          <EntityList aria-label={t('projects.detail.milestones')}>
             {milestones.map(({ milestone, progress: msProgress }) => (
               <ExpandableMilestoneRow key={milestone.id} milestone={milestone} progress={msProgress} refreshTrigger={taskRefresh} />
             ))}
@@ -310,20 +317,20 @@ export function ProjectDetailPage() {
 
       {/* ── Releases (collapsed by default) ──────────────────────────────── */}
       <Section
-        title={<MetricTooltip term="release">Releases</MetricTooltip>}
+        title={<MetricTooltip term="release">{t('projects.detail.releases')}</MetricTooltip>}
         count={releases.length}
         collapsible
         defaultOpen={false}
         action={
-          <Button size="sm" variant="ghost" onClick={() => releaseFormDialog.open({ title: 'Add release' })}>
-            Add
+          <Button size="sm" variant="ghost" onClick={() => releaseFormDialog.open({ title: t('projects.detail.addRelease') })}>
+            {t('projects.common.add')}
           </Button>
         }
       >
         {releases.length === 0 ? (
-          <EmptyState size="sm" title="No releases yet" />
+          <EmptyState size="sm" title={t('projects.detail.noReleases')} />
         ) : (
-          <EntityList aria-label="Releases">
+          <EntityList aria-label={t('projects.detail.releases')}>
             {releases.map(({ release, tasks, commits }) => (
               <EntityRow
                 key={release.id}
@@ -334,13 +341,13 @@ export function ProjectDetailPage() {
                   release.released_at ? (
                     <RelativeTime date={release.released_at} />
                   ) : release.target_date ? (
-                    <span title={formatAbsolute(release.target_date)}>due {formatDay(release.target_date)}</span>
+                    <span title={formatAbsolute(release.target_date)}>{t('projects.common.due', { date: formatDay(release.target_date) })}</span>
                   ) : undefined
                 }
                 meta={[
                   <StatusText key="s" kind="release" status={release.status} />,
-                  tasks.length > 0 ? pluralize(tasks.length, 'task') : null,
-                  commits.length > 0 ? pluralize(commits.length, 'commit') : null,
+                  tasks.length > 0 ? count(tasks.length, 'task') : null,
+                  commits.length > 0 ? count(commits.length, 'commit') : null,
                 ]}
               />
             ))}
@@ -352,20 +359,20 @@ export function ProjectDetailPage() {
       {intelReady && <IntelQuickActions data={intelligence} />}
 
       {/* ── Details ──────────────────────────────────────────────────────── */}
-      <Section title="Details">
+      <Section title={t('projects.detail.details')}>
         <Facts
           items={[
             { label: PROJECT_PROFILE_TEXT.type, value: profileLabel(profile) },
             {
-              label: 'Root path',
+              label: t('projects.detail.rootPath'),
               value: project.root_path ? (
                 <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
                   <span className="font-mono text-xs text-gray-300 break-all min-w-0">{project.root_path}</span>
                   <button
                     type="button"
                     onClick={() => project.root_path && copyPath(project.root_path)}
-                    title="Copy path"
-                    aria-label="Copy path"
+                    title={t('projects.detail.copyPath')}
+                    aria-label={t('projects.detail.copyPath')}
                     className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} -my-2 text-gray-500`}
                   >
                     <Clipboard className="w-3.5 h-3.5" aria-hidden="true" />
@@ -373,19 +380,19 @@ export function ProjectDetailPage() {
                 </span>
               ) : null,
             },
-            { label: 'Created', value: project.created_at ? formatAbsolute(project.created_at) : null },
+            { label: t('projects.detail.created'), value: project.created_at ? formatAbsolute(project.created_at) : null },
             {
-              label: 'Last synced',
+              label: t('projects.detail.lastSynced'),
               hidden: !codebase,
-              value: project.last_synced ? formatAbsolute(project.last_synced) : 'Never',
+              value: project.last_synced ? formatAbsolute(project.last_synced) : t('projects.detail.never'),
             },
           ]}
         />
       </Section>
 
       {/* ── Explore ──────────────────────────────────────────────────────── */}
-      <Section title="Explore">
-        <EntityList aria-label="Explore">
+      <Section title={t('projects.detail.explore')}>
+        <EntityList aria-label={t('projects.detail.explore')}>
           {exploreLinks.map((l) => (
             <EntityRow
               key={l.label}
