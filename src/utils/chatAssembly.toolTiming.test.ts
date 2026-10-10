@@ -4,7 +4,8 @@
  * reads it, and it changes nothing else in the conversation.
  */
 import { describe, it, expect, vi } from 'vitest'
-import { EARLY_TOOL_TIMINGS_MAX, EarlyToolTimings, SERVER_CLOCK_WINDOW_MS, ServerClock, historyEventsToMessages, historyEventsToWindow, placeTimings } from './chatAssembly'
+import { EARLY_TOOL_TIMINGS_MAX, EarlyToolTimings, SERVER_CLOCK_WINDOW_MS, ServerClock, historyEventsToMessages, historyEventsToWindow, placeTimings, userEchoTarget } from './chatAssembly'
+import type { ChatMessage } from '@/types'
 import { buildTimeline } from '@/components/timeline/model'
 
 const timing = {
@@ -152,6 +153,54 @@ describe('historyEventsToMessages — permission time', () => {
   })
 })
 
+describe('historyEventsToMessages — the timing of a question call', () => {
+  const ask = { type: 'tool_use', id: 'q1', tool: 'AskUserQuestion', input: { questions: [{ question: 'Which?' }] }, created_at: 1_700_000_001 }
+  const askTiming = { type: 'tool_timing', id: 'q1', called_at: 1_700_000_001, ended_at: 1_700_000_020, created_at: 1_700_000_020.1 }
+  const answer = { type: 'tool_result', id: 'q1', result: 'A', created_at: 1_700_000_020 }
+  const questionTiming = (events: Record<string, unknown>[]) => {
+    const w = historyEventsToWindow(events)
+    return { timing: w.messages.flatMap((m) => m.blocks).find((b) => b.type === 'ask_user_question')?.metadata?.tool_timing, unplaced: w.unplacedTimings.size }
+  }
+
+  it('puts it on the question block, whether it comes after or before the tool_use', () => {
+    const go = { type: 'user_message', content: 'go', created_at: 1_700_000_000 }
+    expect(questionTiming([go, ask, answer, askTiming])).toEqual({ timing: { called_at: 1_700_000_001, ended_at: 1_700_000_020 }, unplaced: 0 })
+    expect(questionTiming([go, askTiming, ask, answer])).toEqual({ timing: { called_at: 1_700_000_001, ended_at: 1_700_000_020 }, unplaced: 0 })
+  })
+
+  it('the trace draws the question as the wait for its answer', () => {
+    const msgs = historyEventsToMessages([{ type: 'user_message', content: 'go', created_at: 1_700_000_000 }, ask, answer, askTiming])
+    const item = buildTimeline({ messages: msgs, sessionId: 's' }).items.find((i) => i.id === 'ask_user_question:q1')
+    expect(item).toMatchObject({ startedAt: 1_700_000_001_000, endedAt: 1_700_000_020_000, durationMs: 19_000 })
+  })
+})
+
+describe('userEchoTarget — which bubble a user_message echo belongs to', () => {
+  let n = 0
+  const user = (content: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({ id: `u${++n}`, role: 'user', blocks: [{ id: `b${n}`, type: 'text', content }], timestamp: new Date(0), ...extra })
+  const assistant = (extra: Partial<ChatMessage> = {}): ChatMessage => ({ id: `a${++n}`, role: 'assistant', blocks: [{ id: `b${n}`, type: 'text', content: 'sure' }], timestamp: new Date(0), ...extra })
+
+  it('the oldest bubble waiting for an echo of that text, wherever it is', () => {
+    const msgs = [user('ok', { awaitingEcho: true }), assistant(), user('ok', { awaitingEcho: true }), assistant()]
+    expect(userEchoTarget(msgs, 'ok')).toEqual({ index: 0, awaiting: true })
+  })
+
+  it('never a waiting bubble a turn result has gone past (its echo will not come any more)', () => {
+    const msgs = [user('ok', { awaitingEcho: true }), assistant({ duration_ms: 10 }), user('next'), assistant({ duration_ms: 10 })]
+    expect(userEchoTarget(msgs, 'ok')).toBeNull()
+  })
+
+  it('else the bubble opening the turn in progress (a replay of it)', () => {
+    expect(userEchoTarget([user('ok'), assistant()], 'ok')).toEqual({ index: 0, awaiting: false })
+  })
+
+  it('never an older message with the same text, nor the opener of a turn that is over', () => {
+    expect(userEchoTarget([user('ok'), assistant({ duration_ms: 10 }), user('next'), assistant()], 'ok')).toBeNull()
+    expect(userEchoTarget([user('ok'), assistant({ duration_ms: 10 })], 'ok')).toBeNull()
+    expect(userEchoTarget([user('other')], 'ok')).toBeNull()
+  })
+})
+
 describe('ServerClock', () => {
   it('learns the gap from a live frame, ignores a replayed one, and gives the server time', () => {
     const clock = new ServerClock()
@@ -177,10 +226,39 @@ describe('ServerClock — a late frame', () => {
       vi.setSystemTime(server + 3_605_000)
       clock.observe({ type: 'x', created_at: (server + 1000) / 1000 })
       expect(clock.offset).toBe(-3_600_000)
-      // Past the window, only the late sample is left.
-      vi.setSystemTime(server + 3_605_000 + SERVER_CLOCK_WINDOW_MS + 1)
-      clock.observe({ type: 'x', created_at: (server + 5000 + SERVER_CLOCK_WINDOW_MS + 1 - 4000) / 1000 })
+      // Frames keep coming (every 20 s), all 4 s late: once the first sample is
+      // older than the window, only the late ones are left.
+      for (const after of [20_000, 40_000]) {
+        vi.setSystemTime(server + 3_605_000 + after)
+        clock.observe({ type: 'x', created_at: (server + 1000 + after) / 1000 })
+      }
+      expect(clock.offset).toBe(-3_600_000)
+      vi.setSystemTime(server + 3_605_000 + 60_000)
+      clock.observe({ type: 'x', created_at: (server + 1000 + 60_000) / 1000 })
       expect(clock.offset).toBe(-3_604_000)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('after a silence longer than the window (a frozen tab), the late burst does not drag the clock back', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const server = 1_700_000_000_000
+      const clock = new ServerClock()
+      vi.setSystemTime(server + 3_600_000)
+      clock.observe({ type: 'x', created_at: server / 1000 })
+      expect(clock.offset).toBe(-3_600_000)
+      // The tab is frozen for 2 minutes; the frames held meanwhile come at once,
+      // the freshest of them 30 s old.
+      vi.setSystemTime(server + 3_600_000 + 2 * SERVER_CLOCK_WINDOW_MS)
+      clock.observe({ type: 'x', created_at: (server + 2 * SERVER_CLOCK_WINDOW_MS - 30_000) / 1000 })
+      expect(clock.offset).toBe(-3_600_000)
+      expect(clock.now().getTime()).toBe(server + 2 * SERVER_CLOCK_WINDOW_MS)
+      // The next frames are live again: the clock keeps the true gap.
+      vi.setSystemTime(server + 3_600_000 + 2 * SERVER_CLOCK_WINDOW_MS + 1000)
+      clock.observe({ type: 'x', created_at: (server + 2 * SERVER_CLOCK_WINDOW_MS + 1000) / 1000 })
+      expect(clock.offset).toBe(-3_600_000)
     } finally {
       vi.useRealTimers()
     }

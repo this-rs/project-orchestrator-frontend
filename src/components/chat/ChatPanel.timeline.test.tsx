@@ -247,3 +247,53 @@ describe('ChatPanel full screen: room for the timeline column', () => {
     })
   })
 })
+
+describe('ChatPanel full screen on a phone: the conversations list is modal (useModalFocus)', () => {
+  const tab = (shiftKey = false) => fireEvent.keyDown(document.activeElement!, { key: 'Tab', shiftKey })
+
+  async function openList() {
+    setWidth(390)
+    renderFullscreen(false)
+    const trigger = await screen.findByRole('button', { name: 'Sessions' })
+    trigger.focus()
+    fireEvent.click(trigger)
+    const overlay = screen.getByRole('dialog', { name: 'Conversations' })
+    return { trigger, overlay }
+  }
+
+  it('focus moves to its close control; Tab from the last control wraps to it, Shift+Tab from it to the last', async () => {
+    const { overlay } = await openList()
+    const close = within(overlay).getByRole('button', { name: 'Back to chat' })
+    const last = within(overlay).getByRole('button', { name: 'Pick other' })
+    expect(document.activeElement).toBe(close)
+    last.focus()
+    tab()
+    expect(document.activeElement).toBe(close)
+    tab(true)
+    expect(document.activeElement).toBe(last)
+  })
+
+  it('Escape closes it and focus goes back to the Sessions button', async () => {
+    const { trigger } = await openList()
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Conversations' })).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('the chat behind it (rendered in place) is inert and hidden while open, and given back on close', async () => {
+    const { trigger, overlay } = await openList()
+    const header = trigger.closest('.h-14')!
+    expect(trigger.closest('[inert]')).not.toBeNull()
+    expect(trigger.closest('[aria-hidden="true"]')).not.toBeNull()
+    expect(screen.getByTestId('chat-sessions-sidebar').hasAttribute('inert')).toBe(true)
+    // The list itself and its ancestors stay usable.
+    expect(overlay.closest('[inert]')).toBeNull()
+    expect(overlay.closest('[aria-hidden="true"]')).toBeNull()
+    fireEvent.click(within(overlay).getByRole('button', { name: 'Back to chat' }))
+    expect(header.closest('[inert]')).toBeNull()
+    expect(header.closest('[aria-hidden="true"]')).toBeNull()
+    expect(screen.getByTestId('chat-sessions-sidebar').hasAttribute('inert')).toBe(false)
+    expect(document.activeElement).toBe(trigger)
+  })
+})

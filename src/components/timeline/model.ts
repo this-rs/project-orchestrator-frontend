@@ -419,6 +419,15 @@ export function buildTimeline(input: TimelineInput): Timeline {
       } else if (block.type === 'permission_request' || block.type === 'ask_user_question') {
         // The call it is about: `tool_use_id` when the engine gave it (the control id is not the call's).
         const aboutCall = str(block.metadata?.tool_use_id) ?? callId
+        // A question call is shown as this block alone: its timing is here.
+        if (block.type === 'ask_user_question') {
+          questionCalls.add(aboutCall)
+          if (block.metadata?.tool_timing && !timings.has(aboutCall)) {
+            timings.set(aboutCall, block.metadata.tool_timing)
+            const run = engineRun(block.metadata.tool_timing)
+            if (run) turnLast = Math.max(turnLast, run.end)
+          }
+        }
         const permission: TimelineItem = {
           id: `${block.type}:${callId}`,
           kind: 'permission',
@@ -518,16 +527,21 @@ export function buildTimeline(input: TimelineInput): Timeline {
   // the call's bar and goes beside it, under what the call hangs from. Only a
   // wait the engine dated (`asked`) moves beside: without it the permission's
   // time is the block's, not comparable with an engine run.
+  // A question is a wait as a whole: without a permission's times, it is asked
+  // when the call is made and answered when the call ends.
   for (const { item, callId } of permissions) {
     const run = engineRun(timings.get(callId))
-    if (run?.asked != null) item.startedAt = run.asked
-    if (run?.answered != null && run.answered >= item.startedAt) {
-      item.endedAt = run.answered
-      item.durationMs = run.answered - item.startedAt
-      if (item.status === 'blocked') item.status = run.denied ? 'cancelled' : 'done'
+    const isQuestion = item.id.startsWith('ask_user_question:') && questionCalls.has(callId)
+    const asked = run?.asked ?? (isQuestion && !run?.incomplete ? run?.called : undefined)
+    const answered = run?.answered ?? (isQuestion && !run?.incomplete ? run?.end : undefined)
+    if (asked != null) item.startedAt = asked
+    if (answered != null && answered >= item.startedAt) {
+      item.endedAt = answered
+      item.durationMs = answered - item.startedAt
+      if (item.status === 'blocked') item.status = run?.denied ? 'cancelled' : 'done'
     }
     const call = item.parentId ? byId.get(item.parentId) : undefined
-    if (call && call.id === callId && run?.asked != null && item.startedAt < call.startedAt) item.parentId = call.parentId ?? call.requestId
+    if (call && call.id === callId && asked != null && item.startedAt < call.startedAt) item.parentId = call.parentId ?? call.requestId
   }
 
   // A turn the stream left without a result (an older page, an interrupted turn) still ends at its last event.
