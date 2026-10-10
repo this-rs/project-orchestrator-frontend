@@ -13,6 +13,9 @@ export default {
   },
   degradation: {
     title: "Một số tính năng không khả dụng trong cuộc trò chuyện này",
+    collapse: "Thu gọn thành biểu tượng",
+    collapsedLabel: "Tính năng không khả dụng: {count}. Xem chi tiết",
+    expand: "Hiển thị phía trên ô nhập tin nhắn",
     installation: {
       heading: "Thiếu trong bản cài đặt này",
       note: "Cần khắc phục trên máy chủ: không phải thiếu sót của engine, cũng không phải giới hạn của mô hình.",

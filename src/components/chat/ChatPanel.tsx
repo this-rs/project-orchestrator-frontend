@@ -28,6 +28,9 @@ import { glassButton, glassFlat, iconButton } from '@/components/ui/classes'
 import { PolicyOnlyBanner } from './PolicyOnlyBanner'
 import { RemoteNoToolsBanner } from './RemoteNoToolsBanner'
 import { EngineBanner } from './EngineBanner'
+import { CapabilityGapsButton } from './CapabilityGapsButton'
+import { useCapabilityBannerCollapse } from './capabilityBannerCollapse'
+import { engineGaps } from '@/constants/engine'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { SecretRequestTray } from './SecretRequestTray'
 import { SessionOpenError } from './SessionOpenError'
@@ -112,6 +115,26 @@ export function ChatPanel() {
   const sessionModel = useAtomValue(chatSessionModelAtom)
   const engine = useAtomValue(chatSessionEngineAtom)
   const capabilitiesSnapshot = useAtomValue(chatSessionCapabilitiesSnapshotAtom)
+  // What this conversation cannot do (the capability banner). The reader can put the banner away as an
+  // amber icon in the header; a feature missing for the first time brings it back once.
+  const gapItems = useMemo(() => engineGaps(engine.degraded, capabilitiesSnapshot), [engine.degraded, capabilitiesSnapshot])
+  const gapIds = useMemo(() => gapItems.map((g) => g.id), [gapItems])
+  const bannerFold = useCapabilityBannerCollapse(gapIds)
+  const gapsIconRef = useRef<HTMLButtonElement>(null)
+  const bannerCollapseRef = useRef<HTMLButtonElement>(null)
+  // Focus follows the control that replaced the one just used (it unmounts).
+  const { collapse: foldBanner, expand: unfoldBanner } = bannerFold
+  const collapseBanner = useCallback(() => {
+    foldBanner()
+    requestAnimationFrame(() => gapsIconRef.current?.focus())
+  }, [foldBanner])
+  const expandBanner = useCallback(() => {
+    unfoldBanner()
+    requestAnimationFrame(() => bannerCollapseRef.current?.focus())
+  }, [unfoldBanner])
+  const gapsIcon = bannerFold.collapsed && gapItems.length > 0 ? (
+    <CapabilityGapsButton items={gapItems} onExpand={expandBanner} triggerRef={gapsIconRef} />
+  ) : null
   const [sessionOpenError, setSessionOpenError] = useAtom(chatSessionOpenErrorAtom)
   const dismissSessionOpenError = useCallback(() => setSessionOpenError(null), [setSessionOpenError])
   // Session + panel mode live in the URL, so a reload reopens the chat as it was.
@@ -436,7 +459,9 @@ export function ChatPanel() {
       {!isNewConversation && sessionProviderInfo.isRemote && !capabilities.per_session_mcp && (
         <RemoteNoToolsBanner machine={sessionProviderInfo.label} />
       )}
-      <EngineBanner degraded={engine.degraded} declared={capabilitiesSnapshot} />
+      {!bannerFold.collapsed && (
+        <EngineBanner degraded={engine.degraded} declared={capabilitiesSnapshot} onCollapse={collapseBanner} collapseRef={bannerCollapseRef} />
+      )}
     </>
   )
 
@@ -574,6 +599,7 @@ export function ChatPanel() {
               />
             </div>
             <div className="flex shrink-0 items-center gap-1">
+              {gapsIcon}
               <button
                 type="button"
                 onClick={handleNewSession}
@@ -810,6 +836,7 @@ export function ChatPanel() {
         {/* Four controls, not seven: a docked panel is narrow (400 px by default) and seven 28 px
             buttons left the title about 70 px. The less frequent ones live under the ⋯ menu. */}
         <div className="flex shrink-0 items-center gap-1">
+          {gapsIcon}
           <button
             type="button"
             onClick={handleNewSession}

@@ -13,6 +13,9 @@ export default {
   },
   degradation: {
     title: "Alguns recursos não estão disponíveis nesta conversa",
+    collapse: "Reduzir a um ícone",
+    collapsedLabel: "Recursos indisponíveis: {count}. Ver detalhes",
+    expand: "Mostrar acima da caixa de mensagem",
     installation: {
       heading: "Falta nesta instalação",
       note: "A corrigir no servidor: não é uma lacuna do motor nem um limite do modelo.",

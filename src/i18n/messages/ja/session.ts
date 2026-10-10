@@ -13,6 +13,9 @@ export default {
   },
   degradation: {
     title: "この会話では一部の機能を利用できません",
+    collapse: "アイコンに折りたたむ",
+    collapsedLabel: "利用できない機能: {count}。詳細を表示",
+    expand: "メッセージ入力欄の上に表示",
     installation: {
       heading: "このインストールに不足しているもの",
       note: "サーバー側で対処してください。エンジンの未対応でもモデルの制限でもありません。",
