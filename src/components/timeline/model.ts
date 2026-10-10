@@ -149,6 +149,21 @@ function toolLabel(name: string, input: Record<string, unknown>): string {
   return hint ? `${name} · ${clip(hint)}` : name
 }
 
+/**
+ * The run of a call as the engine saw it (`tool_timing`, seconds), in epoch ms.
+ * `start` is absent when the engine did not see the tool start running (denied,
+ * never answered, no host hook): the call keeps its announced start then.
+ */
+function engineRun(timing: unknown): { start?: number; end: number } | null {
+  if (!timing || typeof timing !== 'object') return null
+  const t = timing as Record<string, unknown>
+  if (typeof t.ended_at !== 'number') return null
+  return {
+    ...(typeof t.run_started_at === 'number' && { start: t.run_started_at * 1000 }),
+    end: t.ended_at * 1000,
+  }
+}
+
 function blockTime(block: ContentBlock, fallback: number): number {
   const iso = block.metadata?.created_at
   const t = typeof iso === 'string' ? Date.parse(iso) : NaN
@@ -210,6 +225,8 @@ export function buildTimeline(input: TimelineInput): Timeline {
   const now = input.now ?? Date.now()
   const mainLane: TimelineLane = { id: sessionId, title: input.title?.trim() || 'Conversation', items: [], context: input.session }
   const byId = new Map<string, TimelineItem>()
+  /** `tool_timing` of each call (on its tool_use block), when the backend sent one. */
+  const timings = new Map<string, unknown>()
   let requestId: string | undefined
   /** The time of the latest thing seen in the current turn, to close the turn's span. */
   let turnLast = 0
@@ -265,6 +282,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
         if (opener && !opener.model && model) opener.model = model
         if (opener && !opener.provider && provider) opener.provider = provider
       } else if (block.type === 'tool_use') {
+        if (block.metadata?.tool_timing) timings.set(callId, block.metadata.tool_timing)
         const name = str(block.metadata?.tool_name) ?? block.content
         const toolInput = (block.metadata?.tool_input as Record<string, unknown> | undefined) ?? {}
         push({
@@ -289,7 +307,14 @@ export function buildTimeline(input: TimelineInput): Timeline {
         item.status = cancelled ? 'cancelled' : failed ? 'error' : 'done'
         item.output = block.content
         const duration = block.metadata?.duration_ms
-        if (typeof duration === 'number') {
+        const run = engineRun(timings.get(callId))
+        if (run) {
+          // The engine's own times: the run starts when the tool really started
+          // (after a permission's answer), not when the model announced the call.
+          if (run.start != null) item.startedAt = run.start
+          item.endedAt = Math.max(run.end, item.startedAt)
+          item.durationMs = item.endedAt - item.startedAt
+        } else if (typeof duration === 'number') {
           item.durationMs = duration
           item.endedAt = item.startedAt + duration
         } else {

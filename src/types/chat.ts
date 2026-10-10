@@ -431,6 +431,27 @@ interface Nested {
 }
 
 /**
+ * When a tool call really ran, as the engine saw it (backend `tool_timing`, sent
+ * right after the call's `tool_result` / `tool_cancelled`). Seconds since the
+ * epoch, milliseconds as the fraction. The wait for the user is
+ * `permission_requested_at`..`permission_resolved_at`; the run is
+ * `run_started_at`..`ended_at`, and `run_started_at` is ABSENT when the tool never
+ * ran or the engine could not see it start (never an estimate).
+ */
+export interface ToolTiming {
+  id: string
+  ended_at: number
+  called_at?: number
+  started_at?: number
+  permission_requested_at?: number
+  permission_resolved_at?: number
+  permission_outcome?: 'allowed' | 'denied'
+  run_started_at?: number
+  cancelled?: boolean
+  incomplete?: boolean
+}
+
+/**
  * `ChatEvent` — the persisted/broadcast events of a session. Mirrors the
  * backend enum `ChatEvent` (`backend/src/chat/types.rs`) variant for variant;
  * the field-level contract test (`chatContract.test.ts`) replays the backend's
@@ -448,7 +469,8 @@ export type ChatEvent =
   | ({ type: 'tool_result'; id: string; result: unknown; is_error?: boolean } & Nested)
   | ({ type: 'tool_use_input_resolved'; id: string; input: Record<string, unknown> } & Nested)
   | { type: 'tool_cancelled'; id: string; parent_tool_use_id?: string }
-  | ({ type: 'permission_request'; id: string; tool: string; input: Record<string, unknown> } & ToolProviderHints & Nested)
+  | ({ type: 'tool_timing' } & ToolTiming & Nested)
+  | ({ type: 'permission_request'; id: string; tool: string; input: Record<string, unknown>; tool_use_id?: string } & ToolProviderHints & Nested)
   | { type: 'permission_decision'; id: string; allow: boolean }
   | ({
       type: 'ask_user_question'
@@ -576,7 +598,20 @@ export const CHAT_EVENT_FIELDS = {
   tool_result: { id: 'required', result: 'required', is_error: 'optional', parent_tool_use_id: 'optional' },
   tool_use_input_resolved: { id: 'required', input: 'required', parent_tool_use_id: 'optional' },
   tool_cancelled: { id: 'required', parent_tool_use_id: 'optional' },
-  permission_request: { id: 'required', tool: 'required', input: 'required', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
+  tool_timing: {
+    id: 'required',
+    ended_at: 'required',
+    called_at: 'optional',
+    started_at: 'optional',
+    permission_requested_at: 'optional',
+    permission_resolved_at: 'optional',
+    permission_outcome: 'optional',
+    run_started_at: 'optional',
+    cancelled: 'optional',
+    incomplete: 'optional',
+    parent_tool_use_id: 'optional',
+  },
+  permission_request: { id: 'required', tool: 'required', input: 'required', tool_use_id: 'optional', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
   permission_decision: { id: 'required', allow: 'required' },
   ask_user_question: { questions: 'required', tool_call_id: 'optional', id: 'optional', input: 'optional', synthetic: 'optional', parent_tool_use_id: 'optional' },
   result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional', stop_reason: 'optional', error: 'optional' },

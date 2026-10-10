@@ -180,6 +180,50 @@ export function attachToParentToolUse(messages: ChatMessage[], tick: BackgroundT
  * never become 50 rows; a different (or missing) correlation_id starts
  * a new block. The updated block is replaced immutably in `msg.blocks`.
  */
+/** The keys of a `tool_timing` event kept on the call's block (`metadata.tool_timing`). */
+const TOOL_TIMING_KEYS = [
+  'ended_at',
+  'called_at',
+  'started_at',
+  'permission_requested_at',
+  'permission_resolved_at',
+  'permission_outcome',
+  'run_started_at',
+  'cancelled',
+  'incomplete',
+] as const
+
+/** The call id and the times of a `tool_timing` event; `null` when it is not one. */
+export function toolTimingOf(evt: Record<string, unknown>): { id: string; timing: Record<string, unknown> } | null {
+  const id = typeof evt.id === 'string' ? evt.id : ''
+  if (!id || typeof evt.ended_at !== 'number') return null
+  const timing: Record<string, unknown> = {}
+  for (const key of TOOL_TIMING_KEYS) {
+    if (evt[key] !== undefined) timing[key] = evt[key]
+  }
+  return { id, timing }
+}
+
+/**
+ * Put a `tool_timing` on the `tool_use` block of its call (latest message first),
+ * as `metadata.tool_timing`: the trace reads the real run from it. The block is
+ * replaced in its message's `blocks` (never mutated). `false` when the call is
+ * not in `messages`.
+ */
+export function attachToolTiming(messages: ChatMessage[], evt: Record<string, unknown>): boolean {
+  const found = toolTimingOf(evt)
+  if (!found) return false
+  for (let mi = messages.length - 1; mi >= 0; mi--) {
+    const bi = messages[mi].blocks.findIndex((b) => b.type === 'tool_use' && b.metadata?.tool_call_id === found.id)
+    if (bi < 0) continue
+    const blocks = [...messages[mi].blocks]
+    blocks[bi] = { ...blocks[bi], metadata: { ...blocks[bi].metadata, tool_timing: found.timing } }
+    messages[mi] = { ...messages[mi], blocks }
+    return true
+  }
+  return false
+}
+
 export function appendBackgroundActivity(msg: ChatMessage, tick: BackgroundTick): void {
   const key = tick.correlation_id ?? null
   const entry = entryOf(tick)
@@ -503,6 +547,12 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
         })
         break
       }
+
+      case 'tool_timing':
+        // Not a message: the timing of a call already shown. It must not reset
+        // `lastEventWasMaxTurns` (a timing can follow a max-turns result).
+        attachToolTiming(messages, evt)
+        break
 
       case 'tool_cancelled': {
         const msg = lastAssistant(createdAt)
