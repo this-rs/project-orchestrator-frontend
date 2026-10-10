@@ -29,7 +29,7 @@ import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
 import { Attachments } from './Attachments'
 import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget'
 import { ReferenceChip } from './ReferenceChip'
-import { COMPOSER_CHIP } from './chipGeometry'
+import { COMPOSER_CHIP, DRAFT_REFS_LIST } from './chipGeometry'
 import { RefPicker, refOptionId } from './RefPicker'
 import { detectTrigger, isReferenceQuery } from '@/refs/trigger'
 import { useActiveKinds } from '@/refs/useActiveKinds'
@@ -951,7 +951,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           </p>
         )}
         {draftRefs.length > 0 && (
-          <ul aria-label={t('chatA-input.composer.references')} className="m-0 flex max-h-20 list-none flex-wrap gap-1 overflow-y-auto px-1.5 pt-1">
+          <ul aria-label={t('chatA-input.composer.references')} className={DRAFT_REFS_LIST}>
             {draftRefs.map((r) => (
               <li key={refKey(r)}>
                 <ReferenceChip

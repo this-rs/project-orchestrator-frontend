@@ -75,7 +75,12 @@ import { useVaultLocked } from './useVaultLocked'
 /** Visible keyboard focus on every control of the menu. */
 const FOCUS = 'outline-none focus-visible:ring-2 focus-visible:ring-indigo-400'
 const FOCUS_INSET = 'outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400'
-/** Targets: 24px at least with a mouse, 44px on a touch screen. */
+/**
+ * Targets (WCAG 2.2, 2.5.8): 24px at least. The menu's rows and buttons grow
+ * to 44px on a touch screen — the popover has the room. The composer chips
+ * are the exception: 32px on touch (`COMPOSER_CHIP`), the height of the
+ * controls row they sit in, so their target never reaches into the textarea.
+ */
 const TARGET = 'min-h-6 pointer-coarse:min-h-11'
 /** Same height as the permission-mode chip next to it: one shared geometry. */
 const CHIP = `${COMPOSER_CHIP} border-white/[0.08]`

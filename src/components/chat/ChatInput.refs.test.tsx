@@ -12,6 +12,7 @@ import { chatDraftInputAtom, chatServerFeaturesAtom } from '@/atoms'
 import search from '@/refs/__fixtures__/search_response.json'
 import { clearRefSearchCache } from '@/refs/useRefSearch'
 import { ChatInput } from './ChatInput'
+import { DRAFT_REFS_LIST } from './chipGeometry'
 
 const { searchMock } = vi.hoisted(() => ({ searchMock: vi.fn() }))
 vi.mock('@/hooks', () => ({ useIsMobile: () => false }))
@@ -144,6 +145,16 @@ describe('ChatInput — # references on', () => {
     expect(chips[0].textContent).toContain('PR 1 — backend : fondations refs')
     expect(chips[0].dataset.state).toBe('ok')
     expect(screen.getByRole('list', { name: 'References' })).toBeTruthy()
+  })
+
+  it('the draft list has room under its chips: the remove buttons\' 24px targets never make it scroll', async () => {
+    mount({ features: ['refs_v1'] })
+    type('voir #ref')
+    await settle()
+    key('Enter')
+    const list = screen.getByRole('list', { name: 'References' })
+    expect(list.className).toBe(DRAFT_REFS_LIST)
+    expect(list.className.split(' ')).toEqual(expect.arrayContaining(['overflow-y-auto', 'pt-1', 'pb-1']))
   })
 
   it('a click on an option picks it, and the focus stays in the textarea', async () => {

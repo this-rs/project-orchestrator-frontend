@@ -28,3 +28,10 @@ export const REF_CHIP_HEIGHT = 'py-px leading-4 -my-0.5'
 
 /** The link target: 24px however small the chip is drawn (WCAG 2.2, 2.5.8). */
 export const REF_CHIP_HIT = "before:absolute before:inset-x-0 before:-inset-y-0.5 before:content-['']"
+
+/**
+ * The composer's list of draft references (scrolls past 80px). The bottom
+ * padding holds the remove buttons' 24px targets, which reach 2px past a
+ * 20px line: without it, a single chip made the list scroll by 1px.
+ */
+export const DRAFT_REFS_LIST = 'm-0 flex max-h-20 list-none flex-wrap gap-1 overflow-y-auto px-1.5 pt-1 pb-1'
