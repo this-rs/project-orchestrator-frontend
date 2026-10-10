@@ -11,11 +11,11 @@
  *
  * Both carry a link to the dedicated page (`/chat/:id/timeline`).
  */
-import { useCallback, useEffect, useId, useRef, type ComponentProps, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ComponentProps, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { ChartNoAxesGantt, Maximize2, X } from 'lucide-react'
-import { useIsMobile } from '@/hooks'
+import { useIsMobile, useMediaQuery } from '@/hooks'
 import { useT } from '@/i18n'
 import { focusRing, glassFlat, iconButton } from '@/components/ui/classes'
 import { workspacePath } from '@/utils/paths'
@@ -29,16 +29,38 @@ export interface ChatTimelinePanelProps extends StripProps {
   placement: 'docked' | 'column'
   /** Width of the docked chat panel (px): the side panel opens against its left edge. */
   dockOffset?: number
+  /** `column` only: another right-hand column is open (the assistant tree), so the conversation has less room. */
+  crowded?: boolean
 }
 
 /** Same width as the other side panels of the chat (assistant tree, the chat panel's minimum width). */
 const SIDE_WIDTH = 'w-80'
+/** Below this room beside the docked chat, the panel lies over the chat instead of being squeezed out of sight. */
+const MIN_DOCK_ROOM_PX = 280
 
-export function ChatTimelinePanel({ onClose, placement, dockOffset = 0, ...strip }: ChatTimelinePanelProps) {
+/** The viewport, following resizes, rotations and the on-screen keyboard (visualViewport). */
+function readViewport() {
+  return { width: window.innerWidth, height: window.visualViewport?.height ?? window.innerHeight }
+}
+function useViewport() {
+  const [size, setSize] = useState(readViewport)
+  useEffect(() => {
+    const update = () => setSize(readViewport())
+    window.addEventListener('resize', update)
+    window.visualViewport?.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.visualViewport?.removeEventListener('resize', update)
+    }
+  }, [])
+  return size
+}
+
+export function ChatTimelinePanel({ onClose, placement, dockOffset = 0, crowded = false, ...strip }: ChatTimelinePanelProps) {
   const isMobile = useIsMobile()
   return isMobile
     ? <FullScreenTimeline onClose={onClose} {...strip} />
-    : <SideTimeline onClose={onClose} placement={placement} dockOffset={dockOffset} {...strip} />
+    : <SideTimeline onClose={onClose} placement={placement} dockOffset={dockOffset} crowded={crowded} {...strip} />
 }
 
 /** Focus goes back to the opener (the toggle) when the panel closes with focus inside it or lost. */
@@ -86,24 +108,41 @@ function HeaderClose({ onClose, className }: { onClose: () => void; className: s
   )
 }
 
-function SideTimeline({ onClose, placement, dockOffset, ...strip }: StripProps & { onClose: () => void; placement: 'docked' | 'column'; dockOffset: number }) {
+/**
+ * Desktop. Three ways to sit, all 20rem wide:
+ * - `dock`: against the docked chat's left edge;
+ * - `column`: a column of the full-screen chat, when the conversation keeps enough room
+ *   (from `lg`, from `xl` when the assistant tree is open too);
+ * - `overlay`: over the right edge of the conversation (full-screen chat, narrower screens) or
+ *   over the docked chat (a chat resized to nearly the whole window).
+ */
+function SideTimeline({ onClose, placement, dockOffset, crowded, ...strip }: StripProps & { onClose: () => void; placement: 'docked' | 'column'; dockOffset: number; crowded: boolean }) {
   const ref = useRef<HTMLElement>(null)
   const titleId = useId()
   useRestoreFocus(ref)
-  const docked = placement === 'docked'
+  const { width } = useViewport()
+  const lg = useMediaQuery('(min-width: 1024px)')
+  const xl = useMediaQuery('(min-width: 1280px)')
+  const layout: 'dock' | 'column' | 'overlay-chat' | 'overlay-conversation' = placement === 'docked'
+    ? (width - dockOffset >= MIN_DOCK_ROOM_PX ? 'dock' : 'overlay-chat')
+    : (xl || (lg && !crowded) ? 'column' : 'overlay-conversation')
+  // The transform makes the panel the containing block of the trace's detail sheet
+  // (`position: fixed`): it opens over the panel, not across the whole window.
+  const className = {
+    dock: `fixed top-0 bottom-0 z-30 border-l border-border-subtle bg-surface-raised shadow-2xl`,
+    'overlay-chat': `fixed top-0 bottom-0 left-0 z-40 max-w-full border-r border-border-subtle bg-surface-raised shadow-2xl`,
+    column: `shrink-0 border-l border-white/[0.06]`,
+    'overlay-conversation': `absolute top-0 right-0 bottom-0 z-20 max-w-full border-l border-border-subtle bg-surface-raised shadow-2xl`,
+  }[layout]
   return (
     <aside
       ref={ref}
       aria-labelledby={titleId}
       data-testid="chat-timeline-panel"
       data-variant="side"
-      // The transform makes the panel the containing block of the trace's detail sheet
-      // (`position: fixed`): it opens over the panel, not across the whole window.
-      className={docked
-        ? `fixed top-0 bottom-0 z-30 flex ${SIDE_WIDTH} flex-col border-l border-border-subtle bg-surface-raised shadow-2xl [transform:translateZ(0)]`
-        : `flex ${SIDE_WIDTH} shrink-0 flex-col border-l border-white/[0.06] [transform:translateZ(0)]`}
-      // Docked: against the chat's left edge, never wider than what the window has left.
-      style={docked ? { right: dockOffset, maxWidth: `calc(100vw - ${dockOffset}px)` } : undefined}
+      data-layout={layout}
+      className={`flex ${SIDE_WIDTH} flex-col [transform:translateZ(0)] ${className}`}
+      style={layout === 'dock' ? { right: dockOffset } : undefined}
     >
       <Header titleId={titleId} sessionId={strip.sessionId} workspaceSlug={strip.workspaceSlug} onClose={onClose} mobile={false} />
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-1">
@@ -140,16 +179,18 @@ function FullScreenTimeline({ onClose, ...strip }: StripProps & { onClose: () =>
     return () => { document.body.style.overflow = previous }
   }, [])
 
-  // Leaving for another page (the full timeline, a plan, a child session) closes the view.
-  const location = useLocation()
-  const where = location.pathname + location.search
-  const first = useRef(where)
+  // Leaving for another page (the full timeline, a plan) closes the view. Only the path counts:
+  // the chat rewrites its own query (`?session=…&chat=…`, with replace) while it is open.
+  const { pathname } = useLocation()
+  const first = useRef(pathname)
   useEffect(() => {
-    if (where !== first.current) onClose()
-  }, [where, onClose])
+    if (pathname !== first.current) onClose()
+  }, [pathname, onClose])
 
-  // Rows get what the screen has left under the header (the detail opens below them).
-  const rowsHeight = typeof window === 'undefined' ? 480 : Math.max(240, Math.round(window.innerHeight * 0.55))
+  // Rows get what the screen has left under the header (the detail opens below them);
+  // follows rotations and the on-screen keyboard.
+  const { height } = useViewport()
+  const rowsHeight = Math.max(240, Math.round(height * 0.55))
   const shown = useCallback(() => onClose(), [onClose])
 
   return createPortal(
