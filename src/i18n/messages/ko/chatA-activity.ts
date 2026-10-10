@@ -52,6 +52,14 @@ export default {
     stoppedMany: "하위 프로세스 {count}개를 중지했습니다.",
     noPid: "취소는 등록되었지만 하위 프로세스의 PID를 알 수 없었습니다. 신호가 계속 도착하면 전체 중지 버튼을 사용하세요."
   },
+  cancel: {
+    alreadyStopped: "이미 중지됨",
+    notStopped: "중지되지 않음",
+    alreadyStoppedNotice: "이미 중지되었습니다. 더 이상 실행 중인 것이 없었습니다.",
+    retryNotice: "아직 중지되지 않았습니다. 잠시 후 다시 시도하세요.",
+    timeoutNotice: "중지 요청에 제때 응답이 없었습니다. 중지가 아직 일어날 수 있습니다.",
+    failedNotice: "도구를 중지하지 못했습니다. 대신 전체 중지를 사용하세요."
+  },
   agent: {
     subAgent: "하위 에이전트",
     toolOne: "도구 {count}개",

@@ -52,6 +52,14 @@ export default {
     stoppedMany: "{count} subprocesos detenidos.",
     noPid: "Cancelación registrada, pero se desconocía el PID del subproceso — si siguen llegando señales, usa el botón Detener global."
   },
+  cancel: {
+    alreadyStopped: "ya detenido",
+    notStopped: "no detenido",
+    alreadyStoppedNotice: "Ya detenido — ya no se estaba ejecutando nada.",
+    retryNotice: "Aún no detenido — inténtalo de nuevo en un momento.",
+    timeoutNotice: "La detención no recibió respuesta a tiempo — puede que aún ocurra.",
+    failedNotice: "No se pudieron detener las herramientas — usa mejor el botón Detener global."
+  },
   agent: {
     subAgent: "Subagente",
     toolOne: "{count} herramienta",

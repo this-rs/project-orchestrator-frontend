@@ -52,6 +52,14 @@ export default {
     stoppedMany: "{count} Unterprozesse gestoppt.",
     noPid: "Abbruch registriert, aber die PID des Unterprozesses war unbekannt — falls weiterhin Ticks eintreffen, nutze die globale Stopp-Schaltfläche."
   },
+  cancel: {
+    alreadyStopped: "bereits beendet",
+    notStopped: "nicht beendet",
+    alreadyStoppedNotice: "Bereits beendet — es lief nichts mehr.",
+    retryNotice: "Noch nicht beendet — versuche es gleich noch einmal.",
+    timeoutNotice: "Der Stopp wurde nicht rechtzeitig beantwortet — er kann noch erfolgen.",
+    failedNotice: "Die Tools konnten nicht beendet werden — nutze stattdessen den globalen Stopp."
+  },
   agent: {
     subAgent: "Sub-Agent",
     toolOne: "{count} Tool",

@@ -204,3 +204,36 @@ describe('useChat — cancel the running tools over the socket', () => {
     expect(ws().sendCancelTools).not.toHaveBeenCalled()
   })
 })
+
+describe('useChat — a failed or refused cancel does not end the turn', () => {
+  const CANCEL_FAILED = { type: 'error', message: 'Error: no answer in time', code: 'cancel_failed', reason: 'owner_timeout' }
+
+  it('cancel_failed during a live turn: the stream goes on, with a notice on the turn', async () => {
+    const { result, emit, blocks } = await setup()
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ ...CANCEL_FAILED })
+    expect(result.current.isStreaming).toBe(true)
+    const [notice] = blocks().filter((b) => b.type === 'error')
+    expect(notice.metadata).toEqual({ cancel_notice: true, code: 'cancel_failed', reason: 'owner_timeout' })
+  })
+
+  it('cancel_refused during a live turn: the stream goes on', async () => {
+    const { result, emit } = await setup()
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'error', message: 'Error: unsupported', code: 'cancel_refused', reason: 'tool_cancel' })
+    expect(result.current.isStreaming).toBe(true)
+  })
+
+  it('any other error still ends the turn', async () => {
+    const { result, emit } = await setup()
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'error', message: 'Error: boom' })
+    expect(result.current.isStreaming).toBe(false)
+  })
+
+  it('the live block is the one the history reducer builds', async () => {
+    const { emit, blocks } = await setup()
+    emit({ ...CANCEL_FAILED })
+    expect(shape(blocks())).toEqual(fromHistory([{ ...CANCEL_FAILED }]))
+  })
+})

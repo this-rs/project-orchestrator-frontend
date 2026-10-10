@@ -19,6 +19,7 @@ vi.mock('@/services/chat', () => ({
 }))
 
 import { chatApi } from '@/services/chat'
+import { ApiError } from '@/services/api'
 import { ActivityBar, type RunActions } from './ActivityBar'
 import type { RunningItem } from './runningActivity'
 
@@ -193,6 +194,39 @@ describe('<ActivityBar />', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Failed to cancel task'))
     expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
+  })
+
+  it('a 409 owner_unreachable reads "already stopped", not a failure', async () => {
+    vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(
+      new ApiError(409, JSON.stringify({ error: 'no instance holds this session', code: 'owner_unreachable', retryable: false })),
+    )
+    mount([shell])
+    expand()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Already stopped — nothing was running any more.'))
+    expect(screen.getByRole('status')).toHaveAttribute('data-feedback', 'stopped')
+    expect(screen.getByRole('status')).not.toHaveTextContent('Failed to cancel task')
+  })
+
+  it('a retryable refusal (504 owner_timeout, retryable:true) invites a retry', async () => {
+    vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(
+      new ApiError(504, JSON.stringify({ error: 'no answer in time', code: 'owner_timeout', retryable: true })),
+    )
+    mount([shell])
+    expand()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Not stopped yet — try again in a moment.'))
+    expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
+  })
+
+  it('a non-retryable failure (502 relay_failed) keeps the generic failure', async () => {
+    vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(
+      new ApiError(502, JSON.stringify({ error: 'could not send', code: 'relay_failed', retryable: false })),
+    )
+    mount([shell])
+    expand()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Failed to cancel task'))
   })
 
   it('clears the confirmation after a moment, and the latest click replaces the previous message', async () => {

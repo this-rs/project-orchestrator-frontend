@@ -44,6 +44,7 @@ import {
   type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
+import { cancelNoticeMetadata } from '@/utils/cancelFailure'
 import { tr } from '@/i18n/lazy'
 import { toProviderRef, toToolPolicy, type PermissionScope, type ToolPolicyMode } from '@/types/provider'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
@@ -1002,13 +1003,16 @@ export function useChat() {
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event
           const errParent = getParentToolUseId(event)
+          // A failed or refused cancel (`cancel_failed`, `cancel_refused`) is a notice
+          // on the turn: the turn goes on, so the stream is NOT stopped.
+          const cancelNotice = cancelNoticeMetadata(data)
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'error',
             content: (data as { message?: string }).message ?? tr('app.chat.unknownError'),
-            metadata: withParent(undefined, errParent),
+            metadata: withParent(cancelNotice ?? undefined, errParent),
           })
-          if (!event.replaying) {
+          if (!event.replaying && !cancelNotice) {
             setIsStreaming(false)
           }
           break

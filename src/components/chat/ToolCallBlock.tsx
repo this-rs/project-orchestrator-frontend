@@ -11,6 +11,8 @@ import { useCancelToolsLive, useChatCapabilities, useChatSessionId } from './Cha
 import { useBlockProviderKind } from './useBlockProviderKind'
 import { toolCancelUnsupportedText } from '@/constants/capabilities'
 import { ChevronRight, Square } from 'lucide-react'
+import { useT } from '@/i18n'
+import { readCancelFailure } from '@/utils/cancelFailure'
 
 const MCP_PREFIX = 'mcp__project-orchestrator__'
 
@@ -38,6 +40,10 @@ interface ToolCallBlockProps {
 export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const [stopRequested, setStopRequested] = useState(false)
+  // What a refused stop left: `already_stopped` (409 owner_unreachable) or `failed`
+  // (not retryable). Both keep the chip disabled.
+  const [stopOutcome, setStopOutcome] = useState<'already_stopped' | 'failed' | null>(null)
+  const { t } = useT()
   const sessionId = useChatSessionId()
   const cancelToolsLive = useCancelToolsLive()
   const toolName = block.metadata?.tool_name as string || block.content
@@ -117,9 +123,14 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
       // Otherwise stays disabled — the cancelled ToolResult arriving
       // on the broadcast will switch isLoading→false and the button
       // will disappear naturally.
-    } catch {
-      // Network/404 — re-enable after a beat so the user can retry.
-      setTimeout(() => setStopRequested(false), 2000)
+    } catch (err) {
+      // Typed refusal (`{error, code, retryable}`): the chip comes back only when the
+      // backend says asking again is safe — a cancel-tools retried after a timeout
+      // would stop the tools started since.
+      const failure = readCancelFailure(err)
+      if (failure.alreadyStopped) setStopOutcome('already_stopped')
+      else if (failure.retryable) setTimeout(() => setStopRequested(false), 2000)
+      else setStopOutcome('failed')
     }
   }
 
@@ -187,9 +198,27 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
           </span>
         )}
         {stopRequested && isLoading && !isCancelled && (
-          <span className="ml-2 text-[10px] font-mono text-amber-300 shrink-0">
-            stopping…
-          </span>
+          stopOutcome === 'already_stopped' ? (
+            <span
+              className="ml-2 text-[10px] font-mono text-gray-500 shrink-0"
+              title={t('chatA-activity.cancel.alreadyStoppedNotice')}
+              data-stop-outcome="already_stopped"
+            >
+              {t('chatA-activity.cancel.alreadyStopped')}
+            </span>
+          ) : stopOutcome === 'failed' ? (
+            <span
+              className="ml-2 text-[10px] font-mono text-amber-300 shrink-0"
+              title={t('chatA-activity.cancel.failedNotice')}
+              data-stop-outcome="failed"
+            >
+              {t('chatA-activity.cancel.notStopped')}
+            </span>
+          ) : (
+            <span className="ml-2 text-[10px] font-mono text-amber-300 shrink-0">
+              stopping…
+            </span>
+          )
         )}
       </button>
 

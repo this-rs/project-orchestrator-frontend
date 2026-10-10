@@ -52,6 +52,14 @@ export default {
     stoppedMany: "{count} subprocessos interrompidos.",
     noPid: "Cancelamento registrado, mas o PID do subprocesso era desconhecido — se os sinais continuarem chegando, use o botão Parar global."
   },
+  cancel: {
+    alreadyStopped: "já parado",
+    notStopped: "não parado",
+    alreadyStoppedNotice: "Já parado — nada estava mais em execução.",
+    retryNotice: "Ainda não parado — tente de novo em instantes.",
+    timeoutNotice: "A parada não teve resposta a tempo — ela ainda pode acontecer.",
+    failedNotice: "Não foi possível parar as ferramentas — use o Parar global."
+  },
   agent: {
     subAgent: "Subagente",
     toolOne: "{count} ferramenta",

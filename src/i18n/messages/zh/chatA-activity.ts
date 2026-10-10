@@ -52,6 +52,14 @@ export default {
     stoppedMany: "已停止 {count} 个子进程。",
     noPid: "已登记取消，但子进程的 PID 未知——若仍有信号到达，请使用全局停止按钮。"
   },
+  cancel: {
+    alreadyStopped: "已停止",
+    notStopped: "未停止",
+    alreadyStoppedNotice: "已停止——已没有任何内容在运行。",
+    retryNotice: "尚未停止——请稍后重试。",
+    timeoutNotice: "停止请求未及时得到响应——停止仍可能生效。",
+    failedNotice: "无法停止工具——请改用全局停止。"
+  },
   agent: {
     subAgent: "子智能体",
     toolOne: "{count} 个工具",

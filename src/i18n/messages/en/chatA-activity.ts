@@ -29,6 +29,14 @@ export default {
     stoppedMany: 'Stopped {count} subprocesses.',
     noPid: 'Cancel registered, but the subprocess PID wasn’t known — if ticks keep arriving, use the global Stop button.',
   },
+  cancel: {
+    alreadyStopped: 'already stopped',
+    notStopped: 'not stopped',
+    alreadyStoppedNotice: 'Already stopped — nothing was running any more.',
+    retryNotice: 'Not stopped yet — try again in a moment.',
+    timeoutNotice: 'The stop got no answer in time — it may still happen.',
+    failedNotice: 'The tools could not be stopped — try the global Stop instead.',
+  },
   agent: {
     subAgent: 'Sub-agent',
     toolOne: '{count} tool',
