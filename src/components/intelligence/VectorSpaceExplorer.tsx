@@ -45,6 +45,7 @@ import {
   Box,
 } from 'lucide-react'
 import { Surface } from '@/components/ui/Surface'
+import { useT, type MessageKey } from '@/i18n'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { useWindowFullscreen } from '@/hooks/useWindowFullscreen'
 import { isTauri } from '@/services/env'
@@ -74,6 +75,9 @@ const POINT_COLORS: Record<string, string> = {
   decision: ENTITY_COLORS.decision, // #8B5CF6 violet
   skill: ENTITY_COLORS.skill,     // #EC4899 pink
 }
+
+const KNOWN_LEVELS = new Set(['low', 'medium', 'high', 'critical'])
+const KNOWN_POINT_TYPES = new Set(['note', 'decision', 'skill'])
 
 const WORLD_SIZE = 1000 // Normalize UMAP coords to this range for natural zoom levels
 
@@ -242,6 +246,7 @@ function Tooltip({
   x: number
   y: number
 }) {
+  const { t } = useT()
   const typeIcon = point.type === 'note' ? '📝' : point.type === 'decision' ? '⚖️' : '✨'
   const importanceColor =
     point.importance === 'critical' ? '#f87171'
@@ -262,23 +267,23 @@ function Tooltip({
         <div className="flex items-center gap-1.5 mb-1">
           <span className="text-xs">{typeIcon}</span>
           <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: POINT_COLORS[point.type] ?? '#94a3b8' }}>
-            {point.type}
+            {KNOWN_POINT_TYPES.has(point.type) ? t(`intelGraph.entity.${point.type}` as MessageKey) : point.type}
           </span>
           <span
             className="ml-auto text-[9px] px-1.5 py-0.5 rounded font-medium"
             style={{ backgroundColor: `${importanceColor}20`, color: importanceColor }}
           >
-            {point.importance}
+            {KNOWN_LEVELS.has(point.importance) ? t(`intelGraph.importance.${point.importance}` as MessageKey) : point.importance}
           </span>
         </div>
         <p className="text-[11px] text-slate-300 leading-snug line-clamp-3">
-          {point.content_preview || '(no preview)'}
+          {point.content_preview || t('intelGraph.vector.noPreview')}
         </p>
         {point.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1.5">
-            {point.tags.slice(0, 5).map((t) => (
-              <span key={t} className="text-[9px] px-1 py-0.5 rounded bg-slate-800 text-slate-500">
-                {t}
+            {point.tags.slice(0, 5).map((tag) => (
+              <span key={tag} className="text-[9px] px-1 py-0.5 rounded bg-slate-800 text-slate-500">
+                {tag}
               </span>
             ))}
           </div>
@@ -315,6 +320,7 @@ function Legend({
   onToggleSynapses: () => void
   onToggleSkills: () => void
 }) {
+  const { t } = useT()
   return (
     <div className="absolute bottom-4 left-4 z-30">
       <div className="bg-slate-900/90 backdrop-blur-sm border border-slate-700/60 rounded-lg px-3 py-2.5 space-y-2">
@@ -325,7 +331,7 @@ function Legend({
             {method === 'umap' ? 'UMAP 2D' : method === 'umap_3d' ? 'UMAP 3D' : method}
           </span>
           <span className="text-[9px] text-slate-600 ml-1">
-            {pointCount} points
+            {t('intelGraph.vector.points', { n: pointCount })}
           </span>
         </div>
 
@@ -333,17 +339,17 @@ function Legend({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: POINT_COLORS.note }} />
-            <span className="text-[10px] text-slate-400">Notes</span>
+            <span className="text-[10px] text-slate-400">{t('intelGraph.vector.notes')}</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: POINT_COLORS.decision }} />
-            <span className="text-[10px] text-slate-400">Decisions</span>
+            <span className="text-[10px] text-slate-400">{t('intelGraph.vector.decisions')}</span>
           </div>
         </div>
 
         {/* Importance scale */}
         <div className="flex items-center gap-2">
-          <span className="text-[9px] text-slate-600">Size:</span>
+          <span className="text-[9px] text-slate-600">{t('intelGraph.vector.size')}</span>
           {(['low', 'medium', 'high', 'critical'] as const).map((imp) => (
             <div key={imp} className="flex items-center gap-0.5">
               <div
@@ -353,7 +359,7 @@ function Legend({
                   height: IMPORTANCE_RADIUS[imp] * 2,
                 }}
               />
-              <span className="text-[8px] text-slate-600">{imp[0].toUpperCase()}</span>
+              <span className="text-[8px] text-slate-600">{Array.from(t(`intelGraph.importance.${imp}` as MessageKey))[0].toUpperCase()}</span>
             </div>
           ))}
         </div>
@@ -369,7 +375,7 @@ function Legend({
             }`}
           >
             {showSynapses ? <Eye size={9} /> : <EyeOff size={9} />}
-            Synapses ({synapseCount})
+            {t('intelGraph.vector.synapses', { n: synapseCount })}
           </button>
           <button
             onClick={onToggleSkills}
@@ -380,7 +386,7 @@ function Legend({
             }`}
           >
             {showSkills ? <Eye size={9} /> : <EyeOff size={9} />}
-            Skills ({skillCount})
+            {t('intelGraph.vector.skills', { n: skillCount })}
           </button>
         </div>
       </div>
@@ -415,6 +421,7 @@ function DetailPanel({
   point: ProjectionPoint
   onClose: () => void
 }) {
+  const { t } = useT()
   const typeIcon = point.type === 'note' ? '📝' : point.type === 'decision' ? '⚖️' : '✨'
   const importanceColor =
     point.importance === 'critical' ? '#f87171'
@@ -431,11 +438,12 @@ function DetailPanel({
           <div className="flex items-center gap-1.5">
             <span>{typeIcon}</span>
             <span className="text-xs font-bold uppercase tracking-wider" style={{ color }}>
-              {point.type}
+              {KNOWN_POINT_TYPES.has(point.type) ? t(`intelGraph.entity.${point.type}` as MessageKey) : point.type}
             </span>
           </div>
           <button
             onClick={onClose}
+            aria-label={t('intelGraph.inspector.close')}
             className="w-6 h-6 rounded flex items-center justify-center text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
           >
             <X size={14} />
@@ -445,14 +453,14 @@ function DetailPanel({
         {/* Content preview */}
         <div className="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
           <p className="text-[11px] text-slate-300 leading-relaxed">
-            {point.content_preview || '(no content)'}
+            {point.content_preview || t('intelGraph.vector.noContent')}
           </p>
         </div>
 
         {/* Metrics */}
         <div className="grid grid-cols-2 gap-2">
           <div className="bg-slate-800/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
-            <p className="text-[9px] text-slate-600 uppercase tracking-wider">Energy</p>
+            <p className="text-[9px] text-slate-600 uppercase tracking-wider">{t('intelGraph.card.energy')}</p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <Zap size={10} className="text-cyan-400" />
               <span className="text-sm font-bold text-slate-200 tabular-nums">
@@ -467,12 +475,12 @@ function DetailPanel({
             </div>
           </div>
           <div className="bg-slate-800/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
-            <p className="text-[9px] text-slate-600 uppercase tracking-wider">Importance</p>
+            <p className="text-[9px] text-slate-600 uppercase tracking-wider">{t('intelGraph.vector.importance')}</p>
             <span
               className="inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded"
               style={{ backgroundColor: `${importanceColor}20`, color: importanceColor }}
             >
-              {point.importance}
+              {KNOWN_LEVELS.has(point.importance) ? t(`intelGraph.importance.${point.importance}` as MessageKey) : point.importance}
             </span>
           </div>
         </div>
@@ -480,11 +488,11 @@ function DetailPanel({
         {/* Tags */}
         {point.tags.length > 0 && (
           <div>
-            <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1.5">Tags</p>
+            <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1.5">{t('intelGraph.vector.tags')}</p>
             <div className="flex flex-wrap gap-1">
-              {point.tags.map((t) => (
-                <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700/40 text-slate-400">
-                  {t}
+              {point.tags.map((tag) => (
+                <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700/40 text-slate-400">
+                  {tag}
                 </span>
               ))}
             </div>
@@ -493,7 +501,7 @@ function DetailPanel({
 
         {/* Coordinates */}
         <div className="pt-2 border-t border-slate-800">
-          <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">Position</p>
+          <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">{t('intelGraph.vector.position')}</p>
           <p className="text-[10px] text-slate-500 font-mono">
             x: {point.x.toFixed(3)} · y: {point.y.toFixed(3)}{point.z != null ? ` · z: ${point.z.toFixed(3)}` : ''}
           </p>
@@ -523,11 +531,12 @@ function SelectionBar({
   onReinforce: () => void
   onClear: () => void
 }) {
+  const { t } = useT()
   return (
     <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40">
       <div className="flex items-center gap-2 bg-slate-900/95 backdrop-blur-sm border border-cyan-500/30 rounded-lg px-3 py-2 shadow-xl">
         <span className="text-[11px] text-cyan-400 font-medium">
-          {count} selected
+          {t('intelGraph.vector.selected', { n: count })}
         </span>
 
         {count >= 2 && (
@@ -543,7 +552,7 @@ function SelectionBar({
             ) : (
               <Zap size={10} />
             )}
-            Reinforce Neurons
+            {t('intelGraph.vector.reinforce')}
           </button>
         )}
 
@@ -556,6 +565,7 @@ function SelectionBar({
 
         <button
           onClick={onClear}
+          aria-label={t('intelGraph.vector.clearSelection')}
           className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors ml-1"
         >
           <X size={12} />
@@ -811,6 +821,7 @@ interface VectorSpaceExplorerProps {
 }
 
 export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
+  const { t } = useT()
   const params = useParams<{ projectSlug: string }>()
   const projectSlug = props.projectSlug ?? params.projectSlug
   const wsSlug = useWorkspaceSlug()
@@ -1036,10 +1047,10 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
       setData(result)
       return result.points.length
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load projection data')
+      setError(err instanceof Error ? err.message : t('intelGraph.vector.loadFailed'))
       return 0
     }
-  }, [projectSlug])
+  }, [projectSlug, t])
 
   useEffect(() => {
     setLoading(true)
@@ -1125,21 +1136,21 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
       })
       if (noteIds.length < 2) {
         setReinforceStatus('error')
-        setReinforceMessage('Need at least 2 notes (not decisions) to reinforce')
+        setReinforceMessage(t('intelGraph.vector.needTwoNotes'))
         return
       }
       const r = await adminApi.reinforceNeurons({ note_ids: noteIds })
       setReinforceStatus('success')
-      setReinforceMessage(`${r.neurons_boosted} boosted, ${r.synapses_reinforced} synapses`)
+      setReinforceMessage(t('intelGraph.vector.reinforced', { boosted: r.neurons_boosted, synapses: r.synapses_reinforced }))
       setTimeout(() => {
         setReinforceStatus('idle')
         setReinforceMessage('')
       }, 4000)
     } catch (err) {
       setReinforceStatus('error')
-      setReinforceMessage(err instanceof Error ? err.message : 'Reinforce failed')
+      setReinforceMessage(err instanceof Error ? err.message : t('intelGraph.vector.reinforceFailed'))
     }
-  }, [selectedIds, data])
+  }, [selectedIds, data, t])
 
   // ── Lasso: compute selected points from lasso polygon ──────────────
   const finalizeLasso = useCallback(
@@ -1461,7 +1472,7 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
       <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={32} className="text-cyan-400 animate-spin" />
-          <p className="text-sm text-slate-500">Loading UMAP projection…</p>
+          <p className="text-sm text-slate-500">{t('intelGraph.vector.loadingProjection')}</p>
         </div>
       </div>
     )
@@ -1481,7 +1492,7 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-300 hover:bg-slate-800 transition-colors"
             >
               <ArrowLeft size={14} />
-              Dashboard
+              {t('intelGraph.vector.dashboard')}
             </button>
           </div>
         )}
@@ -1492,23 +1503,23 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
                 <Brain size={32} className="text-slate-600" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-medium text-slate-300 mb-1">No embeddings available</p>
+                <p className="text-sm font-medium text-slate-300 mb-1">{t('intelGraph.vector.emptyTitle')}</p>
                 <p className="text-xs text-slate-500 max-w-sm">
-                  The vector space visualizes semantic proximity between notes and decisions. To populate it:
+                  {t('intelGraph.vector.emptyIntro')}
                 </p>
               </div>
               <div className="flex flex-col gap-2 text-xs text-slate-500 mt-1">
                 <div className="flex items-center gap-2">
                   <span className="text-slate-400 font-medium">1.</span>
-                  <span>Create notes and decisions to build your knowledge base</span>
+                  <span>{t('intelGraph.vector.emptyStep1')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-slate-400 font-medium">2.</span>
-                  <span>Run <strong className="text-slate-400">&quot;Backfill Synapses&quot;</strong> from the Intelligence Dashboard</span>
+                  <span>{t('intelGraph.vector.emptyStep2')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-slate-400 font-medium">3.</span>
-                  <span>Embeddings will be computed and the UMAP projection will appear</span>
+                  <span>{t('intelGraph.vector.emptyStep3')}</span>
                 </div>
               </div>
             </div>
@@ -1530,6 +1541,7 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(workspacePath(wsSlug, `/projects/${projectSlug}/intelligence`))}
+              aria-label={t('intelGraph.vector.dashboard')}
               className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-400 hover:text-slate-300 hover:bg-slate-800 transition-colors"
             >
               <ArrowLeft size={14} />
@@ -1537,10 +1549,10 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
             <div>
               <h1 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
                 <Brain size={16} className="text-cyan-400" />
-                Vector Space Explorer
+                {t('intelGraph.vector.title')}
               </h1>
               <p className="text-[10px] text-slate-600">
-                UMAP {viewMode === '3d' ? '3D' : '2D'} projection of knowledge embeddings
+                {t('intelGraph.vector.subtitle', { dims: viewMode === '3d' ? '3D' : '2D' })}
               </p>
             </div>
 
@@ -1574,7 +1586,7 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors disabled:opacity-50"
             >
               <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
-              Refresh
+              {t('intelGraph.vector.refresh')}
             </button>
           </div>
         </div>
@@ -1604,7 +1616,7 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
                     ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
                     : 'bg-slate-800/90 border-slate-700/60 text-slate-400 hover:text-slate-300 hover:bg-slate-700'
                 }`}
-                title={lassoMode ? 'Exit lasso mode' : 'Lasso select (multi-select)'}
+                title={lassoMode ? t('intelGraph.vector.lassoExit') : t('intelGraph.vector.lasso')}
               >
                 <Lasso size={14} />
               </button>
@@ -1612,21 +1624,21 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
               <button
                 onClick={zoomIn}
                 className="w-8 h-8 rounded-lg bg-slate-800/90 border border-slate-700/60 flex items-center justify-center text-slate-400 hover:text-slate-300 hover:bg-slate-700 transition-colors"
-                title="Zoom in"
+                title={t('intelGraph.vector.zoomIn')}
               >
                 <ZoomIn size={14} />
               </button>
               <button
                 onClick={zoomOut}
                 className="w-8 h-8 rounded-lg bg-slate-800/90 border border-slate-700/60 flex items-center justify-center text-slate-400 hover:text-slate-300 hover:bg-slate-700 transition-colors"
-                title="Zoom out"
+                title={t('intelGraph.vector.zoomOut')}
               >
                 <ZoomOut size={14} />
               </button>
               <button
                 onClick={fitAll}
                 className="w-8 h-8 rounded-lg bg-slate-800/90 border border-slate-700/60 flex items-center justify-center text-slate-400 hover:text-slate-300 hover:bg-slate-700 transition-colors"
-                title="Fit all"
+                title={t('intelGraph.vector.fitAll')}
               >
                 <Maximize2 size={14} />
               </button>
@@ -1635,7 +1647,7 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
             {/* Zoom level + semantic zoom indicator (2D only) */}
             <div className="absolute top-3 right-3 z-30 flex items-center gap-2 text-[9px] font-mono bg-slate-900/60 px-2 py-1 rounded">
               <span ref={zoomDisplayRef} className="text-slate-600">100%</span>
-              <span ref={semanticDisplayRef} className="text-cyan-600" style={{ display: 'none' }}>semantic</span>
+              <span ref={semanticDisplayRef} className="text-cyan-600" style={{ display: 'none' }}>{t('intelGraph.vector.semantic')}</span>
             </div>
           </>
         ) : (
@@ -1643,7 +1655,7 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
             <div className="w-full h-full flex items-center justify-center bg-slate-950">
               <div className="text-slate-500 text-sm flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-                Loading 3D engine…
+                {t('intelGraph.vector.loading3d')}
               </div>
             </div>
           }>
@@ -1701,7 +1713,7 @@ export default function VectorSpaceExplorer(props: VectorSpaceExplorerProps) {
           <button
             onClick={toggleFullscreen}
             className="flex items-center gap-1 px-2 py-1.5 rounded-md text-[10px] font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
-            title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            title={isFullscreen ? t('intelGraph.vector.exitFullscreen') : t('intelGraph.vector.fullscreen')}
           >
             {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
           </button>

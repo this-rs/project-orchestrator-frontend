@@ -22,38 +22,39 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
 import { Branding } from '@/components/ui'
 import type { IntelligenceLayer } from '@/types/intelligence'
+import { useT, type MessageKey } from '@/i18n'
 
 // ── Entity legend ──────────────────────────────────────────────────────────
-const ENTITY_LEGEND: { layer: IntelligenceLayer; types: { key: string; label: string }[] }[] = [
+const ENTITY_LEGEND: { layer: IntelligenceLayer; types: { key: string; label: MessageKey }[] }[] = [
   { layer: 'code', types: [
-    { key: 'file', label: 'File' },
-    { key: 'function', label: 'Function' },
-    { key: 'struct', label: 'Struct' },
-    { key: 'trait', label: 'Trait' },
-    { key: 'enum', label: 'Enum' },
-    { key: 'feature_graph', label: 'Feature Graph' },
+    { key: 'file', label: 'intelPage.graph.legend.file' },
+    { key: 'function', label: 'intelPage.graph.legend.function' },
+    { key: 'struct', label: 'intelPage.graph.legend.struct' },
+    { key: 'trait', label: 'intelPage.graph.legend.trait' },
+    { key: 'enum', label: 'intelPage.graph.legend.enum' },
+    { key: 'feature_graph', label: 'intelPage.graph.legend.featureGraph' },
   ]},
   { layer: 'knowledge', types: [
-    { key: 'note', label: 'Note' },
-    { key: 'decision', label: 'Decision' },
-    { key: 'constraint', label: 'Constraint' },
+    { key: 'note', label: 'intelPage.graph.legend.note' },
+    { key: 'decision', label: 'intelPage.graph.legend.decision' },
+    { key: 'constraint', label: 'intelPage.graph.legend.constraint' },
   ]},
   { layer: 'skills', types: [
-    { key: 'skill', label: 'Skill' },
+    { key: 'skill', label: 'intelPage.graph.legend.skill' },
   ]},
   { layer: 'behavioral', types: [
-    { key: 'protocol', label: 'Protocol' },
-    { key: 'protocol_state', label: 'State' },
+    { key: 'protocol', label: 'intelPage.graph.legend.protocol' },
+    { key: 'protocol_state', label: 'intelPage.graph.legend.state' },
   ]},
   { layer: 'pm', types: [
-    { key: 'plan', label: 'Plan' },
-    { key: 'task', label: 'Task' },
-    { key: 'step', label: 'Step' },
-    { key: 'milestone', label: 'Milestone' },
-    { key: 'release', label: 'Release' },
+    { key: 'plan', label: 'intelPage.graph.legend.plan' },
+    { key: 'task', label: 'intelPage.graph.legend.task' },
+    { key: 'step', label: 'intelPage.graph.legend.step' },
+    { key: 'milestone', label: 'intelPage.graph.legend.milestone' },
+    { key: 'release', label: 'intelPage.graph.legend.release' },
   ]},
   { layer: 'chat', types: [
-    { key: 'chat_session', label: 'Chat Session' },
+    { key: 'chat_session', label: 'intelPage.graph.legend.chatSession' },
   ]},
 ]
 
@@ -67,6 +68,7 @@ interface WorkspaceGraphPageProps {
 }
 
 export default function WorkspaceGraphPage({ workspaceSlug, embedded }: WorkspaceGraphPageProps) {
+  const { t } = useT()
   const loading = useAtomValue(intelligenceLoadingAtom)
   const error = useAtomValue(intelligenceErrorAtom)
   const [searchOpen, setSearchOpen] = useAtom(activationSearchOpenAtom)
@@ -172,7 +174,7 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
           <div className="absolute inset-0 flex items-center justify-center bg-slate-950">
             <div className="text-slate-500 text-sm flex items-center gap-2">
               <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              Loading 3D engine...
+              {t('intelPage.graph.loading3d')}
             </div>
           </div>
         }>
@@ -190,8 +192,8 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
           <EmptyState
             variant="search"
-            title="No workspace intelligence data"
-            description="Sync your projects to populate the workspace intelligence graph."
+            title={t('intelPage.graph.workspaceNoDataTitle')}
+            description={t('intelPage.graph.workspaceNoDataDescription')}
           />
         </div>
       )}
@@ -209,10 +211,10 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
                 ? 'right-[24.75rem] px-1.5'
                 : 'right-[20.75rem] px-1.5'
           }`}
-          title={inspectorCollapsed ? 'Show inspector' : 'Hide inspector'}
+          title={inspectorCollapsed ? t('intelPage.graph.showInspector') : t('intelPage.graph.hideInspector')}
         >
           {inspectorCollapsed ? <PanelRightOpen size={12} /> : <PanelRightClose size={12} />}
-          {inspectorCollapsed ? 'Details' : ''}
+          {inspectorCollapsed ? t('intelPage.graph.details') : ''}
         </button>
       )}
 
@@ -229,7 +231,7 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
           value={graphBrightness}
           onChange={(e) => setGraphBrightness(parseFloat(e.target.value))}
           className="graph-brightness-slider"
-          title={`Brightness: ${Math.round(graphBrightness * 100)}%`}
+          title={t('intelPage.graph.brightness', { percent: Math.round(graphBrightness * 100) })}
           style={{
             writingMode: 'vertical-lr',
             direction: 'rtl',
@@ -245,7 +247,7 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
         <button
           onClick={toggleFullscreen}
           className="flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
-          title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+          title={isFullscreen ? t('intelPage.graph.exitFullscreenEsc') : t('intelPage.graph.fullscreen')}
         >
           {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
         </button>
@@ -260,20 +262,20 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
           {ENTITY_LEGEND
             .filter((group) => visibleLayers.has(group.layer))
             .flatMap((group) => group.types)
-            .map((t) => {
-              const color = ENTITY_COLORS[t.key as keyof typeof ENTITY_COLORS] ?? '#6B7280'
+            .map((entry) => {
+              const color = ENTITY_COLORS[entry.key as keyof typeof ENTITY_COLORS] ?? '#6B7280'
               return (
                 <span
-                  key={t.key}
+                  key={entry.key}
                   className="flex items-center gap-1.5 text-[10px] text-slate-400 cursor-pointer hover:text-slate-200 transition-colors"
-                  onMouseEnter={() => setLegendHoveredType(t.key)}
+                  onMouseEnter={() => setLegendHoveredType(entry.key)}
                   onMouseLeave={() => setLegendHoveredType(null)}
                 >
                   <span
                     className="w-2 h-2 rounded-full shrink-0"
                     style={{ backgroundColor: color }}
                   />
-                  {t.label}
+                  {t(entry.label)}
                 </span>
               )
             })}
@@ -289,7 +291,7 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
           className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-4 py-2 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-600/80 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-slate-800 hover:shadow-lg hover:shadow-cyan-500/10 transition-[color,background-color,border-color,box-shadow] group cursor-pointer"
         >
           <Search size={14} className="text-slate-400 group-hover:text-cyan-400 transition-colors" />
-          <span className="text-xs font-medium">Spreading Activation</span>
+          <span className="text-xs font-medium">{t('intelPage.graph.spreadingActivation')}</span>
           <kbd className="text-[11px] px-1.5 py-0.5 rounded-md bg-slate-700/80 border border-slate-600 font-mono text-slate-400 group-hover:text-cyan-300 group-hover:border-cyan-500/40 transition-colors">
             ⌘K
           </kbd>

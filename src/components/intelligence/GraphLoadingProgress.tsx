@@ -18,6 +18,7 @@ import {
   ChevronUp,
 } from 'lucide-react'
 import { Branding } from '@/components/ui'
+import { useT } from '@/i18n'
 
 // ── Stage icons ──────────────────────────────────────────────────────────────
 
@@ -223,6 +224,7 @@ function CompactStageRow({ stage }: { stage: LoadingStage }) {
 // pointer-events: none so the canvas remains fully interactive.
 
 function GraphLoadingProgressComponent() {
+  const { t } = useT()
   const stages = useAtomValue(graphLoadingStagesAtom)
   const active = useAtomValue(graphLoadingActiveAtom)
 
@@ -277,8 +279,8 @@ function GraphLoadingProgressComponent() {
             />
             <span className="text-[11px] font-medium text-slate-200 truncate max-w-[160px]">
               {active
-                ? currentStage?.label ?? 'Loading...'
-                : 'Graph loaded'
+                ? currentStage?.label ?? t('intelPage.graph.progress.loading')
+                : t('intelPage.graph.progress.loaded')
               }
             </span>
           </div>

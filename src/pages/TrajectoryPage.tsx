@@ -29,6 +29,7 @@ import { useTaskProgress, useWorkspaceSlug } from '@/hooks'
 import type { MilestoneProgress, Plan, Project, TaskWithPlan, WorkspaceMilestone } from '@/types'
 import { workspacePath } from '@/utils/paths'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { useT } from '@/i18n'
 
 const DONE_PLAN = ['completed', 'cancelled']
 const norm = (s: string | undefined) => (s || '').toLowerCase()
@@ -58,6 +59,7 @@ async function listAllPlans(workspaceSlug: string): Promise<Plan[]> {
  * state (`display-3`) leads to the Plans page, where the work starts.
  */
 export function TrajectoryPage() {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
@@ -88,11 +90,11 @@ export function TrajectoryPage() {
       const live = new Set(allPlans.filter((p) => !DONE_PLAN.includes(p.status) && p.project_id).map((p) => p.project_id!))
       setOpenProjects(live)
     } catch {
-      setError('Failed to load the trajectory')
+      setError(t('intelLearning.trajectory.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [wsSlug])
+  }, [wsSlug, t])
 
   useEffect(() => {
     setLoading(true)
@@ -146,7 +148,7 @@ export function TrajectoryPage() {
         titleSuffix={
           <Link
             to={workspacePath(wsSlug, `/plans/${plan.id}`)}
-            aria-label={`Open plan ${plan.title}`}
+            aria-label={t('intelLearning.trajectory.openPlan', { title: plan.title })}
             className={`${rowInteractive} ${hitArea} ${inlineLink} inline-flex`}
           >
             <ArrowUpRight className="w-3 h-3" aria-hidden="true" />
@@ -158,20 +160,20 @@ export function TrajectoryPage() {
         {open && (
           <div className="border-l border-white/[0.06] pl-3 space-y-1">
             {tasks === undefined ? (
-              <span className={metaText}>Loading…</span>
+              <span className={metaText}>{t('intelLearning.trajectory.loading')}</span>
             ) : tasks.length === 0 ? (
-              <span className={metaText}>No tasks</span>
+              <span className={metaText}>{t('intelLearning.trajectory.noTasks')}</span>
             ) : (
-              tasks.map((t) => (
-                <ReferenceSource key={t.id} entity={{ kind: 'task', id: t.id, label: t.title || t.description }} button className="flex items-center gap-1">
+              tasks.map((task) => (
+                <ReferenceSource key={task.id} entity={{ kind: 'task', id: task.id, label: task.title || task.description }} button className="flex items-center gap-1">
                   <Link
-                    to={workspacePath(wsSlug, `/tasks/${t.id}`)}
+                    to={workspacePath(wsSlug, `/tasks/${task.id}`)}
                     className={`${rowInteractive} ${hitArea} flex min-w-0 flex-1 items-center gap-2 text-xs ${
-                      t.status === 'completed' ? 'text-gray-500' : 'text-gray-300'
+                      task.status === 'completed' ? 'text-gray-500' : 'text-gray-300'
                     } hover:text-gray-100`}
                   >
-                    <StatusDot kind="task" status={t.status} />
-                    <span className="truncate">{t.title || t.description}</span>
+                    <StatusDot kind="task" status={task.status} />
+                    <span className="truncate">{task.title || task.description}</span>
                   </Link>
                 </ReferenceSource>
               ))
@@ -198,14 +200,14 @@ export function TrajectoryPage() {
             titleSuffix={
               <Link
                 to={workspacePath(wsSlug, `/projects/${project.slug}`)}
-                aria-label={`Open project ${project.name}`}
+                aria-label={t('intelLearning.trajectory.openProject', { name: project.name })}
                 className={`${rowInteractive} ${hitArea} ${inlineLink} inline-flex`}
               >
                 <ArrowUpRight className="w-3 h-3" aria-hidden="true" />
               </Link>
             }
             meta={[
-              `${active.length} active · ${done.length} finished`,
+              t('intelLearning.trajectory.projectSummary', { active: active.length, done: done.length }),
             ]}
             context={<TaskProgress counts={projectProgress[project.id]} />}
           />
@@ -214,7 +216,7 @@ export function TrajectoryPage() {
             <li className="px-3 md:px-4 py-2">
               <details>
                 <summary className={`cursor-pointer select-none hover:text-gray-300 ${metaText}`}>
-                  Path travelled · {done.length}
+                  {t('intelLearning.trajectory.pathTravelled', { count: done.length })}
                 </summary>
                 <ul role="list" className="mt-1 divide-y divide-white/[0.05]">
                   {done.map(renderPlan)}
@@ -242,9 +244,9 @@ export function TrajectoryPage() {
       context={
         o.progress && o.progress.total > 0 ? (
           <div className="flex items-center gap-3">
-            <ProgressLine value={o.progress.percentage} label={`${Math.round(o.progress.percentage)}% complete`} className="max-w-[10rem]" />
+            <ProgressLine value={o.progress.percentage} label={t('intelLearning.trajectory.percentComplete', { percent: Math.round(o.progress.percentage) })} className="max-w-[10rem]" />
             <span className={`${metaText} tabular-nums`}>
-              {o.progress.completed}/{o.progress.total} done
+              {t('intelLearning.trajectory.doneOf', { completed: o.progress.completed, total: o.progress.total })}
             </span>
           </div>
         ) : undefined
@@ -263,34 +265,34 @@ export function TrajectoryPage() {
         <EmptyState
           size="page"
           variant="plans"
-          title="Nothing to trace yet"
-          description="Create a project and a plan — the trajectory builds itself from them."
+          title={t('intelLearning.trajectory.emptyTitle')}
+          description={t('intelLearning.trajectory.emptyDescription')}
           action={
             <Button size="sm" onClick={() => navigate(workspacePath(wsSlug, `/${NOMENCLATURE.plans.segment}`))}>
-              Open {NOMENCLATURE.plans.plural.toLowerCase()}
+              {t('intelLearning.trajectory.openPlans', { plans: NOMENCLATURE.plans.plural.toLowerCase() })}
             </Button>
           }
         />
       ) : (
         <div className="space-y-8">
           {objectives.length > 0 && (
-            <section aria-label="Objectives" className="space-y-2">
+            <section aria-label={t('intelLearning.trajectory.objectives')} className="space-y-2">
               <ListGroup title={NOMENCLATURE.objectives.plural} count={liveObjectives.length}>
                 {liveObjectives.map(objectiveRow)}
               </ListGroup>
               {doneObjectives.length > 0 && (
-                <ListGroup title="Reached" count={doneObjectives.length} collapsible defaultOpen={false}>
+                <ListGroup title={t('intelLearning.trajectory.reached')} count={doneObjectives.length} collapsible defaultOpen={false}>
                   {doneObjectives.map(objectiveRow)}
                 </ListGroup>
               )}
             </section>
           )}
-          <section aria-label="Work in progress" className="space-y-3">
-            <h2 className="px-1 text-[11px] font-medium text-gray-500">Work</h2>
+          <section aria-label={t('intelLearning.trajectory.workInProgress')} className="space-y-3">
+            <h2 className="px-1 text-[11px] font-medium text-gray-500">{t('intelLearning.trajectory.work')}</h2>
             {projects.map(renderProject)}
             {orphanPlans.length > 0 && (
               <div className={`${surface} overflow-hidden`}>
-                <EntityList aria-label={`${NOMENCLATURE.plans.plural} without a project`} variant="flush">
+                <EntityList aria-label={t('intelLearning.trajectory.withoutProject', { plans: NOMENCLATURE.plans.plural })} variant="flush">
                   {orphanPlans.map(renderPlan)}
                 </EntityList>
               </div>

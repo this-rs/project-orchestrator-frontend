@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useT } from '@/i18n'
 import { Handle, Position } from '@xyflow/react'
 import type { NodeProps, Node } from '@xyflow/react'
 import type { BaseNodeData } from '@/types/intelligence'
@@ -17,6 +18,7 @@ interface FeatureGraphNodeData extends BaseNodeData {
 const COLOR = '#818CF8' // indigo-400 — distinct from file (blue) and function (cyan)
 
 function FeatureGraphNodeComponent({ data, selected }: NodeProps<Node<FeatureGraphNodeData>>) {
+  const { t } = useT()
   const size = NODE_SIZES.feature_graph ?? { width: 56, height: 40 }
   const animRef = useWsAnimation(data as Record<string, unknown>)
 
@@ -36,7 +38,7 @@ function FeatureGraphNodeComponent({ data, selected }: NodeProps<Node<FeatureGra
             ? `0 0 8px ${COLOR}25`
             : undefined,
       }}
-      title={`${data.label}${data.entity_count ? ` (${data.entity_count} entities)` : ''}${data.entry_function ? ` — entry: ${data.entry_function}` : ''}`}
+      title={`${data.label}${data.entity_count ? ` ${t('intelGraph.node.entityCount', { n: data.entity_count })}` : ''}${data.entry_function ? ` — ${t('intelGraph.node.entry', { name: data.entry_function })}` : ''}`}
     >
       <Handle type="target" position={Position.Top} className="!w-1.5 !h-1.5 !bg-indigo-400 !border-0" />
       <Boxes size={14} color={COLOR} />

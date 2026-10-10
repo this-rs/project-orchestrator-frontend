@@ -163,8 +163,8 @@
   {
     "path": "src/components/intelligence/cards/ProtocolContextCard.tsx",
     "rule": "uppercase-tracking-wider",
-    "count": 2,
-    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "count": 5,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave). Count raised from 2 by the i18n extraction: the apostrophes removed from the JSX text no longer unbalance the quote scan, so labels already there are now counted (no class added).",
     "date": "2026-10-08"
   },
   {
@@ -240,8 +240,8 @@
   {
     "path": "src/components/intelligence/VectorSpaceExplorer.tsx",
     "rule": "uppercase-tracking-wider",
-    "count": 4,
-    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
+    "count": 7,
+    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave). Count raised from 4 by the i18n extraction (same cause: the scan was unbalanced by apostrophes in JSX text; no class added).",
     "date": "2026-10-08"
   },
   {

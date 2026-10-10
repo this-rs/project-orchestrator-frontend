@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAtom } from 'jotai'
+import { useT } from '@/i18n'
 import { intelligenceApi } from '@/services/intelligence'
 import { intelligenceSummaryAtom } from '@/atoms/intelligence'
 import type { IntelligenceSummary, ProjectIntelligenceSummary } from '@/types/intelligence'
@@ -54,6 +55,7 @@ interface ActionResult {
 }
 
 export function useWorkspaceIntelligenceData(workspaceSlug: string): WorkspaceIntelligenceData {
+  const { t } = useT()
   const [summary, setSummary] = useAtom(intelligenceSummaryAtom)
   const [perProject, setPerProject] = useState<ProjectIntelligenceSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -76,11 +78,11 @@ export function useWorkspaceIntelligenceData(workspaceSlug: string): WorkspaceIn
           setActions((prev) => ({ ...prev, [key]: { key, status: 'idle' } }))
         }, 4000)
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Action failed'
+        const message = err instanceof Error ? err.message : t('intelPage.page.actionFailed')
         setActions((prev) => ({ ...prev, [key]: { key, status: 'error', message } }))
       }
     },
-    [],
+    [t],
   )
 
   const fetchAll = useCallback(async (signal?: AbortSignal) => {
@@ -93,9 +95,9 @@ export function useWorkspaceIntelligenceData(workspaceSlug: string): WorkspaceIn
       setPerProject(wsData.per_project)
     } catch (err) {
       if (signal?.aborted) return
-      setError(err instanceof Error ? err.message : 'Failed to load workspace intelligence data')
+      setError(err instanceof Error ? err.message : t('intelPage.graph.workspaceDataLoadFailed'))
     }
-  }, [workspaceSlug, setSummary])
+  }, [workspaceSlug, setSummary, t])
 
   useEffect(() => {
     const controller = new AbortController()

@@ -20,6 +20,11 @@ import type plans from './messages/en/plans.ts'
 import type taskDetail from './messages/en/taskDetail.ts'
 import type tasks from './messages/en/tasks.ts'
 import type waves from './messages/en/waves.ts'
+import type intelPage from './messages/en/intelPage.ts'
+import type intelDashboard from './messages/en/intelDashboard.ts'
+import type intelGraph from './messages/en/intelGraph.ts'
+import type intelLearning from './messages/en/intelLearning.ts'
+import type intelTimeline from './messages/en/intelTimeline.ts'
 import type nav from './messages/en/nav.ts'
 import type routing from './messages/en/routing.ts'
 import type session from './messages/en/session.ts'
@@ -55,6 +60,11 @@ interface EnglishMessages {
   taskDetail: typeof taskDetail
   tasks: typeof tasks
   waves: typeof waves
+  intelPage: typeof intelPage
+  intelDashboard: typeof intelDashboard
+  intelGraph: typeof intelGraph
+  intelLearning: typeof intelLearning
+  intelTimeline: typeof intelTimeline
   nav: typeof nav
   routing: typeof routing
   session: typeof session
@@ -79,6 +89,7 @@ export const NAMESPACES = [
   'common', 'nav', 'routing', 'session', 'architecture', 'code', 'featureGraphs', 'graph', 'projects',
   'ui', 'forms', 'composer', 'shell', 'nomenclature', 'glossary', 'toolPolicy', 'activity', 'fgModel', 'setupOidc', 'app', 'providers', 'providerErrors', 'intelConfig',
   'commits', 'deployments', 'kanban', 'milestones', 'pipeline', 'planDetail', 'plans', 'taskDetail', 'tasks', 'waves',
+  'intelPage', 'intelDashboard', 'intelGraph', 'intelLearning', 'intelTimeline',
 ] as const satisfies readonly Ns[]
 
 /** Every other language is a (possibly partial) overlay of the same shape. */

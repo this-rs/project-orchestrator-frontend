@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useT } from '@/i18n'
 import { Handle, Position } from '@xyflow/react'
 import type { NodeProps, Node } from '@xyflow/react'
 import type { SkillNodeData } from '@/types/intelligence'
@@ -14,6 +15,7 @@ const skillStatusColors: Record<string, string> = {
 }
 
 function SkillNodeComponent({ data, selected }: NodeProps<Node<SkillNodeData>>) {
+  const { t } = useT()
   const size = NODE_SIZES.skill
   const color = ENTITY_COLORS.skill
   const statusColor = skillStatusColors[data.status] ?? color
@@ -37,7 +39,7 @@ function SkillNodeComponent({ data, selected }: NodeProps<Node<SkillNodeData>>) 
             ? `0 0 12px ${color}40`
             : undefined,
       }}
-      title={`${data.label} (energy: ${(data.energy * 100).toFixed(0)}%)`}
+      title={`${data.label} ${t('intelGraph.node.energy', { pct: (data.energy * 100).toFixed(0) })}`}
     >
       <Handle type="target" position={Position.Top} className="!w-1.5 !h-1.5 !bg-pink-400 !border-0" />
       <Brain size={18} color={color} />

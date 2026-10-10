@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ForceGraph3D from 'react-force-graph-3d'
 import { useAtomValue, useSetAtom } from 'jotai'
 import * as THREE from 'three'
+import { useT } from '@/i18n'
 
 import { useGraph3DLayout, type Graph3DNode, type Graph3DLink } from './useGraph3DLayout'
 import { useActivationSync } from './useActivationSync'
@@ -109,6 +110,7 @@ const RENDERER_CONFIG = { antialias: !IS_MOBILE_LIKE }
 const MAX_PIXEL_RATIO = 2
 
 export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }: IntelligenceGraph3DProps) {
+  const { t } = useT()
   const graphRef = useRef<GraphRef>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
@@ -338,7 +340,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       const hasCommunities = graphData.nodes.some((n) => n.communityId != null)
       if (!hasCommunities) return
 
-      const hullGroup = buildCommunityHulls(graphData.nodes)
+      const hullGroup = buildCommunityHulls(graphData.nodes, t)
       if (hullGroup.hulls.length > 0) {
         scene.add(hullGroup.group)
         communityHullsRef.current = hullGroup
@@ -349,7 +351,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       // wake: hull meshes/labels were added to or removed from the scene.
       wake(WAKE_MUTATION_MS)
     }
-  }, [showCommunityHulls, graphData.nodes, wake])
+  }, [showCommunityHulls, graphData.nodes, wake, t])
 
   // Rebuild when toggle changes (immediate — user clicked the button)
   useEffect(() => {
@@ -471,8 +473,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // ── Node 3D object ──────────────────────────────────────────────────────
   const nodeThreeObject = useCallback((node: Graph3DNode) => {
-    return createNodeObject(node)
-  }, [])
+    return createNodeObject(node, t)
+  }, [t])
 
   // ── Highlight colors ─────────────────────────────────────────────────────
   const HIGHLIGHT_COLOR_HOVER = '#F59E0B'   // amber-500

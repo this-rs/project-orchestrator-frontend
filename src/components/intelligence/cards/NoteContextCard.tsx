@@ -1,4 +1,6 @@
 import { memo, useState, useCallback, useEffect } from 'react'
+import { useT, type MessageKey } from '@/i18n'
+import { statusLabel } from '../statusLabel'
 import type { NoteNodeData } from '@/types/intelligence'
 import type { Note } from '@/types'
 import { notesApi } from '@/services/notes'
@@ -67,13 +69,14 @@ const statusColors: Record<string, { bg: string; text: string; border: string }>
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useT()
   const colors = statusColors[status] ?? { bg: '#1e293b', text: '#94a3b8', border: '#334155' }
   return (
     <span
       className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-md border"
       style={{ backgroundColor: colors.bg, color: colors.text, borderColor: colors.border }}
     >
-      {status.replace(/_/g, ' ')}
+      {statusLabel(t, status)}
     </span>
   )
 }
@@ -82,19 +85,21 @@ function StatusBadge({ status }: { status: string }) {
 // IMPORTANCE BADGE
 // ============================================================================
 
-const importanceConfig: Record<string, { color: string; label: string }> = {
-  critical: { color: '#f87171', label: 'CRITICAL' },
-  high: { color: '#fb923c', label: 'HIGH' },
-  medium: { color: '#fbbf24', label: 'MEDIUM' },
-  low: { color: '#94a3b8', label: 'LOW' },
+const importanceConfig: Record<string, { color: string }> = {
+  critical: { color: '#f87171' },
+  high: { color: '#fb923c' },
+  medium: { color: '#fbbf24' },
+  low: { color: '#94a3b8' },
 }
 
 function ImportanceBadge({ importance }: { importance: string }) {
-  const cfg = importanceConfig[importance] ?? { color: '#94a3b8', label: importance }
+  const { t } = useT()
+  const cfg = importanceConfig[importance] ?? { color: '#94a3b8' }
+  const label = importance in importanceConfig ? t(`intelGraph.importance.${importance}` as MessageKey) : importance
   return (
-    <span className="inline-flex items-center gap-0.5 text-[9px] font-bold" style={{ color: cfg.color }}>
+    <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase" style={{ color: cfg.color }}>
       <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cfg.color }} />
-      {cfg.label}
+      {label}
     </span>
   )
 }
@@ -165,6 +170,7 @@ interface SynapseLink {
 }
 
 function NoteContextCardComponent({ data, entityId }: NoteContextCardProps) {
+  const { t } = useT()
   // Full note data from API
   const [fullNote, setFullNote] = useState<Note | null>(null)
   const [synapses, setSynapses] = useState<SynapseLink[]>([])
@@ -227,11 +233,11 @@ function NoteContextCardComponent({ data, entityId }: NoteContextCardProps) {
       await notesApi.confirm(entityId)
       setActionDone('confirmed')
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Failed to confirm')
+      setActionError(err instanceof Error ? err.message : t('intelGraph.noteCard.confirmFailed'))
     } finally {
       setConfirming(false)
     }
-  }, [entityId])
+  }, [entityId, t])
 
   const handleInvalidate = useCallback(async () => {
     setInvalidating(true)
@@ -240,11 +246,11 @@ function NoteContextCardComponent({ data, entityId }: NoteContextCardProps) {
       await notesApi.invalidate(entityId, 'Invalidated from graph inspector')
       setActionDone('invalidated')
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Failed to invalidate')
+      setActionError(err instanceof Error ? err.message : t('intelGraph.noteCard.invalidateFailed'))
     } finally {
       setInvalidating(false)
     }
-  }, [entityId])
+  }, [entityId, t])
 
   // Derived
   const NoteIcon = noteTypeIcons[data.noteType] ?? StickyNote
@@ -271,12 +277,12 @@ function NoteContextCardComponent({ data, entityId }: NoteContextCardProps) {
       {/* -- Energy & Staleness gauges ------------------------------------- */}
       <div className="space-y-1.5">
         <MiniGauge
-          label="Energy"
+          label={t('intelGraph.card.energy')}
           value={data.energy}
           color="#22d3ee"
         />
         <MiniGauge
-          label="Staleness"
+          label={t('intelGraph.noteCard.staleness')}
           value={data.staleness}
           color={data.staleness > 0.7 ? '#f87171' : data.staleness > 0.4 ? '#fb923c' : '#4ade80'}
         />
@@ -299,9 +305,9 @@ function NoteContextCardComponent({ data, entityId }: NoteContextCardProps) {
 
       {/* -- Content preview ----------------------------------------------- */}
       <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">Content</p>
+        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.noteCard.content')}</p>
         {loading && !fullNote ? (
-          <SectionLoader label="Loading..." />
+          <SectionLoader label={t('intelGraph.card.loading')} />
         ) : (
           <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-8 max-h-[160px] overflow-y-auto">
             {content}
@@ -315,7 +321,7 @@ function NoteContextCardComponent({ data, entityId }: NoteContextCardProps) {
           <div className="flex items-center gap-1.5 mb-1.5">
             <Link2 size={10} className="text-blue-400" />
             <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-              Linked Entities
+              {t('intelGraph.noteCard.linkedEntities')}
             </span>
             <span className="text-[10px] text-slate-600 font-mono">({anchors.length})</span>
           </div>
@@ -334,7 +340,7 @@ function NoteContextCardComponent({ data, entityId }: NoteContextCardProps) {
                   </span>
                   <span className="text-[8px] text-slate-600">{anchor.entity_type}</span>
                   {!anchor.is_valid && (
-                    <span className="text-[8px] text-red-500 font-medium">stale</span>
+                    <span className="text-[8px] text-red-500 font-medium">{t('intelGraph.noteCard.anchorStale')}</span>
                   )}
                 </div>
               )
@@ -348,16 +354,16 @@ function NoteContextCardComponent({ data, entityId }: NoteContextCardProps) {
         <div className="flex items-center gap-1.5 mb-1.5">
           <Brain size={10} className="text-cyan-400" />
           <span className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">
-            Neural Neighbors
+            {t('intelGraph.noteCard.neuralNeighbors')}
           </span>
           {!loading && (
             <span className="text-[10px] text-slate-600 font-mono">({synapses.length})</span>
           )}
         </div>
         {loading ? (
-          <SectionLoader label="Searching synapses..." />
+          <SectionLoader label={t('intelGraph.noteCard.searchingSynapses')} />
         ) : synapses.length === 0 ? (
-          <p className="text-[10px] text-slate-600 italic pl-3">No synapse connections found</p>
+          <p className="text-[10px] text-slate-600 italic pl-3">{t('intelGraph.noteCard.noSynapses')}</p>
         ) : (
           <div className="space-y-1 max-h-[120px] overflow-y-auto">
             {synapses.map((syn) => {
@@ -403,7 +409,7 @@ function NoteContextCardComponent({ data, entityId }: NoteContextCardProps) {
               disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Check size={12} />
-            {confirming ? 'Confirming...' : 'Confirm'}
+            {confirming ? t('intelGraph.noteCard.confirming') : t('intelGraph.noteCard.confirm')}
           </button>
           <button
             onClick={handleInvalidate}
@@ -413,7 +419,7 @@ function NoteContextCardComponent({ data, entityId }: NoteContextCardProps) {
               disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <XCircle size={12} />
-            {invalidating ? 'Invalidating...' : 'Invalidate'}
+            {invalidating ? t('intelGraph.noteCard.invalidating') : t('intelGraph.noteCard.invalidate')}
           </button>
         </div>
       )}
@@ -426,7 +432,7 @@ function NoteContextCardComponent({ data, entityId }: NoteContextCardProps) {
             : 'bg-red-950/40 border-red-800 text-red-400'
         }`}>
           {actionDone === 'confirmed' ? <Check size={12} /> : <XCircle size={12} />}
-          Note {actionDone} successfully
+          {actionDone === 'confirmed' ? t('intelGraph.noteCard.confirmed') : t('intelGraph.noteCard.invalidated')}
         </div>
       )}
 

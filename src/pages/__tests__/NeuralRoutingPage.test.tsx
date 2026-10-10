@@ -63,8 +63,8 @@ describe('NeuralRoutingPage', () => {
     expect(screen.getByText('20.0%')).toBeTruthy()
     expect(screen.getByText(/40 answered from memory/)).toBeTruthy()
     expect(screen.getByText('88.0%')).toBeTruthy()
-    expect(screen.getByText('buffer 100 entries')).toBeTruthy()
-    expect(screen.getByText('idle sessions closed after 60s')).toBeTruthy()
+    expect(screen.getByText('Buffer: 100 entries')).toBeTruthy()
+    expect(screen.getByText('Idle sessions closed after 60s')).toBeTruthy()
   })
 
   it('does not crash when the backend omits a metric', async () => {

@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useT } from '@/i18n'
 import { Handle, Position } from '@xyflow/react'
 import type { NodeProps, Node } from '@xyflow/react'
 import type { FunctionNodeData } from '@/types/intelligence'
@@ -7,6 +8,7 @@ import { MessageCircle } from 'lucide-react'
 import { useWsAnimation } from '../useWsAnimation'
 
 function FunctionNodeComponent({ data, selected }: NodeProps<Node<FunctionNodeData>>) {
+  const { t } = useT()
   const size = NODE_SIZES.function
   const color = ENTITY_COLORS.function
   const animRef = useWsAnimation(data as Record<string, unknown>)
@@ -25,7 +27,7 @@ function FunctionNodeComponent({ data, selected }: NodeProps<Node<FunctionNodeDa
         border: `1.5px solid ${selected ? '#93C5FD' : color}`,
         boxShadow: selected ? `0 0 8px ${color}40` : undefined,
       }}
-      title={`${data.label}${isDiscussed ? ' (discussed)' : ''}`}
+      title={`${data.label}${isDiscussed ? ` ${t('intelGraph.node.discussed')}` : ''}`}
     >
       <Handle type="target" position={Position.Top} className="!w-1 !h-1 !bg-blue-300 !border-0" />
       <span style={{ fontSize: 8, color }} className="font-mono font-bold">f</span>
@@ -42,7 +44,7 @@ function FunctionNodeComponent({ data, selected }: NodeProps<Node<FunctionNodeDa
             border: '1px solid #D1D5DB',
             boxShadow: '0 0 3px rgba(209, 213, 219, 0.3)',
           }}
-          title="Discussed in chat session"
+          title={t('intelGraph.node.discussedTitle')}
         >
           <MessageCircle size={6} color="#D1D5DB" />
         </div>

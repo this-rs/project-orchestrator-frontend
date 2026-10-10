@@ -13,6 +13,7 @@
 import * as THREE from 'three'
 import SpriteText from 'three-spritetext'
 import type { Graph3DNode } from './useGraph3DLayout'
+import type { TFn } from './nodeObjects'
 
 // ── Community colors — 12 distinct hues ──────────────────────────────────────
 
@@ -120,6 +121,7 @@ export interface CommunityHullGroup {
 
 export function buildCommunityHulls(
   nodes: Graph3DNode[],
+  t: TFn,
 ): CommunityHullGroup {
   const group = new THREE.Group()
   group.name = 'communityHulls'
@@ -135,7 +137,7 @@ export function buildCommunityHulls(
       if (!communities.has(node.communityId)) {
         communities.set(node.communityId, {
           nodes: [],
-          label: node.communityLabel ?? `Community ${node.communityId}`,
+          label: node.communityLabel ?? t('intelGraph.communityFallback', { id: String(node.communityId) }),
         })
       }
       communities.get(node.communityId)!.nodes.push(node)

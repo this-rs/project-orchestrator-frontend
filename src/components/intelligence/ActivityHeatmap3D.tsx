@@ -13,6 +13,7 @@
 // ============================================================================
 
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react'
+import { useT } from '@/i18n'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
@@ -61,7 +62,15 @@ interface TooltipData {
   events: TimelineEvent[]
 }
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DAY_KEYS = [
+  'intelDashboard.heatmap.days.sun',
+  'intelDashboard.heatmap.days.mon',
+  'intelDashboard.heatmap.days.tue',
+  'intelDashboard.heatmap.days.wed',
+  'intelDashboard.heatmap.days.thu',
+  'intelDashboard.heatmap.days.fri',
+  'intelDashboard.heatmap.days.sat',
+] as const
 
 /** Base cyan matching the 2D heatmap */
 const CYAN = new THREE.Color(0x22d3ee)
@@ -77,6 +86,9 @@ export function ActivityHeatmap3D({
   /** When provided, bars are stacked by project with per-project colors */
   projectColorMap?: Map<string, string>
 }) {
+  const { t } = useT()
+  const dayLabels = useMemo(() => DAY_KEYS.map((k) => t(k)), [t])
+  const hourLabel = useCallback((hour: number) => t('intelDashboard.heatmap.hour', { hour }), [t])
   const containerRef = useRef<HTMLDivElement>(null)
   const animFrameRef = useRef<number>(0)
   const hoveredRef = useRef<THREE.Mesh | null>(null)
@@ -404,7 +416,7 @@ export function ActivityHeatmap3D({
 
     // ── Day labels ──
     for (let day = 0; day < 7; day++) {
-      const sprite = makeTextSprite(DAYS[day], {
+      const sprite = makeTextSprite(dayLabels[day], {
         fontSize: 28,
         color: '#64748b',
       })
@@ -415,7 +427,7 @@ export function ActivityHeatmap3D({
 
     // ── Hour labels ──
     for (let h = 0; h < 24; h += 3) {
-      const sprite = makeTextSprite(`${h}h`, {
+      const sprite = makeTextSprite(hourLabel(h), {
         fontSize: 24,
         color: '#475569',
       })
@@ -482,7 +494,7 @@ export function ActivityHeatmap3D({
           setTooltip({
             x: screenX,
             y: screenY,
-            day: DAYS[hit.userData.day],
+            day: dayLabels[hit.userData.day],
             hour: hit.userData.hour,
             count: hit.userData.count,
             events: eventsByCell.get(`${hit.userData.day}-${hit.userData.hour}`) || [],
@@ -519,7 +531,7 @@ export function ActivityHeatmap3D({
         container.removeChild(renderer.domElement)
       }
     }
-  }, [grid, perProjectGrid, maxCount, eventsByCell, dayTotals, sortedSlugs, projectColorMap, handleMouseMove, handleMouseLeave])
+  }, [grid, perProjectGrid, maxCount, eventsByCell, dayTotals, sortedSlugs, projectColorMap, handleMouseMove, handleMouseLeave, dayLabels, hourLabel])
 
   return (
     <div className="relative">
@@ -545,7 +557,7 @@ export function ActivityHeatmap3D({
                 {tooltip.day} {tooltip.hour}:00–{tooltip.hour + 1}:00
               </span>
               <span className="text-[10px] text-slate-500 font-mono">
-                {tooltip.count} event{tooltip.count !== 1 ? 's' : ''}
+                {t(tooltip.count === 1 ? 'intelDashboard.heatmap.eventOne' : 'intelDashboard.heatmap.eventOther', { count: tooltip.count })}
               </span>
             </div>
             <div className="space-y-1">
@@ -554,7 +566,7 @@ export function ActivityHeatmap3D({
                 (() => {
                   const byProject = new Map<string, TimelineEvent[]>()
                   for (const ev of tooltip.events) {
-                    const key = ev.projectName || ev.projectSlug || 'Global'
+                    const key = ev.projectName || ev.projectSlug || t('intelDashboard.heatmap.global')
                     const arr = byProject.get(key) || []
                     arr.push(ev)
                     byProject.set(key, arr)
@@ -583,7 +595,7 @@ export function ActivityHeatmap3D({
                         </div>
                       ))}
                       {evts.length > 2 && (
-                        <span className="text-[7px] text-slate-600 ml-3.5">+{evts.length - 2} more</span>
+                        <span className="text-[7px] text-slate-600 ml-3.5">{t('intelDashboard.heatmap.more', { count: evts.length - 2 })}</span>
                       )}
                     </div>
                   ))
@@ -602,7 +614,7 @@ export function ActivityHeatmap3D({
                   ))}
                   {tooltip.events.length > 4 && (
                     <span className="text-[8px] text-slate-600">
-                      +{tooltip.events.length - 4} more
+                      {t('intelDashboard.heatmap.more', { count: tooltip.events.length - 4 })}
                     </span>
                   )}
                 </>
@@ -614,7 +626,7 @@ export function ActivityHeatmap3D({
 
       {/* Controls hint */}
       <div className="absolute bottom-2 right-3 text-[9px] text-slate-600 pointer-events-none">
-        Drag to rotate · Scroll to zoom
+        {t('intelDashboard.heatmap.hint')}
       </div>
     </div>
   )

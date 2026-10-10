@@ -42,10 +42,24 @@ import { workspacePath } from '@/utils/paths'
 import type { Note, Skill, DecisionTimelineEntry } from '@/types'
 import type { ProtocolRunApi } from '@/types/intelligence'
 import { intelligenceApi } from '@/services/intelligence'
+import { useT } from '@/i18n'
 
 const ActivityHeatmap3D = lazy(() =>
   import('./ActivityHeatmap3D').then((m) => ({ default: m.ActivityHeatmap3D })),
 )
+
+/** Renders `**word**` as emphasis, so a translated sentence keeps its bold keyword wherever the language puts it. */
+function bold(text: string) {
+  return text.split(/\*\*(.+?)\*\*/g).map((part, i) =>
+    i % 2 === 1 ? (
+      <strong key={i} className="text-slate-400">
+        {part}
+      </strong>
+    ) : (
+      part
+    ),
+  )
+}
 
 // ============================================================================
 // TYPES
@@ -164,6 +178,7 @@ interface HeatmapTooltipData {
 }
 
 function ActivityHeatmap({ events, color }: { events: TimelineEvent[]; color: string }) {
+  const { t, date: fmtDate } = useT()
   const [tooltip, setTooltip] = useState<HeatmapTooltipData | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -196,7 +211,10 @@ function ActivityHeatmap({ events, color }: { events: TimelineEvent[]; color: st
     return m || 1
   }, [grid])
 
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const days = useMemo(
+    () => Array.from({ length: 7 }, (_, d) => fmtDate(new Date(2024, 0, 7 + d), { year: undefined, month: undefined, day: undefined, weekday: 'short' })),
+    [fmtDate],
+  )
 
   const handleCellEnter = useCallback(
     (e: React.MouseEvent, day: number, hour: number, count: number) => {
@@ -270,7 +288,7 @@ function ActivityHeatmap({ events, color }: { events: TimelineEvent[]; color: st
                 {tooltip.day} {tooltip.hour}:00–{tooltip.hour + 1}:00
               </span>
               <span className="text-[10px] text-slate-500 font-mono">
-                {tooltip.count} event{tooltip.count !== 1 ? 's' : ''}
+                {t('intelTimeline.eventsCount', { count: tooltip.count })}
               </span>
             </div>
             {/* List up to 4 events */}
@@ -286,7 +304,7 @@ function ActivityHeatmap({ events, color }: { events: TimelineEvent[]; color: st
               ))}
               {tooltip.events.length > 4 && (
                 <span className="text-[8px] text-slate-600">
-                  +{tooltip.events.length - 4} more
+                  {t('intelTimeline.more', { count: tooltip.events.length - 4 })}
                 </span>
               )}
             </div>
@@ -327,6 +345,7 @@ function TimelineTrack({
   /** Confirmation wave zones to render as background bands */
   confirmationWaves?: { start: number; end: number; count: number }[]
 }) {
+  const { date: fmtDate } = useT()
   const containerRef = useRef<HTMLDivElement>(null)
   const seekingRef = useRef(false)
   const range = endDate.getTime() - startDate.getTime() || 1
@@ -394,7 +413,7 @@ function TimelineTrack({
             style={{ left: `${pct}%` }}
           >
             <span className="absolute -bottom-4 left-0 -translate-x-1/2 text-[8px] text-slate-700 font-mono whitespace-nowrap">
-              {date.toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+              {fmtDate(date, { year: undefined, month: 'short', day: 'numeric' })}
             </span>
           </div>
         )
@@ -623,21 +642,19 @@ function RangeSlider({
 // ============================================================================
 
 function EventTooltip({ event }: { event: TimelineEvent }) {
+  const { t, date: fmtDate } = useT()
   const color = EVENT_COLORS[event.type]
   return (
     <div className="bg-slate-900/95 backdrop-blur-sm border border-slate-700/80 rounded-lg px-3 py-2 shadow-xl max-w-[260px]">
       <div className="flex items-center gap-1.5 mb-1">
         <span className="text-xs">{EVENT_ICONS[event.type]}</span>
         <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color }}>
-          {event.type.replace(/_/g, ' ')}
+          {t(`intelTimeline.eventType.${event.type}`)}
         </span>
       </div>
       <p className="text-[11px] text-slate-300 leading-snug line-clamp-2">{event.label}</p>
       <p className="text-[9px] text-slate-600 mt-1 font-mono">
-        {event.date.toLocaleString('en', {
-          month: 'short', day: 'numeric', year: 'numeric',
-          hour: '2-digit', minute: '2-digit',
-        })}
+        {fmtDate(event.date, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', })}
       </p>
       {event.detail && (
         <p className="text-[9px] text-slate-500 mt-0.5">{event.detail}</p>
@@ -658,6 +675,7 @@ interface LearningTimelineProps {
 }
 
 export default function LearningTimeline(props: LearningTimelineProps) {
+  const { t, date: fmtDate } = useT()
   const params = useParams<{ projectSlug: string }>()
   const projectSlug = props.projectSlug ?? params.projectSlug
   const wsSlug = useWorkspaceSlug()
@@ -701,16 +719,16 @@ export default function LearningTimeline(props: LearningTimelineProps) {
         if (n.last_confirmed_at) {
           const confirmedAt = new Date(n.last_confirmed_at)
           const cycleMs = confirmedAt.getTime() - new Date(n.created_at).getTime()
-          const cycleLabel = cycleMs < 60_000 ? '< 1 min (auto)'
-            : cycleMs < 3_600_000 ? `${Math.round(cycleMs / 60_000)} min`
-            : cycleMs < 86_400_000 ? `${Math.round(cycleMs / 3_600_000)}h`
-            : `${Math.round(cycleMs / 86_400_000)}d`
+          const cycleLabel = cycleMs < 60_000 ? t('intelTimeline.cycle.auto')
+            : cycleMs < 3_600_000 ? t('intelTimeline.cycle.minutes', { n: Math.round(cycleMs / 60_000) })
+            : cycleMs < 86_400_000 ? t('intelTimeline.cycle.hours', { n: Math.round(cycleMs / 3_600_000) })
+            : t('intelTimeline.cycle.days', { n: Math.round(cycleMs / 86_400_000) })
           evts.push({
             id: `note-confirm-${n.id}`,
             type: 'note_confirmed',
             date: confirmedAt,
-            label: `Confirmed: ${n.content.slice(0, 60)}`,
-            detail: `Cycle: ${cycleLabel}`,
+            label: t('intelTimeline.event.confirmed', { text: n.content.slice(0, 60) }),
+            detail: t('intelTimeline.event.cycle', { cycle: cycleLabel }),
           })
         }
       }
@@ -723,7 +741,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
           type: 'decision',
           date: new Date(d.decided_at),
           label: d.description.slice(0, 80),
-          detail: d.chosen_option ? `Chose: ${d.chosen_option}` : undefined,
+          detail: d.chosen_option ? t('intelTimeline.event.chose', { option: d.chosen_option }) : undefined,
           fullContent: d.description,
         })
       }
@@ -736,14 +754,14 @@ export default function LearningTimeline(props: LearningTimelineProps) {
           type: 'skill_created',
           date: new Date(s.created_at),
           label: s.name,
-          detail: `${s.note_count} notes, ${s.decision_count} decisions`,
+          detail: t('intelTimeline.event.skillCounts', { notes: s.note_count, decisions: s.decision_count }),
         })
         if (s.last_activated) {
           evts.push({
             id: `skill-act-${s.id}`,
             type: 'skill_activated',
             date: new Date(s.last_activated),
-            label: `Activated: ${s.name}`,
+            label: t('intelTimeline.event.activated', { name: s.name }),
           })
         }
       }
@@ -758,14 +776,14 @@ export default function LearningTimeline(props: LearningTimelineProps) {
             label: visit.state_name,
             detail: visit.trigger
               ? `${visit.trigger} → ${visit.state_name}`
-              : `Started: ${visit.state_name}`,
+              : t('intelTimeline.event.started', { name: visit.state_name }),
           })
         }
       }
 
       return evts.sort((a, b) => a.date.getTime() - b.date.getTime())
     },
-    [],
+    [t],
   )
 
   // ── Fetch all data ──────────────────────────────────────────────────
@@ -845,7 +863,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
         setDateRange({ start: minTs - padding, end: maxTs + padding })
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load timeline data')
+      setError(err instanceof Error ? err.message : t('intelTimeline.loadFailed'))
     }
   }, [projectSlug, buildEvents])
 
@@ -1063,7 +1081,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
       <div className="flex items-center justify-center h-full min-h-[400px]">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={32} className="text-cyan-400 animate-spin" />
-          <p className="text-sm text-slate-500">Loading timeline data…</p>
+          <p className="text-sm text-slate-500">{t('intelTimeline.loading')}</p>
         </div>
       </div>
     )
@@ -1082,7 +1100,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
               className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-300 hover:bg-slate-800 transition-colors"
             >
               <ArrowLeft size={14} />
-              Dashboard
+              {t('intelTimeline.dashboard')}
             </button>
           </div>
         )}
@@ -1093,27 +1111,27 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                 <Calendar size={32} className="text-slate-600" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-medium text-slate-300 mb-1">No knowledge events yet</p>
+                <p className="text-sm font-medium text-slate-300 mb-1">{t('intelTimeline.emptyTitle')}</p>
                 <p className="text-xs text-slate-500 max-w-sm">
-                  The timeline will populate as your project builds intelligence. To get started:
+                  {t('intelTimeline.emptyIntro')}
                 </p>
               </div>
               <div className="flex flex-col gap-2 text-xs text-slate-500 mt-1">
                 <div className="flex items-center gap-2">
                   <StickyNote size={12} className="text-blue-400 shrink-0" />
-                  <span>Create <strong className="text-slate-400">notes</strong> to capture knowledge and guidelines</span>
+                  <span>{bold(t('intelTimeline.hintNotes'))}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Scale size={12} className="text-violet-400 shrink-0" />
-                  <span>Record <strong className="text-slate-400">decisions</strong> to document architectural choices</span>
+                  <span>{bold(t('intelTimeline.hintDecisions'))}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Sparkles size={12} className="text-pink-400 shrink-0" />
-                  <span>Run <strong className="text-slate-400">skill detection</strong> from the Intelligence Dashboard</span>
+                  <span>{bold(t('intelTimeline.hintSkills'))}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Workflow size={12} className="text-orange-400 shrink-0" />
-                  <span>Execute <strong className="text-slate-400">protocols</strong> to generate activity traces</span>
+                  <span>{bold(t('intelTimeline.hintProtocols'))}</span>
                 </div>
               </div>
             </div>
@@ -1141,10 +1159,10 @@ export default function LearningTimeline(props: LearningTimelineProps) {
             <div>
               <h1 className="text-lg font-bold text-slate-200 flex items-center gap-2">
                 <Calendar size={18} className="text-cyan-400" />
-                Learning Timeline
+                {t('intelTimeline.title')}
               </h1>
               <p className="text-[11px] text-slate-500">
-                Knowledge evolution over time for{' '}
+                {t('intelTimeline.subtitle')}{' '}
                 <span className="text-slate-400 font-medium">{projectSlug}</span>
               </p>
             </div>
@@ -1185,7 +1203,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors disabled:opacity-50"
             >
               <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
-              Refresh
+              {t('intelTimeline.refresh')}
             </button>
           </div>
         </div>
@@ -1199,7 +1217,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
               <Sparkline
                 data={sparklines.notes.data}
                 color="#3B82F6"
-                label="Total Notes"
+                label={t('intelTimeline.stats.notes')}
                 currentValue={sparklines.notes.value}
               />
             </div>
@@ -1209,7 +1227,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
               <Sparkline
                 data={sparklines.decisions.data}
                 color="#8B5CF6"
-                label="Decisions"
+                label={t('intelTimeline.stats.decisions')}
                 currentValue={sparklines.decisions.value}
               />
             </div>
@@ -1219,7 +1237,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
               <Sparkline
                 data={sparklines.skills.data}
                 color="#EC4899"
-                label="Skills"
+                label={t('intelTimeline.stats.skills')}
                 currentValue={sparklines.skills.value}
               />
             </div>
@@ -1229,7 +1247,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
               <Sparkline
                 data={sparklines.velocity.data}
                 color="#22d3ee"
-                label="Learning Velocity"
+                label={t('intelTimeline.stats.velocity')}
                 currentValue={sparklines.velocity.value}
               />
             </div>
@@ -1242,18 +1260,18 @@ export default function LearningTimeline(props: LearningTimelineProps) {
         <div className="px-4 py-3 border-b border-border-subtle pb-2">
           <h3 className="font-semibold text-gray-100 flex items-center gap-2 text-sm" style={{ fontSize: 'var(--fluid-lg)' }}>
             <Activity size={16} className="text-cyan-400" />
-            Event Timeline
+            {t('intelTimeline.eventTimeline')}
             <span className="text-[10px] text-slate-600 font-normal ml-auto">
               {playbackPos !== null
-                ? `${playbackVisibleCount} / ${filteredEvents.length} events`
-                : `${filteredEvents.length} events`}
+                ? t('intelTimeline.eventsProgress', { shown: playbackVisibleCount, total: filteredEvents.length })
+                : t('intelTimeline.eventsCount', { count: filteredEvents.length })}
             </span>
           </h3>
         </div>
         <div className="p-4">
           {events.length === 0 ? (
             <div className="text-center py-8 text-slate-600 text-sm">
-              No events found. Create notes, decisions, or skills to populate the timeline.
+              {t('intelTimeline.noEvents')}
             </div>
           ) : (
             <div className="space-y-4">
@@ -1265,7 +1283,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30 transition-colors text-xs font-medium"
                   >
                     <Pause size={12} />
-                    Pause
+                    {t('intelTimeline.pause')}
                   </button>
                 ) : (
                   <button
@@ -1273,7 +1291,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30 transition-colors text-xs font-medium"
                   >
                     <Play size={12} />
-                    {playbackPos !== null && playbackPos < 1 ? 'Resume' : 'Play'}
+                    {playbackPos !== null && playbackPos < 1 ? t('intelTimeline.resume') : t('intelTimeline.play')}
                   </button>
                 )}
                 {playbackPos !== null && (
@@ -1282,7 +1300,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                     className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-slate-500 hover:text-slate-400 hover:bg-slate-800 transition-colors"
                   >
                     <RotateCcw size={11} />
-                    Reset
+                    {t('intelTimeline.reset')}
                   </button>
                 )}
                 {/* Speed control — slow | fast with separator */}
@@ -1297,7 +1315,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                           ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
                           : 'text-slate-600 hover:text-slate-400 border border-transparent'
                       }`}
-                      title={`${Math.round(1 / speed)}× slower`}
+                      title={t('intelTimeline.slower', { n: Math.round(1 / speed) })}
                     >
                       {speed}×
                     </button>
@@ -1325,9 +1343,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                 {/* Playback date display */}
                 {playbackTimestamp !== null && (
                   <span className="text-[10px] font-mono text-slate-500 ml-auto tabular-nums">
-                    {new Date(playbackTimestamp).toLocaleDateString('en', {
-                      month: 'short', day: 'numeric', year: 'numeric',
-                    })}
+                    {fmtDate(new Date(playbackTimestamp), { month: 'short', day: 'numeric', year: 'numeric', })}
                   </span>
                 )}
               </div>
@@ -1348,7 +1364,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                       <p className="text-[9px] text-slate-600">{currentPlaybackEvent.detail}</p>
                     </div>
                     <span className="text-[9px] font-mono text-slate-600 shrink-0">
-                      {currentPlaybackEvent.date.toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                      {fmtDate(currentPlaybackEvent.date, { year: undefined, month: 'short', day: 'numeric' })}
                     </span>
                   </div>
 
@@ -1358,10 +1374,10 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                       <span className="text-sm">✅</span>
                       <div>
                         <p className="text-[10px] font-medium text-emerald-400">
-                          Confirmation phase
+                          {t('intelTimeline.waveTitle')}
                         </p>
                         <p className="text-[9px] text-slate-500">
-                          {currentPlaybackWave.count} note{currentPlaybackWave.count > 1 ? 's' : ''} confirmed
+                          {t('intelTimeline.waveCount', { count: currentPlaybackWave.count })}
                         </p>
                       </div>
                     </div>
@@ -1388,17 +1404,17 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                 {/* Date labels under the track */}
                 <div className="flex justify-between mt-1 px-0.5">
                   <span className="text-[9px] text-slate-700 font-mono">
-                    {startDate.toLocaleDateString('en', { month: 'short', day: 'numeric', year: '2-digit' })}
+                    {fmtDate(startDate, { month: 'short', day: 'numeric', year: '2-digit' })}
                   </span>
                   <span className="text-[9px] text-slate-700 font-mono">
-                    {endDate.toLocaleDateString('en', { month: 'short', day: 'numeric', year: '2-digit' })}
+                    {fmtDate(endDate, { month: 'short', day: 'numeric', year: '2-digit' })}
                   </span>
                 </div>
               </div>
 
               {/* Date range slider */}
               <div>
-                <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">Date Range</p>
+                <p className="text-[9px] text-slate-600 uppercase tracking-wider mb-1">{t('intelTimeline.dateRange')}</p>
                 <RangeSlider
                   min={sliderBounds.min}
                   max={sliderBounds.max}
@@ -1414,10 +1430,10 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                   <div className="flex items-center gap-2">
                     <Scale size={13} className="text-violet-400" />
                     <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
-                      Decisions
+                      {t('intelTimeline.stats.decisions')}
                     </span>
                     <span className="text-[9px] text-slate-600 tabular-nums">
-                      {revealedDecisions.length} revealed
+                      {t('intelTimeline.revealed', { count: revealedDecisions.length })}
                     </span>
                   </div>
                   <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
@@ -1449,7 +1465,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                               )}
                             </div>
                             <span className="text-[8px] font-mono text-slate-600 shrink-0 mt-0.5">
-                              {dec.date.toLocaleDateString('en', { month: 'short', day: 'numeric' })}
+                              {fmtDate(dec.date, { year: undefined, month: 'short', day: 'numeric' })}
                             </span>
                           </div>
                         </div>
@@ -1469,7 +1485,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                       <button
                         onClick={() => setSelectedEvent(null)}
                         className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-200 flex items-center justify-center text-[9px] leading-none transition-colors"
-                        title="Unpin"
+                        title={t('intelTimeline.unpin')}
                       >
                         ×
                       </button>
@@ -1488,7 +1504,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                     <div key={type} className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
                       <span className="text-[9px] text-slate-500">
-                        {type.replace(/_/g, ' ')} ({typeCounts[type]})
+                        {t(`intelTimeline.eventType.${type}`)} ({typeCounts[type]})
                       </span>
                     </div>
                   )
@@ -1505,7 +1521,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
           <div className="px-4 py-3 border-b border-border-subtle pb-2">
             <h3 className="font-semibold text-gray-100 flex items-center gap-2 text-sm" style={{ fontSize: 'var(--fluid-lg)' }}>
               <TrendingUp size={16} className="text-emerald-400" />
-              Activity Heatmap
+              {t('intelTimeline.heatmap')}
               <div className="ml-auto flex items-center gap-1">
                 <button
                   onClick={() => setHeatmapMode('2d')}
@@ -1514,7 +1530,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                       ? 'bg-slate-700 text-cyan-400'
                       : 'text-slate-600 hover:text-slate-400'
                   }`}
-                  title="2D Grid"
+                  title={t('intelTimeline.grid2d')}
                 >
                   <Grid2x2 size={14} />
                 </button>
@@ -1525,7 +1541,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                       ? 'bg-slate-700 text-cyan-400'
                       : 'text-slate-600 hover:text-slate-400'
                   }`}
-                  title="3D Scene"
+                  title={t('intelTimeline.scene3d')}
                 >
                   <Box size={14} />
                 </button>
@@ -1540,7 +1556,7 @@ export default function LearningTimeline(props: LearningTimelineProps) {
                 fallback={
                   <div className="flex items-center justify-center h-[360px] text-slate-600">
                     <Loader2 size={20} className="animate-spin mr-2" />
-                    Loading 3D scene…
+                    {t('intelTimeline.loading3d')}
                   </div>
                 }
               >

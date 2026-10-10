@@ -25,6 +25,7 @@ import {
   Clock,
   Zap,
 } from 'lucide-react'
+import { useT, type MessageKey } from '@/i18n'
 import type {
   ProtocolDetailApi,
   ProtocolStateApi,
@@ -417,7 +418,15 @@ function StateBox({
 // RUN STATUS BADGE
 // ============================================================================
 
+const RUN_STATUS_KEYS: Record<string, MessageKey> = {
+  running: 'intelDashboard.run.running',
+  completed: 'intelDashboard.run.completed',
+  failed: 'intelDashboard.run.failed',
+  cancelled: 'intelDashboard.run.cancelled',
+}
+
 function RunStatusBadge({ run }: { run: ProtocolRunApi }) {
+  const { t } = useT()
   const colors = runStatusColors[run.status] ?? runStatusColors.running
   const StatusIcon = runStatusIcons[run.status] ?? Loader2
   // Use state + interval for live elapsed time (avoids impure Date.now() in render)
@@ -442,11 +451,11 @@ function RunStatusBadge({ run }: { run: ProtocolRunApi }) {
         className={run.status === 'running' ? 'animate-spin' : undefined}
       />
       <span style={{ color: colors.color }} className="text-[10px] font-semibold uppercase tracking-wider">
-        {run.status}
+        {RUN_STATUS_KEYS[run.status] ? t(RUN_STATUS_KEYS[run.status]) : run.status}
       </span>
       <span className="text-[9px] text-slate-500 ml-1">
         <Clock size={8} className="inline mr-0.5" />
-        {elapsed}s
+        {t('intelDashboard.run.elapsed', { seconds: elapsed })}
       </span>
       {run.triggered_by && run.triggered_by !== 'manual' && (
         <span className="text-[8px] text-slate-600 font-mono ml-auto flex items-center gap-0.5">
