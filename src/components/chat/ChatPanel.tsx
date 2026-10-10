@@ -9,6 +9,7 @@ import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermis
 import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
+import { useModalFocus } from '@/hooks/useModalFocus'
 import { describeSessionProvider, providerUnavailableReason } from '@/constants/providers'
 import { instanceMissingComposerText, noProviderComposerText, NO_PROVIDER_ERROR } from '@/constants/providerErrors'
 import { resumeUnsupportedText } from '@/constants/capabilities'
@@ -453,6 +454,11 @@ export function ChatPanel() {
     setWasCompact(compactSidebar)
     if (!compactSidebar) setShowMobileSidebar(false)
   }
+  // The full-screen list is modal: focus on its close control, Tab kept inside, the chat
+  // behind inert, Escape closes it, focus back to the header's Sessions button.
+  const mobileSidebarRef = useRef<HTMLDivElement>(null)
+  const closeMobileSidebar = useCallback(() => setShowMobileSidebar(false), [])
+  useModalFocus(mobileSidebarRef, { active: isFullscreen && compactSidebar && showMobileSidebar, onEscape: closeMobileSidebar })
   // The tree as the reader sees it: set aside for the timeline below lg, it is not "on".
   const treeShown = showAgentTree && !room.hideTree
   const toggleTree = () => {
@@ -505,12 +511,19 @@ export function ChatPanel() {
 
         {/* Compact: full-screen overlay sidebar (a phone, or the sidebar set aside for the timeline) */}
         {compactSidebar && showMobileSidebar && (
-          <div className="fixed inset-0 z-40 flex flex-col bg-surface-raised">
+          <div
+            ref={mobileSidebarRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('chatA-messages.panel.conversations')}
+            data-testid="chat-sessions-overlay"
+            className="fixed inset-0 z-40 flex flex-col bg-surface-raised"
+          >
             {/* Mobile sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
             <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
               <span className="text-sm font-medium text-gray-300">{t('chatA-messages.panel.conversations')}</span>
               <div className="flex items-center gap-1">
-                <button type="button" onClick={() => setShowMobileSidebar(false)} className={chromeIcon()} title={t('chatA-messages.panel.backToChat')} aria-label={t('chatA-messages.panel.backToChat')}>
+                <button type="button" onClick={closeMobileSidebar} className={chromeIcon()} title={t('chatA-messages.panel.backToChat')} aria-label={t('chatA-messages.panel.backToChat')}>
                   <X className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
@@ -533,7 +546,7 @@ export function ChatPanel() {
             <SessionList
               activeSessionId={chat.sessionId}
               onSelect={handleSelectSession}
-              onClose={() => setShowMobileSidebar(false)}
+              onClose={closeMobileSidebar}
               embedded
             />
           </div>
