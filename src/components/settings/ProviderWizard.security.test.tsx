@@ -108,8 +108,8 @@ afterEach(() => {
 
 async function fillUpToKey() {
   const utils = mountSettings(<ProviderWizard existingIds={['claude-code']} onClose={vi.fn()} onFinished={vi.fn()} />, { providers: [CLAUDE] })
-  fireEvent.change(screen.getByLabelText('Identifiant'), { target: { value: 'ds' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Suivant' }))
+  fireEvent.change(screen.getByLabelText('Identifier'), { target: { value: 'ds' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }))
   return utils
 }
 
@@ -120,12 +120,12 @@ describe('the API key of the wizard', () => {
     await vaultApi.unlock('the passphrase', 60)
     const { container } = await fillUpToKey()
     await screen.findByTestId('wizard-vault-open')
-    const input = screen.getByLabelText('Clé d’API') as HTMLInputElement
+    const input = screen.getByLabelText('API key') as HTMLInputElement
     expect(input.type).toBe('password')
     expect(input.getAttribute('autocomplete')).toBe('off')
     fireEvent.change(input, { target: { value: SECRET } })
     expect(container.innerHTML).not.toContain(SECRET) // uncontrolled: no value attribute
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer et tester' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save and test' }))
     expect(input.value).toBe('') // emptied before anything is sent
     await screen.findByTestId('wizard-test-result')
 
@@ -157,11 +157,11 @@ describe('the API key of the wizard', () => {
     await vaultApi.unlock('the passphrase', 60)
     await fillUpToKey()
     await screen.findByTestId('wizard-vault-open')
-    fireEvent.change(screen.getByLabelText('Clé d’API'), { target: { value: SECRET } })
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer et tester' }))
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: SECRET } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and test' }))
     const failure = await screen.findByTestId('wizard-failure')
     expect(screen.getByTestId('wizard-already-done').textContent).toBe(
-      'Déjà fait : la clé « ds » est enregistrée dans le coffre. Rien d’autre n’a été créé.',
+      'Already done: the key “ds” is saved in the vault. Nothing else was created.',
     )
     expect(failure.textContent).not.toContain(SECRET)
     for (const alert of screen.getAllByRole('alert')) expect(alert.textContent).not.toContain(SECRET)
@@ -170,8 +170,8 @@ describe('the API key of the wizard', () => {
     expect(calls.filter(carries).map((c) => c.path)).toEqual(['/api/vault/secrets/ds'])
 
     // Cancel removes the secret this wizard wrote.
-    fireEvent.click(screen.getByRole('button', { name: 'Annuler et supprimer ce qui a été créé' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Supprimer ce qui a été créé' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel and delete what was created' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete what was created' }))
     await waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.path === '/api/vault/secrets/ds')).toBe(true))
     expect(calls.some((c) => c.method === 'DELETE' && c.path.startsWith('/api/chat/providers'))).toBe(false)
   })
@@ -180,8 +180,8 @@ describe('the API key of the wizard', () => {
     vaultOpen = false
     await fillUpToKey()
     await screen.findByTestId('wizard-vault-locked')
-    fireEvent.change(screen.getByLabelText('Clé d’API'), { target: { value: SECRET } })
-    const go = screen.getByRole('button', { name: 'Enregistrer et tester' }) as HTMLButtonElement
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: SECRET } })
+    const go = screen.getByRole('button', { name: 'Save and test' }) as HTMLButtonElement
     expect(go.disabled).toBe(true)
     fireEvent.click(go)
     await new Promise((r) => setTimeout(r, 20))
@@ -193,11 +193,11 @@ describe('the API key of the wizard', () => {
     await vaultApi.unlock('the passphrase', 60)
     await fillUpToKey()
     await screen.findByTestId('wizard-vault-open')
-    fireEvent.change(screen.getByLabelText('Clé d’API'), { target: { value: SECRET } })
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer et tester' }))
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: SECRET } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and test' }))
     await screen.findByTestId('wizard-model-picker')
     fireEvent.click(screen.getByRole('radio', { name: /deepseek-v4-pro/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Tester ce modèle' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Test this model' }))
     await waitFor(() => expect(calls.filter((c) => c.path === '/api/chat/providers/test')).toHaveLength(2))
     const retest = calls.filter((c) => c.path === '/api/chat/providers/test')[1]
     expect(JSON.parse(retest.body)).toMatchObject({ default_model: 'deepseek-v4-pro', credential_ref: 'vault:ds' })
@@ -210,8 +210,8 @@ describe('the API key of the wizard', () => {
     await vaultApi.unlock('the passphrase', 60)
     await fillUpToKey()
     await screen.findByTestId('wizard-vault-open')
-    fireEvent.change(screen.getByLabelText('Clé d’API'), { target: { value: SECRET } })
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer et tester' }))
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: SECRET } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and test' }))
     await screen.findByTestId('wizard-test-result')
     const dump = (s: Storage) => Array.from({ length: s.length }, (_, i) => `${s.key(i)}=${s.getItem(s.key(i)!)}`).join('\n')
     expect(dump(localStorage)).not.toContain(SECRET)
@@ -226,24 +226,24 @@ describe('the SSH key of a remote Claude Code', () => {
   it('is only a vault reference on the wire; the host key is public; nothing private is ever sent or written to the vault', async () => {
     await vaultApi.unlock('the passphrase', 60)
     mountSettings(<ProviderWizard existingIds={['claude-code']} onClose={vi.fn()} onFinished={vi.fn()} />, { providers: [CLAUDE] })
-    fireEvent.click(screen.getByRole('radio', { name: /Claude Code distant \(SSH\)/ }))
-    fireEvent.change(screen.getByLabelText('Nom de la machine'), { target: { value: 'lab' } })
-    fireEvent.change(screen.getByLabelText('Machine (nom ou adresse)'), { target: { value: 'lab.example.com' } })
-    fireEvent.change(screen.getByLabelText('Port SSH'), { target: { value: '2222' } })
+    fireEvent.click(screen.getByRole('radio', { name: /Claude Code remote \(SSH\)/ }))
+    fireEvent.change(screen.getByLabelText('Machine name'), { target: { value: 'lab' } })
+    fireEvent.change(screen.getByLabelText('Machine (name or address)'), { target: { value: 'lab.example.com' } })
+    fireEvent.change(screen.getByLabelText('SSH port'), { target: { value: '2222' } })
     // A private key pasted where the public host key goes: refused, never confirmable.
-    fireEvent.change(screen.getByLabelText('Clé publique de la machine'), { target: { value: PRIVATE } })
+    fireEvent.change(screen.getByLabelText('Machine public key'), { target: { value: PRIVATE } })
     expect(screen.queryByTestId('remote-fingerprint')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Récupérer la clé de la machine' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Fetch the machine’s key' }))
     await screen.findByTestId('remote-fingerprint')
-    fireEvent.click(screen.getByRole('checkbox', { name: /Je confirme que cette empreinte/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Suivant' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /I confirm this fingerprint/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     await screen.findByTestId('wizard-vault-open')
-    expect(screen.queryByLabelText('Clé d’API')).toBeNull()
+    expect(screen.queryByLabelText('API key')).toBeNull()
     // Choose the key among the vault's names.
-    const trigger = screen.getByRole('combobox', { name: 'Clé du coffre' })
+    const trigger = screen.getByRole('combobox', { name: 'Vault key' })
     fireEvent.click(trigger)
     fireEvent.click(await screen.findByRole('option', { name: 'lab-ssh-key', hidden: true }))
-    fireEvent.click(screen.getByRole('button', { name: 'Enregistrer et tester' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save and test' }))
     await screen.findByTestId('wizard-test-result')
 
     const scan = calls.find((c) => c.path === '/api/chat/providers/ssh-host-key')!

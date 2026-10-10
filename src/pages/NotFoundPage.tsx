@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { Home, ArrowLeft } from 'lucide-react'
+import { useT } from '@/i18n'
 import { Button, Branding } from '@/components/ui'
 
 interface NotFoundPageProps {
@@ -9,6 +10,7 @@ interface NotFoundPageProps {
 
 export function NotFoundPage({ embedded = false }: NotFoundPageProps) {
   const navigate = useNavigate()
+  const { t } = useT()
 
   const content = (
     <div className="relative flex flex-col items-center text-center animate-[fadeInUp_0.6s_ease-out]">
@@ -34,24 +36,23 @@ export function NotFoundPage({ embedded = false }: NotFoundPageProps) {
 
       {/* Title */}
       <h2 className="mt-5 text-lg font-semibold text-gray-100 sm:text-xl">
-        Page not found
+        {t('auth.notFound.title')}
       </h2>
 
       {/* Description */}
       <p className="mt-2 max-w-xs text-sm leading-relaxed text-gray-400 sm:max-w-sm sm:text-base">
-        The page you&apos;re looking for doesn&apos;t exist, has been moved, or
-        you may not have permission to view it.
+        {t('auth.notFound.body')}
       </p>
 
       {/* Actions */}
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <Button variant="primary" onClick={() => navigate('/')}>
           <Home className="-ml-0.5 mr-2 h-4 w-4" />
-          Back to home
+          {t('auth.notFound.home')}
         </Button>
         <Button variant="secondary" onClick={() => navigate(-1 as never)}>
           <ArrowLeft className="-ml-0.5 mr-2 h-4 w-4" />
-          Go back
+          {t('auth.notFound.back')}
         </Button>
       </div>
     </div>

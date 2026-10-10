@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Button, SearchableSelect } from '@/components/ui'
 import { useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
-import { ROLE_LABELS_FR, routedByFr, wizardErrorMessage } from '@/constants/providerWizard'
+import { ROLE_LABEL_KEYS, routedByFr, wizardErrorMessage } from '@/constants/providerWizard'
+import { useT } from '@/i18n'
 import { providerConsentPath } from '@/constants/providerErrors'
 import type { ModelAlias, ProviderInstance, ProvidersResponse } from '@/types/provider'
 import {
@@ -38,6 +39,7 @@ export function ProviderRoles({
   collapsible,
   defaultOpen,
 }: { collapsible?: boolean; defaultOpen?: boolean } = {}) {
+  const { t } = useT()
   const refreshChat = useRefreshProviders()
   const projects = useProjectOptions()
   const [params, setParams] = useSearchParams()
@@ -62,11 +64,11 @@ export function ProviderRoles({
       setDraft(roles.value ?? {})
       setLoadError(null)
     } else {
-      setLoadError(wizardErrorMessage(roles.reason))
+      setLoadError(wizardErrorMessage(roles.reason, t))
     }
     if (providers.status === 'fulfilled' && Array.isArray(providers.value?.providers))
       setList(providers.value)
-  }, [slug])
+  }, [slug, t])
 
   useEffect(() => {
     setSaved(null)
@@ -90,8 +92,8 @@ export function ProviderRoles({
   // Claude Code, the instance's own catalog otherwise) and its aliases, grouped
   // by provider, searchable by instance name too.
   const disallowedNote = useCallback(
-    (providerId: string) => (disallowed(providerId) ? 'non autorisé pour ce projet' : undefined),
-    [disallowed]
+    (providerId: string) => (disallowed(providerId) ? t('providerAdmin.models.notAllowedForProject') : undefined),
+    [disallowed, t]
   )
   const targets = useModelTargets({ instances, aliases, withDefault: true, withAliases: true, disallowed: disallowedNote })
   const targetOptions = targets.options
@@ -101,9 +103,7 @@ export function ProviderRoles({
     setDone(false)
     const blocked = PROVIDER_ROLES.find((r) => draft[r] && disallowed(draft[r]!.provider))
     if (blocked) {
-      setError(
-        `${ROLE_LABELS_FR[blocked]} : ce projet n’a pas autorisé l’envoi de son contenu à ce provider.`
-      )
+      setError(t('providerAdmin.roles.blocked', { role: t(ROLE_LABEL_KEYS[blocked]) }))
       return
     }
     setBusy(true)
@@ -114,7 +114,7 @@ export function ProviderRoles({
       // The new default is what the selector of a new conversation preselects.
       await Promise.all([load(), refreshChat()])
     } catch (err) {
-      setError(wizardErrorMessage(err))
+      setError(wizardErrorMessage(err, t))
     } finally {
       setBusy(false)
     }
@@ -135,30 +135,30 @@ export function ProviderRoles({
       testId={`roles-${scopeId}`}
       collapsible={collapsible}
       defaultOpen={defaultOpen}
-      title="Rôles"
+      title={t('providerAdmin.roles.title')}
       description={
         <>
-          <strong className="font-medium text-gray-300">Pilote</strong> : le modèle qui décide et
-          planifie (conversations ouvertes par une personne).{' '}
-          <strong className="font-medium text-gray-300">Exécutant</strong> : celui qui exécute les
-          tâches. Un rôle vide hérite du rôle global, puis du provider par défaut du serveur.
+          <strong className="font-medium text-gray-300">{t('providerAdmin.common.roles.pilot')}</strong>
+          {t('providerAdmin.roles.pilotDescription')}{' '}
+          <strong className="font-medium text-gray-300">{t('providerAdmin.common.roles.executor')}</strong>
+          {t('providerAdmin.roles.executorDescription')}
         </>
       }
       aside={
         <ProjectPicker
           id="roles-project"
-          label="Pour"
+          label={t('providerAdmin.roles.for')}
           projects={projects}
           value={slug}
           onChange={choose}
-          allLabel="Tous les projets (rôles globaux)"
+          allLabel={t('providerAdmin.roles.allProjects')}
         />
       }
-      status={<SaveStatus error={error} done={done} doneText="Rôles enregistrés." />}
+      status={<SaveStatus error={error} done={done} doneText={t('providerAdmin.roles.saved')} />}
       actions={
         saved === null && loadError ? (
           <Button size="sm" variant="secondary" onClick={() => void load()}>
-            Réessayer
+            {t('providerAdmin.ui.retry')}
           </Button>
         ) : (
           saved !== null && (
@@ -169,17 +169,17 @@ export function ProviderRoles({
                 onClick={() => setDraft(saved)}
                 disabled={!dirty || busy}
               >
-                Annuler
+                {t('providerAdmin.ui.cancel')}
               </Button>
               <Button size="sm" variant="primary" onClick={save} loading={busy}>
-                Enregistrer
+                {t('providerAdmin.ui.save')}
               </Button>
             </>
           )
         )
       }
     >
-      {saved === null && !loadError && <Loading>Chargement des rôles…</Loading>}
+      {saved === null && !loadError && <Loading>{t('providerAdmin.roles.loading')}</Loading>}
       {loadError && <ErrorLine>{loadError}</ErrorLine>}
       {saved !== null && (
         <>
@@ -190,16 +190,14 @@ export function ProviderRoles({
               return (
                 <div key={role} className="min-w-0">
                   <label htmlFor={id} className={FIELD_LABEL}>
-                    {ROLE_LABELS_FR[role]}
+                    {t(ROLE_LABEL_KEYS[role])}
                   </label>
                   <SearchableSelect
                     id={id}
                     value={encode(current)}
-                    options={withCurrent(targetOptions, current, instances)}
-                    noneLabel={
-                      slug ? 'Hériter du rôle global' : 'Non réglé : provider par défaut du serveur'
-                    }
-                    noun={{ one: 'modèle', other: 'modèles' }}
+                    options={withCurrent(t, targetOptions, current, instances)}
+                    noneLabel={slug ? t('providerAdmin.roles.inherit') : t('providerAdmin.roles.unset')}
+                    noun={{ one: t('providerAdmin.models.nounOne'), other: t('providerAdmin.models.nounOther') }}
                     aria-describedby={`${id}-help`}
                     onChange={(v) => {
                       const target = decode(v)
@@ -216,10 +214,10 @@ export function ProviderRoles({
                     id={id}
                     help={
                       current
-                        ? `Réglé : ${describeTarget(current, instances)}.`
+                        ? t('providerAdmin.roles.isSet', { target: describeTarget(t, current, instances) })
                         : slug
-                          ? 'Hérite du rôle global.'
-                          : 'Non réglé : le provider par défaut du serveur.'
+                          ? t('providerAdmin.roles.inheritsGlobal')
+                          : t('providerAdmin.roles.unsetHelp')
                     }
                   />
                 </div>
@@ -240,10 +238,9 @@ export function ProviderRoles({
 
           {anyDisallowed && (
             <p className="text-xs text-amber-300">
-              Certains providers ne sont pas autorisés pour ce projet et ne peuvent pas être
-              choisis.{' '}
+              {t('providerAdmin.roles.someDisallowed')}{' '}
               <Link to={providerConsentPath(slug)} className="underline">
-                Voir les autorisations du projet
+                {t('providerAdmin.roles.seeConsent')}
               </Link>
             </p>
           )}
@@ -252,16 +249,16 @@ export function ProviderRoles({
             className="rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-gray-400"
             data-testid="effective-default"
           >
-            Utilisé maintenant{project ? ` pour ${project.name}` : ''} :{' '}
+            {project ? t('providerAdmin.roles.usedNowFor', { project: project.name }) : t('providerAdmin.roles.usedNow')}{' '}
             {effective ? (
               <>
                 <strong className="font-medium text-gray-200">
-                  {describeTarget(effective, instances)}
+                  {describeTarget(t, effective, instances)}
                 </strong>
-                , choisi par {routedByFr(effective.routed_by)}.
+                {t('providerAdmin.roles.chosenBy', { by: routedByFr(t, effective.routed_by) })}
               </>
             ) : (
-              'aucun provider utilisable.'
+              t('providerAdmin.roles.noUsable')
             )}
           </p>
         </>

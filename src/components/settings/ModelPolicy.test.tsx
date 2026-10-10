@@ -1,5 +1,5 @@
 /**
- * Aliases and model policy: translated modes, "Appliquer" confirmation, ordered
+ * Aliases and model policy: translated modes, "Apply" confirmation, ordered
  * fallback, USD caps only where a price exists, load errors that block saving.
  *
  * Run with: npx vitest run src/components/settings/ModelPolicy.test.tsx
@@ -61,11 +61,11 @@ const catalog = (models = CLAUDE_CATALOG) => (store: { set: (a: unknown, v: unkn
 
 async function mount(providers = [CLAUDE, DEEPSEEK, LOCAL]) {
   const utils = mountSettings(<ModelPolicy />, { providers, list })
-  await screen.findByRole('radio', { name: /Désactivée/ })
+  await screen.findByRole('radio', { name: /Off/ })
   await screen.findByTestId('alias-fast')
   return utils
 }
-const save = () => fireEvent.click(policyPanel().getByRole('button', { name: 'Enregistrer' }))
+const save = () => fireEvent.click(policyPanel().getByRole('button', { name: 'Save' }))
 
 beforeEach(() => {
   list.mockReset()
@@ -81,27 +81,27 @@ beforeEach(() => {
 describe('alias table', () => {
   it('explains what an alias is, lists the four fixed aliases even when unset, and marks an alias on an unreachable instance', async () => {
     await mount([CLAUDE, DEEPSEEK, { ...LOCAL, health: { status: 'unhealthy' } }])
-    expect(screen.getByTestId('aliases-panel').textContent).toContain('Un alias est un nom logique')
+    expect(screen.getByTestId('aliases-panel').textContent).toContain('An alias is a logical name')
     expect(screen.getByTestId('alias-utility')).toBeTruthy()
-    expect(screen.getByTestId('alias-unhealthy-fast').textContent).toContain('Injoignable')
+    expect(screen.getByTestId('alias-unhealthy-fast').textContent).toContain('Unreachable')
     expect(screen.queryByTestId('alias-unhealthy-deep')).toBeNull()
     expect(screen.getByTestId('alias-fast')).toBeTruthy()
   })
 
   it('saves only complete rows with PUT /chat/model-aliases', async () => {
     await mount()
-    pick('Modèle de utility', 'Local llama · qwen3')
-    fireEvent.click(aliasPanel().getByRole('button', { name: 'Enregistrer' }))
+    pick('Model of utility', 'Local llama · qwen3')
+    fireEvent.click(aliasPanel().getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(setAliases).toHaveBeenCalledTimes(1))
     const sent = setAliases.mock.calls[0][0] as { alias: string }[]
     expect(sent.map((a) => a.alias).sort()).toEqual(['deep', 'default', 'fast', 'utility'])
-    expect(await aliasPanel().findByText('Alias enregistrés.')).toBeTruthy()
+    expect(await aliasPanel().findByText('Aliases saved.')).toBeTruthy()
   })
 
   it('the default alias lists every model of the live Claude catalog, by provider then family, with the other instances', async () => {
     mountSettings(<ModelPolicy />, { providers: [CLAUDE, DEEPSEEK, LOCAL], list, prepare: catalog() })
     await screen.findByTestId('alias-fast')
-    fireEvent.click(box('Modèle de default'))
+    fireEvent.click(box('Model of default'))
     const listbox = screen.getByRole('listbox')
     const names = within(listbox).getAllByRole('option').map((o) => o.textContent)
     expect(names).toEqual(
@@ -121,9 +121,9 @@ describe('alias table', () => {
 
   it('a model of another provider is chosen in the one control and saved with its provider', async () => {
     await mount()
-    pick('Modèle de fast', 'DeepSeek · deepseek-reasoner')
-    expect(box('Modèle de fast').value).toBe('DeepSeek · deepseek-reasoner')
-    fireEvent.click(aliasPanel().getByRole('button', { name: 'Enregistrer' }))
+    pick('Model of fast', 'DeepSeek · deepseek-reasoner')
+    expect(box('Model of fast').value).toBe('DeepSeek · deepseek-reasoner')
+    fireEvent.click(aliasPanel().getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(setAliases).toHaveBeenCalledTimes(1))
     expect(setAliases.mock.calls[0][0]).toEqual(
       expect.arrayContaining([{ alias: 'fast', provider: 'deepseek', model: 'deepseek-reasoner' }]),
@@ -137,7 +137,7 @@ describe('alias table', () => {
     const note = await aliasPanel().findByTestId('catalog-offline')
     expect(note.textContent).toContain('Offline list.')
     expect(note.querySelector('svg')).toBeTruthy()
-    fireEvent.click(box('Modèle de default'))
+    fireEvent.click(box('Model of default'))
     expect(screen.getByRole('option', { name: /Claude Code · claude-sonnet-5/ })).toBeTruthy()
     // "Retry" reads the catalog again.
     fireEvent.click(within(note).getByRole('button', { name: 'Retry' }))
@@ -176,45 +176,45 @@ describe('alias table', () => {
     mountSettings(<ModelPolicy />, { providers: [CLAUDE, DEEPSEEK, LOCAL], list })
     expect(await aliasPanel().findByRole('alert')).toBeTruthy()
     expect(screen.queryByTestId('alias-fast')).toBeNull()
-    expect(aliasPanel().queryByRole('button', { name: 'Enregistrer' })).toBeNull()
-    fireEvent.click(aliasPanel().getByRole('button', { name: 'Réessayer' }))
+    expect(aliasPanel().queryByRole('button', { name: 'Save' })).toBeNull()
+    fireEvent.click(aliasPanel().getByRole('button', { name: 'Retry' }))
     expect(await screen.findByTestId('alias-fast')).toBeTruthy()
   })
 })
 
 describe('policy', () => {
-  it('is delivered "Désactivée"; the modes are translated, and "Observer seulement" says it applies nothing', async () => {
+  it('is delivered "Off"; the modes are translated, and "Observe only" says it applies nothing', async () => {
     await mount()
-    expect((screen.getByRole('radio', { name: /Désactivée/ }) as HTMLInputElement).checked).toBe(
+    expect((screen.getByRole('radio', { name: /Off/ }) as HTMLInputElement).checked).toBe(
       true
     )
     expect(
       screen.getByRole('radio', {
-        name: /Observer seulement.*N’applique rien, enregistre ce qu’elle aurait choisi/,
+        name: /Observe only.*Applies nothing, records what it would have chosen/,
       })
     ).toBeTruthy()
-    expect(screen.getByRole('radio', { name: /Appliquer/ })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: /Apply/ })).toBeTruthy()
     expect(screen.getByTestId('policy-panel').textContent).not.toMatch(/shadow|enforce/i)
     expect(screen.queryByText(/sans l’appliquer/)).toBeNull()
-    fireEvent.click(screen.getByRole('radio', { name: /Observer seulement/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Observe only/ }))
     expect(
-      screen.getByText(/la politique calcule et enregistre son choix, sans l’appliquer/)
+      screen.getByText(/the policy computes and records its choice without applying it/)
     ).toBeTruthy()
   })
 
-  it('"Appliquer" lists the usages whose model changes and only saves once confirmed', async () => {
+  it('"Apply" lists the usages whose model changes and only saves once confirmed', async () => {
     await mount()
-    fireEvent.change(el('Runner, tâche complexe'), { target: { value: 'deep' } })
-    fireEvent.change(el('Conversation'), { target: { value: 'default' } }) // same model as today: not listed
-    fireEvent.click(screen.getByRole('radio', { name: /Appliquer/ }))
+    fireEvent.change(el('Runner, complex task'), { target: { value: 'deep' } })
+    fireEvent.change(el('Chat'), { target: { value: 'default' } }) // same model as today: not listed
+    fireEvent.click(screen.getByRole('radio', { name: /Apply/ }))
     save()
     const dialog = screen.getByRole('alertdialog')
     expect(dialog.textContent).toContain(
-      'Runner, tâche complexe : DeepSeek / deepseek-chat → DeepSeek / deepseek-reasoner'
+      'Runner, complex task: DeepSeek / deepseek-chat → DeepSeek / deepseek-reasoner'
     )
     expect(dialog.textContent).not.toContain('Conversation :')
     expect(setPolicy).not.toHaveBeenCalled()
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Appliquer' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }))
     await waitFor(() => expect(setPolicy).toHaveBeenCalledTimes(1))
     expect(setPolicy.mock.calls[0][0]).toMatchObject({
       mode: 'enforce',
@@ -222,9 +222,9 @@ describe('policy', () => {
     })
   })
 
-  it('"Observer seulement" saves without a confirmation', async () => {
+  it('"Observe only" saves without a confirmation', async () => {
     await mount()
-    fireEvent.click(screen.getByRole('radio', { name: /Observer seulement/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Observe only/ }))
     save()
     await waitFor(() => expect(setPolicy).toHaveBeenCalled())
     expect(setPolicy.mock.calls[0][0]).toMatchObject({ mode: 'shadow' })
@@ -234,39 +234,39 @@ describe('policy', () => {
   it('the fallback chain is reordered with buttons', async () => {
     policy.mockResolvedValue({ ...OFF, fallback: ['default', 'deep', 'fast'] })
     await mount()
-    const chain = screen.getByRole('list', { name: 'Chaîne de repli' })
+    const chain = screen.getByRole('list', { name: 'Fallback chain' })
     const order = () =>
       within(chain)
         .getAllByRole('listitem')
         .map((li) => li.textContent!.replace(/^\d\./, '').trim().split(' ')[0])
     expect(order()).toEqual(['default', 'deep', 'fast'])
-    fireEvent.click(screen.getByRole('button', { name: 'Monter fast' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move fast up' }))
     expect(order()).toEqual(['default', 'fast', 'deep'])
-    fireEvent.click(screen.getByRole('button', { name: 'Descendre default' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Move default down' }))
     expect(order()).toEqual(['fast', 'default', 'deep'])
     expect(
-      (screen.getByRole('button', { name: 'Monter fast' }) as HTMLButtonElement).disabled
+      (screen.getByRole('button', { name: 'Move fast up' }) as HTMLButtonElement).disabled
     ).toBe(true)
     save()
     await waitFor(() =>
       expect(setPolicy.mock.calls[0][0]).toMatchObject({ fallback: ['fast', 'default', 'deep'] })
     )
     expect(
-      screen.getByText(/n’atteint jamais une origine que le projet n’a pas autorisée/)
+      screen.getByText(/never reaches an origin the project has not allowed/)
     ).toBeTruthy()
   })
 
   it('USD caps need a price on every aliased instance; otherwise explained and tokens only', async () => {
     policy.mockResolvedValue({ ...OFF, rules: { chat: 'fast' } }) // fast → free local instance
     await mount()
-    const usd = el('Par exécution (USD)')
+    const usd = el('Per run (USD)')
     expect(usd.getAttribute('aria-disabled')).toBe('true')
     expect(document.getElementById(usd.getAttribute('aria-describedby')!)?.textContent).toContain(
-      'refusée si son modèle n’en a pas'
+      'is refused if its model has none'
     )
     fireEvent.change(usd, { target: { value: '5' } })
     expect(usd.value).toBe('')
-    fireEvent.change(el('Par exécution (tokens)'), { target: { value: '50000' } })
+    fireEvent.change(el('Per run (tokens)'), { target: { value: '50000' } })
     save()
     await waitFor(() =>
       expect(setPolicy.mock.calls[0][0].caps).toMatchObject({
@@ -279,21 +279,21 @@ describe('policy', () => {
   it('USD caps are offered when every aliased instance is priced', async () => {
     policy.mockResolvedValue({ ...OFF, rules: { chat: 'deep' } })
     await mount()
-    const usd = el('Par exécution (USD)')
+    const usd = el('Per run (USD)')
     expect(usd.getAttribute('aria-disabled')).toBeNull()
     fireEvent.change(usd, { target: { value: '5' } })
     save()
     await waitFor(() => expect(setPolicy.mock.calls[0][0].caps).toMatchObject({ per_run_usd: 5 }))
   })
 
-  it('"Annuler" puts back the saved policy', async () => {
+  it('"Cancel" puts back the saved policy', async () => {
     await mount()
-    const cancel = policyPanel().getByRole('button', { name: 'Annuler' }) as HTMLButtonElement
+    const cancel = policyPanel().getByRole('button', { name: 'Cancel' }) as HTMLButtonElement
     expect(cancel.disabled).toBe(true)
-    fireEvent.click(screen.getByRole('radio', { name: /Appliquer/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /Apply/ }))
     expect(cancel.disabled).toBe(false)
     fireEvent.click(cancel)
-    expect((screen.getByRole('radio', { name: /Désactivée/ }) as HTMLInputElement).checked).toBe(
+    expect((screen.getByRole('radio', { name: /Off/ }) as HTMLInputElement).checked).toBe(
       true
     )
   })
@@ -304,11 +304,11 @@ describe('policy', () => {
     await mount()
     save()
     expect((await policyPanel().findByRole('alert')).textContent).toBe(
-      'Seule une personne connectée peut faire ce changement (un agent ne le peut pas).'
+      'Only a signed-in person can make this change (an agent cannot).'
     )
   })
 
-  it('a policy answer that is not JSON: the named request, and no form that would save "Désactivée" over it', async () => {
+  it('a policy answer that is not JSON: the named request, and no form that would save "Off" over it', async () => {
     const { NonJsonResponseError } = await import('@/services/api')
     policy.mockRejectedValueOnce(
       new NonJsonResponseError(200, 'GET', '/api/chat/model-policy', 'text/html')
@@ -318,9 +318,9 @@ describe('policy', () => {
     expect(alert.textContent).toBe(
       'The server answered something other than JSON: GET /api/chat/model-policy → 200 (text/html)'
     )
-    expect(screen.queryByRole('radio', { name: /Désactivée/ })).toBeNull()
-    expect(policyPanel().queryByRole('button', { name: 'Enregistrer' })).toBeNull()
-    fireEvent.click(policyPanel().getByRole('button', { name: 'Réessayer' }))
-    expect(await screen.findByRole('radio', { name: /Désactivée/ })).toBeTruthy()
+    expect(screen.queryByRole('radio', { name: /Off/ })).toBeNull()
+    expect(policyPanel().queryByRole('button', { name: 'Save' })).toBeNull()
+    fireEvent.click(policyPanel().getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByRole('radio', { name: /Off/ })).toBeTruthy()
   })
 })

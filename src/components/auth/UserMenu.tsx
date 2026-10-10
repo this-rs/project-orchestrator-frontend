@@ -9,6 +9,7 @@ import { settingsReturnUrlAtom } from '@/atoms/setup'
 import { forceLogout } from '@/services/authManager'
 import { isTauri } from '@/services/env'
 import { glass, glassButton, glassFlat, popIn } from '@/components/ui/classes'
+import { useT } from '@/i18n'
 import { menuItemClass } from '@/components/ui/menuPosition'
 
 interface UserMenuProps {
@@ -19,6 +20,7 @@ interface UserMenuProps {
 }
 
 export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {}) {
+  const { t } = useT()
   const authMode = useAtomValue(authModeAtom)
   const user = useAtomValue(currentUserAtom)
   const [open, setOpen] = useState(false)
@@ -108,7 +110,7 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
         onClick={() => setOpen(!open)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={showName ? undefined : `Account menu for ${user.name}`}
+        aria-label={showName ? undefined : t('auth.menu.accountFor', { name: user.name })}
         className={`${glassButton.ghost} ${glassFlat} min-h-9 justify-start gap-2 p-1 font-normal text-gray-400 min-w-0`}
       >
         {user.picture_url ? (
@@ -133,7 +135,7 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
         <div
           ref={dropdownRef}
           role="menu"
-          aria-label="Account"
+          aria-label={t('auth.menu.account')}
           className={`fixed z-50 w-56 rounded-xl py-1 ${glass} ${popIn}`}
           style={menuPos}
         >
@@ -151,7 +153,7 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
             className={menuItemClass()}
           >
             <KeyRound className="h-4 w-4 text-gray-500" aria-hidden="true" />
-            Vault
+            {t('auth.menu.vault')}
           </button>
           <button
             type="button"
@@ -163,18 +165,18 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
             className={menuItemClass()}
           >
             <Cpu className="h-4 w-4 text-gray-500" aria-hidden="true" />
-            Providers
+            {t('auth.menu.providers')}
           </button>
           {isTauri && (
             <button type="button" role="menuitem" onClick={handleSettings} className={menuItemClass()}>
               <Settings className="h-4 w-4 text-gray-500" aria-hidden="true" />
-              Settings
+              {t('auth.menu.settings')}
             </button>
           )}
           <button type="button" role="menuitem" onClick={handleLogout} className={`${menuItemClass()} justify-between`}>
             <span className="flex items-center gap-2.5">
               <LogoutIcon className="h-4 w-4 text-gray-500" aria-hidden="true" />
-              Sign out
+              {t('auth.menu.signOut')}
             </span>
             <span className="text-[11px] tabular-nums text-gray-500">v{__APP_VERSION__}</span>
           </button>

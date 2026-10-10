@@ -108,10 +108,3 @@ export function validateBaseUrl(raw: string): string | null {
   if (url.protocol === 'http:' && isLoopbackHost(url.hostname)) return null
   return 'Use https. Plain http is only accepted for localhost, 127.0.0.1 and ::1.'
 }
-
-export const PROVIDER_SECTIONS = [
-  { id: 'instances', title: 'Providers' },
-  { id: 'consent', title: 'Autorisations des projets' },
-  { id: 'routing', title: 'Routing' },
-  { id: 'advanced', title: 'Avancé' },
-] as const

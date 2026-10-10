@@ -1,12 +1,12 @@
 /**
- * "Ajouter un provider" — a guided wizard in five numbered steps:
+ * "Add a provider" — a guided wizard in five numbered steps:
  *
- *   1. Modèle      — a preset pre-fills id, label, base URL, model, cost and the kind of key;
- *   2. Clé         — a new key (typed here, stored straight into the vault), a key already in
+ *   1. Model       — a preset pre-fills id, label, base URL, model, cost and the kind of key;
+ *   2. Key         — a new key (typed here, stored straight into the vault), a key already in
  *                    the vault, an `env:` variable of the server, or none;
- *   3. Connexion   — the chain: store the key → create the instance → grant the key to it → test;
- *   4. Projet      — consent of one project, bound to the origin shown (optional);
- *   5. Récapitulatif.
+ *   3. Connection  — the chain: store the key → create the instance → grant the key to it → test;
+ *   4. Project     — consent of one project, bound to the origin shown (optional);
+ *   5. Summary.
  *
  * Security rules (docs/guides/providers.md, docs/api/provider-errors.md):
  * - the body of `POST /chat/providers` (and `/test`) only ever carries a REFERENCE
@@ -27,17 +27,18 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import { Button, Facts, surface } from '@/components/ui'
-import { presetByKey } from '@/constants/providerPresets'
+import { presetByKey, presetLabel } from '@/constants/providerPresets'
 import {
-  COST_LABELS_FR,
-  GRANT_CHOICES_FR,
-  TASK_LABELS,
-  TOOLS_NOT_CALLED_FR,
+  COST_LABEL_KEYS,
+  GRANT_CHOICES,
+  TASK_LABEL_KEYS,
+  toolsNotCalledText,
   WIZARD_STEPS,
+  type T,
   type TaskKey,
   type TaskState,
   isProcessKind,
-  kindLabelFr,
+  kindLabel,
   providerErrorFr,
   suggestedSecretName,
   validateBaseUrlFr,
@@ -56,6 +57,7 @@ import {
   validateVaultKeyName,
 } from '@/constants/remoteClaudeCode'
 import { useProviders } from '@/hooks/useProviders'
+import { useT } from '@/i18n'
 import { normalizeProviderHealth, providersApi } from '@/services/providers'
 import { hasUnlockProof, vaultApi, type VaultOverview } from '@/services/vault'
 import type { CredentialRef, ProviderPreset } from '@/types/provider'
@@ -100,7 +102,7 @@ interface Created {
   grantId?: string
 }
 
-/** A refusal of the wizard itself (not a server answer): its message is already French. */
+/** A refusal of the wizard itself (not a server answer): its message is already localized. */
 class WizardStop extends Error {}
 
 const NO_TASKS: Record<TaskKey, TaskState> = {
@@ -110,12 +112,12 @@ const NO_TASKS: Record<TaskKey, TaskState> = {
   test: 'todo',
 }
 
-function initialIdentity(key: string): IdentityState {
+function initialIdentity(key: string, t: T): IdentityState {
   const p = presetByKey(key)
   return {
     presetKey: p.key,
     id: p.id,
-    label: p.label,
+    label: presetLabel(t, p),
     baseUrl: p.base_url,
     model: p.default_model,
     cost: p.cost_source,
@@ -135,55 +137,64 @@ function initialKey(key: string): KeyState {
   }
 }
 
-function toVerdict(result: ProviderTestResult, id: string): VerdictView {
+function toVerdict(result: ProviderTestResult, id: string, t: T): VerdictView {
   const health = normalizeProviderHealth(result.health, id)
   const models = result.models ?? []
   const reachable =
     health.status === 'healthy' || health.status === 'degraded'
-      ? 'Oui'
+      ? t('providerWizard.verdict.yes')
       : health.status === 'auth_required'
-        ? 'Oui, mais il manque une connexion ou une clé'
+        ? t('providerWizard.verdict.yesButAuth')
         : health.status === 'unhealthy'
-          ? 'Non'
+          ? t('providerWizard.verdict.no')
           : models.length > 0
-            ? 'Oui'
-            : 'Inconnu'
+            ? t('providerWizard.verdict.yes')
+            : t('providerWizard.verdict.unknown')
   const shown = models
     .slice(0, 6)
     .map((m) => m.id)
     .join(', ')
   const problem = health.error
-    ? (verdictCodeFr(health.error.code) ?? providerErrorFr(health.error))
+    ? (verdictCodeFr(health.error.code, t) ?? providerErrorFr(health.error, t))
     : null
   return {
     ok: result.ok === true,
     reachable,
     models:
       models.length === 0
-        ? 'Aucun listé'
-        : `${models.length} trouvé${models.length > 1 ? 's' : ''} : ${shown}${models.length > 6 ? '…' : ''}`,
-    tools: result.probe ? (result.probe.tools ? 'Oui' : 'Non') : 'Non testé',
+        ? t('providerWizard.verdict.modelsNone')
+        : t(models.length === 1 ? 'providerWizard.verdict.modelsFoundOne' : 'providerWizard.verdict.modelsFoundMany', {
+            n: models.length,
+            list: `${shown}${models.length > 6 ? '…' : ''}`,
+          }),
+    tools: result.probe
+      ? result.probe.tools
+        ? t('providerWizard.verdict.yes')
+        : t('providerWizard.verdict.toolsNo')
+      : t('providerWizard.verdict.notTested'),
     context:
       result.probe?.context_window != null
-        ? `${result.probe.context_window.toLocaleString('fr-FR')} tokens`
-        : 'Inconnue',
+        ? t('providerWizard.verdict.contextTokens', { n: result.probe.context_window })
+        : t('providerWizard.verdict.contextUnknown'),
     problem:
       result.probe &&
       !result.probe.tools &&
       (!health.error || health.error.code === 'model_no_tools')
-        ? TOOLS_NOT_CALLED_FR
-        : (problem ?? (result.ok ? null : 'Le provider n’a pas passé le test.')),
+        ? toolsNotCalledText(t)
+        : (problem ?? (result.ok ? null : t('providerWizard.verdict.notPassed'))),
     loginHint: health.login_hint ?? null,
   }
 }
 
 export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWizardProps) {
+  const tr = useT()
+  const { t } = tr
   const uid = useId().replace(/:/g, '')
   const { providers, refresh } = useProviders()
   const projects = useProjectOptions()
 
   const [step, setStep] = useState(0)
-  const [identity, setIdentity] = useState<IdentityState>(() => initialIdentity('deepseek'))
+  const [identity, setIdentity] = useState<IdentityState>(() => initialIdentity('deepseek', t))
   const [idTouched, setIdTouched] = useState<Partial<Record<IdentityField, boolean>>>({})
   const [keyState, setKeyState] = useState<KeyState>(() => initialKey('deepseek'))
   const [keyTouched, setKeyTouched] = useState<Partial<Record<KeyField, boolean>>>({})
@@ -202,7 +213,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const [test, setTest] = useState<ProviderTestResult | null>(null)
   /** The model sent as `default_model` in the last test ('' = none: the server probes the first model it lists). */
   const [testedModel, setTestedModel] = useState<string | null>(null)
-  /** Model chosen in "Modèle à tester" (null = the suggestion of the list). */
+  /** Model chosen in "Model to test" (null = the suggestion of the list). */
   const [pickedModel, setPickedModel] = useState<string | null>(null)
   /** `default_model` of the instance as SAVED on the server ('' = none). */
   const [savedDefault, setSavedDefault] = useState<string | null>(null)
@@ -232,9 +243,9 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       setVaultError(null)
     } catch (err) {
       setVault(null)
-      setVaultError(wizardErrorMessage(err))
+      setVaultError(wizardErrorMessage(err, t))
     }
-  }, [])
+  }, [t])
 
   useEffect(() => {
     void refreshVault()
@@ -257,47 +268,46 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const identityErrors = useMemo(() => {
     const e: Partial<Record<IdentityField, string>> = {}
     const id = isRemote
-      ? validateMachineName(identity.id, existingIds)
-      : validateInstanceId(identity.id, existingIds)
+      ? validateMachineName(identity.id, existingIds, t)
+      : validateInstanceId(identity.id, existingIds, t)
     if (id) e.id = id
     if (!process) {
-      const url = validateBaseUrlFr(identity.baseUrl)
+      const url = validateBaseUrlFr(identity.baseUrl, t)
       if (url) e.url = url
     }
     return e
-  }, [identity.id, identity.baseUrl, existingIds, process, isRemote])
+  }, [identity.id, identity.baseUrl, existingIds, process, isRemote, t])
 
-  const remoteErrs = useMemo(() => (isRemote ? remoteErrors(remote) : {}), [isRemote, remote])
+  const remoteErrs = useMemo(() => (isRemote ? remoteErrors(remote, t) : {}), [isRemote, remote, t])
 
   const keyErrors = useMemo(() => {
     const e: Partial<Record<KeyField | 'vault', string>> = {}
     if (keyState.mode === 'new') {
-      if (!keyTyped) e.secret = 'Saisissez la clé d’API.'
-      const name = validateSecretName(keyState.secretName)
+      if (!keyTyped) e.secret = t('providerWizard.keyErrors.required')
+      const name = validateSecretName(keyState.secretName, t)
       if (name) e.secretName = name
       else if (vault?.secrets.some((s) => s.name === secretName)) {
-        e.secretName =
-          'Une clé porte déjà ce nom dans le coffre : choisissez « Clé déjà dans le coffre » ou un autre nom.'
+        e.secretName = t('providerWizard.keyErrors.nameTaken')
       }
     }
     if (keyState.mode === 'existing' && !keyState.existingName)
-      e.existingName = isRemote ? 'Choisissez la clé SSH du coffre.' : 'Choisissez une clé du coffre.'
+      e.existingName = isRemote ? t('providerWizard.keyErrors.chooseSsh') : t('providerWizard.keyErrors.chooseVault')
     else if (isRemote) {
-      const bad = validateVaultKeyName(keyState.existingName)
+      const bad = validateVaultKeyName(keyState.existingName, t)
       if (bad) e.existingName = bad
     }
     if (keyState.mode === 'env') {
-      const env = validateEnvName(keyState.envName)
+      const env = validateEnvName(keyState.envName, t)
       if (env) e.envName = env
     }
     if (usesVault) {
       if (!vault)
-        e.vault = vaultError ? 'Le coffre est inaccessible.' : 'Lecture du coffre en cours.'
-      else if (!vault.initialized) e.vault = 'Créez d’abord le coffre.'
-      else if (!canWriteVault) e.vault = 'Déverrouillez le coffre depuis cet onglet.'
+        e.vault = vaultError ? t('providerWizard.keyErrors.vaultUnreachable') : t('providerWizard.keyErrors.vaultReading')
+      else if (!vault.initialized) e.vault = t('providerWizard.keyErrors.createVault')
+      else if (!canWriteVault) e.vault = t('providerWizard.keyErrors.unlockVault')
     }
     return e
-  }, [keyState, keyTyped, vault, vaultError, secretName, usesVault, canWriteVault, isRemote])
+  }, [keyState, keyTyped, vault, vaultError, secretName, usesVault, canWriteVault, isRemote, t])
 
   /** Sub-steps of the chain, for the key mode chosen. */
   const plan: TaskKey[] = useMemo(
@@ -317,7 +327,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
     id: instanceId,
     kind: preset.kind,
     preset: preset.preset as ProviderPreset | 'opencode' | null,
-    label: identity.label.trim() || preset.label || instanceId,
+    label: identity.label.trim() || presetLabel(t, preset) || instanceId,
     base_url: process ? '' : identity.baseUrl.trim(),
     default_model: identity.model.trim() || null,
     cost_source: identity.cost,
@@ -348,11 +358,11 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   // ---- Edits ---------------------------------------------------------------
 
   const choosePreset = (key: string) => {
-    const next = initialIdentity(key)
+    const next = initialIdentity(key, t)
     setIdentity((cur) => ({
       ...next,
       // Keep what the user typed over a suggestion of the previous preset.
-      label: cur.label && cur.label !== presetByKey(cur.presetKey).label ? cur.label : next.label,
+      label: cur.label && cur.label !== presetLabel(t, presetByKey(cur.presetKey)) ? cur.label : next.label,
     }))
     setKeyState(initialKey(key))
     setIdTouched({})
@@ -387,30 +397,29 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
     const done: Created = { ...already }
     const d = draft()
     let value = secretValue
-    for (const t of plan) {
-      if (state[t] === 'done') continue
-      state[t] = 'running'
+    for (const task of plan) {
+      if (state[task] === 'done') continue
+      state[task] = 'running'
       setTasks({ ...state })
       try {
-        if (t === 'secret') {
-          if (!value) throw new WizardStop('La clé n’a pas été saisie : revenez à l’étape « Clé ».')
-          if (!hasUnlockProof())
-            throw new WizardStop('Le coffre est verrouillé : déverrouillez-le à l’étape « Clé ».')
-          await vaultApi.putSecret(secretName, value, `Clé d’API du provider ${d.id}`)
+        if (task === 'secret') {
+          if (!value) throw new WizardStop(t('providerWizard.stop.noKey'))
+          if (!hasUnlockProof()) throw new WizardStop(t('providerWizard.stop.locked'))
+          await vaultApi.putSecret(secretName, value, t('providerWizard.stop.secretNote', { id: d.id }))
           value = null
           done.secret = secretName
-        } else if (t === 'instance') {
+        } else if (task === 'instance') {
           const stored = await providersApi.create(d)
           // The server names a remote instance after the LABEL, not after the id the
           // wizard computed: every later step (grant, consent, removal) uses its answer.
           done.instance = storedInstanceId(stored) ?? d.id
           setSavedDefault(d.default_model ?? '')
-        } else if (t === 'grant') {
+        } else if (task === 'grant') {
           const grant = await vaultApi.createGrant({
             secrets: { kind: 'names', names: [vaultName] },
             scope: { kind: 'provider', value: done.instance ?? d.id },
             minutes: keyState.grantMinutes,
-            note: `Provider ${done.instance ?? d.id}`,
+            note: t('providerWizard.stop.grantNote', { id: done.instance ?? d.id }),
           })
           done.grantId = grant.id
         } else {
@@ -421,17 +430,17 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
           setDefaultError(null)
           setTest(result)
         }
-        state[t] = 'done'
+        state[task] = 'done'
         setTasks({ ...state })
         setCreated({ ...done })
       } catch (err) {
         value = null
-        state[t] = 'error'
+        state[task] = 'error'
         setTasks({ ...state })
         setCreated({ ...done })
         setFailure({
-          task: t,
-          message: err instanceof WizardStop ? err.message : wizardErrorMessage(err),
+          task,
+          message: err instanceof WizardStop ? err.message : wizardErrorMessage(err, t),
         })
         runningRef.current = false
         setRunning(false)
@@ -476,7 +485,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       setIdentity((cur) => ({ ...cur, model }))
       void refresh()
     } catch (err) {
-      setDefaultError(wizardErrorMessage(err))
+      setDefaultError(wizardErrorMessage(err, t))
     } finally {
       setDefaultBusy(false)
     }
@@ -490,28 +499,26 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       try {
         await vaultApi.revokeGrant(created.grantId)
       } catch {
-        left.push('l’accord de la clé à l’instance')
+        left.push(t('providerWizard.stop.leftGrant'))
       }
     }
     if (created.instance) {
       try {
         await providersApi.remove(created.instance)
       } catch {
-        left.push(`l’instance « ${created.instance} »`)
+        left.push(t('providerWizard.stop.leftInstance', { id: created.instance }))
       }
     }
     if (created.secret) {
       try {
         await vaultApi.deleteSecret(created.secret)
       } catch {
-        left.push(`la clé « ${created.secret} » du coffre`)
+        left.push(t('providerWizard.stop.leftSecret', { name: created.secret }))
       }
     }
     void refresh()
     if (left.length > 0) {
-      setRollbackError(
-        `Impossible de supprimer : ${left.join(', ')}. Supprimez-les à la main (liste des providers, coffre).`
-      )
+      setRollbackError(t('providerWizard.stop.rollbackFailed', { list: left.join(', ') }))
       setConfirmCancel(false)
       return
     }
@@ -526,7 +533,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       await providersApi.allow(projectSlug, created.instance, origin)
       setConsented({ slug: projectSlug, origin })
     } catch (err) {
-      setConsentError(wizardErrorMessage(err))
+      setConsentError(wizardErrorMessage(err, t))
     } finally {
       setConsentBusy(false)
     }
@@ -558,9 +565,9 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       )
     }
     if (step === 2) {
-      if (running) return 'L’assistant travaille…'
-      if (failure) return `« ${TASK_LABELS[failure.task]} » a échoué : reprenez ou annulez.`
-      if (!chainReady) return 'L’instance doit être créée et testée.'
+      if (running) return t('providerWizard.blocker.working')
+      if (failure) return t('providerWizard.blocker.taskFailed', { task: t(TASK_LABEL_KEYS[failure.task]) })
+      if (!chainReady) return t('providerWizard.blocker.mustTest')
       return null
     }
     return null
@@ -582,21 +589,21 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
 
   const nextLabel =
     step === 1
-      ? 'Enregistrer et tester'
+      ? t('providerWizard.nav.saveAndTest')
       : step === 3
         ? consented
-          ? 'Suivant'
-          : 'Passer cette étape'
+          ? t('providerWizard.nav.next')
+          : t('providerWizard.nav.skip')
         : step === 4
-          ? 'Terminer'
-          : 'Suivant'
+          ? t('providerWizard.nav.finish')
+          : t('providerWizard.nav.next')
 
   const cancel = () => {
     if (somethingCreated) setConfirmCancel(true)
     else onClose()
   }
 
-  const verdict = test ? toVerdict(test, instanceId) : null
+  const verdict = test ? toVerdict(test, instanceId, t) : null
   const catalogue = (test?.models ?? []).map((m) => m.id)
   const proposed = identity.model.trim()
   const proposedMissing =
@@ -606,25 +613,25 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
     pickedModel ??
     (testedModel && catalogue.includes(testedModel) ? testedModel : (catalogue[0] ?? ''))
   const createdList = [
-    created.secret && `la clé « ${created.secret} » est enregistrée dans le coffre`,
-    created.instance && `l’instance « ${created.instance} » est créée`,
-    created.grantId && 'la clé est accordée à l’instance',
+    created.secret && t('providerWizard.chain.createdItemSecret', { name: created.secret }),
+    created.instance && t('providerWizard.chain.createdItemInstance', { id: created.instance }),
+    created.grantId && t('providerWizard.chain.createdItemGrant'),
   ].filter(Boolean) as string[]
 
   return (
     <section
-      aria-label="Ajouter un provider"
+      aria-label={t('providerWizard.nav.title')}
       data-testid="provider-wizard"
       className={`${surface} space-y-6 p-4 md:p-6`}
     >
       <header className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h3 className="text-sm font-semibold text-gray-100">Ajouter un provider</h3>
+          <h3 className="text-sm font-semibold text-gray-100">{t('providerWizard.nav.title')}</h3>
           <span className="text-xs text-gray-500">
-            Étape {step + 1} sur {WIZARD_STEPS.length}
+            {t('providerWizard.nav.stepOf', { n: step + 1, total: WIZARD_STEPS.length })}
           </span>
         </div>
-        <ol aria-label="Étapes de l’assistant" className="grid grid-cols-5 gap-2">
+        <ol aria-label={t('providerWizard.nav.stepsAria')} className="grid grid-cols-5 gap-2">
           {WIZARD_STEPS.map((s, i) => {
             const state = i < step ? 'done' : i === step ? 'current' : 'todo'
             return (
@@ -653,7 +660,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
                   <span
                     className={`truncate text-xs ${state === 'current' ? 'font-medium text-gray-100' : 'hidden text-gray-500 sm:inline'}`}
                   >
-                    {s.title}
+                    {t(s.title)}
                   </span>
                 </span>
               </li>
@@ -671,7 +678,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
           touched={idTouched}
           onPreset={choosePreset}
           onChange={editIdentity}
-          onTouch={(f) => setIdTouched((t) => ({ ...t, [f]: true }))}
+          onTouch={(f) => setIdTouched((cur) => ({ ...cur, [f]: true }))}
           remoteSlot={
             isRemote ? (
               <RemoteHostFields
@@ -680,7 +687,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
                 errors={remoteErrs}
                 touched={remoteTouched}
                 onChange={(patch) => setRemote((r) => ({ ...r, ...patch }))}
-                onTouch={(f) => setRemoteTouched((t) => ({ ...t, [f]: true }))}
+                onTouch={(f) => setRemoteTouched((cur) => ({ ...cur, [f]: true }))}
               />
             ) : undefined
           }
@@ -700,7 +707,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
           canWriteVault={canWriteVault}
           keyInputRef={keyInputRef}
           onChange={(patch) => setKeyState((k) => ({ ...k, ...patch }))}
-          onTouch={(f) => setKeyTouched((t) => ({ ...t, [f]: true }))}
+          onTouch={(f) => setKeyTouched((cur) => ({ ...cur, [f]: true }))}
           onKeyTyped={setKeyTyped}
           onVaultChange={() => void refreshVault()}
         />
@@ -709,9 +716,9 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       {step === 2 && (
         <div className="space-y-6">
           <StepIntro
-            title="3. Tester la connexion"
-            what="L’assistant enregistre ce qu’il faut, dans cet ordre, puis teste la connexion. Chaque étape affiche son état."
-            why="Le test d’appel d’outil porte sur UN modèle : celui envoyé comme modèle par défaut (ou, sans modèle, le premier listé par le serveur). Un échec ne vaut que pour ce modèle : vous pourrez en tester un autre de la liste. Un test qui utilise une clé n’est fait que sur une instance enregistrée."
+            title={t('providerWizard.chain.title')}
+            what={t('providerWizard.chain.what')}
+            why={t('providerWizard.chain.why')}
           />
           <TaskList tasks={tasks} plan={plan} />
           {failure && (
@@ -721,22 +728,22 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
               className="space-y-3 rounded-lg border border-red-500/30 bg-red-500/[0.06] p-3"
             >
               <p className="text-sm font-medium text-red-200">
-                Échec : {TASK_LABELS[failure.task]}. {failure.message}
+                {t('providerWizard.chain.failure', { task: t(TASK_LABEL_KEYS[failure.task]), message: failure.message })}
               </p>
               <p data-testid="wizard-already-done" className="text-xs text-gray-300">
                 {createdList.length > 0
-                  ? `Déjà fait : ${createdList.join(' ; ')}. Rien d’autre n’a été créé.`
-                  : 'Rien n’a été créé : ni clé, ni instance, ni accord.'}
+                  ? t('providerWizard.chain.alreadyDone', { list: createdList.join(' ; ') })
+                  : t('providerWizard.chain.nothingCreated')}
               </p>
               <div className="flex flex-wrap justify-end gap-2">
                 {somethingCreated ? (
                   <Button size="sm" variant="danger" onClick={() => setConfirmCancel(true)}>
-                    Annuler et supprimer ce qui a été créé
+                    {t('providerWizard.chain.cancelAndDelete')}
                   </Button>
                 ) : null}
                 {failure.task === 'secret' && !somethingCreated ? (
                   <Button size="sm" variant="secondary" onClick={() => setStep(1)}>
-                    Revenir à l’étape Clé
+                    {t('providerWizard.chain.backToKey')}
                   </Button>
                 ) : (
                   <Button
@@ -744,7 +751,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
                     variant="secondary"
                     onClick={() => void run(null, tasks, created)}
                   >
-                    Reprendre
+                    {t('providerWizard.chain.resume')}
                   </Button>
                 )}
               </div>
@@ -771,14 +778,13 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
           {verdict && !running && catalogue.length === 0 && (
             <div className="flex justify-end">
               <Button size="sm" variant="secondary" onClick={retestOnly}>
-                Tester à nouveau
+                {t('providerWizard.chain.retest')}
               </Button>
             </div>
           )}
           {verdict && !verdict.ok && (
             <p className="text-xs text-gray-400">
-              Vous pouvez continuer : l’instance existe. Les conversations sur ce provider
-              échoueront tant que le problème n’est pas réglé.
+              {t('providerWizard.chain.canContinue')}
             </p>
           )}
         </div>
@@ -802,7 +808,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
               onClick={() => void allow()}
               loading={consentBusy}
             >
-              Autoriser {origin}
+              {t('providerWizard.chain.allow', { origin: origin ?? '' })}
             </Button>
           }
         />
@@ -811,48 +817,53 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       {step === 4 && (
         <div className="space-y-6">
           <StepIntro
-            title="5. Récapitulatif"
-            what="Voici ce qui existe maintenant."
-            why="Les rôles, alias et la politique de modèle se règlent plus bas, dans « Avancé »."
+            title={t('providerWizard.summary.title')}
+            what={t('providerWizard.summary.what')}
+            why={t('providerWizard.summary.why')}
           />
           <div data-testid="wizard-summary" className={`${surface} px-3 py-1`}>
             <Facts
               columns={1}
               items={[
-                { label: 'Provider', value: `${draft().label} (${instanceId})` },
-                { label: 'Type', value: kindLabelFr(preset.kind) },
-                { label: 'Origine', value: origin ?? 'inconnue' },
+                { label: t('providerWizard.summary.provider'), value: `${draft().label} (${instanceId})` },
+                { label: t('providerWizard.summary.type'), value: kindLabel(t, preset.kind) },
+                { label: t('providerWizard.summary.origin'), value: origin ?? t('providerWizard.summary.unknown') },
                 {
-                  label: 'Empreinte épinglée',
-                  value: <code className="break-all font-mono">{remote.hostKeyFingerprint || 'calculée par le serveur'}</code>,
+                  label: t('providerWizard.summary.pinned'),
+                  value: <code className="break-all font-mono">{remote.hostKeyFingerprint || t('providerWizard.summary.computed')}</code>,
                   hidden: !isRemote,
                 },
                 {
-                  label: 'Rock’n roll',
-                  value: remote.allowTrust ? 'autorisé sur cette machine' : 'non autorisé',
+                  label: t('providerAdmin.instances.trustLabel'),
+                  value: remote.allowTrust ? t('providerAdmin.instances.trustAllowed') : t('providerAdmin.instances.trustDenied'),
                   hidden: !isRemote,
                 },
                 {
-                  label: 'Modèle',
-                  value: (savedDefault ?? identity.model.trim()) || 'aucun par défaut',
+                  label: t('providerWizard.summary.model'),
+                  value: (savedDefault ?? identity.model.trim()) || t('providerWizard.summary.noDefault'),
                 },
-                { label: 'Coût', value: COST_LABELS_FR[identity.cost] },
-                { label: 'Clé', value: <code className="font-mono">{credentialRef}</code> },
+                { label: t('providerWizard.summary.cost'), value: t(COST_LABEL_KEYS[identity.cost]) },
+                { label: t('providerWizard.summary.key'), value: <code className="font-mono">{credentialRef}</code> },
                 {
-                  label: 'Accord',
+                  label: t('providerWizard.summary.grantLabel'),
                   value: usesVault
-                    ? `clé accordée à l’instance pour ${GRANT_CHOICES_FR.find((c) => c.value === String(keyState.grantMinutes))?.label ?? `${keyState.grantMinutes} min`}`
-                    : 'sans objet',
+                    ? t('providerWizard.summary.grantFor', {
+                        duration: (() => {
+                          const choice = GRANT_CHOICES.find((c) => c.value === String(keyState.grantMinutes))
+                          return choice ? t(choice.label) : t('providerWizard.grant.minutes', { n: keyState.grantMinutes })
+                        })(),
+                      })
+                    : t('providerWizard.summary.notApplicable'),
                 },
                 {
-                  label: 'Test',
+                  label: t('providerWizard.summary.test'),
                   value: verdict
-                    ? `${verdict.ok ? 'réussi' : 'en échec'}${testedModel ? ` avec ${testedModel}` : ''}`
-                    : 'non fait',
+                    ? `${verdict.ok ? t('providerWizard.summary.testPassed') : t('providerWizard.summary.testFailed')}${testedModel ? t('providerWizard.summary.testWith', { model: testedModel }) : ''}`
+                    : t('providerWizard.summary.testNotDone'),
                 },
                 {
-                  label: 'Projet',
-                  value: consented ? `${consented.slug} autorisé` : 'aucun autorisé pour l’instant',
+                  label: t('providerWizard.summary.projectLabel'),
+                  value: consented ? t('providerWizard.summary.projectAllowed', { slug: consented.slug }) : t('providerWizard.summary.projectNone'),
                 },
               ]}
             />
@@ -867,14 +878,14 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       )}
       {confirmCancel && (
         <ConfirmPanel
-          title={`Annuler l’ajout de ${(isRemote ? instanceId : identity.id.trim()) || 'ce provider'} ?`}
-          confirmLabel="Supprimer ce qui a été créé"
-          cancelLabel="Continuer l’assistant"
+          title={t('providerWizard.cancelConfirm.title', { name: (isRemote ? instanceId : identity.id.trim()) || t('providerWizard.cancelConfirm.thisProvider') })}
+          confirmLabel={t('providerWizard.cancelConfirm.confirm')}
+          cancelLabel={t('providerWizard.cancelConfirm.keepGoing')}
           tone="danger"
           onConfirm={rollback}
           onCancel={() => setConfirmCancel(false)}
         >
-          Déjà fait : {createdList.join(' ; ')}. Tout cela sera supprimé.
+          {t('providerWizard.cancelConfirm.body', { list: createdList.join(' ; ') })}
         </ConfirmPanel>
       )}
 
@@ -885,16 +896,16 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
             data-testid="wizard-blocker"
             className="text-xs text-amber-300 sm:text-right"
           >
-            Pour continuer : {blocker}
+            {t('providerWizard.blocker.toContinue', { blocker })}
           </p>
         )}
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button size="sm" variant="ghost" onClick={cancel} disabled={running}>
-            Annuler
+            {t('providerWizard.nav.cancel')}
           </Button>
           {step > 0 && (
             <Button size="sm" variant="secondary" onClick={back} disabled={!canGoBack}>
-              Précédent
+              {t('providerWizard.nav.previous')}
             </Button>
           )}
           <Button

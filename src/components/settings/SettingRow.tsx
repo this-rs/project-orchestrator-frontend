@@ -13,6 +13,7 @@ import { useState, type ReactNode } from 'react'
 import { AlertTriangle, Info } from 'lucide-react'
 import { Button, ConfirmDialog, MetaLine } from '@/components/ui'
 import { useConfirmDialog, useToast } from '@/hooks'
+import { useT } from '@/i18n'
 
 // ── Container ───────────────────────────────────────────────────────────
 
@@ -90,13 +91,15 @@ export function ActionRow({
   description,
   cost,
   icon,
-  buttonLabel = 'Run',
+  buttonLabel,
   buttonVariant = 'secondary',
   confirm,
   onAction,
   disabled,
   extra,
 }: ActionRowProps) {
+  const { t } = useT()
+  const buttonText = buttonLabel ?? t('settingsShared.run')
   const [loading, setLoading] = useState(false)
   const confirmDialog = useConfirmDialog()
   const toast = useToast()
@@ -106,7 +109,7 @@ export function ActionRow({
     try {
       toast.success(await onAction())
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Action failed')
+      toast.error(err instanceof Error ? err.message : t('settingsShared.actionFailed'))
     } finally {
       setLoading(false)
     }
@@ -118,7 +121,7 @@ export function ActionRow({
         title: confirm.title,
         description: confirm.description,
         variant: confirm.variant ?? 'info',
-        confirmLabel: confirm.confirmLabel ?? buttonLabel,
+        confirmLabel: confirm.confirmLabel ?? buttonText,
         onConfirm: run,
       })
     } else {
@@ -141,9 +144,9 @@ export function ActionRow({
             onClick={handleClick}
             disabled={disabled}
             loading={loading}
-            aria-label={`${buttonLabel} — ${label}`}
+            aria-label={`${buttonText} — ${label}`}
           >
-            {buttonLabel}
+            {buttonText}
           </Button>
           <ConfirmDialog {...confirmDialog.dialogProps} />
         </>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
 import { authApi, setAuthToken } from '@/services'
+import { useT } from '@/i18n'
 import { Button, Input, StatusIcon, TONE_CLASSES } from '@/components/ui'
 
 /**
@@ -11,6 +12,7 @@ import { Button, Input, StatusIcon, TONE_CLASSES } from '@/components/ui'
  */
 export function RegisterForm() {
   const navigate = useNavigate()
+  const { t } = useT()
   const setToken = useSetAtom(authTokenAtom)
   const setUser = useSetAtom(currentUserAtom)
 
@@ -30,19 +32,19 @@ export function RegisterForm() {
     const trimmedName = name.trim()
 
     if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setError('Please enter a valid email address')
+      setError(t('auth.form.invalidEmail'))
       return
     }
     if (!trimmedName) {
-      setError('Please enter your name')
+      setError(t('auth.form.nameRequired'))
       return
     }
     if (password.length < 8) {
-      setError('Password must be at least 8 characters')
+      setError(t('auth.form.passwordTooShort'))
       return
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match')
+      setError(t('auth.form.passwordMismatch'))
       return
     }
 
@@ -54,7 +56,7 @@ export function RegisterForm() {
       setUser(user)
       navigate('/', { replace: true })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Registration failed')
+      setError(e instanceof Error ? e.message : t('auth.form.registrationFailed'))
     } finally {
       setLoading(false)
     }
@@ -64,7 +66,7 @@ export function RegisterForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <Input
         type="email"
-        label="Email"
+        label={t('auth.form.email')}
         placeholder="you@example.com"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
@@ -73,8 +75,8 @@ export function RegisterForm() {
       />
       <Input
         type="text"
-        label="Name"
-        placeholder="Your full name"
+        label={t('auth.form.name')}
+        placeholder={t('auth.form.namePlaceholder')}
         value={name}
         onChange={(e) => setName(e.target.value)}
         autoComplete="name"
@@ -82,8 +84,8 @@ export function RegisterForm() {
       />
       <Input
         type="password"
-        label="Password"
-        placeholder="Minimum 8 characters"
+        label={t('auth.form.password')}
+        placeholder={t('auth.form.newPasswordPlaceholder')}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         autoComplete="new-password"
@@ -91,8 +93,8 @@ export function RegisterForm() {
       />
       <Input
         type="password"
-        label="Confirm password"
-        placeholder="Enter password again"
+        label={t('auth.form.confirmPassword')}
+        placeholder={t('auth.form.confirmPlaceholder')}
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
         autoComplete="new-password"
@@ -107,7 +109,7 @@ export function RegisterForm() {
       )}
 
       <Button type="submit" loading={loading} className="w-full">
-        Create account
+        {t('auth.form.createAccount')}
       </Button>
     </form>
   )

@@ -1,6 +1,6 @@
 /**
- * A provider failure on the SETTINGS page, in French and in its context: the
- * page retries with "Tester" (not by sending a message), a login is a command
+ * A provider failure on the SETTINGS page, in its context: the
+ * page retries with "Test" (not by sending a message), a login is a command
  * to run on the server, a locked vault links to the vault.
  *
  * The chat keeps `ProviderStateCard` (its own wording and actions).
@@ -9,12 +9,9 @@ import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Check, ClipboardCopy } from 'lucide-react'
 import { Button } from '@/components/ui'
-import {
-  PROVIDER_ERROR_TITLES,
-  PROVIDER_ERROR_TITLES_SETTINGS_FR,
-  RETRY_BY_TESTING_TEXT_FR,
-  VAULT_PATH,
-} from '@/constants/providerErrors'
+import { PROVIDER_ERROR_TITLES, VAULT_PATH } from '@/constants/providerErrors'
+import { useT } from '@/i18n'
+import type { MessageKey } from '@/i18n'
 import { providerErrorFr } from '@/constants/providerWizard'
 import type { ProviderErrorInfo } from '@/types/provider'
 
@@ -28,6 +25,7 @@ const RETRYABLE = new Set([
 ])
 
 function Command({ command }: { command: string }) {
+  const { t } = useT()
   const [copied, setCopied] = useState(false)
   const copy = useCallback(async () => {
     try {
@@ -43,13 +41,13 @@ function Command({ command }: { command: string }) {
       <code className="min-w-0 flex-1 select-all break-all rounded bg-black/40 px-2 py-1 font-mono text-xs text-gray-100">
         {command}
       </code>
-      <Button size="sm" variant="ghost" flat onClick={copy} aria-label="Copier la commande" className="shrink-0 gap-1 px-2 text-xs text-gray-300">
+      <Button size="sm" variant="ghost" flat onClick={copy} aria-label={t('settingsShared.errorCard.copyAria')} className="shrink-0 gap-1 px-2 text-xs text-gray-300">
         {copied ? (
           <Check className="h-3.5 w-3.5" aria-hidden="true" />
         ) : (
           <ClipboardCopy className="h-3.5 w-3.5" aria-hidden="true" />
         )}
-        {copied ? 'Copiée' : 'Copier'}
+        {copied ? t('settingsShared.errorCard.copied') : t('settingsShared.errorCard.copy')}
       </Button>
     </div>
   )
@@ -64,7 +62,10 @@ export function SettingsErrorCard({
   className?: string
   testId?: string
 }) {
-  const title = PROVIDER_ERROR_TITLES_SETTINGS_FR[error.code] ?? PROVIDER_ERROR_TITLES[error.code]
+  const { t } = useT()
+  const titleKey = `settingsShared.errorTitle.${error.code}` as MessageKey
+  const own = t(titleKey)
+  const title = own !== titleKey ? own : PROVIDER_ERROR_TITLES[error.code]
   return (
     <div
       role="alert"
@@ -77,9 +78,9 @@ export function SettingsErrorCard({
         <p className="font-medium">{title}</p>
         <p className="mt-0.5 break-words text-amber-100/80">
           {error.code === 'auth_required' && error.login_hint
-            ? 'Ce provider demande une connexion. Lancez la commande ci-dessous sur le serveur, puis cliquez sur Tester. Project Orchestrator ne se connecte pas à votre place.'
-            : providerErrorFr(error)}
-          {RETRYABLE.has(error.code) && ` ${RETRY_BY_TESTING_TEXT_FR}`}
+            ? t('settingsShared.errorCard.loginHint')
+            : providerErrorFr(error, t)}
+          {RETRYABLE.has(error.code) && ` ${t('settingsShared.errorCard.retryByTesting')}`}
         </p>
         {error.code === 'auth_required' && error.login_hint && (
           <Command command={error.login_hint} />
@@ -89,7 +90,7 @@ export function SettingsErrorCard({
             to={VAULT_PATH}
             className="mt-1 inline-block text-indigo-300 underline hover:text-indigo-200"
           >
-            Déverrouiller le coffre
+            {t('settingsShared.errorCard.unlockVault')}
           </Link>
         )}
       </div>

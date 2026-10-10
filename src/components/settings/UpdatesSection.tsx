@@ -12,6 +12,7 @@ import { Button } from '@/components/ui'
 import { Switch } from '@/components/ui/Switch'
 import { chatApi } from '@/services/chat'
 import { apiErrorMessage } from '@/services/api'
+import { useT } from '@/i18n'
 
 interface AvailableUpdate {
   version: string
@@ -33,6 +34,7 @@ async function invoke<T>(cmd: string): Promise<T> {
 }
 
 export function UpdatesSection() {
+  const { t } = useT()
   const [state, setState] = useState<State>({ kind: 'idle' })
   // `chat.auto_update_app` — read live by the desktop update checker, so a change applies without a restart.
   const [auto, setAuto] = useState<boolean | null>(null)
@@ -43,11 +45,11 @@ export function UpdatesSection() {
     chatApi
       .getChatConfig()
       .then((c) => alive && setAuto(c.auto_update_app))
-      .catch((e) => alive && setAutoError(apiErrorMessage(e, 'Could not read the setting')))
+      .catch((e) => alive && setAutoError(apiErrorMessage(e, t('settingsShared.updates.readFailed'))))
     return () => {
       alive = false
     }
-  }, [])
+  }, [t])
 
   const toggleAuto = useCallback(async (next: boolean) => {
     setAuto(next) // optimistic
@@ -57,9 +59,9 @@ export function UpdatesSection() {
       setAuto(saved.auto_update_app)
     } catch (e) {
       setAuto(!next) // roll back to what is really stored
-      setAutoError(apiErrorMessage(e, 'Could not save the setting'))
+      setAutoError(apiErrorMessage(e, t('settingsShared.updates.saveFailed')))
     }
-  }, [])
+  }, [t])
 
   const check = useCallback(async () => {
     setState({ kind: 'checking' })
@@ -86,21 +88,21 @@ export function UpdatesSection() {
     <div data-testid="updates-section">
     <div className="flex flex-wrap items-center gap-3 p-4">
       <div className="min-w-0 flex-1 text-sm" role="status" aria-live="polite">
-        {state.kind === 'idle' && <span className="text-gray-400">Look for a newer version of the app.</span>}
-        {state.kind === 'checking' && <span className="text-gray-400">Checking…</span>}
-        {state.kind === 'up-to-date' && <span className="text-gray-300">You are up to date.</span>}
+        {state.kind === 'idle' && <span className="text-gray-400">{t('settingsShared.updates.idle')}</span>}
+        {state.kind === 'checking' && <span className="text-gray-400">{t('settingsShared.updates.checking')}</span>}
+        {state.kind === 'up-to-date' && <span className="text-gray-300">{t('settingsShared.updates.upToDate')}</span>}
         {state.kind === 'available' && (
-          <span className="text-gray-200">Version {state.update.version} is available.</span>
+          <span className="text-gray-200">{t('settingsShared.updates.available', { version: state.update.version })}</span>
         )}
         {state.kind === 'installing' && (
-          <span className="text-gray-300">Downloading and installing — the app will restart.</span>
+          <span className="text-gray-300">{t('settingsShared.updates.installing')}</span>
         )}
-        {state.kind === 'error' && <span className="text-red-400">Update check failed: {state.message}</span>}
+        {state.kind === 'error' && <span className="text-red-400">{t('settingsShared.updates.error', { message: state.message })}</span>}
       </div>
       {state.kind === 'available' ? (
         <Button size="sm" onClick={install}>
           <Download className="w-4 h-4 mr-1.5" aria-hidden="true" />
-          Update now
+          {t('settingsShared.updates.updateNow')}
         </Button>
       ) : (
         <Button size="sm" variant="secondary" onClick={check} disabled={busy}>
@@ -109,13 +111,13 @@ export function UpdatesSection() {
           ) : (
             <RefreshCw className="w-4 h-4 mr-1.5" aria-hidden="true" />
           )}
-          Check for updates
+          {t('settingsShared.updates.check')}
         </Button>
       )}
     </div>
       <div className="border-t border-white/[0.06] px-4 py-2">
         <Switch
-          label="Check for updates automatically (at launch, then every few hours)"
+          label={t('settingsShared.updates.auto')}
           checked={auto ?? true}
           disabled={auto === null}
           onChange={toggleAuto}

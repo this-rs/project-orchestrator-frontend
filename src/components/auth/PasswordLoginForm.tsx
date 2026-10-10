@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
 import { authApi, setAuthToken } from '@/services'
+import { useT } from '@/i18n'
 import { Button, Input, StatusIcon, TONE_CLASSES } from '@/components/ui'
 
 /**
@@ -11,6 +12,7 @@ import { Button, Input, StatusIcon, TONE_CLASSES } from '@/components/ui'
  */
 export function PasswordLoginForm() {
   const navigate = useNavigate()
+  const { t } = useT()
   const setToken = useSetAtom(authTokenAtom)
   const setUser = useSetAtom(currentUserAtom)
 
@@ -26,11 +28,11 @@ export function PasswordLoginForm() {
     // Client-side validation
     const trimmedEmail = email.trim()
     if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setError('Please enter a valid email address')
+      setError(t('auth.form.invalidEmail'))
       return
     }
     if (!password) {
-      setError('Please enter your password')
+      setError(t('auth.form.passwordRequired'))
       return
     }
 
@@ -42,7 +44,7 @@ export function PasswordLoginForm() {
       setUser(user)
       navigate('/', { replace: true })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Login failed')
+      setError(e instanceof Error ? e.message : t('auth.form.loginFailed'))
     } finally {
       setLoading(false)
     }
@@ -52,7 +54,7 @@ export function PasswordLoginForm() {
     <form onSubmit={handleSubmit} className="space-y-4">
       <Input
         type="email"
-        label="Email"
+        label={t('auth.form.email')}
         placeholder="you@example.com"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
@@ -61,8 +63,8 @@ export function PasswordLoginForm() {
       />
       <Input
         type="password"
-        label="Password"
-        placeholder="Enter your password"
+        label={t('auth.form.password')}
+        placeholder={t('auth.form.passwordPlaceholder')}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         autoComplete="current-password"
@@ -77,7 +79,7 @@ export function PasswordLoginForm() {
       )}
 
       <Button type="submit" loading={loading} className="w-full">
-        Sign in
+        {t('auth.form.signIn')}
       </Button>
     </form>
   )

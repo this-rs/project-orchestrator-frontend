@@ -5,12 +5,7 @@ import { Plus } from 'lucide-react'
 import { Button, Section, EmptyState } from '@/components/ui'
 import { providersLoadStateAtom } from '@/atoms'
 import { useProviders } from '@/hooks/useProviders'
-import { useT } from '@/i18n'
-import {
-  PROVIDER_SECTIONS,
-  UNSUPPORTED_TEXT,
-  UNSUPPORTED_TITLE,
-} from '@/constants/providerSettings'
+import { useT, type MessageKey } from '@/i18n'
 import { providerInstancePath } from '@/constants/providerErrors'
 import { ModelPolicy } from './ModelPolicy'
 import { ProjectConsent } from './ProjectConsent'
@@ -19,10 +14,17 @@ import { ProviderRoles } from './ProviderRoles'
 import { ProviderWizard } from './ProviderWizard'
 import { RoutingSettings } from './RoutingSettings'
 
+const SECTIONS = [
+  { id: 'instances', title: 'providerAdmin.settings.sectionInstances' },
+  { id: 'consent', title: 'providerAdmin.settings.sectionConsent' },
+  { id: 'routing', title: 'routing.settings.title' },
+  { id: 'advanced', title: 'providerAdmin.settings.sectionAdvanced' },
+] as const satisfies readonly { id: string; title: MessageKey }[]
+
 /**
  * Every provider setting, without page chrome (the `/providers` page renders it):
- * the providers as cards with the "Ajouter un provider" wizard, project consent,
- * and — folded under "Avancé" — roles, aliases and model policy.
+ * the providers as cards with the "Add a provider" wizard, project consent,
+ * and — folded under "Advanced" — roles, aliases and model policy.
  */
 export function ProviderSettings() {
   const { t } = useT()
@@ -41,34 +43,38 @@ export function ProviderSettings() {
   if (state === 'unsupported') {
     return (
       <div data-testid="providers-unsupported">
-        <EmptyState size="sm" title={UNSUPPORTED_TITLE} description={UNSUPPORTED_TEXT} />
+        <EmptyState
+          size="sm"
+          title={t('providerAdmin.settings.unsupportedTitle')}
+          description={t('providerAdmin.settings.unsupportedText')}
+        />
       </div>
     )
   }
 
   return (
     <div className="space-y-8">
-      <nav aria-label="Sections des providers" className="flex flex-wrap gap-4 text-sm">
-        {PROVIDER_SECTIONS.map((s) => (
+      <nav aria-label={t('providerAdmin.settings.sectionsAria')} className="flex flex-wrap gap-4 text-sm">
+        {SECTIONS.map((s) => (
           <a key={s.id} href={`#${s.id}`} className="text-indigo-400 hover:text-indigo-300">
-            {s.id === 'routing' ? t('routing.settings.title') : s.title}
+            {t(s.title)}
           </a>
         ))}
       </nav>
       {state === 'error' && (
         <p role="alert" className="text-xs text-red-400">
-          La liste des providers n’a pas pu être chargée.
+          {t('providerAdmin.settings.loadFailed')}
         </p>
       )}
       <Section
         id="instances"
-        title="Providers"
-        description="Où les agents peuvent tourner. Une clé n’est jamais qu’une référence au coffre ou à une variable du serveur."
+        title={t('providerAdmin.settings.sectionInstances')}
+        description={t('providerAdmin.settings.instancesDescription')}
         action={
           !adding && (
             <Button size="sm" variant="primary" onClick={() => setAdding(true)}>
               <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
-              Ajouter un provider
+              {t('providerAdmin.settings.addProvider')}
             </Button>
           )
         }
@@ -89,8 +95,8 @@ export function ProviderSettings() {
       </Section>
       <Section
         id="consent"
-        title="Autorisations des projets"
-        description="Le contenu d’un projet (prompts, fichiers, résultats d’outils) ne part que vers les origines qu’il a autorisées ; sans autorisation, il ne part nulle part ailleurs que vers Claude Code."
+        title={t('providerAdmin.settings.sectionConsent')}
+        description={t('providerAdmin.settings.consentDescription')}
       >
         <ProjectConsent onAddProvider={() => setAdding(true)} />
       </Section>
@@ -99,8 +105,8 @@ export function ProviderSettings() {
       </Section>
       <Section
         id="advanced"
-        title="Avancé"
-        description="Rôles, alias et politique de modèle. Rien à régler pour un premier provider : sans réglage, tout passe par le provider par défaut."
+        title={t('providerAdmin.settings.sectionAdvanced')}
+        description={t('providerAdmin.settings.advancedDescription')}
       >
         <div className="space-y-4">
           <div id="roles" className="scroll-mt-16">

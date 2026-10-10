@@ -1,16 +1,21 @@
 // ============================================================================
-// PROVIDER WIZARD — French strings, validation and status of the Providers page
+// PROVIDER WIZARD — labels, validation and status of the Providers page
 // ============================================================================
 //
-// The "Add a provider" wizard and the provider cards speak plain French (the
-// rest of the settings page is still in English). Every typed error code the
-// backend can answer on these routes gets a French sentence here; an unknown
+// The "Add a provider" wizard and the provider cards speak the user's language
+// (`providerAdmin.common.*` in the i18n catalog). Every typed error code the
+// backend can answer on these routes has its own sentence there; an unknown
 // code falls back to the English explanation of `providerErrors.ts`.
+//
+// Functions that produce text take the translator `t` as their LAST argument;
+// tables hold message keys, never text.
 //
 // Nothing in this module ever receives a secret value.
 
 import { ApiError, apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
+import type { MessageKey } from '@/i18n/catalog'
+import type { Translator } from '@/i18n/translate'
 import { providerErrorExplanation } from './providerErrors'
 import type {
   CostBasis,
@@ -20,28 +25,31 @@ import type {
   ProviderModel,
 } from '@/types/provider'
 
+export type T = Translator['t']
+
 // ---------------------------------------------------------------------------
 // Labels
 // ---------------------------------------------------------------------------
 
-export const COST_LABELS_FR: Readonly<Record<CostBasis, string>> = {
-  reported: 'Indiqué par le provider',
-  priced: 'Tarifé (estimation)',
-  free: 'Gratuit (local)',
-  subscription: 'Abonnement',
-  unknown: 'Inconnu',
+export const COST_LABEL_KEYS: Readonly<Record<CostBasis, MessageKey>> = {
+  reported: 'providerAdmin.common.cost.reported',
+  priced: 'providerAdmin.common.cost.priced',
+  free: 'providerAdmin.common.cost.free',
+  subscription: 'providerAdmin.common.cost.subscription',
+  unknown: 'providerAdmin.common.cost.unknown',
 }
 
-export const KIND_LABELS_FR: Readonly<Record<string, string>> = {
-  claude_code: 'Claude Code',
-  openai_compatible: 'OpenAI-compatible',
-  codex: 'Codex',
-  acp: 'Agent ACP',
-  claude_code_remote: 'Claude Code distant (SSH)',
+const KIND_LABEL_KEYS: Readonly<Record<string, MessageKey>> = {
+  claude_code: 'providerAdmin.common.kinds.claude_code',
+  openai_compatible: 'providerAdmin.common.kinds.openai_compatible',
+  codex: 'providerAdmin.common.kinds.codex',
+  acp: 'providerAdmin.common.kinds.acp',
+  claude_code_remote: 'providerAdmin.common.kinds.claude_code_remote',
 }
 
-export function kindLabelFr(kind: string | null | undefined): string {
-  return (kind && KIND_LABELS_FR[kind]) || kind || 'Inconnu'
+export function kindLabel(t: T, kind: string | null | undefined): string {
+  const key = kind ? KIND_LABEL_KEYS[kind] : undefined
+  return key ? t(key) : kind || t('providerAdmin.common.kinds.unknown')
 }
 
 /** `codex`, `acp` and `claude_code_remote` instances are a program (local or over SSH): no URL, no URL guard. */
@@ -50,30 +58,30 @@ export function isProcessKind(kind: string | null | undefined): boolean {
 }
 
 export const WIZARD_STEPS = [
-  { id: 'preset', title: 'Modèle' },
-  { id: 'key', title: 'Clé' },
-  { id: 'connection', title: 'Connexion' },
-  { id: 'project', title: 'Projet' },
-  { id: 'summary', title: 'Récapitulatif' },
-] as const
+  { id: 'preset', title: 'providerWizard.steps.preset' },
+  { id: 'key', title: 'providerWizard.steps.key' },
+  { id: 'connection', title: 'providerWizard.steps.connection' },
+  { id: 'project', title: 'providerWizard.steps.project' },
+  { id: 'summary', title: 'providerWizard.steps.summary' },
+] as const satisfies readonly { id: string; title: MessageKey }[]
 export type WizardStepId = (typeof WIZARD_STEPS)[number]['id']
 
 /** Durations of the grant of a key to an instance. */
-export const GRANT_CHOICES_FR: { value: string; label: string }[] = [
-  { value: '60', label: '1 heure' },
-  { value: '1440', label: '1 jour' },
-  { value: '10080', label: '7 jours' },
-  { value: '43200', label: '30 jours' },
+export const GRANT_CHOICES: { value: string; label: MessageKey }[] = [
+  { value: '60', label: 'providerWizard.grant.h1' },
+  { value: '1440', label: 'providerWizard.grant.d1' },
+  { value: '10080', label: 'providerWizard.grant.d7' },
+  { value: '43200', label: 'providerWizard.grant.d30' },
 ]
 
 export type TaskKey = 'secret' | 'instance' | 'grant' | 'test'
 export type TaskState = 'todo' | 'running' | 'done' | 'error'
 
-export const TASK_LABELS: Readonly<Record<TaskKey, string>> = {
-  secret: 'Enregistrer la clé dans le coffre',
-  instance: 'Créer l’instance',
-  grant: 'Accorder la clé à l’instance',
-  test: 'Tester la connexion',
+export const TASK_LABEL_KEYS: Readonly<Record<TaskKey, MessageKey>> = {
+  secret: 'providerWizard.tasks.secret',
+  instance: 'providerWizard.tasks.instance',
+  grant: 'providerWizard.tasks.grant',
+  test: 'providerWizard.tasks.test',
 }
 
 // ---------------------------------------------------------------------------
@@ -86,119 +94,106 @@ const INSTANCE_ID = /^[a-z0-9][a-z0-9-]*$/
 const SECRET_NAME = /^[A-Za-z0-9_.-]+$/
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 
-export function validateInstanceId(raw: string, taken: readonly string[]): string | null {
+export function validateInstanceId(raw: string, taken: readonly string[], t: T): string | null {
   const id = raw.trim()
-  if (!id) return 'L’identifiant est obligatoire.'
-  if (id.length > 48 || !INSTANCE_ID.test(id))
-    return 'Lettres minuscules, chiffres et « - » uniquement (48 caractères au plus).'
-  if (id === 'claude-code') return '« claude-code » est réservé au provider intégré.'
-  if (taken.includes(id)) return 'Un provider porte déjà cet identifiant.'
+  if (!id) return t('providerAdmin.common.validation.idRequired')
+  if (id.length > 48 || !INSTANCE_ID.test(id)) return t('providerAdmin.common.validation.idFormat')
+  if (id === 'claude-code') return t('providerAdmin.common.validation.idReserved')
+  if (taken.includes(id)) return t('providerAdmin.common.validation.idTaken')
   return null
 }
 
-export function validateSecretName(raw: string): string | null {
+export function validateSecretName(raw: string, t: T): string | null {
   const name = raw.trim()
-  if (!name) return 'Donnez un nom à la clé.'
+  if (!name) return t('providerAdmin.common.validation.secretRequired')
   if (name.length > 64 || !SECRET_NAME.test(name))
-    return 'Lettres, chiffres, « _ », « - » et « . » uniquement (64 caractères au plus).'
+    return t('providerAdmin.common.validation.secretFormat')
   return null
 }
 
-export function validateEnvName(raw: string): string | null {
+export function validateEnvName(raw: string, t: T): string | null {
   const name = raw.trim()
-  if (!name) return 'Indiquez le nom de la variable.'
-  if (!ENV_NAME.test(name))
-    return 'Un nom de variable : lettres, chiffres et « _ », sans commencer par un chiffre.'
+  if (!name) return t('providerAdmin.common.validation.envRequired')
+  if (!ENV_NAME.test(name)) return t('providerAdmin.common.validation.envFormat')
   return null
 }
 
-/** French twin of `validateBaseUrl`: https everywhere, plain http on a loopback host only. */
-export function validateBaseUrlFr(raw: string): string | null {
+/** Localised twin of `validateBaseUrl`: https everywhere, plain http on a loopback host only. */
+export function validateBaseUrlFr(raw: string, t: T): string | null {
   const value = raw.trim()
-  if (!value) return 'L’URL de base est obligatoire.'
+  if (!value) return t('providerAdmin.common.validation.urlRequired')
   let url: URL
   try {
     url = new URL(value)
   } catch {
-    return 'Ce n’est pas une URL valide (exemple : https://api.example.com/v1).'
+    return t('providerAdmin.common.validation.urlInvalid')
   }
   if (url.protocol === 'https:') return null
   const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
   if (url.protocol === 'http:' && (host === 'localhost' || host === '127.0.0.1' || host === '::1'))
     return null
-  return 'Utilisez https. Le http simple n’est accepté que pour localhost, 127.0.0.1 et ::1.'
+  return t('providerAdmin.common.validation.urlHttps')
 }
 
 /** Suggested vault name for the key of an instance: its id. */
 export function suggestedSecretName(instanceId: string): string {
-  return instanceId.trim() || 'cle-provider'
+  return instanceId.trim() || 'provider-key'
 }
 
 // ---------------------------------------------------------------------------
-// Errors in plain French
+// Errors in plain words
 // ---------------------------------------------------------------------------
 
-const TOOLS_NOT_CALLED_FR_TEXT =
-  'Ce modèle n’a pas appelé l’outil de test (certains modèles de raisonnement ne le font pas) : essayez un autre modèle listé.'
-/** The probe ran and the model did not call the test tool: about THIS model, not the endpoint. */
-export const TOOLS_NOT_CALLED_FR = TOOLS_NOT_CALLED_FR_TEXT
+/** Codes that have their own sentence in `providerAdmin.common.errors`. */
+const ERROR_CODES = [
+  'credentials_locked',
+  'auth_required',
+  'unauthorized',
+  'endpoint_unreachable',
+  'model_no_tools',
+  'context_too_small',
+  'cli_not_found',
+  'rate_limited',
+  'overloaded',
+  'timeout',
+  'process_exited',
+  'protocol',
+  'unsupported',
+  'invalid_request',
+  'provider_unknown',
+  'provider_unavailable',
+  'security_gate_closed',
+  'origin_mismatch',
+  'endpoint_not_allowed',
+  'endpoint_invalid_url',
+  'endpoint_scheme_not_allowed',
+  'endpoint_http_outside_loopback',
+  'endpoint_credentials_in_url',
+  'endpoint_host_missing',
+  'endpoint_private_address',
+  'endpoint_unresolvable',
+  'endpoint_redirects_not_allowed',
+  'credential_test_requires_saved_instance',
+  'tool_not_in_profile',
+] as const
+type ErrorCode = (typeof ERROR_CODES)[number]
 
-const ERRORS_FR: Partial<Record<string, string>> = {
-  credentials_locked:
-    'Le coffre est verrouillé : la clé ne peut pas être lue. Déverrouillez-le, puis testez à nouveau.',
-  auth_required:
-    'Ce provider demande une connexion ou une clé accordée à l’instance. Lancez la commande indiquée, ou accordez la clé à l’instance.',
-  unauthorized: 'Le provider a refusé la clé. Vérifiez la clé enregistrée dans le coffre.',
-  endpoint_unreachable: 'Le point d’accès ne répond pas. Vérifiez l’URL et que le service tourne.',
-  model_no_tools: TOOLS_NOT_CALLED_FR_TEXT,
-  context_too_small:
-    'La fenêtre de contexte de ce modèle est trop petite pour les outils. Choisissez un modèle plus grand.',
-  cli_not_found:
-    'Le programme de ce provider n’est pas installé sur le serveur (ou pas dans son PATH).',
-  rate_limited: 'Le provider limite le nombre de requêtes. Réessayez dans un moment.',
-  overloaded: 'Le provider est surchargé. Réessayez dans un moment.',
-  timeout: 'Le provider n’a pas répondu à temps.',
-  process_exited: 'Le programme du provider s’est arrêté de façon inattendue.',
-  protocol: 'Le provider a renvoyé une réponse incompréhensible.',
-  unsupported: 'Ce provider ne prend pas en charge ce qui est demandé.',
-  invalid_request: 'La requête a été refusée comme invalide.',
-  provider_unknown: 'Ce provider n’existe pas (ou plus) sur le serveur.',
-  provider_unavailable: 'Ce provider n’est pas disponible pour l’instant.',
-  security_gate_closed:
-    'Les providers tiers exigent que l’authentification soit activée sur ce serveur. Activez-la, puis recommencez. Claude Code n’est pas concerné.',
-  origin_mismatch:
-    'L’instance ne pointe plus vers l’origine affichée : l’autorisation n’a pas été enregistrée. Rechargez la page et vérifiez l’origine.',
-  endpoint_not_allowed: 'Ce projet n’a pas autorisé ce point d’accès.',
-  endpoint_invalid_url:
-    'L’URL de base n’est pas valide. Saisissez-la en entier, par exemple https://api.example.com/v1.',
-  endpoint_scheme_not_allowed: 'Seul https est accepté (http uniquement pour localhost).',
-  endpoint_http_outside_loopback:
-    'Le http simple n’est accepté que pour localhost, 127.0.0.1 et ::1. Utilisez https.',
-  endpoint_credentials_in_url:
-    'L’URL contient un identifiant ou un mot de passe. Retirez-le : la clé passe par le coffre, jamais par l’URL.',
-  endpoint_host_missing: 'L’URL de base n’a pas d’hôte.',
-  endpoint_private_address:
-    'L’hôte pointe vers une adresse privée ou interne, que le serveur refuse d’appeler.',
-  endpoint_unresolvable: 'Le serveur ne trouve pas ce nom d’hôte. Vérifiez l’orthographe de l’URL.',
-  endpoint_redirects_not_allowed:
-    'Le point d’accès répond par une redirection, que le serveur ne suit pas. Utilisez l’URL finale.',
-  credential_test_requires_saved_instance:
-    'Un test avec une clé n’est fait que sur une instance déjà enregistrée, avec la même URL et la même référence de clé. Enregistrez, puis testez.',
-  tool_not_in_profile: 'Cette session n’a pas le droit d’appeler cet outil.',
+const isErrorCode = (code: string): code is ErrorCode => (ERROR_CODES as readonly string[]).includes(code)
+
+/** The model ran and did not call the test tool: about THIS model, not the endpoint. */
+export const toolsNotCalledText = (t: T): string => t('providerAdmin.common.errors.model_no_tools')
+
+/** Sentence for a typed provider error. */
+export function providerErrorFr(error: ProviderErrorInfo, t: T): string {
+  return isErrorCode(error.code)
+    ? t(`providerAdmin.common.errors.${error.code}`)
+    : providerErrorExplanation(error)
 }
 
-export const FORBIDDEN_FR =
-  'Seule une personne connectée peut faire ce changement (un agent ne le peut pas).'
-
-/** French sentence for a typed provider error. */
-export function providerErrorFr(error: ProviderErrorInfo): string {
-  return ERRORS_FR[error.code] ?? providerErrorExplanation(error)
-}
-
-/** French sentence for a code read out of a test verdict (`health.code`). */
-export function verdictCodeFr(code: string | null | undefined): string | null {
-  if (!code) return null
-  return ERRORS_FR[code] ?? null
+/** Sentence for a code read out of a test verdict (`health.code`). */
+export function verdictCodeFr(code: string | null | undefined, t: T): string | null {
+  if (!code || !isErrorCode(code)) return null
+  return t(`providerAdmin.common.errors.${code}`)
 }
 
 /**
@@ -206,17 +201,17 @@ export function verdictCodeFr(code: string | null | undefined): string | null {
  * A typed code is translated; a 403 is the human-token rule; anything else is
  * the server's own sentence (which never carries a secret, per provider-errors.md).
  */
-export function wizardErrorMessage(err: unknown): string {
+export function wizardErrorMessage(err: unknown, t: T): string {
   const typed = toProviderError(err)
-  if (typed) return providerErrorFr(typed)
+  if (typed) return providerErrorFr(typed, t)
   if (err instanceof ApiError && err.status === 403) {
     return /passphrase|proof/i.test(err.message)
-      ? 'Le coffre demande la phrase secrète : déverrouillez-le depuis cet onglet.'
-      : FORBIDDEN_FR
+      ? t('providerAdmin.common.errors.vaultPassphrase')
+      : t('providerAdmin.common.errors.forbidden')
   }
   if (err instanceof ApiError && err.status === 409 && /locked/i.test(err.message))
-    return 'Le coffre est verrouillé.'
-  return apiErrorMessage(err, 'La requête a échoué')
+    return t('providerAdmin.common.errors.vaultLocked')
+  return apiErrorMessage(err, t('providerAdmin.common.errors.requestFailed'))
 }
 
 // ---------------------------------------------------------------------------
@@ -236,123 +231,118 @@ export type InstanceStatusKey =
 
 export interface InstanceStatus {
   key: InstanceStatusKey
-  label: string
+  label: MessageKey
   variant: 'success' | 'warning' | 'error' | 'default'
 }
 
 export function instanceStatus(instance: ProviderInstance, health: ProviderHealth): InstanceStatus {
   const code = health.error?.code
   if (code === 'credentials_locked')
-    return { key: 'vault_locked', label: 'Coffre verrouillé', variant: 'warning' }
-  if (code === 'unauthorized') return { key: 'key_refused', label: 'Clé refusée', variant: 'error' }
+    return { key: 'vault_locked', label: 'providerAdmin.common.status.vaultLocked', variant: 'warning' }
+  if (code === 'unauthorized')
+    return { key: 'key_refused', label: 'providerAdmin.common.status.keyRefused', variant: 'error' }
   if (health.status === 'auth_required' || code === 'auth_required') {
     // A key reference that cannot be read (missing from the vault, not granted) vs. a program to sign in to.
     const usesKey = !!instance.credential_ref && instance.credential_ref !== 'none'
     return usesKey && !health.login_hint
-      ? { key: 'key_missing', label: 'Clé manquante', variant: 'warning' }
-      : { key: 'login_required', label: 'Connexion requise', variant: 'warning' }
+      ? { key: 'key_missing', label: 'providerAdmin.common.status.keyMissing', variant: 'warning' }
+      : { key: 'login_required', label: 'providerAdmin.common.status.loginRequired', variant: 'warning' }
   }
   if (health.status === 'unhealthy')
-    return { key: 'unreachable', label: 'Injoignable', variant: 'error' }
+    return { key: 'unreachable', label: 'providerAdmin.common.status.unreachable', variant: 'error' }
   if (instance.allowed_for_project === false)
-    return { key: 'not_allowed', label: 'Projet non autorisé', variant: 'warning' }
+    return { key: 'not_allowed', label: 'providerAdmin.common.status.notAllowed', variant: 'warning' }
   if (health.status === 'healthy')
-    return { key: 'connected', label: 'Connecté', variant: 'success' }
-  if (health.status === 'degraded') return { key: 'degraded', label: 'Dégradé', variant: 'warning' }
-  return { key: 'unchecked', label: 'Non vérifié', variant: 'default' }
+    return { key: 'connected', label: 'providerAdmin.common.status.connected', variant: 'success' }
+  if (health.status === 'degraded')
+    return { key: 'degraded', label: 'providerAdmin.common.status.degraded', variant: 'warning' }
+  return { key: 'unchecked', label: 'providerAdmin.common.status.unchecked', variant: 'default' }
 }
 
-export function formatWhenFr(iso: string | null | undefined): string {
-  if (!iso) return 'jamais'
+/** A date in the viewer's language and time zone (`never` when absent). */
+export function formatWhenFr(tr: Pick<Translator, 't' | 'date'>, iso: string | null | undefined): string {
+  if (!iso) return tr.t('providerAdmin.common.never')
   const d = new Date(iso)
   return Number.isNaN(d.getTime())
     ? iso
-    : d.toLocaleString('fr-FR', {
-        day: 'numeric',
-        month: 'short',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+    : tr.date(d, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 // ---------------------------------------------------------------------------
 // Consent, roles, aliases and policy (the sections under the cards)
 // ---------------------------------------------------------------------------
 
-export const CONSENT_STATE_FR = {
-  allowed: 'Autorisé',
-  denied: 'Non autorisé',
-  invalidated: 'Autorisation périmée',
-} as const
+export const CONSENT_STATE_KEYS = {
+  allowed: 'providerAdmin.common.consentState.allowed',
+  denied: 'providerAdmin.common.consentState.denied',
+  invalidated: 'providerAdmin.common.consentState.invalidated',
+} as const satisfies Record<string, MessageKey>
 
-export const ROLE_LABELS_FR = { pilot: 'Pilote', executor: 'Exécutant' } as const
-export const ROLE_HELP_FR = {
-  pilot: 'Le modèle des conversations ouvertes par une personne : il décide et planifie.',
-  executor: 'Le modèle qui exécute les tâches : runner, délégations, protocoles, appels ponctuels.',
-} as const
+export const ROLE_LABEL_KEYS = {
+  pilot: 'providerAdmin.common.roles.pilot',
+  executor: 'providerAdmin.common.roles.executor',
+} as const satisfies Record<string, MessageKey>
 
-const ROUTED_BY_FR: Readonly<Record<string, string>> = {
-  session: 'la session',
-  request: 'la demande',
-  task: 'la tâche',
-  persona: 'le persona',
-  run: 'l’exécution',
-  project_rule: 'le rôle du projet',
-  global_rule: 'le rôle global',
-  default: 'le provider par défaut du serveur',
-  claude_code: 'le repli sur Claude Code',
-  fallback: 'la chaîne de repli',
-  auto: 'le routage automatique de PO',
-}
-
-/** Which rule chose the effective default, in plain French (`routed_by`). */
-export function routedByFr(routedBy: string | null | undefined): string {
-  return (routedBy && ROUTED_BY_FR[routedBy]) || 'le provider par défaut du serveur'
-}
-
-export const POLICY_MODES_FR = [
-  {
-    value: 'off',
-    label: 'Désactivée',
-    help: 'Aucune règle : chaque rôle utilise son modèle habituel.',
-  },
-  {
-    value: 'shadow',
-    label: 'Observer seulement',
-    help: 'N’applique rien, enregistre ce qu’elle aurait choisi.',
-  },
-  {
-    value: 'enforce',
-    label: 'Appliquer',
-    help: 'Les règles ci-dessous choisissent le modèle de chaque usage.',
-  },
+const ROUTED_BY = [
+  'session',
+  'request',
+  'task',
+  'persona',
+  'run',
+  'project_rule',
+  'global_rule',
+  'default',
+  'claude_code',
+  'fallback',
+  'auto',
 ] as const
 
-export const POLICY_ROLE_LABELS_FR: Readonly<Record<string, string>> = {
-  chat: 'Conversation',
-  'runner.simple': 'Runner, tâche simple',
-  'runner.complex': 'Runner, tâche complexe',
-  'runner.creative': 'Runner, tâche créative',
-  'runner.retry': 'Runner, nouvel essai',
-  'utility.feature_graph': 'Graphe de fonctionnalités',
-  'utility.compaction': 'Compaction du contexte',
+/** Which rule chose the effective default, in plain words (`routed_by`). */
+export function routedByFr(t: T, routedBy: string | null | undefined): string {
+  const known = (ROUTED_BY as readonly string[]).includes(routedBy ?? '')
+  return t(`providerAdmin.common.routedBy.${(known ? routedBy : 'default') as (typeof ROUTED_BY)[number]}`)
 }
 
-/** "outils : oui · 131 072 tokens" when known. */
-export function modelCapabilities(m: ProviderModel | undefined): string | null {
+export const POLICY_MODES = [
+  { value: 'off', label: 'providerAdmin.common.policyMode.off', help: 'providerAdmin.common.policyMode.offHelp' },
+  { value: 'shadow', label: 'providerAdmin.common.policyMode.shadow', help: 'providerAdmin.common.policyMode.shadowHelp' },
+  { value: 'enforce', label: 'providerAdmin.common.policyMode.enforce', help: 'providerAdmin.common.policyMode.enforceHelp' },
+] as const satisfies readonly { value: string; label: MessageKey; help: MessageKey }[]
+
+const POLICY_ROLE_KEYS = {
+  chat: 'providerAdmin.common.policyRole.chat',
+  'runner.simple': 'providerAdmin.common.policyRole.runner.simple',
+  'runner.complex': 'providerAdmin.common.policyRole.runner.complex',
+  'runner.creative': 'providerAdmin.common.policyRole.runner.creative',
+  'runner.retry': 'providerAdmin.common.policyRole.runner.retry',
+  'utility.feature_graph': 'providerAdmin.common.policyRole.utility.feature_graph',
+  'utility.compaction': 'providerAdmin.common.policyRole.utility.compaction',
+} as const satisfies Record<string, MessageKey>
+
+export function policyRoleLabel(t: T, role: string): string {
+  return role in POLICY_ROLE_KEYS ? t(POLICY_ROLE_KEYS[role as keyof typeof POLICY_ROLE_KEYS]) : role
+}
+
+/** "tools: yes · 131,072 tokens" when known. */
+export function modelCapabilities(tr: Pick<Translator, 't' | 'number'>, m: ProviderModel | undefined): string | null {
   const c = m?.capabilities
   if (!c) return null
   const parts: string[] = []
-  if (typeof c.tools === 'boolean') parts.push(`outils : ${c.tools ? 'oui' : 'non'}`)
+  if (typeof c.tools === 'boolean')
+    parts.push(
+      tr.t('providerAdmin.common.capabilities.tools', {
+        value: tr.t(c.tools ? 'providerAdmin.common.capabilities.yes' : 'providerAdmin.common.capabilities.no'),
+      }),
+    )
   if (c.context_window?.value)
-    parts.push(`${c.context_window.value.toLocaleString('fr-FR')} tokens`)
+    parts.push(tr.t('providerAdmin.common.capabilities.tokens', { n: c.context_window.value }))
   return parts.length ? parts.join(' · ') : null
 }
 
-/** A credential reference in words: « Coffre : deepseek », « Variable : DEEPSEEK_API_KEY », « aucune ». */
-export function credentialLabelFr(ref: string | null | undefined): string {
-  if (!ref || ref === 'none') return 'aucune'
-  if (ref.startsWith('vault:')) return `Coffre : ${ref.slice(6)}`
-  if (ref.startsWith('env:')) return `Variable : ${ref.slice(4)}`
+/** A credential reference in words: « Vault: deepseek », « Variable: DEEPSEEK_API_KEY », « none ». */
+export function credentialLabelFr(t: T, ref: string | null | undefined): string {
+  if (!ref || ref === 'none') return t('providerAdmin.common.credential.none')
+  if (ref.startsWith('vault:')) return t('providerAdmin.common.credential.vault', { name: ref.slice(6) })
+  if (ref.startsWith('env:')) return t('providerAdmin.common.credential.env', { name: ref.slice(4) })
   return ref
 }

@@ -42,7 +42,7 @@ describe('SettingsPage', () => {
       </Provider>,
     )
     expect(screen.queryByRole('region', { name: 'Providers' })).toBeNull()
-    expect(screen.queryByRole('button', { name: /Ajouter un provider/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Add a provider/ })).toBeNull()
     expect(screen.getByRole('link', { name: 'Providers → /providers' }).getAttribute('href')).toBe('/providers')
   })
 })

@@ -1,11 +1,13 @@
 // ============================================================================
-// CLAUDE CODE DISTANT (SSH) — validation and French copy
+// REMOTE CLAUDE CODE (SSH) — validation
 // ============================================================================
 //
 // A `claude_code_remote` instance runs the Claude Code CLI on ANOTHER machine.
 // What the interface stores is only references and PUBLIC data: the machine,
 // the PINNED host key (public) and `vault:<name>` for the private key. A private
 // key is never typed, pasted or shown here.
+
+import type { Translator } from '@/i18n/translate'
 
 export const REMOTE_KIND = 'claude_code_remote'
 /** Prefix of the id of every remote instance: `claude-code@<name>`. */
@@ -24,44 +26,44 @@ export function remoteInstanceId(name: string): string {
   return `${REMOTE_ID_PREFIX}${name.trim()}`
 }
 
-export function validateMachineName(raw: string, taken: readonly string[]): string | null {
+type T = Translator['t']
+const V = 'providerAdmin.common.validation.' as const
+
+export function validateMachineName(raw: string, taken: readonly string[], t: T): string | null {
   const name = raw.trim()
-  if (!name) return 'Le nom de la machine est obligatoire.'
-  if (name.length > 36 || !MACHINE_NAME.test(name))
-    return 'Lettres minuscules, chiffres et « - » uniquement (36 caractères au plus).'
-  if (taken.includes(remoteInstanceId(name))) return 'Une instance porte déjà ce nom.'
+  if (!name) return t(`${V}machineRequired`)
+  if (name.length > 36 || !MACHINE_NAME.test(name)) return t(`${V}machineFormat`)
+  if (taken.includes(remoteInstanceId(name))) return t(`${V}machineTaken`)
   return null
 }
 
-export function validateSshHost(raw: string): string | null {
+export function validateSshHost(raw: string, t: T): string | null {
   const host = raw.trim()
-  if (!host) return 'L’adresse de la machine est obligatoire.'
-  if (host.startsWith('-')) return 'L’adresse ne peut pas commencer par « - ».'
-  if (host.length > 255 || !HOST.test(host))
-    return 'Un nom ou une adresse : lettres, chiffres et « . _ - : [ ] % @ » uniquement.'
+  if (!host) return t(`${V}hostRequired`)
+  if (host.startsWith('-')) return t(`${V}hostDash`)
+  if (host.length > 255 || !HOST.test(host)) return t(`${V}hostFormat`)
   return null
 }
 
-export function validateSshUser(raw: string): string | null {
+export function validateSshUser(raw: string, t: T): string | null {
   const user = raw.trim()
   if (!user) return null
-  if (user.startsWith('-')) return 'Le nom d’utilisateur ne peut pas commencer par « - ».'
-  if (user.length > 64 || !SSH_USER.test(user))
-    return 'Lettres, chiffres, « . », « _ » et « - » uniquement.'
+  if (user.startsWith('-')) return t(`${V}userDash`)
+  if (user.length > 64 || !SSH_USER.test(user)) return t(`${V}userFormat`)
   return null
 }
 
 /** Empty = default (22). */
-export function validateSshPort(raw: string): string | null {
+export function validateSshPort(raw: string, t: T): string | null {
   const v = raw.trim()
   if (!v) return null
-  if (!/^\d+$/.test(v) || Number(v) < 1 || Number(v) > 65535) return 'Un port entre 1 et 65535.'
+  if (!/^\d+$/.test(v) || Number(v) < 1 || Number(v) > 65535) return t(`${V}portRange`)
   return null
 }
 
-export function validateRemoteCwd(raw: string): string | null {
+export function validateRemoteCwd(raw: string, t: T): string | null {
   // eslint-disable-next-line no-control-regex
-  if (/[\u0000-\u001f]/.test(raw)) return 'Le dossier ne peut pas contenir de saut de ligne.'
+  if (/[\u0000-\u001f]/.test(raw)) return t(`${V}cwdNewline`)
   return null
 }
 
@@ -70,27 +72,22 @@ export function looksLikePrivateKey(raw: string): boolean {
   return /-----\s*BEGIN/i.test(raw) || /PRIVATE KEY/i.test(raw) || raw.includes('\n')
 }
 
-export const PRIVATE_KEY_REFUSED_FR =
-  'Ceci ressemble à une clé privée : ne la collez jamais ici. Enregistrez-la dans le coffre et indiquez seulement son nom.'
-
 /** Name of the vault secret holding the SSH private key. A pasted key is refused. */
-export function validateVaultKeyName(raw: string): string | null {
+export function validateVaultKeyName(raw: string, t: T): string | null {
   const name = raw.trim()
-  if (!name) return 'Choisissez la clé SSH du coffre.'
-  if (looksLikePrivateKey(raw)) return PRIVATE_KEY_REFUSED_FR
-  if (name.length > 64 || !SECRET_NAME.test(name))
-    return 'Le nom d’une clé du coffre : lettres, chiffres, « _ », « - » et « . » uniquement.'
+  if (!name) return t(`${V}vaultKeyChoose`)
+  if (looksLikePrivateKey(raw)) return t(`${V}privateKeyRefused`)
+  if (name.length > 64 || !SECRET_NAME.test(name)) return t(`${V}vaultKeyFormat`)
   return null
 }
 
 /** The pinned public key line: "<type> <base64>" (a trailing comment is tolerated). */
-export function validateHostKey(raw: string): string | null {
+export function validateHostKey(raw: string, t: T): string | null {
   const line = raw.trim()
-  if (!line) return 'Récupérez la clé de la machine, ou collez-la.'
-  if (looksLikePrivateKey(line)) return PRIVATE_KEY_REFUSED_FR
+  if (!line) return t(`${V}hostKeyFetch`)
+  if (looksLikePrivateKey(line)) return t(`${V}privateKeyRefused`)
   const [type, body] = line.split(/\s+/)
-  if (!type || !body || !KEY_TYPE.test(type) || !BASE64.test(body))
-    return 'Une clé publique de machine : « ssh-ed25519 AAAA… » (type, espace, clé en base64).'
+  if (!type || !body || !KEY_TYPE.test(type) || !BASE64.test(body)) return t(`${V}hostKeyFormat`)
   return null
 }
 
@@ -104,11 +101,3 @@ export function remoteOrigin(host: string, user: string, port: string): string {
 export const REMOTE_NO_TOOLS_FR =
   'Claude Code distant n’a pas les outils PO (MCP) dans cette version : il ne peut pas lire ni modifier les plans, tâches et notes du projet. L’annulation d’un seul outil n’est pas non plus disponible : utilisez Stop pour interrompre tout le tour.'
 
-export const REMOTE_TRUST_WARNING_FR =
-  'Le mode « Rock’n roll » exécute les actions sans demander de confirmation, sur cette machine, avec ses droits. N’activez ceci que pour une machine jetable ou de confiance.'
-
-export const REMOTE_KEY_HINT_FR =
-  'Utilisez une clé dédiée, sans phrase secrète : la connexion est non interactive et n’utilise pas d’agent SSH.'
-
-export const REMOTE_CONFIRM_FINGERPRINT_FR =
-  'Je confirme que cette empreinte est bien celle de la machine'

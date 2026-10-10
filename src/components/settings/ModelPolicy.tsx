@@ -4,7 +4,8 @@ import { Button, Input, SearchableSelect, ToneText } from '@/components/ui'
 import { useProviders, useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
 import { hasUsdPrice } from '@/constants/providerSettings'
-import { POLICY_MODES_FR, POLICY_ROLE_LABELS_FR, wizardErrorMessage } from '@/constants/providerWizard'
+import { POLICY_MODES, policyRoleLabel, wizardErrorMessage } from '@/constants/providerWizard'
+import { useT } from '@/i18n'
 import { capabilitiesFor, type ModelAlias, type ProviderInstance } from '@/types/provider'
 import {
   POLICY_RULE_ROLES,
@@ -54,6 +55,7 @@ function AliasTable({
   collapsible?: boolean
   defaultOpen?: boolean
 }) {
+  const { t } = useT()
   const [saved, setSaved] = useState<ModelAlias[] | null>(null)
   const [rows, setRows] = useState<ModelAlias[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -77,8 +79,8 @@ function AliasTable({
         setRows(r)
         setLoadError(null)
       })
-      .catch((err) => setLoadError(wizardErrorMessage(err)))
-  }, [tick])
+      .catch((err) => setLoadError(wizardErrorMessage(err, t)))
+  }, [tick, t])
 
   const set = (i: number, patch: Partial<ModelAlias>) => {
     setRows((r) => r && r.map((x, j) => (j === i ? { ...x, ...patch } : x)))
@@ -97,7 +99,7 @@ function AliasTable({
       setSaved(rows)
       setDone(true)
     } catch (err) {
-      setError(wizardErrorMessage(err))
+      setError(wizardErrorMessage(err, t))
     } finally {
       setBusy(false)
     }
@@ -110,13 +112,13 @@ function AliasTable({
       testId="aliases-panel"
       collapsible={collapsible}
       defaultOpen={defaultOpen}
-      title="Alias de modèles"
-      description="Un alias est un nom logique (fast, default, deep, utility…) qui pointe vers un modèle d’un provider ; la politique ci-dessous s’en sert. Un alias sans provider n’est simplement pas utilisable."
-      status={<SaveStatus error={error} done={done} doneText="Alias enregistrés." />}
+      title={t('providerAdmin.policy.aliasesTitle')}
+      description={t('providerAdmin.policy.aliasesDescription')}
+      status={<SaveStatus error={error} done={done} doneText={t('providerAdmin.policy.aliasesSaved')} />}
       actions={
         loadError && !rows ? (
           <Button size="sm" variant="secondary" onClick={() => setTick((n) => n + 1)}>
-            Réessayer
+            {t('providerAdmin.ui.retry')}
           </Button>
         ) : (
           rows && (
@@ -129,7 +131,7 @@ function AliasTable({
                   setDone(false)
                 }}
               >
-                Ajouter un alias
+                {t('providerAdmin.policy.addAlias')}
               </Button>
               <Button
                 size="sm"
@@ -137,17 +139,17 @@ function AliasTable({
                 onClick={() => setRows(saved)}
                 disabled={!dirty || busy}
               >
-                Annuler
+                {t('providerAdmin.ui.cancel')}
               </Button>
               <Button size="sm" variant="primary" onClick={save} loading={busy}>
-                Enregistrer
+                {t('providerAdmin.ui.save')}
               </Button>
             </>
           )
         )
       }
     >
-      {!rows && !loadError && <Loading>Chargement des alias…</Loading>}
+      {!rows && !loadError && <Loading>{t('providerAdmin.policy.loadingAliases')}</Loading>}
       {loadError && <ErrorLine>{loadError}</ErrorLine>}
       {rows && (
         <div>
@@ -155,11 +157,11 @@ function AliasTable({
             className={`${ALIAS_GRID} hidden border-b border-white/[0.06] pb-2 text-xs font-medium text-gray-500 sm:grid`}
             aria-hidden="true"
           >
-            <span>Alias</span>
-            <span>Provider · modèle</span>
+            <span>{t('providerAdmin.policy.aliasCol')}</span>
+            <span>{t('providerAdmin.policy.modelCol')}</span>
             <span />
           </div>
-          <ul className="divide-y divide-white/[0.05]" aria-label="Alias de modèles">
+          <ul className="divide-y divide-white/[0.05]" aria-label={t('providerAdmin.policy.aliasesAria')}>
             {rows.map((row, i) => {
               const instance = instances.find((p) => p.id === row.provider)
               const unhealthy =
@@ -167,7 +169,7 @@ function AliasTable({
                 instance.health.status !== 'healthy' &&
                 instance.health.status !== 'unknown'
               const fixed = (FIXED_ALIASES as readonly string[]).includes(row.alias)
-              const name = row.alias || 'nouvel alias'
+              const name = row.alias || t('providerAdmin.policy.newAlias')
               // A row with a provider and no model is not a target yet: it reads as unset.
               const current = row.provider && row.model ? { provider: row.provider, model: row.model } : undefined
               return (
@@ -178,7 +180,7 @@ function AliasTable({
                 >
                   <div className="min-w-0">
                     <label htmlFor={`alias-name-${i}`} className={`${FIELD_LABEL} sm:sr-only`}>
-                      Alias
+                      {t('providerAdmin.policy.aliasCol')}
                     </label>
                     {fixed ? (
                       <p id={`alias-name-${i}`} className="py-2 font-mono text-sm text-gray-100">
@@ -189,20 +191,20 @@ function AliasTable({
                         id={`alias-name-${i}`}
                         value={row.alias}
                         onChange={(e) => set(i, { alias: e.target.value })}
-                        placeholder="mon-alias"
+                        placeholder={t('providerAdmin.policy.aliasPlaceholder')}
                       />
                     )}
                   </div>
                   <div className="min-w-0">
                     <label htmlFor={`alias-model-${i}`} className={`${FIELD_LABEL} sm:sr-only`}>
-                      Modèle de {name}
+                      {t('providerAdmin.policy.modelOf', { name })}
                     </label>
                     <SearchableSelect
                       id={`alias-model-${i}`}
                       value={current ? encodeTarget(current) : ''}
-                      options={withCurrentTarget(targets.options, current, instances)}
-                      noneLabel="Non réglé"
-                      noun={{ one: 'modèle', other: 'modèles' }}
+                      options={withCurrentTarget(t, targets.options, current, instances)}
+                      noneLabel={t('providerAdmin.policy.unset')}
+                      noun={{ one: t('providerAdmin.models.nounOne'), other: t('providerAdmin.models.nounOther') }}
                       loading={targets.catalog === 'loading'}
                       onChange={(v) => {
                         const target = decodeTarget(v)
@@ -213,7 +215,7 @@ function AliasTable({
                   <div className="flex items-center justify-end gap-2">
                     {unhealthy && (
                       <span data-testid={`alias-unhealthy-${row.alias}`}>
-                        <ToneText tone="warning" icon label="Injoignable" className="text-xs" />
+                        <ToneText tone="warning" icon label={t('providerAdmin.policy.unreachable')} className="text-xs" />
                       </span>
                     )}
                     {!fixed && (
@@ -221,9 +223,9 @@ function AliasTable({
                         size="sm"
                         variant="ghost"
                         onClick={() => setRows((r) => r && r.filter((_, j) => j !== i))}
-                        aria-label={`Retirer l’alias ${name}`}
+                        aria-label={t('providerAdmin.policy.removeAlias', { name })}
                       >
-                        Retirer
+                        {t('providerAdmin.ui.remove')}
                       </Button>
                     )}
                   </div>
@@ -249,9 +251,6 @@ function AliasTable({
   )
 }
 
-const USD_CAP_HELP_FR =
-  'Un plafond en dollars a besoin d’un prix : une exécution plafonnée en USD est refusée si son modèle n’en a pas. Les modèles sans prix se plafonnent en tokens.'
-
 function PolicyForm({
   instances,
   collapsible,
@@ -261,6 +260,7 @@ function PolicyForm({
   collapsible?: boolean
   defaultOpen?: boolean
 }) {
+  const { t } = useT()
   const [saved, setSaved] = useState<Policy | null>(null)
   const [draft, setDraft] = useState<Policy>(OFF_POLICY)
   const [aliases, setAliases] = useState<ModelAlias[]>([])
@@ -277,7 +277,7 @@ function PolicyForm({
       if (a.status === 'fulfilled' && Array.isArray(a.value)) setAliases(a.value)
       // A policy that could not be read is not shown as "off": saving it would overwrite the real one.
       if (p.status === 'rejected') {
-        setLoadError(wizardErrorMessage(p.reason))
+        setLoadError(wizardErrorMessage(p.reason, t))
         return
       }
       const policy: Policy = p.value
@@ -293,16 +293,16 @@ function PolicyForm({
       setDraft(policy)
       setLoadError(null)
     })
-  }, [tick])
+  }, [tick, t])
 
   const aliasNames = useMemo(() => withFixedRows(aliases).map((a) => a.alias), [aliases])
   const modelOfAlias = useCallback(
     (alias: string | undefined) => {
       const a = aliases.find((x) => x.alias === alias)
-      if (!a) return 'aucun modèle'
+      if (!a) return t('providerAdmin.policy.noModel')
       return `${instances.find((p) => p.id === a.provider)?.label ?? a.provider} / ${a.model}`
     },
-    [aliases, instances]
+    [aliases, instances, t]
   )
 
   // USD caps need a price on EVERY alias the policy can reach.
@@ -356,7 +356,7 @@ function PolicyForm({
       setDraft(next)
       setDone(true)
     } catch (err) {
-      setError(wizardErrorMessage(err))
+      setError(wizardErrorMessage(err, t))
     } finally {
       setBusy(false)
       setConfirm(null)
@@ -393,7 +393,7 @@ function PolicyForm({
           readOnly={locked}
           aria-disabled={locked || undefined}
           aria-describedby={usd ? 'cap-usd-help' : undefined}
-          placeholder={locked ? 'indisponible' : 'aucun'}
+          placeholder={locked ? t('providerAdmin.policy.capUnavailable') : t('providerAdmin.policy.capNone')}
           className={locked ? 'opacity-50' : ''}
           onChange={(e) => !locked && setCap(key, e.target.value)}
         />
@@ -408,13 +408,13 @@ function PolicyForm({
       testId="policy-panel"
       collapsible={collapsible}
       defaultOpen={defaultOpen}
-      title="Politique de modèle"
-      description="Choisit le modèle de chaque usage (conversation, runner…) à partir des alias, avec une chaîne de repli et des plafonds. Désactivée, rien ne change : chaque rôle garde son modèle."
-      status={<SaveStatus error={error} done={done} doneText="Politique enregistrée." />}
+      title={t('providerAdmin.policy.title')}
+      description={t('providerAdmin.policy.description')}
+      status={<SaveStatus error={error} done={done} doneText={t('providerAdmin.policy.saved')} />}
       actions={
         loadError && !saved ? (
           <Button size="sm" variant="secondary" onClick={() => setTick((n) => n + 1)}>
-            Réessayer
+            {t('providerAdmin.ui.retry')}
           </Button>
         ) : (
           saved && (
@@ -425,32 +425,32 @@ function PolicyForm({
                 onClick={() => setDraft(saved)}
                 disabled={!dirty || busy}
               >
-                Annuler
+                {t('providerAdmin.ui.cancel')}
               </Button>
               <Button size="sm" variant="primary" onClick={onSave} loading={busy}>
-                Enregistrer
+                {t('providerAdmin.ui.save')}
               </Button>
             </>
           )
         )
       }
     >
-      {!saved && !loadError && <Loading>Chargement de la politique…</Loading>}
+      {!saved && !loadError && <Loading>{t('providerAdmin.policy.loading')}</Loading>}
       {loadError && <ErrorLine>{loadError}</ErrorLine>}
       {saved && (
         <>
           <fieldset>
-            <legend className={FIELD_LABEL}>Mode</legend>
+            <legend className={FIELD_LABEL}>{t('providerAdmin.policy.mode')}</legend>
             <div className="grid gap-2 sm:grid-cols-3">
-              {POLICY_MODES_FR.map((m) => (
+              {POLICY_MODES.map((m) => (
                 <ChoiceRow
                   key={m.value}
                   name="policy-mode"
                   value={m.value}
                   checked={draft.mode === m.value}
                   onChange={(v) => update({ mode: v as ModelPolicyMode })}
-                  title={m.label}
-                  description={m.help}
+                  title={t(m.label)}
+                  description={t(m.help)}
                 />
               ))}
             </div>
@@ -460,19 +460,19 @@ function PolicyForm({
               role="status"
               className="rounded-lg border border-sky-500/30 bg-sky-500/[0.06] px-3 py-2 text-xs text-sky-200"
             >
-              Observer seulement : la politique calcule et enregistre son choix, sans l’appliquer.
+              {t('providerAdmin.policy.shadowNote')}
             </p>
           )}
 
           <fieldset className="space-y-2">
-            <legend className={FIELD_LABEL}>Règles : quel alias pour quel usage</legend>
+            <legend className={FIELD_LABEL}>{t('providerAdmin.policy.rulesLegend')}</legend>
             <div className="grid gap-4 sm:grid-cols-2">
               {POLICY_RULE_ROLES.map((role) => (
                 <FormField
                   key={role}
                   id={`rule-${role}`}
                   label={
-                    <span className="font-normal text-gray-400">{POLICY_ROLE_LABELS_FR[role]}</span>
+                    <span className="font-normal text-gray-400">{policyRoleLabel(t, role)}</span>
                   }
                 >
                   <NativeSelect
@@ -480,7 +480,7 @@ function PolicyForm({
                     value={draft.rules[role] ?? ''}
                     onChange={(e) => update({ rules: { ...draft.rules, [role]: e.target.value } })}
                   >
-                    <option value="">Aucune règle</option>
+                    <option value="">{t('providerAdmin.policy.noRule')}</option>
                     {aliasNames.map((a) => (
                       <option key={a} value={a}>
                         {a} ({modelOfAlias(a)})
@@ -493,16 +493,16 @@ function PolicyForm({
           </fieldset>
 
           <fieldset className="space-y-2">
-            <legend className={FIELD_LABEL}>Chaîne de repli (essayée dans cet ordre)</legend>
+            <legend className={FIELD_LABEL}>{t('providerAdmin.policy.fallbackLegend')}</legend>
             {draft.fallback.length === 0 && (
               <p className="text-xs text-gray-500">
-                Aucun repli : un modèle en échec n’est pas remplacé.
+                {t('providerAdmin.policy.noFallback')}
               </p>
             )}
             {draft.fallback.length > 0 && (
               <ol
                 className="divide-y divide-white/[0.05] rounded-lg border border-white/[0.06]"
-                aria-label="Chaîne de repli"
+                aria-label={t('providerAdmin.policy.fallbackAria')}
               >
                 {draft.fallback.map((alias, i) => (
                   <li
@@ -517,7 +517,7 @@ function PolicyForm({
                     <Button
                       size="sm"
                       variant="ghost"
-                      aria-label={`Monter ${alias}`}
+                      aria-label={t('providerAdmin.policy.moveUp', { alias })}
                       disabled={i === 0}
                       onClick={() => move(i, -1)}
                     >
@@ -526,7 +526,7 @@ function PolicyForm({
                     <Button
                       size="sm"
                       variant="ghost"
-                      aria-label={`Descendre ${alias}`}
+                      aria-label={t('providerAdmin.policy.moveDown', { alias })}
                       disabled={i === draft.fallback.length - 1}
                       onClick={() => move(i, 1)}
                     >
@@ -535,7 +535,7 @@ function PolicyForm({
                     <Button
                       size="sm"
                       variant="ghost"
-                      aria-label={`Retirer ${alias} de la chaîne`}
+                      aria-label={t('providerAdmin.policy.removeFromChain', { alias })}
                       onClick={() => update({ fallback: draft.fallback.filter((_, j) => j !== i) })}
                     >
                       <X className="h-4 w-4" aria-hidden="true" />
@@ -548,7 +548,7 @@ function PolicyForm({
               <div className="flex items-end gap-2">
                 <FormField
                   id="fallback-add"
-                  label={<span className="font-normal text-gray-400">Ajouter à la chaîne</span>}
+                  label={<span className="font-normal text-gray-400">{t('providerAdmin.policy.addToChain')}</span>}
                   className="flex-1"
                 >
                   <NativeSelect
@@ -556,7 +556,7 @@ function PolicyForm({
                     value={pendingAlias}
                     onChange={(e) => setPendingAlias(e.target.value)}
                   >
-                    <option value="">Choisir un alias…</option>
+                    <option value="">{t('providerAdmin.policy.chooseAlias')}</option>
                     {aliasNames
                       .filter((a) => !draft.fallback.includes(a))
                       .map((a) => (
@@ -575,47 +575,46 @@ function PolicyForm({
                     setPendingAlias('')
                   }}
                 >
-                  Ajouter
+                  {t('providerAdmin.ui.add')}
                 </Button>
               </div>
             </div>
             <FieldNote
               id="fallback-rules"
-              help="Un repli n’atteint jamais une origine que le projet n’a pas autorisée, et ne remplace jamais un modèle choisi explicitement."
+              help={t('providerAdmin.policy.fallbackRules')}
             />
           </fieldset>
 
           <fieldset className="space-y-2">
-            <legend className={FIELD_LABEL}>Plafonds (vide = pas de plafond)</legend>
+            <legend className={FIELD_LABEL}>{t('providerAdmin.policy.capsLegend')}</legend>
             <div className="grid gap-4 sm:grid-cols-2">
-              {capInput('per_task_usd', 'Par tâche (USD)', true)}
-              {capInput('per_run_usd', 'Par exécution (USD)', true)}
-              {capInput('per_task_tokens', 'Par tâche (tokens)', false)}
-              {capInput('per_run_tokens', 'Par exécution (tokens)', false)}
+              {capInput('per_task_usd', t('providerAdmin.policy.perTaskUsd'), true)}
+              {capInput('per_run_usd', t('providerAdmin.policy.perRunUsd'), true)}
+              {capInput('per_task_tokens', t('providerAdmin.policy.perTaskTokens'), false)}
+              {capInput('per_run_tokens', t('providerAdmin.policy.perRunTokens'), false)}
             </div>
             <p id="cap-usd-help" className="text-xs text-gray-500">
-              {USD_CAP_HELP_FR}
-              {!usdAllowed &&
-                ' Plafonds en dollars indisponibles tant que chaque alias utilisé ci-dessus ne pointe pas vers un provider tarifé.'}
+              {t('providerAdmin.policy.usdHelp')}
+              {!usdAllowed && t('providerAdmin.policy.usdUnavailable')}
             </p>
           </fieldset>
 
           {confirm && (
             <ConfirmPanel
-              title="Appliquer cette politique ?"
-              confirmLabel="Appliquer"
+              title={t('providerAdmin.policy.applyTitle')}
+              confirmLabel={t('providerAdmin.policy.apply')}
               onConfirm={doSave}
               onCancel={() => setConfirm(null)}
             >
               {confirm.length === 0 ? (
-                <p>Aucun usage ne change de modèle.</p>
+                <p>{t('providerAdmin.policy.noChange')}</p>
               ) : (
                 <>
-                  <p>Ces usages changeront de modèle :</p>
+                  <p>{t('providerAdmin.policy.willChange')}</p>
                   <ul className="mt-1 list-disc pl-4">
                     {confirm.map((c) => (
                       <li key={c.role}>
-                        {POLICY_ROLE_LABELS_FR[c.role] ?? c.role} : {c.from} → {c.to}
+                        {t('providerAdmin.policy.changeLine', { role: policyRoleLabel(t, c.role), from: c.from, to: c.to })}
                       </li>
                     ))}
                   </ul>

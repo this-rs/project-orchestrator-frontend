@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { providersApi } from '@/services/providers'
 import { wizardErrorMessage } from '@/constants/providerWizard'
+import { useT } from '@/i18n'
 import type { ProviderModel } from '@/types/provider'
 
 /**
  * Model catalog of saved instances (`GET /chat/providers/{id}/models`), cached
  * for the session (module memory, never storage): the role, alias and policy
- * pickers of the same instance ask once. "Actualiser" bypasses the cache.
+ * pickers of the same instance ask once. "Refresh" bypasses the cache.
  */
 const cache = new Map<string, ProviderModel[]>()
 const inFlight = new Map<string, Promise<ProviderModel[]>>()
@@ -59,6 +60,7 @@ export function useModelCatalog(
   providerId: string | null | undefined,
   enabled = true
 ): ModelCatalog {
+  const { t } = useT()
   const cached = providerId ? (cache.get(providerId) ?? null) : null
   const [state, setState] = useState<{
     id: string | null
@@ -91,13 +93,13 @@ export function useModelCatalog(
             ...s,
             id: providerId,
             loading: false,
-            error: wizardErrorMessage(err),
+            error: wizardErrorMessage(err, t),
           }))
       )
     return () => {
       live = false
     }
-  }, [providerId, enabled])
+  }, [providerId, enabled, t])
 
   const refresh = useCallback(() => {
     if (!providerId) return
@@ -105,9 +107,9 @@ export function useModelCatalog(
     loadModelCatalog(providerId, true)
       .then((models) => setState({ id: providerId, models, loading: false, error: null }))
       .catch((err) =>
-        setState((s) => ({ ...s, id: providerId, loading: false, error: wizardErrorMessage(err) }))
+        setState((s) => ({ ...s, id: providerId, loading: false, error: wizardErrorMessage(err, t) }))
       )
-  }, [providerId])
+  }, [providerId, t])
 
   const sameId = state.id === (providerId ?? null)
   return {
