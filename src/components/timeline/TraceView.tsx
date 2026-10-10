@@ -608,7 +608,7 @@ export function TraceView({
               bodyH={Math.max(rowH * 4, maxRowsHeight)}
               gridCols={wide ? { gridTemplateColumns: `${TREE_COLUMN} minmax(0,1fr) 4rem` } : undefined}
               indentPx={wide ? INDENT_PX : 10}
-              caption={loadingText}
+              caption={L.loadingShort}
             />
           )
         ) : nothingRead ? (
@@ -654,6 +654,11 @@ export function TraceView({
   const detailPanel = selected && axis ? (
     <TraceDetail node={selected} origin={axis.first} labels={labels} onClose={closeDetail} onZoom={() => zoomOn(selected.key)} onOpen={onOpen} />
   ) : null
+  const stats = [
+    fill(L.spans, { n: tree.spanCount }),
+    ...(overview.peak > 0 ? [fill(labels.peak, { n: overview.peak })] : []),
+    ...(axis && axis.last > axis.first ? [formatItemDuration(axis.last - axis.first) ?? ''] : []),
+  ].filter(Boolean)
   const gridCols = wide ? { gridTemplateColumns: `${TREE_COLUMN} minmax(0,1fr) 4rem` } : undefined
 
   return (
@@ -661,12 +666,11 @@ export function TraceView({
       {status}
       <div className={side && detailPanel ? 'flex items-start gap-3' : ''}>
         <div role="region" aria-label={L.label} className="min-w-0 flex-1" onKeyDown={onKeyDown}>
-          {/* Toolbar */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-1">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 text-[11px] text-gray-400">
-              <span>{fill(L.spans, { n: tree.spanCount })}</span>
-              {overview.peak > 0 && <span>{fill(labels.peak, { n: overview.peak })}</span>}
-              {axis && axis.last > axis.first && <span className="tabular-nums">{formatItemDuration(axis.last - axis.first)}</span>}
+          {/* Toolbar: ONE line at any width (the counts truncate, the full text is the tooltip), so the
+              skeleton reserves exactly its height and nothing moves when the trace replaces it. */}
+          <div className="flex items-center gap-x-3 px-1 pb-1" data-testid="trace-toolbar">
+            <div className="min-w-0 flex-1 truncate text-[11px] text-gray-400" title={stats.join(' · ')}>
+              {stats.map((s, i) => <span key={i} className={`tabular-nums ${i > 0 ? 'ms-3' : ''}`}>{s}</span>)}
             </div>
             <div className="flex items-center gap-0.5">
               <ToolButton wide={wide} label={L.zoomOut} onClick={() => move(zoomView(view, 1 / ZOOM_STEP, 0.5, total), true)}><ZoomOut className="size-4" aria-hidden="true" /></ToolButton>
@@ -682,7 +686,7 @@ export function TraceView({
               <TraceMinimap axis={axis} view={view} overview={overview} onChange={(v) => move(v)} label={L.overview} windowLabel={L.window} idleLabel={labels.idle} tall={!wide} />
             </div>
           )}
-          <p className="px-1 pb-1 text-[10px] text-gray-400">{wide ? L.help : L.helpTouch}</p>
+          <p className="truncate px-1 pb-1 text-[10px] text-gray-400" title={wide ? L.help : L.helpTouch}>{wide ? L.help : L.helpTouch}</p>
 
           <div
             ref={gestureRef}

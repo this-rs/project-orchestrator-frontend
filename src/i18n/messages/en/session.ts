@@ -118,6 +118,7 @@ export default {
       collapse: "Collapse",
       loading: "Loading earlier turns… {loaded} of {total} events",
       loadingStart: "Loading the history…",
+      loadingShort: "Loading…",
       failed: "Part of the history could not be loaded.",
       failedAll: "The history could not be loaded.",
       retry: "Try again",

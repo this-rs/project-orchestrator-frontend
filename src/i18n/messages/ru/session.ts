@@ -120,6 +120,7 @@ export default {
       collapse: "Свернуть",
       loading: "Загрузка предыдущих ходов… {loaded} из {total} событий",
       loadingStart: "Загрузка истории…",
+      loadingShort: "Загрузка…",
       failed: "Часть истории не удалось загрузить.",
       failedAll: "Не удалось загрузить историю.",
       retry: "Повторить",

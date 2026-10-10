@@ -120,6 +120,7 @@ export default {
       collapse: "Zuklappen",
       loading: "Frühere Runden werden geladen… {loaded} von {total} Ereignissen",
       loadingStart: "Verlauf wird geladen…",
+      loadingShort: "Wird geladen…",
       failed: "Ein Teil des Verlaufs konnte nicht geladen werden.",
       failedAll: "Der Verlauf konnte nicht geladen werden.",
       retry: "Erneut versuchen",

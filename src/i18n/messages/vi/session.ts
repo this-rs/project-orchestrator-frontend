@@ -120,6 +120,7 @@ export default {
       collapse: "Thu gọn",
       loading: "Đang tải các lượt trước… {loaded} / {total} sự kiện",
       loadingStart: "Đang tải lịch sử…",
+      loadingShort: "Đang tải…",
       failed: "Không tải được một phần lịch sử.",
       failedAll: "Không tải được lịch sử.",
       retry: "Thử lại",

@@ -120,6 +120,7 @@ export default {
       collapse: "折叠",
       loading: "正在加载更早的轮次… {loaded} / {total} 个事件",
       loadingStart: "正在加载历史…",
+      loadingShort: "加载中…",
       failed: "部分历史无法加载。",
       failedAll: "无法加载历史。",
       retry: "重试",

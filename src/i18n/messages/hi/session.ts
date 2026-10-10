@@ -120,6 +120,7 @@ export default {
       collapse: "समेटें",
       loading: "पिछले चरण लोड हो रहे हैं… {total} में से {loaded} घटनाएँ",
       loadingStart: "इतिहास लोड हो रहा है…",
+      loadingShort: "लोड हो रहा है…",
       failed: "इतिहास का कुछ हिस्सा लोड नहीं हो सका।",
       failedAll: "इतिहास लोड नहीं हो सका।",
       retry: "फिर कोशिश करें",

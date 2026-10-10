@@ -120,6 +120,7 @@ export default {
       collapse: "Replier",
       loading: "Chargement des tours précédents… {loaded} sur {total} événements",
       loadingStart: "Chargement de l’historique…",
+      loadingShort: "Chargement…",
       failed: "Une partie de l’historique n’a pas pu être chargée.",
       failedAll: "L’historique n’a pas pu être chargé.",
       retry: "Réessayer",

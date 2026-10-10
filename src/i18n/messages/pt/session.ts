@@ -120,6 +120,7 @@ export default {
       collapse: "Recolher",
       loading: "Carregando turnos anteriores… {loaded} de {total} eventos",
       loadingStart: "Carregando o histórico…",
+      loadingShort: "A carregar…",
       failed: "Parte do histórico não pôde ser carregada.",
       failedAll: "Não foi possível carregar o histórico.",
       retry: "Tentar de novo",

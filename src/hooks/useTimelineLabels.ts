@@ -41,6 +41,7 @@ export function useTimelineLabels(): TimelineLabels {
         collapse: t('session.timeline.trace.collapse'),
         loading: t('session.timeline.trace.loading', { loaded: '{loaded}', total: '{total}' }),
         loadingStart: t('session.timeline.trace.loadingStart'),
+        loadingShort: t('session.timeline.trace.loadingShort'),
         failed: t('session.timeline.trace.failed'),
         failedAll: t('session.timeline.trace.failedAll'),
         retry: t('session.timeline.trace.retry'),

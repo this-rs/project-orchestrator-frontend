@@ -120,6 +120,7 @@ export default {
       collapse: "접기",
       loading: "이전 턴 불러오는 중… 이벤트 {total}개 중 {loaded}개",
       loadingStart: "기록 불러오는 중…",
+      loadingShort: "불러오는 중…",
       failed: "기록 일부를 불러오지 못했습니다.",
       failedAll: "기록을 불러오지 못했습니다.",
       retry: "다시 시도",

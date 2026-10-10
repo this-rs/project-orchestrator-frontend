@@ -60,8 +60,10 @@ describe('<TraceView> while the history loads', () => {
     // The pulse stops under prefers-reduced-motion.
     expect(skeleton.querySelector('.animate-pulse')).toBeNull()
     expect(skeleton.querySelector('[class*="motion-safe:animate-pulse"]')).toBeTruthy()
-    // The sentence of the status is also where the counts will be.
-    expect(skeleton.textContent).toContain('Loading the history…')
+    // A short word where the counts will be (the full sentence is the status).
+    expect(skeleton.textContent).toContain('Loading…')
+    // One line, like the trace's toolbar: nothing wraps, so the two have the same height.
+    expect(screen.getByTestId('trace-skeleton-toolbar').className).not.toMatch(/flex-wrap/)
   })
 
   it('the skeleton leaves when the first page lands', () => {
@@ -76,6 +78,15 @@ describe('<TraceView> while the history loads', () => {
 })
 
 describe('<TraceView> with a trace on screen', () => {
+  it('keeps its toolbar on one line: the counts truncate and say everything in their tooltip', () => {
+    render(<TraceView lanes={turn()} />)
+    const toolbar = screen.getByTestId('trace-toolbar')
+    expect(toolbar.className).not.toMatch(/flex-wrap/)
+    const counts = toolbar.firstElementChild as HTMLElement
+    expect(counts.className).toMatch(/\btruncate\b/)
+    expect(counts.title).toBe('Spans: 2 · Peak in parallel: 1 · 6.0 s')
+  })
+
   it('the rest of the history loading moves nothing: the progress line is always reserved and the rows stay the same nodes', () => {
     const { rerender } = render(<TraceView lanes={turn()} loading={{ loaded: 500, total: 1000 }} />)
     const bar = screen.getByTestId('trace-progress')

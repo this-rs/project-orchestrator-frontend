@@ -120,6 +120,7 @@ export default {
       collapse: "طي",
       loading: "جارٍ تحميل الأدوار السابقة… {loaded} من {total} حدثًا",
       loadingStart: "جارٍ تحميل السجل…",
+      loadingShort: "جارٍ التحميل…",
       failed: "تعذّر تحميل جزء من السجل.",
       failedAll: "تعذّر تحميل السجل.",
       retry: "إعادة المحاولة",

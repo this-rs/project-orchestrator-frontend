@@ -38,8 +38,8 @@ export function TraceSkeleton({ wide, rowH, bodyH, gridCols, indentPx, caption }
   const tool = wide ? 'size-8' : 'size-11'
   return (
     <div aria-hidden="true" data-testid="trace-skeleton" className="min-w-0">
-      {/* Toolbar: what is happening, where the counts will be; the four controls. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-1">
+      {/* Toolbar: what is happening, where the counts will be; the four controls. One line, like the trace's. */}
+      <div className="flex items-center gap-x-3 px-1 pb-1" data-testid="trace-skeleton-toolbar">
         <div className="flex min-w-0 flex-1 items-center gap-2 text-[11px] text-gray-400">
           <StatusDot tone="progress" pulse size="md" />
           <div className="truncate">{caption}</div>
@@ -56,8 +56,11 @@ export function TraceSkeleton({ wide, rowH, bodyH, gridCols, indentPx, caption }
           <Skeleton className="absolute inset-y-1 start-1 w-1/3 rounded-sm" />
         </div>
       </div>
-      {/* Help line (text-[10px], one line). */}
-      <div className="flex h-[15px] items-center px-1 pb-1"><Skeleton className="h-2 w-2/3" /></div>
+      {/* Help line: the same paragraph as the trace's (one truncated line), so the same height. */}
+      <div className="relative truncate px-1 pb-1 text-[10px]">
+        {'\u00a0'}
+        <div className="absolute inset-x-1 top-1/2 -translate-y-1/2"><Skeleton className="h-2 w-2/3" /></div>
+      </div>
 
       {/* Ruler. */}
       <div className={`border-b border-white/[0.08] ${wide ? 'grid items-end gap-x-2 pe-2' : 'px-1'}`} style={gridCols}>

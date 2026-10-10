@@ -52,6 +52,8 @@ export interface TraceLabels {
   /** `{loaded}` of `{total}` events. */
   loading: string
   loadingStart: string
+  /** The same, short enough for the skeleton's toolbar in a 20rem panel. */
+  loadingShort: string
   failed: string
   /** Nothing could be read at all (no trace to show behind the message). */
   failedAll: string
@@ -105,6 +107,7 @@ export const DEFAULT_TRACE_LABELS: TraceLabels = {
   collapse: 'Collapse',
   loading: 'Loading earlier turns… {loaded} of {total} events',
   loadingStart: 'Loading the history…',
+  loadingShort: 'Loading…',
   failed: 'Part of the history could not be loaded.',
   failedAll: 'The history could not be loaded.',
   retry: 'Try again',
