@@ -1,7 +1,5 @@
 import { useEffect } from 'react'
-
-/** Storage key of `chatTimelineOpenAtom`. */
-const OPEN_KEY = 'chat-timeline-open'
+import { CHAT_TIMELINE_OPEN_KEY } from '@/atoms/chat'
 
 /**
  * On a phone the timeline is a full-screen view: one left open on a previous visit must not
@@ -11,7 +9,7 @@ export function useResetTimelineOnPhone(setOpen: (open: boolean) => void, breakp
   useEffect(() => {
     try {
       if (!window.matchMedia(`(max-width: ${breakpointPx - 1}px)`).matches) return
-      if (window.localStorage.getItem(OPEN_KEY) === 'true') setOpen(false)
+      if (window.localStorage.getItem(CHAT_TIMELINE_OPEN_KEY) === 'true') setOpen(false)
     } catch {
       // No storage (private mode, blocked): nothing was remembered.
     }

@@ -11,11 +11,11 @@
  *
  * Both carry a link to the dedicated page (`/chat/:id/timeline`).
  */
-import { useCallback, useEffect, useId, useRef, useState, type ComponentProps, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
 import { ChartNoAxesGantt, Maximize2, X } from 'lucide-react'
-import { useIsMobile, useMediaQuery } from '@/hooks'
+import { useIsMobile } from '@/hooks'
 import { useT } from '@/i18n'
 import { focusRing, glassFlat, iconButton } from '@/components/ui/classes'
 import { workspacePath } from '@/utils/paths'
@@ -29,14 +29,13 @@ export interface ChatTimelinePanelProps extends StripProps {
   placement: 'docked' | 'column'
   /** Width of the docked chat panel (px): the side panel opens against its left edge. */
   dockOffset?: number
-  /** `column` only: another right-hand column is open (the assistant tree), so the conversation has less room. */
-  crowded?: boolean
 }
 
 /** Same width as the other side panels of the chat (assistant tree, the chat panel's minimum width). */
 const SIDE_WIDTH = 'w-80'
-/** Below this room beside the docked chat, the panel lies over the chat instead of being squeezed out of sight. */
-const MIN_DOCK_ROOM_PX = 280
+const SIDE_WIDTH_PX = 320
+/** The docked chat's resize handle (`w-1` on its left edge): an overlay starts right of it. */
+const RESIZE_HANDLE_PX = 4
 
 /** The viewport, following resizes, rotations and the on-screen keyboard (visualViewport). */
 function readViewport() {
@@ -56,11 +55,11 @@ function useViewport() {
   return size
 }
 
-export function ChatTimelinePanel({ onClose, placement, dockOffset = 0, crowded = false, ...strip }: ChatTimelinePanelProps) {
+export function ChatTimelinePanel({ onClose, placement, dockOffset = 0, ...strip }: ChatTimelinePanelProps) {
   const isMobile = useIsMobile()
   return isMobile
     ? <FullScreenTimeline onClose={onClose} {...strip} />
-    : <SideTimeline onClose={onClose} placement={placement} dockOffset={dockOffset} crowded={crowded} {...strip} />
+    : <SideTimeline onClose={onClose} placement={placement} dockOffset={dockOffset} {...strip} />
 }
 
 /** Focus goes back to the opener (the toggle) when the panel closes with focus inside it or lost. */
@@ -109,31 +108,39 @@ function HeaderClose({ onClose, className }: { onClose: () => void; className: s
 }
 
 /**
- * Desktop. Three ways to sit, all 20rem wide:
- * - `dock`: against the docked chat's left edge;
- * - `column`: a column of the full-screen chat, when the conversation keeps enough room
- *   (from `lg`, from `xl` when the assistant tree is open too);
- * - `overlay`: over the right edge of the conversation (full-screen chat, narrower screens) or
- *   over the docked chat (a chat resized to nearly the whole window).
+ * Desktop, 20rem wide:
+ * - `column`: a column of the full-screen chat (which hides its sidebar, or the
+ *   assistant tree, when room is short: see `timelineRoom`);
+ * - `dock`: against the docked chat's left edge, when the window has room for it;
+ * - `overlay-chat`: otherwise (a chat resized to nearly the whole window), over the
+ *   chat, just right of its resize handle so the chat can still be narrowed back.
+ * Escape closes it while the focus is inside (a detail sheet closes first).
  */
-function SideTimeline({ onClose, placement, dockOffset, crowded, ...strip }: StripProps & { onClose: () => void; placement: 'docked' | 'column'; dockOffset: number; crowded: boolean }) {
+function SideTimeline({ onClose, placement, dockOffset, ...strip }: StripProps & { onClose: () => void; placement: 'docked' | 'column'; dockOffset: number }) {
   const ref = useRef<HTMLElement>(null)
   const titleId = useId()
   useRestoreFocus(ref)
   const { width } = useViewport()
-  const lg = useMediaQuery('(min-width: 1024px)')
-  const xl = useMediaQuery('(min-width: 1280px)')
-  const layout: 'dock' | 'column' | 'overlay-chat' | 'overlay-conversation' = placement === 'docked'
-    ? (width - dockOffset >= MIN_DOCK_ROOM_PX ? 'dock' : 'overlay-chat')
-    : (xl || (lg && !crowded) ? 'column' : 'overlay-conversation')
+  const free = Math.max(0, width - dockOffset)
+  const layout: 'dock' | 'column' | 'overlay-chat' = placement === 'column'
+    ? 'column'
+    : free >= SIDE_WIDTH_PX ? 'dock' : 'overlay-chat'
   // The transform makes the panel the containing block of the trace's detail sheet
   // (`position: fixed`): it opens over the panel, not across the whole window.
   const className = {
     dock: `fixed top-0 bottom-0 z-30 border-l border-border-subtle bg-surface-raised shadow-2xl`,
-    'overlay-chat': `fixed top-0 bottom-0 left-0 z-40 max-w-full border-r border-border-subtle bg-surface-raised shadow-2xl`,
+    'overlay-chat': `fixed top-0 bottom-0 z-40 max-w-full border-x border-border-subtle bg-surface-raised shadow-2xl`,
     column: `shrink-0 border-l border-white/[0.06]`,
-    'overlay-conversation': `absolute top-0 right-0 bottom-0 z-20 max-w-full border-l border-border-subtle bg-surface-raised shadow-2xl`,
   }[layout]
+  const style = layout === 'dock'
+    ? { right: dockOffset }
+    : layout === 'overlay-chat'
+      ? { left: Math.min(free + RESIZE_HANDLE_PX, Math.max(0, width - SIDE_WIDTH_PX)) }
+      : undefined
+  const onKeyDown = (e: ReactKeyboardEvent) => {
+    if (e.key !== 'Escape' || ref.current?.querySelector('[data-testid="trace-sheet"]')) return
+    onClose()
+  }
   return (
     <aside
       ref={ref}
@@ -142,7 +149,8 @@ function SideTimeline({ onClose, placement, dockOffset, crowded, ...strip }: Str
       data-variant="side"
       data-layout={layout}
       className={`flex ${SIDE_WIDTH} flex-col [transform:translateZ(0)] ${className}`}
-      style={layout === 'dock' ? { right: dockOffset } : undefined}
+      style={style}
+      onKeyDown={onKeyDown}
     >
       <Header titleId={titleId} sessionId={strip.sessionId} workspaceSlug={strip.workspaceSlug} onClose={onClose} mobile={false} />
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-1">

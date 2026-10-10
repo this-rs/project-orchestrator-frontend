@@ -58,7 +58,7 @@ function Elsewhere() {
 }
 
 /** The composer's toggle and the panel it opens, as in the chat. */
-function Harness({ placement = 'docked' as 'docked' | 'column', dockOffset = 400, crowded = false }) {
+function Harness({ placement = 'docked' as 'docked' | 'column', dockOffset = 400 }) {
   const [open, setOpen] = useState(false)
   return (
     <MemoryRouter initialEntries={['/workspace/ws/overview?session=s&chat=open']}>
@@ -66,7 +66,7 @@ function Harness({ placement = 'docked' as 'docked' | 'column', dockOffset = 400
       <textarea aria-label="Message" />
       <Elsewhere />
       {open && (
-        <ChatTimelinePanel placement={placement} dockOffset={dockOffset} crowded={crowded} onClose={() => setOpen(false)} sessionId="s" messages={msgs} isStreaming={false} workspaceSlug="ws" />
+        <ChatTimelinePanel placement={placement} dockOffset={dockOffset} onClose={() => setOpen(false)} sessionId="s" messages={msgs} isStreaming={false} workspaceSlug="ws" />
       )}
     </MemoryRouter>
   )
@@ -114,33 +114,52 @@ describe('<ChatTimelinePanel>', () => {
       expect(panel.className).not.toContain('fixed')
     })
 
-    it.each([
-      [800, false, 'overlay-conversation'],
-      [900, false, 'overlay-conversation'],
-      [1024, false, 'column'],
-      [1024, true, 'overlay-conversation'],
-      [1280, true, 'column'],
-    ])('in the full-screen chat at %i px (assistant tree open: %s) it is a %s', (width, crowded, layout) => {
+    it.each([800, 900, 1024, 1280])('is a column of the full-screen chat at %i px (the chat makes the room)', (width) => {
       setViewport(width)
-      render(<Harness placement="column" crowded={crowded} />)
-      openWithToggle()
-      expect(screen.getByTestId('chat-timeline-panel').dataset.layout).toBe(layout)
-    })
-
-    it('lies over the docked chat when the chat leaves it no room', () => {
-      setViewport(1000)
-      render(<Harness dockOffset={800} />)
+      render(<Harness placement="column" />)
       openWithToggle()
       const panel = screen.getByTestId('chat-timeline-panel')
-      expect(panel.dataset.layout).toBe('overlay-chat')
-      expect(panel.style.right).toBe('')
+      expect(panel.dataset.layout).toBe('column')
+      expect(panel.className).not.toMatch(/\b(absolute|fixed)\b/)
     })
 
-    it('does not close on Escape (it is not modal)', () => {
+    it.each([
+      // window, docked chat → layout, panel style
+      [1000, 680, 'dock', { right: '680px', left: '' }], // exactly 320 px free
+      [1000, 690, 'overlay-chat', { right: '', left: '314px' }], // 310 px free: would be cut on the left
+      [1000, 720, 'overlay-chat', { right: '', left: '284px' }], // 280 px free
+      [1000, 800, 'overlay-chat', { right: '', left: '204px' }],
+    ])('at %i px with a %i px docked chat it is %s, fully on screen, right of the resize handle', (width, dock, layout, style) => {
+      setViewport(width)
+      render(<Harness dockOffset={dock} />)
+      openWithToggle()
+      const panel = screen.getByTestId('chat-timeline-panel')
+      expect(panel.dataset.layout).toBe(layout)
+      expect(panel.style.right).toBe(style.right)
+      expect(panel.style.left).toBe(style.left)
+      if (layout === 'overlay-chat') {
+        // The chat's resize handle sits at its left edge, x = width - dock (4 px wide): left of the panel.
+        expect(parseInt(panel.style.left)).toBeGreaterThanOrEqual(width - dock + 4)
+        expect(parseInt(panel.style.left) + 320).toBeLessThanOrEqual(width)
+      }
+    })
+
+    it('ignores an Escape pressed elsewhere (the chat keeps its keys)', () => {
       render(<Harness />)
       openWithToggle()
       fireEvent.keyDown(document, { key: 'Escape' })
       expect(screen.getByTestId('chat-timeline-panel')).toBeTruthy()
+    })
+
+    it.each([[1000, 400], [1000, 800]])('closes on Escape with the focus inside (window %i, chat %i) and gives focus back', (width, dock) => {
+      setViewport(width)
+      render(<Harness dockOffset={dock} />)
+      const toggle = openWithToggle()
+      const close = screen.getByRole('button', { name: 'Hide the timeline' })
+      close.focus()
+      fireEvent.keyDown(close, { key: 'Escape' })
+      expect(screen.queryByTestId('chat-timeline-panel')).toBeNull()
+      expect(document.activeElement).toBe(toggle)
     })
 
     it('closes from its own button and gives focus back to the toggle', () => {

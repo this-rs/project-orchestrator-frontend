@@ -50,8 +50,10 @@ export const chatSessionModelAtom = atom<string | null>(null)
 /** Whether auto-continue is enabled (automatically sends "Continue" after max_turns) */
 export const chatAutoContinueAtom = atom<boolean>(false)
 
-/** Whether the horizontal timeline strip is shown above the transcript (remembered per browser). */
-export const chatTimelineOpenAtom = atomWithStorage<boolean>('chat-timeline-open', false)
+/** Storage key of `chatTimelineOpenAtom` (also read by the reset on phones). */
+export const CHAT_TIMELINE_OPEN_KEY = 'chat-timeline-open'
+/** Whether the chat's timeline panel is open (remembered per browser). */
+export const chatTimelineOpenAtom = atomWithStorage<boolean>(CHAT_TIMELINE_OPEN_KEY, false)
 
 /** Draft key of a conversation that has no id yet (nothing sent so far). */
 export const NEW_CONVERSATION_DRAFT_KEY = '__new__'

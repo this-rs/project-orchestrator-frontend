@@ -6,7 +6,7 @@ import { useAtom } from 'jotai'
 import { useT } from '@/i18n'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
 import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom } from '@/atoms'
-import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
+import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
 import { describeSessionProvider, providerUnavailableReason } from '@/constants/providers'
@@ -35,6 +35,7 @@ import { FollowNotice } from './FollowNotice'
 import { ComposerDock } from './ComposerDock'
 import { ChatTimelinePanel } from './ChatTimelinePanel'
 import { useResetTimelineOnPhone } from './useResetTimelineOnPhone'
+import { timelineRoom } from './timelineRoom'
 import { collectRunning } from './runningActivity'
 import type { RunActions } from './ActivityBar'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
@@ -81,6 +82,8 @@ export function ChatPanel() {
   const [timelineOpen, setTimelineOpen] = useAtom(chatTimelineOpenAtom)
   const closeTimeline = useCallback(() => setTimelineOpen(false), [setTimelineOpen])
   useResetTimelineOnPhone(setTimelineOpen, MOBILE_BREAKPOINT)
+  const isLg = useMediaQuery('(min-width: 1024px)')
+  const isXl = useMediaQuery('(min-width: 1280px)')
   // Height of the composer floating over the bottom of the transcript (see ComposerDock)
   const [dockHeight, setDockHeight] = useState(0)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
@@ -439,6 +442,9 @@ export function ChatPanel() {
     </>
   )
 
+  // While the timeline column is open, what the full-screen chat sets aside for the conversation.
+  const room = timelineRoom({ timelineOpen, treeOpen: showAgentTree && !!rootSessionId, lg: isLg, xl: isXl })
+
   // --- FULLSCREEN LAYOUT: sidebar + conversation side by side ---
   // On mobile (<768px): sidebar is a full-screen overlay toggled via hamburger
   // On desktop: sidebar is a permanent 288px column
@@ -455,7 +461,7 @@ export function ChatPanel() {
         {panelDrop.over && <RefDropOverlay />}
         {/* Left sidebar — hidden on mobile, permanent on desktop */}
         {/* Desktop: static sidebar */}
-        <div className="hidden md:flex w-72 shrink-0 border-r border-white/[0.06] flex-col">
+        <div className={`hidden w-72 shrink-0 flex-col border-r border-white/[0.06] ${room.hideSidebar ? '' : 'md:flex'}`} data-testid="chat-sessions-sidebar">
           {/* Sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
           <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
             <span className="text-sm font-medium text-gray-300">{t('chatA-messages.panel.conversations')}</span>
@@ -656,7 +662,7 @@ export function ChatPanel() {
           ) : isNewConversation && !hasContext ? (
             <NoProjectsPlaceholder wsSlug={activeWsSlug} />
           ) : (
-            <div className="relative flex flex-1 min-h-0">
+            <div className="flex flex-1 min-h-0">
               {/* Main conversation column */}
               <div className="flex flex-col flex-1 min-w-0">
                 {/* Detached runs panel — fullscreen layout (collapsible historical view) */}
@@ -719,10 +725,10 @@ export function ChatPanel() {
 
               {/* Timeline: a right-hand column on desktop, a full-screen view on a phone */}
               {timelineOpen && (
-                <ChatTimelinePanel placement="column" crowded={showAgentTree && !!rootSessionId} onClose={closeTimeline} sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
+                <ChatTimelinePanel placement="column" onClose={closeTimeline} sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
               )}
               {/* Agent Tree right panel — fullscreen layout */}
-              {showAgentTree && rootSessionId && (
+              {showAgentTree && rootSessionId && !room.hideTree && (
                 <div className="w-80 shrink-0 border-l border-white/[0.06] flex flex-col overflow-y-auto p-3">
                   <DiscussionTreeView sessionId={rootSessionId} onNavigate={handleTreeNavigate} />
                 </div>
