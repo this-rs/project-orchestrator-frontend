@@ -11,6 +11,9 @@ import {
 import { boardCollision } from './boardCollision'
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core'
 import { useKanbanColumnData, useIsMobile, useToast } from '@/hooks'
+import { useT } from '@/i18n'
+import type { MessageKey } from '@/i18n'
+import { statusKey } from './statusLabels'
 import type { ColumnData } from '@/hooks'
 import { useCrudEventSync } from '@/hooks/useCrudEventSync'
 import { UniversalKanbanCard } from './UniversalKanbanCard'
@@ -25,6 +28,24 @@ interface UniversalKanbanProps<T extends { id: string; status: string }> {
   refreshTrigger?: number
 }
 
+const EMPTY_KEYS = {
+  task: 'kanban.empty.task',
+  plan: 'kanban.empty.plan',
+  milestone: 'kanban.empty.milestone',
+  step: 'kanban.empty.step',
+} as const satisfies Record<string, MessageKey>
+
+const FAILED_KEYS = {
+  task: 'kanban.updateFailed.task',
+  plan: 'kanban.updateFailed.plan',
+  milestone: 'kanban.updateFailed.milestone',
+  step: 'kanban.updateFailed.step',
+} as const satisfies Record<string, MessageKey>
+
+function keyOf<R extends Record<string, MessageKey>>(table: R, k: string): MessageKey | undefined {
+  return Object.prototype.hasOwnProperty.call(table, k) ? table[k as keyof R] : undefined
+}
+
 export function UniversalKanban<T extends { id: string; status: string }>({
   config,
   filters = {},
@@ -35,6 +56,16 @@ export function UniversalKanban<T extends { id: string; status: string }>({
   const [activeItem, setActiveItem] = useState<T | null>(null)
   const isMobile = useIsMobile()
   const toast = useToast()
+  const { t } = useT()
+  const columnTitle = (col: { status: string; label: string }) => {
+    const key = statusKey(col.status)
+    return key ? t(key) : col.label
+  }
+  const emptyLabel = (() => {
+    const key = keyOf(EMPTY_KEYS, config.entityType)
+    return key ? t(key) : config.emptyLabel
+  })()
+  const failedText = t(keyOf(FAILED_KEYS, config.entityType) ?? 'kanban.updateFailed.other')
   const visibleColumns = useMemo(
     () => config.columns.filter((col) => !hiddenStatuses.includes(col.status)),
     [config.columns, hiddenStatuses],
@@ -105,7 +136,7 @@ export function UniversalKanban<T extends { id: string; status: string }>({
           cols[oldStatus]?.removeItem(item.id)
         } catch (error) {
           console.error(`Failed to update ${config.entityType} status:`, error)
-          toast.error(`Failed to update ${config.entityType} status`)
+          toast.error(failedText)
         }
         return
       }
@@ -124,10 +155,10 @@ export function UniversalKanban<T extends { id: string; status: string }>({
         cols[newStatus].removeItem(item.id)
         cols[oldStatus].addItem(item)
         console.error(`Failed to update ${config.entityType} status:`, error)
-        toast.error(`Failed to update ${config.entityType} status`)
+        toast.error(failedText)
       }
     },
-    [config, markOptimistic, toast],
+    [config, markOptimistic, toast, failedText],
   )
 
   const handleDragEnd = useCallback(
@@ -156,7 +187,7 @@ export function UniversalKanban<T extends { id: string; status: string }>({
             <div key={col.status} className="w-[82vw] max-w-[340px] shrink-0 snap-start flex">
               <UniversalKanbanColumn
                 id={col.status}
-                title={col.label}
+                title={columnTitle(col)}
                 items={data.items}
                 kind={config.statusKind}
                 total={data.total}
@@ -164,7 +195,7 @@ export function UniversalKanban<T extends { id: string; status: string }>({
                 loadingMore={data.loadingMore}
                 onLoadMore={data.loadMore}
                 loading={data.loading}
-                emptyLabel={config.emptyLabel}
+                emptyLabel={emptyLabel}
                 fullWidth
               >
                 {(item) => (
@@ -194,7 +225,7 @@ export function UniversalKanban<T extends { id: string; status: string }>({
             <UniversalKanbanColumn
               key={col.status}
               id={col.status}
-              title={col.label}
+              title={columnTitle(col)}
               items={data.items}
               kind={config.statusKind}
               total={data.total}
@@ -202,7 +233,7 @@ export function UniversalKanban<T extends { id: string; status: string }>({
               loadingMore={data.loadingMore}
               onLoadMore={data.loadMore}
               loading={data.loading}
-              emptyLabel={config.emptyLabel}
+              emptyLabel={emptyLabel}
             >
               {(item) => (
                 <UniversalKanbanCard key={item.id} id={item.id} onClick={() => onItemClick?.(item.id)}>

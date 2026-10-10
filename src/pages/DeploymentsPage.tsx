@@ -36,30 +36,21 @@ import {
   type EnvironmentKind,
 } from '@/services/environments'
 import type { Project } from '@/types'
-import { NOMENCLATURE } from '@/constants/nomenclature'
+import { useT } from '@/i18n'
 import { workspacePath } from '@/utils/paths'
 
 /** Deployment states are outside the status registry: a tone each (§4), never a colour alone. */
-const STATUS: Record<DeploymentStatus, { label: string; tone: StatusTone }> = {
-  succeeded: { label: 'Succeeded', tone: 'success' },
-  running: { label: 'Running', tone: 'progress' },
-  pending: { label: 'Pending', tone: 'neutral' },
-  failed: { label: 'Failed', tone: 'danger' },
-  rolled_back: { label: 'Rolled back', tone: 'warning' },
+const STATUS: Record<DeploymentStatus, { tone: StatusTone }> = {
+  succeeded: { tone: 'success' },
+  running: { tone: 'progress' },
+  pending: { tone: 'neutral' },
+  failed: { tone: 'danger' },
+  rolled_back: { tone: 'warning' },
 }
 /** States that draw the row's rail: moving or needing attention (done / pending stay quiet). */
 const RAIL_TONES: ReadonlySet<DeploymentStatus> = new Set(['running', 'failed', 'rolled_back'])
 
 const KIND_ORDER: Record<EnvironmentKind, number> = { dev: 0, staging: 1, production: 2, other: 3 }
-const KIND_LABEL: Record<EnvironmentKind, string> = {
-  dev: 'Dev',
-  staging: 'Staging',
-  production: 'Production',
-  other: 'Other',
-}
-
-const KIND_OPTIONS = ENVIRONMENT_KINDS.map((k) => ({ value: k, label: KIND_LABEL[k] }))
-const STATUS_OPTIONS = DEPLOYMENT_STATUSES.map((s) => ({ value: s, label: STATUS[s].label }))
 
 interface ProjectMatrix {
   project: Project
@@ -90,11 +81,12 @@ function Field({
 
 /** Latest first, as a short row of dots (colour + a title: never colour alone). */
 function History({ statuses }: { statuses: DeploymentStatus[] }) {
+  const { t } = useT()
   if (statuses.length === 0) return null
   return (
-    <span className="inline-flex items-center gap-0.5" role="img" aria-label={`Last ${statuses.length} deployments`}>
+    <span className="inline-flex items-center gap-0.5" role="img" aria-label={t('deployments.lastN', { count: statuses.length })}>
       {[...statuses].reverse().map((s, i) => (
-        <span key={i} title={STATUS[s].label} className={`h-1.5 w-1.5 rounded-full ${TONE_CLASSES[STATUS[s].tone].dot}`} />
+        <span key={i} title={t(`deployments.status.${s}` as const)} className={`h-1.5 w-1.5 rounded-full ${TONE_CLASSES[STATUS[s].tone].dot}`} />
       ))}
     </span>
   )
@@ -118,8 +110,10 @@ function EnvironmentDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const { t } = useT()
   const toast = useToast()
   const editing = Boolean(environment)
+  const kindOptions = ENVIRONMENT_KINDS.map((k) => ({ value: k, label: t(`deployments.kind.${k}` as const) }))
   const [projectId, setProjectId] = useState(initialProjectId)
   const [name, setName] = useState(environment?.name ?? '')
   const [kind, setKind] = useState<EnvironmentKind>(environment?.kind ?? 'dev')
@@ -130,14 +124,14 @@ function EnvironmentDialog({
   const handleSubmit = async () => {
     const cleanName = name.trim()
     if (!cleanName) {
-      toast.error('A name is required')
+      toast.error(t('deployments.envDialog.nameRequired'))
       return false
     }
     if (config.trim()) {
       try {
         JSON.parse(config)
       } catch {
-        toast.error('Config must be valid JSON')
+        toast.error(t('deployments.envDialog.configInvalid'))
         return false
       }
     }
@@ -152,7 +146,7 @@ function EnvironmentDialog({
           description: description.trim(),
           config: config.trim(),
         })
-        toast.success(`${cleanName} updated`)
+        toast.success(t('deployments.envDialog.updated', { name: cleanName }))
       } else {
         await environmentsApi.create(projectId, {
           name: cleanName,
@@ -161,11 +155,11 @@ function EnvironmentDialog({
           ...(description.trim() && { description: description.trim() }),
           ...(config.trim() && { config: config.trim() }),
         })
-        toast.success(`${cleanName} created`)
+        toast.success(t('deployments.envDialog.created', { name: cleanName }))
       }
       onSaved()
     } catch (err) {
-      toast.error(apiErrorMessage(err, 'Could not save the environment'))
+      toast.error(apiErrorMessage(err, t('deployments.envDialog.saveFailed')))
       return false
     }
   }
@@ -175,12 +169,12 @@ function EnvironmentDialog({
       open
       onClose={onClose}
       onSubmit={handleSubmit}
-      title={editing ? `Edit ${environment?.name}` : 'New environment'}
-      submitLabel={editing ? 'Save' : 'Create'}
+      title={editing ? t('deployments.envDialog.editTitle', { name: environment?.name ?? '' }) : t('deployments.envDialog.newTitle')}
+      submitLabel={editing ? t('deployments.envDialog.save') : t('deployments.envDialog.create')}
     >
       <div className="space-y-3">
         {!editing && (
-          <Field label="Project *">
+          <Field label={t('deployments.envDialog.project')}>
             {() => (
               <Select
                 value={projectId}
@@ -190,30 +184,30 @@ function EnvironmentDialog({
             )}
           </Field>
         )}
-        <Field label="Name *" hint="Unique within the project — dev, staging, production, a region…">
+        <Field label={t('deployments.envDialog.name')} hint={t('deployments.envDialog.nameHint')}>
           {(id) => (
-            <Input id={id} value={name} onChange={(e) => setName(e.target.value)} placeholder="production" />
+            <Input id={id} value={name} onChange={(e) => setName(e.target.value)} placeholder={t('deployments.envDialog.namePlaceholder')} />
           )}
         </Field>
-        <Field label="Kind *">
-          {() => <Select value={kind} onChange={(v) => setKind(v as EnvironmentKind)} options={KIND_OPTIONS} />}
+        <Field label={t('deployments.envDialog.kind')}>
+          {() => <Select value={kind} onChange={(v) => setKind(v as EnvironmentKind)} options={kindOptions} />}
         </Field>
-        <Field label="URL">
+        <Field label={t('deployments.envDialog.url')}>
           {(id) => (
             <Input id={id} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://app.example.com" />
           )}
         </Field>
-        <Field label="Description">
+        <Field label={t('deployments.envDialog.description')}>
           {(id) => (
             <Input
               id={id}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What runs here, and how it is served"
+              placeholder={t('deployments.envDialog.descriptionPlaceholder')}
             />
           )}
         </Field>
-        <Field label="Config" hint="Free-form JSON: host, region, runtime…">
+        <Field label={t('deployments.envDialog.config')} hint={t('deployments.envDialog.configHint')}>
           {(id) => (
             <Textarea
               id={id}
@@ -240,7 +234,9 @@ function DeployDialog({
   onClose: () => void
   onSaved: () => void
 }) {
+  const { t } = useT()
   const toast = useToast()
+  const statusOptions = DEPLOYMENT_STATUSES.map((s) => ({ value: s, label: t(`deployments.status.${s}` as const) }))
   const [version, setVersion] = useState('')
   const [commitSha, setCommitSha] = useState('')
   const [status, setStatus] = useState<DeploymentStatus>('succeeded')
@@ -255,10 +251,10 @@ function DeployDialog({
         ...(commitSha.trim() && { commit_sha: commitSha.trim() }),
         ...(notes.trim() && { notes: notes.trim() }),
       })
-      toast.success(`Deployment recorded on ${environment.name}`)
+      toast.success(t('deployments.deployDialog.recorded', { name: environment.name }))
       onSaved()
     } catch (err) {
-      toast.error(apiErrorMessage(err, 'Could not record the deployment'))
+      toast.error(apiErrorMessage(err, t('deployments.deployDialog.failed')))
       return false
     }
   }
@@ -268,19 +264,19 @@ function DeployDialog({
       open
       onClose={onClose}
       onSubmit={handleSubmit}
-      title={`Record a deployment — ${environment.name}`}
-      submitLabel="Record"
+      title={t('deployments.deployDialog.title', { name: environment.name })}
+      submitLabel={t('deployments.deployDialog.submit')}
     >
       <div className="space-y-3">
         <p className="text-xs text-gray-500">
-          What was shipped here, and how it went. A terminal status is timestamped as finished by the server.
+          {t('deployments.deployDialog.intro')}
         </p>
-        <Field label="Version">
+        <Field label={t('deployments.deployDialog.version')}>
           {(id) => (
             <Input id={id} value={version} onChange={(e) => setVersion(e.target.value)} placeholder="v0.0.15" />
           )}
         </Field>
-        <Field label="Commit">
+        <Field label={t('deployments.deployDialog.commit')}>
           {(id) => (
             <Input
               id={id}
@@ -291,12 +287,12 @@ function DeployDialog({
             />
           )}
         </Field>
-        <Field label="Status *">
-          {() => <Select value={status} onChange={(v) => setStatus(v as DeploymentStatus)} options={STATUS_OPTIONS} />}
+        <Field label={t('deployments.deployDialog.status')}>
+          {() => <Select value={status} onChange={(v) => setStatus(v as DeploymentStatus)} options={statusOptions} />}
         </Field>
-        <Field label="Notes">
+        <Field label={t('deployments.deployDialog.notes')}>
           {(id) => (
-            <Textarea id={id} value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Anything worth remembering" />
+            <Textarea id={id} value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder={t('deployments.deployDialog.notesPlaceholder')} />
           )}
         </Field>
       </div>
@@ -309,6 +305,7 @@ function DeployDialog({
  * shipped there last. Read from the deployment matrix, written from here.
  */
 export function DeploymentsPage() {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const toast = useToast()
   const [projects, setProjects] = useState<Project[]>([])
@@ -332,11 +329,11 @@ export function DeploymentsPage() {
       setProjects(list)
       setMatrices(all)
     } catch {
-      setError('Failed to load deployments')
+      setError(t('deployments.page.loadFailed'))
     } finally {
       setLoading(false)
     }
-  }, [wsSlug])
+  }, [wsSlug, t])
 
   useEffect(() => {
     setLoading(true)
@@ -352,10 +349,10 @@ export function DeploymentsPage() {
   const remove = async (env: Environment) => {
     try {
       await environmentsApi.remove(env.id)
-      toast.success(`${env.name} deleted`)
+      toast.success(t('deployments.page.deleted', { name: env.name }))
       load()
     } catch (err) {
-      toast.error(apiErrorMessage(err, 'Could not delete the environment'))
+      toast.error(apiErrorMessage(err, t('deployments.page.deleteFailed')))
     }
   }
 
@@ -364,10 +361,10 @@ export function DeploymentsPage() {
     if (!deploymentId) return
     try {
       await environmentsApi.updateDeployment(deploymentId, { status })
-      toast.success(`Marked ${STATUS[status].label.toLowerCase()}`)
+      toast.success(t('deployments.page.marked', { status: t(`deployments.status.${status}` as const).toLowerCase() }))
       load()
     } catch (err) {
-      toast.error(apiErrorMessage(err, 'Could not update the deployment'))
+      toast.error(apiErrorMessage(err, t('deployments.page.updateFailed')))
     }
   }
 
@@ -376,15 +373,15 @@ export function DeploymentsPage() {
 
   return (
     <PageShell
-      title={NOMENCLATURE.deployments.plural}
-      description={NOMENCLATURE.deployments.description}
+      title={t('nav.concepts.deployments')}
+      description={t('deployments.description')}
       intro="deployments"
       width="wide"
       actions={
         projects.length > 0 ? (
           <Button size="sm" onClick={newEnvironment}>
             <Plus className="w-4 h-4" aria-hidden="true" />
-            New environment
+            {t('deployments.page.newEnvironment')}
           </Button>
         ) : undefined
       }
@@ -395,13 +392,13 @@ export function DeploymentsPage() {
         <ErrorState description={error} onRetry={load} />
       ) : withEnvs.length === 0 ? (
         <EmptyState
-          title="No environments yet"
-          description="Declare where a project runs — dev, staging, production — then record what you ship there."
+          title={t('deployments.page.emptyTitle')}
+          description={t('deployments.page.emptyBody')}
           action={
             projects.length > 0 ? (
               <Button size="sm" onClick={newEnvironment}>
                 <Plus className="w-4 h-4" aria-hidden="true" />
-                New environment
+                {t('deployments.page.newEnvironment')}
               </Button>
             ) : undefined
           }
@@ -410,7 +407,7 @@ export function DeploymentsPage() {
         <div className="space-y-6">
           {withEnvs.map(({ project, rows }) => (
             <ListGroup key={project.id} title={project.name} count={rows.length}>
-              <EntityList aria-label={`${project.name} environments`}>
+              <EntityList aria-label={t('deployments.page.environments', { name: project.name })}>
                 {[...rows]
                   .sort((a, b) => KIND_ORDER[a.environment.kind] - KIND_ORDER[b.environment.kind])
                   .map(({ environment: env, latest_deployment: dep, recent_statuses }) => {
@@ -418,33 +415,33 @@ export function DeploymentsPage() {
                     // The deployment still open, if any — settling needs its id.
                     const inFlight = dep && (dep.status === 'pending' || dep.status === 'running') ? dep : null
                     const actions: OverflowMenuAction[] = [
-                      { label: 'Record a deployment', icon: Rocket, onClick: () => setDeployTarget(env) },
+                      { label: t('deployments.page.record'), icon: Rocket, onClick: () => setDeployTarget(env) },
                       {
-                        label: 'Mark succeeded',
+                        label: t('deployments.page.markSucceeded'),
                         icon: CheckCircle2,
                         hidden: !inFlight,
                         onClick: () => settle(inFlight?.id, 'succeeded'),
                       },
                       {
-                        label: 'Mark failed',
+                        label: t('deployments.page.markFailed'),
                         icon: XCircle,
                         hidden: !inFlight,
                         onClick: () => settle(inFlight?.id, 'failed'),
                       },
                       {
-                        label: 'Edit',
+                        label: t('deployments.page.edit'),
                         icon: Pencil,
                         onClick: () => setEnvTarget({ projectId: project.id, environment: env }),
                       },
                       {
-                        label: 'Delete',
+                        label: t('deployments.page.delete'),
                         icon: Trash2,
                         variant: 'danger',
                         onClick: () => remove(env),
                         confirm: {
-                          title: `Delete ${env.name}?`,
-                          description: 'Its deployment history goes with it. This cannot be undone.',
-                          confirmLabel: 'Delete',
+                          title: t('deployments.page.deleteTitle', { name: env.name }),
+                          description: t('deployments.page.deleteBody'),
+                          confirmLabel: t('deployments.page.delete'),
                         },
                       },
                     ]
@@ -456,9 +453,9 @@ export function DeploymentsPage() {
                         actions={actions}
                         status={
                           st && dep ? (
-                            <ToneText tone={st.tone} icon label={st.label} pulse={dep.status === 'running'} />
+                            <ToneText tone={st.tone} icon label={t(`deployments.status.${dep.status}` as const)} pulse={dep.status === 'running'} />
                           ) : (
-                            <span className="text-gray-500">Never deployed</span>
+                            <span className="text-gray-500">{t('deployments.page.neverDeployed')}</span>
                           )
                         }
                         tone={dep && RAIL_TONES.has(dep.status) ? STATUS[dep.status].tone : undefined}
@@ -466,7 +463,7 @@ export function DeploymentsPage() {
                         meta={[
                           dep?.version ? <span key="v" className="tabular-nums">{dep.version}</span> : null,
                           dep?.commit_sha ? <code key="c" className="text-[11px]">{dep.commit_sha.slice(0, 7)}</code> : null,
-                          KIND_LABEL[env.kind],
+                          t(`deployments.kind.${env.kind}` as const),
                           <History key="h" statuses={recent_statuses} />,
                           env.url ? (
                             <a
@@ -489,9 +486,9 @@ export function DeploymentsPage() {
           ))}
           {matrices.length > withEnvs.length && (
             <p className="text-xs text-gray-500">
-              {matrices.length - withEnvs.length} project(s) have no environment yet.{' '}
+              {t('deployments.page.noEnvironment', { count: matrices.length - withEnvs.length })}{' '}
               <Link className={inlineLink} to={workspacePath(wsSlug, '/projects')}>
-                Projects
+                {t('deployments.page.projects')}
               </Link>
             </p>
           )}

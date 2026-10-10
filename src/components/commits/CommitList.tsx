@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react'
 import { Check, ChevronRight, Copy, GitCommitHorizontal } from 'lucide-react'
 import { commitsApi } from '@/services'
-import { EntityList, EntityRow, RelativeTime, hitArea, pluralize, rowInteractive } from '@/components/ui'
+import { useT } from '@/i18n'
+import { EntityList, EntityRow, RelativeTime, hitArea, rowInteractive } from '@/components/ui'
 import { focusRing } from '@/components/ui/classes'
 import type { Commit, CommitFile } from '@/types'
 
@@ -11,13 +12,14 @@ interface CommitListProps {
 }
 
 /** Linked commits as EntityRows; tap a row to load its changed files. */
-export function CommitList({ commits, emptyMessage = 'No commits' }: CommitListProps) {
+export function CommitList({ commits, emptyMessage }: CommitListProps) {
+  const { t } = useT()
   if (commits.length === 0) {
-    return <p className="px-1 py-2 text-xs text-gray-500">{emptyMessage}</p>
+    return <p className="px-1 py-2 text-xs text-gray-500">{emptyMessage ?? t('commits.empty')}</p>
   }
 
   return (
-    <EntityList aria-label="Commits">
+    <EntityList aria-label={t('commits.title')}>
       {commits.map((commit) => (
         <CommitRow key={commit.sha} commit={commit} />
       ))}
@@ -26,6 +28,7 @@ export function CommitList({ commits, emptyMessage = 'No commits' }: CommitListP
 }
 
 function CommitRow({ commit }: { commit: Commit }) {
+  const { t } = useT()
   const [expanded, setExpanded] = useState(false)
   const [files, setFiles] = useState<CommitFile[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -79,7 +82,7 @@ function CommitRow({ commit }: { commit: Commit }) {
             e.stopPropagation()
             handleCopySha()
           }}
-          aria-label={copied ? `Copied ${short}` : `Copy SHA ${short}`}
+          aria-label={copied ? t('commits.copied', { sha: short }) : t('commits.copy', { sha: short })}
           title={commit.sha}
           className={`${rowInteractive} ${hitArea} ${focusRing} inline-flex items-center gap-1 rounded font-mono text-indigo-300/90 hover:text-indigo-200`}
         >
@@ -96,13 +99,13 @@ function CommitRow({ commit }: { commit: Commit }) {
             {commit.author}
           </span>
         ) : null,
-        commit.files_changed && commit.files_changed.length > 0 ? pluralize(commit.files_changed.length, 'file') : null,
+        commit.files_changed && commit.files_changed.length > 0 ? t(commit.files_changed.length === 1 ? 'commits.files.one' : 'commits.files.other', { count: commit.files_changed.length }) : null,
       ]}
     >
       {expanded && (
         <div className="rounded-md bg-white/[0.02] border border-white/[0.04] px-2 py-1.5">
           {loading ? (
-            <p className="text-xs text-gray-500 py-1">Loading files…</p>
+            <p className="text-xs text-gray-500 py-1">{t('commits.loadingFiles')}</p>
           ) : files && files.length > 0 ? (
             <ul className="space-y-0.5">
               {files.map((file) => (
@@ -114,7 +117,7 @@ function CommitRow({ commit }: { commit: Commit }) {
               ))}
             </ul>
           ) : (
-            <p className="text-xs text-gray-500 py-1">No file details available</p>
+            <p className="text-xs text-gray-500 py-1">{t('commits.noFiles')}</p>
           )}
         </div>
       )}

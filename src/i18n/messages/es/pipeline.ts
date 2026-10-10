@@ -1,0 +1,77 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  dashboard: {
+    description: 'Las ejecuciones de sus asistentes en los planes y lo que las inicia.',
+    planFallback: 'Plan {id}…',
+    searchPlaceholder: 'Buscar ejecuciones…',
+    refresh: 'Actualizar',
+    underTheHood: 'Bajo el capó',
+    explainer: 'Una ejecución es la puesta en marcha de un plan: las tareas que no dependen unas de otras forman una ola y se ejecutan al mismo tiempo, cada una con su propio asistente; la siguiente ola empieza cuando la anterior se ha verificado. Abra una ejecución para seguirla en directo.',
+    status: {
+      all: 'Todos los estados',
+      running: 'En ejecución',
+      completed: 'Completada',
+      failed: 'Fallida',
+      interrupted: 'Interrumpida',
+    },
+    loadFailed: 'No se pudieron cargar las ejecuciones del pipeline',
+    emptyPristineTitle: 'Aún no hay ejecuciones',
+    emptyPristineBody: 'Ejecute un plan para ver aquí su historial de ejecución.',
+    emptyFilteredTitle: 'No hay ejecuciones coincidentes',
+    emptyFilteredBody: 'Pruebe otra búsqueda o borre los filtros.',
+    clear: 'Borrar',
+    runsLoaded: {
+      one: '{count} ejecución cargada',
+      other: '{count} ejecuciones cargadas',
+    },
+    running: '{count} en ejecución',
+    completed: '{count} completadas',
+    failed: '{count} fallidas',
+    total: '{amount} en total',
+    ready: 'Listos para ejecutar',
+    readyDescription: 'Planes aprobados y en curso que se pueden ejecutar.',
+    readyList: 'Planes listos para ejecutar',
+  },
+  implement: {
+    title: {
+      plan: 'Implementar plan',
+      task: 'Implementar tarea',
+      milestone: 'Implementar objetivo',
+    },
+    subtitle: 'Encargue el trabajo a los asistentes y sígalo desde Automatización',
+    hint: {
+      plan: 'Se ejecutan todas las tareas de este plan; las independientes, al mismo tiempo.',
+      task: 'Un asistente se encarga de esta tarea por sí solo.',
+      milestone: 'Se ejecutan todos los planes vinculados a este objetivo.',
+    },
+    budgetLimit: 'Límite de presupuesto',
+    budgetAria: 'Límite de presupuesto en USD',
+    budgetHelp: 'La ejecución se detiene cuando el coste acumulado de la API alcanza este límite.',
+    warning: 'Los asistentes iniciados aquí utilizan su proveedor de IA y sus créditos. Revise el plan antes de lanzar.',
+    cancel: 'Cancelar',
+    launch: 'Lanzar',
+  },
+  progress: {
+    none: 'Aún no hay datos de progreso',
+    trend: {
+      Improving: 'Mejorando',
+      Stable: 'Estable',
+      Regressing: 'Empeorando',
+      Stagnant: 'Estancado',
+      Unknown: 'Desconocido',
+    },
+    dimensions: {
+      build: 'Build',
+      tests: 'Tests',
+      coverage: 'Cobertura',
+      steps: 'Pasos',
+    },
+  },
+  tree: {
+    empty: 'Aún no hay datos de ejecución del pipeline.',
+    title: 'Árbol de ejecución',
+    collapseAll: 'Contraer todo',
+    expandAll: 'Expandir todo',
+  },
+} satisfies Translation<'pipeline'>

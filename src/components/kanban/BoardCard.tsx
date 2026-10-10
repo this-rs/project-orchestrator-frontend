@@ -4,6 +4,7 @@ import { GripVertical } from 'lucide-react'
 import { CSS } from '@dnd-kit/utilities'
 import { MetaLine } from '@/components/ui'
 import { AddToChatButton, useReferenceSource, type ReferenceSourceEntity } from '@/refs/source'
+import { useT } from '@/i18n'
 
 interface BoardCardBodyProps {
   title: ReactNode
@@ -44,6 +45,7 @@ interface BoardCardProps extends BoardCardBodyProps {
  * the meta line, which is the only way on phones (no drag there).
  */
 export function BoardCard({ id, dataKey, item, ariaLabel, entityRef, ...body }: BoardCardProps) {
+  const { t } = useT()
   const source = useReferenceSource(entityRef, { drag: false })
   // The grip is the card's reference drag (native): the card body keeps the board's own drag.
   const grip = useReferenceSource(entityRef)
@@ -73,7 +75,7 @@ export function BoardCard({ id, dataKey, item, ariaLabel, entityRef, ...body }: 
         <span
           {...grip}
           data-testid="ref-grip"
-          title="Drag into the chat"
+          title={t('kanban.card.dragToChat')}
           // Stay out of the board's drag: this press belongs to the native drag.
           onPointerDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}

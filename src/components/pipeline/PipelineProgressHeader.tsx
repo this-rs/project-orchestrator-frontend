@@ -1,4 +1,5 @@
 import { TrendingUp, TrendingDown, Minus, HelpCircle, Activity } from 'lucide-react'
+import { useT } from '@/i18n'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import type { ProgressScoreResponse, ProgressTrend } from '@/types/chat'
 
@@ -7,35 +8,37 @@ interface PipelineProgressHeaderProps {
   className?: string
 }
 
-const trendConfig: Record<ProgressTrend, { icon: typeof TrendingUp; label: string; color: string }> = {
-  Improving: { icon: TrendingUp, label: 'Improving', color: 'text-green-400' },
-  Stable: { icon: Minus, label: 'Stable', color: 'text-gray-400' },
-  Regressing: { icon: TrendingDown, label: 'Regressing', color: 'text-red-400' },
-  Stagnant: { icon: Activity, label: 'Stagnant', color: 'text-yellow-400' },
-  Unknown: { icon: HelpCircle, label: 'Unknown', color: 'text-gray-500' },
+const trendConfig: Record<ProgressTrend, { icon: typeof TrendingUp; color: string }> = {
+  Improving: { icon: TrendingUp, color: 'text-green-400' },
+  Stable: { icon: Minus, color: 'text-gray-400' },
+  Regressing: { icon: TrendingDown, color: 'text-red-400' },
+  Stagnant: { icon: Activity, color: 'text-yellow-400' },
+  Unknown: { icon: HelpCircle, color: 'text-gray-500' },
 }
 
 /**
  * Progress header showing score bar, trend indicator, and dimension breakdown.
  */
 export function PipelineProgressHeader({ progress, className = '' }: PipelineProgressHeaderProps) {
+  const { t } = useT()
   if (!progress) {
     return (
       <div className={`p-4 bg-white/[0.04] rounded-lg ${className}`}>
-        <p className="text-sm text-gray-500">No progress data yet</p>
+        <p className="text-sm text-gray-500">{t('pipeline.progress.none')}</p>
       </div>
     )
   }
 
   const pct = Math.round(progress.score * 100)
-  const trend = trendConfig[progress.trend] ?? trendConfig.Unknown
+  const trendKey = progress.trend in trendConfig ? progress.trend : 'Unknown'
+  const trend = trendConfig[trendKey]
   const TrendIcon = trend.icon
 
   const dimensions = [
-    { label: 'Build', value: progress.dimensions.build, color: 'bg-blue-500' },
-    { label: 'Tests', value: progress.dimensions.tests, color: 'bg-green-500' },
-    { label: 'Coverage', value: progress.dimensions.coverage, color: 'bg-yellow-500' },
-    { label: 'Steps', value: progress.dimensions.steps, color: 'bg-purple-500' },
+    { label: t('pipeline.progress.dimensions.build'), value: progress.dimensions.build, color: 'bg-blue-500' },
+    { label: t('pipeline.progress.dimensions.tests'), value: progress.dimensions.tests, color: 'bg-green-500' },
+    { label: t('pipeline.progress.dimensions.coverage'), value: progress.dimensions.coverage, color: 'bg-yellow-500' },
+    { label: t('pipeline.progress.dimensions.steps'), value: progress.dimensions.steps, color: 'bg-purple-500' },
   ]
 
   return (
@@ -46,7 +49,7 @@ export function PipelineProgressHeader({ progress, className = '' }: PipelinePro
           <span className="text-2xl font-bold text-gray-100">{pct}%</span>
           <div className={`flex items-center gap-1 ${trend.color}`}>
             <TrendIcon className="w-4 h-4" />
-            <span className="text-xs font-medium">{trend.label}</span>
+            <span className="text-xs font-medium">{t(`pipeline.progress.trend.${trendKey}` as const)}</span>
           </div>
         </div>
         {progress.delta !== null && (

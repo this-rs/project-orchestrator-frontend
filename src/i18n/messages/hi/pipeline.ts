@@ -1,0 +1,77 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  dashboard: {
+    description: 'योजना में आपके असिस्टेंट के रन, और उन्हें क्या शुरू करता है।',
+    planFallback: 'योजना {id}…',
+    searchPlaceholder: 'रन खोजें…',
+    refresh: 'रीफ़्रेश करें',
+    underTheHood: 'अंदर की कार्यप्रणाली',
+    explainer: 'रन किसी योजना का निष्पादन है: जो कार्य एक-दूसरे पर निर्भर नहीं हैं वे एक वेव बनाते हैं और एक साथ चलते हैं, हर एक अपने असिस्टेंट द्वारा; पिछले वेव की जाँच होने के बाद अगला वेव शुरू होता है। रन को लाइव देखने के लिए उसे खोलें।',
+    status: {
+      all: 'सभी स्थितियाँ',
+      running: 'चल रहा है',
+      completed: 'पूर्ण',
+      failed: 'विफल',
+      interrupted: 'बाधित',
+    },
+    loadFailed: 'पाइपलाइन रन लोड नहीं हो सके',
+    emptyPristineTitle: 'अभी कोई रन नहीं',
+    emptyPristineBody: 'इसका निष्पादन इतिहास यहाँ देखने के लिए कोई योजना चलाएँ।',
+    emptyFilteredTitle: 'कोई मेल खाता रन नहीं',
+    emptyFilteredBody: 'दूसरी खोज आज़माएँ या फ़िल्टर हटाएँ।',
+    clear: 'हटाएँ',
+    runsLoaded: {
+      one: 'लोड किए गए रन: {count}',
+      other: 'लोड किए गए रन: {count}',
+    },
+    running: '{count} चल रहे हैं',
+    completed: '{count} पूर्ण',
+    failed: '{count} विफल',
+    total: 'कुल {amount}',
+    ready: 'चलाने के लिए तैयार',
+    readyDescription: 'स्वीकृत और प्रगति में चल रहे योजना जिन्हें निष्पादित किया जा सकता है।',
+    readyList: 'चलाने के लिए तैयार योजना',
+  },
+  implement: {
+    title: {
+      plan: 'योजना लागू करें',
+      task: 'कार्य लागू करें',
+      milestone: 'उद्देश्य लागू करें',
+    },
+    subtitle: 'काम असिस्टेंट को सौंपें और स्वचालन से उसे देखें',
+    hint: {
+      plan: 'इस योजना का हर कार्य चलता है, स्वतंत्र कार्य एक साथ।',
+      task: 'एक असिस्टेंट यह कार्य खुद संभालता है।',
+      milestone: 'इस उद्देश्य से जुड़ा हर योजना चलता है।',
+    },
+    budgetLimit: 'बजट सीमा',
+    budgetAria: 'USD में बजट सीमा',
+    budgetHelp: 'संचित API लागत इस सीमा तक पहुँचने पर निष्पादन रुक जाता है।',
+    warning: 'यहाँ शुरू किए गए असिस्टेंट आपके AI प्रदाता और उसके क्रेडिट का उपयोग करते हैं। शुरू करने से पहले योजना जाँच लें।',
+    cancel: 'रद्द करें',
+    launch: 'शुरू करें',
+  },
+  progress: {
+    none: 'अभी प्रगति का कोई डेटा नहीं',
+    trend: {
+      Improving: 'सुधर रहा है',
+      Stable: 'स्थिर',
+      Regressing: 'बिगड़ रहा है',
+      Stagnant: 'ठहरा हुआ',
+      Unknown: 'अज्ञात',
+    },
+    dimensions: {
+      build: 'Build',
+      tests: 'Tests',
+      coverage: 'कवरेज',
+      steps: 'चरण',
+    },
+  },
+  tree: {
+    empty: 'अभी पाइपलाइन निष्पादन का कोई डेटा नहीं।',
+    title: 'निष्पादन ट्री',
+    collapseAll: 'सभी समेटें',
+    expandAll: 'सभी फैलाएँ',
+  },
+} satisfies Translation<'pipeline'>

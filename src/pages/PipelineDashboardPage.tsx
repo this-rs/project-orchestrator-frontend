@@ -35,7 +35,6 @@ import {
   ToneText,
   getStatusMeta,
   groupByRecency,
-  pluralize,
   Button,
 } from '@/components/ui'
 import { PlanRunRow } from '@/components/runner/PlanRunRow'
@@ -45,7 +44,8 @@ import { runCost } from '@/components/runner/shared'
 import { costSumPartialHelp, formatCostSum, sumCosts } from '@/utils/cost'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
-import { NOMENCLATURE } from '@/constants/nomenclature'
+import { useT } from '@/i18n'
+import type { Translator } from '@/i18n/translate'
 
 // ---------------------------------------------------------------------------
 // Config
@@ -55,18 +55,12 @@ const PAGE_SIZE = 20
 
 type StatusFilter = 'all' | 'running' | 'completed' | 'failed' | 'interrupted'
 
-const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'running', label: 'Running' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'failed', label: 'Failed' },
-  { value: 'interrupted', label: 'Interrupted' },
-]
+const STATUS_FILTERS: readonly StatusFilter[] = ['all', 'running', 'completed', 'failed', 'interrupted']
 
 const FAILED_LIKE = new Set(['failed', 'cancelled', 'budget_exceeded', 'interrupted'])
 
-function runTitle(run: PlanRun): string {
-  return run.plan_title || `Plan ${run.plan_id.slice(0, 8)}…`
+function runTitle(run: PlanRun, t: Translator['t']): string {
+  return run.plan_title || t('pipeline.dashboard.planFallback', { id: run.plan_id.slice(0, 8) })
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +68,7 @@ function runTitle(run: PlanRun): string {
 // ---------------------------------------------------------------------------
 
 export function PipelineDashboardPage() {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
 
   const [runs, setRuns] = useState<PlanRun[]>([])
@@ -94,6 +89,7 @@ export function PipelineDashboardPage() {
   hasMoreRef.current = hasMore
 
   const statusParam = statusFilter === 'all' ? undefined : statusFilter
+  const statusOptions = STATUS_FILTERS.map((value) => ({ value, label: t(`pipeline.dashboard.status.${value}` as const) }))
 
   // ── Initial fetch (also used by the poll — no skeleton after the first load)
   const fetchInitial = useCallback(async () => {
@@ -121,11 +117,11 @@ export function PipelineDashboardPage() {
       setReadyPlans(merged)
       hasLoadedOnce.current = true
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load pipeline runs')
+      setError(err instanceof Error ? err.message : t('pipeline.dashboard.loadFailed'))
     } finally {
       if (first) setLoading(false)
     }
-  }, [statusParam, wsSlug])
+  }, [statusParam, wsSlug, t])
 
   // ── Load more (infinite scroll)
   const loadMore = useCallback(async () => {
@@ -183,8 +179,8 @@ export function PipelineDashboardPage() {
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return runs
-    return runs.filter((r) => runTitle(r).toLowerCase().includes(q) || (r.git_branch ?? '').toLowerCase().includes(q))
-  }, [runs, search])
+    return runs.filter((r) => runTitle(r, t).toLowerCase().includes(q) || (r.git_branch ?? '').toLowerCase().includes(q))
+  }, [runs, search, t])
   const groups = useMemo(() => groupByRecency(visible, (r) => r.started_at), [visible])
 
   const stats = useMemo(
@@ -203,8 +199,8 @@ export function PipelineDashboardPage() {
 
   return (
     <PageShell
-      title={NOMENCLATURE.automation.plural}
-      description={NOMENCLATURE.automation.description}
+      title={t('nav.concepts.automation')}
+      description={t('pipeline.dashboard.description')}
       intro="automation"
       count={loading ? undefined : visible.length}
       width="wide"
@@ -213,49 +209,45 @@ export function PipelineDashboardPage() {
           <FilterBar
             search={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Search runs…"
+            searchPlaceholder={t('pipeline.dashboard.searchPlaceholder')}
             activeCount={activeCount}
-            activeLabels={[statusFilter !== 'all' ? STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label ?? '' : '']}
+            activeLabels={[statusFilter !== 'all' ? statusOptions.find((o) => o.value === statusFilter)?.label ?? '' : '']}
             onClear={() => setStatusFilter('all')}
-            filters={<Select options={STATUS_OPTIONS} value={statusFilter} onChange={(v) => setStatusFilter(v as StatusFilter)} />}
+            filters={<Select options={statusOptions} value={statusFilter} onChange={(v) => setStatusFilter(v as StatusFilter)} />}
             trailing={
               <button
                 type="button"
                 onClick={() => fetchInitial()}
                 disabled={loading}
-                aria-label="Refresh"
+                aria-label={t('pipeline.dashboard.refresh')}
                 className={`${iconButton('ghost', 'size-9 md:size-8')} text-gray-400`}
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
               </button>
             }
           />
-          <Explainer>
-            A run is the execution of a plan: the tasks that do not depend on each other form a wave and run at the same
-            time, each one by its own assistant; the next wave starts once the previous one is checked. Open a run to
-            follow it live.
-          </Explainer>
+          <Explainer summary={t('pipeline.dashboard.underTheHood')}>{t('pipeline.dashboard.explainer')}</Explainer>
         </div>
       }
     >
       <div className="space-y-6">
         <div>
           {error ? (
-            <ErrorState title="Failed to load pipeline runs" description={error} onRetry={() => fetchInitial()} />
+            <ErrorState title={t('pipeline.dashboard.loadFailed')} description={error} onRetry={() => fetchInitial()} />
           ) : loading ? (
             <EntityListSkeleton rows={6} />
           ) : visible.length === 0 ? (
             <EmptyState
-              title={pristine ? 'No runs yet' : 'No matching runs'}
+              title={pristine ? t('pipeline.dashboard.emptyPristineTitle') : t('pipeline.dashboard.emptyFilteredTitle')}
               description={
                 pristine
-                  ? 'Run a plan to see its execution history here.'
-                  : 'Try another search or clear the filters.'
+                  ? t('pipeline.dashboard.emptyPristineBody')
+                  : t('pipeline.dashboard.emptyFilteredBody')
               }
               action={
                 pristine ? undefined : (
                   <Button size="sm" variant="secondary" onClick={() => { setStatusFilter('all'); setSearch('') }}>
-                    Clear
+                    {t('pipeline.dashboard.clear')}
                   </Button>
                 )
               }
@@ -265,13 +257,13 @@ export function PipelineDashboardPage() {
               <MetaLine
                 className="px-1 mb-2"
                 items={[
-                  <span key="n" className="tabular-nums">{pluralize(runs.length, 'run')} loaded</span>,
-                  stats.running > 0 ? <ToneText key="r" tone="progress" pulse label={`${stats.running} running`} /> : null,
-                  stats.completed > 0 ? <ToneText key="c" tone="success" label={`${stats.completed} completed`} /> : null,
-                  stats.failed > 0 ? <ToneText key="f" tone="danger" label={`${stats.failed} failed`} /> : null,
+                  <span key="n" className="tabular-nums">{t(runs.length === 1 ? 'pipeline.dashboard.runsLoaded.one' : 'pipeline.dashboard.runsLoaded.other', { count: runs.length })}</span>,
+                  stats.running > 0 ? <ToneText key="r" tone="progress" pulse label={t('pipeline.dashboard.running', { count: stats.running })} /> : null,
+                  stats.completed > 0 ? <ToneText key="c" tone="success" label={t('pipeline.dashboard.completed', { count: stats.completed })} /> : null,
+                  stats.failed > 0 ? <ToneText key="f" tone="danger" label={t('pipeline.dashboard.failed', { count: stats.failed })} /> : null,
                   formatCostSum(stats.cost) ? (
                     <span key="$" className="font-mono tabular-nums" title={stats.cost.unknown > 0 ? costSumPartialHelp() : undefined}>
-                      {formatCostSum(stats.cost)} total
+                      {t('pipeline.dashboard.total', { amount: formatCostSum(stats.cost) ?? '' })}
                     </span>
                   ) : null,
                 ]}
@@ -283,7 +275,7 @@ export function PipelineDashboardPage() {
                       <PlanRunRow
                         key={run.run_id}
                         run={run}
-                        title={runTitle(run)}
+                        title={runTitle(run, t)}
                         href={workspacePath(wsSlug, `/plans/${run.plan_id}/runner`)}
                       />
                     ))}
@@ -296,8 +288,8 @@ export function PipelineDashboardPage() {
         </div>
 
         {!loading && !error && readyPlans.length > 0 && (
-          <Section title="Ready to run" count={readyPlans.length} description="Approved and in-progress plans that can be executed.">
-            <EntityList aria-label="Plans ready to run">
+          <Section title={t('pipeline.dashboard.ready')} count={readyPlans.length} description={t('pipeline.dashboard.readyDescription')}>
+            <EntityList aria-label={t('pipeline.dashboard.readyList')}>
               {readyPlans.map((plan) => (
                 <EntityRow
                   key={plan.id}

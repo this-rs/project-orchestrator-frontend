@@ -1,0 +1,77 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  dashboard: {
+    description: '你的助手在各计划上的运行,以及触发它们的因素。',
+    planFallback: '计划 {id}…',
+    searchPlaceholder: '搜索运行…',
+    refresh: '刷新',
+    underTheHood: '工作原理',
+    explainer: '运行是计划的具体执行:彼此不依赖的任务组成一个波次并同时执行,每个任务由各自的助手处理;上一个波次验证通过后,下一个波次才会开始。打开某次运行即可实时跟踪。',
+    status: {
+      all: '所有状态',
+      running: '运行中',
+      completed: '已完成',
+      failed: '失败',
+      interrupted: '已中断',
+    },
+    loadFailed: '无法加载 Pipeline 运行',
+    emptyPristineTitle: '暂无运行',
+    emptyPristineBody: '启动一个计划,即可在此查看其运行历史。',
+    emptyFilteredTitle: '没有匹配的运行',
+    emptyFilteredBody: '请尝试其他搜索词或清除筛选条件。',
+    clear: '清除',
+    runsLoaded: {
+      one: '已加载 {count} 次运行',
+      other: '已加载 {count} 次运行',
+    },
+    running: '运行中 {count}',
+    completed: '已完成 {count}',
+    failed: '失败 {count}',
+    total: '共 {amount}',
+    ready: '可启动',
+    readyDescription: '可以运行的已批准和进行中的计划。',
+    readyList: '可启动的计划',
+  },
+  implement: {
+    title: {
+      plan: '实现计划',
+      task: '实现任务',
+      milestone: '实现里程碑',
+    },
+    subtitle: '将工作交给助手,并在“自动化”中跟踪',
+    hint: {
+      plan: '此计划的所有任务都会运行,互不依赖的任务同时执行。',
+      task: '由一个助手独立负责此任务。',
+      milestone: '与此里程碑关联的所有计划都会运行。',
+    },
+    budgetLimit: '预算上限',
+    budgetAria: '预算上限(USD)',
+    budgetHelp: '当累计 API 成本达到此上限时,运行将停止。',
+    warning: '在此启动的助手会使用你的 AI 提供商及其额度。启动前请先检查计划。',
+    cancel: '取消',
+    launch: '启动',
+  },
+  progress: {
+    none: '暂无进度数据',
+    trend: {
+      Improving: '改善中',
+      Stable: '稳定',
+      Regressing: '退步中',
+      Stagnant: '停滞',
+      Unknown: '未知',
+    },
+    dimensions: {
+      build: 'Build',
+      tests: 'Tests',
+      coverage: '覆盖率',
+      steps: '步骤',
+    },
+  },
+  tree: {
+    empty: '暂无 Pipeline 运行数据。',
+    title: '运行树',
+    collapseAll: '全部折叠',
+    expandAll: '全部展开',
+  },
+} satisfies Translation<'pipeline'>

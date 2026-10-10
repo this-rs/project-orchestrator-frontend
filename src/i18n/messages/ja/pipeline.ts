@@ -1,0 +1,77 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  dashboard: {
+    description: 'プランに対するアシスタントの実行と、そのきっかけを確認できます。',
+    planFallback: 'プラン {id}…',
+    searchPlaceholder: '実行を検索…',
+    refresh: '更新',
+    underTheHood: '仕組み',
+    explainer: '実行とは、プランを実際に進めることです。互いに依存しないタスクは 1 つのウェーブにまとめられて同時に実行され、それぞれ専用のアシスタントが担当します。前のウェーブが検証されると、次のウェーブが始まります。実行を開くと、リアルタイムで進行を確認できます。',
+    status: {
+      all: 'すべてのステータス',
+      running: '実行中',
+      completed: '完了',
+      failed: '失敗',
+      interrupted: '中断',
+    },
+    loadFailed: 'Pipeline の実行を読み込めませんでした',
+    emptyPristineTitle: '実行はまだありません',
+    emptyPristineBody: 'プランを起動すると、ここに実行履歴が表示されます。',
+    emptyFilteredTitle: '一致する実行はありません',
+    emptyFilteredBody: '別の検索語を試すか、フィルターをクリアしてください。',
+    clear: 'クリア',
+    runsLoaded: {
+      one: '{count} 件の実行を読み込みました',
+      other: '{count} 件の実行を読み込みました',
+    },
+    running: '実行中 {count}',
+    completed: '完了 {count}',
+    failed: '失敗 {count}',
+    total: '合計 {amount}',
+    ready: '起動可能',
+    readyDescription: '実行できる承認済みおよび進行中のプランです。',
+    readyList: '起動可能なプラン',
+  },
+  implement: {
+    title: {
+      plan: 'プランを実装',
+      task: 'タスクを実装',
+      milestone: 'マイルストーンを実装',
+    },
+    subtitle: '作業をアシスタントに任せ、「自動化」で進行を確認します',
+    hint: {
+      plan: 'このプランのすべてのタスクが実行され、独立したタスクは同時に実行されます。',
+      task: '1 つのアシスタントがこのタスクを単独で担当します。',
+      milestone: 'このマイルストーンにリンクされているすべてのプランが実行されます。',
+    },
+    budgetLimit: '予算上限',
+    budgetAria: '予算上限(USD)',
+    budgetHelp: 'API の累積コストがこの上限に達すると、実行は停止します。',
+    warning: 'ここで起動したアシスタントは、お使いの AI プロバイダーとそのクレジットを使用します。起動前にプランを確認してください。',
+    cancel: 'キャンセル',
+    launch: '起動',
+  },
+  progress: {
+    none: '進捗データはまだありません',
+    trend: {
+      Improving: '改善中',
+      Stable: '安定',
+      Regressing: '悪化中',
+      Stagnant: '停滞',
+      Unknown: '不明',
+    },
+    dimensions: {
+      build: 'Build',
+      tests: 'Tests',
+      coverage: 'カバレッジ',
+      steps: 'ステップ',
+    },
+  },
+  tree: {
+    empty: 'Pipeline の実行データはまだありません。',
+    title: '実行ツリー',
+    collapseAll: 'すべて折りたたむ',
+    expandAll: 'すべて展開',
+  },
+} satisfies Translation<'pipeline'>

@@ -26,6 +26,7 @@ import { TaskModelAlias } from '@/components/tasks/TaskModelAlias'
 import { tasksApi, plansApi, projectsApi, workspacesApi, decisionsApi } from '@/services'
 import { useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition, useViewMode } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { useT } from '@/i18n'
 import { computeStepRefreshKey } from '@/utils/stepRefreshKey'
 import { taskRefreshAtom, projectRefreshAtom, planRefreshAtom } from '@/atoms'
 import { CreateStepForm, CreateDecisionForm, EditTaskForm, EditStepForm } from '@/components/forms'
@@ -60,6 +61,7 @@ interface TaskLocationState {
 }
 
 export function TaskDetailPage() {
+  const { t } = useT()
   const { taskId } = useParams<{ taskId: string }>()
   const { navigate } = useViewTransition()
   const location = useLocation()
@@ -240,7 +242,7 @@ export function TaskDetailPage() {
       if (!taskId) return
       const newStep = await tasksApi.addStep(taskId, data)
       setSteps((prev) => [...prev, newStep])
-      toast.success('Step added')
+      toast.success(t('taskDetail.toast.stepAdded'))
     },
   })
 
@@ -249,7 +251,7 @@ export function TaskDetailPage() {
       if (!taskId) return
       const newDecision = await tasksApi.addDecision(taskId, data)
       setDecisions((prev) => [...prev, newDecision])
-      toast.success('Decision added')
+      toast.success(t('taskDetail.toast.decisionAdded'))
     },
   })
 
@@ -257,16 +259,16 @@ export function TaskDetailPage() {
     try {
       await decisionsApi.update(decision.id, { status: newStatus })
       setDecisions((prev) => prev.map((d) => (d.id === decision.id ? { ...d, status: newStatus } : d)))
-      toast.success(`Decision status → ${newStatus}`)
+      toast.success(t('taskDetail.toast.decisionStatus', { status: newStatus }))
     } catch {
-      toast.error('Failed to update decision status')
+      toast.error(t('taskDetail.toast.decisionStatusFailed'))
     }
   }
 
   const handleDeleteDecision = async (decision: Decision) => {
     await decisionsApi.delete(decision.id)
     setDecisions((prev) => prev.filter((d) => d.id !== decision.id))
-    toast.success('Decision deleted')
+    toast.success(t('taskDetail.toast.decisionDeleted'))
   }
 
   const [stepsViewMode, setStepsViewMode] = useViewMode()
@@ -299,7 +301,7 @@ export function TaskDetailPage() {
       if (!editingStep) return
       await tasksApi.updateStep(editingStep.id, data)
       setSteps((prev) => prev.map((s) => (s.id === editingStep.id ? { ...s, ...data } : s)))
-      toast.success('Step updated')
+      toast.success(t('taskDetail.toast.stepUpdated'))
     },
   })
 
@@ -315,37 +317,37 @@ export function TaskDetailPage() {
       if (!task) return
       await tasksApi.update(task.id, data)
       setTask({ ...task, ...data })
-      toast.success('Task updated')
+      toast.success(t('taskDetail.toast.taskUpdated'))
     },
   })
 
   const openAddDependency = () =>
     linkDialog.open({
-      title: 'Add dependency',
-      submitLabel: 'Add',
+      title: t('taskDetail.dialog.addDependency'),
+      submitLabel: t('taskDetail.dialog.add'),
       fetchOptions: async () => {
         const data = await tasksApi.list({ limit: 100 })
         const existingIds = new Set([taskId, ...blockers.map((b) => b.id)])
         return (data.items || [])
-          .filter((t) => !existingIds.has(t.id))
-          .map((t) => ({ value: t.id, label: t.title || t.description || 'Untitled', description: t.status }))
+          .filter((item) => !existingIds.has(item.id))
+          .map((item) => ({ value: item.id, label: item.title || item.description || t('taskDetail.untitledShort'), description: item.status }))
       },
       onLink: async (depId) => {
         await tasksApi.addDependencies(taskId!, [depId])
         const blockersData = await tasksApi.getBlockers(taskId!).catch(() => ({ items: [] }))
         setBlockers(blockersData.items || [])
-        toast.success('Dependency added')
+        toast.success(t('taskDetail.toast.dependencyAdded'))
       },
     })
 
   const openLinkCommit = () => {
     setCommitShaInput('')
-    commitFormDialog.open({ title: 'Link commit', submitLabel: 'Link', size: 'sm' })
+    commitFormDialog.open({ title: t('taskDetail.dialog.linkCommit'), submitLabel: t('taskDetail.dialog.link'), size: 'sm' })
   }
-  const openAddStep = () => stepFormDialog.open({ title: 'Add step' })
-  const openAddDecision = () => decisionFormDialog.open({ title: 'Add decision', size: 'lg' })
+  const openAddStep = () => stepFormDialog.open({ title: t('taskDetail.dialog.addStep') })
+  const openAddDecision = () => decisionFormDialog.open({ title: t('taskDetail.dialog.addDecision'), size: 'lg' })
 
-  if (error) return <ErrorState title="Failed to load" description={error} onRetry={fetchData} />
+  if (error) return <ErrorState title={t('taskDetail.loadFailedTitle')} description={t('taskDetail.loadFailed')} onRetry={fetchData} />
   if (loading || !task) return <DetailSkeleton />
 
   const tags = task.tags || []
@@ -353,7 +355,7 @@ export function TaskDetailPage() {
   const affectedFiles = task.affected_files || []
   const completedSteps = steps.filter((s) => s.status === 'completed').length
   const stepProgress = steps.length > 0 ? (completedSteps / steps.length) * 100 : 0
-  const title = task.title || task.description?.slice(0, 80) || 'Task'
+  const title = task.title || task.description?.slice(0, 80) || t('taskDetail.fallbackTitle')
 
   // Parent links — ascending: milestone → project → plan
   const parentLinks: ParentLink[] = []
@@ -362,7 +364,7 @@ export function TaskDetailPage() {
       parentMilestone.type === 'project' ? `/project-milestones/${parentMilestone.id}` : `/milestones/${parentMilestone.id}`
     parentLinks.push({
       icon: Flag,
-      label: parentMilestone.type === 'project' ? 'Project Milestone' : 'Milestone',
+      label: parentMilestone.type === 'project' ? t('taskDetail.parent.projectMilestone') : t('taskDetail.parent.milestone'),
       name: parentMilestone.title,
       href: workspacePath(wsSlug, msPath),
     })
@@ -370,7 +372,7 @@ export function TaskDetailPage() {
   if (parentProject) {
     parentLinks.push({
       icon: FolderKanban,
-      label: 'Project',
+      label: t('taskDetail.parent.project'),
       name: parentProject.name,
       href: workspacePath(wsSlug, `/projects/${parentProject.slug}`),
     })
@@ -378,7 +380,7 @@ export function TaskDetailPage() {
   if (parentPlanId && parentPlanTitle) {
     parentLinks.push({
       icon: ClipboardList,
-      label: 'Plan',
+      label: t('taskDetail.parent.plan'),
       name: parentPlanTitle,
       href: workspacePath(wsSlug, `/plans/${parentPlanId}`),
     })
@@ -388,9 +390,9 @@ export function TaskDetailPage() {
     try {
       await tasksApi.update(task.id, { model_alias: alias })
       setTask({ ...task, model_alias: alias })
-      toast.success('Model alias updated')
+      toast.success(t('taskDetail.toast.aliasUpdated'))
     } catch (err) {
-      toast.error('Failed to update the model alias')
+      toast.error(t('taskDetail.toast.aliasFailed'))
       throw err
     }
   }
@@ -399,15 +401,17 @@ export function TaskDetailPage() {
     try {
       await tasksApi.update(task.id, { status: newStatus })
       setTask({ ...task, status: newStatus })
-      toast.success('Status updated')
+      toast.success(t('tasks.toast.statusUpdated'))
     } catch {
-      toast.error('Failed to update status')
+      toast.error(t('tasks.toast.statusFailed'))
     }
   }
 
   const complexity =
     task.estimated_complexity || task.actual_complexity
-      ? `complexity ${task.estimated_complexity ?? '–'}${task.actual_complexity ? ` → ${task.actual_complexity}` : ''}`
+      ? task.actual_complexity
+        ? t('taskDetail.header.complexityActual', { estimated: task.estimated_complexity ?? '–', actual: task.actual_complexity })
+        : t('taskDetail.header.complexity', { estimated: task.estimated_complexity ?? '–' })
       : null
 
   return (
@@ -424,36 +428,36 @@ export function TaskDetailPage() {
           task.assigned_to ? <span key="a">@{task.assigned_to}</span> : null,
           steps.length > 0 ? (
             <span key="steps" className="tabular-nums">
-              {completedSteps}/{steps.length} steps
+              {t('taskDetail.header.stepsCount', { done: completedSteps, total: steps.length })}
             </span>
           ) : null,
           complexity,
           <RelativeTime
             key="u"
             date={task.updated_at ?? task.created_at}
-            prefix={task.updated_at ? 'updated ' : 'created '}
+            prefix={task.updated_at ? t('taskDetail.header.updated') : t('taskDetail.header.created')}
           />,
         ]}
         overflowActions={[
-          { label: 'Edit', icon: Pencil, onClick: () => editTaskDialog.open({ title: 'Edit task' }) },
-          { label: 'Add step', icon: Plus, onClick: openAddStep },
-          { label: 'Add decision', icon: Plus, onClick: openAddDecision },
-          { label: 'Add dependency', icon: Plus, onClick: openAddDependency },
-          { label: 'Link commit', icon: Link2, onClick: openLinkCommit },
+          { label: t('taskDetail.header.edit'), icon: Pencil, onClick: () => editTaskDialog.open({ title: t('taskDetail.dialog.editTask') }) },
+          { label: t('taskDetail.dialog.addStep'), icon: Plus, onClick: openAddStep },
+          { label: t('taskDetail.dialog.addDecision'), icon: Plus, onClick: openAddDecision },
+          { label: t('taskDetail.dialog.addDependency'), icon: Plus, onClick: openAddDependency },
+          { label: t('taskDetail.dialog.linkCommit'), icon: Link2, onClick: openLinkCommit },
           {
-            label: 'Delete',
+            label: t('taskDetail.header.delete'),
             icon: Trash2,
             variant: 'danger',
             onClick: async () => {
               await tasksApi.delete(task.id)
-              toast.success('Task deleted')
+              toast.success(t('taskDetail.toast.taskDeleted'))
               // Navigate to parent plan if known, otherwise task list
               const target = parentPlanId ? workspacePath(wsSlug, `/plans/${parentPlanId}`) : workspacePath(wsSlug, '/tasks')
               navigate(target, { type: 'back-button' })
             },
             confirm: {
-              title: 'Delete task?',
-              description: 'This will permanently delete this task and all its steps and decisions.',
+              title: t('taskDetail.header.deleteTitle'),
+              description: t('taskDetail.header.deleteBody'),
             },
           },
         ]}
@@ -467,23 +471,23 @@ export function TaskDetailPage() {
 
       {/* ── Steps ── */}
       <Section
-        title="Steps"
+        title={t('taskDetail.steps.title')}
         count={steps.length}
-        description={steps.length > 0 ? `${completedSteps} of ${steps.length} completed` : undefined}
+        description={steps.length > 0 ? t('taskDetail.steps.completed', { done: completedSteps, total: steps.length }) : undefined}
         action={
           <>
             {steps.length > 0 && <ViewToggle value={stepsViewMode} onChange={setStepsViewMode} />}
-            <SectionAddButton label="Add step" onClick={openAddStep} />
+            <SectionAddButton label={t('taskDetail.steps.add')} onClick={openAddStep} />
           </>
         }
       >
-        {steps.length > 0 && <ProgressLine value={stepProgress} label="Step progress" className="mb-2" />}
+        {steps.length > 0 && <ProgressLine value={stepProgress} label={t('taskDetail.steps.progress')} className="mb-2" />}
         {steps.length === 0 ? (
-          <EmptyLine>No steps defined</EmptyLine>
+          <EmptyLine>{t('taskDetail.steps.none')}</EmptyLine>
         ) : stepsViewMode === 'kanban' ? (
           <UniversalKanban config={stepKanbanConfig} refreshTrigger={stepKanbanRefreshKey} />
         ) : (
-          <EntityList aria-label="Steps">
+          <EntityList aria-label={t('taskDetail.steps.title')}>
             {steps.map((step, index) => (
               <StepRow
                 key={step.id || index}
@@ -493,19 +497,19 @@ export function TaskDetailPage() {
                   try {
                     await tasksApi.updateStep(step.id, { status: newStatus })
                     setSteps((prev) => prev.map((s) => (s.id === step.id ? { ...s, status: newStatus } : s)))
-                    toast.success('Step status updated')
+                    toast.success(t('taskDetail.toast.stepStatusUpdated'))
                   } catch {
-                    toast.error('Failed to update step')
+                    toast.error(t('taskDetail.toast.stepFailed'))
                   }
                 }}
                 onEdit={() => {
                   setEditingStep(step)
-                  editStepDialog.open({ title: 'Edit step' })
+                  editStepDialog.open({ title: t('taskDetail.dialog.editStep') })
                 }}
                 onDelete={async () => {
                   await tasksApi.deleteStep(step.id)
                   setSteps((prev) => prev.filter((s) => s.id !== step.id))
-                  toast.success('Step deleted')
+                  toast.success(t('taskDetail.toast.stepDeleted'))
                 }}
               />
             ))}
@@ -514,7 +518,7 @@ export function TaskDetailPage() {
       </Section>
 
       {/* ── Discussions ── */}
-      <Section title="Discussions" count={discussionCount}>
+      <Section title={t('taskDetail.discussions')} count={discussionCount}>
         <LinkedDiscussions
           entity={{ type: 'task', id: task.id }}
           projectId={parentProject?.id}
@@ -527,7 +531,7 @@ export function TaskDetailPage() {
 
       {/* ── Acceptance criteria ── */}
       {acceptanceCriteria.length > 0 && (
-        <Section title="Acceptance criteria" count={acceptanceCriteria.length}>
+        <Section title={t('taskDetail.acceptance')} count={acceptanceCriteria.length}>
           <ul className="space-y-1.5 pl-5 list-disc marker:text-gray-500">
             {acceptanceCriteria.map((criterion, index) => (
               <li key={index} className="text-sm text-gray-300 break-words min-w-0">
@@ -540,13 +544,13 @@ export function TaskDetailPage() {
 
       {/* ── Affected files ── */}
       {affectedFiles.length > 0 && (
-        <Section title="Affected files" count={affectedFiles.length}>
-          <EntityList aria-label="Affected files">
+        <Section title={t('taskDetail.affectedFiles')} count={affectedFiles.length}>
+          <EntityList aria-label={t('taskDetail.affectedFiles')}>
             {affectedFiles.map((file, index) => (
               <EntityRow
                 key={`${file}-${index}`}
                 title={<span className="font-mono text-xs break-all">{file}</span>}
-                ariaLabel={`Open ${file} in code explorer`}
+                ariaLabel={t('taskDetail.openInExplorer', { file })}
                 href={workspacePath(wsSlug, `/code?file=${encodeURIComponent(file)}`)}
                 leading={<FileCode2 className="w-3.5 h-3.5 text-gray-500" aria-hidden="true" />}
                 chevron
@@ -557,11 +561,11 @@ export function TaskDetailPage() {
       )}
 
       {/* ── Dependencies ── */}
-      <Section title="Blocked by" count={blockers.length} action={<SectionAddButton label="Add dependency" onClick={openAddDependency} />}>
+      <Section title={t('taskDetail.dependencies.blockedBy')} count={blockers.length} action={<SectionAddButton label={t('taskDetail.dependencies.addDependency')} onClick={openAddDependency} />}>
         {blockers.length === 0 ? (
-          <EmptyLine>No blockers</EmptyLine>
+          <EmptyLine>{t('taskDetail.dependencies.noBlockers')}</EmptyLine>
         ) : (
-          <EntityList aria-label="Blocked by">
+          <EntityList aria-label={t('taskDetail.dependencies.blockedBy')}>
             {blockers.map((blocker) => (
               <DependencyRow
                 key={blocker.id}
@@ -570,7 +574,7 @@ export function TaskDetailPage() {
                 onRemove={async () => {
                   await tasksApi.removeDependency(taskId!, blocker.id)
                   setBlockers((prev) => prev.filter((b) => b.id !== blocker.id))
-                  toast.success('Dependency removed')
+                  toast.success(t('taskDetail.toast.dependencyRemoved'))
                 }}
               />
             ))}
@@ -578,11 +582,11 @@ export function TaskDetailPage() {
         )}
       </Section>
 
-      <Section title="Blocking" count={blocking.length}>
+      <Section title={t('taskDetail.dependencies.blocking')} count={blocking.length}>
         {blocking.length === 0 ? (
-          <EmptyLine>Not blocking any tasks</EmptyLine>
+          <EmptyLine>{t('taskDetail.dependencies.notBlocking')}</EmptyLine>
         ) : (
-          <EntityList aria-label="Blocking">
+          <EntityList aria-label={t('taskDetail.dependencies.blocking')}>
             {blocking.map((blocked) => (
               <DependencyRow key={blocked.id} task={blocked} wsSlug={wsSlug} />
             ))}
@@ -591,11 +595,11 @@ export function TaskDetailPage() {
       </Section>
 
       {/* ── Decisions ── */}
-      <Section title="Decisions" count={decisions.length} action={<SectionAddButton label="Add decision" onClick={openAddDecision} />}>
+      <Section title={t('taskDetail.decisions.title')} count={decisions.length} action={<SectionAddButton label={t('taskDetail.decisions.add')} onClick={openAddDecision} />}>
         {decisions.length === 0 ? (
-          <EmptyLine>No decisions recorded</EmptyLine>
+          <EmptyLine>{t('taskDetail.decisions.none')}</EmptyLine>
         ) : (
-          <EntityList aria-label="Decisions">
+          <EntityList aria-label={t('taskDetail.decisions.title')}>
             {decisions.map((decision) => (
               <DecisionRow
                 key={decision.id}
@@ -610,25 +614,25 @@ export function TaskDetailPage() {
       </Section>
 
       {/* ── Commits ── */}
-      <Section title="Commits" count={commits.length} action={<SectionAddButton label="Link commit" icon={Link2} onClick={openLinkCommit} />}>
-        <CommitList commits={commits} emptyMessage="No commits linked to this task yet" />
+      <Section title={t('taskDetail.commits.title')} count={commits.length} action={<SectionAddButton label={t('taskDetail.commits.link')} icon={Link2} onClick={openLinkCommit} />}>
+        <CommitList commits={commits} emptyMessage={t('taskDetail.commits.none')} />
       </Section>
 
       {/* ── Details ── */}
-      <Section title="Details">
+      <Section title={t('taskDetail.details.title')}>
         <Facts
           items={[
-            { label: 'Status', value: <StatusText kind="task" status={task.status} /> },
-            { label: 'Priority', value: task.priority != null ? String(task.priority) : undefined },
-            { label: 'Assigned to', value: task.assigned_to },
-            { label: 'Est. complexity', value: task.estimated_complexity != null ? String(task.estimated_complexity) : undefined },
-            { label: 'Actual complexity', value: task.actual_complexity != null ? String(task.actual_complexity) : undefined },
-            { label: 'Plan', value: parentPlanTitle ?? undefined },
-            { label: 'Created', value: formatAbsolute(task.created_at) },
-            { label: 'Updated', value: task.updated_at ? formatAbsolute(task.updated_at) : undefined },
-            { label: 'Started', value: task.started_at ? formatAbsolute(task.started_at) : undefined },
-            { label: 'Completed', value: task.completed_at ? formatAbsolute(task.completed_at) : undefined },
-            { label: 'ID', value: <span className="font-mono text-xs text-gray-400 break-all">{task.id}</span> },
+            { label: t('taskDetail.details.status'), value: <StatusText kind="task" status={task.status} /> },
+            { label: t('taskDetail.details.priority'), value: task.priority != null ? String(task.priority) : undefined },
+            { label: t('taskDetail.details.assignedTo'), value: task.assigned_to },
+            { label: t('taskDetail.details.estComplexity'), value: task.estimated_complexity != null ? String(task.estimated_complexity) : undefined },
+            { label: t('taskDetail.details.actualComplexity'), value: task.actual_complexity != null ? String(task.actual_complexity) : undefined },
+            { label: t('taskDetail.details.plan'), value: parentPlanTitle ?? undefined },
+            { label: t('taskDetail.details.created'), value: formatAbsolute(task.created_at) },
+            { label: t('taskDetail.details.updated'), value: task.updated_at ? formatAbsolute(task.updated_at) : undefined },
+            { label: t('taskDetail.details.started'), value: task.started_at ? formatAbsolute(task.started_at) : undefined },
+            { label: t('taskDetail.details.completed'), value: task.completed_at ? formatAbsolute(task.completed_at) : undefined },
+            { label: t('taskDetail.details.id'), value: <span className="font-mono text-xs text-gray-400 break-all">{task.id}</span> },
           ]}
         />
         <TaskModelAlias value={task.model_alias} onChange={handleModelAliasChange} />
@@ -654,7 +658,7 @@ export function TaskDetailPage() {
           const sha = commitShaInput.trim()
           if (!sha || !taskId) return false
           await tasksApi.linkCommit(taskId, sha)
-          toast.success('Commit linked')
+          toast.success(t('taskDetail.toast.commitLinked'))
           setCommitShaInput('')
           fetchData()
         }}
@@ -669,7 +673,8 @@ export function TaskDetailPage() {
 // ── Dependency row ──────────────────────────────────────────────────────
 
 function DependencyRow({ task, wsSlug, onRemove }: { task: Task; wsSlug: string; onRemove?: () => Promise<void> }) {
-  const title = task.title || task.description || 'Untitled task'
+  const { t } = useT()
+  const title = task.title || task.description || t('taskDetail.untitled')
   return (
     <EntityRow
       title={title}
@@ -684,14 +689,14 @@ function DependencyRow({ task, wsSlug, onRemove }: { task: Task; wsSlug: string;
         onRemove
           ? [
               {
-                label: 'Unlink',
+                label: t('taskDetail.dependencies.unlink'),
                 icon: Unlink,
                 variant: 'danger',
                 onClick: onRemove,
                 confirm: {
-                  title: 'Unlink dependency?',
-                  description: `This task will no longer be blocked by “${title}”.`,
-                  confirmLabel: 'Unlink',
+                  title: t('taskDetail.dependencies.unlinkTitle'),
+                  description: t('taskDetail.dependencies.unlinkBody', { title }),
+                  confirmLabel: t('taskDetail.dependencies.unlink'),
                 },
               },
             ]

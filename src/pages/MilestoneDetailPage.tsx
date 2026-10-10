@@ -19,7 +19,6 @@ import {
   StatusMenu,
   formatAbsolute,
   formatDay,
-  pluralize,
   ProgressLine,
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui/PageHeader'
@@ -31,6 +30,7 @@ import { workspacesApi, projectsApi, plansApi } from '@/services'
 import { useFormDialog, useLinkDialog, useToast, useWorkspaceSlug, useViewTransition } from '@/hooks'
 import { useMilestoneGraphData } from '@/hooks/useMilestoneGraphData'
 import { workspacePath } from '@/utils/paths'
+import { useT } from '@/i18n'
 import { milestoneRefreshAtom, planRefreshAtom, taskRefreshAtom, projectRefreshAtom } from '@/atoms'
 import { PlanRunHistory } from '@/components/runner/PlanRunHistory'
 import type { MilestoneDetail, MilestonePlanSummary, MilestoneProgress, Plan, Project, MilestoneStatus, PlanStatus } from '@/types'
@@ -42,6 +42,7 @@ interface MilestoneDetailPageProps {
 }
 
 export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPageProps) {
+  const { t } = useT()
   const { milestoneId } = useParams<{ milestoneId: string }>()
   const { navigate } = useViewTransition()
   const wsSlug = useWorkspaceSlug()
@@ -165,7 +166,7 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
 
   const milestoneGraphData = useMilestoneGraphData({
     milestoneId,
-    milestoneTitle: milestoneTitle || 'Milestone',
+    milestoneTitle: milestoneTitle || t('milestones.detail.fallbackTitle'),
     milestoneStatus: milestoneStatus || 'planned',
     plans: enrichedPlans,
     progress,
@@ -187,11 +188,11 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
   const graphBreadcrumbs = useMemo<GraphBreadcrumb[]>(() => {
     const crumbs: GraphBreadcrumb[] = []
     if (scope === 'project' && project) {
-      crumbs.push({ label: `Project: ${project.name}`, href: workspacePath(wsSlug, `/projects/${project.slug}`) })
+      crumbs.push({ label: t('milestones.detail.projectCrumb', { name: project.name }), href: workspacePath(wsSlug, `/projects/${project.slug}`) })
     }
-    crumbs.push({ label: `Milestone: ${milestoneTitle || milestoneId_?.slice(0, 8) || ''}` })
+    crumbs.push({ label: t('milestones.detail.milestoneCrumb', { title: milestoneTitle || milestoneId_?.slice(0, 8) || '' }) })
     return crumbs
-  }, [scope, project, milestoneTitle, milestoneId_, wsSlug])
+  }, [scope, project, milestoneTitle, milestoneId_, wsSlug, t])
 
   // Build plan title map for run history
   const planTitleMap = useMemo(() => {
@@ -214,11 +215,11 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
       setMilestoneTitle(data.title)
       setMilestoneDescription(data.description)
       if (data.target_date) setMilestoneTargetDate(data.target_date)
-      toast.success('Milestone updated')
+      toast.success(t('milestones.toast.updated'))
     },
   })
 
-  if (error) return <ErrorState title="Failed to load" description={error} onRetry={refreshData} />
+  if (error) return <ErrorState title={t('milestones.loadFailedTitle')} description={t('milestones.detail.loadFailed')} onRetry={refreshData} />
   if (loading || !milestoneId_) return <LoadingPage />
 
   // Parent links for project scope
@@ -226,7 +227,7 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
   if (scope === 'project' && project) {
     parentLinks.push({
       icon: FolderKanban,
-      label: 'Project',
+      label: t('milestones.detail.project'),
       name: project.name,
       href: workspacePath(wsSlug, `/projects/${project.slug}`),
     })
@@ -234,7 +235,7 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
 
   const handleDelete = async () => {
     await workspacesApi.deleteMilestone(milestoneId_)
-    toast.success('Milestone deleted')
+    toast.success(t('milestones.toast.deleted'))
     navigate(workspacePath(wsSlug, '/milestones'), { type: 'back-button' })
   }
 
@@ -242,29 +243,29 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
   const handleClose = async () => {
     await projectsApi.updateMilestone(milestoneId_, { status: 'closed' })
     setMilestoneStatus('closed')
-    toast.success('Milestone closed')
+    toast.success(t('milestones.toast.closed'))
   }
 
   const handleStatusChange = async (newStatus: MilestoneStatus) => {
     try {
       await updateMilestone({ status: newStatus })
       setMilestoneStatus(newStatus)
-      toast.success('Status updated')
+      toast.success(t('tasks.toast.statusUpdated'))
     } catch {
-      toast.error('Failed to update status')
+      toast.error(t('tasks.toast.statusFailed'))
     }
   }
 
   const handleLinkPlan = () =>
     linkDialog.open({
-      title: 'Link plan',
-      submitLabel: 'Link',
+      title: t('milestones.detail.linkPlan'),
+      submitLabel: t('milestones.detail.link'),
       fetchOptions: async () => {
         const data = await plansApi.list({ limit: 100 })
         const existingIds = new Set(enrichedPlans.map((p) => p.id))
         return (data.items || [])
           .filter((p) => !existingIds.has(p.id))
-          .map((p) => ({ value: p.id, label: p.title || 'Untitled', description: p.status }))
+          .map((p) => ({ value: p.id, label: p.title || t('milestones.detail.untitled'), description: p.status }))
       },
       onLink: async (planId) => {
         if (scope === 'workspace') {
@@ -273,7 +274,7 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
           await projectsApi.linkPlanToMilestone(milestoneId!, planId)
         }
         await refreshData()
-        toast.success('Plan linked')
+        toast.success(t('milestones.toast.planLinked'))
       },
     })
 
@@ -290,46 +291,46 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
         meta={[
           progress && progress.total > 0 ? (
             <span key="prog" className="tabular-nums">
-              {progress.completed}/{pluralize(progress.total, 'task')} · {Math.round(progress.percentage)}%
+              {t(progress.total === 1 ? 'milestones.detail.tasksProgressOne' : 'milestones.detail.tasksProgress', { completed: progress.completed, total: progress.total, percent: Math.round(progress.percentage) })}
             </span>
           ) : null,
-          pluralize(enrichedPlans.length, 'plan'),
+          t(enrichedPlans.length === 1 ? 'milestones.detail.plans.one' : 'milestones.detail.plans.other', { count: enrichedPlans.length }),
           milestoneTargetDate ? (
             <span key="target" title={formatAbsolute(milestoneTargetDate)}>
-              due {formatDay(milestoneTargetDate)}
+              {t('milestones.due', { date: formatDay(milestoneTargetDate) })}
             </span>
           ) : null,
-          milestoneClosedAt ? <RelativeTime key="closed" date={milestoneClosedAt} prefix="closed " /> : null,
+          milestoneClosedAt ? <RelativeTime key="closed" date={milestoneClosedAt} prefix={t('milestones.detail.closedPrefix')} /> : null,
         ]}
         overflowActions={[
-          { label: 'Edit', icon: Pencil, onClick: () => editDialog.open({ title: 'Edit milestone' }) },
+          { label: t('milestones.detail.edit'), icon: Pencil, onClick: () => editDialog.open({ title: t('milestones.detail.editTitle') }) },
           {
-            label: showGraph ? 'Hide hierarchy graph' : 'Show hierarchy graph',
+            label: showGraph ? t('milestones.detail.hideGraph') : t('milestones.detail.showGraph'),
             icon: Network,
             onClick: () => setShowGraph((v) => !v),
           },
           scope === 'workspace'
             ? {
-                label: 'Delete',
+                label: t('milestones.detail.delete'),
                 icon: Trash2,
                 variant: 'danger' as const,
                 onClick: handleDelete,
                 confirm: {
-                  title: 'Delete milestone?',
-                  description: 'This will permanently delete this milestone. Tasks linked to it will not be deleted.',
-                  confirmLabel: 'Delete',
+                  title: t('milestones.detail.deleteTitle'),
+                  description: t('milestones.detail.deleteBody'),
+                  confirmLabel: t('milestones.detail.delete'),
                 },
               }
             : {
-                label: 'Close milestone',
+                label: t('milestones.detail.closeAction'),
                 icon: Archive,
                 variant: 'danger' as const,
                 hidden: milestoneStatus === 'closed',
                 onClick: handleClose,
                 confirm: {
-                  title: 'Close milestone?',
-                  description: 'Project milestones cannot be deleted; this marks the milestone as closed. Linked plans and tasks are kept.',
-                  confirmLabel: 'Close',
+                  title: t('milestones.detail.closeTitle'),
+                  description: t('milestones.detail.closeBody'),
+                  confirmLabel: t('milestones.detail.close'),
                 },
               },
         ]}
@@ -343,12 +344,12 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
 
       {/* Progress */}
       {progress && (
-        <section aria-label="Milestone progress" className="space-y-1.5">
-          <ProgressLine value={progress.percentage} size="md" label="Milestone progress" />
+        <section aria-label={t('milestones.detail.progressAria')} className="space-y-1.5">
+          <ProgressLine value={progress.percentage} size="md" label={t('milestones.detail.progressAria')} />
           <p className="text-[11px] leading-4 text-gray-500 tabular-nums">
-            {progress.completed} completed · {remaining} remaining
-            {progress.in_progress > 0 && ` · ${progress.in_progress} in progress`}
-            {progress.pending > 0 && ` · ${progress.pending} pending`}
+            {t('milestones.detail.breakdown', { completed: progress.completed, remaining })}
+            {progress.in_progress > 0 && t('milestones.detail.breakdownInProgress', { count: progress.in_progress })}
+            {progress.pending > 0 && t('milestones.detail.breakdownPending', { count: progress.pending })}
           </p>
         </section>
       )}
@@ -356,28 +357,28 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
       {/* Plans — expandable list (Plan -> Tasks -> Steps) */}
       <Section
         id="plans"
-        title="Plans"
+        title={t('milestones.detail.plansTitle')}
         count={enrichedPlans.length}
         action={
           <Button size="sm" variant="ghost" onClick={handleLinkPlan}>
             <Link2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
-            Link
+            {t('milestones.detail.link')}
           </Button>
         }
       >
         {enrichedPlans.length === 0 ? (
           <EmptyState
             size="sm"
-            title="No plans linked yet"
-            description="Link a plan to track its tasks here."
+            title={t('milestones.detail.noPlansTitle')}
+            description={t('milestones.detail.noPlansBody')}
             action={
               <Button size="sm" variant="secondary" onClick={handleLinkPlan}>
-                Link
+                {t('milestones.detail.link')}
               </Button>
             }
           />
         ) : (
-          <EntityList aria-label="Plans">
+          <EntityList aria-label={t('milestones.detail.plansTitle')}>
             {enrichedPlans.map((plan) => (
               <MilestonePlanRow key={plan.id} plan={plan} wsSlug={wsSlug} />
             ))}
@@ -387,22 +388,22 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
 
       {/* Pipeline Runs — workspace scope only */}
       {scope === 'workspace' && (
-        <Section id="runs" title="Pipeline runs">
+        <Section id="runs" title={t('milestones.detail.runs')}>
           {plans.length > 0 ? (
             <PlanRunHistory planIds={plans.map((p) => p.id)} maxRuns={10} showPlanTitle planTitleMap={planTitleMap} />
           ) : (
-            <EmptyState size="sm" title="No plans linked — no runs to display" />
+            <EmptyState size="sm" title={t('milestones.detail.noRuns')} />
           )}
         </Section>
       )}
 
       {/* Projects — workspace scope only */}
       {scope === 'workspace' && (
-        <Section id="projects" title="Projects" count={projects.length}>
+        <Section id="projects" title={t('milestones.detail.projects')} count={projects.length}>
           {projects.length === 0 ? (
-            <EmptyState size="sm" title="No projects in this workspace" />
+            <EmptyState size="sm" title={t('milestones.detail.noProjects')} />
           ) : (
-            <EntityList aria-label="Projects">
+            <EntityList aria-label={t('milestones.detail.projects')}>
               {projects.map((p) => (
                 <EntityRow
                   key={p.id}
@@ -422,14 +423,14 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
       )}
 
       {/* Details */}
-      <Section title="Details">
+      <Section title={t('milestones.detail.details')}>
         <Facts
           items={[
-            { label: 'Scope', value: scope === 'workspace' ? 'Workspace milestone' : 'Project milestone' },
-            { label: 'Project', value: scope === 'project' ? project?.name : null },
-            { label: 'Created', value: milestoneCreatedAt ? formatAbsolute(milestoneCreatedAt) : null },
-            { label: 'Target date', value: milestoneTargetDate ? formatAbsolute(milestoneTargetDate) : null },
-            { label: 'Closed', value: milestoneClosedAt ? formatAbsolute(milestoneClosedAt) : null },
+            { label: t('milestones.detail.scope'), value: scope === 'workspace' ? t('milestones.detail.workspaceMilestone') : t('milestones.detail.projectMilestone') },
+            { label: t('milestones.detail.project'), value: scope === 'project' ? project?.name : null },
+            { label: t('milestones.detail.created'), value: milestoneCreatedAt ? formatAbsolute(milestoneCreatedAt) : null },
+            { label: t('milestones.detail.targetDate'), value: milestoneTargetDate ? formatAbsolute(milestoneTargetDate) : null },
+            { label: t('milestones.detail.closedAt'), value: milestoneClosedAt ? formatAbsolute(milestoneClosedAt) : null },
           ]}
         />
       </Section>
@@ -437,10 +438,10 @@ export function MilestoneDetailPage({ scope = 'workspace' }: MilestoneDetailPage
       {/* Hierarchy graph (milestone → plans → tasks) — toggled from the ⋯ menu */}
       {showGraph && milestoneGraphData.data && (
         <Section
-          title="Hierarchy graph"
+          title={t('milestones.detail.graph')}
           action={
             <Button size="sm" variant="ghost" onClick={() => setShowGraph(false)}>
-              Hide
+              {t('milestones.detail.hide')}
             </Button>
           }
         >

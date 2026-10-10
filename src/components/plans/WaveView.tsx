@@ -17,6 +17,7 @@ import {
 } from '@/components/ui'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { useT } from '@/i18n'
 import { tasksApi, getEventBus } from '@/services'
 import type { WaveComputationResult, WaveTask, FileConflict, TaskStatus, Step, CrudEvent, PlanStatus } from '@/types'
 
@@ -67,6 +68,7 @@ function WaveSummaryBar({
   onLaunch?: () => void
   isRunning?: boolean
 }) {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const navigate = useNavigate()
   const { summary } = data
@@ -75,30 +77,30 @@ function WaveSummaryBar({
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 bg-white/[0.02] rounded-xl border border-white/[0.06] mb-4">
       <div className="flex items-center gap-1.5 text-sm">
         <Layers className="w-4 h-4 text-gray-500" aria-hidden="true" />
-        <span className="text-gray-400">Waves:</span>
+        <span className="text-gray-400">{t('waves.summary.waves')}</span>
         <span className="font-medium text-gray-200 tabular-nums">{summary.total_waves}</span>
       </div>
       <Separator />
       <div className="flex items-center gap-1.5 text-sm">
         <Zap className="w-4 h-4 text-gray-500" aria-hidden="true" />
-        <span className="text-gray-400">Max parallel:</span>
+        <span className="text-gray-400">{t('waves.summary.maxParallel')}</span>
         <span className="font-medium text-gray-200 tabular-nums">{summary.max_parallel}</span>
       </div>
       <Separator />
       <div className="flex items-center gap-1.5 text-sm">
         <ArrowRight className="w-4 h-4 text-gray-500" aria-hidden="true" />
-        <span className="text-gray-400">Critical path:</span>
+        <span className="text-gray-400">{t('waves.summary.criticalPath')}</span>
         <span className="font-medium text-gray-200 tabular-nums">{summary.critical_path_length}</span>
       </div>
       <Separator />
       <div className="flex items-center gap-1.5 text-sm">
-        <span className="text-gray-400">Tasks:</span>
+        <span className="text-gray-400">{t('waves.summary.tasks')}</span>
         <span className="font-medium text-gray-200 tabular-nums">{summary.total_tasks}</span>
       </div>
       {summary.conflicts_detected > 0 && (
         <>
           <Separator />
-          <ToneText tone="warning" icon label={`${summary.conflicts_detected} conflicts`} className="text-sm font-medium" />
+          <ToneText tone="warning" icon label={t('waves.summary.conflicts', { count: summary.conflicts_detected })} className="text-sm font-medium" />
         </>
       )}
 
@@ -108,13 +110,13 @@ function WaveSummaryBar({
           {runId && (
             <Button size="sm" variant="secondary" flat onClick={() => navigate(workspacePath(wsSlug, `/plans/${planId}/runner`))}>
               <Eye className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-              View runner
+              {t('waves.summary.viewRunner')}
             </Button>
           )}
           {!isRunning && (planStatus === 'approved' || planStatus === 'in_progress') && onLaunch && (
             <Button size="sm" onClick={onLaunch}>
               <Play className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
-              {planStatus === 'in_progress' ? 'Resume plan' : 'Launch plan'}
+              {planStatus === 'in_progress' ? t('waves.summary.resume') : t('waves.summary.launch')}
             </Button>
           )}
         </div>
@@ -145,6 +147,7 @@ function WaveTaskCard({
   steps?: Step[]
   onStepsLoaded: (taskId: string, steps: Step[]) => void
 }) {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const tone = getStatusMeta('task', resolvedStatus).tone
   const [expanded, setExpanded] = useState(false)
@@ -205,7 +208,7 @@ function WaveTaskCard({
         type="button"
         onClick={handleClick}
         aria-expanded={expanded}
-        aria-label={expanded ? `Hide steps of ${title}` : `Show steps of ${title}`}
+        aria-label={expanded ? t('waves.card.hideSteps', { title }) : t('waves.card.showSteps', { title })}
         className={`w-full text-left p-3 cursor-pointer rounded-lg ${focusRingInset}`}
       >
         {/* Status + agent + priority + conflict */}
@@ -216,15 +219,15 @@ function WaveTaskCard({
           {resolvedStatus === 'in_progress' && (
             <span className="inline-flex items-center gap-1 ml-1 text-[11px] text-gray-500">
               <StatusDot tone="progress" pulse />
-              Working…
+              {t('waves.card.working')}
             </span>
           )}
 
           <span className="ml-auto inline-flex items-center gap-1.5">
             <PriorityText priority={task.priority} className="text-[11px]" />
             {hasConflicts && (
-              <span title={`Conflict on: ${conflictFiles.join(', ')}`}>
-                <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${TONE_CLASSES.warning.text}`} aria-label="File conflict" />
+              <span title={t('waves.card.conflictOn', { files: conflictFiles.join(', ') })}>
+                <AlertTriangle className={`w-3.5 h-3.5 shrink-0 ${TONE_CLASSES.warning.text}`} aria-label={t('waves.card.fileConflict')} />
               </span>
             )}
             <ChevronDown
@@ -242,7 +245,7 @@ function WaveTaskCard({
         {/* Mini step progress */}
         {totalSteps > 0 && (
           <div className="mt-2 flex items-center gap-2">
-            <ProgressLine value={(completedSteps / totalSteps) * 100} label={`${completedSteps} of ${totalSteps} steps done`} className="flex-1" />
+            <ProgressLine value={(completedSteps / totalSteps) * 100} label={t('waves.card.stepsDone', { done: completedSteps, total: totalSteps })} className="flex-1" />
             <span className="text-[11px] leading-4 text-gray-500 tabular-nums shrink-0">
               {completedSteps}/{totalSteps}
             </span>
@@ -260,7 +263,7 @@ function WaveTaskCard({
                   className={`inline-flex items-center gap-1 text-[11px] leading-4 px-1.5 py-0.5 rounded bg-white/[0.06] ${
                     conflicting ? TONE_CLASSES.warning.text : 'text-gray-500'
                   }`}
-                  title={conflicting ? `${file} — shared with another task of this wave` : file}
+                  title={conflicting ? t('waves.card.sharedFile', { file }) : file}
                 >
                   <FileCode2 className="w-2.5 h-2.5" aria-hidden="true" />
                   {file.split('/').pop()}
@@ -280,21 +283,21 @@ function WaveTaskCard({
       {expanded && (
         <div className="px-3 pb-3 border-t border-white/[0.06] pt-2 space-y-1.5">
           {loadingSteps ? (
-            <div className="text-xs text-gray-500 py-2">Loading steps…</div>
+            <div className="text-xs text-gray-500 py-2">{t('waves.card.loadingSteps')}</div>
           ) : steps && steps.length > 0 ? (
             steps.map((step) => (
               <div key={step.id} className="flex items-start gap-2 py-1 px-1.5 rounded bg-white/[0.03] min-w-0">
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-gray-300 break-words">{step.description}</p>
                   {step.verification && (
-                    <p className="text-[11px] leading-4 text-gray-500 mt-0.5 break-words">Verify: {step.verification}</p>
+                    <p className="text-[11px] leading-4 text-gray-500 mt-0.5 break-words">{t('waves.card.verify', { text: step.verification })}</p>
                   )}
                 </div>
                 <StatusText kind="step" status={step.status} icon className="shrink-0 text-[11px]" />
               </div>
             ))
           ) : (
-            <div className="text-xs text-gray-500 py-1">No steps</div>
+            <div className="text-xs text-gray-500 py-1">{t('waves.card.noSteps')}</div>
           )}
 
           {/* Open task page link */}
@@ -303,7 +306,7 @@ function WaveTaskCard({
             className={`${textLink} ${hitArea} inline-flex items-center gap-1 text-xs mt-2`}
           >
             <ExternalLink className="w-3 h-3" aria-hidden="true" />
-            Open task
+            {t('waves.card.openTask')}
           </Link>
         </div>
       )}
@@ -336,9 +339,10 @@ function WaveColumn({
   onStepsLoaded: (taskId: string, steps: Step[]) => void
   isActiveWave: boolean
 }) {
+  const { t } = useT()
   // Count completed tasks in this wave
-  const completedCount = tasks.filter((t) => {
-    const status = taskStatuses?.get(t.id) ?? t.status
+  const completedCount = tasks.filter((wt) => {
+    const status = taskStatuses?.get(wt.id) ?? wt.status
     return status === 'completed'
   }).length
 
@@ -348,11 +352,11 @@ function WaveColumn({
       <div className="flex items-center justify-between px-2 py-1.5 min-h-9">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-sm font-semibold text-gray-300">
-            Wave {waveNumber}
+            {t('waves.column.wave', { number: waveNumber })}
           </span>
-          {isActiveWave && <StatusDot tone="progress" pulse label="Active wave" />}
+          {isActiveWave && <StatusDot tone="progress" pulse label={t('waves.column.activeWave')} />}
           {splitFromConflicts && (
-            <ToneText tone="warning" label="split" className="text-[11px]" />
+            <ToneText tone="warning" label={t('waves.column.split')} className="text-[11px]" />
           )}
         </div>
         <span className="text-xs text-gray-500 tabular-nums">
@@ -363,7 +367,7 @@ function WaveColumn({
       {/* Progress bar */}
       <ProgressLine
         value={taskCount > 0 ? (completedCount / taskCount) * 100 : 0}
-        label={`Wave ${waveNumber}: ${completedCount} of ${taskCount} tasks done`}
+        label={t('waves.column.progress', { number: waveNumber, done: completedCount, total: taskCount })}
         className="mx-2 w-auto"
       />
 
@@ -389,6 +393,7 @@ function WaveColumn({
 // ============================================================================
 
 export function WaveView({ data, taskStatuses, planId, planStatus, runId, onLaunch, isRunning, className = '' }: WaveViewProps) {
+  const { t } = useT()
   // Shared steps cache: state (so cards re-render when it changes), mirrored in a ref for the event listener.
   const [stepsData, setStepsData] = useState<Map<string, Step[]>>(() => new Map())
   const loadedRef = useRef(stepsData)
@@ -459,7 +464,7 @@ export function WaveView({ data, taskStatuses, planId, planStatus, runId, onLaun
   }, [data.waves, taskStatuses, setSteps])
 
   if (data.waves.length === 0) {
-    return <p className="text-gray-500 text-sm">No waves computed</p>
+    return <p className="text-gray-500 text-sm">{t('waves.none')}</p>
   }
 
   return (

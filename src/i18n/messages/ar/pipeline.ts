@@ -1,0 +1,77 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  dashboard: {
+    description: 'عمليات تشغيل مساعديك عبر الخطط، وما الذي يبدأها.',
+    planFallback: 'الخطة {id}…',
+    searchPlaceholder: 'بحث في عمليات التشغيل…',
+    refresh: 'تحديث',
+    underTheHood: 'تحت الغطاء',
+    explainer: 'عملية التشغيل هي تنفيذ خطة: المهام التي لا تعتمد على بعضها تشكّل موجة (Wave) وتعمل في الوقت نفسه، كل منها بواسطة مساعدها الخاص؛ وتبدأ الموجة التالية بعد التحقق من السابقة. افتح عملية تشغيل لمتابعتها مباشرة.',
+    status: {
+      all: 'كل الحالات',
+      running: 'قيد التشغيل',
+      completed: 'مكتمل',
+      failed: 'فشل',
+      interrupted: 'متوقف',
+    },
+    loadFailed: 'تعذر تحميل عمليات تشغيل Pipeline',
+    emptyPristineTitle: 'لا توجد عمليات تشغيل بعد',
+    emptyPristineBody: 'شغّل خطة لرؤية سجل تنفيذها هنا.',
+    emptyFilteredTitle: 'لا توجد عمليات تشغيل مطابقة',
+    emptyFilteredBody: 'جرّب بحثًا آخر أو امسح عوامل التصفية.',
+    clear: 'مسح',
+    runsLoaded: {
+      one: 'عمليات التشغيل المحمّلة: {count}',
+      other: 'عمليات التشغيل المحمّلة: {count}',
+    },
+    running: '{count} قيد التشغيل',
+    completed: '{count} مكتملة',
+    failed: '{count} فاشلة',
+    total: 'الإجمالي {amount}',
+    ready: 'جاهزة للتشغيل',
+    readyDescription: 'الخطط المعتمدة وقيد التنفيذ التي يمكن تنفيذها.',
+    readyList: 'الخطط الجاهزة للتشغيل',
+  },
+  implement: {
+    title: {
+      plan: 'تنفيذ الخطة',
+      task: 'تنفيذ المهمة',
+      milestone: 'تنفيذ الهدف',
+    },
+    subtitle: 'سلّم العمل إلى المساعدين وتابعه من الأتمتة',
+    hint: {
+      plan: 'تُنفَّذ كل مهام هذه الخطة، والمستقلة منها في الوقت نفسه.',
+      task: 'يتولى مساعد هذه المهمة بمفرده.',
+      milestone: 'تُنفَّذ كل خطة مرتبطة بهذا الهدف.',
+    },
+    budgetLimit: 'حد الميزانية',
+    budgetAria: 'حد الميزانية بالدولار الأمريكي',
+    budgetHelp: 'يتوقف التنفيذ عندما تصل تكلفة API المتراكمة إلى هذا الحد.',
+    warning: 'يستخدم المساعدون الذين يبدؤون من هنا مزوّد الذكاء الاصطناعي لديك ورصيده. راجع الخطة قبل الإطلاق.',
+    cancel: 'إلغاء',
+    launch: 'إطلاق',
+  },
+  progress: {
+    none: 'لا توجد بيانات تقدم بعد',
+    trend: {
+      Improving: 'يتحسن',
+      Stable: 'مستقر',
+      Regressing: 'يتراجع',
+      Stagnant: 'راكد',
+      Unknown: 'غير معروف',
+    },
+    dimensions: {
+      build: 'Build',
+      tests: 'Tests',
+      coverage: 'التغطية',
+      steps: 'الخطوات',
+    },
+  },
+  tree: {
+    empty: 'لا توجد بيانات تنفيذ Pipeline بعد.',
+    title: 'شجرة التنفيذ',
+    collapseAll: 'طيّ الكل',
+    expandAll: 'توسيع الكل',
+  },
+} satisfies Translation<'pipeline'>

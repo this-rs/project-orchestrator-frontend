@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+import { useT } from '@/i18n'
 import { PipelineProgressHeader } from './PipelineProgressHeader'
 import { PipelineNodeRow } from './PipelineNodeRow'
 import type { PipelineNode } from './PipelineNodeRow'
@@ -36,6 +37,7 @@ export function PipelineTreeView({
   isLoading = false,
   className = '',
 }: PipelineTreeViewProps) {
+  const { t } = useT()
   const [allExpanded, setAllExpanded] = useState(true)
   // Increment to force re-render of children with new default
   const [expandKey, setExpandKey] = useState(0)
@@ -58,7 +60,7 @@ export function PipelineTreeView({
   if (nodes.length === 0) {
     return (
       <div className={`p-6 text-center text-gray-500 text-sm ${className}`}>
-        No pipeline execution data yet.
+        {t('pipeline.tree.empty')}
       </div>
     )
   }
@@ -70,7 +72,7 @@ export function PipelineTreeView({
 
       {/* Expand/Collapse toggle */}
       <div className="flex items-center justify-between px-1">
-        <span className="text-xs text-gray-500">Execution Tree</span>
+        <span className="text-xs text-gray-500">{t('pipeline.tree.title')}</span>
         <button
           onClick={toggleAll}
           className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors"
@@ -78,12 +80,12 @@ export function PipelineTreeView({
           {allExpanded ? (
             <>
               <ChevronUp className="w-3.5 h-3.5" />
-              Collapse all
+              {t('pipeline.tree.collapseAll')}
             </>
           ) : (
             <>
               <ChevronDown className="w-3.5 h-3.5" />
-              Expand all
+              {t('pipeline.tree.expandAll')}
             </>
           )}
         </button>

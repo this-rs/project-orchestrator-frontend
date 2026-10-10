@@ -1,29 +1,31 @@
 import type { ReactNode } from 'react'
+import type { Translator } from '@/i18n/translate'
 import type { Task, TaskStatus } from '@/types'
 import { PriorityText, StatusMenu } from '@/components/ui'
 import { BoardCard, BoardCardOverlay } from './BoardCard'
+import { useT } from '@/i18n'
 
 /** KanbanTask is the minimal type the card needs — works with both Task and TaskWithPlan */
 export type KanbanTask = Task & { plan_title?: string; plan_id?: string }
 
-function taskTitle(task: KanbanTask) {
-  return task.title || (task.description || '').slice(0, 80) || 'Untitled task'
+function taskTitle(task: KanbanTask, t: Translator['t']) {
+  return task.title || (task.description || '').slice(0, 80) || t('kanban.card.untitledTask')
 }
 
-function taskMeta(task: KanbanTask, status?: ReactNode): ReactNode[] {
+function taskMeta(task: KanbanTask, t: Translator['t'], status?: ReactNode): ReactNode[] {
   const tags = task.tags || []
   return [
     status,
     <PriorityText key="p" priority={task.priority} />,
     task.plan_title ? (
-      <span key="plan" className="truncate max-w-[12rem]" title={`Plan: ${task.plan_title}`}>
+      <span key="plan" className="truncate max-w-[12rem]" title={t('kanban.card.planTitle', { title: task.plan_title })}>
         {task.plan_title}
       </span>
     ) : null,
-    task.assigned_to ? <span key="a" className="truncate max-w-[8rem]" title={`Assigned to ${task.assigned_to}`}>@{task.assigned_to}</span> : null,
+    task.assigned_to ? <span key="a" className="truncate max-w-[8rem]" title={t('kanban.card.assignedTitle', { name: task.assigned_to })}>@{task.assigned_to}</span> : null,
     tags.length > 0 ? (
-      <span key="tags" className="truncate max-w-[12rem]" title={tags.map((t) => `#${t}`).join(' ')}>
-        {tags.slice(0, 2).map((t) => `#${t}`).join(' ')}
+      <span key="tags" className="truncate max-w-[12rem]" title={tags.map((tag) => `#${tag}`).join(' ')}>
+        {tags.slice(0, 2).map((tag) => `#${tag}`).join(' ')}
         {tags.length > 2 ? ` +${tags.length - 2}` : ''}
       </span>
     ) : null,
@@ -36,7 +38,8 @@ interface KanbanCardProps {
 }
 
 export function KanbanCard({ task, onStatusChange }: KanbanCardProps) {
-  const title = taskTitle(task)
+  const { t } = useT()
+  const title = taskTitle(task, t)
   return (
     <BoardCard
       id={task.id}
@@ -47,6 +50,7 @@ export function KanbanCard({ task, onStatusChange }: KanbanCardProps) {
       title={title}
       meta={taskMeta(
         task,
+        t,
         onStatusChange ? <StatusMenu key="s" kind="task" status={task.status} onChange={onStatusChange} /> : null,
       )}
     />
@@ -55,5 +59,6 @@ export function KanbanCard({ task, onStatusChange }: KanbanCardProps) {
 
 /** Card rendered in the DragOverlay (no drag listeners) */
 export function KanbanCardOverlay({ task }: { task: KanbanTask }) {
-  return <BoardCardOverlay title={taskTitle(task)} meta={taskMeta(task)} />
+  const { t } = useT()
+  return <BoardCardOverlay title={taskTitle(task, t)} meta={taskMeta(task, t)} />
 }

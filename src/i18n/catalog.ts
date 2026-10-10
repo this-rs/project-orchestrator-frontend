@@ -10,6 +10,16 @@ import type code from './messages/en/code.ts'
 import type featureGraphs from './messages/en/featureGraphs.ts'
 import type graph from './messages/en/graph.ts'
 import type projects from './messages/en/projects.ts'
+import type commits from './messages/en/commits.ts'
+import type deployments from './messages/en/deployments.ts'
+import type kanban from './messages/en/kanban.ts'
+import type milestones from './messages/en/milestones.ts'
+import type pipeline from './messages/en/pipeline.ts'
+import type planDetail from './messages/en/planDetail.ts'
+import type plans from './messages/en/plans.ts'
+import type taskDetail from './messages/en/taskDetail.ts'
+import type tasks from './messages/en/tasks.ts'
+import type waves from './messages/en/waves.ts'
 import type nav from './messages/en/nav.ts'
 import type routing from './messages/en/routing.ts'
 import type session from './messages/en/session.ts'
@@ -35,6 +45,16 @@ interface EnglishMessages {
   featureGraphs: typeof featureGraphs
   graph: typeof graph
   projects: typeof projects
+  commits: typeof commits
+  deployments: typeof deployments
+  kanban: typeof kanban
+  milestones: typeof milestones
+  pipeline: typeof pipeline
+  planDetail: typeof planDetail
+  plans: typeof plans
+  taskDetail: typeof taskDetail
+  tasks: typeof tasks
+  waves: typeof waves
   nav: typeof nav
   routing: typeof routing
   session: typeof session
@@ -58,6 +78,7 @@ export type Ns = keyof EnglishMessages
 export const NAMESPACES = [
   'common', 'nav', 'routing', 'session', 'architecture', 'code', 'featureGraphs', 'graph', 'projects',
   'ui', 'forms', 'composer', 'shell', 'nomenclature', 'glossary', 'toolPolicy', 'activity', 'fgModel', 'setupOidc', 'app', 'providers', 'providerErrors', 'intelConfig',
+  'commits', 'deployments', 'kanban', 'milestones', 'pipeline', 'planDetail', 'plans', 'taskDetail', 'tasks', 'waves',
 ] as const satisfies readonly Ns[]
 
 /** Every other language is a (possibly partial) overlay of the same shape. */

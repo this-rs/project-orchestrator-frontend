@@ -4,6 +4,7 @@ import type { KanbanFilters } from '@/hooks/useKanbanFilters'
 import type { Plan, Project } from '@/types'
 import { plansApi, workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
+import { useT } from '@/i18n'
 import { Button, FilterBar, Select, Switch } from '@/components/ui'
 import { FilterField, PriorityRangeFields } from './ListControls'
 
@@ -30,6 +31,7 @@ export function KanbanFilterBar({
   activeFilterCount,
   trailing,
 }: KanbanFilterBarProps) {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const [plans, setPlans] = useState<Plan[]>([])
   const [projects, setProjects] = useState<Project[]>([])
@@ -40,20 +42,22 @@ export function KanbanFilterBar({
     workspacesApi.listProjects(wsSlug).then((data) => setProjects(Array.isArray(data) ? data : [])).catch(() => {})
   }, [wsSlug])
 
-  const planOptions = [{ value: '', label: 'All plans' }, ...plans.map((p) => ({ value: p.id, label: p.title }))]
+  const planOptions = [{ value: '', label: t('kanban.filters.allPlans') }, ...plans.map((p) => ({ value: p.id, label: p.title }))]
   const excluded = filters.exclude_projects ?? []
   const includable = projects.filter((p) => !excluded.includes(p.id))
   const excludedProjects = projects.filter((p) => excluded.includes(p.id))
 
-  const planLabel = filters.plan_id ? plans.find((p) => p.id === filters.plan_id)?.title ?? 'Plan' : ''
+  const planLabel = filters.plan_id ? plans.find((p) => p.id === filters.plan_id)?.title ?? t('kanban.filters.plan') : ''
   const activeLabels = [
     planLabel,
     filters.assigned_to ? `@${filters.assigned_to}` : '',
     filters.priority_min !== undefined ? `P ≥ ${filters.priority_min}` : '',
     filters.priority_max !== undefined ? `P ≤ ${filters.priority_max}` : '',
-    filters.exclude_completed ? 'Hide completed' : '',
-    filters.exclude_failed ? 'Hide failed' : '',
-    excluded.length > 0 ? `Excluding ${excludedProjects.map((p) => p.name).join(', ') || `${excluded.length} projects`}` : '',
+    filters.exclude_completed ? t('kanban.filters.hideCompleted') : '',
+    filters.exclude_failed ? t('kanban.filters.hideFailed') : '',
+    excluded.length > 0 ? (excludedProjects.length > 0
+        ? t('kanban.filters.excluding', { names: excludedProjects.map((p) => p.name).join(', ') })
+        : t('kanban.filters.excludingCount', { count: excluded.length })) : '',
   ]
 
   return (
@@ -70,8 +74,8 @@ export function KanbanFilterBar({
             onChange={(value) => onFilterChange('plan_id', value || undefined)}
           />
           <FilterField
-            label="Assigned to"
-            placeholder="Assigned to…"
+            label={t('kanban.filters.assignedTo')}
+            placeholder={t('kanban.filters.assignedToPlaceholder')}
             value={filters.assigned_to}
             onChange={(v) => onFilterChange('assigned_to', v || undefined)}
           />
@@ -82,12 +86,12 @@ export function KanbanFilterBar({
             onMaxChange={(v) => onFilterChange('priority_max', v)}
           />
           <Switch
-            label="Hide completed"
+            label={t('kanban.filters.hideCompleted')}
             checked={filters.exclude_completed || false}
             onChange={(v) => onFilterChange('exclude_completed', v || undefined)}
           />
           <Switch
-            label="Hide failed"
+            label={t('kanban.filters.hideFailed')}
             checked={filters.exclude_failed || false}
             onChange={(v) => onFilterChange('exclude_failed', v || undefined)}
           />
@@ -98,7 +102,7 @@ export function KanbanFilterBar({
               onChange={(value) => {
                 if (value) onToggleExcludeProject(value)
               }}
-              placeholder="Exclude project…"
+              placeholder={t('kanban.filters.excludeProject')}
             />
           )}
           {excludedProjects.length > 0 && (
@@ -111,7 +115,7 @@ export function KanbanFilterBar({
                   variant="secondary"
                   flat
                   onClick={() => onToggleExcludeProject(p.id)}
-                  aria-label={`Stop excluding ${p.name}`}
+                  aria-label={t('kanban.filters.stopExcluding', { name: p.name })}
                   className="text-xs font-normal text-gray-400"
                 >
                   <span className="line-through decoration-gray-600">{p.name}</span>
