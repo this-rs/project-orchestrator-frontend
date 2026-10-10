@@ -27,6 +27,7 @@ import { getAuthMode, fetchWsTicket } from './auth'
 import { forceLogout } from './authManager'
 import { wsUrl } from './env'
 import { createWebSocket, ReadyState, type IWebSocket } from './wsAdapter'
+import type { PermissionScope } from '@/types/provider'
 
 const MIN_RECONNECT_DELAY = 1000
 const MAX_RECONNECT_DELAY = 30000
@@ -543,10 +544,15 @@ export class ChatWebSocket {
   }
 
   /**
-   * Respond to a permission request
+   * Respond to a permission request. `scope` says how long an approval lasts
+   * (`once` when absent); only a scope the session offers may be sent.
    */
-  sendPermissionResponse(id: string, allow: boolean) {
-    return this.send({ type: 'permission_response', id, allow })
+  sendPermissionResponse(id: string, allow: boolean, scope?: PermissionScope) {
+    return this.send(
+      allow && scope && scope !== 'once'
+        ? { type: 'permission_response', id, allow, scope }
+        : { type: 'permission_response', id, allow },
+    )
   }
 
   /**

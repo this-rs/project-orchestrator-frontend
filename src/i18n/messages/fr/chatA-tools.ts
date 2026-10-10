@@ -153,5 +153,18 @@ export default {
       assertion: "assertion",
       decision: "décision"
     }
+  },
+  permission: {
+    actions: "Répondre à cette demande d'autorisation",
+    allowOnce: "Autoriser une fois",
+    allowSession: "Pour la session",
+    allowAlways: "Toujours",
+    deny: "Refuser",
+    sessionHint: "Plus demandé dans cette conversation",
+    alwaysHint: "Plus demandé dans ce projet, même après un redémarrage",
+    allowed: "Autorisé",
+    allowedSession: "Autorisé pour la session",
+    allowedAlways: "Toujours autorisé",
+    denied: "Refusé"
   }
 } satisfies Translation<'chatA-tools'>

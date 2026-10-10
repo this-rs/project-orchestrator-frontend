@@ -471,7 +471,8 @@ export type ChatEvent =
   | { type: 'tool_cancelled'; id: string; parent_tool_use_id?: string }
   | ({ type: 'tool_timing' } & ToolTiming & Nested)
   | ({ type: 'permission_request'; id: string; tool: string; input: Record<string, unknown>; tool_use_id?: string } & ToolProviderHints & Nested)
-  | { type: 'permission_decision'; id: string; allow: boolean }
+  /** `scope`: how long an approval lasts, when it outlives the call (absent: this call only, or a refusal). */
+  | { type: 'permission_decision'; id: string; allow: boolean; scope?: 'session' | 'always' }
   | ({
       type: 'ask_user_question'
       questions: AskUserQuestion[]
@@ -612,7 +613,7 @@ export const CHAT_EVENT_FIELDS = {
     parent_tool_use_id: 'optional',
   },
   permission_request: { id: 'required', tool: 'required', input: 'required', tool_use_id: 'optional', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
-  permission_decision: { id: 'required', allow: 'required' },
+  permission_decision: { id: 'required', allow: 'required', scope: 'optional' },
   ask_user_question: { questions: 'required', tool_call_id: 'optional', id: 'optional', input: 'optional', synthetic: 'optional', parent_tool_use_id: 'optional' },
   result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional', stop_reason: 'optional', error: 'optional' },
   error: { message: 'required', code: 'optional', index: 'optional', reason: 'optional', parent_tool_use_id: 'optional' },
@@ -1057,7 +1058,8 @@ export type WsChatClientMessage =
   | { type: 'interrupt' }
   /** Cancel the running tools WITHOUT ending the turn. */
   | { type: 'cancel_tools' }
-  | { type: 'permission_response'; id?: string; allow: boolean }
+  /** `scope`: how long an approval lasts (`once` when absent). A scope the session does not offer is refused (`permission_scope_unsupported`). */
+  | { type: 'permission_response'; id?: string; allow: boolean; scope?: 'once' | 'session' | 'always' }
   | { type: 'input_response'; id?: string; content: string }
   | { type: 'set_permission_mode'; mode: string }
   | { type: 'set_model'; model: string }

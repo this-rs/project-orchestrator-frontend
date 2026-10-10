@@ -47,6 +47,7 @@ import {
 import { ModelFamilyPicker, type ModelSelectOptions } from './ModelFamilyPicker'
 import { VaultUnlock } from './VaultUnlock'
 import { useVaultLocked } from './useVaultLocked'
+import { COMPOSER_CHIP } from './chipGeometry'
 
 /** The composer's target menu when open, else none. Owned by the composer, which also has a mode menu to close. */
 export type ProviderModelMenu = 'target' | null
@@ -64,8 +65,8 @@ interface ProviderModelPickerProps {
   onForce?: (forced: boolean) => void
 }
 
-const CHIP =
-  'inline-flex min-w-0 max-w-full items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-colors'
+/** Same height as the permission-mode chip next to it: one shared geometry. */
+const CHIP = COMPOSER_CHIP
 
 const POPOVER =
   'absolute bottom-full left-0 right-0 sm:right-auto sm:w-72 mb-1 z-20 max-h-[min(22rem,55dvh)] overflow-y-auto overscroll-contain bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl'

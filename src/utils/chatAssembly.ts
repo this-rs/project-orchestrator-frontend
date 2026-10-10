@@ -768,12 +768,13 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
         // Find the matching permission_request block and stamp the decision
         const decisionId = evt.id as string
         const allowed = evt.allow as boolean
+        const lasting = (evt as { scope?: string }).scope
         for (let mi = messages.length - 1; mi >= 0; mi--) {
           const msg = messages[mi]
           for (let bi = 0; bi < msg.blocks.length; bi++) {
             const block = msg.blocks[bi]
             if (block.type === 'permission_request' && block.metadata?.tool_call_id === decisionId) {
-              msg.blocks[bi] = { ...block, metadata: { ...block.metadata, decided: true, decision: allowed ? 'allowed' : 'denied' } }
+              msg.blocks[bi] = { ...block, metadata: { ...block.metadata, decided: true, decision: allowed ? 'allowed' : 'denied', decision_scope: lasting } }
             }
           }
         }

@@ -52,7 +52,7 @@ beforeEach(() => {
 })
 
 describe('interactive_permissions', () => {
-  it('false: no Allow / Deny / Remember, and the request says the policy decides', () => {
+  it('false: no Allow / Deny / scope buttons, and the request says the policy decides', () => {
     const onRespond = vi.fn()
     mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />, caps({ interactive_permissions: false }))
     expect(screen.queryByRole('button', { name: /allow/i })).toBeNull()
@@ -74,28 +74,69 @@ describe('interactive_permissions', () => {
     expect(screen.queryByText(policyOnlyRequestText())).toBeNull()
   })
 
-  it('Claude profile: Allow, Deny and Remember as before', () => {
+  it('Claude profile: allow once, for the session, always, and deny', () => {
     const onRespond = vi.fn(() => true)
     mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />)
-    fireEvent.click(screen.getByRole('checkbox'))
-    fireEvent.click(screen.getByRole('button', { name: /allow/i }))
-    expect(onRespond).toHaveBeenCalledWith('c1', true, { toolName: 'Bash' })
+    expect(screen.getByRole('button', { name: 'Allow once' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'For this session' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Always' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Deny' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
+    expect(onRespond).toHaveBeenCalledWith('c1', true, 'once')
   })
 })
 
 describe('permission_scopes', () => {
-  it('without the `session` scope, "Remember" is not offered — Allow / Deny stay', () => {
+  it('only `once`: no lasting scope is offered — Allow once / Deny stay', () => {
     const onRespond = vi.fn(() => true)
     mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />, caps({ permission_scopes: ['once'] }))
-    expect(screen.queryByRole('checkbox')).toBeNull()
-    expect(screen.queryByText('Remember')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /allow/i }))
-    expect(onRespond).toHaveBeenCalledWith('c1', true, undefined)
+    expect(screen.queryByRole('button', { name: 'For this session' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Always' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
+    expect(onRespond).toHaveBeenCalledWith('c1', true, 'once')
   })
 
-  it('with the `session` scope, "Remember" is offered', () => {
-    mount(<PermissionRequestBlock block={permissionBlock} onRespond={() => true} />, caps({ permission_scopes: ['once', 'session'] }))
-    expect(screen.getByText('Remember')).toBeTruthy()
+  it('once and session (native harness without lasting rules): no "Always"', () => {
+    const onRespond = vi.fn(() => true)
+    mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />, caps({ permission_scopes: ['once', 'session'] }))
+    expect(screen.queryByRole('button', { name: 'Always' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'For this session' }))
+    expect(onRespond).toHaveBeenCalledWith('c1', true, 'session')
+    expect(screen.getByText('Allowed')).toBeTruthy()
+  })
+
+  it('always: sent with its scope, the hint says it outlives the session', () => {
+    const onRespond = vi.fn(() => true)
+    mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />, caps({ permission_scopes: ['once', 'session', 'always'] }))
+    const always = screen.getByRole('button', { name: 'Always' })
+    expect(always.getAttribute('title')).toMatch(/after a restart/)
+    fireEvent.click(always)
+    expect(onRespond).toHaveBeenCalledWith('c1', true, 'always')
+  })
+
+  it('deny carries no scope', () => {
+    const onRespond = vi.fn(() => true)
+    mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
+    expect(onRespond).toHaveBeenCalledWith('c1', false, undefined)
+  })
+
+  it.each([
+    ['session', 'Allowed for the session'],
+    ['always', 'Allowed always'],
+  ])('a decision recorded with the scope %s says how long it lasts', (scope, label) => {
+    mount(
+      <PermissionRequestBlock
+        block={{ ...permissionBlock, metadata: { ...permissionBlock.metadata, decided: true, decision: 'allowed', decision_scope: scope } }}
+        onRespond={() => true}
+      />,
+    )
+    expect(screen.getByText(label)).toBeTruthy()
+  })
+
+  it('the actions are one labelled group', () => {
+    mount(<PermissionRequestBlock block={permissionBlock} onRespond={() => true} />)
+    expect(screen.getByRole('group', { name: 'Answer this permission request' })).toBeTruthy()
   })
 })
 

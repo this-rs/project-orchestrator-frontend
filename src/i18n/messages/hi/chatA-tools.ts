@@ -153,5 +153,18 @@ export default {
       assertion: "दावा",
       decision: "निर्णय"
     }
+  },
+  permission: {
+    actions: "इस अनुमति अनुरोध का उत्तर दें",
+    allowOnce: "एक बार अनुमति दें",
+    allowSession: "इस सत्र के लिए",
+    allowAlways: "हमेशा",
+    deny: "अस्वीकार करें",
+    sessionHint: "इस बातचीत में फिर नहीं पूछा जाएगा",
+    alwaysHint: "इस प्रोजेक्ट में फिर नहीं पूछा जाएगा, पुनः आरंभ के बाद भी",
+    allowed: "अनुमति दी गई",
+    allowedSession: "सत्र के लिए अनुमति दी गई",
+    allowedAlways: "हमेशा के लिए अनुमति दी गई",
+    denied: "अस्वीकृत"
   }
 } satisfies Translation<'chatA-tools'>

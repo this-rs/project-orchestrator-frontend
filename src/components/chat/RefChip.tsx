@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { AlertTriangle, Scissors, X } from 'lucide-react'
 import { refKindDef } from '@/refs/registry'
 import type { RefDisplayState, RefKind } from '@/refs/types'
+import { REF_CHIP_HEIGHT, REF_CHIP_HIT } from './chipGeometry'
 
 /**
  * How loud a chip is.
@@ -37,14 +38,18 @@ const STATE_CLASS: Record<RefDisplayState, string> = {
 /**
  * Geometry shared by both densities. The border and the padding are there at
  * rest too (transparent in `inline`): revealing changes colours, never the
- * width of the line.
+ * width of the line. The chip sits INSIDE a line of text: 20px drawn, 16px
+ * counted by the line (`REF_CHIP_HEIGHT`) — it never pushes two lines apart.
  */
-const BASE_CLASS =
-  'group inline-flex min-h-6 max-w-full items-center gap-1 rounded-md border px-1.5 align-baseline text-xs transition-colors duration-150 motion-reduce:transition-none'
+const BASE_CLASS = `group relative inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 align-baseline text-xs ${REF_CHIP_HEIGHT} transition-colors duration-150 motion-reduce:transition-none`
 
-/** A chip that is a link: a 24px target (44px on touch) and a visible focus ring. */
-const LINK_CLASS =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 [@media(pointer:coarse)]:min-h-11'
+/**
+ * A chip that is a link: a visible focus ring and a 24px target, drawn by a
+ * transparent `::before` — the target grows, the line does not. A link in a
+ * sentence is bounded by its line (WCAG 2.2, 2.5.8, inline exception): no
+ * 44px on touch, which used to double the height of every line with a chip.
+ */
+const LINK_CLASS = `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${REF_CHIP_HIT}`
 
 /**
  * `inline` at rest: no background, no visible border, the text's own colour,
@@ -59,6 +64,9 @@ const INLINE_CLASS = [
   'active:border-indigo-400/30 active:bg-indigo-500/10 active:text-slate-100 active:no-underline',
   'data-[revealed=true]:border-indigo-400/30 data-[revealed=true]:bg-indigo-500/10 data-[revealed=true]:text-slate-100 data-[revealed=true]:no-underline',
 ].join(' ')
+
+/** The remove button: drawn 16px inside the chip, a 24px target around it. */
+const REMOVE_HIT = "before:absolute before:-inset-1 before:content-['']"
 
 /** The icon keeps its size (no reflow); only its opacity tells rest from revealed. */
 const INLINE_ICON_CLASS =
@@ -104,7 +112,7 @@ export function RefChip({ kind, name, state = 'ok', density, to, inRouter, title
           type="button"
           onClick={onRemove}
           aria-label={`Remove ${def.name} ${name}`}
-          className="-mr-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-slate-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
+          className={`relative -mr-1 inline-flex size-4 shrink-0 items-center justify-center rounded text-slate-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${REMOVE_HIT}`}
         >
           <X className="h-3 w-3" aria-hidden />
         </button>

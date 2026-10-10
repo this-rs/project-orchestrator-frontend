@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { Provider, createStore } from 'jotai'
-import { chatSessionIdAtom, chatStreamingAtom, chatAutoApprovedToolsAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom } from '@/atoms'
 
 vi.mock('@/services', () => {
   type Callbacks = {
@@ -55,7 +55,9 @@ vi.mock('@/services', () => {
     sendInterrupt() {
       return true
     }
-    sendPermissionResponse() {
+    permissionCalls: unknown[][] = []
+    sendPermissionResponse(...args: unknown[]) {
+      this.permissionCalls.push(args)
       return FakeChatWebSocket.sendResult
     }
     sendInputResponse() {
@@ -138,21 +140,24 @@ describe('useChat (regression: a failed ws.send must not apply optimistic effect
     expect(askBlock(result)?.metadata?.submitted).toBe(true)
   })
 
-  it('respondPermission does not remember the tool when send fails', async () => {
-    const { result, store } = await setup()
+  it('respondPermission hands the scope to the socket and reports a failed send', async () => {
+    const { result, ws } = await setup()
     FakeWS.sendResult = false
     let ok: boolean | void = true
     await act(async () => {
-      ok = await result.current.respondPermission('t1', true, { toolName: 'Bash' })
+      ok = await result.current.respondPermission('t1', true, 'session')
     })
     expect(ok).toBe(false)
-    expect(store.get(chatAutoApprovedToolsAtom).has('Bash')).toBe(false)
 
     FakeWS.sendResult = true
     await act(async () => {
-      await result.current.respondPermission('t1', true, { toolName: 'Bash' })
+      ok = await result.current.respondPermission('t1', true, 'always')
     })
-    expect(store.get(chatAutoApprovedToolsAtom).has('Bash')).toBe(true)
+    expect(ok).toBe(true)
+    expect(ws.permissionCalls).toEqual([
+      ['t1', true, 'session'],
+      ['t1', true, 'always'],
+    ])
   })
 
   it('sendContinue does not flip isStreaming when send fails, and does when it succeeds', async () => {
@@ -173,25 +178,16 @@ describe('useChat (regression: a failed ws.send must not apply optimistic effect
     expect(store.get(chatStreamingAtom)).toBe(true)
   })
 
-  it('a remembered tool is not shown as auto-approved when the auto-response was not delivered', async () => {
-    const { result, store, ws } = await setup()
-    await act(async () => {
-      await result.current.respondPermission('t0', true, { toolName: 'Bash' }) // remember Bash
-    })
-    expect(store.get(chatAutoApprovedToolsAtom).has('Bash')).toBe(true)
-    const permBlock = () =>
-      result.current.messages.flatMap((m) => m.blocks).find((b) => b.type === 'permission_request')
-
-    FakeWS.sendResult = false
+  it('a decision that outlives the call stamps its scope on the request block', async () => {
+    const { result, ws } = await setup()
     act(() => {
       ws.callbacks.onEvent({ type: 'permission_request', id: 'p1', tool: 'Bash', input: {} })
     })
-    expect(permBlock()?.metadata?.auto_approved).not.toBe(true)
-
-    FakeWS.sendResult = true
     act(() => {
-      ws.callbacks.onEvent({ type: 'permission_request', id: 'p2', tool: 'Bash', input: {} })
+      ws.callbacks.onEvent({ type: 'permission_decision', id: 'p1', allow: true, scope: 'always' })
     })
-    expect(result.current.messages.flatMap((m) => m.blocks).some((b) => b.metadata?.auto_approved === true)).toBe(true)
+    const block = result.current.messages.flatMap((m) => m.blocks).find((b) => b.type === 'permission_request')
+    expect(block?.metadata?.decision).toBe('allowed')
+    expect(block?.metadata?.decision_scope).toBe('always')
   })
 })

@@ -47,9 +47,6 @@ export const chatSessionPermissionOverrideAtom = atom<ToolPolicyMode | null>(nul
 /** Active model for the current session (null = not yet known / use default) */
 export const chatSessionModelAtom = atom<string | null>(null)
 
-/** Tools auto-approved via "Remember for this session" checkbox (reset on new session) */
-export const chatAutoApprovedToolsAtom = atom<Set<string>>(new Set<string>())
-
 /** Whether auto-continue is enabled (automatically sends "Continue" after max_turns) */
 export const chatAutoContinueAtom = atom<boolean>(false)
 

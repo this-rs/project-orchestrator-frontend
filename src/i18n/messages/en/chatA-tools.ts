@@ -143,4 +143,17 @@ export default {
       decision: 'decision',
     },
   },
+  permission: {
+    actions: 'Answer this permission request',
+    allowOnce: 'Allow once',
+    allowSession: 'For this session',
+    allowAlways: 'Always',
+    deny: 'Deny',
+    sessionHint: 'Not asked again in this conversation',
+    alwaysHint: 'Not asked again in this project, after a restart too',
+    allowed: 'Allowed',
+    allowedSession: 'Allowed for the session',
+    allowedAlways: 'Allowed always',
+    denied: 'Denied',
+  },
 }
