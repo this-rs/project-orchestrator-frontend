@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Input, Textarea, Select } from '@/components/ui'
 import type { Persona } from '@/types'
+import { useT } from '@/i18n'
 
 export interface EditPersonaFormData {
   name: string
@@ -17,12 +18,6 @@ interface Props {
   onSubmit: (data: EditPersonaFormData) => Promise<void>
 }
 
-const complexityOptions = [
-  { value: '', label: 'Automatic' },
-  { value: 'simple', label: 'Simple' },
-  { value: 'complex', label: 'Complex' },
-  { value: 'creative', label: 'Creative' },
-]
 
 
 /** Positive number or undefined (empty / invalid input is not sent). */
@@ -36,6 +31,13 @@ function positive(v: string): number | undefined {
  * the other forms (render `fields` inside a FormDialog).
  */
 export function EditPersonaForm({ initial, onSubmit }: Props) {
+  const { t } = useT()
+  const complexityOptions = [
+    { value: '', label: t('forms.persona.complexityAuto') },
+    { value: 'simple', label: t('forms.persona.complexitySimple') },
+    { value: 'complex', label: t('forms.persona.complexityComplex') },
+    { value: 'creative', label: t('forms.persona.complexityCreative') },
+  ]
   const [name, setName] = useState(initial.name)
   const [description, setDescription] = useState(initial.description ?? '')
   const [model, setModel] = useState(initial.model_preference ?? '')
@@ -59,9 +61,9 @@ export function EditPersonaForm({ initial, onSubmit }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!name.trim()) errs.name = 'Name is required'
-    if (timeout.trim() && positive(timeout) === undefined) errs.timeout = 'Must be a positive number'
-    if (maxCost.trim() && positive(maxCost) === undefined) errs.maxCost = 'Must be a positive number'
+    if (!name.trim()) errs.name = t('forms.error.name')
+    if (timeout.trim() && positive(timeout) === undefined) errs.timeout = t('forms.error.positive')
+    if (maxCost.trim() && positive(maxCost) === undefined) errs.maxCost = t('forms.error.positive')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -69,52 +71,48 @@ export function EditPersonaForm({ initial, onSubmit }: Props) {
   return {
     fields: (
       <>
-        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} />
+        <Input label={t('forms.field.name')} value={name} onChange={(e) => setName(e.target.value)} error={errors.name} />
         <Textarea
-          label="Description"
-         
+          label={t('forms.field.description')}
           rows={3}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
-            label="Model preference"
-           
+            label={t('forms.persona.modelPreference')}
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            placeholder="opus, sonnet, haiku…"
+            placeholder={t('forms.placeholder.modelPreference')}
           />
-          <Select label="Default complexity" options={complexityOptions} value={complexity} onChange={setComplexity} />
+          <Select label={t('forms.persona.defaultComplexity')} options={complexityOptions} value={complexity} onChange={setComplexity} />
           <Input
-            label="Timeout (seconds)"
+            label={t('forms.persona.timeout')}
             type="number"
             inputMode="numeric"
             min={1}
-           
             value={timeout}
             onChange={(e) => setTimeoutSecs(e.target.value)}
             error={errors.timeout}
           />
           <Input
-            label="Max cost (USD)"
+            label={t('forms.persona.maxCost')}
             type="number"
             inputMode="decimal"
             step="0.1"
             min={0}
-           
             value={maxCost}
             onChange={(e) => setMaxCost(e.target.value)}
             error={errors.maxCost}
           />
         </div>
         <Textarea
-          label="System prompt override"
+          label={t('forms.persona.systemPrompt')}
           className="font-mono"
           rows={4}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Optional — replaces the default system prompt for agents using this persona"
+          placeholder={t('forms.persona.systemPromptPlaceholder')}
         />
       </>
     ),

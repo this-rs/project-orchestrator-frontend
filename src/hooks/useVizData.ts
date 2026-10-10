@@ -28,6 +28,7 @@ import type {
   MoatData,
   FeedbackLoopData,
 } from '@/components/particles/adapters';
+import { tr } from '@/i18n/lazy'
 
 // ── Shared hook result type ─────────────────────────────────
 
@@ -73,7 +74,7 @@ function useVizFetch<TRaw, TOut>(
         if (controller.signal.aborted) return;
         console.warn('[useVizData] API error, using fallback:', err);
         setData(fallback);
-        setError(err?.message ?? 'API unavailable');
+        setError(err?.message ?? tr('app.hooks.apiUnavailable'));
         setIsLoading(false);
       });
 

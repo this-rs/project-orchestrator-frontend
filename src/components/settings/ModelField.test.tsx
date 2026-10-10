@@ -30,7 +30,7 @@ describe('ModelField', () => {
     fireEvent.change(box(), { target: { value: 'v4-pro' } })
     expect(screen.getByRole('option', { name: /DeepSeek V4 Pro/ })).toBeTruthy()
     expect(screen.queryByRole('option', { name: /deepseek-flash/ })).toBeNull()
-    expect(screen.getByText('1 sur 2')).toBeTruthy()
+    expect(screen.getByText('1 of 2')).toBeTruthy()
   })
 
   it('keeps a value the catalog does not list, says so, and never replaces it', () => {
@@ -49,7 +49,7 @@ describe('ModelField', () => {
     render(<ModelField label="Modèle" value="deepseek-flash" onChange={onChange} models={MODELS} />)
     fireEvent.click(box())
     fireEvent.change(box(), { target: { value: 'mon-modele' } })
-    fireEvent.click(screen.getByRole('option', { name: 'Utiliser “mon-modele”' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Use “mon-modele”' }))
     expect(onChange).toHaveBeenCalledWith('mon-modele')
   })
 

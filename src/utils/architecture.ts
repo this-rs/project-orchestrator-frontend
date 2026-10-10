@@ -8,6 +8,7 @@
 import dagre from 'dagre'
 import type { ComponentType } from '@/types'
 import type { TopologyResponse } from '@/services/workspaces'
+import { tr } from '@/i18n/lazy'
 
 const KNOWN: ComponentType[] = [
   'service',
@@ -187,11 +188,11 @@ export function buildArchitecture(topology: TopologyResponse | null | undefined)
 /** Group by tier for the text view (same information as the graph, readable by screen readers). */
 export function groupByTier(nodes: ArchNode[]): { tier: number; label: string; nodes: ArchNode[] }[] {
   const labels = [
-    'Entry points',
-    'Gateway',
-    'Services',
-    'Libraries, messaging & cache',
-    'Data & external',
+    tr('app.architecture.entry'),
+    tr('app.architecture.gateway'),
+    tr('app.architecture.services'),
+    tr('app.architecture.libraries'),
+    tr('app.architecture.data'),
   ]
   const map = new Map<number, ArchNode[]>()
   nodes.forEach((n) => {
@@ -200,5 +201,5 @@ export function groupByTier(nodes: ArchNode[]): { tier: number; label: string; n
   })
   return [...map.entries()]
     .sort((a, b) => a[0] - b[0])
-    .map(([tier, list]) => ({ tier, label: labels[tier] ?? 'Other', nodes: list }))
+    .map(([tier, list]) => ({ tier, label: labels[tier] ?? tr('fgModel.other'), nodes: list }))
 }

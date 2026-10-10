@@ -3,6 +3,7 @@ import { runnerApi } from '@/services/runner'
 import { getEventBus } from '@/services'
 import type { CrudEvent } from '@/types'
 import type { GateResult, ProgressScoreResponse } from '@/types/chat'
+import { tr } from '@/i18n/lazy'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,7 +64,7 @@ export function usePipelineProgress(runId: string | null): PipelineProgressData 
       }
     } catch (err) {
       if (runIdRef.current === id) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch pipeline progress')
+        setError(err instanceof Error ? err.message : tr('app.hooks.pipelineFailed'))
       }
     } finally {
       setIsLoading(false)

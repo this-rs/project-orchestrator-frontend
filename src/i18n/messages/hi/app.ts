@@ -1,0 +1,62 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  api: {
+    sessionExpired: 'सत्र समाप्त हो गया',
+    fallback: 'एक त्रुटि हुई',
+    nonJson: 'सर्वर ने JSON के अलावा कुछ और लौटाया: {request} → {status}{type}',
+  },
+  upload: {
+    malformed: 'सर्वर से अमान्य प्रतिक्रिया मिली',
+    network: 'नेटवर्क त्रुटि',
+    timedOut: 'अपलोड का समय समाप्त हो गया',
+  },
+  runner: {
+    noActiveRun: 'रद्द करने के लिए कोई सक्रिय रन नहीं है',
+    cancelInProgress: 'रद्दीकरण पहले से जारी है',
+    noActiveRunForce: 'ज़बरदस्ती रद्द करने के लिए कोई सक्रिय रन नहीं है',
+    fetchFailed: 'रनर की स्थिति नहीं मिल सकी',
+  },
+  hooks: {
+    serverNotBack: 'पुनः आरंभ के बाद सर्वर वापस नहीं आया। उसे जाँचें, फिर यह पेज दोबारा लोड करें।',
+    updateActionFailed: 'अद्यतन क्रिया विफल रही',
+    allProjects: 'सभी प्रोजेक्ट',
+    taskGraphFailed: 'कार्य ग्राफ़ का डेटा लोड नहीं हो सका',
+    planGraphFailed: 'योजना ग्राफ़ का डेटा लोड नहीं हो सका',
+    pipelineFailed: 'पाइपलाइन की प्रगति नहीं मिल सकी',
+    discussionTreeFailed: 'चर्चा वृक्ष नहीं मिल सका',
+    newModel: 'एक नया मॉडल',
+    modelAvailable: '{model} अब उपलब्ध है',
+    apiUnavailable: 'API उपलब्ध नहीं है',
+  },
+  attention: {
+    resumed: 'रन फिर शुरू हुआ: {title}',
+    resumeFailed: 'रन फिर शुरू नहीं हो सका',
+    allowed: 'अनुमत: {what}',
+    denied: 'अस्वीकृत: {what}',
+    replySent: 'उत्तर भेजा गया: {what}',
+    replyFailed: 'उत्तर नहीं भेजा गया',
+    accepted: 'स्वीकार किया: {title}',
+    rejected: 'अस्वीकार किया: {title}',
+    decisionFailed: 'निर्णय दर्ज नहीं हुआ',
+  },
+  chat: {
+    cancelledByUser: 'उपयोगकर्ता ने रद्द किया',
+    unknownError: 'अज्ञात त्रुटि',
+    sessionInitialized: 'सत्र आरंभ हुआ',
+    maxTurns: 'अधिकतम टर्न पूरे हो गए',
+    maxTurnsCount: 'अधिकतम टर्न पूरे हो गए ({n} टर्न)',
+    executionError: 'निष्पादन में त्रुटि हुई',
+    autoContinuing: 'स्वतः जारी है...',
+    sessionError: 'सत्र त्रुटि के साथ समाप्त हुआ',
+    startFailed: 'बातचीत शुरू नहीं हो सकी',
+  },
+  export: { user: 'उपयोगकर्ता', assistant: 'सहायक' },
+  architecture: {
+    entry: 'प्रवेश बिंदु',
+    gateway: 'गेटवे',
+    services: 'सेवाएँ',
+    libraries: 'लाइब्रेरी, मैसेजिंग और कैश',
+    data: 'डेटा और बाहरी',
+  },
+} satisfies Translation<'app'>

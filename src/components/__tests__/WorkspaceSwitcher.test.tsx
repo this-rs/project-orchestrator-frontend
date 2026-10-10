@@ -67,7 +67,7 @@ describe('WorkspaceSwitcher', () => {
   it('collapsed: the logo is still the Today link and a small button keeps the list reachable', () => {
     renderSwitcher(true)
     expect(screen.getByRole('link', { name: 'Today' }).getAttribute('href')).toBe('/today')
-    const toggle = screen.getByRole('button', { name: 'Changer de workspace' })
+    const toggle = screen.getByRole('button', { name: 'Switch workspace' })
     fireEvent.click(toggle)
     expect(screen.getByText('Lab')).toBeTruthy()
   })

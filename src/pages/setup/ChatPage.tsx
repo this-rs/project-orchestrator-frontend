@@ -10,8 +10,8 @@ import { useToast } from '@/hooks'
 import { modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
 import type { CliVersionStatus } from '@/types'
 import { POLICY_TO_LEGACY_MODE, toToolPolicyMode } from '@/types/provider'
-import { SETUP_MODE_OPTIONS } from '@/constants/toolPolicy'
-import { SETUP_CHAT_ENGINE_OPTIONS, SETUP_NO_ENGINE_NOTE } from '@/constants/setupProviders'
+import { setupModeOptions } from '@/constants/toolPolicy'
+import { setupChatEngineOptions, setupNoEngineNote } from '@/constants/setupProviders'
 
 /** Format bytes into a human-readable string (KB, MB, GB). */
 function formatBytes(bytes: number): string {
@@ -396,7 +396,7 @@ export function ChatPage() {
       <fieldset className={`${surface} space-y-3 p-4 md:p-5`}>
         <legend className="px-1 text-sm font-semibold text-gray-200">{TEXT.engine}</legend>
         <div role="radiogroup" aria-label={TEXT.engine} className="grid gap-3 sm:grid-cols-2">
-          {SETUP_CHAT_ENGINE_OPTIONS.map((opt) => {
+          {setupChatEngineOptions().map((opt) => {
             const selected = config.chatProvider === opt.value
             return (
               <ChoiceCard
@@ -412,7 +412,7 @@ export function ChatPage() {
         </div>
         {!isClaude && (
           <p className="text-xs leading-4 text-gray-400" data-testid="setup-no-engine-note">
-            {SETUP_NO_ENGINE_NOTE}
+            {setupNoEngineNote()}
           </p>
         )}
       </fieldset>
@@ -494,7 +494,7 @@ export function ChatPage() {
         <p className="text-sm font-semibold text-gray-200">{TEXT.permissions}</p>
         <p className="mb-3 mt-1 text-xs leading-4 text-gray-500">{TEXT.permissionsHint}</p>
         <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label={TEXT.permissions}>
-          {SETUP_MODE_OPTIONS.map((m) => {
+          {setupModeOptions().map((m) => {
             // The config file keeps the legacy Claude string: the desktop (Rust) reads it.
             const selected = toToolPolicyMode(config.chatPermissionMode) === m.mode
             return (

@@ -1,5 +1,6 @@
 import type { ChatMessage, ContentBlock } from '@/types'
 import { costOfMessage, costToText } from './cost'
+import { tr } from '@/i18n/lazy'
 
 export interface ChatExportMeta {
   sessionId?: string
@@ -102,7 +103,7 @@ function blockToMarkdown(block: ContentBlock): string {
  * Serialize a ChatMessage to markdown.
  */
 function messageToMarkdown(msg: ChatMessage, index: number): string {
-  const role = msg.role === 'user' ? 'User' : 'Assistant'
+  const role = msg.role === 'user' ? tr('app.export.user') : tr('app.export.assistant')
   const time = msg.timestamp ? new Date(msg.timestamp).toLocaleString() : ''
   // By basis: `$0.0123`, `$0.0420 est.`, `local`, `subscription`, tokens — or nothing. Never `$0` for an unknown cost.
   const costText = costToText(costOfMessage(msg), { format: (usd) => `$${usd.toFixed(4)}`, hideZero: true })

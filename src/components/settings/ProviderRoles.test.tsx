@@ -195,7 +195,7 @@ describe('ProviderRoles', () => {
     roles.mockRejectedValueOnce(new NonJsonResponseError(502, 'GET', '/api/chat/roles', 'text/html'))
     mountSettings(<ProviderRoles />)
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBe('Le serveur a répondu autre chose que du JSON : GET /api/chat/roles → 502 (text/html)')
+    expect(alert.textContent).toBe('The server answered something other than JSON: GET /api/chat/roles → 502 (text/html)')
     expect(screen.queryByLabelText('Pilote')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Enregistrer' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Réessayer' }))

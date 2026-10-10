@@ -1,0 +1,62 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  api: {
+    sessionExpired: 'Сеанс истёк',
+    fallback: 'Произошла ошибка',
+    nonJson: 'Сервер ответил не JSON: {request} → {status}{type}',
+  },
+  upload: {
+    malformed: 'Некорректный ответ сервера',
+    network: 'Ошибка сети',
+    timedOut: 'Время загрузки истекло',
+  },
+  runner: {
+    noActiveRun: 'Нет активного запуска для отмены',
+    cancelInProgress: 'Отмена уже выполняется',
+    noActiveRunForce: 'Нет активного запуска для принудительной отмены',
+    fetchFailed: 'Не удалось получить состояние исполнителя',
+  },
+  hooks: {
+    serverNotBack: 'Сервер не вернулся после перезапуска. Проверьте его и перезагрузите страницу.',
+    updateActionFailed: 'Не удалось выполнить обновление',
+    allProjects: 'Все проекты',
+    taskGraphFailed: 'Не удалось загрузить данные графа задач',
+    planGraphFailed: 'Не удалось загрузить данные графа планов',
+    pipelineFailed: 'Не удалось получить ход выполнения конвейера',
+    discussionTreeFailed: 'Не удалось получить дерево обсуждения',
+    newModel: 'Новая модель',
+    modelAvailable: '{model} теперь доступна',
+    apiUnavailable: 'API недоступен',
+  },
+  attention: {
+    resumed: 'Запуск возобновлён: {title}',
+    resumeFailed: 'Не удалось возобновить запуск',
+    allowed: 'Разрешено: {what}',
+    denied: 'Отклонено: {what}',
+    replySent: 'Ответ отправлен: {what}',
+    replyFailed: 'Ответ не отправлен',
+    accepted: 'Принято: {title}',
+    rejected: 'Отклонено: {title}',
+    decisionFailed: 'Решение не записано',
+  },
+  chat: {
+    cancelledByUser: 'Отменено пользователем',
+    unknownError: 'Неизвестная ошибка',
+    sessionInitialized: 'Сеанс инициализирован',
+    maxTurns: 'Достигнуто максимальное число ходов',
+    maxTurnsCount: 'Достигнуто максимальное число ходов ({n})',
+    executionError: 'Произошла ошибка выполнения',
+    autoContinuing: 'Автопродолжение...',
+    sessionError: 'Сеанс завершился с ошибкой',
+    startFailed: 'Не удалось начать разговор',
+  },
+  export: { user: 'Пользователь', assistant: 'Ассистент' },
+  architecture: {
+    entry: 'Точки входа',
+    gateway: 'Шлюз',
+    services: 'Сервисы',
+    libraries: 'Библиотеки, обмен сообщениями и кэш',
+    data: 'Данные и внешние системы',
+  },
+} satisfies Translation<'app'>

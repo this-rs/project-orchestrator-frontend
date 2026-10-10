@@ -11,6 +11,7 @@
 // `claude-code` session with every capability on.
 
 import { ROUTING_ERROR_CODES, type RoutingErrorCode, type RoutingSummary } from './routing'
+import { lazyTexts } from '@/i18n/lazy'
 
 /** Id of a provider INSTANCE (not of a kind): `claude-code`, `local-llama`, … */
 export type ProviderId = string
@@ -712,13 +713,13 @@ export interface ProvidersResponse {
 }
 
 /** Human label of a kind — one module for every provider-facing string. */
-export const PROVIDER_KIND_LABELS: Readonly<Record<KnownProviderKind, string>> = {
-  claude_code: 'Claude Code',
-  openai_compatible: 'OpenAI-compatible',
-  codex: 'Codex',
-  acp: 'ACP agent',
-  claude_code_remote: 'Claude Code (SSH)',
-}
+export const PROVIDER_KIND_LABELS: Readonly<Record<KnownProviderKind, string>> = lazyTexts<KnownProviderKind>({
+  claude_code: 'providers.kind.claude_code',
+  openai_compatible: 'providers.kind.openai_compatible',
+  codex: 'providers.kind.codex',
+  acp: 'providers.kind.acp',
+  claude_code_remote: 'providers.kind.claude_code_remote',
+})
 
 export function providerKindLabel(kind: ProviderKind | null | undefined): string {
   if (!kind) return PROVIDER_KIND_LABELS.claude_code

@@ -9,7 +9,8 @@
 import type { DiscussionNode } from '@/services/discussions'
 import type { InterruptOutcome } from '@/types/chat'
 import { CLAUDE_CODE_PROVIDER_ID } from '@/types/provider'
-import { COST_FREE_TEXT, COST_SUBSCRIPTION_TEXT, costReport, formatCostSum, formatUsd2, sumCosts, type CostSum } from './cost'
+import { activeTranslator } from '@/i18n/active'
+import { costFreeText, costSubscriptionText, costReport, formatCostSum, formatUsd2, sumCosts, type CostSum } from './cost'
 
 /** The node and every descendant, depth-first. */
 export function flattenSubtree(node: DiscussionNode): DiscussionNode[] {
@@ -56,7 +57,7 @@ export function describeNodesCost(nodes: DiscussionNode[]): SubtreeCostText {
   if (figures.length > 0) return { text: formatCostSum({ ...sum, known: figures.length }), partial: sum.unknown > 0 }
   if (sum.unknown === 0 && sum.known > 0) {
     const bases = new Set(reports.map((r) => r?.basis))
-    return { text: bases.size === 1 && bases.has('subscription') ? COST_SUBSCRIPTION_TEXT : bases.size === 1 ? COST_FREE_TEXT : 'no charge', partial: false }
+    return { text: bases.size === 1 && bases.has('subscription') ? costSubscriptionText() : bases.size === 1 ? costFreeText() : activeTranslator().t('ui.cost.noCharge'), partial: false }
   }
   return { text: null, partial: false }
 }

@@ -8,7 +8,7 @@ import { healthLabel } from '@/constants/providers'
 import {
   PROVIDER_ERROR_TITLES,
   PROVIDER_SETTINGS_PATH,
-  RETRY_BY_SENDING_TEXT,
+  retryBySendingText,
   VAULT_PATH,
   providerConsentPath,
   providerErrorExplanation,
@@ -276,7 +276,7 @@ export function ProviderStateCard({
                   Retry
                 </button>
               ) : (
-                <span className="text-[11px] text-red-100/90">{RETRY_BY_SENDING_TEXT}</span>
+                <span className="text-[11px] text-red-100/90">{retryBySendingText()}</span>
               ))}
           </div>
         )}

@@ -15,6 +15,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { updateApi } from '@/services/update'
 import { apiErrorMessage } from '@/services/api'
 import type { ServerUpdateStatus } from '@/types/update'
+import { tr } from '@/i18n/lazy'
 
 // ============================================================================
 // Types
@@ -223,7 +224,7 @@ export function useUpdateCheck(): UpdateCheckResult {
         }
         return true
       } catch (e) {
-        setActionError(apiErrorMessage(e, 'Update action failed'))
+        setActionError(apiErrorMessage(e, tr('app.hooks.updateActionFailed')))
         return false
       } finally {
         setActing(false)
@@ -288,7 +289,7 @@ export function useUpdateCheck(): UpdateCheckResult {
     if (!restarting) return
     const giveUp = setTimeout(() => {
       setRestarting(false)
-      setActionError('The server did not come back after restarting. Check it, then reload this page.')
+      setActionError(tr('app.hooks.serverNotBack'))
     }, RESTART_GIVE_UP_MS)
     const id = setInterval(async () => {
       try {

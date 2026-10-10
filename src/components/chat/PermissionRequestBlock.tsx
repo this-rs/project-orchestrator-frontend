@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { ContentBlock } from '@/types'
 import { supportsScope, type ToolCategory } from '@/types/provider'
-import { POLICY_ONLY_REQUEST_TEXT } from '@/constants/capabilities'
+import { policyOnlyRequestText } from '@/constants/capabilities'
 import { useChatCapabilities } from './ChatSessionContext'
 import { useBlockProviderKind } from './useBlockProviderKind'
 import { commandText, getToolCategory } from './tools'
@@ -281,7 +281,7 @@ export function PermissionRequestBlock({
             {summary}
           </span>
         </div>
-        <p className="mt-0.5 text-[10px] text-gray-500">{POLICY_ONLY_REQUEST_TEXT}</p>
+        <p className="mt-0.5 text-[10px] text-gray-500">{policyOnlyRequestText()}</p>
       </div>
     )
   }

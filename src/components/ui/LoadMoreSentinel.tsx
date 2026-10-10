@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react'
+import { useT } from '@/i18n'
 
 interface LoadMoreSentinelProps {
   /** Ref callback from useInfiniteList */
@@ -27,6 +28,7 @@ export function LoadMoreSentinel({
   onLoadMore,
   remaining,
 }: LoadMoreSentinelProps) {
+  const { t } = useT()
   if (!hasMore && !loadingMore) return null
 
   return (
@@ -34,7 +36,7 @@ export function LoadMoreSentinel({
       {loadingMore ? (
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Loading more…
+          {t('ui.loadMore.loading')}
         </div>
       ) : (
         onLoadMore && (
@@ -44,10 +46,10 @@ export function LoadMoreSentinel({
             className="rounded-md px-3 py-2 text-xs text-gray-400 hover:text-gray-200 hover:bg-white/[0.04] focus-visible:outline-2 focus-visible:outline-indigo-400"
           >
             {error
-              ? 'Could not load more — retry'
+              ? t('ui.loadMore.failed')
               : remaining
-                ? `Load ${remaining.toLocaleString()} more`
-                : 'Load more'}
+                ? t('ui.loadMore.remaining', { count: remaining })
+                : t('ui.loadMore.more')}
           </button>
         )
       )}

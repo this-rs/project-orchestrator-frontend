@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Input, Textarea } from '@/components/ui'
+import { useT } from '@/i18n'
 
 export interface EditStepFormData {
   description: string
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function EditStepForm({ initialValues, onSubmit, loading }: Props) {
+  const { t } = useT()
   const [description, setDescription] = useState(initialValues.description)
   const [verification, setVerification] = useState(initialValues.verification ?? '')
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -25,7 +27,7 @@ export function EditStepForm({ initialValues, onSubmit, loading }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!description.trim()) errs.description = 'Description is required'
+    if (!description.trim()) errs.description = t('forms.error.description')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -34,8 +36,8 @@ export function EditStepForm({ initialValues, onSubmit, loading }: Props) {
     fields: (
       <>
         <Textarea
-          label="Description"
-          placeholder="Step description"
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.stepDescriptionEdit')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={errors.description}
@@ -43,8 +45,8 @@ export function EditStepForm({ initialValues, onSubmit, loading }: Props) {
           rows={3}
         />
         <Input
-          label="Verification"
-          placeholder="How to verify this step (optional)"
+          label={t('forms.field.verification')}
+          placeholder={t('forms.placeholder.stepVerificationEdit')}
           value={verification}
           onChange={(e) => setVerification(e.target.value)}
           disabled={loading}

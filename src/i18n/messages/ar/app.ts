@@ -1,0 +1,62 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  api: {
+    sessionExpired: 'انتهت الجلسة',
+    fallback: 'حدث خطأ',
+    nonJson: 'ردّ الخادم بغير JSON: {request} ← {status}{type}',
+  },
+  upload: {
+    malformed: 'ردّ غير صالح من الخادم',
+    network: 'خطأ في الشبكة',
+    timedOut: 'انتهت مهلة الرفع',
+  },
+  runner: {
+    noActiveRun: 'لا يوجد تشغيل نشط لإلغائه',
+    cancelInProgress: 'الإلغاء جارٍ بالفعل',
+    noActiveRunForce: 'لا يوجد تشغيل نشط لفرض إلغائه',
+    fetchFailed: 'تعذّر جلب حالة المشغّل',
+  },
+  hooks: {
+    serverNotBack: 'لم يعد الخادم إلى العمل بعد إعادة التشغيل. تحقق منه ثم أعد تحميل هذه الصفحة.',
+    updateActionFailed: 'فشل إجراء التحديث',
+    allProjects: 'كل المشاريع',
+    taskGraphFailed: 'تعذّر تحميل بيانات مخطط المهام',
+    planGraphFailed: 'تعذّر تحميل بيانات مخطط الخطة',
+    pipelineFailed: 'تعذّر جلب تقدّم خط المعالجة',
+    discussionTreeFailed: 'تعذّر جلب شجرة النقاش',
+    newModel: 'نموذج جديد',
+    modelAvailable: '{model} متاح الآن',
+    apiUnavailable: 'واجهة API غير متاحة',
+  },
+  attention: {
+    resumed: 'تم استئناف التشغيل: {title}',
+    resumeFailed: 'تعذّر استئناف التشغيل',
+    allowed: 'تم السماح: {what}',
+    denied: 'تم الرفض: {what}',
+    replySent: 'أُرسل الرد: {what}',
+    replyFailed: 'لم يُرسل الرد',
+    accepted: 'تم القبول: {title}',
+    rejected: 'تم الرفض: {title}',
+    decisionFailed: 'لم يُسجَّل القرار',
+  },
+  chat: {
+    cancelledByUser: 'ألغاه المستخدم',
+    unknownError: 'خطأ غير معروف',
+    sessionInitialized: 'تمت تهيئة الجلسة',
+    maxTurns: 'تم بلوغ الحد الأقصى للأدوار',
+    maxTurnsCount: 'تم بلوغ الحد الأقصى للأدوار ({n} دورًا)',
+    executionError: 'حدث خطأ أثناء التنفيذ',
+    autoContinuing: 'متابعة تلقائية…',
+    sessionError: 'انتهت الجلسة بخطأ',
+    startFailed: 'تعذّر بدء المحادثة',
+  },
+  export: { user: 'المستخدم', assistant: 'المساعد' },
+  architecture: {
+    entry: 'نقاط الدخول',
+    gateway: 'البوابة',
+    services: 'الخدمات',
+    libraries: 'المكتبات والمراسلة والذاكرة المؤقتة',
+    data: 'البيانات والخدمات الخارجية',
+  },
+} satisfies Translation<'app'>

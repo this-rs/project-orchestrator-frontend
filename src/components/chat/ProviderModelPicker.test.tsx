@@ -23,12 +23,12 @@ import {
 } from '@/atoms'
 import type { ModelDefinition } from '@/constants/models'
 import {
-  DEFAULT_MODEL_LABEL,
-  NEW_CONVERSATION_OTHER_PROVIDER_LABEL,
-  PROVIDER_LOCKED_TEXT,
-  PROVIDER_NOT_ALLOWED_TEXT,
-  PROVIDER_SIGN_IN_REQUIRED_TEXT,
-  SET_MODEL_UNSUPPORTED_TEXT,
+  defaultModelLabel,
+  newConversationOtherProviderLabel,
+  providerLockedText,
+  providerNotAllowedText,
+  providerSignInRequiredText,
+  setModelUnsupportedText,
 } from '@/constants/providers'
 import type { ProvidersResponse } from '@/types/provider'
 import { clearModelCatalogCache } from '@/components/settings/useModelCatalog'
@@ -205,8 +205,8 @@ describe('ProviderModelPicker — new conversation', () => {
     expect(document.querySelectorAll('[data-testid^="target-provider-"]')).toHaveLength(5)
 
     const cases: [string, string, string][] = [
-      ['deepseek', 'DeepSeek', PROVIDER_NOT_ALLOWED_TEXT],
-      ['codex', 'Codex', PROVIDER_SIGN_IN_REQUIRED_TEXT],
+      ['deepseek', 'DeepSeek', providerNotAllowedText()],
+      ['codex', 'Codex', providerSignInRequiredText()],
       ['vllm', 'vLLM box', 'Connection refused (10.0.0.5:8000)'],
     ]
     for (const [id, label, reason] of cases) {
@@ -237,7 +237,7 @@ describe('ProviderModelPicker — new conversation', () => {
       },
     })
     openTarget()
-    fireEvent.click(within(openSection('claude-code').getByRole('button', { name: DEFAULT_MODEL_LABEL }).parentElement!).getByRole('button', { name: DEFAULT_MODEL_LABEL }))
+    fireEvent.click(within(openSection('claude-code').getByRole('button', { name: defaultModelLabel() }).parentElement!).getByRole('button', { name: defaultModelLabel() }))
 
     expect(store.get(chatSelectedProviderAtom)).toBe('claude-code')
     expect(store.get(chatSessionModelAtom)).toBeNull()
@@ -318,7 +318,7 @@ describe('ProviderModelPicker — new conversation', () => {
     const menu = openTarget()
     const names = section('local-llama').getAllByRole('button').slice(1).map((b) => b.textContent)
     // `fast` from the alias table, `deep` declared by a model; `utility` belongs to another instance.
-    expect(names).toEqual([DEFAULT_MODEL_LABEL, 'fastQwen Coder 7B', 'deepqwen2.5-coder-32b', 'qwen2.5-coder-32b', 'Qwen Coder 7B'])
+    expect(names).toEqual([defaultModelLabel(), 'fastQwen Coder 7B', 'deepqwen2.5-coder-32b', 'qwen2.5-coder-32b', 'Qwen Coder 7B'])
 
     fireEvent.click(menu.getByRole('button', { name: /^fast/ }))
     // The alias NAME is what the session-creation request carries.
@@ -415,7 +415,7 @@ describe('ProviderModelPicker — remote Claude Code', () => {
     expect(header.textContent).toContain('Claude Code (SSH)')
     // Beyond its id and its kind, the row carries no bare "Claude Code" name.
     expect((header.textContent ?? '').replace('Claude Code (SSH)', '')).not.toContain('Claude Code')
-    fireEvent.click(openSection('claude-code@lab').getByRole('button', { name: DEFAULT_MODEL_LABEL }))
+    fireEvent.click(openSection('claude-code@lab').getByRole('button', { name: defaultModelLabel() }))
     expect(targetChip().textContent).toContain('claude-code@lab')
   })
 
@@ -510,7 +510,7 @@ describe('ProviderModelPicker — backend without provider routes', () => {
 
   it('invents no model when the server advertises no default', () => {
     mount({ prepare: unsupported })
-    expect(targetChip().textContent).toBe(DEFAULT_MODEL_LABEL)
+    expect(targetChip().textContent).toBe(defaultModelLabel())
   })
 
   it('still switches the model of a live Claude session over the socket', () => {
@@ -549,9 +549,9 @@ describe('ProviderModelPicker — existing session', () => {
     expect(menu.queryByTestId('target-auto')).toBeNull()
     expect(menu.getByText('Local llama-server')).toBeTruthy()
     expect(menu.getByText('OpenAI-compatible')).toBeTruthy()
-    expect(menu.getByText(PROVIDER_LOCKED_TEXT)).toBeTruthy()
+    expect(menu.getByText(providerLockedText())).toBeTruthy()
 
-    fireEvent.click(menu.getByRole('button', { name: NEW_CONVERSATION_OTHER_PROVIDER_LABEL }))
+    fireEvent.click(menu.getByRole('button', { name: newConversationOtherProviderLabel() }))
     expect(onNewConversation).toHaveBeenCalledTimes(1)
     // Now a new conversation, with the instances to choose from already shown.
     expect(document.querySelectorAll('[data-testid^="target-provider-"]')).toHaveLength(5)
@@ -561,7 +561,7 @@ describe('ProviderModelPicker — existing session', () => {
   it('a legacy session (no provider named) is locked on Claude Code', () => {
     mount({ sessionId: 's1', prepare: withProviders() })
     expect(targetChip().textContent).toContain('Claude Code')
-    expect(openTarget().getByText(PROVIDER_LOCKED_TEXT)).toBeTruthy()
+    expect(openTarget().getByText(providerLockedText())).toBeTruthy()
   })
 
   it('changes the model live when the provider can, among the models of the session instance', () => {
@@ -580,7 +580,7 @@ describe('ProviderModelPicker — existing session', () => {
   it('set_model_live: false — the menu explains it and offers no model to pick', () => {
     const { onChangeModel } = mount({ sessionId: 's1', prepare: onLlama({ set_model_live: false }) })
     const popover = openTarget()
-    expect(popover.getByText(SET_MODEL_UNSUPPORTED_TEXT)).toBeTruthy()
+    expect(popover.getByText(setModelUnsupportedText())).toBeTruthy()
     expect(popover.queryByRole('button', { name: /qwen/i })).toBeNull()
     expect(onChangeModel).not.toHaveBeenCalled()
   })

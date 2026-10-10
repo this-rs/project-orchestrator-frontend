@@ -7,8 +7,8 @@ import type { PermissionMode } from '@/types'
 import type { ToolPolicyMode } from '@/types/provider'
 import {
   MODE_DOT_COLORS,
-  RULES_UNSUPPORTED_TEXT,
-  TRUST_REQUIRES_SANDBOX_TEXT,
+  rulesUnsupportedText,
+  trustRequiresSandboxText,
   isTrustAllowed,
   modeLabelSet,
   readToolPolicyMode,
@@ -403,7 +403,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
                       <p className="text-[10px] text-gray-500 leading-tight">{m.description}</p>
                       {refused && (
                         <p id={trustHelpId} className="mt-1 text-[10px] text-amber-400/80 leading-tight">
-                          {TRUST_REQUIRES_SANDBOX_TEXT}
+                          {trustRequiresSandboxText()}
                         </p>
                       )}
                     </button>
@@ -443,7 +443,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
               // silently does nothing.
               <section>
                 <h3 className="text-xs font-semibold text-gray-400 mb-2">Tool rules</h3>
-                <p className="text-xs text-gray-500 leading-snug">{RULES_UNSUPPORTED_TEXT}</p>
+                <p className="text-xs text-gray-500 leading-snug">{rulesUnsupportedText()}</p>
               </section>
             )}
 

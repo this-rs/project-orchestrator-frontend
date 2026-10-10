@@ -4,6 +4,7 @@ import { ChevronRight } from 'lucide-react'
 import { MetaLine } from './MetaLine'
 import { OverflowMenu, type OverflowMenuAction } from './OverflowMenu'
 import { focusRing } from './classes'
+import { useT } from '@/i18n'
 import { TONE_CLASSES, type StatusTone } from './statusMeta'
 import { AddToChatButton, useAddToChatAction, useReferenceSource, type ReferenceSourceEntity } from '@/refs/source'
 
@@ -123,6 +124,7 @@ export function EntityRow({
   as: Tag = 'li',
   className = '',
 }: EntityRowProps) {
+  const { t } = useT()
   const entity = entityRef ? { ...entityRef, label: entityRef.label ?? (typeof title === 'string' ? title : undefined) } : null
   const source = useReferenceSource(entity)
   const addAction = useAddToChatAction(entity)
@@ -157,7 +159,7 @@ export function EntityRow({
           <AddToChatButton entity={entity} />
         </span>
       )}
-      <OverflowMenu actions={rowActions} size="sm" label={menuName ? `Actions for ${menuName}` : 'Row actions'} />
+      <OverflowMenu actions={rowActions} size="sm" label={menuName ? t('ui.actionsFor', { name: menuName }) : t('ui.rowActions')} />
     </>
   ) : addAction && entity ? (
     <>

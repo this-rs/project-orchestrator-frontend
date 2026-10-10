@@ -8,6 +8,7 @@
 // cost is NEVER shown as "$0" — a zero is a claim, and nobody made it.
 
 import { toCostBasis, type CostBasis } from '@/types/provider'
+import { activeTranslator } from '@/i18n/active'
 import type { ChatMessage, TurnUsage } from '@/types'
 
 /** Tokens of a turn, as far as the provider reported them. */
@@ -126,20 +127,18 @@ export function formatTokenCount(n: number): string {
 export function formatTokens(tokens: CostTokens | undefined): string | null {
   if (!tokens) return null
   const parts: string[] = []
-  if (tokens.input !== undefined) parts.push(`${formatTokenCount(tokens.input)} in`)
-  if (tokens.output !== undefined) parts.push(`${formatTokenCount(tokens.output)} out`)
+  const { t } = activeTranslator()
+  if (tokens.input !== undefined) parts.push(t('ui.cost.tokensIn', { n: formatTokenCount(tokens.input) }))
+  if (tokens.output !== undefined) parts.push(t('ui.cost.tokensOut', { n: formatTokenCount(tokens.output) }))
   return parts.length > 0 ? parts.join(' · ') : null
 }
 
-export const COST_ESTIMATED_BADGE = 'est.'
-export const COST_FREE_TEXT = 'local'
-export const COST_SUBSCRIPTION_TEXT = 'subscription'
-export const COST_HELP: Readonly<Record<CostBasis, string>> = {
-  reported: 'Cost reported by the provider.',
-  priced: 'Estimated from a price table, not billed by the provider.',
-  free: 'No charge: this model runs on a local endpoint.',
-  subscription: 'Covered by a subscription plan.',
-  unknown: 'Cost unknown: no price is known for this model.',
+export const costEstimatedBadge = (): string => activeTranslator().t('ui.cost.estimated')
+export const costFreeText = (): string => activeTranslator().t('ui.cost.free')
+export const costSubscriptionText = (): string => activeTranslator().t('ui.cost.subscription')
+/** Explanation of a cost basis, for a tooltip. */
+export function costHelp(basis: CostBasis): string {
+  return activeTranslator().t(`ui.cost.help.${basis}`)
 }
 
 export interface CostText {
@@ -172,18 +171,18 @@ export function describeCost(report: CostReport | null | undefined, options: Des
   if (!report) return NOTHING
   const format = options.format ?? formatUsd
   const { basis } = report
-  if (basis === 'free') return { text: COST_FREE_TEXT, estimated: false, help: COST_HELP.free, basis }
+  if (basis === 'free') return { text: costFreeText(), estimated: false, help: costHelp('free'), basis }
   if (basis === 'subscription') {
-    const notional = report.usd != null ? ` Notional cost: ${format(report.usd)}.` : ''
-    return { text: COST_SUBSCRIPTION_TEXT, estimated: false, help: `${COST_HELP.subscription}${notional}`, basis }
+    const notional = report.usd != null ? ` ${activeTranslator().t('ui.cost.notional', { amount: format(report.usd) })}` : ''
+    return { text: costSubscriptionText(), estimated: false, help: `${costHelp('subscription')}${notional}`, basis }
   }
   if (basis === 'unknown' || report.usd == null) {
     const tokens = formatTokens(report.tokens)
-    return tokens ? { text: tokens, estimated: false, help: COST_HELP.unknown, basis } : { ...NOTHING, basis }
+    return tokens ? { text: tokens, estimated: false, help: costHelp('unknown'), basis } : { ...NOTHING, basis }
   }
   if (options.hideZero && report.usd === 0) return { ...NOTHING, basis }
   return basis === 'priced'
-    ? { text: format(report.usd), estimated: true, help: COST_HELP.priced, basis }
+    ? { text: format(report.usd), estimated: true, help: costHelp('priced'), basis }
     : { text: format(report.usd), estimated: false, help: null, basis }
 }
 
@@ -191,7 +190,7 @@ export function describeCost(report: CostReport | null | undefined, options: Des
 export function costToText(report: CostReport | null | undefined, options: DescribeCostOptions = {}): string | null {
   const d = describeCost(report, options)
   if (d.text === null) return null
-  return d.estimated ? `${d.text} ${COST_ESTIMATED_BADGE}` : d.text
+  return d.estimated ? `${d.text} ${costEstimatedBadge()}` : d.text
 }
 
 /** Is there anything to show for this cost? (Lets a caller drop the separator or the row with it.) */
@@ -247,4 +246,4 @@ export function formatCostSum(sum: CostSum, format: (usd: number) => string = fo
   return sum.unknown > 0 ? `≥ ${amount}` : amount
 }
 
-export const COST_SUM_PARTIAL_HELP = 'Some costs are unknown: the real total is at least this amount.'
+export const costSumPartialHelp = (): string => activeTranslator().t('ui.cost.partialHelp')

@@ -11,6 +11,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import { Download, Loader2, AlertCircle, X } from 'lucide-react'
+import { useT } from '@/i18n'
 
 // ============================================================================
 // Types
@@ -97,6 +98,7 @@ function truncateMarkdown(md: string | null, maxLen = 200): string {
 // ============================================================================
 
 export function UpdateBanner() {
+  const { t } = useT()
   const [state, setState] = useState<BannerState>({ kind: 'hidden' })
   const [dismissed, setDismissed] = useState(false)
 
@@ -182,7 +184,7 @@ export function UpdateBanner() {
             {/* Content */}
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">
-                New version {state.version} available
+                {t('shell.update.available', { version: state.version })}
               </p>
               {state.body && (
                 <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
@@ -197,13 +199,13 @@ export function UpdateBanner() {
                 onClick={handleInstall}
                 className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
               >
-                Update now
+                {t('shell.update.now')}
               </button>
               <button
                 onClick={handleDismiss}
                 className="rounded-md px-2 py-1.5 text-xs text-blue-600 transition-colors hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900"
               >
-                Later
+                {t('shell.update.later')}
               </button>
             </div>
           </div>
@@ -214,7 +216,7 @@ export function UpdateBanner() {
           <div>
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                Downloading update...
+                {t('shell.update.downloading')}
               </p>
               <span className="text-xs text-blue-600 dark:text-blue-400">
                 {state.percent != null
@@ -242,7 +244,7 @@ export function UpdateBanner() {
           <div className="flex items-center gap-3">
             <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-              Installing v{state.version}... The app will restart shortly.
+              {t('shell.update.installing', { version: state.version })}
             </p>
           </div>
         )}
@@ -253,12 +255,13 @@ export function UpdateBanner() {
             <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-500" />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                Update check failed
+                {t('shell.update.failed')}
               </p>
               <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{state.message}</p>
             </div>
             <button
               onClick={handleDismiss}
+              aria-label={t('ui.close')}
               className="flex-shrink-0 text-red-400 hover:text-red-600 dark:hover:text-red-300"
             >
               <X className="h-4 w-4" />

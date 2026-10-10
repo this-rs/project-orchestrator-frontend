@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { Search, SlidersHorizontal, X } from 'lucide-react'
 import { Sep } from './MetaLine'
+import { useT } from '@/i18n'
 import { focusRing, iconButton, textLink } from './classes'
 
 interface FilterBarProps {
@@ -33,7 +34,7 @@ interface FilterBarProps {
 export function FilterBar({
   search,
   onSearchChange,
-  searchPlaceholder = 'Search…',
+  searchPlaceholder: searchPlaceholderProp,
   searchLabel,
   filters,
   activeCount = 0,
@@ -43,6 +44,8 @@ export function FilterBar({
   trailing,
   className = '',
 }: FilterBarProps) {
+  const { t } = useT()
+  const searchPlaceholder = searchPlaceholderProp ?? t('ui.filterBar.searchPlaceholder')
   const [open, setOpen] = useState(defaultOpen ?? activeCount > 0)
   const inputRef = useRef<HTMLInputElement>(null)
   const panelId = useId()
@@ -78,7 +81,7 @@ export function FilterBar({
                   onSearchChange('')
                   inputRef.current?.focus()
                 }}
-                aria-label="Clear search"
+                aria-label={t('ui.filterBar.clearSearch')}
                 className={`absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 inline-flex items-center justify-center rounded text-gray-500 hover:text-gray-300 ${focusRing}`}
               >
                 <X className="w-3.5 h-3.5" aria-hidden="true" />
@@ -95,7 +98,7 @@ export function FilterBar({
               onClick={() => setOpen((v) => !v)}
               aria-expanded={open}
               aria-controls={panelId}
-              aria-label={activeCount > 0 ? `Filters (${activeCount} active)` : 'Filters'}
+              aria-label={activeCount > 0 ? t('ui.filterBar.filtersActive', { count: activeCount }) : t('ui.filterBar.filters')}
               className={`${iconButton('ghost', 'size-9 md:size-8')} ${activeCount > 0 ? 'text-indigo-300' : 'text-gray-400'}`}
             >
               <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
@@ -131,7 +134,7 @@ export function FilterBar({
           </span>
           {onClear && activeCount > 0 && (
             <button type="button" onClick={onClear} className={`ml-auto shrink-0 px-1 ${textLink}`}>
-              Clear
+              {t('ui.clear')}
             </button>
           )}
         </div>

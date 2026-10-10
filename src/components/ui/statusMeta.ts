@@ -19,6 +19,8 @@ import type {
 } from '@/types'
 import type { ProtocolStatus, RfcStatus, RunStatus } from '@/types/protocol'
 import type { GateStatus } from '@/types/chat'
+import { activeTranslator } from '@/i18n/active'
+import type { MessageKey } from '@/i18n/catalog'
 
 // ============================================================================
 // Tones
@@ -194,6 +196,23 @@ export type StatusValue<K extends StatusKind> = keyof (typeof STATUS_REGISTRY)[K
 // Lookup
 // ============================================================================
 
+/** Every status value the catalog has a label for (`ui.status.<value>`): the same word for every kind of entity. */
+const KNOWN_STATUS = [
+  'pending', 'in_progress', 'blocked', 'completed', 'failed', 'draft', 'approved', 'cancelled', 'skipped', 'planned',
+  'open', 'closed', 'released', 'active', 'needs_review', 'stale', 'obsolete', 'archived', 'low', 'medium', 'high',
+  'critical', 'proposed', 'accepted', 'deprecated', 'superseded', 'emerging', 'dormant', 'imported', 'running',
+  'under_review', 'planning', 'implemented', 'rejected', 'pass', 'fail', 'skip', 'error',
+] as const
+type KnownStatus = (typeof KNOWN_STATUS)[number]
+const isKnownStatus = (v: string): v is KnownStatus => (KNOWN_STATUS as readonly string[]).includes(v)
+
+/** The word for a status value in the language on screen; `fallback` (or the humanized value) when the catalog has none. */
+export function statusLabel(value: string, fallback?: string): string {
+  const v = value.toLowerCase()
+  if (isKnownStatus(v)) return activeTranslator().t(`ui.status.${v}` as MessageKey)
+  return fallback ?? humanizeStatus(value)
+}
+
 /** `in_progress` → `In progress`, `needsReview` → `Needs review`. */
 export function humanizeStatus(value: string): string {
   const spaced = value
@@ -227,19 +246,19 @@ export function guessTone(value: string): StatusTone {
  * falls back to a humanized label + guessed tone, so it never throws.
  */
 export function getStatusMeta(kind: StatusKind | undefined, value: string | null | undefined): StatusMeta {
-  if (!value) return { label: 'Unknown', tone: 'muted' }
+  if (!value) return { label: activeTranslator().t('ui.status.unknown'), tone: 'muted' }
   if (kind) {
     const reg = STATUS_REGISTRY[kind] as Record<string, StatusMeta>
     const hit = reg[value] ?? reg[value.toLowerCase()] ?? reg[value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()]
-    if (hit) return hit
+    if (hit) return { ...hit, label: statusLabel(value, hit.label) }
   }
-  return { label: humanizeStatus(value), tone: guessTone(value) }
+  return { label: statusLabel(value), tone: guessTone(value) }
 }
 
 /** Ordered `{ value, label }` options for a kind — feed a StatusMenu / Select. */
 export function getStatusOptions<K extends StatusKind>(kind: K): { value: StatusValue<K>; label: string }[] {
   const reg = STATUS_REGISTRY[kind] as Record<string, StatusMeta>
-  return Object.keys(reg).map((value) => ({ value: value as StatusValue<K>, label: reg[value].label }))
+  return Object.keys(reg).map((value) => ({ value: value as StatusValue<K>, label: statusLabel(value, reg[value].label) }))
 }
 
 // ============================================================================
@@ -252,9 +271,10 @@ export function getStatusOptions<K extends StatusKind>(kind: K): { value: Status
  */
 export function getPriorityMeta(priority: number | null | undefined): (StatusMeta & { short: string }) | null {
   if (priority == null || !Number.isFinite(priority) || priority <= 0) return null
+  const t = activeTranslator().t
   const short = `P${priority}`
-  if (priority >= 9) return { short, label: `Priority ${priority} (critical)`, tone: 'danger' }
-  if (priority >= 7) return { short, label: `Priority ${priority} (high)`, tone: 'warning' }
-  if (priority >= 4) return { short, label: `Priority ${priority}`, tone: 'neutral' }
-  return { short, label: `Priority ${priority} (low)`, tone: 'muted' }
+  if (priority >= 9) return { short, label: t('ui.priority.critical', { n: priority }), tone: 'danger' }
+  if (priority >= 7) return { short, label: t('ui.priority.high', { n: priority }), tone: 'warning' }
+  if (priority >= 4) return { short, label: t('ui.priority.normal', { n: priority }), tone: 'neutral' }
+  return { short, label: t('ui.priority.low', { n: priority }), tone: 'muted' }
 }

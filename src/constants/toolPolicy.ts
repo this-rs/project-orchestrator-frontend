@@ -20,6 +20,8 @@ import {
   type LegacyPermissionMode,
   type ToolPolicyMode,
 } from '@/types/provider'
+import { lazyTexts, tr } from '@/i18n/lazy'
+import type { MessageKey } from '@/i18n/catalog'
 
 /** The mode assumed when nothing (or nothing readable) was received. */
 export const DEFAULT_TOOL_POLICY_MODE: ToolPolicyMode = 'ask'
@@ -72,34 +74,34 @@ export const MODE_DOT_COLORS: PerMode<string> = {
 /** Dot colour of a mode nobody could read. */
 export const UNKNOWN_MODE_DOT_COLOR = 'bg-gray-400'
 
-const NEUTRAL_LABELS: PerMode<string> = {
-  trust: "Rock'n roll",
-  auto_edits: 'Auto-approve edits',
-  ask: 'Ask',
-  plan_only: 'Plan only',
-}
+const NEUTRAL_LABELS: PerMode<string> = lazyTexts<ToolPolicyMode>({
+  trust: 'toolPolicy.neutral.trust',
+  auto_edits: 'toolPolicy.neutral.auto_edits',
+  ask: 'toolPolicy.neutral.ask',
+  plan_only: 'toolPolicy.neutral.plan_only',
+})
 
 /** Composer mode selector (`ChatInput`), in the order it lists them. */
 export const COMPOSER_MODE_ORDER: readonly ToolPolicyMode[] = ['trust', 'auto_edits', 'ask', 'plan_only']
 
 export const COMPOSER_MODE_LABELS: PerSet<string> = {
-  claude: {
-    trust: "Rock'n roll",
-    auto_edits: 'Accept Edits',
-    ask: 'Default',
-    plan_only: 'Plan Only',
-  },
+  claude: lazyTexts<ToolPolicyMode>({
+    trust: 'toolPolicy.composer.trust',
+    auto_edits: 'toolPolicy.composer.auto_edits',
+    ask: 'toolPolicy.composer.ask',
+    plan_only: 'toolPolicy.composer.plan_only',
+  }),
   neutral: NEUTRAL_LABELS,
 }
 
 /** Session list metadata line (`sessionListUtils`). */
 export const SESSION_LIST_MODE_LABELS: PerSet<string> = {
-  claude: {
-    trust: "Rock'n roll",
-    auto_edits: 'Accept edits',
-    ask: 'Ask permissions',
-    plan_only: 'Plan mode',
-  },
+  claude: lazyTexts<ToolPolicyMode>({
+    trust: 'toolPolicy.session.trust',
+    auto_edits: 'toolPolicy.session.auto_edits',
+    ask: 'toolPolicy.session.ask',
+    plan_only: 'toolPolicy.session.plan_only',
+  }),
   neutral: NEUTRAL_LABELS,
 }
 
@@ -109,9 +111,9 @@ export const SESSION_LIST_MODE_LABELS: PerSet<string> = {
  * neutral mode they map to would hide what the CLI is really doing, so they
  * get their own name. `manual` is just the new name of `default`.
  */
-const CLAUDE_NATIVE_ONLY_LABELS: Readonly<Partial<Record<LegacyPermissionMode, { short: string; long: string }>>> = {
-  auto: { short: 'Auto', long: 'Auto mode' },
-  dontAsk: { short: "Don't Ask", long: "Don't ask" },
+const CLAUDE_NATIVE_ONLY_KEYS: Readonly<Partial<Record<LegacyPermissionMode, { short: MessageKey; long: MessageKey }>>> = {
+  auto: { short: 'toolPolicy.native.auto.short', long: 'toolPolicy.native.auto.long' },
+  dontAsk: { short: 'toolPolicy.native.dontAsk.short', long: 'toolPolicy.native.dontAsk.long' },
 }
 
 /**
@@ -121,7 +123,8 @@ const CLAUDE_NATIVE_ONLY_LABELS: Readonly<Partial<Record<LegacyPermissionMode, {
 export function claudeNativeModeLabel(nativeMode: unknown, form: 'short' | 'long'): string | null {
   if (typeof nativeMode !== 'string') return null
   if (!Object.prototype.hasOwnProperty.call(LEGACY_MODE_TO_POLICY, nativeMode)) return null
-  return CLAUDE_NATIVE_ONLY_LABELS[nativeMode as LegacyPermissionMode]?.[form] ?? null
+  const key = CLAUDE_NATIVE_ONLY_KEYS[nativeMode as LegacyPermissionMode]?.[form]
+  return key ? tr(key) : null
 }
 
 /** One option of the permission settings panel. */
@@ -140,43 +143,38 @@ const SETTINGS_ACTIVE_BG: PerMode<string> = {
   plan_only: 'bg-gray-500/10 border-gray-400/40',
 }
 
-const SETTINGS_TEXT: PerSet<{ label: string; description: string }> = {
-  claude: {
-    trust: { label: "Rock'n roll", description: 'Auto-approve all tools. No prompts.' },
-    auto_edits: { label: 'Accept Edits', description: 'Auto-approve file edits, prompt for commands.' },
-    ask: { label: 'Default', description: 'Prompt for all tool usage.' },
-    plan_only: { label: 'Plan Only', description: 'Read-only mode. No writes or commands.' },
-  },
-  neutral: {
-    trust: { label: NEUTRAL_LABELS.trust, description: 'Run every tool without asking.' },
-    auto_edits: { label: NEUTRAL_LABELS.auto_edits, description: 'File edits run without asking; commands still ask.' },
-    ask: { label: NEUTRAL_LABELS.ask, description: 'Ask before every tool call.' },
-    plan_only: { label: NEUTRAL_LABELS.plan_only, description: 'Read-only. No writes or commands.' },
-  },
+/** Label and description of each mode in the permission settings panel, per label set. */
+function settingsText(set: ModeLabelSet, mode: ToolPolicyMode): { label: string; description: string } {
+  return set === 'claude'
+    ? { label: tr(`toolPolicy.settings.claude.${mode}.label`), description: tr(`toolPolicy.settings.claude.${mode}.description`) }
+    : { label: NEUTRAL_LABELS[mode], description: tr(`toolPolicy.settings.neutral.${mode}.description`) }
 }
 
 /** Options of `PermissionSettingsPanel`, in display order. */
 export function settingsModeOptions(set: ModeLabelSet): SettingsModeOption[] {
-  return COMPOSER_MODE_ORDER.map((mode) => ({ mode, ...SETTINGS_TEXT[set][mode], bgActive: SETTINGS_ACTIVE_BG[mode] }))
+  return COMPOSER_MODE_ORDER.map((mode) => ({ mode, ...settingsText(set, mode), bgActive: SETTINGS_ACTIVE_BG[mode] }))
 }
 
 /**
  * Setup wizard (it configures the built-in Claude Code instance, so there is
  * no neutral set): the choices, then the one-line summary of the launch page.
  */
-export const SETUP_MODE_OPTIONS: ReadonlyArray<{ mode: ToolPolicyMode; label: string; description: string }> = [
-  { mode: 'trust', label: "Rock'n roll", description: 'All tools auto-approved — no permission prompts' },
-  { mode: 'ask', label: 'Default', description: 'Asks approval for file edits and shell commands' },
-  { mode: 'auto_edits', label: 'Accept Edits', description: 'File edits auto-approved, shell commands need approval' },
-  { mode: 'plan_only', label: 'Plan Only', description: 'Read-only mode — Claude can read but not modify files' },
-]
+export const SETUP_MODE_ORDER: readonly ToolPolicyMode[] = ['trust', 'ask', 'auto_edits', 'plan_only']
 
-export const SETUP_MODE_SUMMARIES: PerMode<string> = {
-  trust: "Rock'n roll (all auto-approved)",
-  ask: 'Default (ask for edits & shell)',
-  auto_edits: 'Accept Edits (ask for shell only)',
-  plan_only: 'Plan Only (read-only)',
+export function setupModeOptions(): ReadonlyArray<{ mode: ToolPolicyMode; label: string; description: string }> {
+  return SETUP_MODE_ORDER.map((mode) => ({
+    mode,
+    label: tr(`toolPolicy.setup.${mode}.label`),
+    description: tr(`toolPolicy.setup.${mode}.description`),
+  }))
 }
+
+export const SETUP_MODE_SUMMARIES: PerMode<string> = lazyTexts<ToolPolicyMode>({
+  trust: 'toolPolicy.setup.trust.summary',
+  ask: 'toolPolicy.setup.ask.summary',
+  auto_edits: 'toolPolicy.setup.auto_edits.summary',
+  plan_only: 'toolPolicy.setup.plan_only.summary',
+})
 
 // ----------------------------------------------------------------------------
 // Explanations shown when a provider cannot offer something
@@ -187,12 +185,10 @@ export const SETUP_MODE_SUMMARIES: PerMode<string> = {
  * allow it (its tools run where nobody is watching). Every other provider behaves like Claude
  * Code (decision of 2026-10-07, which replaces A35): the sandbox level is information, not a gate.
  */
-export const TRUST_REQUIRES_SANDBOX_TEXT =
-  'Indisponible : cette machine distante n’autorise pas ce mode. Activez-le dans les réglages de l’instance pour exécuter ses outils sans confirmation.'
+export const trustRequiresSandboxText = (): string => tr('toolPolicy.trustRequiresSandbox')
 
 /** Allow/deny rules use Claude Code's pattern syntax (`Bash(git *)`), which other providers do not read. */
-export const RULES_UNSUPPORTED_TEXT =
-  'Les règles d’autorisation et de blocage sont propres à Claude Code. Ce provider ne les applique pas, elles ne sont donc pas affichées : c’est le mode de permission ci-dessus qui encadre ses outils.'
+export const rulesUnsupportedText = (): string => tr('toolPolicy.rulesUnsupported')
 
 /**
  * Whether `trust` may be picked: on every provider, whatever its sandbox — except a Claude Code on
@@ -206,8 +202,7 @@ export function isTrustAllowed(target: { trustHeldBack: boolean }): boolean {
 export const TRUST_FALLBACK_MODE: ToolPolicyMode = 'ask'
 
 /** Shown when `trust` was replaced because the target machine does not allow it. */
-export const TRUST_DOWNGRADED_TEXT =
-  'Le mode « Rock’n roll » a été remplacé par « Demander » : cette machine distante ne l’autorise pas.'
+export const trustDowngradedText = (): string => tr('toolPolicy.trustDowngraded')
 
 /**
  * The mode actually usable on `target`: `trust` on a provider that refuses it

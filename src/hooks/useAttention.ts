@@ -8,6 +8,7 @@ import type { CrudEvent } from '@/types'
 import { useEventBus } from './useEventBus'
 import { useToast } from './useToast'
 import { TEXT } from '@/components/today/text'
+import { tr } from '@/i18n/lazy'
 
 /** Coalesces a burst of `attention_changed` into one refetch. */
 export const ATTENTION_DEBOUNCE_MS = 500
@@ -261,7 +262,7 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
       const ok = await run(
         { kind: 'drop_request', id: req.request_id },
         () => attentionApi.answerPermission(req.session_id, req.request_id, allow),
-        { ok: `${allow ? 'Autorisé' : 'Refusé'} : ${describeRequest(req)}`, fail: 'Réponse non envoyée' },
+        { ok: tr(allow ? 'app.attention.allowed' : 'app.attention.denied', { what: describeRequest(req) }), fail: tr('app.attention.replyFailed') },
         () => {
           gone = true
           setNotices((n) => ({ ...n, [req.request_id]: ORPHAN_NOTICE }))
@@ -278,7 +279,7 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
       const ok = await run(
         { kind: 'drop_request', id: req.request_id },
         () => attentionApi.sendMessage(req.session_id, content),
-        { ok: `Réponse envoyée : ${describeRequest(req)}`, fail: 'Réponse non envoyée' },
+        { ok: tr('app.attention.replySent', { what: describeRequest(req) }), fail: tr('app.attention.replyFailed') },
       )
       if (ok) clearDraft(req.request_id)
       return ok
@@ -294,7 +295,7 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
       return run(
         { kind: 'resume_thread', id: thread.id },
         () => attentionApi.resumeRun(planId),
-        { ok: `Run repris : ${thread.plan.title}`, fail: 'Reprise impossible' },
+        { ok: tr('app.attention.resumed', { title: thread.plan.title }), fail: tr('app.attention.resumeFailed') },
       )
     },
     [raw, run],
@@ -307,7 +308,7 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
       return run(
         { kind: 'drop_thinking', id: item.id },
         () => attentionApi.decide(kind, item.id, verdict),
-        { ok: `${verdict === 'accept' ? 'Accepté' : 'Rejeté'} : ${item.title}`, fail: 'Décision non enregistrée' },
+        { ok: tr(verdict === 'accept' ? 'app.attention.accepted' : 'app.attention.rejected', { title: item.title }), fail: tr('app.attention.decisionFailed') },
       )
     },
     [run],

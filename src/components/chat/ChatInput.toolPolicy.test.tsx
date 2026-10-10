@@ -18,7 +18,7 @@ import {
   providersAtom,
   providersLoadStateAtom,
 } from '@/atoms'
-import { TRUST_DOWNGRADED_TEXT, TRUST_REQUIRES_SANDBOX_TEXT } from '@/constants/toolPolicy'
+import { trustDowngradedText, trustRequiresSandboxText } from '@/constants/toolPolicy'
 import { ChatInput } from './ChatInput'
 
 vi.mock('@/hooks', () => ({ useIsMobile: () => false }))
@@ -80,7 +80,7 @@ describe('ChatInput — permission mode selector, Claude Code', () => {
     for (const label of labels) {
       expect(screen.getAllByRole('button', { name: new RegExp(`^${label}`) }).length).toBeGreaterThan(0)
     }
-    expect(screen.queryByText(TRUST_REQUIRES_SANDBOX_TEXT)).toBeNull()
+    expect(screen.queryByText(trustRequiresSandboxText())).toBeNull()
   })
 
   it.each([
@@ -145,7 +145,7 @@ describe('ChatInput — permission mode selector, third-party provider', () => {
     openMenu('Ask')
     const trust = screen.getByRole('button', { name: /^Rock/ })
     expect(trust.getAttribute('aria-disabled')).toBeNull()
-    expect(screen.queryByText(TRUST_REQUIRES_SANDBOX_TEXT)).toBeNull()
+    expect(screen.queryByText(trustRequiresSandboxText())).toBeNull()
     fireEvent.click(trust)
     expect(onChangePermissionMode).toHaveBeenCalledWith('trust')
   })
@@ -158,8 +158,8 @@ describe('ChatInput — permission mode selector, third-party provider', () => {
     // Not the native `disabled`: the option stays reachable with the keyboard.
     expect(trust.disabled).toBe(false)
     const help = document.getElementById(trust.getAttribute('aria-describedby') ?? '')
-    expect(help?.textContent).toBe(TRUST_REQUIRES_SANDBOX_TEXT)
-    expect(within(trust).getByText(TRUST_REQUIRES_SANDBOX_TEXT)).toBeTruthy()
+    expect(help?.textContent).toBe(trustRequiresSandboxText())
+    expect(within(trust).getByText(trustRequiresSandboxText())).toBeTruthy()
 
     fireEvent.click(trust)
     expect(onChangePermissionMode).not.toHaveBeenCalled()
@@ -194,7 +194,7 @@ describe('ChatInput — trust downgraded only for a remote machine that does not
   it('a new conversation with trust in force on such a machine: replaced by ask, and said', () => {
     const { store } = mount({ mode: 'bypassPermissions', sessionId: null, prepare: remoteMachine({ allow_trust: false }) })
     expect(store.get(chatSessionPermissionOverrideAtom)).toBe('ask')
-    expect(screen.getByTestId('trust-downgraded').textContent).toContain(TRUST_DOWNGRADED_TEXT)
+    expect(screen.getByTestId('trust-downgraded').textContent).toContain(trustDowngradedText())
   })
 
   it('the notice floats over the transcript: readable base surface and a backdrop blur', () => {

@@ -9,6 +9,7 @@ import { workspacesApi } from '@/services'
 import { useWorkspace } from '@/hooks'
 import { TodayLogoLink } from '@/components/TodayLogoLink'
 import { focusRing } from '@/components/ui/classes'
+import { useT } from '@/i18n'
 
 /**
  * Combined logo + workspace selector in the sidebar header.
@@ -17,6 +18,7 @@ import { focusRing } from '@/components/ui/classes'
  * the name is hidden and a small chevron button keeps the dropdown reachable.
  */
 export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: boolean; trafficLightPad?: boolean }) {
+  const { t } = useT()
   const navigate = useNavigate()
   const workspaces = useAtomValue(workspacesAtom)
   const setWorkspaces = useSetAtom(workspacesAtom)
@@ -83,7 +85,7 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
           <button
             type="button"
             onClick={() => setOpen(!open)}
-            aria-label="Changer de workspace"
+            aria-label={t('shell.switchWorkspace')}
             aria-haspopup="menu"
             aria-expanded={open}
             title={activeWorkspace.name}
@@ -119,7 +121,7 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
           style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}
         >
           {otherWorkspaces.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-gray-500">No other workspaces</div>
+            <div className="px-3 py-2 text-sm text-gray-500">{t('shell.noOtherWorkspaces')}</div>
           ) : (
             otherWorkspaces.map((ws) => (
               <button
@@ -143,7 +145,7 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
               className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/[0.06] transition-colors text-left text-sm text-gray-400"
             >
               <Plus className="w-4 h-4" />
-              New workspace
+              {t('nav.newWorkspace')}
             </button>
             <button
               onClick={() => {
@@ -153,7 +155,7 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
               className="w-full flex items-center gap-2 px-3 py-2 hover:bg-white/[0.06] transition-colors text-left text-sm text-gray-400"
             >
               <Menu className="w-4 h-4" />
-              All workspaces
+              {t('nav.allWorkspaces')}
             </button>
           </div>
           {showCreate && (
@@ -184,7 +186,8 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Name"
+                  placeholder={t('forms.field.name')}
+                  aria-label={t('forms.field.name')}
                   className="flex-1 min-w-0 px-2 py-1.5 bg-white/[0.06] border border-white/[0.1] rounded text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
                   disabled={creating}
                   onKeyDown={(e) => {
@@ -199,7 +202,7 @@ export function WorkspaceSwitcher({ collapsed, trafficLightPad }: { collapsed: b
                   disabled={creating || !newName.trim()}
                   className="px-2.5 py-1.5 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium shrink-0"
                 >
-                  {creating ? '...' : 'Create'}
+                  {creating ? '...' : t('ui.create')}
                 </button>
               </form>
             </div>

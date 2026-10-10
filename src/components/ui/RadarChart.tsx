@@ -18,6 +18,7 @@
  * ```
  */
 import { useMemo } from 'react'
+import { useT } from '@/i18n'
 
 // ============================================================================
 // Types
@@ -84,6 +85,7 @@ export function RadarChart({
   overallScore,
   className,
 }: RadarChartProps) {
+  const { t } = useT()
   const config = SIZE_CONFIG[size]
   const { svgSize, radius, fontSize } = config
   const center = svgSize / 2
@@ -129,7 +131,7 @@ export function RadarChart({
   }, [axes, n, angleStep, center, radius])
 
   if (n === 0) {
-    return <div className="text-xs text-gray-600 italic px-2 py-4">No radar data available.</div>
+    return <div className="text-xs text-gray-600 italic px-2 py-4">{t('ui.radar.empty')}</div>
   }
 
   // Color with alpha for fill
@@ -151,7 +153,7 @@ export function RadarChart({
       {/* Overall score badge */}
       {overallScore != null && (
         <div className="text-xs text-gray-400">
-          Score: <span className="font-mono" style={{ color }}>{(overallScore * 100).toFixed(0)}%</span>
+          {t('ui.radar.score')} <span className="font-mono" style={{ color }}>{(overallScore * 100).toFixed(0)}%</span>
         </div>
       )}
 
@@ -160,7 +162,7 @@ export function RadarChart({
         viewBox={viewBox}
         className={config.cssClass}
         role="img"
-        aria-label="Radar chart"
+        aria-label={t('ui.radar.label')}
       >
         {/* Grid polygons */}
         {gridLines.map((points, i) => (

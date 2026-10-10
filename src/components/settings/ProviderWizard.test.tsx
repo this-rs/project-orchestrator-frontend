@@ -742,7 +742,7 @@ describe('ProviderWizard — test button robustness', () => {
     fireEvent.change(box, { target: { value: 'model-11' } })
     expect(within(picker).queryByRole('option', { name: 'model-3' })).toBeNull()
     expect(within(picker).getByRole('option', { name: 'model-11' })).toBeTruthy()
-    expect(within(picker).getByText('1 sur 12')).toBeTruthy()
+    expect(within(picker).getByText('1 of 12')).toBeTruthy()
   })
 })
 

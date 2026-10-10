@@ -20,7 +20,7 @@ vi.mock('@/services', () => ({ chatApi: { cancelTools: (...a: unknown[]) => canc
 import { chatSessionEngineAtom, chatSessionIdAtom } from '@/atoms'
 import { harnessGapOf } from '@/constants/providerErrors'
 import { ProviderStateCard } from './ProviderStateCard'
-import { POLICY_ONLY_REQUEST_TEXT, TOOL_CANCEL_UNSUPPORTED_TEXT } from '@/constants/capabilities'
+import { policyOnlyRequestText, toolCancelUnsupportedText } from '@/constants/capabilities'
 import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionContext'
 import { ChatMessageBubble, groupBlocksByAgent } from './ChatMessageBubble'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
@@ -58,7 +58,7 @@ describe('interactive_permissions', () => {
     expect(screen.queryByRole('button', { name: /allow/i })).toBeNull()
     expect(screen.queryByRole('button', { name: /deny/i })).toBeNull()
     expect(screen.queryByRole('checkbox')).toBeNull()
-    expect(screen.getByText(POLICY_ONLY_REQUEST_TEXT)).toBeTruthy()
+    expect(screen.getByText(policyOnlyRequestText())).toBeTruthy()
     expect(onRespond).not.toHaveBeenCalled()
   })
 
@@ -71,7 +71,7 @@ describe('interactive_permissions', () => {
       caps({ interactive_permissions: false }),
     )
     expect(screen.getByText('Denied')).toBeTruthy()
-    expect(screen.queryByText(POLICY_ONLY_REQUEST_TEXT)).toBeNull()
+    expect(screen.queryByText(policyOnlyRequestText())).toBeNull()
   })
 
   it('Claude profile: Allow, Deny and Remember as before', () => {
@@ -175,7 +175,7 @@ describe('tool_cancel', () => {
     // Still reachable from the keyboard, with the reason tied to it.
     expect(stop.getAttribute('tabindex')).toBe('0')
     const help = document.getElementById(stop.getAttribute('aria-describedby')!)
-    expect(help?.textContent).toBe(TOOL_CANCEL_UNSUPPORTED_TEXT)
+    expect(help?.textContent).toBe(toolCancelUnsupportedText())
     fireEvent.click(stop)
     fireEvent.keyDown(stop, { key: 'Enter' })
     expect(cancelTools).not.toHaveBeenCalled()

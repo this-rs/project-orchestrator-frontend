@@ -1,5 +1,6 @@
 import { InputHTMLAttributes, forwardRef, useId } from 'react'
 import { Search } from 'lucide-react'
+import { useT } from '@/i18n'
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
@@ -39,10 +40,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 Input.displayName = 'Input'
 
 export function SearchInput({ className = '', ...props }: InputProps) {
+  const { t } = useT()
   return (
     <div className={`relative ${className}`}>
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-      <Input className="pl-10" placeholder="Search..." {...props} />
+      <Input className="pl-10" placeholder={t('ui.searchPlaceholder')} {...props} />
     </div>
   )
 }

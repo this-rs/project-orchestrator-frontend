@@ -2,8 +2,8 @@ import { useId } from 'react'
 import { useT } from '@/i18n'
 import type { RoutedBy } from '@/types/provider'
 import {
-  PROVIDER_BADGE_UNAVAILABLE_HELP,
-  PROVIDER_BADGE_UNAVAILABLE_TEXT,
+  providerBadgeUnavailableHelp,
+  providerBadgeUnavailableText,
   routedByKey,
   type SessionProviderDescription,
 } from '@/constants/providers'
@@ -30,7 +30,7 @@ export function ProviderBadge({ description, model, className = '' }: ProviderBa
       data-testid="provider-badge"
       data-unavailable={description.unavailable || undefined}
       aria-describedby={description.unavailable ? helpId : undefined}
-      title={description.unavailable ? PROVIDER_BADGE_UNAVAILABLE_HELP : model || undefined}
+      title={description.unavailable ? providerBadgeUnavailableHelp() : model || undefined}
       className={`inline-flex min-w-0 items-center gap-1 rounded border px-1 py-px text-[10px] leading-4 ${
         description.unavailable
           ? 'border-red-500/30 bg-red-500/10 text-red-300'
@@ -42,9 +42,9 @@ export function ProviderBadge({ description, model, className = '' }: ProviderBa
       <span className="truncate max-w-[9rem]">{description.label}</span>
       {description.unavailable && (
         <>
-          <span className="shrink-0">· {PROVIDER_BADGE_UNAVAILABLE_TEXT}</span>
+          <span className="shrink-0">· {providerBadgeUnavailableText()}</span>
           <span id={helpId} className="sr-only">
-            {PROVIDER_BADGE_UNAVAILABLE_HELP}
+            {providerBadgeUnavailableHelp()}
           </span>
         </>
       )}

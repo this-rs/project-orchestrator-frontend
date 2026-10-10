@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { formatTokenCount, COST_SUM_PARTIAL_HELP } from '@/utils/cost'
+import { formatTokenCount, costSumPartialHelp } from '@/utils/cost'
 import { modelBreakdown, subtreeCost, treeLimits } from '@/utils/discussionTree'
 import type { DiscussionNode } from '@/services/discussions'
 import { providerKindLabel } from '@/types/provider'
@@ -29,10 +29,10 @@ export function SubtreeBreakdown({ root }: SubtreeBreakdownProps) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 id={captionId} className="font-medium text-gray-300">
           Cost of the tree{' '}
-          <span data-testid="subtree-total" title={total.partial ? COST_SUM_PARTIAL_HELP : undefined} className="font-mono tabular-nums">
+          <span data-testid="subtree-total" title={total.partial ? costSumPartialHelp() : undefined} className="font-mono tabular-nums">
             {total.text ?? 'unknown'}
           </span>
-          {total.partial && <span className="sr-only"> ({COST_SUM_PARTIAL_HELP})</span>}
+          {total.partial && <span className="sr-only"> ({costSumPartialHelp()})</span>}
         </h3>
       </div>
 

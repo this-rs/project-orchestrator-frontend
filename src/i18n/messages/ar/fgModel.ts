@@ -1,0 +1,48 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  other: 'أخرى',
+  noFile: 'لا توجد معلومات عن الملف',
+  listAnd: '{head} و{last}',
+  asyncNoun: '{noun} غير متزامنة',
+  nounInFile: '{noun} في {file}',
+  takes: 'تستقبل {params}',
+  takesNothing: 'لا تستقبل أي مدخلات',
+  takesReturns: '{takes}، وتُرجع {returns}',
+  noun: {
+    function: 'دالة',
+    file: 'ملف مصدري',
+    struct: 'بنية بيانات',
+    enum: 'تعداد',
+    trait: 'سمة',
+    other: 'عنصر شيفرة',
+  },
+  type: { function: 'دالة', file: 'ملف', struct: 'بنية', enum: 'تعداد', trait: 'سمة' },
+  typePlural: { function: 'الدوال', file: 'الملفات', struct: 'البُنى', enum: 'التعدادات', trait: 'السمات' },
+  level: { key: 'رئيسي', supporting: 'داعم', minor: 'ثانوي' },
+  rolePlain: {
+    entry_point: { word: 'نقطة الدخول', plain: 'نقطة بداية الميزة' },
+    core_logic: { word: 'المنطق الأساسي', plain: 'تؤدي العمل الجوهري للميزة' },
+    api_surface: { word: 'واجهة عامة', plain: 'تُستدعى من خارج الميزة' },
+    data_model: { word: 'نموذج بيانات', plain: 'بيانات تحملها الميزة' },
+    trait_contract: { word: 'عقد', plain: 'عقد تعتمد عليه الميزة' },
+    support: { word: 'مساعد', plain: 'عنصر مساعد حول الميزة' },
+  },
+  role: {
+    entry_point: { label: 'نقاط الدخول', description: 'حيث تبدأ الميزة (الدالة التي بنيتَ المخطط انطلاقًا منها).' },
+    core_logic: { label: 'المنطق الأساسي', description: 'الدوال والملفات التي تؤدي العمل الفعلي.' },
+    api_surface: { label: 'واجهة API', description: 'ما تستدعيه بقية أجزاء الشيفرة.' },
+    data_model: { label: 'نماذج البيانات', description: 'البُنى والتعدادات التي تحمل بيانات الميزة.' },
+    trait_contract: { label: 'عقود السمات', description: 'السمات التي تنفّذها الميزة أو تعتمد عليها.' },
+    support: { label: 'الدعم', description: 'العناصر المساعدة والأدوات حول الميزة.' },
+  },
+  relation: {
+    related: 'مرتبط',
+    CALLS: { label: 'يستدعي', description: 'دالة تستدعي دالة أخرى.' },
+    IMPORTS: { label: 'يستورد', description: 'ملف يستورد ملفًا آخر.' },
+    EXTENDS: { label: 'يمتد من', description: 'نوع يمتد من نوع آخر.' },
+    IMPLEMENTS: { label: 'ينفّذ', description: 'نوع ينفّذ سمة.' },
+    IMPLEMENTS_TRAIT: { label: 'تنفيذ سمة', description: 'كتلة تنفيذ تستهدف سمة.' },
+    IMPLEMENTS_FOR: { label: 'تنفيذ لنوع', description: 'كتلة تنفيذ تستهدف نوعًا.' },
+  },
+} satisfies Translation<'fgModel'>

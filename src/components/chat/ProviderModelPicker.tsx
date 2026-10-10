@@ -25,12 +25,12 @@ import {
 } from '@/atoms'
 import { getModelDotColor, getModelShortLabel, groupModelsByFamily } from '@/constants/models'
 import {
-  AUTO_TARGET_HELP,
-  AUTO_TARGET_LABEL,
-  DEFAULT_MODEL_LABEL,
-  NEW_CONVERSATION_OTHER_PROVIDER_LABEL,
-  PROVIDER_LOCKED_TEXT,
-  SET_MODEL_UNSUPPORTED_TEXT,
+  autoTargetHelp,
+  autoTargetLabel,
+  defaultModelLabel,
+  newConversationOtherProviderLabel,
+  providerLockedText,
+  setModelUnsupportedText,
   aliasesForInstance,
   healthDotColor,
   healthLabel,
@@ -126,7 +126,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   const activeModelId = activeAlias?.model ?? model ?? ''
   const nameOf = (p: ProviderInstance | null, modelId: string) =>
     (p ? isClaudeCodeProvider(p.id, p.kind) : effectiveClaude) ? getModelShortLabel(modelId) : providerModelLabel(p, modelId)
-  const modelLabel = activeAlias ? activeAlias.alias : model ? nameOf(instance, model) : DEFAULT_MODEL_LABEL
+  const modelLabel = activeAlias ? activeAlias.alias : model ? nameOf(instance, model) : defaultModelLabel()
   // Family colors are a Claude presentation. Another provider's model gets no
   // dot rather than the grey "other" one, which would read as a state.
   const modelDot = effectiveClaude && !showProviders ? getModelDotColor(activeModelId) : null
@@ -198,8 +198,8 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   }
 
   // ── Chip ───────────────────────────────────────────────────────────
-  const chipText = !showProviders ? modelLabel : autoActive ? AUTO_TARGET_LABEL : `${providerLabel} › ${modelLabel}`
-  const chipTitle = autoActive && resolvedText ? `${AUTO_TARGET_LABEL}: ${resolvedText}` : chipText
+  const chipText = !showProviders ? modelLabel : autoActive ? autoTargetLabel() : `${providerLabel} › ${modelLabel}`
+  const chipTitle = autoActive && resolvedText ? `${autoTargetLabel()}: ${resolvedText}` : chipText
 
   const choices = (p: ProviderInstance | null, active: string, withDefault: boolean, defaultActive = false) => (
     <ModelChoices
@@ -268,7 +268,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
                 <span className="text-gray-100">{providerLabel}</span>
                 <span className="text-[10px] text-gray-500">{providerKind}</span>
               </div>
-              <p className="text-[11px] leading-snug text-gray-400">{PROVIDER_LOCKED_TEXT}</p>
+              <p className="text-[11px] leading-snug text-gray-400">{providerLockedText()}</p>
               {onNewConversation && (
                 <button
                   type="button"
@@ -280,7 +280,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
                   }}
                   className="text-[11px] text-indigo-300 hover:text-indigo-200 underline underline-offset-2"
                 >
-                  {NEW_CONVERSATION_OTHER_PROVIDER_LABEL}
+                  {newConversationOtherProviderLabel()}
                 </button>
               )}
             </div>
@@ -296,11 +296,11 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
                 className={`${ROW} border-b border-white/[0.06] ${rowTone(autoActive)}`}
               >
                 <span className="flex items-center gap-1.5">
-                  <span>{AUTO_TARGET_LABEL}</span>
+                  <span>{autoTargetLabel()}</span>
                   {autoActive && <Check className="w-3 h-3 text-indigo-300" aria-hidden="true" />}
                 </span>
                 <span className="mt-0.5 block text-[10px] leading-snug text-gray-500">
-                  {resolvedText ? `${AUTO_TARGET_HELP} Now: ${resolvedText}` : AUTO_TARGET_HELP}
+                  {resolvedText ? `${autoTargetHelp()} Now: ${resolvedText}` : autoTargetHelp()}
                 </span>
               </button>
               {list.providers.length === 0 && <div className="px-3 py-2 text-xs text-gray-500">No provider configured</div>}
@@ -355,7 +355,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
             </>
           ) : modelLocked ? (
             <p id={modelHelpId} className="px-3 py-2 text-[11px] leading-snug text-gray-400">
-              {SET_MODEL_UNSUPPORTED_TEXT}
+              {setModelUnsupportedText()}
             </p>
           ) : (
             choices(instance, activeModelId, false)
@@ -387,7 +387,7 @@ function ModelChoices({ instance, claude, aliases, activeModelId, withDefault, d
     <>
       {withDefault && (
         <button type="button" aria-pressed={defaultActive} onClick={() => onSelect(null)} className={`${ROW} ${rowTone(defaultActive)}`}>
-          {DEFAULT_MODEL_LABEL}
+          {defaultModelLabel()}
         </button>
       )}
       {aliases.length > 0 && (

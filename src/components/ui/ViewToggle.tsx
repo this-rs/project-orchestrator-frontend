@@ -1,5 +1,6 @@
 import { List, Columns3 } from 'lucide-react'
 import { iconButton } from './classes'
+import { useT } from '@/i18n'
 
 export type ViewMode = 'list' | 'kanban'
 
@@ -17,6 +18,7 @@ interface ViewToggleProps {
  * ghost button.
  */
 export function ViewToggle({ value, onChange, className = '' }: ViewToggleProps) {
+  const { t } = useT()
   const item = (mode: ViewMode, label: string, Icon: typeof List) => {
     const active = value === mode
     return (
@@ -35,11 +37,11 @@ export function ViewToggle({ value, onChange, className = '' }: ViewToggleProps)
   return (
     <div
       role="group"
-      aria-label="View mode"
+      aria-label={t('ui.viewToggle.mode')}
       className={`inline-flex items-center gap-0.5 ${className}`}
     >
-      {item('list', 'List view', List)}
-      {item('kanban', 'Board view', Columns3)}
+      {item('list', t('ui.viewToggle.list'), List)}
+      {item('kanban', t('ui.viewToggle.board'), Columns3)}
     </div>
   )
 }

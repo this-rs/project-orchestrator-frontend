@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { discussionsApi, type DiscussionNode } from '@/services/discussions'
 import type { SessionTreeNode } from '@/services/discussions'
+import { tr } from '@/i18n/lazy'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -112,7 +113,7 @@ export function useDiscussionTree(
       }
     } catch (err) {
       if (sessionIdRef.current === sid) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch discussion tree')
+        setError(err instanceof Error ? err.message : tr('app.hooks.discussionTreeFailed'))
       }
     } finally {
       setIsLoading(false)

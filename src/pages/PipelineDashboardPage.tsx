@@ -42,7 +42,7 @@ import { PlanRunRow } from '@/components/runner/PlanRunRow'
 import { Explainer } from '@/components/protocols/Explainer'
 import { iconButton } from '@/components/ui/classes'
 import { runCost } from '@/components/runner/shared'
-import { COST_SUM_PARTIAL_HELP, formatCostSum, sumCosts } from '@/utils/cost'
+import { costSumPartialHelp, formatCostSum, sumCosts } from '@/utils/cost'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { NOMENCLATURE } from '@/constants/nomenclature'
@@ -270,15 +270,15 @@ export function PipelineDashboardPage() {
                   stats.completed > 0 ? <ToneText key="c" tone="success" label={`${stats.completed} completed`} /> : null,
                   stats.failed > 0 ? <ToneText key="f" tone="danger" label={`${stats.failed} failed`} /> : null,
                   formatCostSum(stats.cost) ? (
-                    <span key="$" className="font-mono tabular-nums" title={stats.cost.unknown > 0 ? COST_SUM_PARTIAL_HELP : undefined}>
+                    <span key="$" className="font-mono tabular-nums" title={stats.cost.unknown > 0 ? costSumPartialHelp() : undefined}>
                       {formatCostSum(stats.cost)} total
                     </span>
                   ) : null,
                 ]}
               />
               <div>
-                {groups.map(({ group, items }) => (
-                  <ListGroup key={group} title={group} count={items.length}>
+                {groups.map(({ group, label, items }) => (
+                  <ListGroup key={group} title={label} count={items.length}>
                     {items.map((run) => (
                       <PlanRunRow
                         key={run.run_id}

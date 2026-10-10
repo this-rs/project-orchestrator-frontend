@@ -2,6 +2,7 @@ import { CircleAlert, CircleX } from 'lucide-react'
 import { ProgressLine } from './ProgressLine'
 import { TONE_CLASSES } from './statusMeta'
 import type { TaskCounts } from '@/services/progress'
+import { useT } from '@/i18n'
 
 /**
  * The progress block of a list card: a segmented bar (done / active / blocked /
@@ -13,6 +14,7 @@ import type { TaskCounts } from '@/services/progress'
  * icon on blocked / failed — never colour alone.
  */
 export function TaskProgress({ counts, className = '' }: { counts?: TaskCounts; className?: string }) {
+  const { t } = useT()
   if (!counts || counts.total === 0) return null
   const { total, completed, in_progress, blocked, failed, percentage } = counts
   const share = (n: number) => (n / total) * 100
@@ -20,7 +22,7 @@ export function TaskProgress({ counts, className = '' }: { counts?: TaskCounts; 
     <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 ${className}`}>
       <ProgressLine
         value={percentage}
-        label={`${Math.round(percentage)}% of tasks completed`}
+        label={t('ui.taskProgress.completedLabel', { percent: Math.round(percentage) })}
         size="md"
         className="w-28 sm:w-40 shrink-0"
         segments={[
@@ -34,21 +36,21 @@ export function TaskProgress({ counts, className = '' }: { counts?: TaskCounts; 
         <span className="text-gray-200 font-medium">
           {completed}/{total}
         </span>{' '}
-        done <span className="text-gray-500">({Math.round(percentage)}%)</span>
+        {t('ui.taskProgress.done')} <span className="text-gray-500">({Math.round(percentage)}%)</span>
       </span>
       {in_progress > 0 && (
-        <span className={`text-xs leading-4 tabular-nums whitespace-nowrap ${TONE_CLASSES.progress.text}`}>{in_progress} active</span>
+        <span className={`text-xs leading-4 tabular-nums whitespace-nowrap ${TONE_CLASSES.progress.text}`}>{t('ui.taskProgress.active', { count: in_progress })}</span>
       )}
       {blocked > 0 && (
         <span className={`inline-flex items-center gap-1 text-xs leading-4 tabular-nums whitespace-nowrap ${TONE_CLASSES.warning.text}`}>
           <CircleAlert className="w-3 h-3" aria-hidden="true" />
-          {blocked} blocked
+          {t('ui.taskProgress.blocked', { count: blocked })}
         </span>
       )}
       {failed > 0 && (
         <span className={`inline-flex items-center gap-1 text-xs leading-4 tabular-nums whitespace-nowrap ${TONE_CLASSES.danger.text}`}>
           <CircleX className="w-3 h-3" aria-hidden="true" />
-          {failed} failed
+          {t('ui.taskProgress.failed', { count: failed })}
         </span>
       )}
     </div>

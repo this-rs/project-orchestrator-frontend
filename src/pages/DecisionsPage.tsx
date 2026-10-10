@@ -202,8 +202,8 @@ export function DecisionsPage() {
         )
       ) : (
         <div>
-          {groups.map(({ group, items }) => (
-            <ListGroup key={group} title={group} count={items.length}>
+          {groups.map(({ group, label, items }) => (
+            <ListGroup key={group} title={label} count={items.length}>
               {items.map((decision) => (
                 <DecisionRow
                   key={decision.id}

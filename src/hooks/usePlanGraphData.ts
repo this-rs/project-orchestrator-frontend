@@ -28,6 +28,7 @@ import type {
   WaveComputationResult,
 } from '@/types'
 import type { PlanGraphData } from '@/adapters/PlanGraphAdapter'
+import { tr } from '@/i18n/lazy'
 
 interface UsePlanGraphDataReturn {
   /** Assembled data bundle for PlanGraphAdapter */
@@ -181,7 +182,7 @@ export function usePlanGraphData(
       setCommitFilesMap(filesMap)
     } catch (err) {
       console.error('Failed to fetch plan graph data:', err)
-      if (!silent && !isStale()) setError('Failed to load plan graph data')
+      if (!silent && !isStale()) setError(tr('app.hooks.planGraphFailed'))
     } finally {
       // Whoever is the latest request clears the loading flag, so a silent refresh that
       // supersedes an initial load cannot leave it stuck on.

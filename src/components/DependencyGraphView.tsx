@@ -15,6 +15,9 @@ import { Link } from 'react-router-dom'
 import { ReferenceSource } from '@/refs/source'
 import { AlertTriangle, FileCode2, StickyNote, BookOpen, ExternalLink, CheckCircle2, Circle, Loader2, SkipForward, MessageSquare, FileSearch, Clock, Ban, XCircle, Bot, X } from 'lucide-react'
 import { PulseIndicator, StatusIcon, StatusText, TONE_CLASSES, getStatusMeta, hitArea, textLink } from '@/components/ui'
+import { statusLabel } from '@/components/ui/statusMeta'
+import { useT } from '@/i18n'
+import { activeTranslator } from '@/i18n/active'
 import { iconButton } from '@/components/ui/classes'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -83,13 +86,6 @@ const statusColors: Record<TaskStatus, { border: string; text: string; dot: stri
   failed: { border: '#ef4444', text: '#f87171', dot: '#f87171' },
 }
 
-const statusLabels: Record<TaskStatus, string> = {
-  pending: 'Pending',
-  in_progress: 'In Progress',
-  blocked: 'Blocked',
-  completed: 'Completed',
-  failed: 'Failed',
-}
 
 // ============================================================================
 // STEP STATUS HELPERS
@@ -207,9 +203,10 @@ function getLayoutedElements(
 // ============================================================================
 
 function formatDuration(secs: number): string {
-  if (secs < 60) return `${Math.round(secs)}s`
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ${Math.round(secs % 60)}s`
-  return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`
+  const { t } = activeTranslator()
+  if (secs < 60) return t('ui.time.seconds', { n: Math.round(secs) })
+  if (secs < 3600) return t('ui.time.minutesSeconds', { m: Math.floor(secs / 60), s: Math.round(secs % 60) })
+  return t('ui.time.hoursMinutes', { h: Math.floor(secs / 3600), m: Math.floor((secs % 3600) / 60) })
 }
 
 // ============================================================================
@@ -217,6 +214,7 @@ function formatDuration(secs: number): string {
 // ============================================================================
 
 function TaskTooltip({ data }: { data: TaskNodeData }) {
+  const { t } = useT()
   const colors = statusColors[data.status] || statusColors.pending
   const stepCount = data.stepCount ?? 0
   const completedStepCount = data.completedStepCount ?? 0
@@ -238,7 +236,7 @@ function TaskTooltip({ data }: { data: TaskNodeData }) {
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1.5 text-[10px] font-medium" style={{ color: colors.text }}>
             <span className="w-1.5 h-1.5 rounded-full" style={{ background: colors.dot }} aria-hidden="true" />
-            {statusLabels[data.status]}
+            {statusLabel(data.status)}
           </span>
           {data.priority != null && data.priority > 0 && (
             <span className="text-[10px] text-gray-400">P{data.priority}</span>
@@ -252,7 +250,7 @@ function TaskTooltip({ data }: { data: TaskNodeData }) {
         {data.activeAgent && (
           <div className="flex items-center gap-1.5 text-indigo-300">
             <Bot className="w-3 h-3" />
-            <span>Agent active</span>
+            <span>{t('shell.depGraph.agentActive')}</span>
             {data.activeAgent.elapsedSecs != null && (
               <span className="flex items-center gap-0.5 text-gray-400">
                 <Clock className="w-3 h-3" />
@@ -268,7 +266,7 @@ function TaskTooltip({ data }: { data: TaskNodeData }) {
         {/* Steps progress */}
         {stepCount > 0 && (
           <div className="flex items-center gap-1 text-gray-400 tabular-nums">
-            <span>{completedStepCount}/{stepCount} steps</span>
+            <span>{t('shell.depGraph.steps', { done: completedStepCount, total: stepCount })}</span>
           </div>
         )}
 
@@ -289,7 +287,7 @@ function TaskTooltip({ data }: { data: TaskNodeData }) {
         {/* Affected files */}
         {data.affectedFiles && data.affectedFiles.length > 0 && (
           <div className="space-y-0.5">
-            <div className="text-gray-500 text-[10px] font-medium">Files ({data.affectedFiles.length})</div>
+            <div className="text-gray-500 text-[10px] font-medium">{t('shell.depGraph.files', { count: data.affectedFiles.length })}</div>
             <div className="flex flex-wrap gap-1">
               {data.affectedFiles.slice(0, 4).map((f) => (
                 <span key={f} className="inline-flex items-center gap-0.5 text-[9px] px-1 py-0.5 rounded bg-white/[0.06] text-gray-400" title={f}>
@@ -307,7 +305,7 @@ function TaskTooltip({ data }: { data: TaskNodeData }) {
         {/* Assigned to */}
         {data.assignedTo && (
           <div className="text-gray-500 text-[10px]">
-            Assigned to: <span className="text-gray-300">{data.assignedTo}</span>
+            {t('shell.depGraph.assignedTo')} <span className="text-gray-300">{data.assignedTo}</span>
           </div>
         )}
       </div>
@@ -325,6 +323,7 @@ function TaskTooltip({ data }: { data: TaskNodeData }) {
 // ============================================================================
 
 function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
+  const { t } = useT()
   const [hovered, setHovered] = useState(false)
   const colors = statusColors[data.status] || statusColors.pending
   const isInProgress = data.status === 'in_progress'
@@ -394,7 +393,7 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
             <TaskStatusIcon status={data.status} />
           </div>
           <span className="text-[10px] font-medium" style={{ color: colors.text }}>
-            {statusLabels[data.status]}
+            {statusLabel(data.status)}
           </span>
 
           {/* Active agent indicator */}
@@ -407,27 +406,31 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
           {isInProgress && (
             <span className="inline-flex items-center gap-0.5 ml-0.5 text-[9px] text-gray-500">
               <PulseIndicator variant="active" size={5} />
-              <span className="truncate max-w-[60px]">{data.assignedTo ?? 'Working…'}</span>
+              <span className="truncate max-w-[60px]">{data.assignedTo ?? t('shell.depGraph.working')}</span>
             </span>
           )}
 
           <div className="flex items-center gap-1 ml-auto">
             {/* Knowledge indicators inline with status row (entity hues at icon size only) */}
             {noteCount > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-[9px] text-gray-400" title={`${noteCount} note${noteCount > 1 ? 's' : ''}`}>
+              <span className="inline-flex items-center gap-0.5 text-[9px] text-gray-400" title={t(noteCount === 1 ? 'shell.depGraph.note.one' : 'shell.depGraph.note.other', { n: noteCount })}>
                 <StickyNote className="w-2.5 h-2.5 text-amber-400/70" aria-hidden="true" />
                 {noteCount}
               </span>
             )}
             {decisionCount > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-[9px] text-gray-400" title={`${decisionCount} decision${decisionCount > 1 ? 's' : ''}`}>
+              <span className="inline-flex items-center gap-0.5 text-[9px] text-gray-400" title={t(decisionCount === 1 ? 'shell.depGraph.decision.one' : 'shell.depGraph.decision.other', { n: decisionCount })}>
                 <BookOpen className="w-2.5 h-2.5 text-purple-400/70" aria-hidden="true" />
                 {decisionCount}
               </span>
             )}
             {sessionCount > 0 && (
               <span className={`inline-flex items-center gap-0.5 text-[9px] ${activeSessionCount > 0 ? TONE_CLASSES.progress.text : 'text-gray-400'}`}
-                title={`${sessionCount} session${sessionCount > 1 ? 's' : ''}${childSessionCount > 0 ? ` · ${childSessionCount} sub` : ''}${activeSessionCount > 0 ? ' · active' : ''}`}
+                title={[
+                  t(sessionCount === 1 ? 'shell.depGraph.session.one' : 'shell.depGraph.session.other', { n: sessionCount }),
+                  childSessionCount > 0 ? t('shell.depGraph.subSessions', { n: childSessionCount }) : null,
+                  activeSessionCount > 0 ? t('shell.depGraph.active') : null,
+                ].filter(Boolean).join(' · ')}
               >
                 {activeSessionCount > 0 && <PulseIndicator variant="active" size={4} />}
                 <MessageSquare className="w-2.5 h-2.5" />
@@ -441,8 +444,8 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
             )}
 
             {hasConflicts && (
-              <span title={`Conflict on: ${conflictFiles.join(', ')}`}>
-                <AlertTriangle className={`w-3 h-3 flex-shrink-0 ${TONE_CLASSES.warning.text}`} aria-label="File conflict" />
+              <span title={t('shell.depGraph.conflictOn', { files: conflictFiles.join(', ') })}>
+                <AlertTriangle className={`w-3 h-3 flex-shrink-0 ${TONE_CLASSES.warning.text}`} aria-label={t('shell.depGraph.conflict')} />
               </span>
             )}
           </div>
@@ -477,7 +480,7 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
             })}
             {steps.length > MAX_VISIBLE_STEPS && (
               <span className="text-[8px] text-gray-600 pl-1">
-                +{steps.length - MAX_VISIBLE_STEPS} more
+                {t('shell.depGraph.more', { count: steps.length - MAX_VISIBLE_STEPS })}
               </span>
             )}
           </div>
@@ -490,7 +493,7 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
               <span
                 key={f.file_path}
                 className="inline-flex items-center gap-0.5 text-[8px] px-1 py-0.5 rounded bg-white/[0.06] text-gray-400"
-                title={`${f.file_path} (${f.mention_count}×, discussed in chat)`}
+                title={t('shell.depGraph.discussed', { path: f.file_path, count: f.mention_count })}
               >
                 <FileSearch className="w-2 h-2" />
                 {f.file_path.split('/').pop()}
@@ -513,7 +516,7 @@ function TaskNodeComponent({ data }: NodeProps<Node<TaskNodeData>>) {
                 className={`inline-flex items-center gap-0.5 text-[8px] px-1 py-0.5 rounded bg-white/[0.06] ${
                   hasConflicts && conflictFiles.includes(file) ? TONE_CLASSES.warning.text : 'text-gray-500'
                 }`}
-                title={hasConflicts && conflictFiles.includes(file) ? `${file} — shared with another task` : file}
+                title={hasConflicts && conflictFiles.includes(file) ? t('shell.depGraph.sharedFile', { file }) : file}
               >
                 <FileCode2 className="w-2 h-2" />
                 {file.split('/').pop()}
@@ -581,6 +584,7 @@ interface DrawerNote {
 }
 
 export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps) {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const [task, setTask] = useState<DrawerTask | null>(null)
   const [steps, setSteps] = useState<DrawerStep[]>([])
@@ -674,14 +678,14 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
     <div className="fixed top-0 right-0 h-full w-96 max-w-full z-40 flex flex-col bg-[#12121a] border-l border-white/[0.06] shadow-2xl animate-slide-in-right">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-white/[0.06]">
-        <span className="text-sm font-medium text-gray-300 truncate">Task details</span>
+        <span className="text-sm font-medium text-gray-300 truncate">{t('shell.depGraph.taskDetails')}</span>
         <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={() => onOpenFullPage(taskId)}
             className={`${iconButton('ghost', 'size-9 md:size-8')} text-gray-500`}
-            title="Open task"
-            aria-label="Open task"
+            title={t('shell.depGraph.openTask')}
+            aria-label={t('shell.depGraph.openTask')}
           >
             <ExternalLink className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -689,8 +693,8 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
             type="button"
             onClick={onClose}
             className={`${iconButton('ghost', 'size-9 md:size-8')} text-gray-500`}
-            title="Close"
-            aria-label="Close task details"
+            title={t('ui.close')}
+            aria-label={t('shell.depGraph.closeDetails')}
           >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -718,7 +722,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
             {/* Description */}
             {task.title && task.description && (
               <div>
-                <h4 className="text-xs font-medium text-gray-500 mb-1">Description</h4>
+                <h4 className="text-xs font-medium text-gray-500 mb-1">{t('forms.field.description')}</h4>
                 <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{task.description}</p>
               </div>
             )}
@@ -727,7 +731,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
             {steps.length > 0 && (
               <div>
                 <h4 className="text-xs font-medium text-gray-500 mb-2 tabular-nums">
-                  Steps ({steps.filter((s) => s.status === 'completed').length}/{steps.length})
+                  {t('shell.depGraph.stepsTitle', { done: steps.filter((s) => s.status === 'completed').length, total: steps.length })}
                 </h4>
                 <div className="space-y-1">
                   {steps.map((step) => {
@@ -740,7 +744,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
                         type="button"
                         onClick={() => handleStepToggle(step)}
                         aria-pressed={done}
-                        aria-label={`${done ? 'Reopen' : 'Complete'} step: ${step.description}`}
+                        aria-label={t(done ? 'shell.depGraph.reopenStep' : 'shell.depGraph.completeStep', { step: step.description })}
                         className={`w-full min-h-9 flex items-start gap-2 py-1.5 px-2 rounded bg-white/[0.03] hover:bg-white/[0.06] transition-colors text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500/60`}
                       >
                         <StatusIcon tone={tone} className={`mt-0.5 ${TONE_CLASSES[tone].text}`} />
@@ -749,7 +753,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
                             {step.description}
                           </span>
                           {step.verification && (
-                            <p className="text-[11px] leading-4 text-gray-500 mt-0.5 break-words">Verify: {step.verification}</p>
+                            <p className="text-[11px] leading-4 text-gray-500 mt-0.5 break-words">{t('shell.depGraph.verify', { text: step.verification })}</p>
                           )}
                         </div>
                       </button>
@@ -762,7 +766,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
             {/* Acceptance criteria */}
             {task.acceptance_criteria.length > 0 && (
               <div>
-                <h4 className="text-xs font-medium text-gray-500 mb-2">Acceptance criteria</h4>
+                <h4 className="text-xs font-medium text-gray-500 mb-2">{t('shell.depGraph.criteria')}</h4>
                 <ul className="space-y-1 pl-5 list-disc marker:text-gray-600">
                   {task.acceptance_criteria.map((ac, i) => (
                     <li key={i} className="text-sm text-gray-300 break-words">
@@ -776,8 +780,8 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
             {/* Tags */}
             {task.tags.length > 0 && (
               <div>
-                <h4 className="text-xs font-medium text-gray-500 mb-2">Tags</h4>
-                <p className="text-xs text-gray-400 break-words">{task.tags.map((t) => `#${t}`).join(' ')}</p>
+                <h4 className="text-xs font-medium text-gray-500 mb-2">{t('forms.field.tags')}</h4>
+                <p className="text-xs text-gray-400 break-words">{task.tags.map((tag) => `#${tag}`).join(' ')}</p>
               </div>
             )}
 
@@ -786,7 +790,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
               <div>
                 <h4 className="text-xs font-medium text-gray-500 mb-2 tabular-nums">
                   <FileCode2 className="w-3 h-3 inline mr-1 -mt-0.5" aria-hidden="true" />
-                  Affected files ({task.affected_files.length})
+                  {t('shell.depGraph.affectedFiles', { count: task.affected_files.length })}
                 </h4>
                 <div className="space-y-0.5">
                   {task.affected_files.slice(0, 10).map((f) => (
@@ -804,7 +808,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
               <div>
                 <h4 className="text-xs font-medium text-gray-500 mb-2 tabular-nums">
                   <BookOpen className="w-3 h-3 inline mr-1 -mt-0.5" aria-hidden="true" />
-                  Decisions ({decisions.length})
+                  {t('shell.depGraph.decisions', { count: decisions.length })}
                 </h4>
                 <div className="space-y-2">
                   {decisions.map((d) => (
@@ -817,7 +821,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
                       <p className="text-sm text-gray-200 leading-snug break-words">{d.description}</p>
                       {d.chosen_option && (
                         <div className="flex items-start gap-1.5 min-w-0">
-                          <CheckCircle2 className={`w-3 h-3 mt-0.5 shrink-0 ${TONE_CLASSES.success.text}`} aria-label="Chosen option" />
+                          <CheckCircle2 className={`w-3 h-3 mt-0.5 shrink-0 ${TONE_CLASSES.success.text}`} aria-label={t('shell.depGraph.chosenOption')} />
                           <span className="text-xs text-gray-300 break-words">{d.chosen_option}</span>
                         </div>
                       )}
@@ -836,7 +840,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
               <div>
                 <h4 className="text-xs font-medium text-gray-500 mb-2 tabular-nums">
                   <StickyNote className="w-3 h-3 inline mr-1 -mt-0.5" aria-hidden="true" />
-                  Notes ({notes.length})
+                  {t('shell.depGraph.notes', { count: notes.length })}
                 </h4>
                 <div className="space-y-2">
                   {notes.map((n) => (
@@ -851,7 +855,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
                       </div>
                       <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap line-clamp-4 break-words">{n.content}</p>
                       {n.tags && n.tags.length > 0 && (
-                        <p className="text-[11px] leading-4 text-gray-500 break-words">{n.tags.slice(0, 4).map((t) => `#${t}`).join(' ')}</p>
+                        <p className="text-[11px] leading-4 text-gray-500 break-words">{n.tags.slice(0, 4).map((tag) => `#${tag}`).join(' ')}</p>
                       )}
                     </div>
                   ))}
@@ -866,12 +870,12 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
               className={`${textLink} ${hitArea} inline-flex items-center gap-1 text-xs`}
             >
               <ExternalLink className="w-3 h-3" aria-hidden="true" />
-              Open task
+              {t('shell.depGraph.openTask')}
             </Link>
             </ReferenceSource>
           </>
         ) : (
-          <p className="text-sm text-gray-500">Failed to load task details</p>
+          <p className="text-sm text-gray-500">{t('shell.depGraph.loadFailed')}</p>
         )}
       </div>
     </div>
@@ -883,6 +887,7 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
 // ============================================================================
 
 export function DependencyGraphView({ graph, taskStatuses, onNodeSelect, onNodeDoubleClick, className = '' }: DependencyGraphViewProps) {
+  const { t } = useT()
   // Local status overrides from CrudEvents (real-time)
   const [liveStatuses, setLiveStatuses] = useState<Map<string, TaskStatus>>(new Map())
   // Live step updates from CrudEvents (real-time step status changes)
@@ -1032,7 +1037,7 @@ export function DependencyGraphView({ graph, taskStatuses, onNodeSelect, onNodeD
   }, [graph, taskStatuses, liveStatuses, liveStepUpdates, liveStepProgress, conflictLookup, onNodeSelect, onNodeDoubleClick])
 
   if (layoutedNodes.length === 0) {
-    return <p className="text-gray-500 text-sm">No tasks to display</p>
+    return <p className="text-gray-500 text-sm">{t('shell.depGraph.empty')}</p>
   }
 
   return (

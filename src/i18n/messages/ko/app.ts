@@ -1,0 +1,62 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  api: {
+    sessionExpired: '세션이 만료되었습니다',
+    fallback: '오류가 발생했습니다',
+    nonJson: '서버가 JSON이 아닌 응답을 보냈습니다: {request} → {status}{type}',
+  },
+  upload: {
+    malformed: '서버의 응답 형식이 올바르지 않습니다',
+    network: '네트워크 오류',
+    timedOut: '업로드 시간이 초과되었습니다',
+  },
+  runner: {
+    noActiveRun: '취소할 활성 실행이 없습니다',
+    cancelInProgress: '이미 취소하는 중입니다',
+    noActiveRunForce: '강제 취소할 활성 실행이 없습니다',
+    fetchFailed: '러너 상태를 가져오지 못했습니다',
+  },
+  hooks: {
+    serverNotBack: '재시작 후 서버가 돌아오지 않았습니다. 서버를 확인한 다음 이 페이지를 새로 고치세요.',
+    updateActionFailed: '업데이트 동작에 실패했습니다',
+    allProjects: '모든 프로젝트',
+    taskGraphFailed: '작업 그래프 데이터를 불러오지 못했습니다',
+    planGraphFailed: '플랜 그래프 데이터를 불러오지 못했습니다',
+    pipelineFailed: '파이프라인 진행 상황을 가져오지 못했습니다',
+    discussionTreeFailed: '토론 트리를 가져오지 못했습니다',
+    newModel: '새 모델',
+    modelAvailable: '{model} 모델을 이제 사용할 수 있습니다',
+    apiUnavailable: 'API를 사용할 수 없습니다',
+  },
+  attention: {
+    resumed: '실행을 재개했습니다: {title}',
+    resumeFailed: '실행을 재개하지 못했습니다',
+    allowed: '허용됨: {what}',
+    denied: '거부됨: {what}',
+    replySent: '답변을 보냈습니다: {what}',
+    replyFailed: '답변을 보내지 못했습니다',
+    accepted: '수락됨: {title}',
+    rejected: '거절됨: {title}',
+    decisionFailed: '결정이 기록되지 않았습니다',
+  },
+  chat: {
+    cancelledByUser: '사용자가 취소했습니다',
+    unknownError: '알 수 없는 오류',
+    sessionInitialized: '세션이 초기화되었습니다',
+    maxTurns: '최대 턴 수에 도달했습니다',
+    maxTurnsCount: '최대 턴 수에 도달했습니다({n}턴)',
+    executionError: '실행 오류가 발생했습니다',
+    autoContinuing: '자동으로 계속하는 중...',
+    sessionError: '세션이 오류와 함께 종료되었습니다',
+    startFailed: '대화를 시작할 수 없었습니다',
+  },
+  export: { user: '사용자', assistant: '어시스턴트' },
+  architecture: {
+    entry: '진입점',
+    gateway: '게이트웨이',
+    services: '서비스',
+    libraries: '라이브러리, 메시징 및 캐시',
+    data: '데이터 및 외부',
+  },
+} satisfies Translation<'app'>

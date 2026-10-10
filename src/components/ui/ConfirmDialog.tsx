@@ -5,6 +5,7 @@ import { AlertCircle, Info } from 'lucide-react'
 import { Button } from './Button'
 import { ProgressBar } from './ProgressBar'
 import { DIALOG_MOTION, useVariants } from '@/utils/motion'
+import { useT } from '@/i18n'
 
 export interface ConfirmDialogProps {
   open: boolean
@@ -25,10 +26,11 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
-  cancelLabel = 'Cancel',
+  cancelLabel,
   variant = 'danger',
   progress,
 }: ConfirmDialogProps) {
+  const { t } = useT()
   const [loading, setLoading] = useState(false)
   const cancelRef = useRef<HTMLButtonElement>(null)
   const variants = useVariants(DIALOG_MOTION)
@@ -70,7 +72,7 @@ export function ConfirmDialog({
     }
   }
 
-  const resolvedConfirmLabel = confirmLabel ?? (variant === 'info' ? 'Confirm' : 'Delete')
+  const resolvedConfirmLabel = confirmLabel ?? (variant === 'info' ? t('ui.confirm') : t('ui.delete'))
   const isInfo = variant === 'info'
   const IconComponent = isInfo ? Info : AlertCircle
   const iconColor = isInfo ? 'text-indigo-400' : variant === 'danger' ? 'text-red-400' : 'text-yellow-400'
@@ -136,7 +138,7 @@ export function ConfirmDialog({
                 onClick={onClose}
                 disabled={loading}
               >
-                {cancelLabel}
+                {cancelLabel ?? t('ui.cancel')}
               </Button>
               <Button
                 variant={isInfo ? 'primary' : 'danger'}

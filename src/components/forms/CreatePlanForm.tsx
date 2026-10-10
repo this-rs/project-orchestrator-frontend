@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Input, Textarea, Select } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import type { Project } from '@/types'
+import { useT } from '@/i18n'
 
 export interface CreatePlanFormData {
   title: string
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export function CreatePlanForm({ onSubmit, defaultProjectId, workspaceSlug }: Props) {
+  const { t } = useT()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('5')
@@ -33,14 +35,14 @@ export function CreatePlanForm({ onSubmit, defaultProjectId, workspaceSlug }: Pr
   }, [workspaceSlug])
 
   const projectOptions = [
-    { value: '', label: 'No project' },
+    { value: '', label: t('forms.noProject') },
     ...projects.map((p) => ({ value: p.id, label: p.name })),
   ]
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!title.trim()) errs.title = 'Title is required'
-    if (!description.trim()) errs.description = 'Description is required'
+    if (!title.trim()) errs.title = t('forms.error.title')
+    if (!description.trim()) errs.description = t('forms.error.description')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -49,16 +51,16 @@ export function CreatePlanForm({ onSubmit, defaultProjectId, workspaceSlug }: Pr
     fields: (
       <>
         <Input
-          label="Title"
-          placeholder="Plan title"
+          label={t('forms.field.title')}
+          placeholder={t('forms.placeholder.planTitle')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           error={errors.title}
           autoFocus
         />
         <Textarea
-          label="Description"
-          placeholder="Describe the plan..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.planDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           error={errors.description}
@@ -66,7 +68,7 @@ export function CreatePlanForm({ onSubmit, defaultProjectId, workspaceSlug }: Pr
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Input
-            label="Priority"
+            label={t('forms.field.priority')}
             type="number"
             min={1}
             max={10}
@@ -74,7 +76,7 @@ export function CreatePlanForm({ onSubmit, defaultProjectId, workspaceSlug }: Pr
             onChange={(e) => setPriority(e.target.value)}
           />
           <Select
-            label="Project"
+            label={t('forms.field.project')}
             options={projectOptions}
             value={projectId}
             onChange={(value) => setProjectId(value)}

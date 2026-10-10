@@ -16,19 +16,21 @@ import {
 } from 'lucide-react'
 import { notesApi } from '@/services/notes'
 import type { Note, NoteType } from '@/types'
+import { useT } from '@/i18n'
+import type { MessageKey } from '@/i18n/catalog'
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
-const NOTE_TYPE_CONFIG: Record<NoteType, { icon: typeof BookOpen; color: string; label: string }> = {
-  guideline: { icon: BookOpen, color: '#3B82F6', label: 'Guideline' },
-  gotcha: { icon: AlertTriangle, color: '#EF4444', label: 'Gotcha' },
-  pattern: { icon: Layers, color: '#8B5CF6', label: 'Pattern' },
-  tip: { icon: Lightbulb, color: '#F59E0B', label: 'Tip' },
-  context: { icon: FileText, color: '#6B7280', label: 'Context' },
-  observation: { icon: FileText, color: '#10B981', label: 'Observation' },
-  assertion: { icon: FileText, color: '#EC4899', label: 'Assertion' },
+const NOTE_TYPE_CONFIG: Record<NoteType, { icon: typeof BookOpen; color: string; label: MessageKey }> = {
+  guideline: { icon: BookOpen, color: '#3B82F6', label: 'forms.noteType.guideline' },
+  gotcha: { icon: AlertTriangle, color: '#EF4444', label: 'forms.noteType.gotcha' },
+  pattern: { icon: Layers, color: '#8B5CF6', label: 'forms.noteType.pattern' },
+  tip: { icon: Lightbulb, color: '#F59E0B', label: 'forms.noteType.tip' },
+  context: { icon: FileText, color: '#6B7280', label: 'forms.noteType.context' },
+  observation: { icon: FileText, color: '#10B981', label: 'forms.noteType.observation' },
+  assertion: { icon: FileText, color: '#EC4899', label: 'forms.noteType.assertion' },
 }
 
 const TYPE_FILTERS: NoteType[] = ['guideline', 'gotcha', 'pattern', 'tip', 'context', 'observation', 'assertion']
@@ -42,6 +44,7 @@ interface DraggableNoteProps {
 }
 
 function DraggableNoteItem({ note }: DraggableNoteProps) {
+  const { t } = useT()
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `note-${note.id}`,
     data: { type: 'note', note },
@@ -81,7 +84,7 @@ function DraggableNoteItem({ note }: DraggableNoteProps) {
             className="text-[9px] font-medium px-1 py-0.5 rounded"
             style={{ color: cfg.color, backgroundColor: `${cfg.color}15` }}
           >
-            {cfg.label}
+            {t(cfg.label)}
           </span>
           {note.tags.slice(0, 2).map((tag) => (
             <span key={tag} className="text-[9px] text-slate-500 px-1 py-0.5 rounded bg-slate-800">
@@ -105,6 +108,7 @@ interface NotePoolProps {
 }
 
 function NotePoolComponent({ projectId, boundNoteIds }: NotePoolProps) {
+  const { t } = useT()
   const [notes, setNotes] = useState<Note[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -138,7 +142,7 @@ function NotePoolComponent({ projectId, boundNoteIds }: NotePoolProps) {
     return notes.filter(
       (n) =>
         n.content.toLowerCase().includes(q) ||
-        n.tags.some((t) => t.toLowerCase().includes(q))
+        n.tags.some((tag) => tag.toLowerCase().includes(q))
     )
   }, [notes, searchQuery])
 
@@ -166,10 +170,12 @@ function NotePoolComponent({ projectId, boundNoteIds }: NotePoolProps) {
       <div className="px-3 py-2 border-b border-slate-700/50">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-xs font-semibold text-slate-400">
-            Note Pool
+            {t('composer.notePool.title')}
           </h3>
           <button
             onClick={() => setShowFilters((v) => !v)}
+            aria-label={t('composer.notePool.filters')}
+            aria-pressed={showFilters}
             className={`p-1 rounded transition-colors ${
               showFilters || typeFilter ? 'text-indigo-400 bg-indigo-950/30' : 'text-slate-500 hover:text-slate-400'
             }`}
@@ -185,7 +191,7 @@ function NotePoolComponent({ projectId, boundNoteIds }: NotePoolProps) {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search notes..."
+            placeholder={t('composer.notePool.search')}
             className="w-full pl-7 pr-2 py-1.5 text-[11px] bg-slate-800/50 border border-slate-700/50 rounded-md text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500/50"
           />
         </div>
@@ -207,7 +213,7 @@ function NotePoolComponent({ projectId, boundNoteIds }: NotePoolProps) {
                   }`}
                   style={active ? { color: cfg.color, borderColor: cfg.color } : undefined}
                 >
-                  {cfg.label}
+                  {t(cfg.label)}
                 </button>
               )
             })}
@@ -218,9 +224,9 @@ function NotePoolComponent({ projectId, boundNoteIds }: NotePoolProps) {
       {/* Note list */}
       <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
         {loading ? (
-          <p className="text-[10px] text-slate-500 text-center py-4">Loading notes...</p>
+          <p className="text-[10px] text-slate-500 text-center py-4">{t('composer.notePool.loading')}</p>
         ) : available.length === 0 && bound.length === 0 ? (
-          <p className="text-[10px] text-slate-500 text-center py-4">No notes found</p>
+          <p className="text-[10px] text-slate-500 text-center py-4">{t('composer.notePool.empty')}</p>
         ) : (
           <>
             {available.map((note) => (
@@ -229,7 +235,7 @@ function NotePoolComponent({ projectId, boundNoteIds }: NotePoolProps) {
             {bound.length > 0 && (
               <>
                 <div className="text-[9px] text-slate-600 mt-3 mb-1 px-1">
-                  Already bound ({bound.length})
+                  {t('composer.notePool.bound', { count: bound.length })}
                 </div>
                 {bound.map((note) => (
                   <div key={note.id} className="opacity-40 pointer-events-none">

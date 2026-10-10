@@ -15,6 +15,7 @@ import type {
   ChatMessage,
   ContentBlock,
 } from '@/types'
+import { tr } from '@/i18n/lazy'
 import { BACKGROUND_ACTIVITY_MAX_ENTRIES } from '@/types'
 import { readProviderError, toProviderRef, toToolPolicy, type ProviderCapabilities, type ProviderErrorInfo, type ProviderRef, type ToolPolicy } from '@/types/provider'
 
@@ -231,7 +232,7 @@ export function appendBackgroundActivity(msg: ChatMessage, tick: BackgroundTick)
 
 /** Human text for a `session_error` event: the message, tagged with its machine reason. */
 export function sessionErrorText(evt: { reason?: string; message?: string }): string {
-  const message = evt.message ?? 'The session ended with an error'
+  const message = evt.message ?? tr('app.chat.sessionError')
   return evt.reason ? `${message} (${evt.reason})` : message
 }
 
@@ -449,7 +450,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
         msg.blocks.push({
           id: nextBlockId(),
           type: 'tool_result',
-          content: 'Cancelled by user',
+          content: tr('app.chat.cancelledByUser'),
           metadata: withParent({ tool_call_id: evt.id, is_cancelled: true }, parent),
         })
         break
@@ -529,7 +530,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
         msg.blocks.push({
           id: nextBlockId(),
           type: 'error',
-          content: evt.message ?? 'Unknown error',
+          content: evt.message ?? tr('app.chat.unknownError'),
           metadata: withParent(undefined, parent),
         })
         break
@@ -604,7 +605,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
           msg.blocks.push({
             id: nextBlockId(),
             type: 'system_init',
-            content: 'Session initialized',
+            content: tr('app.chat.sessionInitialized'),
             metadata: {
               model: initModel,
               tools_count: initTools?.length ?? 0,
@@ -633,8 +634,8 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
             id: nextBlockId(),
             type: 'result_max_turns',
             content: rNumTurns
-              ? `Maximum turns reached (${rNumTurns} turns)`
-              : 'Maximum turns reached',
+              ? tr('app.chat.maxTurnsCount', { n: rNumTurns })
+              : tr('app.chat.maxTurns'),
             metadata: { num_turns: rNumTurns },
           })
           lastEventWasMaxTurns = true
@@ -642,7 +643,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
           rMsg.blocks.push({
             id: nextBlockId(),
             type: 'result_error',
-            content: rResultText ?? 'An execution error occurred',
+            content: rResultText ?? tr('app.chat.executionError'),
             metadata: { result_text: rResultText },
           })
           lastEventWasMaxTurns = false
@@ -658,7 +659,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
         msg.blocks.push({
           id: nextBlockId(),
           type: 'continue_indicator',
-          content: 'Auto-continuing...',
+          content: tr('app.chat.autoContinuing'),
           metadata: { delay_ms: acDelay, auto: true },
         })
         lastEventWasMaxTurns = false

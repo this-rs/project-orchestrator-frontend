@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from 'react'
 import { AlertTriangle, RotateCcw } from 'lucide-react'
+import { useT } from '@/i18n'
 
 interface Props {
   children: ReactNode
@@ -11,6 +12,39 @@ interface State {
   hasError: boolean
   error: Error | null
   webglLost: boolean
+}
+
+/** The fallback is a function component so that it can read the language (a class cannot use a hook). */
+function Graph3DFallback({ webglLost, message, onRetry }: { webglLost: boolean; message?: string; onRetry: () => void }) {
+  const { t } = useT()
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm z-50">
+      <div className="flex flex-col items-center gap-4 text-center max-w-sm px-6">
+        <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center">
+          <AlertTriangle size={24} className="text-amber-400" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-slate-200 mb-1">
+            {webglLost ? t('ui.graph3d.contextLost') : t('ui.graph3d.renderError')}
+          </h3>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            {webglLost
+              ? t('ui.graph3d.contextLostText')
+              : message
+                ? t('ui.graph3d.renderErrorDetail', { message })
+                : t('ui.graph3d.renderErrorText')}
+          </p>
+        </div>
+        <button
+          onClick={onRetry}
+          className="flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors"
+        >
+          <RotateCcw size={14} />
+          {t('ui.retry')}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 /**
@@ -103,33 +137,7 @@ export class Graph3DErrorBoundary extends Component<Props, State> {
 
   render(): ReactNode {
     if (this.state.hasError) {
-      return (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm z-50">
-          <div className="flex flex-col items-center gap-4 text-center max-w-sm px-6">
-            <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center">
-              <AlertTriangle size={24} className="text-amber-400" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-200 mb-1">
-                {this.state.webglLost ? '3D Context Lost' : '3D Rendering Error'}
-              </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                {this.state.webglLost
-                  ? 'The WebGL context was lost — this can happen with large graphs or GPU memory pressure.'
-                  : `An error occurred in the 3D renderer${this.state.error?.message ? `: ${this.state.error.message}` : '.'}`
-                }
-              </p>
-            </div>
-            <button
-              onClick={this.handleRetry}
-              className="flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg bg-slate-800 border border-slate-600 text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors"
-            >
-              <RotateCcw size={14} />
-              Retry
-            </button>
-          </div>
-        </div>
-      )
+      return <Graph3DFallback webglLost={this.state.webglLost} message={this.state.error?.message} onRetry={this.handleRetry} />
     }
 
     return (

@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { tasksApi, commitsApi, notesApi } from '@/services'
 import type { Step, Decision, Commit, Constraint } from '@/types'
 import type { TaskGraphData } from '@/adapters/TaskGraphAdapter'
+import { tr } from '@/i18n/lazy'
 
 interface TaskNote {
   id: string
@@ -134,7 +135,7 @@ export function useTaskGraphData(
       }
     } catch (err) {
       console.error('Failed to fetch task graph data:', err)
-      setError('Failed to load task graph data')
+      setError(tr('app.hooks.taskGraphFailed'))
     } finally {
       setIsLoading(false)
     }

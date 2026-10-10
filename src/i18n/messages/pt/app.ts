@@ -1,0 +1,62 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  api: {
+    sessionExpired: 'Sessão expirada',
+    fallback: 'Ocorreu um erro',
+    nonJson: 'O servidor respondeu algo diferente de JSON: {request} → {status}{type}',
+  },
+  upload: {
+    malformed: 'Resposta malformada do servidor',
+    network: 'Erro de rede',
+    timedOut: 'Tempo de envio esgotado',
+  },
+  runner: {
+    noActiveRun: 'Nenhuma execução ativa para cancelar',
+    cancelInProgress: 'Cancelamento já em andamento',
+    noActiveRunForce: 'Nenhuma execução ativa para forçar o cancelamento',
+    fetchFailed: 'Não foi possível obter o estado do executor',
+  },
+  hooks: {
+    serverNotBack: 'O servidor não voltou após a reinicialização. Verifique-o e recarregue esta página.',
+    updateActionFailed: 'A ação de atualização falhou',
+    allProjects: 'Todos os projetos',
+    taskGraphFailed: 'Não foi possível carregar os dados do grafo de tarefas',
+    planGraphFailed: 'Não foi possível carregar os dados do grafo de planos',
+    pipelineFailed: 'Não foi possível obter o progresso do pipeline',
+    discussionTreeFailed: 'Não foi possível obter a árvore de discussão',
+    newModel: 'Um novo modelo',
+    modelAvailable: '{model} já está disponível',
+    apiUnavailable: 'API indisponível',
+  },
+  attention: {
+    resumed: 'Execução retomada: {title}',
+    resumeFailed: 'Não foi possível retomar a execução',
+    allowed: 'Permitido: {what}',
+    denied: 'Negado: {what}',
+    replySent: 'Resposta enviada: {what}',
+    replyFailed: 'Resposta não enviada',
+    accepted: 'Aceito: {title}',
+    rejected: 'Recusado: {title}',
+    decisionFailed: 'Decisão não registrada',
+  },
+  chat: {
+    cancelledByUser: 'Cancelado pelo usuário',
+    unknownError: 'Erro desconhecido',
+    sessionInitialized: 'Sessão iniciada',
+    maxTurns: 'Número máximo de turnos atingido',
+    maxTurnsCount: 'Número máximo de turnos atingido ({n} turnos)',
+    executionError: 'Ocorreu um erro de execução',
+    autoContinuing: 'Continuando automaticamente...',
+    sessionError: 'A sessão terminou com um erro',
+    startFailed: 'Não foi possível iniciar a conversa',
+  },
+  export: { user: 'Usuário', assistant: 'Assistente' },
+  architecture: {
+    entry: 'Pontos de entrada',
+    gateway: 'Gateway',
+    services: 'Serviços',
+    libraries: 'Bibliotecas, mensageria e cache',
+    data: 'Dados e externos',
+  },
+} satisfies Translation<'app'>

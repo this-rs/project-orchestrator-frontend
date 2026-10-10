@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Input, Textarea, Select } from '@/components/ui'
 import type { ComponentType } from '@/types'
+import { useT } from '@/i18n'
 
 export interface CreateComponentFormData {
   name: string
@@ -14,19 +15,19 @@ interface Props {
   onSubmit: (data: CreateComponentFormData) => Promise<void>
 }
 
-const typeOptions = [
-  { value: 'service', label: 'Service' },
-  { value: 'frontend', label: 'Frontend' },
-  { value: 'worker', label: 'Worker' },
-  { value: 'database', label: 'Database' },
-  { value: 'message_queue', label: 'Message Queue' },
-  { value: 'cache', label: 'Cache' },
-  { value: 'gateway', label: 'Gateway' },
-  { value: 'external', label: 'External' },
-  { value: 'other', label: 'Other' },
-]
-
 export function CreateComponentForm({ onSubmit }: Props) {
+  const { t } = useT()
+  const typeOptions = [
+    { value: 'service', label: t('forms.componentType.service') },
+    { value: 'frontend', label: t('forms.componentType.frontend') },
+    { value: 'worker', label: t('forms.componentType.worker') },
+    { value: 'database', label: t('forms.componentType.database') },
+    { value: 'message_queue', label: t('forms.componentType.message_queue') },
+    { value: 'cache', label: t('forms.componentType.cache') },
+    { value: 'gateway', label: t('forms.componentType.gateway') },
+    { value: 'external', label: t('forms.componentType.external') },
+    { value: 'other', label: t('forms.other') },
+  ]
   const [name, setName] = useState('')
   const [componentType, setComponentType] = useState<string>('service')
   const [description, setDescription] = useState('')
@@ -36,7 +37,7 @@ export function CreateComponentForm({ onSubmit }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!name.trim()) errs.name = 'Name is required'
+    if (!name.trim()) errs.name = t('forms.error.name')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -45,8 +46,8 @@ export function CreateComponentForm({ onSubmit }: Props) {
     fields: (
       <>
         <Input
-          label="Name"
-          placeholder="Component name"
+          label={t('forms.field.name')}
+          placeholder={t('forms.placeholder.componentName')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           error={errors.name}
@@ -54,30 +55,30 @@ export function CreateComponentForm({ onSubmit }: Props) {
           autoFocus
         />
         <Select
-          label="Type"
+          label={t('forms.field.type')}
           options={typeOptions}
           value={componentType}
           onChange={(value) => setComponentType(value)}
 
         />
         <Textarea
-          label="Description"
-          placeholder="Optional description..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.optionalDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
 
           rows={2}
         />
         <Input
-          label="Runtime"
-          placeholder="node, python, rust, etc."
+          label={t('forms.field.runtime')}
+          placeholder={t('forms.placeholder.runtime')}
           value={runtime}
           onChange={(e) => setRuntime(e.target.value)}
 
         />
         <Input
-          label="Tags"
-          placeholder="Comma-separated tags"
+          label={t('forms.field.tags')}
+          placeholder={t('forms.placeholder.tags')}
           value={tags}
           onChange={(e) => setTags(e.target.value)}
 

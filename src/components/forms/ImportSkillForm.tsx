@@ -1,18 +1,14 @@
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { Upload, FileJson, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { MetaLine, Select, focusRing, pluralize } from '@/components/ui'
+import { MetaLine, Select, focusRing } from '@/components/ui'
 import type { SkillPackage, ImportSkillRequest } from '@/types'
+import { useT } from '@/i18n'
 
 interface Props {
   projects: { id: string; name: string }[]
   onSubmit: (data: ImportSkillRequest) => Promise<void>
 }
 
-const conflictOptions = [
-  { value: 'skip', label: 'Skip (keep existing)' },
-  { value: 'merge', label: 'Merge (add new notes)' },
-  { value: 'replace', label: 'Replace (overwrite)' },
-]
 
 /** Structural check of an exported skill package (schema_version + metadata + skill + notes + decisions). */
 export function isSkillPackage(data: unknown): data is SkillPackage {
@@ -43,6 +39,12 @@ function tagLine(tags: string[] | undefined, max = 3): string | null {
  * tall); drag-and-drop is an enhancement on top of it.
  */
 export function ImportSkillForm({ projects, onSubmit }: Props) {
+  const { t } = useT()
+  const conflictOptions = [
+    { value: 'skip', label: t('forms.import.conflictSkip') },
+    { value: 'merge', label: t('forms.import.conflictMerge') },
+    { value: 'replace', label: t('forms.import.conflictReplace') },
+  ]
   const [projectId, setProjectId] = useState(projects[0]?.id || '')
   const [conflictStrategy, setConflictStrategy] = useState<'skip' | 'merge' | 'replace'>('skip')
   const [parsedPackage, setParsedPackage] = useState<SkillPackage | null>(null)
@@ -61,18 +63,18 @@ export function ImportSkillForm({ projects, onSubmit }: Props) {
     setErrors((e) => ({ ...e, file: '' }))
 
     if (!file.name.endsWith('.json')) {
-      setParseError('The package must be a .json file.')
+      setParseError(t('forms.import.notJsonFile'))
       return
     }
     try {
       const data: unknown = JSON.parse(await file.text())
       if (!isSkillPackage(data)) {
-        setParseError('Not a skill package: expected schema_version, metadata, skill, notes and decisions.')
+        setParseError(t('forms.import.notPackage'))
         return
       }
       setParsedPackage(data)
     } catch {
-      setParseError('The file is not valid JSON.')
+      setParseError(t('forms.import.invalidJson'))
     }
   }
 
@@ -92,8 +94,8 @@ export function ImportSkillForm({ projects, onSubmit }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!projectId) errs.project_id = 'Project is required'
-    if (!parsedPackage) errs.file = 'Choose a skill package (.json) first'
+    if (!projectId) errs.project_id = t('forms.error.project')
+    if (!parsedPackage) errs.file = t('forms.import.chooseFirst')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -114,7 +116,7 @@ export function ImportSkillForm({ projects, onSubmit }: Props) {
       <>
         <div>
           <p id="skill-package-label" className="block text-sm font-medium text-gray-300 mb-1">
-            Skill package
+            {t('forms.import.package')}
           </p>
           <button
             type="button"
@@ -137,7 +139,7 @@ export function ImportSkillForm({ projects, onSubmit }: Props) {
               <Upload className="w-6 h-6 text-gray-500" aria-hidden="true" />
             )}
             <span className="text-sm text-gray-300 break-words">
-              {pkg ? 'Package loaded — tap to replace' : 'Tap to choose a .json file, or drop it here'}
+              {pkg ? t('forms.import.loaded') : t('forms.import.drop')}
             </span>
             {fileName && <span className="text-xs text-gray-500 break-all">{fileName}</span>}
           </button>
@@ -150,7 +152,7 @@ export function ImportSkillForm({ projects, onSubmit }: Props) {
         </div>
 
         {pkg && (
-          <section aria-label="Package preview" className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1">
+          <section aria-label={t('forms.import.preview')} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-1">
             <p className="flex items-start gap-1.5 text-sm text-gray-200 min-w-0">
               <FileJson className="w-4 h-4 mt-0.5 shrink-0 text-indigo-400" aria-hidden="true" />
               <span className="break-words">{pkg.skill.name}</span>
@@ -158,19 +160,21 @@ export function ImportSkillForm({ projects, onSubmit }: Props) {
             {pkg.skill.description && <p className="text-xs text-gray-500 line-clamp-2 break-words">{pkg.skill.description}</p>}
             <MetaLine
               items={[
-                pluralize(pkg.notes.length, 'note'),
-                pluralize(pkg.decisions.length, 'decision'),
-                pkg.protocols?.length ? pluralize(pkg.protocols.length, 'protocol') : null,
-                pkg.metadata.source_project ? `from ${pkg.metadata.source_project}` : null,
+                t(pkg.notes.length === 1 ? 'forms.import.note.one' : 'forms.import.note.other', { n: pkg.notes.length }),
+                t(pkg.decisions.length === 1 ? 'forms.import.decision.one' : 'forms.import.decision.other', { n: pkg.decisions.length }),
+                pkg.protocols?.length
+                  ? t(pkg.protocols.length === 1 ? 'forms.import.protocol.one' : 'forms.import.protocol.other', { n: pkg.protocols.length })
+                  : null,
+                pkg.metadata.source_project ? t('forms.import.from', { project: pkg.metadata.source_project }) : null,
                 tagLine(pkg.skill.tags),
               ]}
             />
           </section>
         )}
 
-        <Select label="Destination project" options={projectOptions} value={projectId} onChange={setProjectId} error={errors.project_id} />
+        <Select label={t('forms.import.destination')} options={projectOptions} value={projectId} onChange={setProjectId} error={errors.project_id} />
         <Select
-          label="If the skill already exists"
+          label={t('forms.import.ifExists')}
           options={conflictOptions}
           value={conflictStrategy}
           onChange={(v) => setConflictStrategy(v as 'skip' | 'merge' | 'replace')}

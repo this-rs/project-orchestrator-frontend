@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Input, Textarea } from '@/components/ui'
+import { useT } from '@/i18n'
 
 export interface CreateWorkspaceFormData {
   name: string
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function CreateWorkspaceForm({ onSubmit, loading }: Props) {
+  const { t } = useT()
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [slugTouched, setSlugTouched] = useState(false)
@@ -28,7 +30,7 @@ export function CreateWorkspaceForm({ onSubmit, loading }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!name.trim()) errs.name = 'Name is required'
+    if (!name.trim()) errs.name = t('forms.error.name')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -37,8 +39,8 @@ export function CreateWorkspaceForm({ onSubmit, loading }: Props) {
     fields: (
       <>
         <Input
-          label="Name"
-          placeholder="My Workspace"
+          label={t('forms.field.name')}
+          placeholder={t('forms.placeholder.workspaceNameNew')}
           value={name}
           onChange={(e) => handleNameChange(e.target.value)}
           error={errors.name}
@@ -46,8 +48,8 @@ export function CreateWorkspaceForm({ onSubmit, loading }: Props) {
           autoFocus
         />
         <Input
-          label="Slug"
-          placeholder="my-workspace"
+          label={t('forms.field.slug')}
+          placeholder={t('forms.placeholder.workspaceSlugNew')}
           value={slug}
           onChange={(e) => {
             setSlugTouched(true)
@@ -56,8 +58,8 @@ export function CreateWorkspaceForm({ onSubmit, loading }: Props) {
           disabled={loading}
         />
         <Textarea
-          label="Description"
-          placeholder="Optional description..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.optionalDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           disabled={loading}

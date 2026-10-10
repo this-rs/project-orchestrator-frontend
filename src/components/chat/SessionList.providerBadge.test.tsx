@@ -27,7 +27,7 @@ vi.mock('@/hooks', () => ({
   useDetachedRuns: () => ({ runs: [], isLoading: false, hasActiveRuns: false, refresh: () => {} }),
 }))
 
-import { PROVIDER_BADGE_UNAVAILABLE_HELP, describeSessionProvider, shouldShowProviderBadge } from '@/constants/providers'
+import { providerBadgeUnavailableHelp, describeSessionProvider, shouldShowProviderBadge } from '@/constants/providers'
 import { SessionRow } from './SessionList'
 import { ProviderBadge } from './ProviderBadge'
 
@@ -107,7 +107,7 @@ describe('SessionRow — provider badge', () => {
     expect(gone.textContent).toContain('unavailable')
     // The consequence is tied to the badge, not left to a tooltip.
     const help = document.getElementById(gone.getAttribute('aria-describedby')!)
-    expect(help?.textContent).toBe(PROVIDER_BADGE_UNAVAILABLE_HELP)
+    expect(help?.textContent).toBe(providerBadgeUnavailableHelp())
   })
 
   it('a single instance: an all-Claude list stays as light as before, only non-Claude rows get a badge', () => {

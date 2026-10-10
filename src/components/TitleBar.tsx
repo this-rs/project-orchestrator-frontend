@@ -1,5 +1,6 @@
 import { useCallback, useState, useRef, useEffect } from 'react'
 import { isTauri } from '@/services/env'
+import { useT } from '@/i18n'
 
 /**
  * Auto-hiding custom titlebar for Tauri desktop.
@@ -12,6 +13,7 @@ import { isTauri } from '@/services/env'
  * Provides macOS-style traffic light buttons (close, minimize, fullscreen).
  */
 export function TitleBar() {
+  const { t } = useT()
   const [visible, setVisible] = useState(false)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -86,13 +88,13 @@ export function TitleBar() {
       >
         {/* macOS-style traffic lights */}
         <div className="flex items-center gap-[6px]">
-          <TrafficLight color="#ff5f57" hoverColor="#e0443e" onClick={handleClose} title="Close">
+          <TrafficLight color="#ff5f57" hoverColor="#e0443e" onClick={handleClose} title={t('shell.window.close')}>
             <svg className="h-[6px] w-[6px]" viewBox="0 0 6 6" stroke="currentColor" strokeWidth="1.2">
               <line x1="0.5" y1="0.5" x2="5.5" y2="5.5" />
               <line x1="5.5" y1="0.5" x2="0.5" y2="5.5" />
             </svg>
           </TrafficLight>
-          <TrafficLight color="#febc2e" hoverColor="#dea123" onClick={handleMinimize} title="Minimize">
+          <TrafficLight color="#febc2e" hoverColor="#dea123" onClick={handleMinimize} title={t('shell.window.minimize')}>
             <svg className="h-[6px] w-[6px]" viewBox="0 0 6 6" stroke="currentColor" strokeWidth="1.2">
               <line x1="0.5" y1="3" x2="5.5" y2="3" />
             </svg>
@@ -101,7 +103,7 @@ export function TitleBar() {
             color="#28c840"
             hoverColor="#1aab29"
             onClick={handleToggleFullscreen}
-            title="Fullscreen"
+            title={t('shell.window.fullscreen')}
           >
             <svg className="h-[6px] w-[6px]" viewBox="0 0 6 6" fill="currentColor">
               <polygon points="0.5,3 3,0.5 5.5,3 3,5.5" />

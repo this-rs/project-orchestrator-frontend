@@ -1,0 +1,62 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  api: {
+    sessionExpired: 'Session expirée',
+    fallback: 'Une erreur est survenue',
+    nonJson: 'Le serveur a répondu autre chose que du JSON : {request} → {status}{type}',
+  },
+  upload: {
+    malformed: 'Réponse mal formée du serveur',
+    network: 'Erreur réseau',
+    timedOut: 'Délai d\'envoi dépassé',
+  },
+  runner: {
+    noActiveRun: 'Aucun run actif à annuler',
+    cancelInProgress: 'Annulation déjà en cours',
+    noActiveRunForce: 'Aucun run actif à annuler de force',
+    fetchFailed: 'Impossible de récupérer l\'état du runner',
+  },
+  hooks: {
+    serverNotBack: 'Le serveur n\'est pas revenu après le redémarrage. Vérifiez-le, puis rechargez cette page.',
+    updateActionFailed: 'Échec de l\'action de mise à jour',
+    allProjects: 'Tous les projets',
+    taskGraphFailed: 'Impossible de charger le graphe des tâches',
+    planGraphFailed: 'Impossible de charger le graphe des plans',
+    pipelineFailed: 'Impossible de récupérer la progression du pipeline',
+    discussionTreeFailed: 'Impossible de récupérer l\'arbre de discussion',
+    newModel: 'Un nouveau modèle',
+    modelAvailable: '{model} est maintenant disponible',
+    apiUnavailable: 'API indisponible',
+  },
+  attention: {
+    resumed: 'Run repris : {title}',
+    resumeFailed: 'Impossible de reprendre le run',
+    allowed: 'Autorisé : {what}',
+    denied: 'Refusé : {what}',
+    replySent: 'Réponse envoyée : {what}',
+    replyFailed: 'Réponse non envoyée',
+    accepted: 'Accepté : {title}',
+    rejected: 'Rejeté : {title}',
+    decisionFailed: 'Décision non enregistrée',
+  },
+  chat: {
+    cancelledByUser: 'Annulé par l\'utilisateur',
+    unknownError: 'Erreur inconnue',
+    sessionInitialized: 'Session initialisée',
+    maxTurns: 'Nombre maximal de tours atteint',
+    maxTurnsCount: 'Nombre maximal de tours atteint ({n} tours)',
+    executionError: 'Une erreur d\'exécution est survenue',
+    autoContinuing: 'Poursuite automatique…',
+    sessionError: 'La session s\'est terminée sur une erreur',
+    startFailed: 'La conversation n\'a pas pu démarrer',
+  },
+  export: { user: 'Utilisateur', assistant: 'Assistant' },
+  architecture: {
+    entry: 'Points d\'entrée',
+    gateway: 'Passerelle',
+    services: 'Services',
+    libraries: 'Bibliothèques, messagerie et cache',
+    data: 'Données et externe',
+  },
+} satisfies Translation<'app'>

@@ -5,9 +5,11 @@
  * indigo accent (emerald once complete), proper `progressbar` role.
  * `ProgressBar` (animated, gradient) stays for legacy dashboards only.
  */
+import { useT } from '@/i18n'
+
 export function ProgressLine({
   value,
-  label = 'Progress',
+  label,
   size = 'sm',
   segments,
   className = '',
@@ -25,11 +27,12 @@ export function ProgressLine({
   segments?: { pct: number; className: string }[]
   className?: string
 }) {
+  const { t } = useT()
   const pct = Math.min(100, Math.max(0, Math.round(Number.isFinite(value) ? value : 0)))
   return (
     <div
       role="progressbar"
-      aria-label={label}
+      aria-label={label ?? t('ui.progress')}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={pct}

@@ -6,7 +6,13 @@
  * See DESIGN.md — "Dates" and "Grouping".
  */
 
+import { activeTranslator } from '@/i18n/active'
+import type { MessageKey, Vars } from '@/i18n/catalog'
+
 type DateInput = string | number | Date
+
+/** The text of a key in the language on screen (this module is not a component). */
+const tr = (key: MessageKey, vars?: Vars): string => activeTranslator().t(key, vars)
 
 function toDate(date: DateInput): Date {
   return date instanceof Date ? date : new Date(date)
@@ -16,7 +22,13 @@ function isValid(d: Date): boolean {
   return !Number.isNaN(d.getTime())
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTH_KEYS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'] as const
+
+/** `12 Sep` / `12 Sep 2025`, word order and month name of the language. */
+function dayLabel(d: Date, withYear: boolean): string {
+  const vars = { day: String(d.getDate()), month: tr(`ui.time.months.${MONTH_KEYS[d.getMonth()]}`), year: String(d.getFullYear()) }
+  return tr(withYear ? 'ui.time.dayMonthYear' : 'ui.time.dayMonth', vars)
+}
 
 /**
  * Compact timestamp for row trailing slots:
@@ -30,15 +42,13 @@ export function formatRelativeShort(date: DateInput, now: Date = new Date()): st
   const diffMs = now.getTime() - d.getTime()
   const future = diffMs < 0
   const mins = Math.floor(Math.abs(diffMs) / 60000)
-  if (mins < 1) return 'now'
-  const prefix = future ? 'in ' : ''
-  if (mins < 60) return `${prefix}${mins}m`
+  if (mins < 1) return tr('ui.time.now')
+  if (mins < 60) return tr(future ? 'ui.time.inMinutes' : 'ui.time.minutes', { n: mins })
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${prefix}${hours}h`
+  if (hours < 24) return tr(future ? 'ui.time.inHours' : 'ui.time.hours', { n: hours })
   const days = Math.floor(hours / 24)
-  if (days < 7) return `${prefix}${days}d`
-  const base = `${d.getDate()} ${MONTHS[d.getMonth()]}`
-  return d.getFullYear() === now.getFullYear() ? base : `${base} ${d.getFullYear()}`
+  if (days < 7) return tr(future ? 'ui.time.inDays' : 'ui.time.days', { n: days })
+  return dayLabel(d, d.getFullYear() !== now.getFullYear())
 }
 
 /** Full date for `title` / tooltips: `12 Sep 2026, 14:05`. `''` for invalid input. */
@@ -47,27 +57,30 @@ export function formatAbsolute(date: DateInput): string {
   if (!isValid(d)) return ''
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}, ${hh}:${mm}`
+  return tr('ui.time.dateTime', { date: dayLabel(d, true), time: `${hh}:${mm}` })
 }
 
 /** Day only: `12 Sep` (this year) / `12 Sep 2025`. `''` for invalid input. */
 export function formatDay(date: DateInput, now: Date = new Date()): string {
   const d = toDate(date)
   if (!isValid(d)) return ''
-  const base = `${d.getDate()} ${MONTHS[d.getMonth()]}`
-  return d.getFullYear() === now.getFullYear() ? base : `${base} ${d.getFullYear()}`
+  return dayLabel(d, d.getFullYear() !== now.getFullYear())
+}
+
+/** `12m`, `1h 5m`, `2d 3h` from a number of minutes (at least 1). */
+function spanLabel(mins: number): string {
+  if (mins < 60) return tr('ui.time.minutes', { n: mins })
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return tr('ui.time.hoursMinutes', { h: hours, m: mins % 60 })
+  return tr('ui.time.daysHours', { d: Math.floor(hours / 24), h: hours % 24 })
 }
 
 /** Duration in milliseconds: `<1s`, `42s`, `12m`, `1h 5m`, `2d 3h`. */
 export function formatDurationMs(ms: number): string {
   const safe = Math.max(0, ms)
-  if (safe < 1000) return '<1s'
-  if (safe < 60000) return `${Math.floor(safe / 1000)}s`
-  const mins = Math.floor(safe / 60000)
-  if (mins < 60) return `${mins}m`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ${mins % 60}m`
-  return `${Math.floor(hours / 24)}d ${hours % 24}h`
+  if (safe < 1000) return tr('ui.time.lessThanSecond')
+  if (safe < 60000) return tr('ui.time.seconds', { n: Math.floor(safe / 1000) })
+  return spanLabel(Math.floor(safe / 60000))
 }
 
 /** Elapsed time between two instants (default end: now): `<1m`, `42m`, `1h 5m`, `2d 3h`. */
@@ -75,11 +88,8 @@ export function formatElapsed(start: DateInput, end: DateInput = new Date()): st
   const ms = toDate(end).getTime() - toDate(start).getTime()
   const mins = Math.floor(Math.max(0, ms) / 60000)
   if (Number.isNaN(mins)) return ''
-  if (mins < 1) return '<1m'
-  if (mins < 60) return `${mins}m`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ${mins % 60}m`
-  return `${Math.floor(hours / 24)}d ${hours % 24}h`
+  if (mins < 1) return tr('ui.time.lessThanMinute')
+  return spanLabel(mins)
 }
 
 /** `1 task` / `3 tasks` (custom plural supported). */
@@ -115,6 +125,19 @@ export const RECENCY_GROUP_ORDER: readonly RecencyGroup[] = [
   'Older',
 ]
 
+const RECENCY_LABEL_KEYS = {
+  Today: 'ui.recency.today',
+  Yesterday: 'ui.recency.yesterday',
+  'Previous 7 days': 'ui.recency.previous7',
+  'Previous 30 days': 'ui.recency.previous30',
+  Older: 'ui.recency.older',
+} as const satisfies Record<RecencyGroup, MessageKey>
+
+/** The heading of a recency group, in the language on screen (the group id stays the English key). */
+export function recencyLabel(group: RecencyGroup): string {
+  return tr(RECENCY_LABEL_KEYS[group])
+}
+
 function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
 }
@@ -145,7 +168,7 @@ export function groupByRecency<T>(
   items: readonly T[],
   getDate: (item: T) => DateInput | null | undefined,
   now: Date = new Date(),
-): { group: RecencyGroup; items: T[] }[] {
+): { group: RecencyGroup; label: string; items: T[] }[] {
   const buckets = new Map<RecencyGroup, T[]>()
   for (const item of items) {
     const raw = getDate(item)
@@ -154,7 +177,7 @@ export function groupByRecency<T>(
     if (bucket) bucket.push(item)
     else buckets.set(g, [item])
   }
-  return RECENCY_GROUP_ORDER.filter((g) => buckets.has(g)).map((g) => ({ group: g, items: buckets.get(g)! }))
+  return RECENCY_GROUP_ORDER.filter((g) => buckets.has(g)).map((g) => ({ group: g, label: recencyLabel(g), items: buckets.get(g)! }))
 }
 
 /**

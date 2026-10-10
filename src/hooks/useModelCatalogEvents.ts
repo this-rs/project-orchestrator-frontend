@@ -4,6 +4,7 @@ import { modelCatalogAtom, modelCatalogLoadedAtom, fetchModelCatalog } from '@/a
 import { useEventBus } from './useEventBus'
 import { useToast } from './useToast'
 import type { CrudEvent } from '@/types'
+import { tr } from '@/i18n/lazy'
 
 /** Must match `MODEL_ADDED_ALERT` in backend/src/chat/model_catalog.rs. */
 const MODEL_ADDED_ALERT = 'model_added'
@@ -34,9 +35,9 @@ export function useModelCatalogEvents() {
           ? event.payload.full_label
           : typeof event.payload.model_id === 'string'
             ? event.payload.model_id
-            : 'A new model'
+            : tr('app.hooks.newModel')
 
-      toast.info(`${label} is now available`)
+      toast.info(tr('app.hooks.modelAvailable', { model: label }))
       // The catalog the backend just refreshed is the one we want; refetch
       // rather than splicing the payload in, so ordering and curation stay
       // the backend's call.

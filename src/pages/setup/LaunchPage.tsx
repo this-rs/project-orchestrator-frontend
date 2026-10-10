@@ -6,7 +6,7 @@ import { toToolPolicyMode } from '@/types/provider'
 import { SETUP_MODE_SUMMARIES } from '@/constants/toolPolicy'
 import { isTauri } from '@/services/env'
 import { Link } from 'react-router-dom'
-import { SETUP_LAUNCH_NO_ENGINE_SUMMARY } from '@/constants/setupProviders'
+import { setupLaunchNoEngineSummary } from '@/constants/setupProviders'
 import { Button, Switch, focusRing, inlineLink, surface } from '@/components/ui'
 import { StatusBanner } from './StatusBanner'
 
@@ -152,7 +152,7 @@ export function LaunchPage() {
 
           <SummaryGroup>
             {config.chatProvider === 'none' ? (
-              <SummaryRow label="Chat provider" value={SETUP_LAUNCH_NO_ENGINE_SUMMARY} />
+              <SummaryRow label="Chat provider" value={setupLaunchNoEngineSummary()} />
             ) : (
               <>
                 <SummaryRow label="Chat Model" value={config.chatModel || 'Not selected'} />

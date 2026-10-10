@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Input, Textarea } from '@/components/ui'
+import { useT } from '@/i18n'
 
 export interface CreateReleaseFormData {
   version: string
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function CreateReleaseForm({ onSubmit }: Props) {
+  const { t } = useT()
   const [version, setVersion] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -21,7 +23,7 @@ export function CreateReleaseForm({ onSubmit }: Props) {
 
   const validate = () => {
     const errs: Record<string, string> = {}
-    if (!version.trim()) errs.version = 'Version is required'
+    if (!version.trim()) errs.version = t('forms.error.version')
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -30,7 +32,7 @@ export function CreateReleaseForm({ onSubmit }: Props) {
     fields: (
       <>
         <Input
-          label="Version"
+          label={t('forms.field.version')}
           placeholder="1.0.0"
           value={version}
           onChange={(e) => setVersion(e.target.value)}
@@ -39,22 +41,22 @@ export function CreateReleaseForm({ onSubmit }: Props) {
           autoFocus
         />
         <Input
-          label="Title"
-          placeholder="Release title (optional)"
+          label={t('forms.field.title')}
+          placeholder={t('forms.placeholder.releaseTitle')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
 
         />
         <Textarea
-          label="Description"
-          placeholder="Optional description..."
+          label={t('forms.field.description')}
+          placeholder={t('forms.placeholder.optionalDescription')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
 
           rows={3}
         />
         <Input
-          label="Target Date"
+          label={t('forms.field.targetDate')}
           type="date"
           value={targetDate}
           onChange={(e) => setTargetDate(e.target.value)}

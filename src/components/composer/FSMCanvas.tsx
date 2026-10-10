@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import type { ComposerState, ComposerTransition, ComposerNoteBinding } from './types'
 import type { Note } from '@/types'
+import { useT } from '@/i18n'
 
 // ============================================================================
 // CONSTANTS
@@ -59,6 +60,7 @@ interface StateNodeData extends Record<string, unknown> {
 }
 
 function StateNodeComponent({ data, selected }: NodeProps<Node<StateNodeData>>) {
+  const { t } = useT()
   const cfg = STATE_TYPE_CONFIG[data.stateType]
   const Icon = cfg.icon
 
@@ -94,7 +96,8 @@ function StateNodeComponent({ data, selected }: NodeProps<Node<StateNodeData>>) 
             const idx = types.indexOf(data.stateType)
             data.onChangeType(data.label, types[(idx + 1) % types.length])
           }}
-          title="Cycle state type"
+          title={t('composer.fsm.cycleType')}
+          aria-label={t('composer.fsm.cycleType')}
         >
           <Circle size={8} />
         </button>
@@ -106,7 +109,8 @@ function StateNodeComponent({ data, selected }: NodeProps<Node<StateNodeData>>) 
             e.stopPropagation()
             data.onDelete(data.label)
           }}
-          title="Delete state"
+          title={t('composer.fsm.deleteState')}
+          aria-label={t('composer.fsm.deleteState')}
         >
           <X size={10} />
         </button>
@@ -116,7 +120,7 @@ function StateNodeComponent({ data, selected }: NodeProps<Node<StateNodeData>>) 
       {data.action && (
         <div className="px-2 pb-1">
           <span className="text-[9px] font-mono text-cyan-600">
-            action: {data.action}
+            {t('composer.fsm.action', { action: data.action })}
           </span>
         </div>
       )}
@@ -139,7 +143,7 @@ function StateNodeComponent({ data, selected }: NodeProps<Node<StateNodeData>>) 
       {/* State type label */}
       <div className="px-2 pb-1.5">
         <span className="text-[8px]" style={{ color: cfg.color }}>
-          {data.stateType}
+          {t(`composer.stateType.${data.stateType}`)}
         </span>
       </div>
     </div>
@@ -166,6 +170,7 @@ interface TransitionDialogProps {
 }
 
 function TransitionDialog({ connection, stateNames, onConfirm, onCancel }: TransitionDialogProps) {
+  const { t } = useT()
   const [trigger, setTrigger] = useState('')
   const [guard, setGuard] = useState('')
 
@@ -176,16 +181,16 @@ function TransitionDialog({ connection, stateNames, onConfirm, onCancel }: Trans
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-slate-800 border border-slate-600 rounded-lg p-4 w-72 shadow-xl">
         <h4 className="text-xs font-semibold text-slate-300 mb-3">
-          New Transition: {fromName} → {toName}
+          {t('composer.fsm.newTransition', { from: fromName, to: toName })}
         </h4>
 
-        <label className="block text-[10px] text-slate-500 mb-1">Trigger *</label>
+        <label className="block text-[10px] text-slate-500 mb-1">{t('composer.fsm.trigger')}</label>
         <input
           autoFocus
           type="text"
           value={trigger}
           onChange={(e) => setTrigger(e.target.value)}
-          placeholder="e.g. task_completed, user_approved"
+          placeholder={t('composer.fsm.triggerPlaceholder')}
           className="w-full px-2 py-1.5 text-[11px] bg-slate-900 border border-slate-600 rounded text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 mb-2"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && trigger.trim()) onConfirm(trigger.trim(), guard.trim() || undefined)
@@ -193,12 +198,12 @@ function TransitionDialog({ connection, stateNames, onConfirm, onCancel }: Trans
           }}
         />
 
-        <label className="block text-[10px] text-slate-500 mb-1">Guard (optional)</label>
+        <label className="block text-[10px] text-slate-500 mb-1">{t('composer.fsm.guard')}</label>
         <input
           type="text"
           value={guard}
           onChange={(e) => setGuard(e.target.value)}
-          placeholder="e.g. all_tests_pass"
+          placeholder={t('composer.fsm.guardPlaceholder')}
           className="w-full px-2 py-1.5 text-[11px] bg-slate-900 border border-slate-600 rounded text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 mb-3"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && trigger.trim()) onConfirm(trigger.trim(), guard.trim() || undefined)
@@ -211,14 +216,14 @@ function TransitionDialog({ connection, stateNames, onConfirm, onCancel }: Trans
             onClick={onCancel}
             className="px-3 py-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors"
           >
-            Cancel
+            {t('ui.cancel')}
           </button>
           <button
             onClick={() => trigger.trim() && onConfirm(trigger.trim(), guard.trim() || undefined)}
             disabled={!trigger.trim()}
             className="px-3 py-1 text-[10px] font-medium bg-indigo-600 text-white rounded hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            Add Transition
+            {t('composer.fsm.addTransition')}
           </button>
         </div>
       </div>
@@ -237,21 +242,22 @@ interface AddStateDialogProps {
 }
 
 function AddStateDialog({ onConfirm, onCancel }: AddStateDialogProps) {
+  const { t } = useT()
   const [name, setName] = useState('')
   const [type, setType] = useState<StateType>('intermediate')
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-slate-800 border border-slate-600 rounded-lg p-4 w-64 shadow-xl">
-        <h4 className="text-xs font-semibold text-slate-300 mb-3">New State</h4>
+        <h4 className="text-xs font-semibold text-slate-300 mb-3">{t('composer.fsm.newState')}</h4>
 
-        <label className="block text-[10px] text-slate-500 mb-1">Name *</label>
+        <label className="block text-[10px] text-slate-500 mb-1">{t('composer.fsm.stateName')}</label>
         <input
           autoFocus
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. analyzing, waiting_approval"
+          placeholder={t('composer.fsm.stateNamePlaceholder')}
           className="w-full px-2 py-1.5 text-[11px] bg-slate-900 border border-slate-600 rounded text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 mb-3"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && name.trim()) onConfirm(name.trim(), type)
@@ -259,24 +265,24 @@ function AddStateDialog({ onConfirm, onCancel }: AddStateDialogProps) {
           }}
         />
 
-        <label className="block text-[10px] text-slate-500 mb-1">Type</label>
+        <label className="block text-[10px] text-slate-500 mb-1">{t('forms.field.type')}</label>
         <div className="flex gap-1.5 mb-3">
-          {(['start', 'intermediate', 'terminal'] as StateType[]).map((t) => {
-            const cfg = STATE_TYPE_CONFIG[t]
+          {(['start', 'intermediate', 'terminal'] as StateType[]).map((kind) => {
+            const cfg = STATE_TYPE_CONFIG[kind]
             const Icon = cfg.icon
             return (
               <button
-                key={t}
-                onClick={() => setType(t)}
+                key={kind}
+                onClick={() => setType(kind)}
                 className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] border transition-colors ${
-                  type === t
+                  type === kind
                     ? 'border-current bg-current/10'
                     : 'border-slate-700 text-slate-500 hover:text-slate-400'
                 }`}
-                style={type === t ? { color: cfg.color, borderColor: cfg.color } : undefined}
+                style={type === kind ? { color: cfg.color, borderColor: cfg.color } : undefined}
               >
                 <Icon size={10} />
-                {t}
+                {t(`composer.stateType.${kind}`)}
               </button>
             )
           })}
@@ -287,14 +293,14 @@ function AddStateDialog({ onConfirm, onCancel }: AddStateDialogProps) {
             onClick={onCancel}
             className="px-3 py-1 text-[10px] text-slate-400 hover:text-slate-300 transition-colors"
           >
-            Cancel
+            {t('ui.cancel')}
           </button>
           <button
             onClick={() => name.trim() && onConfirm(name.trim(), type)}
             disabled={!name.trim()}
             className="px-3 py-1 text-[10px] font-medium bg-indigo-600 text-white rounded hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            Add State
+            {t('composer.fsm.addState')}
           </button>
         </div>
       </div>
@@ -328,6 +334,7 @@ function FSMCanvasComponent({
   onNoteBindingsChange,
   onDeleteTransition,
 }: FSMCanvasProps) {
+  const { t } = useT()
   const [pendingConnection, setPendingConnection] = useState<Connection | null>(null)
   const [addStatePos, setAddStatePos] = useState<{ x: number; y: number } | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -547,8 +554,8 @@ function FSMCanvasComponent({
       {states.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
-            <p className="text-sm text-slate-500 mb-1">Double-click to add a state</p>
-            <p className="text-[10px] text-slate-600">Drag between handles to create transitions</p>
+            <p className="text-sm text-slate-500 mb-1">{t('composer.fsm.emptyTitle')}</p>
+            <p className="text-[10px] text-slate-600">{t('composer.fsm.emptyHint')}</p>
           </div>
         </div>
       )}

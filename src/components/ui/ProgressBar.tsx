@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useReducedMotion } from '@/utils/motion'
+import { useT } from '@/i18n'
 
 interface ProgressBarProps {
   value: number
@@ -42,6 +43,7 @@ export function ProgressBar({
   gradient = false,
   className = '',
 }: ProgressBarProps) {
+  const { t } = useT()
   const percentage = Math.min(100, Math.max(0, (value / max) * 100))
   const reducedMotion = useReducedMotion()
 
@@ -64,7 +66,7 @@ export function ProgressBar({
     <div className={className}>
       {showLabel && (
         <div className="flex justify-between text-sm text-gray-400 mb-1">
-          <span>Progress</span>
+          <span>{t('ui.progress')}</span>
           <span>{percentage.toFixed(0)}%</span>
         </div>
       )}

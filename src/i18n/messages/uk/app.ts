@@ -1,0 +1,62 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  api: {
+    sessionExpired: 'Сеанс завершився',
+    fallback: 'Сталася помилка',
+    nonJson: 'Сервер відповів не JSON: {request} → {status}{type}',
+  },
+  upload: {
+    malformed: 'Некоректна відповідь сервера',
+    network: 'Помилка мережі',
+    timedOut: 'Час очікування завантаження вичерпано',
+  },
+  runner: {
+    noActiveRun: 'Немає активного запуску для скасування',
+    cancelInProgress: 'Скасування вже триває',
+    noActiveRunForce: 'Немає активного запуску для примусового скасування',
+    fetchFailed: 'Не вдалося отримати стан виконавця',
+  },
+  hooks: {
+    serverNotBack: 'Сервер не повернувся після перезапуску. Перевірте його й перезавантажте цю сторінку.',
+    updateActionFailed: 'Не вдалося виконати оновлення',
+    allProjects: 'Усі проєкти',
+    taskGraphFailed: 'Не вдалося завантажити дані графа завдань',
+    planGraphFailed: 'Не вдалося завантажити дані графа планів',
+    pipelineFailed: 'Не вдалося отримати хід конвеєра',
+    discussionTreeFailed: 'Не вдалося отримати дерево обговорення',
+    newModel: 'Нова модель',
+    modelAvailable: '{model} тепер доступна',
+    apiUnavailable: 'API недоступний',
+  },
+  attention: {
+    resumed: 'Запуск відновлено: {title}',
+    resumeFailed: 'Не вдалося відновити запуск',
+    allowed: 'Дозволено: {what}',
+    denied: 'Відхилено: {what}',
+    replySent: 'Відповідь надіслано: {what}',
+    replyFailed: 'Відповідь не надіслано',
+    accepted: 'Прийнято: {title}',
+    rejected: 'Відхилено: {title}',
+    decisionFailed: 'Рішення не записано',
+  },
+  chat: {
+    cancelledByUser: 'Скасовано користувачем',
+    unknownError: 'Невідома помилка',
+    sessionInitialized: 'Сесію ініціалізовано',
+    maxTurns: 'Досягнуто максимальної кількості ходів',
+    maxTurnsCount: 'Досягнуто максимальної кількості ходів (ходів: {n})',
+    executionError: 'Сталася помилка виконання',
+    autoContinuing: 'Автопродовження…',
+    sessionError: 'Сесія завершилася з помилкою',
+    startFailed: 'Не вдалося почати розмову',
+  },
+  export: { user: 'Користувач', assistant: 'Асистент' },
+  architecture: {
+    entry: 'Точки входу',
+    gateway: 'Шлюз',
+    services: 'Сервіси',
+    libraries: 'Бібліотеки, обмін повідомленнями й кеш',
+    data: 'Дані та зовнішні системи',
+  },
+} satisfies Translation<'app'>

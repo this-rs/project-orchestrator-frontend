@@ -1,0 +1,62 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  api: {
+    sessionExpired: 'セッションの有効期限が切れました',
+    fallback: 'エラーが発生しました',
+    nonJson: 'サーバーが JSON 以外の応答を返しました：{request} → {status}{type}',
+  },
+  upload: {
+    malformed: 'サーバーからの応答が不正です',
+    network: 'ネットワークエラー',
+    timedOut: 'アップロードがタイムアウトしました',
+  },
+  runner: {
+    noActiveRun: 'キャンセルできる実行中の処理がありません',
+    cancelInProgress: 'キャンセルは既に進行中です',
+    noActiveRunForce: '強制キャンセルできる実行中の処理がありません',
+    fetchFailed: 'ランナーの状態を取得できませんでした',
+  },
+  hooks: {
+    serverNotBack: '再起動後もサーバーが戻ってきませんでした。サーバーを確認してから、このページを再読み込みしてください。',
+    updateActionFailed: '更新に失敗しました',
+    allProjects: 'すべてのプロジェクト',
+    taskGraphFailed: 'タスクグラフのデータを読み込めませんでした',
+    planGraphFailed: 'プランのグラフデータを読み込めませんでした',
+    pipelineFailed: 'パイプラインの進行状況を取得できませんでした',
+    discussionTreeFailed: 'ディスカッションツリーを取得できませんでした',
+    newModel: '新しいモデル',
+    modelAvailable: '{model} が利用可能になりました',
+    apiUnavailable: 'API を利用できません',
+  },
+  attention: {
+    resumed: '実行を再開しました：{title}',
+    resumeFailed: '実行を再開できませんでした',
+    allowed: '許可しました：{what}',
+    denied: '拒否しました：{what}',
+    replySent: '返信を送信しました：{what}',
+    replyFailed: '返信を送信できませんでした',
+    accepted: '承認しました：{title}',
+    rejected: '却下しました：{title}',
+    decisionFailed: '判断を記録できませんでした',
+  },
+  chat: {
+    cancelledByUser: 'ユーザーがキャンセルしました',
+    unknownError: '不明なエラー',
+    sessionInitialized: 'セッションを初期化しました',
+    maxTurns: '最大ターン数に達しました',
+    maxTurnsCount: '最大ターン数に達しました（{n} ターン）',
+    executionError: '実行エラーが発生しました',
+    autoContinuing: '自動で継続しています…',
+    sessionError: 'セッションがエラーで終了しました',
+    startFailed: '会話を開始できませんでした',
+  },
+  export: { user: 'ユーザー', assistant: 'アシスタント' },
+  architecture: {
+    entry: 'エントリーポイント',
+    gateway: 'ゲートウェイ',
+    services: 'サービス',
+    libraries: 'ライブラリ、メッセージング、キャッシュ',
+    data: 'データと外部',
+  },
+} satisfies Translation<'app'>

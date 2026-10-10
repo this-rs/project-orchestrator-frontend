@@ -8,7 +8,7 @@ import {
   COMPOSER_MODE_LABELS,
   COMPOSER_MODE_ORDER,
   SESSION_LIST_MODE_LABELS,
-  SETUP_MODE_OPTIONS,
+  setupModeOptions,
   SETUP_MODE_SUMMARIES,
   claudeNativeModeLabel,
   isLegacyWireMode,
@@ -50,7 +50,7 @@ describe('Claude Code labels — word for word what each screen showed before pr
   })
 
   it('setup wizard', () => {
-    expect(SETUP_MODE_OPTIONS.map((o) => o.label)).toEqual(["Rock'n roll", 'Default', 'Accept Edits', 'Plan Only'])
+    expect(setupModeOptions().map((o) => o.label)).toEqual(["Rock'n roll", 'Default', 'Accept Edits', 'Plan Only'])
     expect(SETUP_MODE_SUMMARIES.trust).toBe("Rock'n roll (all auto-approved)")
     expect(SETUP_MODE_SUMMARIES.plan_only).toBe('Plan Only (read-only)')
   })

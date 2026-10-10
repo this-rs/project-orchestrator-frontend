@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { workspacesApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks/useWorkspace'
 import type { Project } from '@/types'
+import { tr } from '@/i18n/lazy'
 
 export interface UseProjectFilterReturn {
   /** Workspace projects available for filtering */
@@ -51,7 +52,7 @@ export function useProjectFilter(): UseProjectFilterReturn {
 
   const projectOptions = useMemo(
     () => [
-      { value: 'all', label: 'All Projects' },
+      { value: 'all', label: tr('app.hooks.allProjects') },
       ...projects.map((p) => ({ value: p.id, label: p.name })),
     ],
     [projects],

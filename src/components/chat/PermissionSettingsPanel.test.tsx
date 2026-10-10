@@ -15,7 +15,7 @@ import {
   providersAtom,
   providersLoadStateAtom,
 } from '@/atoms'
-import { RULES_UNSUPPORTED_TEXT, TRUST_REQUIRES_SANDBOX_TEXT } from '@/constants/toolPolicy'
+import { rulesUnsupportedText, trustRequiresSandboxText } from '@/constants/toolPolicy'
 
 const api = vi.hoisted(() => ({
   getChatConfig: vi.fn(),
@@ -74,7 +74,7 @@ describe('PermissionSettingsPanel — Claude Code', () => {
     expect(screen.getByText('Allowed Tools')).toBeTruthy()
     expect(screen.getByText('Disallowed Tools')).toBeTruthy()
     expect(screen.getAllByText('+ Presets')).toHaveLength(2)
-    expect(screen.queryByText(RULES_UNSUPPORTED_TEXT)).toBeNull()
+    expect(screen.queryByText(rulesUnsupportedText())).toBeNull()
     expect(option("Rock'n roll").getAttribute('aria-disabled')).toBeNull()
   })
 
@@ -103,7 +103,7 @@ describe('PermissionSettingsPanel — third-party provider', () => {
 
   it('hides the Claude rule presets and lists when the provider has no rule scopes, and says why', async () => {
     await mount('default', thirdParty({ permission_scopes: [], sandbox: 'workspace' }))
-    expect(screen.getByText(RULES_UNSUPPORTED_TEXT)).toBeTruthy()
+    expect(screen.getByText(rulesUnsupportedText())).toBeTruthy()
     expect(screen.queryByText('Allowed Tools')).toBeNull()
     expect(screen.queryByText('Disallowed Tools')).toBeNull()
     expect(screen.queryByText('+ Presets')).toBeNull()
@@ -113,7 +113,7 @@ describe('PermissionSettingsPanel — third-party provider', () => {
   it('keeps the rule lists for a provider that applies them', async () => {
     await mount('default', thirdParty({ permission_scopes: ['session'], sandbox: 'workspace' }))
     expect(screen.getByText('Allowed Tools')).toBeTruthy()
-    expect(screen.queryByText(RULES_UNSUPPORTED_TEXT)).toBeNull()
+    expect(screen.queryByText(rulesUnsupportedText())).toBeNull()
   })
 
   it('uses neutral labels and saves a picked mode as its neutral name, the hidden rules untouched', async () => {
@@ -138,7 +138,7 @@ describe('PermissionSettingsPanel — third-party provider', () => {
     const trust = option("Rock'n roll") as HTMLButtonElement
     expect(trust.getAttribute('aria-disabled')).toBe('true')
     expect(trust.disabled).toBe(false)
-    expect(document.getElementById(trust.getAttribute('aria-describedby') ?? '')?.textContent).toBe(TRUST_REQUIRES_SANDBOX_TEXT)
+    expect(document.getElementById(trust.getAttribute('aria-describedby') ?? '')?.textContent).toBe(trustRequiresSandboxText())
     fireEvent.click(trust)
     expect(trust.getAttribute('aria-pressed')).toBe('false')
     expect(option('Ask').getAttribute('aria-pressed')).toBe('true')

@@ -1,0 +1,48 @@
+import type { Translation } from '../../catalog.ts'
+
+export default {
+  other: 'Autre',
+  noFile: 'Aucune information de fichier',
+  listAnd: '{head} et {last}',
+  asyncNoun: '{noun} asynchrone',
+  nounInFile: '{noun} dans {file}',
+  takes: 'prend {params}',
+  takesNothing: 'ne prend aucune entrée',
+  takesReturns: '{takes}, renvoie {returns}',
+  noun: {
+    function: 'Fonction',
+    file: 'Fichier source',
+    struct: 'Structure de données',
+    enum: 'Énumération',
+    trait: 'Trait',
+    other: 'Entité de code',
+  },
+  type: { function: 'Fonction', file: 'Fichier', struct: 'Struct', enum: 'Enum', trait: 'Trait' },
+  typePlural: { function: 'Fonctions', file: 'Fichiers', struct: 'Structs', enum: 'Enums', trait: 'Traits' },
+  level: { key: 'Clé', supporting: 'Secondaire', minor: 'Mineur' },
+  rolePlain: {
+    entry_point: { word: 'Point d\'entrée', plain: 'point d\'entrée de la fonctionnalité' },
+    core_logic: { word: 'Logique centrale', plain: 'fait le gros du travail de la fonctionnalité' },
+    api_surface: { word: 'API publique', plain: 'appelé depuis l\'extérieur de la fonctionnalité' },
+    data_model: { word: 'Modèle de données', plain: 'données portées par la fonctionnalité' },
+    trait_contract: { word: 'Contrat', plain: 'contrat sur lequel s\'appuie la fonctionnalité' },
+    support: { word: 'Utilitaire', plain: 'utilitaire autour de la fonctionnalité' },
+  },
+  role: {
+    entry_point: { label: 'Points d\'entrée', description: 'Là où démarre la fonctionnalité (la fonction à partir de laquelle vous avez construit le graphe).' },
+    core_logic: { label: 'Logique centrale', description: 'Les fonctions et fichiers qui font le travail proprement dit.' },
+    api_surface: { label: 'Surface d\'API', description: 'Ce que les autres parties du code appellent.' },
+    data_model: { label: 'Modèles de données', description: 'Les structs et enums qui portent les données de la fonctionnalité.' },
+    trait_contract: { label: 'Contrats de traits', description: 'Les traits que la fonctionnalité implémente ou sur lesquels elle s\'appuie.' },
+    support: { label: 'Support', description: 'Les utilitaires et outils autour de la fonctionnalité.' },
+  },
+  relation: {
+    related: 'Lié',
+    CALLS: { label: 'Appelle', description: 'Une fonction en appelle une autre.' },
+    IMPORTS: { label: 'Importe', description: 'Un fichier en importe un autre.' },
+    EXTENDS: { label: 'Étend', description: 'Un type en étend un autre.' },
+    IMPLEMENTS: { label: 'Implémente', description: 'Un type implémente un trait.' },
+    IMPLEMENTS_TRAIT: { label: 'Impl. du trait', description: 'Un bloc impl cible un trait.' },
+    IMPLEMENTS_FOR: { label: 'Impl. pour', description: 'Un bloc impl cible un type.' },
+  },
+} satisfies Translation<'fgModel'>

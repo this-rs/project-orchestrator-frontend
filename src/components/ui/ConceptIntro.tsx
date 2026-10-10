@@ -1,6 +1,8 @@
 import { useState, type SyntheticEvent } from 'react'
 import { NOMENCLATURE, type ConceptExplain, type ConceptKey } from '@/constants/nomenclature'
 import { focusRing } from './classes'
+import { useT } from '@/i18n'
+import type { MessageKey } from '@/i18n/catalog'
 
 export interface ConceptIntroProps {
   /** A registry key (`'plans'`) — the text is read from `NOMENCLATURE[key].explain` — or the three lines themselves. */
@@ -14,13 +16,11 @@ export interface ConceptIntroProps {
 }
 
 /** The question each line answers (website/AUDIENCE.md § 9 « Les quatre lignes de l'Explainer »). */
-const LINES: readonly { key: keyof ConceptExplain; label: string }[] = [
-  { key: 'what', label: 'What it is' },
-  { key: 'why', label: 'What it is for' },
-  { key: 'different', label: 'How it differs' },
+const LINES: readonly { key: keyof ConceptExplain; label: MessageKey }[] = [
+  { key: 'what', label: 'ui.conceptIntro.what' },
+  { key: 'why', label: 'ui.conceptIntro.why' },
+  { key: 'different', label: 'ui.conceptIntro.different' },
 ]
-
-const SUMMARY = 'What is this?'
 
 /** `po.intro.<key>`: '1' = the person opened it and left it open; '0' = closed it; absent = never touched (closed). */
 const introStorageKey = (key: string): string => `po.intro.${key}`
@@ -62,6 +62,7 @@ function remember(key: string | undefined, open: boolean): void {
  * @example <PageShell title={NOMENCLATURE.plans.plural} intro="plans">…</PageShell>
  */
 export function ConceptIntro({ concept, storageKey, className = '' }: ConceptIntroProps) {
+  const { t } = useT()
   const isKey = typeof concept === 'string'
   const explain: ConceptExplain = isKey ? NOMENCLATURE[concept].explain : concept
   const memoryKey = storageKey ?? (isKey ? concept : undefined)
@@ -78,12 +79,12 @@ export function ConceptIntro({ concept, storageKey, className = '' }: ConceptInt
       <summary
         className={`inline-flex min-h-9 cursor-pointer list-none items-center rounded text-gray-400 underline-offset-4 hover:text-gray-200 hover:underline group-open/intro:text-gray-200 [&::-webkit-details-marker]:hidden ${focusRing}`}
       >
-        {SUMMARY}
+        {t('ui.conceptIntro.summary')}
       </summary>
       <dl className="mt-1 max-w-[var(--measure-md)] space-y-2 pb-1">
         {LINES.map(({ key, label }) => (
           <div key={key}>
-            <dt className="text-[13px] leading-5 text-gray-400">{label}</dt>
+            <dt className="text-[13px] leading-5 text-gray-400">{t(label)}</dt>
             <dd className="text-sm leading-relaxed text-gray-200">{explain[key]}</dd>
           </div>
         ))}
