@@ -13,6 +13,10 @@ export default {
   },
   degradation: {
     title: "इस बातचीत में कुछ सुविधाएँ उपलब्ध नहीं हैं",
+    installation: {
+      heading: "इस इंस्टॉलेशन में मौजूद नहीं",
+      note: "सर्वर पर ठीक करें: यह न इंजन की कमी है, न मॉडल की सीमा।",
+    },
     harness: {
       heading: "Project Orchestrator का एजेंट इंजन अभी इसे नहीं संभालता",
       note: "हमारी ओर से काम जारी है: यह मॉडल की सीमा नहीं है।",
@@ -25,6 +29,9 @@ export default {
       heading: "अभी मापा नहीं गया",
       note: "अज्ञात का अर्थ अनुपस्थित नहीं है।",
     },
+  },
+  installation: {
+    nexus_tools: "nexus-tools एक्ज़ीक्यूटेबल नहीं मिला: इसे Project Orchestrator बैकएंड के बगल में इंस्टॉल करें, या NEXUS_TOOLS_PATH में इसका स्थान सेट करें। तब नेटिव सत्रों को Bash, Read, Edit और WebFetch मिलते हैं।",
   },
   harness: {
     hooks: "हुक (स्किल, टूल के बाद रीडायरेक्ट) अभी नहीं चलते",

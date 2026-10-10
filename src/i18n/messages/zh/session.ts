@@ -13,6 +13,10 @@ export default {
   },
   degradation: {
     title: "此对话中部分功能不可用",
+    installation: {
+      heading: "此安装中缺少的内容",
+      note: "需要在服务器上修复：既不是引擎的缺口，也不是模型的限制。",
+    },
     harness: {
       heading: "Project Orchestrator 智能体引擎尚未支持",
       note: "我们正在开发中：这不是模型的限制。",
@@ -25,6 +29,9 @@ export default {
       heading: "尚未测量",
       note: "未知不等于不具备。",
     },
+  },
+  installation: {
+    nexus_tools: "未找到 nexus-tools 可执行文件：请将其安装在 Project Orchestrator 后端旁边，或在 NEXUS_TOOLS_PATH 中设置其位置。之后原生会话即可使用 Bash、Read、Edit 和 WebFetch。",
   },
   harness: {
     hooks: "钩子（技能、工具后重定向）尚未运行",

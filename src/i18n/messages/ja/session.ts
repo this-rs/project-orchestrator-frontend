@@ -13,6 +13,10 @@ export default {
   },
   degradation: {
     title: "この会話では一部の機能を利用できません",
+    installation: {
+      heading: "このインストールに不足しているもの",
+      note: "サーバー側で対処してください。エンジンの未対応でもモデルの制限でもありません。",
+    },
     harness: {
       heading: "Project Orchestrator のエージェントエンジンはまだ対応していません",
       note: "こちら側で対応中です。モデルの制限ではありません。",
@@ -25,6 +29,9 @@ export default {
       heading: "まだ計測されていません",
       note: "不明は「ない」という意味ではありません。",
     },
+  },
+  installation: {
+    nexus_tools: "nexus-tools 実行ファイルが見つかりません。Project Orchestrator バックエンドと同じ場所にインストールするか、NEXUS_TOOLS_PATH にその場所を設定してください。そうすればネイティブセッションで Bash、Read、Edit、WebFetch が使えます。",
   },
   harness: {
     hooks: "フック（スキル、ツール後のリダイレクト）はまだ実行されません",

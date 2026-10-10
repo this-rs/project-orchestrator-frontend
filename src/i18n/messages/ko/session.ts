@@ -13,6 +13,10 @@ export default {
   },
   degradation: {
     title: "이 대화에서는 일부 기능을 사용할 수 없습니다",
+    installation: {
+      heading: "이 설치에 없는 항목",
+      note: "서버에서 해결해야 합니다. 엔진의 미지원도, 모델의 한계도 아닙니다.",
+    },
     harness: {
       heading: "Project Orchestrator 에이전트 엔진이 아직 지원하지 않음",
       note: "저희 쪽에서 작업 중입니다. 모델의 한계가 아닙니다.",
@@ -25,6 +29,9 @@ export default {
       heading: "아직 측정되지 않음",
       note: "알 수 없음은 없음을 뜻하지 않습니다.",
     },
+  },
+  installation: {
+    nexus_tools: "nexus-tools 실행 파일을 찾을 수 없습니다. Project Orchestrator 백엔드 옆에 설치하거나 NEXUS_TOOLS_PATH에 그 위치를 지정하세요. 그러면 네이티브 세션에서 Bash, Read, Edit, WebFetch를 사용할 수 있습니다.",
   },
   harness: {
     hooks: "훅(스킬, 도구 후 리디렉션)이 아직 실행되지 않습니다",

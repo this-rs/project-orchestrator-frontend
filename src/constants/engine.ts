@@ -1,5 +1,5 @@
 // ============================================================================
-// ENGINE — why a feature is missing from a session, in three honest causes
+// ENGINE — why a feature is missing from a session, in four honest causes
 // ============================================================================
 //
 // With `CHAT_PROVIDER_PATH=agent` the session runs on the nexus engine. The
@@ -10,6 +10,10 @@
 // - `harness`  — Project Orchestrator's engine has not ported it yet (message
 //   queue, auto-continue, NATS, enrichment, hooks…). Our gap, in progress; not a
 //   limit of the model.
+// - `installation` — something this server installation lacks and the operator
+//   can fix (`nexus_tools`: the `nexus-tools` executable was not found, so a
+//   native session has no Bash/Read/Edit/WebFetch). Not a gap in our engine,
+//   not a limit of the model: the text says what to install.
 // - `model`    — a real limit of the model or provider, as its capabilities
 //   declare it (`images: false`…).
 // - `unprobed` — not measured yet (`context_window: null`). Unknown is not
@@ -20,7 +24,7 @@
 import type { MessageKey } from '@/i18n'
 import type { ProviderCapabilities } from '@/types/provider'
 
-export type DegradationCause = 'harness' | 'model' | 'unprobed'
+export type DegradationCause = 'harness' | 'installation' | 'model' | 'unprobed'
 
 export interface Degradation {
   /** Feature id (`message_queue`, `images`, `context_window`…). */
@@ -35,6 +39,13 @@ export type DeclaredCapabilities = Partial<Record<keyof ProviderCapabilities, un
 export const HARNESS_FEATURES: readonly string[] = ['message_queue', 'auto_continue', 'nats', 'enrichment', 'hooks', 'retry']
 
 /**
+ * Features missing because of the server installation, not of the engine or the
+ * model (backend #637: `nexus_tools` is declared only when the executable is
+ * really missing or not runnable).
+ */
+export const INSTALLATION_FEATURES: readonly string[] = ['nexus_tools']
+
+/**
  * Degraded ids that the backend derives from a capability of the session. When
  * that capability is declared present, the engine is the one missing it.
  */
@@ -45,7 +56,7 @@ const CAPABILITY_OF: Readonly<Record<string, keyof ProviderCapabilities>> = {
   project_orchestrator_tools: 'per_session_mcp',
 }
 
-const CAUSE_ORDER: readonly DegradationCause[] = ['harness', 'model', 'unprobed']
+export const CAUSE_ORDER: readonly DegradationCause[] = ['installation', 'harness', 'model', 'unprobed']
 
 /** A positive context window size is declared. */
 function contextWindowKnown(declared: DeclaredCapabilities | null | undefined): boolean {
@@ -89,6 +100,11 @@ export function classifyDegradations(
       if (!contextWindowKnown(declared)) found.set(id, 'unprobed')
       continue
     }
+    if (INSTALLATION_FEATURES.includes(id)) {
+      // The operator can fix it: say what to install, not "work in progress".
+      found.set(id, 'installation')
+      continue
+    }
     const capability = CAPABILITY_OF[id]
     if (capability) {
       // The model has it, the engine does not carry it: our gap.
@@ -120,6 +136,10 @@ const HARNESS_KEYS: Readonly<Record<string, MessageKey>> = {
   tools: 'session.harness.tools',
 }
 
+const INSTALLATION_KEYS: Readonly<Record<string, MessageKey>> = {
+  nexus_tools: 'session.installation.nexus_tools',
+}
+
 const MODEL_KEYS: Readonly<Record<string, MessageKey>> = {
   images: 'session.model.images',
   tools: 'session.model.tools',
@@ -135,13 +155,15 @@ export function humanizeFeature(id: string): string {
 /** The sentence of one item, as an i18n key and its variables. */
 export function degradationMessage(item: Degradation): { key: MessageKey; vars?: Record<string, string> } {
   if (item.cause === 'unprobed') return { key: 'session.unprobed.context_window' }
-  const known = (item.cause === 'model' ? MODEL_KEYS : HARNESS_KEYS)[item.id]
+  const keys = item.cause === 'model' ? MODEL_KEYS : item.cause === 'installation' ? INSTALLATION_KEYS : HARNESS_KEYS
+  const known = keys[item.id]
   if (known) return { key: known }
   return { key: 'session.harness.unknown', vars: { feature: humanizeFeature(item.id) } }
 }
 
 /** Heading and note of each cause. */
 export const CAUSE_KEYS: Readonly<Record<DegradationCause, { heading: MessageKey; note: MessageKey }>> = {
+  installation: { heading: 'session.degradation.installation.heading', note: 'session.degradation.installation.note' },
   harness: { heading: 'session.degradation.harness.heading', note: 'session.degradation.harness.note' },
   model: { heading: 'session.degradation.model.heading', note: 'session.degradation.model.note' },
   unprobed: { heading: 'session.degradation.unprobed.heading', note: 'session.degradation.unprobed.note' },

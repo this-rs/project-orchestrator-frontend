@@ -1,7 +1,8 @@
-import { CircleHelp, CircleSlash, Info, Wrench, type LucideIcon } from 'lucide-react'
+import { CircleHelp, CircleSlash, Info, PackageX, Wrench, type LucideIcon } from 'lucide-react'
 import { useT } from '@/i18n'
 import {
   CAUSE_KEYS,
+  CAUSE_ORDER,
   classifyDegradations,
   degradationMessage,
   type DeclaredCapabilities,
@@ -11,19 +12,18 @@ import {
 import { panelGlass } from '@/components/ui/panelGlass'
 
 const CAUSE_ICONS: Readonly<Record<DegradationCause, LucideIcon>> = {
+  installation: PackageX,
   harness: Wrench,
   model: CircleSlash,
   unprobed: CircleHelp,
 }
 
-const CAUSES: readonly DegradationCause[] = ['harness', 'model', 'unprobed']
-
 /**
  * Above the composer when the engine running this session lists features it
  * cannot provide: the user learns it before missing them, not after — and
- * learns WHY. What Project Orchestrator has not ported yet, what the model
- * really cannot do, and what is simply not measured yet are three separate
- * groups, each named in words (never by colour alone).
+ * learns WHY. What this installation lacks (and how to fix it), what Project
+ * Orchestrator has not ported yet, what the model really cannot do, and what is
+ * simply not measured yet are four separate groups, each named in words (never by colour alone).
  */
 export function EngineBanner({
   degraded,
@@ -37,7 +37,7 @@ export function EngineBanner({
   if (degraded.length === 0) return null
   const items = classifyDegradations(degraded, declared)
   if (items.length === 0) return null
-  const groups = CAUSES.map((cause) => [cause, items.filter((i) => i.cause === cause)] as const).filter(
+  const groups = CAUSE_ORDER.map((cause) => [cause, items.filter((i) => i.cause === cause)] as const).filter(
     ([, list]) => list.length > 0,
   )
   return (

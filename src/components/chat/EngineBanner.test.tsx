@@ -40,6 +40,14 @@ describe('classifyDegradations', () => {
     expect(items).toEqual([])
   })
 
+  it('nexus_tools is an installation problem, never an engine gap nor a model limit', () => {
+    expect(classifyDegradations(['message_queue', 'nexus_tools'], { tools: true })).toEqual([
+      // First: the one thing the operator can fix right now.
+      { id: 'nexus_tools', cause: 'installation' },
+      { id: 'message_queue', cause: 'harness' },
+    ])
+  })
+
   it('declared limits are listed even when the engine did not name them', () => {
     expect(classifyDegradations(['nats'], { tools: false })).toContainEqual({ id: 'tools', cause: 'model' })
   })
@@ -95,5 +103,23 @@ describe('EngineBanner', () => {
     const harness = screen.getByTestId('engine-banner-harness')
     expect(harness.textContent).toMatch(/Hooks .* do not run yet/)
     expect(harness.textContent).toMatch(/brand new thing: not available yet/)
+  })
+
+  it('nexus_tools: tells what to install, under its own installation heading, not "work in progress on our side"', () => {
+    render(<EngineBanner degraded={['message_queue', 'nexus_tools']} declared={{ tools: true }} />)
+    const installation = screen.getByTestId('engine-banner-installation')
+    // Named in words (heading + aria-label), not by colour alone.
+    expect(installation.getAttribute('aria-label')).toBe('Missing from this installation')
+    expect(installation.textContent).toContain('Missing from this installation')
+    const items = within(installation).getAllByRole('listitem')
+    expect(items).toHaveLength(1)
+    expect(items[0].getAttribute('data-feature')).toBe('nexus_tools')
+    expect(items[0].textContent).toMatch(/nexus-tools executable/)
+    expect(items[0].textContent).toMatch(/NEXUS_TOOLS_PATH/)
+    expect(items[0].textContent).toMatch(/Bash, Read, Edit and WebFetch/)
+
+    const harness = screen.getByTestId('engine-banner-harness')
+    expect(harness.textContent).not.toMatch(/nexus/i)
+    expect(screen.getByTestId('engine-banner').textContent).not.toMatch(/nexus tools: not available yet/)
   })
 })

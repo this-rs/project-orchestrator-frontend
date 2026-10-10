@@ -13,6 +13,10 @@ export default {
   },
   degradation: {
     title: "Một số tính năng không khả dụng trong cuộc trò chuyện này",
+    installation: {
+      heading: "Thiếu trong bản cài đặt này",
+      note: "Cần khắc phục trên máy chủ: không phải thiếu sót của engine, cũng không phải giới hạn của mô hình.",
+    },
     harness: {
       heading: "Công cụ tác tử của Project Orchestrator chưa hỗ trợ",
       note: "Chúng tôi đang phát triển: đây không phải giới hạn của mô hình.",
@@ -25,6 +29,9 @@ export default {
       heading: "Chưa được đo",
       note: "Chưa biết không có nghĩa là không có.",
     },
+  },
+  installation: {
+    nexus_tools: "Không tìm thấy tệp thực thi nexus-tools: hãy cài nó cạnh backend của Project Orchestrator, hoặc đặt NEXUS_TOOLS_PATH trỏ tới vị trí của nó. Khi đó các phiên native sẽ có Bash, Read, Edit và WebFetch.",
   },
   harness: {
     hooks: "Hook (kỹ năng, chuyển hướng sau công cụ) chưa chạy",

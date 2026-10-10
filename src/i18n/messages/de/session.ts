@@ -13,6 +13,10 @@ export default {
   },
   degradation: {
     title: "Einige Funktionen sind in dieser Unterhaltung nicht verfügbar",
+    installation: {
+      heading: "Fehlt in dieser Installation",
+      note: "Auf dem Server zu beheben: weder eine Lücke der Engine noch eine Grenze des Modells.",
+    },
     harness: {
       heading: "Noch nicht von der Agent-Engine von Project Orchestrator unterstützt",
       note: "Arbeit in Arbeit auf unserer Seite: keine Grenze des Modells.",
@@ -25,6 +29,9 @@ export default {
       heading: "Noch nicht gemessen",
       note: "Unbekannt heißt nicht fehlend.",
     },
+  },
+  installation: {
+    nexus_tools: "Die ausführbare Datei nexus-tools wurde nicht gefunden: Installieren Sie sie neben dem Project-Orchestrator-Backend oder setzen Sie NEXUS_TOOLS_PATH auf ihren Pfad. Native Sitzungen erhalten dann Bash, Read, Edit und WebFetch.",
   },
   harness: {
     hooks: "Hooks (Skills, Umleitungen nach Tools) laufen noch nicht",
