@@ -458,7 +458,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
       // reason on screen, instead of being uploaded and silently ignored by
       // the model. Any other document goes through.
       const refused = acceptsImages ? [] : files.filter(isImageFile)
-      setRefusal({ sessionId, names: refused.map((f) => f.name || 'image') })
+      setRefusal({ sessionId, names: refused.map((f) => f.name || t('chatA-input.composer.imageName')) })
       for (const file of files) {
         if (refused.includes(file)) continue
         const localId =
@@ -501,8 +501,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             if (err instanceof DOMException && err.name === 'AbortError') return
             const message =
               err instanceof ApiError
-                ? describeUploadFailure(err.status, err.message)
-                : describeUploadFailure(0)
+                ? describeUploadFailure(err.status, err.message, t)
+                : describeUploadFailure(0, undefined, t)
             settleDeferredSend(
               mutateAttachments((l) =>
                 updateAttachment(l, localId, (a) => withFailure(a, message)),
@@ -511,7 +511,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           })
       }
     },
-    [store, selectedProject, sessionId, mutateAttachments, settleDeferredSend, acceptsImages],
+    [store, selectedProject, sessionId, mutateAttachments, settleDeferredSend, acceptsImages, t],
   )
 
   const handleRemoveAttachment = useCallback(
@@ -703,8 +703,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     const after = value.slice(trigger.end)
     setPickNote(
       already
-        ? { text: `${item.label} is already in the message.`, visible: true }
-        : { text: `${item.label} added to the message.`, visible: false },
+        ? { text: t('chatA-input.composer.alreadyIn', { label: item.label }), visible: true }
+        : { text: t('chatA-input.composer.added', { label: item.label }), visible: false },
     )
     const token = already ? '' : refToken(ref)
     const gap = token && !after.startsWith(' ') ? ' ' : ''
@@ -824,7 +824,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
         <div className="absolute inset-0 z-30 flex items-center justify-center rounded-lg border-2 border-dashed border-indigo-400/60 bg-[#14161a]/90 pointer-events-none">
           <span className="flex items-center gap-1.5 text-xs text-indigo-300">
             <Paperclip className="w-3.5 h-3.5" />
-            Drop to attach
+            {t('chatA-input.composer.drop')}
           </span>
         </div>
       )}
@@ -877,7 +877,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           <button
             type="button"
             onClick={() => setTrustDowngraded(false)}
-            aria-label="Fermer"
+            aria-label={t('chatA-input.composer.close')}
             className="shrink-0 rounded px-1 text-amber-200/80 hover:bg-amber-500/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-300"
           >
             ×
@@ -936,7 +936,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             data-testid="refs-limit-notice"
             className={refsOverflow ? 'm-0 px-2 pt-1 text-[11px] text-amber-300' : 'sr-only'}
           >
-            {refsOverflow ? `Maximum ${MAX_REFS_PER_MESSAGE} references per message: the last one was not added.` : ''}
+            {refsOverflow ? t('chatA-input.composer.maxRefs', { max: MAX_REFS_PER_MESSAGE }) : ''}
           </p>
         )}
         {refsEnabled && (
@@ -950,7 +950,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           </p>
         )}
         {draftRefs.length > 0 && (
-          <ul aria-label="References" className="m-0 flex max-h-20 list-none flex-wrap gap-1 overflow-y-auto px-1.5 pt-1">
+          <ul aria-label={t('chatA-input.composer.references')} className="m-0 flex max-h-20 list-none flex-wrap gap-1 overflow-y-auto px-1.5 pt-1">
             {draftRefs.map((r) => (
               <li key={refKey(r)}>
                 <ReferenceChip
@@ -1033,7 +1033,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           autoComplete="off"
           data-1p-ignore="true"
           data-lpignore="true"
-          placeholder="Send a message..."
+          placeholder={t('chatA-input.composer.placeholder')}
           className="block w-full resize-none bg-transparent border-0 px-2 pt-1.5 pb-1 text-sm text-gray-200 placeholder-gray-600 focus:outline-none"
         />
 
@@ -1043,8 +1043,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
-            aria-label="Attach a file"
-            title="Attach a file"
+            aria-label={t('chatA-input.composer.attach')}
+            title={t('chatA-input.composer.attach')}
             className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-colors disabled:opacity-30"
           >
             <Paperclip className="w-4 h-4" />
@@ -1070,7 +1070,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
                 <span className={`w-1.5 h-1.5 rounded-full ${MODE_DOT_COLORS[effectiveMode]}`} />
                 <span>{effectiveModeLabel}</span>
                 {modeOverride && !sessionId && (
-                  <span className="hidden sm:inline text-[8px] text-indigo-400 ml-0.5">(override)</span>
+                  <span className="hidden sm:inline text-[8px] text-indigo-400 ml-0.5">{t('chatA-input.composer.override')}</span>
                 )}
                 <ChevronDown className="w-2.5 h-2.5 text-gray-500" />
               </button>
@@ -1099,7 +1099,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
                         <span className="flex items-center gap-1.5">
                           <span className={`w-1.5 h-1.5 rounded-full ${refused ? 'bg-gray-600' : MODE_DOT_COLORS[mode]}`} />
                           <span>{modeLabels[mode]}</span>
-                          {isDefault && <span className="text-[9px] text-gray-600 ml-auto">default</span>}
+                          {isDefault && <span className="text-[9px] text-gray-600 ml-auto">{t('chatA-input.composer.default')}</span>}
                         </span>
                         {refused && (
                           <span id={trustHelpId} className="mt-0.5 block text-[10px] leading-snug text-gray-500">
@@ -1143,13 +1143,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             </Button>
             {/* Auto-continue toggle */}
             <div className="flex items-center gap-1.5">
-              <span className={`hidden sm:inline text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>Auto</span>
+              <span className={`hidden sm:inline text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>{t('chatA-input.composer.auto')}</span>
               <button
                 onClick={() => onChangeAutoContinue?.(!autoContinue)}
                 className={`relative w-7 h-3.5 rounded-full transition-colors duration-200 ${
                   autoContinue ? 'bg-emerald-500/70' : 'bg-gray-600/50'
                 }`}
-                title={autoContinue ? 'Auto-continue enabled' : 'Auto-continue disabled'}
+                title={autoContinue ? t('chatA-input.composer.autoOn') : t('chatA-input.composer.autoOff')}
               >
                 <span
                   className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform duration-200 ${
@@ -1164,8 +1164,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           <button
             onClick={action === 'stop' ? handleStop : handleSend}
             disabled={action === 'idle' || action === 'stopping' || action === 'waiting'}
-            aria-label={describeAction(action, sendDecision)}
-            title={describeAction(action, sendDecision)}
+            aria-label={describeAction(action, sendDecision, t)}
+            title={describeAction(action, sendDecision, t)}
             data-action={action}
             className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
               action === 'stop'

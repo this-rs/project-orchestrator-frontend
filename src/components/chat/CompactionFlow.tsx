@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useRef } from 'react'
+import { useT } from '@/i18n'
 import { corePulse, disc, heatColor, makeParticles, poseAt, type Particle } from './compactionParticles'
 
 const HEIGHT = 96
@@ -101,6 +102,7 @@ function draw(ctx: CanvasRenderingContext2D, w: number, h: number, t: number, pa
 }
 
 export function CompactionFlow() {
+  const { t } = useT()
   const hostRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -164,7 +166,7 @@ export function CompactionFlow() {
     >
       <canvas ref={canvasRef} aria-hidden="true" className="absolute inset-0 w-full" style={{ height: HEIGHT }} />
       <span className="absolute inset-x-0 bottom-1 text-center text-[11px] tracking-wide text-indigo-200/70">
-        Compacting context
+        {t('chatA-messages.compaction.label')}
       </span>
     </div>
   )

@@ -7,6 +7,7 @@
  */
 
 import { costReport, costToText } from '@/utils/cost'
+import { useT } from '@/i18n'
 import {
   StatusBadge, PriorityBadge, TagList, TimeAgo, ShortId,
   PaginationInfo, McpContainer, truncate, EntityLink,
@@ -127,6 +128,7 @@ function ProjectRow({ item, searchQuery }: RowProps) {
 // ---------------------------------------------------------------------------
 
 function PlanRow({ item, searchQuery }: RowProps) {
+  const { t } = useT()
   const id = String(item.id ?? '')
   return (
     <div className="flex items-center gap-3 px-2 py-1.5 hover:bg-white/[0.02] rounded">
@@ -134,7 +136,7 @@ function PlanRow({ item, searchQuery }: RowProps) {
         <div className="flex items-center gap-2">
           <EntityLink entityType="plan" id={id}>
             <span className="text-gray-300 font-medium truncate">
-              {hl(String(item.title ?? '') || 'Untitled plan', searchQuery)}
+              {hl(String(item.title ?? '') || t('chatA-tools.list.untitledPlan'), searchQuery)}
             </span>
           </EntityLink>
           {item.status ? <StatusBadge status={String(item.status)} /> : null}
@@ -185,6 +187,7 @@ function TaskRow({ item, searchQuery }: RowProps) {
 // ---------------------------------------------------------------------------
 
 function SessionRow({ item, searchQuery }: RowProps) {
+  const { t } = useT()
   const cost = item.total_cost_usd as number | undefined
   const listCost = costToText(costReport(cost ?? null, item.cost_basis), { hideZero: true, format: (usd) => `$${usd.toFixed(4)}` })
   return (
@@ -192,7 +195,7 @@ function SessionRow({ item, searchQuery }: RowProps) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-gray-300 truncate">
-            {hl(String(item.title ?? '') || String(item.preview ?? '') || 'Untitled session', searchQuery)}
+            {hl(String(item.title ?? '') || String(item.preview ?? '') || t('chatA-tools.list.untitledSession'), searchQuery)}
           </span>
           {item.model ? (
             <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-900/30 text-indigo-400 border border-indigo-800/20">
@@ -202,7 +205,7 @@ function SessionRow({ item, searchQuery }: RowProps) {
         </div>
         <div className="flex items-center gap-3 mt-0.5 text-[10px] text-gray-600">
           {typeof item.message_count === 'number' && (
-            <span>{item.message_count} msg{(item.message_count as number) !== 1 ? 's' : ''}</span>
+            <span>{t(item.message_count === 1 ? 'chatA-tools.list.msgOne' : 'chatA-tools.list.msgMany', { count: item.message_count })}</span>
           )}
           {listCost && <span>{listCost}</span>}
           <TimeAgo date={(item.updated_at ?? item.created_at) as string} />
@@ -274,6 +277,7 @@ function NoteRow({ item, searchQuery }: RowProps) {
 // ---------------------------------------------------------------------------
 
 function NeuronRow({ item, searchQuery }: RowProps) {
+  const { t } = useT()
   const id = String(item.id ?? '')
   const score = typeof item.activation_score === 'number' ? item.activation_score : null
   const source = item.source as string | undefined
@@ -303,7 +307,7 @@ function NeuronRow({ item, searchQuery }: RowProps) {
             </span>
           )}
           {energy != null && (
-            <span className="text-[9px] text-gray-600 font-mono" title="Energy level">
+            <span className="text-[9px] text-gray-600 font-mono" title={t('chatA-tools.list.energy')}>
               E:{energy.toFixed(1)}
             </span>
           )}
@@ -349,6 +353,7 @@ function StepRow({ item, index, searchQuery }: RowProps & { index: number }) {
 // ---------------------------------------------------------------------------
 
 function MilestoneRow({ item, searchQuery }: RowProps) {
+  const { t } = useT()
   const id = String(item.id ?? '')
   return (
     <div className="flex items-center gap-3 px-2 py-1.5 hover:bg-white/[0.02] rounded">
@@ -368,7 +373,7 @@ function MilestoneRow({ item, searchQuery }: RowProps) {
         ) : null}
         {item.target_date ? (
           <div className="text-[10px] text-gray-600 mt-0.5">
-            target: {String(item.target_date).slice(0, 10)}
+            {t('chatA-tools.list.target', { date: String(item.target_date).slice(0, 10) })}
           </div>
         ) : null}
       </div>
@@ -502,13 +507,14 @@ const ROW_MAP: Record<string, RowComponent> = {
 // ---------------------------------------------------------------------------
 
 export function ListRenderer({ action, parsed, toolInput }: { action: string; parsed: unknown; toolInput?: Record<string, unknown> }) {
+  const { t } = useT()
   const data = extractListData(parsed)
   const searchQuery = (toolInput?.query ?? toolInput?.search) as string | undefined
 
   if (!data || data.items.length === 0) {
     return (
       <McpContainer>
-        <div className="text-gray-600 italic px-2 py-1">No results</div>
+        <div className="text-gray-600 italic px-2 py-1">{t('chatA-tools.list.noResults')}</div>
       </McpContainer>
     )
   }
@@ -519,11 +525,11 @@ export function ListRenderer({ action, parsed, toolInput }: { action: string; pa
     <McpContainer>
       <div className="flex items-center gap-2 px-2 py-0.5">
         <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-white/[0.06] text-gray-400 border border-white/[0.04]">
-          {data.items.length}{data.total != null && data.total > data.items.length ? ` / ${data.total}` : ''} result{data.items.length !== 1 ? 's' : ''}
+          {t(data.items.length === 1 ? 'chatA-tools.list.resultOne' : 'chatA-tools.list.resultMany', { count: `${data.items.length}${data.total != null && data.total > data.items.length ? ` / ${data.total}` : ''}` })}
         </span>
         {searchQuery && (
           <span className="text-[10px] text-gray-600 italic truncate">
-            matching &ldquo;{searchQuery}&rdquo;
+            {t('chatA-tools.list.matching', { query: searchQuery })}
           </span>
         )}
       </div>

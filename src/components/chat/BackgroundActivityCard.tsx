@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { Activity, Bot, ChevronRight, Radar, Terminal, Workflow, type LucideIcon } from 'lucide-react'
+import { useT } from '@/i18n'
 import { MetaLine } from '@/components/ui/MetaLine'
 import { ProgressLine } from '@/components/ui/ProgressLine'
 import { StatusDot, ToneText } from '@/components/ui/Status'
-import { formatCompactNumber, formatDurationMs, pluralize } from '@/components/ui/format'
+import { formatCompactNumber, formatDurationMs } from '@/components/ui/format'
 import { focusRingInset, hitArea } from '@/components/ui/classes'
 import { TONE_CLASSES } from '@/components/ui/statusMeta'
 import {
@@ -15,12 +16,12 @@ import {
   type KeyValue,
 } from '@/utils/backgroundActivity'
 
-const KIND_META: Record<ActivityKind, { icon: LucideIcon; label: string }> = {
-  workflow: { icon: Workflow, label: 'Workflow' },
-  shell: { icon: Terminal, label: 'Background command' },
-  monitor: { icon: Radar, label: 'Monitor' },
-  agent: { icon: Bot, label: 'Sub-agent' },
-  generic: { icon: Activity, label: 'Background activity' },
+const KIND_META: Record<ActivityKind, { icon: LucideIcon }> = {
+  workflow: { icon: Workflow },
+  shell: { icon: Terminal },
+  monitor: { icon: Radar },
+  agent: { icon: Bot },
+  generic: { icon: Activity },
 }
 
 const OUTPUT_TAIL_LINES = 12
@@ -39,6 +40,7 @@ function localTime(iso: string): string {
 
 /** Text clamped to 3 lines with a keyboard-reachable Show more / Show less. */
 export function ExpandableText({ text, mono = false, className = '' }: { text: string; mono?: boolean; className?: string }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const long = text.length > LONG_TEXT_CHARS || text.split('\n').length > LONG_TEXT_LINES
   return (
@@ -55,7 +57,7 @@ export function ExpandableText({ text, mono = false, className = '' }: { text: s
           aria-expanded={open}
           className={`${hitArea} mt-0.5 text-[11px] text-indigo-400 hover:text-indigo-300 rounded ${focusRingInset}`}
         >
-          {open ? 'Show less' : 'Show more'}
+          {open ? t('chatA-activity.card.showLess') : t('chatA-activity.card.showMore')}
         </button>
       )}
     </div>
@@ -113,11 +115,12 @@ function CommandBlock({ command }: { command: string }) {
 
 /** Monospace tail of a text stream, oldest first, with the older part collapsed. */
 function OutputTail({ lines, label }: { lines: string[]; label: string }) {
+  const { t } = useT()
   const [all, setAll] = useState(false)
   if (lines.length === 0) return null
   const { shown, omitted } = tailLines(lines, all ? lines.length : OUTPUT_TAIL_LINES)
   return (
-    <Disclosure label={`${label} · ${pluralize(lines.length, 'line')}`} defaultOpen={lines.length <= 3}>
+    <Disclosure label={`${label} · ${t(lines.length === 1 ? 'chatA-activity.card.lineOne' : 'chatA-activity.card.lineMany', { count: lines.length })}`} defaultOpen={lines.length <= 3}>
       <pre
         tabIndex={0}
         aria-label={label}
@@ -131,7 +134,7 @@ function OutputTail({ lines, label }: { lines: string[]; label: string }) {
           onClick={() => setAll(true)}
           className={`${hitArea} mt-0.5 rounded text-[11px] text-indigo-400 hover:text-indigo-300 ${focusRingInset}`}
         >
-          Show {pluralize(omitted, 'earlier line')}
+          {t(omitted === 1 ? 'chatA-activity.card.earlierLineOne' : 'chatA-activity.card.earlierLineMany', { count: omitted })}
         </button>
       )}
     </Disclosure>
@@ -139,16 +142,17 @@ function OutputTail({ lines, label }: { lines: string[]; label: string }) {
 }
 
 function AgentList({ activity }: { activity: ActivityModel }) {
+  const { t } = useT()
   const { settled, total, pct } = agentProgress(activity.agents)
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-2">
-        <ProgressLine value={pct} label={`${activity.title} progress`} className="flex-1" />
+        <ProgressLine value={pct} label={t('chatA-activity.card.progressOf', { title: activity.title })} className="flex-1" />
         <span className="shrink-0 text-[11px] tabular-nums text-gray-400">
-          {settled}/{total} agents
+          {t('chatA-activity.card.agents', { settled, total })}
         </span>
       </div>
-      <ul aria-label={`Agents of ${activity.title}`} className="divide-y divide-white/[0.04] rounded border border-white/[0.06]">
+      <ul aria-label={t('chatA-activity.card.agentsOf', { title: activity.title })} className="divide-y divide-white/[0.04] rounded border border-white/[0.06]">
         {activity.agents.map((agent) => {
           const meta = ACTIVITY_STATUS_META[agent.state]
           return (
@@ -160,7 +164,7 @@ function AgentList({ activity }: { activity: ActivityModel }) {
                 <span className="break-words text-gray-300">{agent.name}</span>
                 {agent.detail && <span className="ml-1.5 font-mono text-[11px] text-gray-500 break-all">{agent.detail}</span>}
               </span>
-              <span className={`shrink-0 text-[11px] ${TONE_CLASSES[meta.tone].text}`}>{meta.label}</span>
+              <span className={`shrink-0 text-[11px] ${TONE_CLASSES[meta.tone].text}`}>{t(`chatA-activity.card.status.${agent.state}`)}</span>
             </li>
           )
         })}
@@ -170,11 +174,12 @@ function AgentList({ activity }: { activity: ActivityModel }) {
 }
 
 function UsageLine({ usage }: { usage: NonNullable<ActivityModel['usage']> }) {
+  const { t } = useT()
   return (
     <MetaLine
       items={[
-        usage.tokens !== undefined && <span key="t" className="tabular-nums">{formatCompactNumber(usage.tokens)} tokens</span>,
-        usage.toolUses !== undefined && <span key="u" className="tabular-nums">{pluralize(usage.toolUses, 'tool use')}</span>,
+        usage.tokens !== undefined && <span key="t" className="tabular-nums">{t('chatA-activity.card.tokens', { count: formatCompactNumber(usage.tokens) })}</span>,
+        usage.toolUses !== undefined && <span key="u" className="tabular-nums">{t(usage.toolUses === 1 ? 'chatA-activity.card.toolUseOne' : 'chatA-activity.card.toolUseMany', { count: usage.toolUses })}</span>,
         usage.durationMs !== undefined && <span key="d" className="tabular-nums">{formatDurationMs(usage.durationMs)}</span>,
       ]}
     />
@@ -198,16 +203,17 @@ function DetailList({ details }: { details: KeyValue[] }) {
 }
 
 function Timeline({ activity }: { activity: ActivityModel }) {
+  const { t } = useT()
   if (activity.events.length === 0) return null
   return (
-    <Disclosure label={`Timeline · ${pluralize(activity.count, 'event')}`}>
+    <Disclosure label={`${t('chatA-activity.card.timeline')} · ${t(activity.count === 1 ? 'chatA-activity.card.eventOne' : 'chatA-activity.card.eventMany', { count: activity.count })}`}>
       <ul
-        aria-label={`Events of ${activity.title}`}
+        aria-label={t('chatA-activity.card.eventsOf', { title: activity.title })}
         className="max-h-40 overflow-y-auto rounded border border-white/[0.06] divide-y divide-white/[0.04]"
       >
         {activity.hiddenCount > 0 && (
           <li className="px-2 py-1 text-[11px] text-gray-600">
-            … {pluralize(activity.hiddenCount, 'earlier event')} not kept
+            {t(activity.hiddenCount === 1 ? 'chatA-activity.card.hiddenEventOne' : 'chatA-activity.card.hiddenEventMany', { count: activity.hiddenCount })}
           </li>
         )}
         {activity.events.map((ev, i) => (
@@ -226,11 +232,12 @@ function Timeline({ activity }: { activity: ActivityModel }) {
 
 /** Last resort: the structured payload, pretty-printed — collapsed, never the default view. */
 function RawPayload({ raw }: { raw: NonNullable<ActivityModel['raw']> }) {
+  const { t } = useT()
   return (
-    <Disclosure label="Raw payload">
+    <Disclosure label={t('chatA-activity.card.rawPayload')}>
       <pre
         tabIndex={0}
-        aria-label="Raw payload"
+        aria-label={t('chatA-activity.card.rawPayload')}
         className={`max-h-48 overflow-auto rounded border border-white/[0.06] bg-black/20 px-2 py-1.5 text-[11px] leading-4 font-mono text-gray-400 ${focusRingInset}`}
       >
         {JSON.stringify(raw, null, 2)}
@@ -244,12 +251,13 @@ function RawPayload({ raw }: { raw: NonNullable<ActivityModel['raw']> }) {
 // ---------------------------------------------------------------------------
 
 function ActivityBody({ activity }: { activity: ActivityModel }) {
+  const { t } = useT()
   const { kind } = activity
   const chips = activity.params
   return (
     <div className="space-y-2 px-3 pb-2.5 pt-1 text-xs">
       {chips.length > 0 && (
-        <div className="flex flex-wrap gap-1" aria-label="Parameters">
+        <div className="flex flex-wrap gap-1" aria-label={t('chatA-activity.card.parameters')}>
           {chips.map((p) => (
             <ParamChip key={p.label} param={p} />
           ))}
@@ -261,7 +269,7 @@ function ActivityBody({ activity }: { activity: ActivityModel }) {
       {kind === 'generic' && <DetailList details={activity.details} />}
       {activity.usage && <UsageLine usage={activity.usage} />}
 
-      <OutputTail lines={activity.outputLines} label={kind === 'agent' ? 'Latest output' : 'Output'} />
+      <OutputTail lines={activity.outputLines} label={kind === 'agent' ? t('chatA-activity.card.latestOutput') : t('chatA-activity.card.output')} />
       <Timeline activity={activity} />
       {activity.raw && <RawPayload raw={activity.raw} />}
     </div>
@@ -269,10 +277,10 @@ function ActivityBody({ activity }: { activity: ActivityModel }) {
 }
 
 /** One line under the title while collapsed: the freshest thing worth knowing. */
-function collapsedHint(activity: ActivityModel): string {
+function collapsedHint(activity: ActivityModel, agentsLabel: (settled: number, total: number) => string): string {
   if (activity.kind === 'workflow' && activity.agents.length > 0) {
     const { settled, total } = agentProgress(activity.agents)
-    return `${settled}/${total} agents`
+    return agentsLabel(settled, total)
   }
   const last = activity.events[activity.events.length - 1]
   return last?.detail ?? ''
@@ -286,11 +294,12 @@ interface ActivityCardProps {
 }
 
 export function ActivityCard({ activity, defaultOpen = false, className = '' }: ActivityCardProps) {
+  const { t } = useT()
   const [open, setOpen] = useState(defaultOpen)
   const meta = ACTIVITY_STATUS_META[activity.status]
-  const kind = KIND_META[activity.kind]
-  const Icon = kind.icon
-  const hint = collapsedHint(activity)
+  const Icon = KIND_META[activity.kind].icon
+  const kindLabel = t(`chatA-activity.card.kind.${activity.kind}`)
+  const hint = collapsedHint(activity, (settled, total) => t('chatA-activity.card.agents', { settled, total }))
   const chipPreview = activity.params.slice(0, 3)
 
   return (
@@ -312,7 +321,7 @@ export function ActivityCard({ activity, defaultOpen = false, className = '' }: 
         />
         <Icon aria-hidden="true" className="mt-0.5 w-3.5 h-3.5 shrink-0 text-gray-500" />
         <span className="min-w-0 flex-1">
-          <span className="sr-only">{kind.label}: </span>
+          <span className="sr-only">{kindLabel}: </span>
           <span
             className={`block text-xs text-gray-200 break-words line-clamp-2 ${activity.kind === 'shell' ? 'font-mono' : ''}`}
             title={activity.title}
@@ -335,7 +344,7 @@ export function ActivityCard({ activity, defaultOpen = false, className = '' }: 
           )}
         </span>
         <span className="mt-0.5 flex shrink-0 items-center gap-2 text-[11px] leading-4">
-          <ToneText tone={meta.tone} label={meta.label} pulse={activity.status === 'running'} />
+          <ToneText tone={meta.tone} label={t(`chatA-activity.card.status.${activity.status}`)} pulse={activity.status === 'running'} />
           {activity.durationMs !== undefined && (
             <span className="tabular-nums text-gray-500">{formatDurationMs(activity.durationMs)}</span>
           )}

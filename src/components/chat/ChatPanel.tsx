@@ -3,6 +3,7 @@ import { AttachSessionDialog } from '@/components/discussions/AttachSessionDialo
 import { OverflowMenu } from '@/components/ui/OverflowMenu'
 import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
+import { useT } from '@/i18n'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
 import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom } from '@/atoms'
 import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
@@ -59,10 +60,11 @@ const NO_BACKGROUND_TASKS: BackgroundTaskInfo[] = []
 
 /** The live-connection state of the conversation: a `StatusDot` with its label (DESIGN.md § 4). */
 function WsStatusDot({ status }: { status: string }) {
-  if (status === 'connected') return <StatusDot tone="success" label="Connected" />
-  if (status === 'reconnecting' || status === 'connecting') return <StatusDot tone="warning" pulse label="Reconnecting…" />
+  const { t } = useT()
+  if (status === 'connected') return <StatusDot tone="success" label={t('chatA-messages.panel.connected')} />
+  if (status === 'reconnecting' || status === 'connecting') return <StatusDot tone="warning" pulse label={t('chatA-messages.panel.reconnecting')} />
   // disconnected or unknown — only shown when there is a session
-  return <StatusDot tone="muted" label="Disconnected" />
+  return <StatusDot tone="muted" label={t('chatA-messages.panel.disconnected')} />
 }
 
 /** Ghost glass icon button of the chat chrome (36 px on phones, 32 px on desktop), flat: a bar holds several. */
@@ -70,6 +72,7 @@ const chromeIcon = (active = false) => `${iconButton('ghost', 'size-9 md:size-8'
 const chromeIconDisabled = `${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} text-gray-600`
 
 export function ChatPanel() {
+  const { t } = useT()
   const [mode, setMode] = useAtom(chatPanelModeAtom)
   const [panelWidth, setPanelWidth] = useAtom(chatPanelWidthAtom)
   const [showSessions, setShowSessions] = useState(false)
@@ -344,10 +347,10 @@ export function ChatPanel() {
       const win = window.open('', '_blank')
       if (win) {
         win.document.write(`<pre style="white-space:pre-wrap;font-family:monospace;padding:16px">${markdown.replace(/</g, '&lt;')}</pre>`)
-        win.document.title = 'Chat Export'
+        win.document.title = t('chatA-messages.panel.exportTitle')
       }
     }
-  }, [chat.messages, chat.sessionId, chat.sessionMeta, sessionProviderInfo.label, sessionModel])
+  }, [chat.messages, chat.sessionId, chat.sessionMeta, sessionProviderInfo.label, sessionModel, t])
 
   const handleSelectSession = useCallback((sessionId: string, targetTurnIndex?: number, title?: string, searchHit?: { snippet: string; createdAt: number; role: 'user' | 'assistant' }) => {
     setScrollToTurn(targetTurnIndex != null ? { turnIndex: targetTurnIndex, snippet: searchHit?.snippet, createdAt: searchHit?.createdAt, role: searchHit?.role } : null)
@@ -365,8 +368,8 @@ export function ChatPanel() {
 
   // Determine header title
   const headerTitle = isNewConversation
-    ? 'New Chat'
-    : sessionTitle || 'Chat'
+    ? t('chatA-messages.panel.newChatTitle')
+    : sessionTitle || t('chatA-messages.panel.chatTitle')
 
   // Spawned-by navigation: derive parent session ID from session metadata
   const spawnedBy = chat.sessionMeta?.spawnedBy
@@ -452,14 +455,14 @@ export function ChatPanel() {
         <div className="hidden md:flex w-72 shrink-0 border-r border-white/[0.06] flex-col">
           {/* Sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
           <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
-            <span className="text-sm font-medium text-gray-300">Conversations</span>
+            <span className="text-sm font-medium text-gray-300">{t('chatA-messages.panel.conversations')}</span>
             <button
               type="button"
               onClick={handleNewSession}
               disabled={isNewConversation}
               className={isNewConversation ? chromeIconDisabled : chromeIcon()}
-              title="New conversation"
-              aria-label="New conversation"
+              title={t('chatA-messages.panel.newConversation')}
+              aria-label={t('chatA-messages.panel.newConversation')}
             >
               <Plus className="w-4 h-4" aria-hidden="true" />
             </button>
@@ -478,9 +481,9 @@ export function ChatPanel() {
           <div className="fixed inset-0 z-40 flex flex-col bg-surface-raised">
             {/* Mobile sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
             <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
-              <span className="text-sm font-medium text-gray-300">Conversations</span>
+              <span className="text-sm font-medium text-gray-300">{t('chatA-messages.panel.conversations')}</span>
               <div className="flex items-center gap-1">
-                <button type="button" onClick={() => setShowMobileSidebar(false)} className={chromeIcon()} title="Back to chat" aria-label="Back to chat">
+                <button type="button" onClick={() => setShowMobileSidebar(false)} className={chromeIcon()} title={t('chatA-messages.panel.backToChat')} aria-label={t('chatA-messages.panel.backToChat')}>
                   <X className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
@@ -496,7 +499,7 @@ export function ChatPanel() {
                 className="w-full gap-2"
               >
                 <Plus className="w-4 h-4" aria-hidden="true" />
-                New conversation
+                {t('chatA-messages.panel.newConversation')}
               </Button>
             </div>
 
@@ -519,8 +522,8 @@ export function ChatPanel() {
                 type="button"
                 onClick={() => { if (isMobile) setShowMobileSidebar(true) }}
                 className={`shrink-0 md:hidden ${chromeIcon(showMobileSidebar)}`}
-                title="Sessions"
-                aria-label="Sessions"
+                title={t('chatA-messages.panel.sessions')}
+                aria-label={t('chatA-messages.panel.sessions')}
                 aria-expanded={showMobileSidebar}
               >
                 <Menu className="w-4 h-4" aria-hidden="true" />
@@ -549,8 +552,8 @@ export function ChatPanel() {
                 onClick={handleNewSession}
                 disabled={isNewConversation}
                 className={`md:hidden ${isNewConversation ? chromeIconDisabled : chromeIcon()}`}
-                title="New chat"
-                aria-label="New chat"
+                title={t('chatA-messages.panel.newChat')}
+                aria-label={t('chatA-messages.panel.newChat')}
               >
                 <Plus className="w-4 h-4" aria-hidden="true" />
               </button>
@@ -564,8 +567,8 @@ export function ChatPanel() {
                   type="button"
                   onClick={() => { setShowAgentTree(!showAgentTree); setShowSettings(false) }}
                   className={chromeIcon(showAgentTree)}
-                  title="Assistant tree"
-                  aria-label="Assistant tree"
+                  title={t('chatA-messages.panel.assistantTree')}
+                  aria-label={t('chatA-messages.panel.assistantTree')}
                   aria-pressed={showAgentTree}
                 >
                   <TreePine className="w-4 h-4" aria-hidden="true" />
@@ -576,8 +579,8 @@ export function ChatPanel() {
                 type="button"
                 onClick={() => { setShowSettings(!showSettings); setShowAgentTree(false) }}
                 className={`relative ${chromeIcon(showSettings)}`}
-                title="Permission settings"
-                aria-label="Permission settings"
+                title={t('chatA-messages.panel.permissionSettings')}
+                aria-label={t('chatA-messages.panel.permissionSettings')}
                 aria-pressed={showSettings}
               >
                 <Settings className="w-4 h-4" aria-hidden="true" />
@@ -591,16 +594,16 @@ export function ChatPanel() {
                   type="button"
                   onClick={handleCopyChat}
                   className={`${chromeIcon()} ${copiedChat ? 'text-emerald-400' : ''}`}
-                  title={copiedChat ? 'Copied!' : 'Copy chat as markdown'}
-                  aria-label={copiedChat ? 'Copied!' : 'Copy chat as markdown'}
+                  title={copiedChat ? t('chatA-messages.panel.copied') : t('chatA-messages.panel.copyChat')}
+                  aria-label={copiedChat ? t('chatA-messages.panel.copied') : t('chatA-messages.panel.copyChat')}
                 >
                   {copiedChat ? <Check className="w-4 h-4" aria-hidden="true" /> : <ClipboardCopy className="w-4 h-4" aria-hidden="true" />}
                 </button>
               )}
-              <button type="button" onClick={() => setMode('open')} className={chromeIcon()} title="Exit fullscreen" aria-label="Exit fullscreen">
+              <button type="button" onClick={() => setMode('open')} className={chromeIcon()} title={t('chatA-messages.panel.exitFullscreen')} aria-label={t('chatA-messages.panel.exitFullscreen')}>
                 <Minimize2 className="w-4 h-4" aria-hidden="true" />
               </button>
-              <button type="button" onClick={() => setMode('closed')} className={chromeIcon()} title="Close" aria-label="Close">
+              <button type="button" onClick={() => setMode('closed')} className={chromeIcon()} title={t('chatA-messages.panel.close')} aria-label={t('chatA-messages.panel.close')}>
                 <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
@@ -613,7 +616,7 @@ export function ChatPanel() {
               className="flex items-center gap-1.5 px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs text-indigo-400 hover:text-indigo-300 hover:bg-white/[0.04] transition-colors w-full text-left"
             >
               <ArrowLeft className="w-3 h-3 shrink-0" />
-              Back to parent
+              {t('chatA-messages.panel.backToParent')}
             </button>
           )}
 
@@ -631,13 +634,13 @@ export function ChatPanel() {
           {!isNewConversation && chat.wsStatus === 'reconnecting' && (
             <div className="px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs flex items-center gap-1.5">
               <StatusDot tone="warning" pulse />
-              <span className="text-amber-300">Reconnecting…</span>
+              <span className="text-amber-300">{t('chatA-messages.panel.reconnecting')}</span>
             </div>
           )}
           {!isNewConversation && chat.wsStatus === 'disconnected' && chat.sessionId && (
             <div className="px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs flex items-center gap-1.5">
               <StatusDot tone="danger" />
-              <span className="text-red-300">Connection lost</span>
+              <span className="text-red-300">{t('chatA-messages.panel.connectionLost')}</span>
             </div>
           )}
 
@@ -753,8 +756,8 @@ export function ChatPanel() {
             type="button"
             onClick={() => { setShowSessions(!showSessions); setShowSettings(false) }}
             className={`shrink-0 ${chromeIcon(showSessions)}`}
-            title="Sessions"
-            aria-label="Sessions"
+            title={t('chatA-messages.panel.sessions')}
+            aria-label={t('chatA-messages.panel.sessions')}
             aria-pressed={showSessions}
           >
             <Menu className="w-4 h-4" aria-hidden="true" />
@@ -784,8 +787,8 @@ export function ChatPanel() {
             onClick={handleNewSession}
             disabled={isNewConversation}
             className={isNewConversation ? chromeIconDisabled : chromeIcon()}
-            title="New chat"
-            aria-label="New chat"
+            title={t('chatA-messages.panel.newChat')}
+            aria-label={t('chatA-messages.panel.newChat')}
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -794,8 +797,8 @@ export function ChatPanel() {
             type="button"
             onClick={() => { setShowSettings(!showSettings); setShowSessions(false); setShowAgentTree(false) }}
             className={`relative ${chromeIcon(showSettings)}`}
-            title="Permission settings"
-            aria-label="Permission settings"
+            title={t('chatA-messages.panel.permissionSettings')}
+            aria-label={t('chatA-messages.panel.permissionSettings')}
             aria-pressed={showSettings}
           >
             <Settings className="w-4 h-4" aria-hidden="true" />
@@ -805,23 +808,23 @@ export function ChatPanel() {
           </button>
           <OverflowMenu
             size="sm"
-            label="Conversation actions"
+            label={t('chatA-messages.panel.actions')}
             actions={[
               // Link this conversation to a plan or a task of its project
-              { label: 'Attach to a plan or task…', icon: Link2, hidden: isNewConversation || !chat.sessionId, onClick: () => setShowAttach(true) },
+              { label: t('chatA-messages.panel.attach'), icon: Link2, hidden: isNewConversation || !chat.sessionId, onClick: () => setShowAttach(true) },
               // Agent Tree toggle — visible when session has children
               {
-                label: showAgentTree ? 'Hide the assistant tree' : 'Show the assistant tree',
+                label: showAgentTree ? t('chatA-messages.panel.hideTree') : t('chatA-messages.panel.showTree'),
                 icon: TreePine,
                 hidden: !(hasChildren && chat.sessionId),
                 onClick: () => { setShowAgentTree(!showAgentTree); setShowSettings(false); setShowSessions(false) },
               },
               // Copy chat to clipboard
-              { label: copiedChat ? 'Copied!' : 'Copy chat as markdown', icon: copiedChat ? Check : ClipboardCopy, hidden: chat.messages.length === 0, onClick: handleCopyChat },
-              { label: 'Fullscreen', icon: Maximize2, hidden: isMobile, onClick: () => setMode('fullscreen') },
+              { label: copiedChat ? t('chatA-messages.panel.copied') : t('chatA-messages.panel.copyChat'), icon: copiedChat ? Check : ClipboardCopy, hidden: chat.messages.length === 0, onClick: handleCopyChat },
+              { label: t('chatA-messages.panel.fullscreen'), icon: Maximize2, hidden: isMobile, onClick: () => setMode('fullscreen') },
             ]}
           />
-          <button type="button" onClick={() => setMode('closed')} className={chromeIcon()} title="Close" aria-label="Close">
+          <button type="button" onClick={() => setMode('closed')} className={chromeIcon()} title={t('chatA-messages.panel.close')} aria-label={t('chatA-messages.panel.close')}>
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
@@ -845,7 +848,7 @@ export function ChatPanel() {
           className="flex items-center gap-1.5 px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs text-indigo-400 hover:text-indigo-300 hover:bg-white/[0.04] transition-colors w-full text-left"
         >
           <ArrowLeft className="w-3 h-3 shrink-0" />
-          Back to parent
+          {t('chatA-messages.panel.backToParent')}
         </button>
       )}
 
@@ -863,13 +866,13 @@ export function ChatPanel() {
       {!isNewConversation && chat.wsStatus === 'reconnecting' && (
         <div className="px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs flex items-center gap-1.5">
           <StatusDot tone="warning" pulse />
-          <span className="text-amber-300">Reconnecting…</span>
+          <span className="text-amber-300">{t('chatA-messages.panel.reconnecting')}</span>
         </div>
       )}
       {!isNewConversation && chat.wsStatus === 'disconnected' && chat.sessionId && (
         <div className="px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs flex items-center gap-1.5">
           <StatusDot tone="danger" />
-          <span className="text-red-300">Connection lost</span>
+          <span className="text-red-300">{t('chatA-messages.panel.connectionLost')}</span>
         </div>
       )}
 
@@ -962,6 +965,7 @@ export function ChatPanel() {
 
 /** Full-area placeholder shown when the workspace has no projects */
 function NoProjectsPlaceholder({ wsSlug }: { wsSlug: string | null }) {
+  const { t } = useT()
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
       {/* Folder illustration — matches EmptyState style */}
@@ -974,9 +978,9 @@ function NoProjectsPlaceholder({ wsSlug }: { wsSlug: string | null }) {
         <path d="M55 52h6M58 49v6" stroke="currentColor" className="text-indigo-400" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
 
-      <h3 className="text-base font-medium text-gray-200 mb-1.5">No projects yet</h3>
+      <h3 className="text-base font-medium text-gray-200 mb-1.5">{t('chatA-messages.panel.noProjectsTitle')}</h3>
       <p className="text-sm text-gray-500 max-w-[240px] mb-5">
-        Add a project to this workspace to start a conversation with Claude.
+        {t('chatA-messages.panel.noProjectsBody')}
       </p>
 
       {wsSlug && (
@@ -985,7 +989,7 @@ function NoProjectsPlaceholder({ wsSlug }: { wsSlug: string | null }) {
           className={`${glassButton.primary} min-h-9 gap-2 px-4 py-2 text-sm`}
         >
           <FolderPlus className="w-4 h-4" aria-hidden="true" />
-          Add a project
+          {t('chatA-messages.panel.addProject')}
         </Link>
       )}
     </div>

@@ -6,6 +6,7 @@ import { ChatMessageBubble } from './ChatMessageBubble'
 import { CompactionFlow } from './CompactionFlow'
 import { ChatWelcome } from './ChatWelcome'
 import { Loader2 } from 'lucide-react'
+import { useT } from '@/i18n'
 
 /** Pixel threshold from top to trigger loading older messages */
 const SCROLL_TOP_THRESHOLD = 80
@@ -68,6 +69,7 @@ export const ChatMessages = memo(function ChatMessages({
   bottomInset,
   isCompacting,
 }: ChatMessagesProps) {
+  const { t } = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
   const shouldAutoScrollRef = useRef(true)
   const [scrollToTurn, setScrollToTurn] = useAtom(chatScrollToTurnAtom)
@@ -339,7 +341,7 @@ export const ChatMessages = memo(function ChatMessages({
         <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
           <div className="flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span>Loading messages...</span>
+            <span>{t('chatA-messages.list.loading')}</span>
           </div>
         </div>
       )
@@ -366,14 +368,14 @@ export const ChatMessages = memo(function ChatMessages({
       {isLoadingOlder && (
         <div className="flex items-center justify-center py-3">
           <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
-          <span className="ml-2 text-xs text-gray-500">Loading older messages...</span>
+          <span className="ml-2 text-xs text-gray-500">{t('chatA-messages.list.loadingOlder')}</span>
         </div>
       )}
 
       {/* "Beginning of conversation" marker when no more older messages */}
       {!hasOlderMessages && messages.length > 0 && !isLoadingOlder && (
         <div className="text-center text-[10px] text-gray-600 py-2 mb-2">
-          — Beginning of conversation —
+          {t('chatA-messages.list.beginning')}
         </div>
       )}
 
@@ -403,14 +405,14 @@ export const ChatMessages = memo(function ChatMessages({
       {isLoadingNewer && (
         <div className="flex items-center justify-center py-3">
           <Loader2 className="w-4 h-4 animate-spin text-gray-500" />
-          <span className="ml-2 text-xs text-gray-500">Loading newer messages...</span>
+          <span className="ml-2 text-xs text-gray-500">{t('chatA-messages.list.loadingNewer')}</span>
         </div>
       )}
 
       {/* "More messages below" indicator when not at tail */}
       {hasNewerMessages && !isLoadingNewer && (
         <div className="text-center text-[10px] text-gray-600 py-2 mt-2">
-          — Scroll down for more —
+          {t('chatA-messages.list.scrollMore')}
         </div>
       )}
 
@@ -437,12 +439,12 @@ export const ChatMessages = memo(function ChatMessages({
           {isCatchingUp ? (
             <>
               <Loader2 className="w-3 h-3 animate-spin" />
-              Catching up…
+              {t('chatA-messages.list.catchingUp')}
             </>
           ) : (
             <>
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-              New activity ↓
+              {t('chatA-messages.list.newActivity')}
             </>
           )}
         </button>

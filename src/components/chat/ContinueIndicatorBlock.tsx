@@ -1,11 +1,13 @@
 import type { ContentBlock } from '@/types'
 import { FastForward } from 'lucide-react'
+import { useT } from '@/i18n'
 
 interface ContinueIndicatorBlockProps {
   block: ContentBlock
 }
 
 export function ContinueIndicatorBlock({ block }: ContinueIndicatorBlockProps) {
+  const { t } = useT()
   const numTurns = block.metadata?.num_turns as number | undefined
 
   return (
@@ -18,12 +20,12 @@ export function ContinueIndicatorBlock({ block }: ContinueIndicatorBlockProps) {
         {/* Forward/play icon */}
         <FastForward className="w-3.5 h-3.5 text-gray-500" />
 
-        <span className="text-xs whitespace-nowrap">Continued</span>
+        <span className="text-xs whitespace-nowrap">{t('chatA-messages.continued.label')}</span>
 
         {/* Turn count */}
         {numTurns != null && (
           <span className="text-[10px] text-gray-600">
-            after {numTurns} turns
+            {t(numTurns === 1 ? 'chatA-messages.continued.afterOne' : 'chatA-messages.continued.afterMany', { count: numTurns })}
           </span>
         )}
       </div>

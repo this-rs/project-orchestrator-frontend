@@ -1,3 +1,5 @@
+import { defaultT, type TFn } from './defaultT'
+
 /**
  * State machine for files attached to a chat message.
  *
@@ -319,25 +321,25 @@ export function resolveDeferred(summary: AttachmentSummary): DeferredOutcome {
  * or *which* format, which a client-side table never can. `serverMessage` is
  * server-controlled text and is rendered as React text content, never as HTML.
  */
-export function describeUploadFailure(status: number, serverMessage?: string): string {
+export function describeUploadFailure(status: number, serverMessage?: string, t: TFn = defaultT): string {
   const detail = serverMessage?.trim()
   if (detail && detail.length <= 200 && !detail.startsWith('<')) return detail
   switch (status) {
     case 0:
-      return 'Network error — the file never reached the server'
+      return t('chatA-input.upload.network')
     case 408:
-      return 'The server did not answer in time — remove the file and add it again'
+      return t('chatA-input.upload.timeout')
     case 413:
-      return 'File too large'
+      return t('chatA-input.upload.tooLarge')
     case 415:
-      return 'Unsupported file format'
+      return t('chatA-input.upload.unsupported')
     case 422:
-      return 'File could not be read (malformed or damaged)'
+      return t('chatA-input.upload.unreadable')
     case 401:
     case 403:
-      return 'Not allowed to upload here'
+      return t('chatA-input.upload.forbidden')
     default:
-      return `Upload failed (HTTP ${status})`
+      return t('chatA-input.upload.failed', { status })
   }
 }
 

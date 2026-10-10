@@ -31,6 +31,7 @@ import {
   Eye,
   MessageSquare,
 } from 'lucide-react'
+import { useT } from '@/i18n'
 import type { VizBlockProps } from './registry'
 
 // ============================================================================
@@ -48,12 +49,13 @@ const KIND_CONFIG: Record<string, { icon: typeof Lightbulb; color: string; borde
   decision: { icon: BookOpen, color: 'text-indigo-400', borderColor: 'border-l-indigo-500/40', bgColor: 'bg-indigo-500/5' },
 }
 
-const IMPORTANCE_BADGES: Record<string, { label: string; color: string }> = {
-  critical: { label: 'CRITICAL', color: 'bg-red-900/50 text-red-400 ring-red-500/20' },
-  high: { label: 'HIGH', color: 'bg-yellow-900/50 text-yellow-400 ring-yellow-500/20' },
-  medium: { label: 'MEDIUM', color: 'bg-blue-900/50 text-blue-400 ring-blue-500/20' },
-  low: { label: 'LOW', color: 'bg-white/[0.08] text-gray-400 ring-gray-500/20' },
-}
+/** The badge's text is in the catalog (`chatA-tools.viz.importance.<level>`). */
+const IMPORTANCE_BADGES = {
+  critical: { color: 'bg-red-900/50 text-red-400 ring-red-500/20' },
+  high: { color: 'bg-yellow-900/50 text-yellow-400 ring-yellow-500/20' },
+  medium: { color: 'bg-blue-900/50 text-blue-400 ring-blue-500/20' },
+  low: { color: 'bg-white/[0.08] text-gray-400 ring-gray-500/20' },
+} as const
 
 function getKindConfig(kind: string) {
   return KIND_CONFIG[kind] ?? { icon: FileText, color: 'text-gray-400', borderColor: 'border-l-gray-500/30', bgColor: 'bg-white/[0.02]' }
@@ -64,6 +66,7 @@ function getKindConfig(kind: string) {
 // ============================================================================
 
 export function KnowledgeCardViz({ data, expanded = false }: VizBlockProps) {
+  const { t } = useT()
   const [isExpanded, setIsExpanded] = useState(expanded)
 
   const kind = (data.kind as string) ?? 'note'
@@ -74,7 +77,9 @@ export function KnowledgeCardViz({ data, expanded = false }: VizBlockProps) {
 
   const cfg = getKindConfig(kind)
   const Icon = cfg.icon
-  const impBadge = IMPORTANCE_BADGES[importance]
+  const impBadge = Object.prototype.hasOwnProperty.call(IMPORTANCE_BADGES, importance)
+    ? { ...IMPORTANCE_BADGES[importance as keyof typeof IMPORTANCE_BADGES], label: t(`chatA-tools.viz.importance.${importance as keyof typeof IMPORTANCE_BADGES}`) }
+    : undefined
 
   // Truncate content in compact mode
   const MAX_COMPACT_LENGTH = 200
@@ -89,7 +94,7 @@ export function KnowledgeCardViz({ data, expanded = false }: VizBlockProps) {
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.04]">
         <Icon className={`w-3.5 h-3.5 shrink-0 ${cfg.color}`} />
         <span className={`text-[11px] font-semibold uppercase tracking-wide ${cfg.color}`}>
-          {kind}
+          {Object.prototype.hasOwnProperty.call(KIND_CONFIG, kind) ? t(`chatA-tools.viz.kind.${kind as 'guideline'}`) : kind}
         </span>
 
         {impBadge && (

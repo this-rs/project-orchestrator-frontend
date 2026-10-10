@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { useT } from '@/i18n'
 import { AlertTriangle, FileText, Image as ImageIcon, Loader2, X } from 'lucide-react'
 import {
   formatBytes,
@@ -35,6 +36,7 @@ export const Attachments = memo(function Attachments({
   onRemove,
   pendingSend,
 }: AttachmentsProps) {
+  const { t } = useT()
   if (attachments.length === 0) return null
 
   return (
@@ -97,7 +99,7 @@ export const Attachments = memo(function Attachments({
                     // still extracting: say so instead of a bare "100%" that
                     // reads as stuck.
                     a.progress >= 100 ? (
-                      <>{formatBytes(a.sizeBytes)} · Processing…</>
+                      <>{formatBytes(a.sizeBytes)} · {t('chatA-input.attachments.processing')}</>
                     ) : (
                       <>
                         {formatBytes(a.sizeBytes)} · {a.progress}%
@@ -121,8 +123,8 @@ export const Attachments = memo(function Attachments({
                   unblocks the send. */}
               <button
                 onClick={() => onRemove(a.localId)}
-                aria-label={`Remove ${a.filename}`}
-                title="Remove"
+                aria-label={t('chatA-input.attachments.removeAria', { name: a.filename })}
+                title={t('chatA-input.attachments.remove')}
                 className="relative shrink-0 w-5 h-5 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-red-600/10 transition-colors"
               >
                 <X className="w-3 h-3" />
@@ -138,7 +140,7 @@ export const Attachments = memo(function Attachments({
           className="flex items-center gap-1.5 text-[10px] text-indigo-300/80"
         >
           <Loader2 className="w-2.5 h-2.5 animate-spin" />
-          Message will be sent when the upload finishes
+          {t('chatA-input.attachments.pendingSend')}
         </p>
       )}
     </div>

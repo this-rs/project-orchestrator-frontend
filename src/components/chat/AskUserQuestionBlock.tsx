@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react'
 import type { ContentBlock, AskUserQuestion } from '@/types'
 import { Check } from 'lucide-react'
+import { useT } from '@/i18n'
 
 interface AskUserQuestionBlockProps {
   block: ContentBlock
@@ -9,6 +10,7 @@ interface AskUserQuestionBlockProps {
 }
 
 export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQuestionBlockProps) {
+  const { t } = useT()
   const questions = useMemo(() => (block.metadata?.questions as AskUserQuestion[]) || [], [block.metadata?.questions])
 
   // Initialize from persisted metadata (survives page reload / history replay)
@@ -162,7 +164,7 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
         <div className="pt-2 border-t border-emerald-500/10">
           <p className="text-xs text-gray-500 flex items-center gap-1.5">
             <Check className="w-3 h-3 text-emerald-500" />
-            Answered: <span className="text-gray-400">{persistedResponse}</span>
+            {t('chatA-input.ask.answered')} <span className="text-gray-400">{persistedResponse}</span>
           </p>
         </div>
       </div>
@@ -245,7 +247,7 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
             onChange={(e) => setFreeText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && hasSelection && handleSubmit()}
             disabled={isDisabled}
-            placeholder="Or type your answer..."
+            placeholder={t('chatA-input.ask.placeholder')}
             className="flex-1 px-3 py-1.5 text-sm bg-black/20 border border-white/[0.06] rounded-lg text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40"
           />
           <button
@@ -253,14 +255,14 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
             disabled={isDisabled || !hasSelection}
             className="px-4 py-1.5 text-sm font-medium rounded-lg bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Submit
+            {t('chatA-input.ask.submit')}
           </button>
         </div>
       )}
 
       {sendFailed && !submitted && (
         <p role="alert" className="text-xs text-red-400">
-          Not sent: connection lost. Your answer is kept, try again once reconnected.
+          {t('chatA-input.ask.notSent')}
         </p>
       )}
 
@@ -268,7 +270,7 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
       {submitted && !persistedSubmitted && (
         <div className="pt-2 border-t border-white/[0.06]">
           <p className="text-xs text-gray-500">
-            Answered: <span className="text-gray-400">{formatResponse()}</span>
+            {t('chatA-input.ask.answered')} <span className="text-gray-400">{formatResponse()}</span>
           </p>
         </div>
       )}

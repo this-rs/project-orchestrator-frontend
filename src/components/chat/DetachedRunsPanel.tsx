@@ -1,4 +1,5 @@
 import { memo, useState, useEffect } from 'react'
+import { useT } from '@/i18n'
 import { AddToChatButton } from '@/refs/source'
 import { useAtomValue } from 'jotai'
 import { providersAtom } from '@/atoms'
@@ -89,6 +90,7 @@ function RunRow({
   onViewRun: (sessionId: string) => void
   onStopRun: (sessionId: string) => void
 }) {
+  const { t } = useT()
   const { executions, loading } = useAgentExecutions(isExpanded ? run.runId : undefined)
   const instances = useAtomValue(providersAtom)?.providers ?? null
   const provider = describeSessionProvider({ id: run.providerId }, instances)
@@ -100,7 +102,7 @@ function RunRow({
         className={`flex items-center gap-2 px-2 py-1.5 rounded-md bg-white/[0.02] hover:bg-white/[0.04] transition-colors group ${run.runId ? 'cursor-pointer' : ''}`}
       >
         {/* Status indicator */}
-        {run.isStreaming ? <PulseIndicator variant="active" size={6} /> : <StatusDot tone="muted" label="Finished" />}
+        {run.isStreaming ? <PulseIndicator variant="active" size={6} /> : <StatusDot tone="muted" label={t('chatA-activity.runs.finished')} />}
 
         {/* Run info */}
         <div className="flex-1 min-w-0">
@@ -142,8 +144,8 @@ function RunRow({
             type="button"
             onClick={(e) => { e.stopPropagation(); onViewRun(run.sessionId) }}
             className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} text-gray-500`}
-            title="View run"
-            aria-label="View run"
+            title={t('chatA-activity.runs.view')}
+            aria-label={t('chatA-activity.runs.view')}
           >
             <Eye className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
@@ -152,8 +154,8 @@ function RunRow({
               type="button"
               onClick={(e) => { e.stopPropagation(); onStopRun(run.sessionId) }}
               className={`${iconButton('danger', 'size-9 md:size-8')} ${glassFlat}`}
-              title="Stop run"
-              aria-label="Stop run"
+              title={t('chatA-activity.runs.stop')}
+              aria-label={t('chatA-activity.runs.stop')}
             >
               <Square className="w-3 h-3" aria-hidden="true" />
             </button>
@@ -167,11 +169,11 @@ function RunRow({
           {loading && (
             <div className="flex items-center gap-2 py-2">
               <Loader2 className="w-3 h-3 animate-spin motion-reduce:animate-none text-gray-500" aria-hidden="true" />
-              <span className="text-[10px] text-gray-500">Loading executions…</span>
+              <span className="text-[10px] text-gray-500">{t('chatA-activity.runs.loading')}</span>
             </div>
           )}
           {!loading && executions.length === 0 && (
-            <span className="text-[10px] text-gray-600 block py-1">No execution details available.</span>
+            <span className="text-[10px] text-gray-600 block py-1">{t('chatA-activity.runs.noDetails')}</span>
           )}
           {executions.map((exec) => (
             <AgentExecutionDetail
@@ -192,6 +194,7 @@ export const DetachedRunsPanel = memo(function DetachedRunsPanel({
   onViewRun,
   onStopRun,
 }: DetachedRunsPanelProps) {
+  const { t } = useT()
   const [expanded, setExpanded] = useState(false)
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null)
 
@@ -215,13 +218,13 @@ export const DetachedRunsPanel = memo(function DetachedRunsPanel({
           className="text-xs font-medium"
           label={
             activeCount > 0
-              ? `${activeCount} run${activeCount > 1 ? 's' : ''} in progress`
-              : `${completedCount} run${completedCount > 1 ? 's' : ''} completed`
+              ? t(activeCount === 1 ? 'chatA-activity.runs.inProgressOne' : 'chatA-activity.runs.inProgressMany', { count: activeCount })
+              : t(completedCount === 1 ? 'chatA-activity.runs.completedOne' : 'chatA-activity.runs.completedMany', { count: completedCount })
           }
         />
         {completedCount > 0 && activeCount > 0 && (
           <span className="text-[10px] text-gray-500">
-            · {completedCount} done
+            · {t('chatA-activity.runs.done', { count: completedCount })}
           </span>
         )}
         <div className="flex-1" />

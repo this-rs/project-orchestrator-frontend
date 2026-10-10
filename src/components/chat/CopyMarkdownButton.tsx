@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { ClipboardCopy, Check } from 'lucide-react'
+import { useT } from '@/i18n'
 
 interface CopyMarkdownButtonProps {
   /**
@@ -7,7 +8,7 @@ interface CopyMarkdownButtonProps {
    * This avoids serializing message bodies on every render.
    */
   getMarkdown: () => string
-  /** Tooltip when idle. Default: "Copy as markdown" */
+  /** Tooltip when idle. Default: the localised "Copy as markdown" */
   title?: string
   /** Tailwind classes appended to the button (positioning, size, etc.) */
   className?: string
@@ -26,10 +27,12 @@ interface CopyMarkdownButtonProps {
  */
 export function CopyMarkdownButton({
   getMarkdown,
-  title = 'Copy as markdown',
+  title: titleProp,
   className = '',
   ariaLabel,
 }: CopyMarkdownButtonProps) {
+  const { t } = useT()
+  const title = titleProp ?? t('chatA-messages.copy.title')
   const [copied, setCopied] = useState(false)
 
   const handleClick = useCallback(
@@ -47,11 +50,11 @@ export function CopyMarkdownButton({
           win.document.write(
             `<pre style="white-space:pre-wrap;font-family:monospace;padding:16px">${markdown.replace(/</g, '&lt;')}</pre>`,
           )
-          win.document.title = 'Message Markdown'
+          win.document.title = t('chatA-messages.copy.popupTitle')
         }
       }
     },
-    [getMarkdown],
+    [getMarkdown, t],
   )
 
   return (
@@ -63,7 +66,7 @@ export function CopyMarkdownButton({
           ? 'text-emerald-400'
           : 'text-gray-500 hover:text-gray-300 hover:bg-white/[0.04]'
       } ${className}`}
-      title={copied ? 'Copied!' : title}
+      title={copied ? t('chatA-messages.copy.copied') : title}
       aria-label={ariaLabel ?? title}
     >
       {copied ? <Check className="w-3.5 h-3.5" /> : <ClipboardCopy className="w-3.5 h-3.5" />}

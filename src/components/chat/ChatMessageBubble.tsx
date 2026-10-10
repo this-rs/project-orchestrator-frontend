@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { memo } from 'react'
 import { Paperclip } from 'lucide-react'
+import { useT } from '@/i18n'
 import { formatBytes } from './attachmentState'
 import { ReferenceChip } from './ReferenceChip'
 import { placeRefs } from '@/refs/placeRefs'
@@ -176,6 +177,7 @@ interface ChatMessageBubbleProps {
  */
 export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isStreaming, onRespondPermission, onRespondInput, onContinue }: ChatMessageBubbleProps) {
   // What the provider of this transcript can do (full Claude profile outside the chat panel).
+  const { t } = useT()
   const caps = useChatCapabilities()
   if (message.role === 'user') {
     // No refs on the message (the server never announced refs_v1, or none were sent): the text is drawn as before.
@@ -192,7 +194,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
           )}
         </div>
         {placed && placed.unplaced.length > 0 && (
-          <ul className="flex flex-wrap justify-end gap-1.5 mt-1 max-w-[85%]" aria-label="References">
+          <ul className="flex flex-wrap justify-end gap-1.5 mt-1 max-w-[85%]" aria-label={t('chatA-messages.bubble.references')}>
             {placed.unplaced.map((r) => (
               <li key={`${r.kind}:${r.id}`}>
                 <ReferenceChip reference={r} />
@@ -203,7 +205,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
         {message.attachments && message.attachments.length > 0 && (
           <ul
             className="flex flex-wrap justify-end gap-1.5 mt-1 max-w-[85%]"
-            aria-label="Attachments"
+            aria-label={t('chatA-messages.bubble.attachments')}
           >
             {message.attachments.map((a) => (
               <li
@@ -223,7 +225,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
         <div className="flex items-center gap-1 mt-0.5 mr-1 text-[10px] text-gray-600">
           <CopyMarkdownButton
             getMarkdown={() => messageBodyToMarkdown(message)}
-            title="Copy message as markdown"
+            title={t('chatA-messages.bubble.copyMessage')}
           />
           {message.timestamp && (
             <>
@@ -434,7 +436,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
         {isStreaming && message.blocks.length === 0 && (
           <div className="flex items-center gap-1.5 text-gray-500 text-sm">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-            <span>Thinking...</span>
+            <span>{t('chatA-messages.bubble.thinking')}</span>
           </div>
         )}
         {/* Turn summary: copy button · timestamp · duration · cost */}
@@ -442,7 +444,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
           <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-gray-600">
             <CopyMarkdownButton
               getMarkdown={() => messageBodyToMarkdown(message)}
-              title="Copy reply as markdown"
+              title={t('chatA-messages.bubble.copyReply')}
             />
             {message.timestamp && (
               <>

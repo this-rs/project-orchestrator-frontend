@@ -8,6 +8,7 @@
  */
 
 import { useState } from 'react'
+import { useT } from '@/i18n'
 import {
   StatusBadge, SectionHeader, McpContainer, truncate, basename,
   CollapsibleList,
@@ -20,6 +21,7 @@ import { Check, Copy } from 'lucide-react'
 // ---------------------------------------------------------------------------
 
 function CopyPathButton({ path }: { path: string }) {
+  const { t } = useT()
   const [copied, setCopied] = useState(false)
 
   const handleCopy = (e: React.MouseEvent) => {
@@ -32,7 +34,7 @@ function CopyPathButton({ path }: { path: string }) {
   return (
     <button
       onClick={handleCopy}
-      title="Copy path"
+      title={t('chatA-tools.code.copyPath')}
       className="shrink-0 p-0.5 rounded hover:bg-white/[0.08] text-gray-600 hover:text-gray-400 transition-colors"
     >
       {copied ? (
@@ -70,20 +72,21 @@ function HighlightedSnippet({ snippet, filePath }: { snippet: string; filePath: 
 // ---------------------------------------------------------------------------
 
 function SearchResults({ data }: { data: unknown }) {
+  const { t } = useT()
   // Result is typically an array of search hits
   const items = Array.isArray(data) ? data as Record<string, unknown>[] : []
   if (items.length === 0) {
-    return <div className="text-gray-600 italic">No results</div>
+    return <div className="text-gray-600 italic">{t('chatA-tools.code.noResults')}</div>
   }
 
   return (
     <McpContainer>
-      <SectionHeader count={items.length}>Search results</SectionHeader>
+      <SectionHeader count={items.length}>{t('chatA-tools.code.searchResults')}</SectionHeader>
       <div className="space-y-1 max-h-80 overflow-y-auto">
         <CollapsibleList
           items={items}
           limit={5}
-          label="results"
+          label={t('chatA-tools.code.label.results')}
           renderItem={(item, i) => {
             const doc = (item.document ?? item) as Record<string, unknown>
             const filePath = (doc.file_path ?? doc.path ?? '') as string
@@ -127,11 +130,12 @@ function SearchResults({ data }: { data: unknown }) {
 // ---------------------------------------------------------------------------
 
 function FileSymbols({ data }: { data: Record<string, unknown> }) {
-  const categories = ['functions', 'structs', 'enums', 'traits', 'impls', 'macros', 'constants', 'type_aliases']
+  const { t } = useT()
+  const categories = ['functions', 'structs', 'enums', 'traits', 'impls', 'macros', 'constants', 'type_aliases'] as const
   const found = categories.filter(c => Array.isArray(data[c]) && (data[c] as unknown[]).length > 0)
 
   if (found.length === 0) {
-    return <div className="text-gray-600 italic">No symbols found</div>
+    return <div className="text-gray-600 italic">{t('chatA-tools.code.noSymbols')}</div>
   }
 
   return (
@@ -140,7 +144,7 @@ function FileSymbols({ data }: { data: Record<string, unknown> }) {
         const items = data[cat] as (string | Record<string, unknown>)[]
         return (
           <div key={cat}>
-            <SectionHeader count={items.length}>{cat}</SectionHeader>
+            <SectionHeader count={items.length}>{t(`chatA-tools.code.cat.${cat}`)}</SectionHeader>
             <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
               {items.map((item, i) => {
                 const name = typeof item === 'string' ? item : (item.name ?? item.symbol_name ?? '') as string
@@ -166,18 +170,19 @@ function FileSymbols({ data }: { data: Record<string, unknown> }) {
 // ---------------------------------------------------------------------------
 
 function References({ data }: { data: unknown }) {
+  const { t } = useT()
   const obj = data as Record<string, unknown>
   const refs = (obj.references ?? (Array.isArray(data) ? data : [])) as Record<string, unknown>[]
 
   if (refs.length === 0) {
-    return <div className="text-gray-600 italic">No references found</div>
+    return <div className="text-gray-600 italic">{t('chatA-tools.code.noReferences')}</div>
   }
 
   // Group references by file
   const grouped = new Map<string, Record<string, unknown>[]>()
   for (const ref of refs) {
     const filePath = (ref.file_path ?? ref.path ?? '') as string
-    const key = filePath || '(unknown)'
+    const key = filePath || t('chatA-tools.code.unknownFile')
     if (!grouped.has(key)) grouped.set(key, [])
     grouped.get(key)!.push(ref)
   }
@@ -186,12 +191,12 @@ function References({ data }: { data: unknown }) {
 
   return (
     <McpContainer>
-      <SectionHeader count={refs.length}>References</SectionHeader>
+      <SectionHeader count={refs.length}>{t('chatA-tools.code.references')}</SectionHeader>
       <div className="space-y-1.5 max-h-64 overflow-y-auto">
         <CollapsibleList
           items={groupEntries}
           limit={5}
-          label="files"
+          label={t('chatA-tools.code.label.files')}
           renderItem={([filePath, fileRefs], gi) => (
             <div key={gi} className="space-y-0.5">
               <div className="flex items-center gap-1.5 px-1">
@@ -254,6 +259,7 @@ function normalizeCallGraphItems(raw: unknown[]): Record<string, unknown>[] {
 }
 
 function CallGraph({ data }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   const callers = normalizeCallGraphItems((data.callers ?? data.called_by ?? []) as unknown[])
   const callees = normalizeCallGraphItems((data.callees ?? data.calls ?? []) as unknown[])
 
@@ -261,12 +267,12 @@ function CallGraph({ data }: { data: Record<string, unknown> }) {
     <McpContainer>
       {callers.length > 0 && (
         <div>
-          <SectionHeader count={callers.length}>Called by</SectionHeader>
+          <SectionHeader count={callers.length}>{t('chatA-tools.code.calledBy')}</SectionHeader>
           <div className="max-h-40 overflow-y-auto border-l border-gray-800/50 ml-1">
             <CollapsibleList
               items={callers}
               limit={8}
-              label="callers"
+              label={t('chatA-tools.code.label.callers')}
               renderItem={(c, i) => <CallGraphNode key={i} item={c} direction="caller" />}
             />
           </div>
@@ -274,19 +280,19 @@ function CallGraph({ data }: { data: Record<string, unknown> }) {
       )}
       {callees.length > 0 && (
         <div>
-          <SectionHeader count={callees.length}>Calls</SectionHeader>
+          <SectionHeader count={callees.length}>{t('chatA-tools.code.calls')}</SectionHeader>
           <div className="max-h-40 overflow-y-auto border-l border-gray-800/50 ml-1">
             <CollapsibleList
               items={callees}
               limit={8}
-              label="callees"
+              label={t('chatA-tools.code.label.callees')}
               renderItem={(c, i) => <CallGraphNode key={i} item={c} direction="callee" />}
             />
           </div>
         </div>
       )}
       {callers.length === 0 && callees.length === 0 && (
-        <div className="text-gray-600 italic">No call graph data</div>
+        <div className="text-gray-600 italic">{t('chatA-tools.code.noCallGraph')}</div>
       )}
     </McpContainer>
   )
@@ -297,6 +303,7 @@ function CallGraph({ data }: { data: Record<string, unknown> }) {
 // ---------------------------------------------------------------------------
 
 function ImpactAnalysis({ data }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   const impactLevel = (data.impact_level ?? data.level ?? '') as string
   const target = data.target as string | undefined
   const callerCount = data.caller_count as number | undefined
@@ -312,12 +319,12 @@ function ImpactAnalysis({ data }: { data: Record<string, unknown> }) {
       <div className="space-y-0.5 mt-1">
         {callerCount != null && (
           <div className="text-[11px] text-gray-500">
-            <span className="text-gray-600">callers:</span> {callerCount}
+            <span className="text-gray-600">{t('chatA-tools.code.callersColon')}</span> {callerCount}
           </div>
         )}
         {depFiles.length > 0 && (
           <div>
-            <SectionHeader count={depFiles.length}>Dependent files</SectionHeader>
+            <SectionHeader count={depFiles.length}>{t('chatA-tools.code.dependentFiles')}</SectionHeader>
             <div className="space-y-0.5 max-h-32 overflow-y-auto">
               {depFiles.map((f, i) => (
                 <div key={i} className="font-mono text-[10px] text-gray-500 px-2">{f}</div>
@@ -335,6 +342,7 @@ function ImpactAnalysis({ data }: { data: Record<string, unknown> }) {
 // ---------------------------------------------------------------------------
 
 function Architecture({ data }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   const rawFiles = (data.top_files ?? data.files ?? []) as Record<string, unknown>[]
   const languages = data.languages as Record<string, unknown> | undefined
 
@@ -365,12 +373,12 @@ function Architecture({ data }: { data: Record<string, unknown> }) {
 
       {files.length > 0 && (
         <div>
-          <SectionHeader count={files.length}>Most connected files</SectionHeader>
+          <SectionHeader count={files.length}>{t('chatA-tools.code.mostConnected')}</SectionHeader>
           <div className="space-y-0.5 max-h-64 overflow-y-auto">
             <CollapsibleList
               items={files}
               limit={8}
-              label="files"
+              label={t('chatA-tools.code.label.files')}
               renderItem={(f, i) => {
                 const connections = (typeof f.connections === 'number' ? f.connections : typeof f.count === 'number' ? f.count : 0) as number
                 const filePath = (f.path ?? f.file_path ?? '') as string
@@ -403,7 +411,9 @@ function Architecture({ data }: { data: Record<string, unknown> }) {
 // Trait implementations / type traits / impl blocks
 // ---------------------------------------------------------------------------
 
-function SymbolList({ data, label }: { data: unknown; label: string }) {
+function SymbolList({ data, kind }: { data: unknown; kind: 'implementations' | 'traits' | 'impls' }) {
+  const { t } = useT()
+  const label = t(`chatA-tools.code.symbols.${kind}`)
   const items = Array.isArray(data)
     ? data as Record<string, unknown>[]
     : (data as Record<string, unknown>)?.implementations
@@ -414,7 +424,7 @@ function SymbolList({ data, label }: { data: unknown; label: string }) {
   const list = Array.isArray(items) ? items as Record<string, unknown>[] : []
 
   if (list.length === 0) {
-    return <div className="text-gray-600 italic">No {label} found</div>
+    return <div className="text-gray-600 italic">{t(`chatA-tools.code.symbolsNone.${kind}`)}</div>
   }
 
   return (
@@ -454,6 +464,7 @@ function FileDepItem({ path }: { path: string }) {
 }
 
 function FileDependencies({ data }: { data: Record<string, unknown> }) {
+  const { t } = useT()
   const imports = (data.imports ?? []) as string[]
   const dependents = (data.dependents ?? data.imported_by ?? []) as string[]
 
@@ -461,12 +472,12 @@ function FileDependencies({ data }: { data: Record<string, unknown> }) {
     <McpContainer>
       {imports.length > 0 && (
         <div>
-          <SectionHeader count={imports.length}>Imports</SectionHeader>
+          <SectionHeader count={imports.length}>{t('chatA-tools.code.imports')}</SectionHeader>
           <div className="space-y-0.5 max-h-32 overflow-y-auto">
             <CollapsibleList
               items={imports}
               limit={6}
-              label="imports"
+              label={t('chatA-tools.code.label.imports')}
               renderItem={(f, i) => <FileDepItem key={i} path={f} />}
             />
           </div>
@@ -474,12 +485,12 @@ function FileDependencies({ data }: { data: Record<string, unknown> }) {
       )}
       {dependents.length > 0 && (
         <div>
-          <SectionHeader count={dependents.length}>Imported by</SectionHeader>
+          <SectionHeader count={dependents.length}>{t('chatA-tools.code.importedBy')}</SectionHeader>
           <div className="space-y-0.5 max-h-32 overflow-y-auto">
             <CollapsibleList
               items={dependents}
               limit={6}
-              label="dependents"
+              label={t('chatA-tools.code.label.dependents')}
               renderItem={(f, i) => <FileDepItem key={i} path={f} />}
             />
           </div>
@@ -503,9 +514,9 @@ const CODE_RENDERERS: Record<string, React.ComponentType<{ data: unknown }>> = {
   get_call_graph: ({ data }) => <CallGraph data={(data ?? {}) as Record<string, unknown>} />,
   analyze_impact: ({ data }) => <ImpactAnalysis data={(data ?? {}) as Record<string, unknown>} />,
   get_architecture: ({ data }) => <Architecture data={(data ?? {}) as Record<string, unknown>} />,
-  find_trait_implementations: ({ data }) => <SymbolList data={data} label="Implementations" />,
-  find_type_traits: ({ data }) => <SymbolList data={data} label="Traits" />,
-  get_impl_blocks: ({ data }) => <SymbolList data={data} label="Impl blocks" />,
+  find_trait_implementations: ({ data }) => <SymbolList data={data} kind="implementations" />,
+  find_type_traits: ({ data }) => <SymbolList data={data} kind="traits" />,
+  get_impl_blocks: ({ data }) => <SymbolList data={data} kind="impls" />,
   get_file_dependencies: ({ data }) => <FileDependencies data={(data ?? {}) as Record<string, unknown>} />,
   // GDS tools — use generic architecture view as fallback
   get_code_communities: ({ data }) => <Architecture data={(data ?? {}) as Record<string, unknown>} />,

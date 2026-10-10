@@ -18,16 +18,17 @@
  */
 import { memo, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Bot, CheckCircle2, ChevronDown, CornerRightUp, ExternalLink, Eye, Layers, Loader2, MessageSquare, Square, Terminal, Workflow } from 'lucide-react'
+import { useT } from '@/i18n'
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks'
 import { countByKind, type RunningItem, type RunningKind } from './runningActivity'
 import { useElapsedMs, formatDurationShort } from './useElapsedMs'
 
-const KIND_META: Record<RunningKind, { icon: typeof Eye; one: string; many: string }> = {
-  run: { icon: Layers, one: 'run', many: 'runs' },
-  workflow: { icon: Workflow, one: 'workflow', many: 'workflows' },
-  agent: { icon: Bot, one: 'agent', many: 'agents' },
-  shell: { icon: Terminal, one: 'shell', many: 'shells' },
-  monitor: { icon: Eye, one: 'monitor', many: 'monitors' },
+const KIND_META: Record<RunningKind, { icon: typeof Eye }> = {
+  run: { icon: Layers },
+  workflow: { icon: Workflow },
+  agent: { icon: Bot },
+  shell: { icon: Terminal },
+  monitor: { icon: Eye },
 }
 
 /** How long the Stop confirmation stays visible. */
@@ -78,21 +79,22 @@ interface RowProps {
 }
 
 function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
-  const { icon: Icon, one } = KIND_META[item.kind]
+  const { t } = useT()
+  const { icon: Icon } = KIND_META[item.kind]
   const elapsedMs = useElapsedMs(item.startedAt, true)
   return (
     <li className={`flex items-center gap-2 px-2.5 py-1.5 ${stopping ? 'opacity-70' : ''}`} data-kind={item.kind}>
-      <Icon className="w-3 h-3 shrink-0 text-emerald-400/80" aria-label={one} />
+      <Icon className="w-3 h-3 shrink-0 text-emerald-400/80" aria-label={t(`chatA-activity.kindName.${item.kind}`)} />
       <span className="flex-1 min-w-0 truncate text-xs text-gray-300" title={item.title}>
         {item.title}
       </span>
       {item.progress && (
         <span className="shrink-0 text-[10px] tabular-nums text-gray-400">
-          {item.progress.settled}/{item.progress.total} agents
+          {t('chatA-activity.row.progress', { settled: item.progress.settled, total: item.progress.total })}
         </span>
       )}
       {stopping ? (
-        <span className="shrink-0 text-[10px] text-amber-300/80">stopping…</span>
+        <span className="shrink-0 text-[10px] text-amber-300/80">{t('chatA-activity.row.stopping')}</span>
       ) : (
         elapsedMs != null && (
           <span className="shrink-0 text-[10px] tabular-nums text-gray-500">{formatDurationShort(elapsedMs)}</span>
@@ -103,8 +105,8 @@ function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
           <button
             type="button"
             onClick={() => revealInTranscript(item.anchorId!)}
-            aria-label={`Show ${item.title} in the conversation`}
-            title="Show in the conversation"
+            aria-label={t('chatA-activity.row.showAria', { title: item.title })}
+            title={t('chatA-activity.row.show')}
             className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
           >
             <CornerRightUp className="w-3 h-3" />
@@ -114,8 +116,8 @@ function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
           <button
             type="button"
             onClick={() => runActions.view(item.sessionId!)}
-            aria-label={`Open the conversation of ${item.title}`}
-            title="Open its conversation"
+            aria-label={t('chatA-activity.row.openConversationAria', { title: item.title })}
+            title={t('chatA-activity.row.openConversation')}
             className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
           >
             <MessageSquare className="w-3 h-3" />
@@ -125,8 +127,8 @@ function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
           <button
             type="button"
             onClick={() => runActions.dashboard(item.planId!)}
-            aria-label={`Open the runner dashboard of ${item.title}`}
-            title="Open the runner dashboard"
+            aria-label={t('chatA-activity.row.dashboardAria', { title: item.title })}
+            title={t('chatA-activity.row.dashboard')}
             className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-gray-200 hover:bg-white/[0.06] transition-colors"
           >
             <ExternalLink className="w-3 h-3" />
@@ -136,8 +138,8 @@ function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
           <button
             type="button"
             onClick={() => runActions.stop(item.sessionId!)}
-            aria-label={`Stop ${item.title}`}
-            title="Stop this run"
+            aria-label={t('chatA-activity.row.stopAria', { title: item.title })}
+            title={t('chatA-activity.row.stopRun')}
             className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-red-600/10 transition-colors"
           >
             <Square className="w-3 h-3" />
@@ -148,8 +150,8 @@ function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
             type="button"
             onClick={() => onStop(item.taskId!)}
             disabled={stopping}
-            aria-label={`Stop ${item.title}`}
-            title={stopping ? 'Stopping…' : 'Stop'}
+            aria-label={t('chatA-activity.row.stopAria', { title: item.title })}
+            title={stopping ? t('chatA-activity.row.stoppingTitle') : t('chatA-activity.row.stop')}
             className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-red-600/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {stopping ? <Loader2 className="w-3 h-3 animate-spin" /> : <Square className="w-3 h-3" />}
@@ -161,6 +163,7 @@ function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
 }
 
 export const ActivityBar = memo(function ActivityBar({ items, runActions }: { items: ReadonlyArray<RunningItem>; runActions?: RunActions }) {
+  const { t } = useT()
   const { cancelTask } = useBackgroundTasks()
   const [expanded, setExpanded] = useState(false)
   // Sticky: a row says "stopping…" from the click until the task leaves the
@@ -207,7 +210,7 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
       if (result.capped) {
         // Refused: the click did nothing, so the row must not say "stopping…".
         setStoppingFor(taskId, false)
-        flash({ kind: 'error', message: 'Cancelling too fast — try again in a moment.' })
+        flash({ kind: 'error', message: t('chatA-activity.bar.tooFast') })
       } else if (result.killed_pids.length > 0) {
         flash({ kind: 'success', killed: result.killed_pids.length })
       } else {
@@ -215,12 +218,12 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
       }
     } catch {
       setStoppingFor(taskId, false)
-      flash({ kind: 'error', message: 'Failed to cancel task — try the global Stop instead.' })
+      flash({ kind: 'error', message: t('chatA-activity.bar.cancelFailed') })
     }
   }
 
   const counts = countByKind(items)
-  const summary = counts.map(({ kind, count }) => `${count} ${count === 1 ? KIND_META[kind].one : KIND_META[kind].many}`).join(', ')
+  const summary = counts.map(({ kind, count }) => t(count === 1 ? `chatA-activity.kindCount.${kind}.one` : `chatA-activity.kindCount.${kind}.many`, { count })).join(', ')
   const workflows = items.filter((i) => i.kind === 'workflow' && i.progress)
   const soleProgress = workflows.length === 1 ? workflows[0].progress : undefined
 
@@ -230,7 +233,7 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
         type="button"
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
-        aria-label={`Running: ${summary}`}
+        aria-label={t('chatA-activity.bar.runningAria', { summary })}
         className="flex w-full items-center gap-2.5 px-2.5 py-1 text-[11px] text-gray-400 hover:bg-white/[0.03] transition-colors"
       >
         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" aria-hidden />
@@ -238,12 +241,12 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
             duration and the chevron on the right stay. */}
         <span className="flex min-w-0 flex-1 items-center gap-2.5 overflow-hidden whitespace-nowrap">
         {counts.map(({ kind, count }) => {
-          const { icon: Icon, one, many } = KIND_META[kind]
+          const { icon: Icon } = KIND_META[kind]
           return (
             <span key={kind} className="inline-flex items-center gap-1 shrink-0" data-kind={kind}>
               <Icon className="w-3 h-3 text-emerald-400/80" aria-hidden />
               <span>
-                {count} {count === 1 ? one : many}
+                {t(count === 1 ? `chatA-activity.kindCount.${kind}.one` : `chatA-activity.kindCount.${kind}.many`, { count })}
                 {kind === 'workflow' && soleProgress && (
                   <span className="tabular-nums text-gray-500">
                     {' '}
@@ -283,9 +286,9 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
           )}
           <span>
             {feedback.kind === 'success'
-              ? `Stopped ${feedback.killed} subprocess${feedback.killed === 1 ? '' : 'es'}.`
+              ? t(feedback.killed === 1 ? 'chatA-activity.bar.stoppedOne' : 'chatA-activity.bar.stoppedMany', { count: feedback.killed })
               : feedback.kind === 'fallback'
-                ? 'Cancel registered, but the subprocess PID wasn’t known — if ticks keep arriving, use the global Stop button.'
+                ? t('chatA-activity.bar.noPid')
                 : feedback.message}
           </span>
         </div>

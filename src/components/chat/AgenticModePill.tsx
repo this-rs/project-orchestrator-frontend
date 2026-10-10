@@ -20,6 +20,7 @@
 import { memo, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bot, ExternalLink } from 'lucide-react'
+import { useT } from '@/i18n'
 import { PulseIndicator } from '@/components/ui'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
@@ -44,6 +45,7 @@ export const AgenticModePill = memo(function AgenticModePill({
   runs,
   hasActiveRuns,
 }: AgenticModePillProps) {
+  const { t } = useT()
   const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
   const [popoverOpen, setPopoverOpen] = useState(false)
@@ -83,10 +85,10 @@ export const AgenticModePill = memo(function AgenticModePill({
 
   const tooltip =
     state === 'running'
-      ? `Agentic mode — ${activeRuns.length} agent${activeRuns.length > 1 ? 's' : ''} working`
+      ? t(activeRuns.length === 1 ? 'chatA-activity.pill.workingOne' : 'chatA-activity.pill.workingMany', { count: activeRuns.length })
       : state === 'completed'
-        ? `Agentic mode — ${runs.length} run${runs.length > 1 ? 's' : ''} completed`
-        : 'Agentic mode — ready'
+        ? t(runs.length === 1 ? 'chatA-activity.pill.completedOne' : 'chatA-activity.pill.completedMany', { count: runs.length })
+        : t('chatA-activity.pill.ready')
 
   return (
     <div className="relative">
@@ -118,16 +120,15 @@ export const AgenticModePill = memo(function AgenticModePill({
           <div className="absolute top-full right-0 mt-1 z-20 w-72 rounded-md border border-white/10 bg-slate-900/95 backdrop-blur-sm shadow-xl p-3 space-y-2 text-xs">
             <div className="text-slate-300 font-medium flex items-center gap-2">
               <Bot className={`w-3.5 h-3.5 ${accentColor}`} />
-              <span>Agentic mode</span>
+              <span>{t('chatA-activity.pill.title')}</span>
               <span className="text-slate-500">·</span>
-              <span className="capitalize text-slate-400">{state}</span>
+              <span className="capitalize text-slate-400">{t(`chatA-activity.pill.state.${state}`)}</span>
             </div>
 
             {state === 'running' && (
               <div className="space-y-1.5">
                 <p className="text-[11px] text-slate-400">
-                  {activeRuns.length} run{activeRuns.length > 1 ? 's' : ''} currently streaming. The
-                  banner below shows agents in real time.
+                  {t(activeRuns.length === 1 ? 'chatA-activity.pill.streamingOne' : 'chatA-activity.pill.streamingMany', { count: activeRuns.length })}
                 </p>
                 <ul className="space-y-1">
                   {activeRuns.slice(0, 5).map((r) => (
@@ -137,7 +138,7 @@ export const AgenticModePill = memo(function AgenticModePill({
                     </li>
                   ))}
                   {activeRuns.length > 5 && (
-                    <li className="text-[10px] text-slate-500">+ {activeRuns.length - 5} more</li>
+                    <li className="text-[10px] text-slate-500">{t('chatA-activity.pill.more', { count: activeRuns.length - 5 })}</li>
                   )}
                 </ul>
               </div>
@@ -145,14 +146,13 @@ export const AgenticModePill = memo(function AgenticModePill({
 
             {state === 'ready' && (
               <p className="text-[11px] text-slate-400 leading-relaxed">
-                Linked plans exist on this chat but none is currently streaming.
+                {t('chatA-activity.pill.readyNote')}
               </p>
             )}
 
             {state === 'completed' && (
               <p className="text-[11px] text-slate-400">
-                {runs.length} run{runs.length > 1 ? 's' : ''} ran from this chat. None is currently
-                streaming.
+                {t(runs.length === 1 ? 'chatA-activity.pill.ranOne' : 'chatA-activity.pill.ranMany', { count: runs.length })}
               </p>
             )}
 
@@ -161,7 +161,7 @@ export const AgenticModePill = memo(function AgenticModePill({
                 onClick={handleOpenDashboard}
                 className="w-full inline-flex items-center justify-center gap-1.5 mt-1 py-1.5 rounded-md text-[11px] text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 transition-colors"
               >
-                Open runner dashboard
+                {t('chatA-activity.pill.openDashboard')}
                 <ExternalLink className="w-2.5 h-2.5" />
               </button>
             )}

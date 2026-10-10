@@ -9,6 +9,7 @@
  *   overall_score?: number
  * }
  */
+import { useT } from '@/i18n'
 import type { VizBlockProps } from './registry'
 import { RadarChart } from '@/components/ui/RadarChart'
 import type { RadarAxis } from '@/components/ui/RadarChart'
@@ -28,11 +29,12 @@ interface RadarDimension {
 // ============================================================================
 
 export function ContextRadarViz({ data, expanded = false }: VizBlockProps) {
+  const { t } = useT()
   const dimensions = (data.dimensions as RadarDimension[]) ?? []
   const overallScore = data.overall_score as number | undefined
 
   if (dimensions.length === 0) {
-    return <div className="text-xs text-gray-600 italic px-2 py-4">No radar data available.</div>
+    return <div className="text-xs text-gray-600 italic px-2 py-4">{t('chatA-tools.viz.noRadar')}</div>
   }
 
   // Normalize dimensions to [0, 1] axes

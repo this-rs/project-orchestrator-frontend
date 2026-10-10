@@ -18,6 +18,7 @@
 
 import { costSumPartialHelp, costReport, costToText, formatCostSum, formatUsd2, sumCosts, type CostReport } from '@/utils/cost'
 import { memo, useMemo } from 'react'
+import { useT } from '@/i18n'
 import { useNavigate } from 'react-router-dom'
 import { Bot, Eye, Square, ExternalLink, Cpu, MemoryStick } from 'lucide-react'
 import { PulseIndicator } from '@/components/ui'
@@ -81,6 +82,7 @@ function AgentCard({
   onViewSession?: (sessionId: string) => void
   onStop?: () => void
 }) {
+  const { t } = useT()
   const isLive = agent.status === 'spawning' || agent.status === 'running' || agent.status === 'verifying'
   const tint = statusTint(agent.status)
 
@@ -96,23 +98,23 @@ function AgentCard({
 
       {/* Metrics row */}
       <div className="flex items-center gap-2 text-[10px] opacity-75">
-        <span title="Elapsed">{Math.floor(agent.elapsed_secs)}s</span>
-        <span title="Cost">{costLabel(costReport(agent.cost_usd, agent.cost_basis))}</span>
-        <span className="capitalize text-[9px] uppercase tracking-wide opacity-60">{agent.status}</span>
+        <span title={t('chatA-activity.banner.elapsed')}>{Math.floor(agent.elapsed_secs)}s</span>
+        <span title={t('chatA-activity.banner.cost')}>{costLabel(costReport(agent.cost_usd, agent.cost_basis))}</span>
+        <span className="capitalize text-[9px] uppercase tracking-wide opacity-60">{t(`chatA-activity.status.${agent.status}`)}</span>
       </div>
 
       {/* OS resources (only when wired via set_pid) */}
       {agent.resources && (
         <div className="flex items-center gap-2 text-[10px] opacity-75 pt-0.5 border-t border-current/10 mt-0.5">
-          <span className="inline-flex items-center gap-0.5" title="RAM (resident)">
+          <span className="inline-flex items-center gap-0.5" title={t('chatA-activity.banner.ram')}>
             <MemoryStick className="w-2.5 h-2.5" />
             {agent.resources.rss_mb.toFixed(0)} MB
           </span>
-          <span className="inline-flex items-center gap-0.5" title="CPU">
+          <span className="inline-flex items-center gap-0.5" title={t('chatA-activity.banner.cpu')}>
             <Cpu className="w-2.5 h-2.5" />
             {agent.resources.cpu_pct.toFixed(0)}%
           </span>
-          <span className="opacity-60" title={`PID ${agent.resources.pid} · ${agent.resources.threads} threads · ${agent.resources.status}`}>
+          <span className="opacity-60" title={t('chatA-activity.banner.pidTitle', { pid: agent.resources.pid, threads: agent.resources.threads, status: agent.resources.status })}>
             #{agent.resources.pid}
           </span>
         </div>
@@ -125,17 +127,17 @@ function AgentCard({
             <button
               onClick={() => agent.session_id && onViewSession?.(agent.session_id)}
               className="flex-1 inline-flex items-center justify-center gap-1 text-[10px] py-1 px-2 rounded hover:bg-current/10 transition-colors"
-              title="View this agent's conversation"
+              title={t('chatA-activity.banner.viewAgent')}
             >
               <Eye className="w-2.5 h-2.5" />
-              View
+              {t('chatA-activity.banner.view')}
             </button>
           )}
           {isLive && onStop && (
             <button
               onClick={onStop}
               className="inline-flex items-center justify-center gap-1 text-[10px] py-1 px-2 rounded hover:bg-red-500/20 hover:text-red-400 transition-colors"
-              title="Interrupt this agent"
+              title={t('chatA-activity.banner.interrupt')}
             >
               <Square className="w-2.5 h-2.5" />
             </button>
@@ -145,8 +147,8 @@ function AgentCard({
 
       {/* runId tag (debug aid, very subtle) */}
       {runId && (
-        <span className="text-[9px] opacity-30 truncate" title={`Run ${runId}`}>
-          run {runId.slice(0, 8)}
+        <span className="text-[9px] opacity-30 truncate" title={t('chatA-activity.banner.runTitle', { id: runId })}>
+          {t('chatA-activity.banner.runShort', { id: runId.slice(0, 8) })}
         </span>
       )}
     </div>
@@ -168,6 +170,7 @@ function RunSection({
   onStopRun: (sessionId: string) => void
   onOpenDashboard: (planId: string) => void
 }) {
+  const { t } = useT()
   // Hook only fires when there's a planId — guarded internally.
   const { snapshot } = useRunnerStatus(run.planId)
   const isThisRun = snapshot?.run_id === run.runId
@@ -191,7 +194,7 @@ function RunSection({
           <div className="flex items-center gap-3 mt-0.5 text-[10px] text-slate-400">
             <span>⏱ {formatDuration(run.startedAt)}</span>
             <span>💸 {costLabel(cost)}</span>
-            {wave != null && <span>🌊 Wave {wave}</span>}
+            {wave != null && <span>🌊 {t('chatA-activity.banner.wave', { wave })}</span>}
             {progress != null && <span>📊 {progress.toFixed(0)}%</span>}
             <span className="opacity-50">{run.model}</span>
           </div>
@@ -200,9 +203,9 @@ function RunSection({
           <button
             onClick={() => onOpenDashboard(run.planId!)}
             className="shrink-0 inline-flex items-center gap-1 text-[10px] py-1 px-2 rounded-md text-indigo-300 hover:bg-indigo-500/15 transition-colors"
-            title="Open the full runner dashboard"
+            title={t('chatA-activity.banner.openDashboard')}
           >
-            Dashboard <ExternalLink className="w-2.5 h-2.5" />
+            {t('chatA-activity.banner.dashboard')} <ExternalLink className="w-2.5 h-2.5" />
           </button>
         )}
       </div>
@@ -222,7 +225,7 @@ function RunSection({
         </div>
       ) : (
         <div className="text-[10px] text-slate-500 italic">
-          {run.isStreaming ? 'Spawning agents…' : 'No active agents'}
+          {run.isStreaming ? t('chatA-activity.banner.spawning') : t('chatA-activity.banner.noAgents')}
         </div>
       )}
     </div>
@@ -238,6 +241,7 @@ export const AgenticModeBanner = memo(function AgenticModeBanner({
   onViewRun,
   onStopRun,
 }: AgenticModeBannerProps) {
+  const { t } = useT()
   const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
 
@@ -267,14 +271,14 @@ export const AgenticModeBanner = memo(function AgenticModeBanner({
         </div>
         <div className="flex-1 flex items-center gap-2">
           <span className="text-xs font-semibold tracking-wide text-indigo-200 uppercase">
-            Agentic Mode
+            {t('chatA-activity.banner.title')}
           </span>
           <span className="text-[11px] text-slate-400">
-            · {activeRuns.length} run{activeRuns.length > 1 ? 's' : ''} active
+            · {t(activeRuns.length === 1 ? 'chatA-activity.banner.activeOne' : 'chatA-activity.banner.activeMany', { count: activeRuns.length })}
           </span>
           {cumulativeCost.usd > 0 && (
             <span className="text-[11px] text-slate-500" title={cumulativeCost.unknown > 0 ? costSumPartialHelp() : undefined}>
-              · cumulative {formatCostSum(cumulativeCost)}
+              · {t('chatA-activity.banner.cumulative', { cost: formatCostSum(cumulativeCost) ?? '' })}
             </span>
           )}
         </div>

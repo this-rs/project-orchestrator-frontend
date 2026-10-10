@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react'
+import { useT } from '@/i18n'
 import type { ToolRendererProps } from './types'
 
 /** Max characters to show before offering "show more" */
@@ -32,6 +33,7 @@ function parseExitCode(text: string | undefined, isError: boolean | undefined): 
 }
 
 export function BashToolRenderer({ toolInput, resultContent, isError, isLoading }: ToolRendererProps) {
+  const { t } = useT()
   const command = ((toolInput.command as string) ?? '').trim()
   const description = ((toolInput.description as string) ?? '').trim()
   const timeout = toolInput.timeout as number | undefined
@@ -46,7 +48,7 @@ export function BashToolRenderer({ toolInput, resultContent, isError, isLoading 
     : null
 
   // Determine what to display as the primary command text
-  const displayCommand = command || (description ? '' : '(empty command)')
+  const displayCommand = command || (description ? '' : t('chatA-tools.bash.emptyCommand'))
   const isLong = displayCommand.length > 160 || displayCommand.split('\n').length > COMMAND_CLAMP_LINES
 
   // Determine if the result has been finished (not loading, has content)
@@ -89,7 +91,7 @@ export function BashToolRenderer({ toolInput, resultContent, isError, isLoading 
           >
             <span className="text-green-500/70 select-none">$ </span>
             {displayCommand || (
-              <span className="text-gray-600 italic">{description || '(empty command)'}</span>
+              <span className="text-gray-600 italic">{description || t('chatA-tools.bash.emptyCommand')}</span>
             )}
           </div>
 
@@ -147,15 +149,15 @@ export function BashToolRenderer({ toolInput, resultContent, isError, isLoading 
           }`}
         >
           {expanded
-            ? 'show less'
-            : `show ${hiddenChars.toLocaleString()} more characters`}
+            ? t('chatA-tools.bash.showLess')
+            : t('chatA-tools.bash.showMore', { count: hiddenChars })}
         </button>
       )}
 
       {/* Empty result */}
       {hasEmptyResult && (
         <div className="border-t border-white/[0.04] rounded-b-md bg-black/20 px-3 py-1.5">
-          <span className="text-xs text-gray-600 italic select-none">no output</span>
+          <span className="text-xs text-gray-600 italic select-none">{t('chatA-tools.bash.noOutput')}</span>
         </div>
       )}
 
@@ -163,7 +165,7 @@ export function BashToolRenderer({ toolInput, resultContent, isError, isLoading 
       {isLoading && (
         <div className="border-t border-white/[0.04] rounded-b-md bg-black/20 px-3 py-2 flex items-center gap-2">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" />
-          <span className="text-xs text-gray-600 animate-pulse">running...</span>
+          <span className="text-xs text-gray-600 animate-pulse">{t('chatA-tools.bash.running')}</span>
         </div>
       )}
     </div>
