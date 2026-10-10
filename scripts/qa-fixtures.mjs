@@ -50,6 +50,68 @@ const notes = [
   { id: 'n-3', project_id: 'p-2', note_type: 'context', status: 'active', importance: 'low', content: 'Le site tourne encore sur l\'ancien hébergeur jusqu\'à décembre.', tags: [], anchors: [], created_at: '2026-09-20T08:00:00Z', created_by: 'theo', staleness_score: 0.2 },
 ]
 const session = { id: SESSION_ID, workspace_slug: WS, project_slug: 'billing', cwd: '/srv/billing', title: 'Session 1 - Facturation automatique', model: 'sonnet', created_at: T0, updated_at: T0, message_count: 0 }
+/**
+ * A conversation worth tracing (screen `chat-trace`): a turn with a sub-agent and a failed call,
+ * two hours of silence, parallel calls, two dozen short turns, and a child session still running.
+ * Timestamps are fractional seconds (what the history would carry with millisecond precision).
+ */
+export const TRACE_ID = '5b0f3c1e-7a2d-4c55-9e1a-2f6b8d4e7a10'
+export const TRACE_CHILD_ID = '9c1d2e3f-4a5b-4c6d-8e7f-a0b1c2d3e4f5'
+// Relative to the moment the bench runs: the child session started 70 s ago and is still running.
+const TRACE_T = Math.floor(Date.now() / 1000) - (2 * 3600 + 13 * 60 + 40 + 70)
+function traceHistory() {
+  const ev = []
+  const at = (t) => TRACE_T + t
+  const user = (t, content) => ev.push({ type: 'user_message', id: `u-${ev.length}`, content, created_at: at(t) })
+  const call = (id, tool, input, t0, t1, extra = {}) => {
+    ev.push({ type: 'tool_use', id, tool, input, created_at: at(t0), ...(extra.parent && { parent_tool_use_id: extra.parent }) })
+    if (t1 != null) ev.push({ type: 'tool_result', id, result: extra.result ?? 'ok', is_error: !!extra.error, created_at: at(t1), ...(extra.parent && { parent_tool_use_id: extra.parent }) })
+  }
+  const done = (t, ms) => ev.push({ type: 'result', duration_ms: ms, created_at: at(t) })
+  user(0, 'Prépare la facture de septembre pour le client suisse')
+  call('t-read', 'Read', { file_path: 'invoices/2026-09.csv' }, 0.42, 0.91)
+  call('t-grep', 'Grep', { pattern: 'TVA', path: 'templates/' }, 1.02, 1.34)
+  ev.push({ type: 'tool_use', id: 't-agent', tool: 'Task', input: { description: 'Vérifier les mentions légales' }, created_at: at(1.5) })
+  call('t-a1', 'Read', { file_path: 'legal/ch.md' }, 2.01, 2.63, { parent: 't-agent' })
+  call('t-a2', 'Bash', { command: 'pdftotext template.pdf -' }, 2.8, 6.12, { parent: 't-agent', error: true, result: 'pdftotext: command not found' })
+  call('t-a3', 'Write', { file_path: 'legal/notes.md' }, 6.5, 7.21, { parent: 't-agent' })
+  ev.push({ type: 'tool_result', id: 't-agent', result: 'Mention « hors UE » requise.', created_at: at(9.02) })
+  call('t-bash', 'Bash', { command: 'npm run invoice -- --month 2026-09' }, 9.3, 10.42)
+  ev.push({ type: 'assistant_text', content: 'Facture prête.', created_at: at(10.6) })
+  done(10.7, 10_700)
+  const H = 2 * 3600 + 13 * 60
+  user(H, 'Envoie-la au client et archive le PDF')
+  call('t-web', 'WebFetch', { url: 'https://client.example/contacts' }, H + 0.3, H + 3.12)
+  call('t-mail', 'mcp__mail__send', { to: 'compta@client.example' }, H + 0.41, H + 2.8)
+  call('t-arch', 'Bash', { command: 'mv out/2026-09.pdf archive/' }, H + 0.52, H + 1.21)
+  done(H + 3.4, 3400)
+  for (let i = 0; i < 24; i += 1) {
+    const t = H + 20 + i * 6
+    user(t, `Vérifie la ligne ${i + 1} du relevé`)
+    call(`t-r${i}`, 'Read', { file_path: `statements/line-${i + 1}.json` }, t + 0.2, t + 0.55)
+    call(`t-g${i}`, 'Grep', { pattern: `REF-${1000 + i}` }, t + 0.6, t + 1.1 + (i % 4) * 0.4)
+    if (i % 5 === 2) call(`t-x${i}`, 'Bash', { command: 'node reconcile.js' }, t + 1.2, t + 4.6, { error: i % 10 === 2 })
+    done(t + 5, 5000)
+  }
+  return ev.map((e, seq) => ({ seq, ...e }))
+}
+function childHistory() {
+  const ev = []
+  const at = (t) => TRACE_T + 2 * 3600 + 13 * 60 + 40 + t
+  ev.push({ type: 'user_message', id: 'cu-0', content: 'Rapprocher les paiements de septembre', created_at: at(0) })
+  ev.push({ type: 'tool_use', id: 'c-1', tool: 'Read', input: { file_path: 'bank/2026-09.csv' }, created_at: at(0.3) })
+  ev.push({ type: 'tool_result', id: 'c-1', result: 'ok', created_at: at(0.8) })
+  ev.push({ type: 'tool_use', id: 'c-2', tool: 'Bash', input: { command: 'node match-payments.js' }, created_at: at(1.0) })
+  return ev.map((e, seq) => ({ seq, ...e }))
+}
+const traceEvents = { [TRACE_ID]: traceHistory(), [TRACE_CHILD_ID]: childHistory() }
+const traceSession = { ...{ workspace_slug: 'acme-freelance', project_slug: 'billing', cwd: '/srv/billing', model: 'claude-sonnet-4-5', provider_id: 'claude-code' }, id: TRACE_ID, title: 'Facture de septembre', created_at: new Date(TRACE_T * 1000).toISOString(), updated_at: new Date(TRACE_T * 1000).toISOString(), message_count: 80 }
+const traceMessages = (m, url) => {
+  const all = traceEvents[m[1]] ?? []
+  const offset = Number(url.searchParams.get('offset') || 0)
+  const limit = Number(url.searchParams.get('limit') || 50)
+  return { messages: all.slice(offset, offset + limit), total_count: all.length, has_more: offset + limit < all.length, offset, limit }
+}
 const liveAgents = { generated_at: T0, agents: [], total: 0, waiting_input: 0, streaming: 0, idle: 0 }
 const counts = { total: 6, completed: 2, in_progress: 1, blocked: 1, pending: 2, failed: 0, percentage: 33 }
 
@@ -86,6 +148,13 @@ const COMMON = [
   ['GET', /^\/api\/notes$/, page(notes)],
   ['GET', /^\/api\/notes\/needs-review$/, { items: notes.filter((n) => n.status === 'needs_review') }],
   ['GET', /^\/api\/decisions\/search$/, []],
+  ['GET', new RegExp(`^/api/chat/sessions/(${TRACE_ID}|${TRACE_CHILD_ID})/messages$`), traceMessages],
+  ['GET', new RegExp(`^/api/chat/sessions/${TRACE_ID}/tree$`), [
+    { session_id: TRACE_ID, depth: 0, is_streaming: false, title: 'Facture de septembre', model: 'claude-sonnet-4-5', provider_id: 'claude-code' },
+    { session_id: TRACE_CHILD_ID, parent_session_id: TRACE_ID, depth: 1, is_streaming: true, title: 'Rapprochement des paiements', model: 'deepseek-chat', provider_id: 'native', created_at: new Date((TRACE_T + 2 * 3600 + 13 * 60 + 40) * 1000).toISOString() },
+  ]],
+  ['GET', new RegExp(`^/api/chat/sessions/${TRACE_ID}$`), traceSession],
+  ['GET', /^\/api\/chat\/routing\/decisions$/, []],
   ['GET', /^\/api\/chat\/sessions$/, page([session])],
   ['GET', /^\/api\/chat\/sessions\/[^/]+$/, session],
   ['GET', /^\/api\/chat\/sessions\/[^/]+\/messages$/, { messages: [], total_count: 0, has_more: false, offset: 0, limit: 50 }],
@@ -152,6 +221,7 @@ export const SCREENS = [
   { slug: 'tasks', label: 'Tasks', route: `/workspace/${WS}/tasks`, scenario: 'app' },
   { slug: 'notes', label: 'Notes', route: `/workspace/${WS}/notes`, scenario: 'app' },
   { slug: 'chat-empty', label: 'Chat (empty session)', route: `/workspace/${WS}/chat/${SESSION_ID}`, scenario: 'app' },
+  { slug: 'chat-trace', label: 'Conversation trace (timeline page)', route: `/workspace/${WS}/chat/${TRACE_ID}/timeline`, scenario: 'app' },
   { slug: 'overview', label: 'Workspace overview (timeline)', route: `/workspace/${WS}/overview`, scenario: 'app' },
   { slug: 'vector-space', label: 'Vector space', route: `/workspace/${WS}/projects/billing/intelligence/vector-space`, scenario: 'app' },
   { slug: 'setup-1', label: 'Setup — step 1', route: '/setup', scenario: 'setup' },

@@ -166,3 +166,29 @@ describe('plan / task / step', () => {
     expect(upstream.map((i) => i.id)).toEqual(['p', 't', 'request:m1'])
   })
 })
+
+describe('the span of a turn', () => {
+  it('ends with the result of the turn, or at its last event', () => {
+    const msgs = [
+      user('m1', 'go', 0), assistant('m2', [toolUse('a', 'Bash', {}, 1), toolResult('a', 4)], 1, { duration_ms: 3000 }),
+      user('m3', 'again', 10), assistant('m4', [toolUse('b', 'Bash', {}, 11), toolResult('b', 17)], 11),
+    ]
+    const { items } = buildTimeline({ messages: msgs, sessionId: 's' })
+    expect(items.find((i) => i.id === 'request:m1')).toMatchObject({ endedAt: at(4).getTime(), durationMs: 4000 })
+    // No result (an interrupted turn, an older page): it still ends at its last event.
+    expect(items.find((i) => i.id === 'request:m3')).toMatchObject({ endedAt: at(17).getTime() })
+  })
+
+  it('is running while its turn streams', () => {
+    const streaming = buildTimeline({ messages: [user('m1', 'go', 0), assistant('m2', [toolUse('a', 'Bash', {}, 1)], 1)], sessionId: 's', isStreaming: true })
+    expect(streaming.items.find((i) => i.id === 'request:m1')?.status).toBe('running')
+    const justSent = buildTimeline({ messages: [user('m1', 'go', 0)], sessionId: 's', isStreaming: true })
+    expect(justSent.items.find((i) => i.id === 'request:m1')?.status).toBe('running')
+  })
+
+  it('marks the moment the conversation moved to another provider', () => {
+    const relayed: ContentBlock = { id: 'rel', type: 'conversation_relayed', content: 'Moved to native', metadata: { to_session_id: 'next', to_provider: 'native', created_at: iso(5) } }
+    const { items } = buildTimeline({ messages: [user('m1', 'go', 0), assistant('m2', [relayed], 5)], sessionId: 's' })
+    expect(items.find((i) => i.id === 'rel')).toMatchObject({ kind: 'marker', sessionId: 'next', label: 'Moved to native' })
+  })
+})

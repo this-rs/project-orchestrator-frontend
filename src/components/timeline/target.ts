@@ -10,6 +10,9 @@
  * `blockInPage` says whether the transcript block is actually loaded: the
  * transcript is paged, so an old call may have an anchor and no block. Then the
  * page is the answer, instead of a click that does nothing.
+ *
+ * `fallback: 'conversation'` (the timeline page itself): what has no block in
+ * the page opens the conversation it happened in instead of the timeline page.
  */
 import type { TimelineItem } from './model'
 
@@ -19,7 +22,7 @@ export type TimelineTarget =
 
 export function resolveTarget(
   item: TimelineItem,
-  ctx: { workspaceSlug: string; sessionId: string; blockInPage: (anchorId: string) => boolean; byId?: ReadonlyMap<string, TimelineItem> },
+  ctx: { workspaceSlug: string; sessionId: string; blockInPage: (anchorId: string) => boolean; byId?: ReadonlyMap<string, TimelineItem>; fallback?: 'timeline' | 'conversation' },
 ): TimelineTarget {
   const base = `/workspace/${ctx.workspaceSlug}`
   if (item.anchorId && ctx.blockInPage(item.anchorId)) return { type: 'scroll', anchorId: item.anchorId }
@@ -27,5 +30,6 @@ export function resolveTarget(
   if (item.kind === 'task') return { type: 'navigate', to: `${base}/tasks/${item.id}` }
   if (item.kind === 'step' && item.parentId) return { type: 'navigate', to: `${base}/tasks/${item.parentId}` }
   if (item.kind === 'run' && item.sessionId) return { type: 'navigate', to: `${base}/chat/${item.sessionId}` }
+  if (ctx.fallback === 'conversation') return { type: 'navigate', to: `${base}/chat/${item.laneId || ctx.sessionId}` }
   return { type: 'navigate', to: `${base}/chat/${ctx.sessionId}/timeline?item=${encodeURIComponent(item.id)}` }
 }

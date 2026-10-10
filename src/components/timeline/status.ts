@@ -1,6 +1,6 @@
 import type { StatusTone } from '@/components/ui/statusMeta'
 import { routedByLabel } from '@/constants/providers'
-import { shortModel, type TimelineLane, type TimelineStatus } from './model'
+import { shortModel, type TimelineKind, type TimelineLane, type TimelineStatus } from './model'
 
 export const STATUS_TONE: Record<TimelineStatus, StatusTone> = {
   running: 'progress',
@@ -27,6 +27,103 @@ export interface TimelineLabels {
   parallel: string
   /** A stretch with nothing happening, drawn as a break; `{d}` is its length. */
   idle: string
+  trace: TraceLabels
+}
+
+/** The words of the trace view. `{x}` markers are filled by the component. */
+export interface TraceLabels {
+  label: string
+  /** `{n}` spans. */
+  spans: string
+  zoomIn: string
+  zoomOut: string
+  fit: string
+  follow: string
+  help: string
+  helpTouch: string
+  overview: string
+  window: string
+  ruler: string
+  column: string
+  expand: string
+  collapse: string
+  /** `{loaded}` of `{total}` events. */
+  loading: string
+  loadingStart: string
+  failed: string
+  retry: string
+  noDate: string
+  child: string
+  relay: string
+  kind: Record<TimelineKind, string>
+  detail: {
+    title: string
+    close: string
+    total: string
+    self: string
+    start: string
+    end: string
+    running: string
+    status: string
+    kind: string
+    model: string
+    provider: string
+    input: string
+    output: string
+    showMore: string
+    showLess: string
+    goTo: string
+    openSession: string
+    zoom: string
+  }
+}
+
+export const DEFAULT_TRACE_LABELS: TraceLabels = {
+  label: 'Trace of the conversation',
+  spans: 'Spans: {n}',
+  zoomIn: 'Zoom in',
+  zoomOut: 'Zoom out',
+  fit: 'Show everything',
+  follow: 'Follow live',
+  help: 'Zoom: Ctrl/⌘ + wheel or W/S · Pan: drag or A/D · Double-click a span to zoom on it',
+  helpTouch: 'Pinch to zoom, drag sideways to pan, tap a span for its details',
+  overview: 'Overview of the whole conversation',
+  window: 'Visible window',
+  ruler: 'Time since the first event',
+  column: 'Span',
+  expand: 'Expand',
+  collapse: 'Collapse',
+  loading: 'Loading earlier turns… {loaded} of {total} events',
+  loadingStart: 'Loading the history…',
+  failed: 'Part of the history could not be loaded.',
+  retry: 'Try again',
+  noDate: 'no date',
+  child: 'Delegated session',
+  relay: 'Relayed thread',
+  kind: {
+    request: 'Turn', tool: 'Tool call', agent: 'Sub-agent', permission: 'Permission', error: 'Error', marker: 'Event',
+    run: 'Session', routing: 'Routing', plan: 'Plan', task: 'Task', step: 'Step',
+  },
+  detail: {
+    title: 'Span details',
+    close: 'Close',
+    total: 'Total time',
+    self: 'Self time',
+    start: 'Start',
+    end: 'End',
+    running: 'still running',
+    status: 'Status',
+    kind: 'Kind',
+    model: 'Model',
+    provider: 'Provider',
+    input: 'Input',
+    output: 'Output',
+    showMore: 'Show all',
+    showLess: 'Show less',
+    goTo: 'Show in the conversation',
+    openSession: 'Open this session',
+    zoom: 'Zoom on this span',
+  },
 }
 
 export const DEFAULT_TIMELINE_LABELS: TimelineLabels = {
@@ -38,6 +135,7 @@ export const DEFAULT_TIMELINE_LABELS: TimelineLabels = {
   peak: 'Peak in parallel: {n}',
   parallel: 'In parallel',
   idle: '{d} idle',
+  trace: DEFAULT_TRACE_LABELS,
 }
 
 export function formatItemDuration(ms?: number): string | null {

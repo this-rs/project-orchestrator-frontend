@@ -980,3 +980,15 @@ html {
 [data-po-ref]:not([data-po-ref-drag='off']) {
   -webkit-touch-callout: none;
 }
+
+/* Trace view (components/timeline): the stripes of a running span move. */
+@keyframes trace-stripes {
+  from { background-position: 0 0; }
+  to { background-position: 20px 0; }
+}
+.trace-running {
+  animation: trace-stripes 1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .trace-running { animation: none; }
+}

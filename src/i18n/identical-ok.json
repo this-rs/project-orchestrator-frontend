@@ -9,6 +9,7 @@
     "vi:intelDashboard.heatmap.hour",
     "nav.concepts.code",
     "de:session.init.tools", "de:session.tools.count",
+    "fr:session.timeline.trace.kind.plan", "es:session.timeline.trace.kind.plan",
     "routing.badge.poChooses",
     "fr:activity.param.agent", "de:activity.param.agent", "de:activity.param.tool", "fr:activity.param.workflow",
     "de:activity.param.workflow", "es:activity.title.monitor", "pt:activity.title.monitor", "de:activity.title.monitor",
