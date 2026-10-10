@@ -164,4 +164,8 @@ export default {
     pending: '옮기는 중…',
     refused: { forbidden: '로그인한 사람만 대화를 다른 프로바이더로 옮길 수 있습니다.', not_found: '이 대화는 더 이상 존재하지 않습니다.', empty_message: '새 프로바이더에서 보낼 메시지를 작성하세요.', same_provider: '대화가 이미 이 프로바이더에 있습니다.', failed: '대화를 옮기지 못했습니다. 아무것도 바뀌지 않았습니다: 다시 시도하세요.' },
   },
+  capabilities: {
+    banner: { poolLacksImages: "PO가 이 대화를 라우팅할 수 있는 모델 중 이미지를 받는 모델이 없습니다", imagesPoolUnbuilt: "이 모델은 이미지를 받지 않으며, PO의 라우팅 풀은 아직 조사되지 않았습니다(조사되지 않음은 이미지를 받는 모델이 없다는 뜻이 아닙니다)" },
+    composer: { poolLacksImages: "PO가 이 대화를 라우팅할 수 있는 모델 중 이미지를 받는 모델이 없습니다. 첨부되지 않음: {names}.", imagesPoolUnbuilt: "이 모델은 이미지를 받지 않으며, PO의 라우팅 풀은 아직 조사되지 않았습니다. 첨부되지 않음: {names}." },
+  },
 } satisfies Translation<'routing'>

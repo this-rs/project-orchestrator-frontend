@@ -164,4 +164,8 @@ export default {
     pending: '移動中…',
     refused: { forbidden: '会話を別のプロバイダーに移せるのはサインインした人だけです。', not_found: 'この会話はもう存在しません。', empty_message: '新しいプロバイダーで送信するメッセージを書いてください。', same_provider: 'この会話はすでにこのプロバイダー上にあります。', failed: '会話を移せませんでした。何も変わっていません: もう一度お試しください。' },
   },
+  capabilities: {
+    banner: { poolLacksImages: "PO がこの会話をルーティングできるモデルのうち、画像を受け付けるものはありません", imagesPoolUnbuilt: "このモデルは画像を受け付けません。PO のルーティングプールはまだ調査されていません（未調査は、画像を受け付けるモデルがないという意味ではありません）" },
+    composer: { poolLacksImages: "PO がこの会話をルーティングできるモデルのうち、画像を受け付けるものはありません。添付されていません: {names}。", imagesPoolUnbuilt: "このモデルは画像を受け付けません。PO のルーティングプールはまだ調査されていません。添付されていません: {names}。" },
+  },
 } satisfies Translation<'routing'>

@@ -58,6 +58,46 @@ const CAPABILITY_OF: Readonly<Record<string, keyof ProviderCapabilities>> = {
 
 export const CAUSE_ORDER: readonly DegradationCause[] = ['installation', 'harness', 'model', 'unprobed']
 
+/**
+ * F-R4 — what the routing candidates make of `images`, as degraded ids (cause `model`: a limit of
+ * the models within reach, never our engine's gap):
+ * - `routing_images` — PO routes and none of its candidates reads images;
+ * - `images_pool_unbuilt` — PO routes but its pool is not built yet: the opening model's limit
+ *   stands, said with its cause (not probed is not absent).
+ */
+export const ROUTING_IMAGES = 'routing_images'
+export const IMAGES_POOL_UNBUILT = 'images_pool_unbuilt'
+const ROUTING_FEATURES: readonly string[] = [ROUTING_IMAGES, IMAGES_POOL_UNBUILT]
+
+/** The effective `images` fact of a session (`ChatSession.effective_capabilities.images`), as far as this module needs it. */
+export interface EffectiveImagesFact {
+  images: { value: boolean; source: 'snapshot' | 'routing_pool'; cause: string }
+}
+
+/**
+ * The engine's list and the declared capabilities, with `images` read from the routing candidates
+ * when PO routes (F-R4, decision 11cefdb2). The banner then never says "this model does not accept
+ * images" when PO can route the turn to a model that does:
+ * - routing pool, a candidate reads images → no `images` line at all;
+ * - routing pool, none does → `routing_images` (the pool's limit, honestly said);
+ * - snapshot because the pool is not built → `images_pool_unbuilt` in place of the model's line;
+ * - otherwise (no routing, no router, the model reads images) → unchanged.
+ * Returns the very same arrays/objects when nothing changes.
+ */
+export function withEffectiveImages(
+  degraded: readonly string[],
+  declared: DeclaredCapabilities | null | undefined,
+  effective: EffectiveImagesFact | null | undefined,
+): { degraded: readonly string[]; declared: DeclaredCapabilities | null | undefined } {
+  const images = effective?.images
+  if (!images) return { degraded, declared }
+  const lacking = images.source === 'routing_pool' ? (images.value ? null : ROUTING_IMAGES) : images.cause === 'pool_unbuilt' && !images.value ? IMAGES_POOL_UNBUILT : undefined
+  if (lacking === undefined) return { degraded, declared }
+  // `images` declared present so the declared limit adds no line of its own: the effective fact speaks.
+  const rest = degraded.filter((id) => id !== 'images' && id !== ROUTING_IMAGES && id !== IMAGES_POOL_UNBUILT)
+  return { degraded: lacking ? [...rest, lacking] : rest, declared: { ...(declared ?? {}), images: true } }
+}
+
 /** A positive context window size is declared. */
 function contextWindowKnown(declared: DeclaredCapabilities | null | undefined): boolean {
   const cw = declared?.context_window
@@ -98,6 +138,11 @@ export function classifyDegradations(
     if (id === 'context_window') {
       // Listed by the engine: unprobed unless a size is declared (then nothing is missing).
       if (!contextWindowKnown(declared)) found.set(id, 'unprobed')
+      continue
+    }
+    if (ROUTING_FEATURES.includes(id)) {
+      // What the models within PO's reach cannot do (F-R4): a limit, not our gap.
+      found.set(id, 'model')
       continue
     }
     if (INSTALLATION_FEATURES.includes(id)) {
@@ -145,6 +190,8 @@ const MODEL_KEYS: Readonly<Record<string, MessageKey>> = {
   tools: 'session.model.tools',
   compaction: 'session.model.compaction',
   project_orchestrator_tools: 'session.model.project_orchestrator_tools',
+  [ROUTING_IMAGES]: 'routing.capabilities.banner.poolLacksImages',
+  [IMAGES_POOL_UNBUILT]: 'routing.capabilities.banner.imagesPoolUnbuilt',
 }
 
 /** `brand_new_thing` → `brand new thing`: an unknown id stays visible, never hidden. */

@@ -164,4 +164,8 @@ export default {
     pending: 'Movendo…',
     refused: { forbidden: 'Somente uma pessoa conectada pode mover uma conversa para outro provedor.', not_found: 'Esta conversa não existe mais.', empty_message: 'Escreva a mensagem a enviar no novo provedor.', same_provider: 'A conversa já está neste provedor.', failed: 'Não foi possível mover a conversa. Nada mudou: tente novamente.' },
   },
+  capabilities: {
+    banner: { poolLacksImages: "Nenhum modelo para o qual o PO pode encaminhar esta conversa aceita imagens", imagesPoolUnbuilt: "Este modelo não aceita imagens e o pool de roteamento do PO ainda não foi sondado (não sondado não significa que nenhum modelo as aceite)" },
+    composer: { poolLacksImages: "Nenhum modelo para o qual o PO pode encaminhar esta conversa aceita imagens. Não anexado: {names}.", imagesPoolUnbuilt: "Este modelo não aceita imagens e o pool de roteamento do PO ainda não foi sondado. Não anexado: {names}." },
+  },
 } satisfies Translation<'routing'>

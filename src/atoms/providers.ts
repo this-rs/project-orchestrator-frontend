@@ -23,6 +23,8 @@ import type { ProviderRoutingMode, RoutingSettingsResponse } from '@/types/routi
 import { pickModelResolver } from '@/constants/providers'
 import { modeOf, type RoutingPick } from '@/utils/routingSelection'
 import { chatPermissionConfigAtom, chatSelectedProjectAtom, chatSessionIdAtom, chatSessionModelAtom } from './chat'
+import type { EffectiveCapabilities } from '@/types/chat'
+import { withEffectiveImages } from '@/constants/engine'
 
 /**
  * - `idle` — never asked.
@@ -119,6 +121,20 @@ export const chatSessionProviderAtom = atom<ProviderRef | null>(null)
 export const chatSessionCapabilitiesSnapshotAtom = atom<Partial<ProviderCapabilities> | null>(null)
 
 /**
+ * What the next turn of the current session can really carry, given its routing (F-R4,
+ * `ChatSession.effective_capabilities`): the snapshot above is the OPENING model's, this follows
+ * the candidates PO may route the turn to. Keyed by session so a previous conversation's fact
+ * never leaks into this one.
+ */
+export const chatSessionEffectiveCapabilitiesStateAtom = atom<{ sessionId: string; capabilities: EffectiveCapabilities | null } | null>(null)
+
+/** The effective capabilities of the CURRENT session; `null` = nothing said (the snapshot alone decides). */
+export const chatSessionEffectiveCapabilitiesAtom = atom<EffectiveCapabilities | null>((get) => {
+  const state = get(chatSessionEffectiveCapabilitiesStateAtom)
+  return state && state.sessionId === get(chatSessionIdAtom) ? state.capabilities : null
+})
+
+/**
  * Engine of the current session and what it cannot do (`system_init.engine`,
  * `degraded_features`, as the backend emits them).
  * Empty = nothing said: no banner.
@@ -128,6 +144,24 @@ export interface ChatSessionEngine {
   degraded: string[]
 }
 export const chatSessionEngineAtom = atom<ChatSessionEngine>({ engine: null, degraded: [] })
+
+/**
+ * The engine's list of what the session cannot do, as the capability banner must read it (F-R4):
+ * when PO routes, `images` follows the routing candidates, not the opening model —
+ * `withEffectiveImages`. Same shape as `chatSessionEngineAtom`.
+ */
+export const chatSessionEngineFactsAtom = atom<ChatSessionEngine>((get) => {
+  const engine = get(chatSessionEngineAtom)
+  const facts = withEffectiveImages(engine.degraded, get(chatSessionCapabilitiesSnapshotAtom), get(chatSessionEffectiveCapabilitiesAtom))
+  return facts.degraded === engine.degraded ? engine : { ...engine, degraded: [...facts.degraded] }
+})
+
+/** The declared capabilities the capability banner reads, `images` adjusted as above. */
+export const chatSessionDeclaredFactsAtom = atom<Partial<ProviderCapabilities> | null>(
+  (get) =>
+    withEffectiveImages(get(chatSessionEngineAtom).degraded, get(chatSessionCapabilitiesSnapshotAtom), get(chatSessionEffectiveCapabilitiesAtom))
+      .declared as Partial<ProviderCapabilities> | null,
+)
 
 /** Neutral tool policy of the current session, from `system_init.tool_policy`. */
 export const chatSessionToolPolicyAtom = atom<ToolPolicy | null>(null)
@@ -356,6 +390,10 @@ export const chatSessionCapabilitiesAtom = atom<ProviderCapabilities>((get) => {
     snapshot?.images !== undefined ||
     instance?.capabilities?.images !== undefined ||
     instance?.models.find((m) => m.id === model)?.capabilities?.images !== undefined
+  // F-R4: when PO routes, a turn may carry images if ONE of the candidates reads them (the turn
+  // is then routed to it): the routing pool governs, not the opening model's snapshot.
+  const effective = get(chatSessionEffectiveCapabilitiesAtom)?.images
+  if (effective?.source === 'routing_pool') return { ...merged, images: effective.value }
   if (!declared && merged.images && get(chatSessionEngineAtom).engine === 'agent') return { ...merged, images: false }
   return merged
 })
@@ -365,9 +403,17 @@ export const chatSessionCapabilitiesAtom = atom<ProviderCapabilities>((get) => {
  * provider declares `images: false` (or nothing else is known), `harness` when
  * nobody declared it and the agent engine is the one that does not carry
  * images yet. `null` = images are accepted.
+ *
+ * When PO routes the conversation (F-R4): `routing` when no candidate of its routing pool reads
+ * images; `routing_unprobed` when the pool is not built yet (the model's own limit, said with the
+ * fact that nothing else was probed — not probed is not absent).
  */
-export const chatSessionImagesCauseAtom = atom<'model' | 'harness' | null>((get) => {
+export type ImagesCause = 'model' | 'harness' | 'routing' | 'routing_unprobed'
+export const chatSessionImagesCauseAtom = atom<ImagesCause | null>((get) => {
   if (get(chatSessionCapabilitiesAtom).images) return null
+  const effective = get(chatSessionEffectiveCapabilitiesAtom)?.images
+  if (effective?.source === 'routing_pool') return 'routing'
+  if (effective?.cause === 'pool_unbuilt') return 'routing_unprobed'
   const instance = get(chatEffectiveProviderAtom)
   const model = get(chatSessionModelAtom) ?? instance?.default_model
   const declaredFalse =

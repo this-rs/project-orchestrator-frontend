@@ -164,4 +164,8 @@ export default {
     pending: 'Wird verschoben…',
     refused: { forbidden: 'Nur eine angemeldete Person kann eine Unterhaltung zu einem anderen Provider verschieben.', not_found: 'Diese Unterhaltung existiert nicht mehr.', empty_message: 'Schreiben Sie die Nachricht, die auf dem neuen Provider gesendet werden soll.', same_provider: 'Die Unterhaltung ist bereits auf diesem Provider.', failed: 'Die Unterhaltung konnte nicht verschoben werden. Nichts wurde geändert: Versuchen Sie es erneut.' },
   },
+  capabilities: {
+    banner: { poolLacksImages: "Kein Modell, an das PO diese Unterhaltung weiterleiten kann, akzeptiert Bilder", imagesPoolUnbuilt: "Dieses Modell akzeptiert keine Bilder, und der Routing-Pool von PO ist noch nicht geprüft (nicht geprüft heißt nicht, dass kein Modell sie akzeptiert)" },
+    composer: { poolLacksImages: "Kein Modell, an das PO diese Unterhaltung weiterleiten kann, akzeptiert Bilder. Nicht angehängt: {names}.", imagesPoolUnbuilt: "Dieses Modell akzeptiert keine Bilder, und der Routing-Pool von PO ist noch nicht geprüft. Nicht angehängt: {names}." },
+  },
 } satisfies Translation<'routing'>

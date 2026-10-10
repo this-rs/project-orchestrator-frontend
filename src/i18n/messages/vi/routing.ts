@@ -164,4 +164,8 @@ export default {
     pending: 'Đang chuyển…',
     refused: { forbidden: 'Chỉ người đã đăng nhập mới có thể chuyển cuộc trò chuyện sang nhà cung cấp khác.', not_found: 'Cuộc trò chuyện này không còn tồn tại.', empty_message: 'Hãy viết tin nhắn gửi trên nhà cung cấp mới.', same_provider: 'Cuộc trò chuyện đã ở trên nhà cung cấp này.', failed: 'Không thể chuyển cuộc trò chuyện. Không có gì thay đổi: hãy thử lại.' },
   },
+  capabilities: {
+    banner: { poolLacksImages: "Không mô hình nào mà PO có thể định tuyến cuộc trò chuyện này tới chấp nhận hình ảnh", imagesPoolUnbuilt: "Mô hình này không chấp nhận hình ảnh, và nhóm định tuyến của PO chưa được thăm dò (chưa thăm dò không có nghĩa là không mô hình nào chấp nhận)" },
+    composer: { poolLacksImages: "Không mô hình nào mà PO có thể định tuyến cuộc trò chuyện này tới chấp nhận hình ảnh. Không đính kèm: {names}.", imagesPoolUnbuilt: "Mô hình này không chấp nhận hình ảnh, và nhóm định tuyến của PO chưa được thăm dò. Không đính kèm: {names}." },
+  },
 } satisfies Translation<'routing'>
