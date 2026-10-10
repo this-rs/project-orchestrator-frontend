@@ -48,9 +48,37 @@ describe('buildTimeline', () => {
 
     it('treats a missing run start as "never ran": from the engine announcement to the end, both server times', () => {
       // The block was stamped by a browser clock 5 s ahead; the engine's called_at is the server's.
-      const unseen = timed('u', 6, { called_at: t0 + 1, ended_at: t0 + 3 })
+      // The engine took the call up (started_at) but did not see it start: that is worth a note.
+      const unseen = timed('u', 6, { called_at: t0 + 1, started_at: t0 + 1.1, ended_at: t0 + 3 })
       const item = callIn([user('m1', 'go', 0), assistant('m2', [unseen, toolResult('u', 9)], 1)], 'u')
       expect(item).toMatchObject({ startedAt: at(1).getTime(), endedAt: at(3).getTime(), durationMs: 2000, run: 'unseen' })
+    })
+
+    it('says nothing of an unseen start when it is the normal case: no hook, a question, an unanswered permission, an incomplete timing', () => {
+      const noHook = timed('h', 6, { called_at: t0 + 1, ended_at: t0 + 3 })
+      const question = timed('q', 1, { called_at: t0 + 1, started_at: t0 + 1.1, permission_requested_at: t0 + 1.2, ended_at: t0 + 3 }, 'AskUserQuestion')
+      const unanswered = timed('n', 1, { called_at: t0 + 1, started_at: t0 + 1.1, permission_requested_at: t0 + 1.2, ended_at: t0 + 3, cancelled: true })
+      const partial = timed('p', 1, { called_at: t0 + 1, started_at: t0 + 1.1, ended_at: t0 + 3, incomplete: true })
+      const msgs = [user('m1', 'go', 0), assistant('m2', [noHook, toolResult('h', 9), question, toolResult('q', 9), unanswered, toolResult('n', 9, { is_cancelled: true }), partial, toolResult('p', 9)], 1)]
+      const { items } = buildTimeline({ messages: msgs, sessionId: 's' })
+      for (const id of ['h', 'q', 'n', 'p']) expect(items.find((i) => i.id === id)?.run, id).toBeUndefined()
+      // Still drawn from the engine's times.
+      expect(items.find((i) => i.id === 'h')).toMatchObject({ startedAt: at(1).getTime(), endedAt: at(3).getTime() })
+    })
+
+    it('shows a denied call as cancelled, not failed: it never ran', () => {
+      const denied = timed('d', 1, { permission_requested_at: t0 + 1.5, permission_resolved_at: t0 + 8, permission_outcome: 'denied', ended_at: t0 + 8.01 })
+      const item = callIn([user('m1', 'go', 0), assistant('m2', [denied, toolResult('d', 9, { is_error: true })], 1)], 'd')
+      expect(item).toMatchObject({ status: 'cancelled', run: 'denied' })
+    })
+
+    it('leaves a permission under its call while the engine has not dated the wait (no timing yet)', () => {
+      // The block's own time is before the call's (a permission stamped at the message start):
+      // with no `permission_requested_at`, it is not comparable with the call and stays under it.
+      const call = toolUse('a', 'Bash', { command: 'ls' }, 5)
+      const ask: ContentBlock = { id: 'p-a', type: 'permission_request', content: 'Bash wants to run', metadata: { tool_call_id: 'ctl-1', tool_use_id: 'a', created_at: iso(1) } }
+      const { items } = buildTimeline({ messages: [user('m1', 'go', 0), assistant('m2', [call, ask], 1)], sessionId: 's', isStreaming: true })
+      expect(items.find((i) => i.kind === 'permission')).toMatchObject({ parentId: 'a', startedAt: at(1).getTime(), status: 'blocked' })
     })
 
     it('gives no duration (not a 0 ms bar) to a call without run start whose end is before its start (clock skew)', () => {

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { TraceView } from './TraceView'
-import type { TimelineItem, TimelineLane } from './model'
+import { buildTimeline, type TimelineItem, type TimelineLane } from './model'
+import type { ChatMessage } from '@/types'
 
 const T0 = 1_700_000_000_000
 const item = (id: string, over: Partial<TimelineItem> = {}): TimelineItem => ({
@@ -64,6 +65,27 @@ describe('<TraceView>', () => {
     expect(within(row(/Bash · make/)).getByTestId('timing-incomplete')).toBeTruthy()
     expect(row(/Bash · rm/).getAttribute('aria-label')).toContain('Did not run: the permission was denied')
     expect(within(row(/Bash · rm/)).queryByTestId('timing-incomplete')).toBeNull()
+  })
+
+  it('adds no "did not see it start" note to a call of an engine without hook, nor to a question, in its label or title', () => {
+    const t = T0 / 1000
+    const call = (id: string, name: string, timing: Record<string, unknown>) => ({
+      id: `u-${id}`, type: 'tool_use' as const, content: name,
+      metadata: { tool_call_id: id, tool_name: name, tool_input: { command: id }, created_at: new Date(T0 + 1000).toISOString(), tool_timing: timing },
+    })
+    const result = (id: string) => ({ id: `r-${id}`, type: 'tool_result' as const, content: 'ok', metadata: { tool_call_id: id } })
+    const messages: ChatMessage[] = [
+      { id: 'm1', role: 'user', timestamp: new Date(T0), blocks: [{ id: 'b', type: 'text', content: 'go' }] },
+      { id: 'm2', role: 'assistant', timestamp: new Date(T0 + 1000), blocks: [
+        call('nohook', 'Bash', { called_at: t + 1, ended_at: t + 3 }), result('nohook'),
+        call('ask', 'AskUserQuestion', { called_at: t + 1, started_at: t + 1.1, permission_requested_at: t + 1.2, ended_at: t + 3 }), result('ask'),
+      ] },
+    ]
+    render(<TraceView lanes={buildTimeline({ messages, sessionId: 'l' }).lanes} />)
+    for (const name of [/Bash · nohook/, /AskUserQuestion/]) {
+      expect(row(name).getAttribute('aria-label')).not.toContain('did not see it start')
+      expect(row(name).getAttribute('title')).not.toContain('did not see it start')
+    }
   })
 
   it('says how far the history has loaded, and offers to retry a failure', () => {

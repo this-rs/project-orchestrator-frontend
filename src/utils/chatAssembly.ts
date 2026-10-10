@@ -251,6 +251,40 @@ export class EarlyToolTimings {
   get size(): number {
     return this.byId.size
   }
+
+  /**
+   * Put each held timing whose call is in `messages` on it (`attachToolTiming`:
+   * the message is replaced in the array, no block is mutated); a placed timing
+   * leaves the holder, the others stay.
+   */
+  placeIn(messages: ChatMessage[]): void {
+    for (const [id, timing] of [...this.byId]) {
+      if (attachToolTiming(messages, { ...timing, id })) this.byId.delete(id)
+    }
+  }
+
+  /**
+   * `messages` with each held timing whose call is in them placed on it, as a new
+   * array; neither `messages` nor the holder is changed (safe in a React updater).
+   */
+  placedOn(messages: ReadonlyArray<ChatMessage>): ChatMessage[] {
+    const out = [...messages]
+    for (const [id, timing] of this.byId) attachToolTiming(out, { ...timing, id })
+    return out
+  }
+
+  /** Move the held timings into `into` (all, or those `keep` accepts), leaving this holder empty. */
+  moveTo(into: EarlyToolTimings, keep: (id: string) => boolean = () => true): void {
+    for (const [id, timing] of this.byId) {
+      if (keep(id)) into.hold({ ...timing, id })
+    }
+    this.byId.clear()
+  }
+}
+
+/** Whether a `tool_use` block of call `id` is in `messages`. */
+export function hasToolUse(messages: ReadonlyArray<ChatMessage>, id: string): boolean {
+  return messages.some((m) => m.blocks.some((b) => b.type === 'tool_use' && b.metadata?.tool_call_id === id))
 }
 
 /**
@@ -264,6 +298,34 @@ export function serverTimeOf(evt: unknown): string | undefined {
   const raw = (evt as { created_at?: unknown }).created_at
   const ms = typeof raw === 'number' ? raw * 1000 : typeof raw === 'string' ? Date.parse(raw) : NaN
   return Number.isFinite(ms) ? new Date(ms).toISOString() : undefined
+}
+
+/**
+ * The server's clock, as seen from the browser: the gap between the `created_at`
+ * of the latest LIVE frame and the browser's clock when it came. What the browser
+ * stamps itself (a message it sends, an assistant message opened before any
+ * frame of it) is stamped on `now()`, so every row of a trace is on the server's
+ * clock even when the browser's is off. A replayed frame carries the time of an
+ * old event: it says nothing of the gap. Until a frame comes, the gap is 0.
+ */
+export class ServerClock {
+  private offsetMs = 0
+
+  /** Learn the gap from a frame (ignored when replayed or without `created_at`). */
+  observe(evt: unknown): void {
+    if (typeof evt !== 'object' || evt === null || (evt as { replaying?: unknown }).replaying) return
+    const t = serverTimeOf(evt)
+    if (t) this.offsetMs = Date.parse(t) - Date.now()
+  }
+
+  /** The server's time now (browser clock + gap). */
+  now(): Date {
+    return new Date(Date.now() + this.offsetMs)
+  }
+
+  get offset(): number {
+    return this.offsetMs
+  }
 }
 
 /**
@@ -415,6 +477,23 @@ export function toolsCancelledText(evt: { killed_count?: number; requested_by?: 
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boolean } = {}): ChatMessage[] {
+  return historyEventsToWindow(events, opts).messages
+}
+
+/** A page of history, assembled. */
+export interface HistoryWindow {
+  messages: ChatMessage[]
+  /**
+   * The timings of calls NOT in this page: their `tool_use` is on an older page
+   * (a call that began before the page and ended inside it). Kept by the caller
+   * and placed when that older page is loaded (`EarlyToolTimings.placeIn`).
+   */
+  unplacedTimings: EarlyToolTimings
+}
+
+/** `historyEventsToMessages`, with the timings whose call is not in the page. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boolean } = {}): HistoryWindow {
   // Without refs_v1 a stored `<po-refs>` block is plain text: the chat is what it was.
   const refsEnabled = opts.refsEnabled ?? false
   const messages: ChatMessage[] = []
@@ -431,8 +510,10 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
   // Track whether the previous event was a result/error_max_turns so we can
   // transform the following "Continue" user_message into a discreet indicator.
   let lastEventWasMaxTurns = false
-  // Timings stored before the tool_use of their call, until it comes (cleared at each turn's end).
+  // Timings stored before the tool_use of their call, until it comes. At each turn's
+  // end the ones still waiting go to `unplacedTimings`: their call is not in this page.
   const earlyTimings = new EarlyToolTimings()
+  const unplacedTimings = new EarlyToolTimings()
 
   for (const evt of events) {
     const type = evt.type as string
@@ -644,7 +725,11 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
           id: nextBlockId(),
           type: 'permission_request',
           content: `Tool "${evt.tool}" wants to execute`,
-          metadata: withParent({ tool_call_id: evt.id, tool_name: evt.tool, tool_input: evt.input, ...toolHintMetadata(evt), ...permissionCallOf(evt) }, parent),
+          // Its own time: without it the trace would date the wait from the message's start.
+          metadata: withCreatedAt(
+            withParent({ tool_call_id: evt.id, tool_name: evt.tool, tool_input: evt.input, ...toolHintMetadata(evt), ...permissionCallOf(evt) }, parent),
+            evt.created_at ? createdAt.toISOString() : undefined,
+          ),
         })
         break
       }
@@ -680,7 +765,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
               id: nextBlockId(),
               type: 'ask_user_question',
               content: questions.map((q: { question: string }) => q.question).join('\n'),
-              metadata: withParent(questionMetadata(evt, toolCallId, questions), parent),
+              metadata: withCreatedAt(withParent(questionMetadata(evt, toolCallId, questions), parent), evt.created_at ? createdAt.toISOString() : undefined),
             })
           }
         }
@@ -791,7 +876,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
       }
 
       case 'result': {
-        earlyTimings.clear()
+        earlyTimings.moveTo(unplacedTimings)
         const rSubtype = (evt.subtype as string) ?? 'success'
         const rNumTurns = evt.num_turns as number | undefined
         const rResultText = evt.result_text as string | undefined
@@ -918,7 +1003,8 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
     }
   }
 
-  return messages
+  earlyTimings.moveTo(unplacedTimings)
+  return { messages, unplacedTimings }
 }
 
 // ---------------------------------------------------------------------------
