@@ -13,6 +13,10 @@ export default {
   },
   degradation: {
     title: "Algunas funciones no están disponibles en esta conversación",
+    collapse: "Reducir a un icono",
+    collapsedLabel: "Funciones no disponibles: {count}. Ver detalles",
+    count: "Funciones no disponibles: {count}",
+    expand: "Mostrar encima del cuadro de mensaje",
     installation: {
       heading: "Falta en esta instalación",
       note: "A corregir en el servidor: no es una carencia del motor ni un límite del modelo.",

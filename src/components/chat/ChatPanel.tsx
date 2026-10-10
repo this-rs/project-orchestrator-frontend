@@ -15,7 +15,7 @@ import { instanceMissingComposerText, noProviderComposerText, NO_PROVIDER_ERROR 
 import { resumeUnsupportedText } from '@/constants/capabilities'
 import type { BackgroundTaskInfo } from '@/types'
 import { chatApi } from '@/services/chat'
-import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2 } from 'lucide-react'
+import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2, TriangleAlert } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
 import { RefsAnnouncer } from './RefsAnnouncer'
 import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget'
@@ -29,6 +29,9 @@ import { glassButton, glassFlat, iconButton } from '@/components/ui/classes'
 import { PolicyOnlyBanner } from './PolicyOnlyBanner'
 import { RemoteNoToolsBanner } from './RemoteNoToolsBanner'
 import { EngineBanner } from './EngineBanner'
+import { CapabilityGapsButton, CapabilityGapsPopover } from './CapabilityGapsButton'
+import { useCapabilityBannerCollapse } from './capabilityBannerCollapse'
+import { engineGaps } from '@/constants/engine'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { SecretRequestTray } from './SecretRequestTray'
 import { SessionOpenError } from './SessionOpenError'
@@ -113,6 +116,41 @@ export function ChatPanel() {
   const sessionModel = useAtomValue(chatSessionModelAtom)
   const engine = useAtomValue(chatSessionEngineAtom)
   const capabilitiesSnapshot = useAtomValue(chatSessionCapabilitiesSnapshotAtom)
+  // What this conversation cannot do (the capability banner). The reader can put the banner away as an
+  // amber icon in the header (on a phone: an amber count on the ⋯ menu button, the header has no room
+  // for one more button beside the title); a feature missing for the first time brings it back once.
+  const gapItems = useMemo(() => engineGaps(engine.degraded, capabilitiesSnapshot), [engine.degraded, capabilitiesSnapshot])
+  const gapIds = useMemo(() => gapItems.map((g) => g.id), [gapItems])
+  const bannerFold = useCapabilityBannerCollapse(gapIds)
+  const gapsIconRef = useRef<HTMLButtonElement>(null)
+  const overflowRef = useRef<HTMLButtonElement>(null)
+  const [gapsMenuOpen, setGapsMenuOpen] = useState(false)
+  const closeGapsMenu = useCallback((focusAnchor: boolean) => {
+    setGapsMenuOpen(false)
+    if (focusAnchor) overflowRef.current?.focus()
+  }, [])
+  const bannerCollapseRef = useRef<HTMLButtonElement>(null)
+  // Focus follows the control that replaced the one just used (it unmounts).
+  const { collapse: foldBanner, expand: unfoldBanner } = bannerFold
+  const collapseBanner = useCallback(() => {
+    foldBanner()
+    requestAnimationFrame(() => (gapsIconRef.current ?? overflowRef.current)?.focus())
+  }, [foldBanner])
+  const expandBanner = useCallback(() => {
+    unfoldBanner()
+    requestAnimationFrame(() => bannerCollapseRef.current?.focus())
+  }, [unfoldBanner])
+  const gapsFolded = bannerFold.collapsed && gapItems.length > 0
+  const gapsIcon = gapsFolded && !isMobile ? (
+    <CapabilityGapsButton items={gapItems} onExpand={expandBanner} triggerRef={gapsIconRef} />
+  ) : null
+  const gapsInMenu = gapsFolded && isMobile
+  const gapsCountLabel = t('session.degradation.count', { count: gapItems.length })
+  const gapsMenuBadge = gapsInMenu ? { count: gapItems.length, label: gapsCountLabel } : undefined
+  const gapsMenuAction = { label: gapsCountLabel, icon: TriangleAlert, tone: 'warning' as const, hidden: !gapsInMenu, onClick: () => setGapsMenuOpen(true) }
+  const gapsMenuPopover = (
+    <CapabilityGapsPopover open={gapsMenuOpen && gapsInMenu} onClose={closeGapsMenu} anchorRef={overflowRef} items={gapItems} onExpand={expandBanner} />
+  )
   const [sessionOpenError, setSessionOpenError] = useAtom(chatSessionOpenErrorAtom)
   const dismissSessionOpenError = useCallback(() => setSessionOpenError(null), [setSessionOpenError])
   // Session + panel mode live in the URL, so a reload reopens the chat as it was.
@@ -437,7 +475,9 @@ export function ChatPanel() {
       {!isNewConversation && sessionProviderInfo.isRemote && !capabilities.per_session_mcp && (
         <RemoteNoToolsBanner machine={sessionProviderInfo.label} />
       )}
-      <EngineBanner degraded={engine.degraded} declared={capabilitiesSnapshot} />
+      {!bannerFold.collapsed && (
+        <EngineBanner degraded={engine.degraded} declared={capabilitiesSnapshot} onCollapse={collapseBanner} collapseRef={bannerCollapseRef} />
+      )}
     </>
   )
 
@@ -555,7 +595,7 @@ export function ChatPanel() {
         {/* Right side — conversation (full width on mobile) */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Conversation header */}
-          <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
+          <div className="h-14 flex items-center justify-between px-3 md:px-4 border-b border-white/[0.06] shrink-0">
             <div className="min-w-0 flex flex-1 items-center gap-2">
               {/* Mobile: hamburger to toggle sidebar */}
               <button
@@ -587,6 +627,7 @@ export function ChatPanel() {
               />
             </div>
             <div className="flex shrink-0 items-center gap-1">
+              {gapsIcon}
               <button
                 type="button"
                 onClick={handleNewSession}
@@ -598,11 +639,11 @@ export function ChatPanel() {
                 <Plus className="w-4 h-4" aria-hidden="true" />
               </button>
               {/* Link this conversation to a plan or a task of its project */}
-              {!isNewConversation && chat.sessionId && (
+              {!isMobile && !isNewConversation && chat.sessionId && (
                 <AttachSessionButton variant="icon" sessionId={chat.sessionId} projectSlug={chat.sessionMeta?.projectSlug} />
               )}
               {/* Agent Tree toggle — visible when session has children */}
-              {hasChildren && chat.sessionId && (
+              {!isMobile && hasChildren && chat.sessionId && (
                 <button
                   type="button"
                   onClick={toggleTree}
@@ -629,7 +670,7 @@ export function ChatPanel() {
                 )}
               </button>
               {/* Copy chat to clipboard */}
-              {chat.messages.length > 0 && (
+              {!isMobile && chat.messages.length > 0 && (
                 <button
                   type="button"
                   onClick={handleCopyChat}
@@ -640,14 +681,47 @@ export function ChatPanel() {
                   {copiedChat ? <Check className="w-4 h-4" aria-hidden="true" /> : <ClipboardCopy className="w-4 h-4" aria-hidden="true" />}
                 </button>
               )}
-              <button type="button" onClick={() => setMode('open')} className={chromeIcon()} title={t('chatA-messages.panel.exitFullscreen')} aria-label={t('chatA-messages.panel.exitFullscreen')}>
-                <Minimize2 className="w-4 h-4" aria-hidden="true" />
-              </button>
+              {isMobile ? (
+                // A 360 px phone has no room for seven buttons beside the title: the less frequent ones
+                // go under the ⋯ menu, as in the docked panel, and so does the list of missing features
+                // (its amber count stays visible on the ⋯ button).
+                <>
+                  <OverflowMenu
+                    size="sm"
+                    label={t('chatA-messages.panel.actions')}
+                    badge={gapsMenuBadge}
+                    triggerRef={overflowRef}
+                    actions={[
+                      gapsMenuAction,
+                      { label: t('chatA-messages.panel.attach'), icon: Link2, hidden: isNewConversation || !chat.sessionId, onClick: () => setShowAttach(true) },
+                      { label: treeShown ? t('chatA-messages.panel.hideTree') : t('chatA-messages.panel.showTree'), icon: TreePine, hidden: !(hasChildren && chat.sessionId), onClick: toggleTree },
+                      { label: copiedChat ? t('chatA-messages.panel.copied') : t('chatA-messages.panel.copyChat'), icon: copiedChat ? Check : ClipboardCopy, hidden: chat.messages.length === 0, onClick: handleCopyChat },
+                      { label: t('chatA-messages.panel.exitFullscreen'), icon: Minimize2, onClick: () => setMode('open') },
+                    ]}
+                  />
+                  {gapsMenuPopover}
+                </>
+              ) : (
+                <button type="button" onClick={() => setMode('open')} className={chromeIcon()} title={t('chatA-messages.panel.exitFullscreen')} aria-label={t('chatA-messages.panel.exitFullscreen')}>
+                  <Minimize2 className="w-4 h-4" aria-hidden="true" />
+                </button>
+              )}
               <button type="button" onClick={() => setMode('closed')} className={chromeIcon()} title={t('chatA-messages.panel.close')} aria-label={t('chatA-messages.panel.close')}>
                 <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
           </div>
+
+          {/* "Attach to a plan or task…" from the phone's ⋯ menu (a header button on a wider screen) */}
+          {chat.sessionId && isMobile && (
+            <AttachSessionDialog
+              open={showAttach}
+              onClose={() => setShowAttach(false)}
+              sessionId={chat.sessionId}
+              projectSlug={chat.sessionMeta?.projectSlug}
+              onAttached={requestAttentionRefresh}
+            />
+          )}
 
           {/* Back to parent button — shown when session is spawned */}
           {parentSessionId && (
@@ -791,7 +865,7 @@ export function ChatPanel() {
       />
 
       {/* Header */}
-      <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
+      <div className="h-14 flex items-center justify-between px-3 md:px-4 border-b border-white/[0.06] shrink-0">
         <div className="flex flex-1 items-center gap-2 min-w-0">
           <button
             type="button"
@@ -823,6 +897,7 @@ export function ChatPanel() {
         {/* Four controls, not seven: a docked panel is narrow (400 px by default) and seven 28 px
             buttons left the title about 70 px. The less frequent ones live under the ⋯ menu. */}
         <div className="flex shrink-0 items-center gap-1">
+          {gapsIcon}
           <button
             type="button"
             onClick={handleNewSession}
@@ -850,7 +925,10 @@ export function ChatPanel() {
           <OverflowMenu
             size="sm"
             label={t('chatA-messages.panel.actions')}
+            badge={gapsMenuBadge}
+            triggerRef={overflowRef}
             actions={[
+              gapsMenuAction,
               // Link this conversation to a plan or a task of its project
               { label: t('chatA-messages.panel.attach'), icon: Link2, hidden: isNewConversation || !chat.sessionId, onClick: () => setShowAttach(true) },
               // Agent Tree toggle — visible when session has children
@@ -865,6 +943,7 @@ export function ChatPanel() {
               { label: t('chatA-messages.panel.fullscreen'), icon: Maximize2, hidden: isMobile, onClick: () => setMode('fullscreen') },
             ]}
           />
+          {gapsMenuPopover}
           <button type="button" onClick={() => setMode('closed')} className={chromeIcon()} title={t('chatA-messages.panel.close')} aria-label={t('chatA-messages.panel.close')}>
             <X className="w-4 h-4" aria-hidden="true" />
           </button>

@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { classifyDegradations } from '@/constants/engine'
 import { EngineBanner } from './EngineBanner'
 
@@ -121,5 +121,17 @@ describe('EngineBanner', () => {
     const harness = screen.getByTestId('engine-banner-harness')
     expect(harness.textContent).not.toMatch(/nexus/i)
     expect(screen.getByTestId('engine-banner').textContent).not.toMatch(/nexus tools: not available yet/)
+  })
+})
+
+describe('EngineBanner — collapse control', () => {
+  it('offers "Collapse into an icon" only when it can be collapsed', () => {
+    const { unmount } = render(<EngineBanner degraded={['nats']} declared={null} />)
+    expect(screen.queryByRole('button', { name: 'Collapse into an icon' })).toBeNull()
+    unmount()
+    const onCollapse = vi.fn()
+    render(<EngineBanner degraded={['nats']} declared={null} onCollapse={onCollapse} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse into an icon' }))
+    expect(onCollapse).toHaveBeenCalledOnce()
   })
 })
