@@ -98,7 +98,9 @@ const FakeWS = ChatWebSocket as unknown as { instances: FakeWs[] }
 async function setup(sessionId: string | null = 'sess-1', opts: { strict?: boolean } = {}) {
   const store = createStore()
   if (sessionId) store.set(chatSessionIdAtom, sessionId)
-  // StrictMode replays state updaters: an updater that reads a holder emptied after it shows.
+  // StrictMode is a guard only: under React 19 it does not replay these updaters
+  // in a way a test can observe. The purity of the timing updaters is proven by
+  // the `placeTimings` tests (same result twice, and after the holder is emptied).
   const wrapper = ({ children }: { children: ReactNode }) =>
     opts.strict ? <StrictMode><Provider store={store}>{children}</Provider></StrictMode> : <Provider store={store}>{children}</Provider>
   const rendered = renderHook(() => useChat(), { wrapper })
@@ -419,7 +421,7 @@ describe('useChat — a timing on a newer page than its call', () => {
     expect(callTiming(hook.current.messages)).toMatchObject({ ended_at: T + 12 })
   })
 
-  it('loadNewerMessages puts a timing of the newer page on its call shown, even when React replays the updater', async () => {
+  it('loadNewerMessages puts a timing of the newer page on its call shown (under StrictMode)', async () => {
     // Centered window = events 0..49 with the call; its timing is event 55, on the newer page.
     serve([
       { type: 'user_message', content: 'build', created_at: T },
@@ -492,5 +494,147 @@ describe('useChat — the echo of a message re-dates only the bubble waiting for
     const users = hook.current.messages.filter((m) => m.role === 'user')
     expect(users[0].timestamp.getTime()).toBe(T * 1000)
     expect(users[0].awaitingEcho).toBeFalsy()
+  })
+})
+
+describe('useChat — an echo never swallows a new message with the same text', () => {
+  beforeEach(() => {
+    FakeWS.instances.length = 0
+    vi.clearAllMocks()
+  })
+  afterEach(() => {
+    vi.mocked(chatApi.getMessages).mockResolvedValue({ total_count: 0, messages: [] } as never)
+  })
+
+  const userTexts = (messages: { role: string; blocks: { content: string }[] }[]) => messages.filter((m) => m.role === 'user').map((m) => m.blocks[0]?.content)
+
+  it('an "ok" from another tab after an older "ok" of the history is a second bubble, and opens its own turn', async () => {
+    vi.mocked(chatApi.getMessages).mockResolvedValue({
+      total_count: 4,
+      messages: [
+        { type: 'user_message', content: 'ok', created_at: T },
+        { ...use, created_at: T + 1 },
+        { ...result, created_at: T + 3 },
+        { type: 'result', session_id: 'sess-1', duration_ms: 3000, created_at: T + 4 },
+      ],
+    } as never)
+    const { emit, result: hook } = await setup()
+    await waitFor(() => expect(hook.current.messages.length).toBeGreaterThan(0))
+    emit({ type: 'user_message', content: 'ok', created_at: T + 100, seq: 0 })
+    emit({ ...use, id: 'toolu_2', created_at: T + 101, seq: 0 })
+    expect(userTexts(hook.current.messages)).toEqual(['ok', 'ok'])
+    const users = hook.current.messages.filter((m) => m.role === 'user')
+    expect(users.map((m) => m.timestamp.getTime())).toEqual([T * 1000, (T + 100) * 1000])
+    // Live and history draw the same two turns.
+    const requests = buildTimeline({ messages: hook.current.messages as ChatMessage[], sessionId: 's' }).items.filter((i) => i.kind === 'request')
+    expect(requests).toHaveLength(2)
+  })
+
+  it('two identical messages sent in a row from another tab are two bubbles', async () => {
+    const { emit, result: hook } = await setup()
+    emit({ type: 'user_message', content: 'ok', created_at: T, seq: 0 })
+    emit({ type: 'stream_delta', text: 'done', created_at: T + 1, seq: 0 })
+    emit({ type: 'result', session_id: 'sess-1', duration_ms: 1000, created_at: T + 1, seq: 0 })
+    emit({ type: 'user_message', content: 'ok', created_at: T + 5, seq: 0 })
+    expect(userTexts(hook.current.messages)).toEqual(['ok', 'ok'])
+  })
+
+  it('two identical messages sent from this tab: each echo goes to its own bubble, oldest first', async () => {
+    const { emit, result: hook } = await setup()
+    await act(async () => {
+      await hook.current.sendMessage('ok')
+    })
+    await act(async () => {
+      await hook.current.sendMessage('ok')
+    })
+    expect(userTexts(hook.current.messages)).toEqual(['ok', 'ok'])
+    emit({ type: 'user_message', content: 'ok', created_at: T, seq: 0 })
+    emit({ type: 'user_message', content: 'ok', created_at: T + 5, seq: 0 })
+    const users = hook.current.messages.filter((m) => m.role === 'user')
+    expect(users).toHaveLength(2)
+    expect(users.map((m) => m.timestamp.getTime())).toEqual([T * 1000, (T + 5) * 1000])
+    expect(users.map((m) => !!m.awaitingEcho)).toEqual([false, false])
+  })
+
+  it('the same message shown again (a replay of the turn in progress) adds no bubble', async () => {
+    const { emit, result: hook } = await setup()
+    emit({ type: 'user_message', content: 'ok', created_at: T, seq: 0 })
+    emit({ type: 'stream_delta', text: 'working', created_at: T + 1, seq: 0 })
+    emit({ type: 'user_message', replaying: true, seq: 0, created_at: T, data: { content: 'ok' } })
+    expect(userTexts(hook.current.messages)).toEqual(['ok'])
+  })
+})
+
+describe('useChat — jumpToTail starts the live state afresh', () => {
+  beforeEach(() => {
+    FakeWS.instances.length = 0
+    vi.clearAllMocks()
+  })
+  afterEach(() => {
+    vi.mocked(chatApi.getMessages).mockResolvedValue({ total_count: 0, messages: [] } as never)
+  })
+
+  it('a call seen live before the jump, now on an older page, still gets the timing that comes after it', async () => {
+    const { emit, result: hook } = await setup()
+    // Live: the call is seen in this turn.
+    emit({ type: 'user_message', content: 'build', created_at: T, seq: 0 })
+    emit({ ...use, created_at: T + 1, seq: 0 })
+    // The tail is reloaded from REST: the call is now on the older page.
+    const all = [
+      { type: 'user_message', content: 'build', created_at: T },
+      { ...use, created_at: T + 1 },
+      ...Array.from({ length: 50 }, (_, i) => ({ type: 'assistant_text', content: `line ${i}`, created_at: T + 2 + i })),
+    ]
+    vi.mocked(chatApi.getMessages).mockImplementation(async (_sid: string, opts?: { limit?: number; offset?: number }) => {
+      const offset = opts?.offset ?? 0
+      const limit = opts?.limit ?? 50
+      return { total_count: all.length, messages: all.slice(offset, offset + limit) } as never
+    })
+    await act(async () => {
+      await hook.current.jumpToTail()
+    })
+    expect(hook.current.hasOlderMessages).toBe(true)
+    expect(blocksOf(hook.current.messages, 'tool_use')).toHaveLength(0)
+    // Its timing comes live, then the turn ends: the call is not on screen, the timing waits for its page.
+    emit({ ...timing, permission_outcome: 'allowed', run_started_at: T + 8, created_at: T + 60, seq: 0 })
+    emit({ type: 'result', session_id: 'sess-1', duration_ms: 60_000, created_at: T + 60, seq: 0 })
+    await act(async () => {
+      await hook.current.loadOlderMessages()
+    })
+    const call = blocksOf(hook.current.messages, 'tool_use').find((b) => b.metadata?.tool_call_id === 'toolu_1')
+    expect(call?.metadata?.tool_timing).toMatchObject({ run_started_at: T + 8, ended_at: T + 12 })
+  })
+})
+
+describe('useChat — the timing of a question call (live)', () => {
+  beforeEach(() => {
+    FakeWS.instances.length = 0
+    vi.clearAllMocks()
+  })
+
+  const ask = { type: 'tool_use', id: 'q1', tool: 'AskUserQuestion', input: { questions: [{ question: 'Which?' }] } }
+  const askTiming = { type: 'tool_timing', id: 'q1', called_at: T + 1, ended_at: T + 20 }
+  const questionTiming = (messages: { blocks: Block[] }[]) => blocksOf(messages, 'ask_user_question')[0]?.metadata?.tool_timing
+
+  it('goes on the question block, after or before its tool_use', async () => {
+    const { emit, result: hook } = await setup()
+    emit({ ...ask, created_at: T + 1, seq: 0 })
+    emit({ ...askTiming, created_at: T + 20, seq: 0 })
+    expect(questionTiming(hook.current.messages)).toEqual({ called_at: T + 1, ended_at: T + 20 })
+
+    const second = await setup('sess-2')
+    second.emit({ ...askTiming, created_at: T + 20, seq: 0 })
+    second.emit({ ...ask, created_at: T + 1, seq: 0 })
+    expect(questionTiming(second.result.current.messages)).toEqual({ called_at: T + 1, ended_at: T + 20 })
+  })
+
+  it('the trace draws the question as the wait for its answer', async () => {
+    const { emit, result: hook } = await setup()
+    emit({ type: 'user_message', content: 'go', created_at: T, seq: 0 })
+    emit({ ...ask, created_at: T + 1, seq: 0 })
+    emit({ type: 'tool_result', id: 'q1', result: 'A', created_at: T + 20, seq: 0 })
+    emit({ ...askTiming, created_at: T + 20, seq: 0 })
+    const item = buildTimeline({ messages: hook.current.messages as ChatMessage[], sessionId: 's' }).items.find((i) => i.id === 'ask_user_question:q1')
+    expect(item).toMatchObject({ startedAt: (T + 1) * 1000, endedAt: (T + 20) * 1000, durationMs: 19_000 })
   })
 })
