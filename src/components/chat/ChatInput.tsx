@@ -29,6 +29,7 @@ import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
 import { Attachments } from './Attachments'
 import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget'
 import { ReferenceChip } from './ReferenceChip'
+import { COMPOSER_CHIP } from './chipGeometry'
 import { RefPicker, refOptionId } from './RefPicker'
 import { detectTrigger, isReferenceQuery } from '@/refs/trigger'
 import { useActiveKinds } from '@/refs/useActiveKinds'
@@ -1061,7 +1062,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             <div className="relative">
               <button
                 onClick={() => { setShowModeDropdown(!showModeDropdown); setPickerMenu(null) }}
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border text-gray-300 hover:bg-white/[0.06] transition-colors ${
+                data-testid="mode-chip"
+                className={`${COMPOSER_CHIP} ${
                   modeJustChanged
                     ? 'border-indigo-400/50 ring-1 ring-indigo-400/30'
                     : 'border-white/[0.08]'
