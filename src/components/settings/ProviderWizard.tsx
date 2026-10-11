@@ -27,7 +27,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { Check } from 'lucide-react'
-import { chatSelectedProjectAtom, selectedProjectSlugAtom } from '@/atoms'
+import { authModeAtom, chatSelectedProjectAtom, currentUserAtom, selectedProjectSlugAtom } from '@/atoms'
 import { Button, Facts, Switch, surface } from '@/components/ui'
 import { presetByKey, presetLabel } from '@/constants/providerPresets'
 import {
@@ -198,6 +198,8 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const chatProjectSlug = useAtomValue(chatSelectedProjectAtom)?.slug
   const pageProjectSlug = useAtomValue(selectedProjectSlugAtom)
   const currentProjectSlug = chatProjectSlug ?? pageProjectSlug
+  const currentUser = useAtomValue(currentUserAtom)
+  const appAuthMode = useAtomValue(authModeAtom)
 
   const [step, setStep] = useState(0)
   const [identity, setIdentity] = useState<IdentityState>(() => initialIdentity('deepseek', t))
@@ -395,13 +397,19 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
 
   /**
    * Who answers a new chat today: the `pilot` role, else the server default.
-   * Not usable when absent, unknown to the list, or unhealthy (Claude Code
-   * without its CLI is `cli_not_found` → unhealthy): a new chat would fail.
+   * Not usable when absent, unknown to the list, unhealthy (Claude Code
+   * without its CLI is `cli_not_found` → unhealthy) or waiting for a sign-in:
+   * a new chat would fail.
    */
   const pilotId = roles?.pilot?.provider ?? serverDefault?.provider ?? null
   const pilotInstance = pilotId ? providers.find((p) => p.id === pilotId) : undefined
-  const pilotUsable = !!pilotInstance && pilotInstance.health.status !== 'unhealthy'
-  const pilotWanted = makePilot ?? (roles !== null && !pilotUsable)
+  const pilotUsable =
+    !!pilotInstance && pilotInstance.health.status !== 'unhealthy' && pilotInstance.health.status !== 'auth_required'
+  /** Proposed as pilot only once it answered the test AND called a tool: otherwise every new chat would fail. */
+  const testPassed = test?.ok === true && test.probe?.tools !== false
+  /** The pilot role is server-wide: only the administrator (or the one user of a server without sign-in) gets it switched on for them. */
+  const decidesForAll = currentUser?.is_root === true || appAuthMode === 'none'
+  const pilotWanted = makePilot ?? (roles !== null && !pilotUsable && testPassed && decidesForAll)
   const pilotModel = (savedDefault ?? identity.model.trim()) || undefined
 
   // ---- Edits ---------------------------------------------------------------
@@ -633,7 +641,11 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
       setFinishing(true)
       setFinishError(null)
       try {
-        await providersApi.setRoles({ ...roles, pilot: { provider: id, ...(pilotModel ? { model: pilotModel } : {}) } })
+        // Re-read just before writing: the PUT replaces every role, and another tab may have changed one since.
+        const fresh = (await providersApi.roles()) ?? {}
+        if (fresh.pilot?.provider !== id) {
+          await providersApi.setRoles({ ...fresh, pilot: { provider: id, ...(pilotModel ? { model: pilotModel } : {}) } })
+        }
         void refresh()
       } catch (err) {
         setFinishError(t('providerWizard.pilot.failed', { message: wizardErrorMessage(err, t) }))
@@ -960,6 +972,16 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
                   ? t('providerWizard.pilot.optional', { current: pilotInstance?.label ?? pilotId ?? '' })
                   : t('providerWizard.pilot.needed')}
             </p>
+            {roles !== null && !testPassed && (
+              <p data-testid="wizard-pilot-untested" className="text-xs text-amber-300">
+                {t('providerWizard.pilot.testNotPassed')}
+              </p>
+            )}
+            {roles !== null && !decidesForAll && (
+              <p data-testid="wizard-pilot-shared" className="text-xs text-amber-300">
+                {t('providerWizard.pilot.notAdmin')}
+              </p>
+            )}
           </div>
           {finishError && (
             <p role="alert" data-testid="wizard-finish-error" className="text-xs text-red-400">

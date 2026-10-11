@@ -245,11 +245,13 @@ export default {
     consented: "Proyecto {name} permitido para {origin}.",
   },
   pilot: {
-    label: "Usar este proveedor para los nuevos chats",
-    needed: "Recomendado: ahora mismo ningún motor puede responder a un nuevo chat (Claude Code no está disponible en este servidor o no hay un valor por defecto). Esto da al proveedor el rol de piloto.",
+    label: "Usar este proveedor para los nuevos chats, para todos en este servidor",
+    needed: "Ahora mismo ningún motor puede responder a un nuevo chat (Claude Code no está disponible en este servidor o no hay un valor por defecto). Esto da al proveedor el rol de piloto, para todos en este servidor.",
     optional: "Los nuevos chats usan {current} hoy. Actívalo para usar este proveedor en su lugar (rol de piloto).",
     unknown: "No se pudieron leer los roles actuales: define el rol de piloto más tarde en Avanzado → Roles.",
     failed: "No se pudo hacer de este proveedor el predeterminado para nuevos chats: {message}",
     noConsent: "Ningún proyecto permite aún este proveedor: un chat en un proyecto se rechaza hasta que ese proyecto lo permita (paso 4, o «Permisos de los proyectos» en esta página).",
+    testNotPassed: "La prueba no pasó con una llamada a herramienta: como piloto, este proveedor haría fallar los nuevos chats. Queda desactivado salvo que lo actives.",
+    notAdmin: "El rol de piloto se aplica a todos en este servidor y usa para ellos la clave de este proveedor: déjalo al administrador, salvo que lo seas.",
   },
 } satisfies Translation<'providerWizard'>

@@ -243,11 +243,13 @@ export default {
     consented: "Project {name} allowed for {origin}.",
   },
   pilot: {
-    label: "Use this provider for new chats",
-    needed: "Recommended: no engine can answer a new chat right now (Claude Code is not available on this server, or no default is set). This gives the provider the pilot role.",
+    label: "Use this provider for new chats, for everyone on this server",
+    needed: "No engine can answer a new chat right now (Claude Code is not available on this server, or no default is set). This gives the provider the pilot role, for everyone on this server.",
     optional: "New chats use {current} today. Turn this on to use this provider instead (pilot role).",
     unknown: "The current roles could not be read: set the pilot role later under Advanced → Roles.",
     failed: "Could not make this provider the default for new chats: {message}",
     noConsent: "No project allows this provider yet: a chat in a project is refused until that project allows it (step 4, or “Project permissions” on this page).",
+    testNotPassed: "The test did not pass with a tool call: as the pilot, this provider would make new chats fail. It stays off unless you turn it on.",
+    notAdmin: "The pilot role applies to everyone on this server and uses this provider’s key for them: leave it to the administrator unless you are one.",
   },
 } as const

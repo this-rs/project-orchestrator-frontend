@@ -245,11 +245,13 @@ export default {
     consented: "Dự án {name} được phép với {origin}.",
   },
   pilot: {
-    label: "Dùng nhà cung cấp này cho các cuộc trò chuyện mới",
-    needed: "Khuyến nghị: hiện không có công cụ nào trả lời được cuộc trò chuyện mới (Claude Code không có trên máy chủ này, hoặc chưa đặt mặc định). Việc này giao vai trò pilot cho nhà cung cấp.",
+    label: "Dùng nhà cung cấp này cho các cuộc trò chuyện mới, cho mọi người trên máy chủ này",
+    needed: "Hiện không có công cụ nào trả lời được cuộc trò chuyện mới (Claude Code không có trên máy chủ này, hoặc chưa đặt mặc định). Việc này giao vai trò pilot cho nhà cung cấp, cho mọi người trên máy chủ này.",
     optional: "Hiện các cuộc trò chuyện mới dùng {current}. Bật mục này để dùng nhà cung cấp này thay thế (vai trò pilot).",
     unknown: "Không đọc được các vai trò hiện tại: hãy đặt vai trò pilot sau trong Nâng cao → Vai trò.",
     failed: "Không thể đặt nhà cung cấp này làm mặc định cho cuộc trò chuyện mới: {message}",
     noConsent: "Chưa có dự án nào cho phép nhà cung cấp này: cuộc trò chuyện trong một dự án sẽ bị từ chối cho đến khi dự án đó cho phép (bước 4, hoặc “Quyền của dự án” trên trang này).",
+    testNotPassed: "Bài kiểm tra chưa đạt với một lệnh gọi công cụ: làm pilot, nhà cung cấp này sẽ khiến các cuộc trò chuyện mới thất bại. Mục này tắt trừ khi bạn bật.",
+    notAdmin: "Vai trò pilot áp dụng cho mọi người trên máy chủ này và dùng khóa của nhà cung cấp này cho họ: hãy để quản trị viên quyết định, trừ khi bạn là quản trị viên.",
   },
 } satisfies Translation<'providerWizard'>
