@@ -82,6 +82,6 @@ export default {
     authRequiredBody: "로그인 없이 서버는 Claude Code만 실행하고 다른 제공자는 모두 거부합니다. 그 제공자와의 각 채팅 세션은 로그인한 사용자에게 속해야 하기 때문입니다. 인증 단계로 돌아가 비밀번호 또는 OIDC를 선택하세요.",
     authRequiredAction: "로그인 계정 설정",
     authNoneNote: "로그인 없이 채팅은 Claude Code만 사용할 수 있습니다. 다른 제공자(OpenAI 호환, Ollama, DeepSeek…)는 로그인 계정이 필요하며, 없으면 서버가 거부합니다.",
-    embeddingLater: "기다리지 않고 계속할 수 있습니다. 서버가 시작될 때 모델이 없으면 그때 서버가 다운로드합니다(첫 시작이 더 오래 걸립니다). 모델이 준비될 때까지 의미 검색은 꺼져 있습니다.",
+    embeddingLater: "지금 계속할 수 있습니다. 앱이 백그라운드에서 모델을 계속 다운로드합니다. 서버가 처음 시작될 때까지 끝나지 않으면 서버가 응답하기 전에 모델을 다운로드하므로 첫 시작에 몇 분이 걸릴 수 있습니다. 모델이 준비될 때까지 의미 검색은 꺼져 있습니다.",
   },
 } satisfies Translation<'providers'>

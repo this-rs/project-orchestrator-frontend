@@ -82,6 +82,6 @@ export default {
     authRequiredBody: "未启用登录时，服务器只运行 Claude Code，会拒绝任何其他提供方，因为与其进行的每个聊天会话都必须属于已登录的用户。请返回“身份验证”步骤，选择密码或 OIDC。",
     authRequiredAction: "设置登录账户",
     authNoneNote: "未启用登录时，聊天只能使用 Claude Code。任何其他提供方（兼容 OpenAI、Ollama、DeepSeek…）都需要登录账户，否则服务器会拒绝。",
-    embeddingLater: "你可以不等待直接继续：如果服务器启动时模型不在，服务器会在那时下载（首次启动更慢）。在模型就绪前，按语义搜索保持关闭。",
+    embeddingLater: "你现在就可以继续：应用会在后台继续下载模型。如果服务器首次启动时还没下载完，服务器会在响应前下载它，因此首次启动可能需要几分钟。在模型就绪前，按语义搜索保持关闭。",
   },
 } satisfies Translation<'providers'>

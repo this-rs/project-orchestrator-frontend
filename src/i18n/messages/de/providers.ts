@@ -82,6 +82,6 @@ export default {
     authRequiredBody: "Ohne Anmeldung führt der Server nur Claude Code aus: Jeden anderen Provider lehnt er ab, weil jede Chat-Sitzung damit einem angemeldeten Benutzer gehören muss. Gehen Sie zurück zum Schritt Authentifizierung und wählen Sie ein Passwort oder OIDC.",
     authRequiredAction: "Anmeldekonto einrichten",
     authNoneNote: "Ohne Anmeldung kann der Chat nur Claude Code nutzen. Jeder andere Provider (OpenAI-kompatibel, Ollama, DeepSeek…) braucht ein Anmeldekonto, sonst lehnt der Server ihn ab.",
-    embeddingLater: "Sie können weitermachen, ohne zu warten: Ist das Modell beim Start des Servers nicht da, lädt der Server es dann herunter (der erste Start dauert länger). Die Suche nach Bedeutung bleibt aus, bis es da ist.",
+    embeddingLater: "Sie können jetzt weitermachen: Die App lädt das Modell im Hintergrund weiter herunter. Ist es beim ersten Start des Servers nicht fertig, lädt der Server es herunter, bevor er antwortet – dieser erste Start kann mehrere Minuten dauern. Die Suche nach Bedeutung bleibt aus, bis das Modell da ist.",
   },
 } satisfies Translation<'providers'>

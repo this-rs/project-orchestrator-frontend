@@ -1,5 +1,5 @@
 import { useAtom, useSetAtom, useAtomValue, useStore } from 'jotai'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Info, Loader2, RotateCw, Download } from 'lucide-react'
 import { Button, Input, ProgressLine, Switch, surface } from '@/components/ui'
 import { Field } from './Field'
@@ -19,6 +19,22 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+/** Models whose background download was started by this app run (one download per model). */
+const backgroundDownloads = new Set<string>()
+
+/**
+ * Starts `download_embedding_model` without waiting for it: the user went on
+ * without the local search model. A failure is left to the server, which
+ * retries at startup or runs without search by meaning.
+ */
+function startBackgroundEmbeddingDownload(modelName: string) {
+  if (backgroundDownloads.has(modelName)) return
+  backgroundDownloads.add(modelName)
+  void import('@tauri-apps/api/core')
+    .then(({ invoke }) => invoke('download_embedding_model', { modelName }))
+    .catch(() => backgroundDownloads.delete(modelName))
 }
 
 // i18n after #252 — the words of this step. Banner titles the tests read (« Claude Code CLI is required »…) stay inline.
@@ -153,6 +169,24 @@ export function ChatPage() {
     })()
     return () => { cancelled = true }
   }, [config.embeddingProvider, config.embeddingFastembedModel])
+
+  // ── Leaving the step without the local model: download it in the background ──
+  // The server loads the local model synchronously at startup: without this,
+  // its first start would download ~1 GB before it listens.
+  const pendingDownload = useRef<string | null>(null)
+  useEffect(() => {
+    pendingDownload.current =
+      isTauri && config.embeddingProvider === 'local' && embeddingModelChecked && !embeddingModelAvailable && !downloadingModel
+        ? config.embeddingFastembedModel
+        : null
+  })
+  useEffect(
+    () => () => {
+      const model = pendingDownload.current
+      if (model) startBackgroundEmbeddingDownload(model)
+    },
+    [],
+  )
 
   // ── Update embeddingReady when provider changes ────────────────────
   useEffect(() => {
@@ -435,7 +469,7 @@ export function ChatPage() {
           <StatusBanner
             tone="warning"
             title={texts.authRequiredTitle}
-            role="alert"
+            role="status"
             className="mt-1"
             action={
               <Button variant="secondary" size="sm" onClick={() => setStep(1)}>

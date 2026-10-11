@@ -145,6 +145,29 @@ describe('setup wizard: chat engine choice', () => {
     await waitFor(() => expect((next() as HTMLButtonElement).disabled).toBe(false))
   })
 
+  it('going on without the local model starts its download in the background, so the first start does not do it', async () => {
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === 'check_cli_status') return { installed: false, version: null }
+      if (cmd === 'check_embedding_model') return { available: false, cachePath: null, estimatedSizeMb: 1100 }
+      return null
+    })
+    renderWith(<SetupWizard />, { ...WITH_LOGIN, embeddingProvider: 'local', embeddingFastembedModel: 'bge-small-en-v1.5' })
+    expect((await screen.findByTestId('setup-embedding-later')).textContent).toMatch(/several minutes/)
+    expect(invokeMock).not.toHaveBeenCalledWith('download_embedding_model', expect.anything())
+    await waitFor(() => expect((next() as HTMLButtonElement).disabled).toBe(false))
+    fireEvent.click(next())
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith('download_embedding_model', { modelName: 'bge-small-en-v1.5' }),
+    )
+  })
+
+  it('web mode: the login banner is a status, not an alert, when the step opens', async () => {
+    envMock.tauri = false
+    renderWith(<ChatPage />)
+    await screen.findByTestId('setup-auth-required')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('B1: another engine without a login account → Next blocked, the reason said, a way back to Authentication', async () => {
     cli(false)
     const store = renderWith(<SetupWizard />)
