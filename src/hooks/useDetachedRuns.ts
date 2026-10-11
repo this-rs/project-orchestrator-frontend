@@ -93,9 +93,18 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
   const requestIdRef = useRef(0)
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Which session the CURRENT `runs` state actually belongs to. `sessionIdRef`
+  // only says which session is being VIEWED right now, which on a failed
+  // fetch is not the same question: a transient failure refetching for the
+  // session already on screen should keep showing its (still honest) old
+  // list, but a failure refetching for a session we just switched to must
+  // not keep showing the PREVIOUS session's children under the new one.
+  const runsSessionIdRef = useRef<string | null>(null)
+
   const fetchChildren = useCallback(async () => {
     if (!sessionIdRef.current) {
       setRuns([])
+      runsSessionIdRef.current = null
       return
     }
     const sessionAtRequest = sessionIdRef.current
@@ -107,14 +116,26 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
       // if `sessionId` moved on under us while the request was in flight.
       if (requestId === requestIdRef.current && sessionIdRef.current === sessionAtRequest) {
         setRuns(children.map(toDetachedRun))
+        runsSessionIdRef.current = sessionAtRequest
       }
     } catch {
       // API not available yet (backend T2 not deployed), or a transient
       // failure on one of a burst of fetches fired by unrelated sessions
       // being created elsewhere. Keep the previous list rather than blanking
-      // it: a single flaky/429/504 response must not wipe every child's link
-      // until the next unrelated creation happens to succeed. The only path
-      // that intentionally empties `runs` is "no session" above.
+      // it — UNLESS that previous list belongs to a DIFFERENT session than
+      // the one this request was for (`runsSessionIdRef`): e.g. the user
+      // switched from session A (whose children are still sitting in `runs`)
+      // to session B, and the fetch fired for B failed. There is no honest
+      // "previous list" for B to fall back to — A's children are not B's,
+      // and leaving them in place would let the sub-agent card link the user
+      // from B into one of A's children. Guarded by `requestId`, exactly
+      // like the success path and `finally` below, so a late-arriving stale
+      // failure cannot clobber a newer request's (success OR failure)
+      // already-applied result.
+      if (requestId === requestIdRef.current && runsSessionIdRef.current !== sessionAtRequest) {
+        setRuns([])
+        runsSessionIdRef.current = sessionAtRequest
+      }
     } finally {
       if (requestId === requestIdRef.current) {
         setIsLoading(false)

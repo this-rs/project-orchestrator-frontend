@@ -204,4 +204,23 @@ describe('useDetachedRuns fetch robustness', () => {
 
     expect(result.current.runs.map(r => r.sessionId)).toEqual(['existing'])
   })
+
+  it('clears the list rather than leaking the OLD session\'s children when the fetch for a NEW session fails', async () => {
+    getSessionChildren.mockResolvedValueOnce([child({ id: 'a-child' })] as never)
+    const { result, rerender } = renderHook(
+      ({ sessionId }: { sessionId: string | null }) => useDetachedRuns(sessionId),
+      { initialProps: { sessionId: 'session-a' } },
+    )
+    await waitFor(() => expect(result.current.runs.map(r => r.sessionId)).toEqual(['a-child']))
+
+    // User switches to an unrelated session B. Its fetch fails (transient
+    // network blip/429/504) — unlike a same-session refetch failure, there is
+    // no honest "previous list" to fall back to: A's children are not B's.
+    getSessionChildren.mockRejectedValueOnce(new Error('network blip'))
+    rerender({ sessionId: 'session-b' })
+    await waitFor(() => expect(getSessionChildren).toHaveBeenCalledTimes(2))
+    await act(async () => {})
+
+    expect(result.current.runs).toEqual([])
+  })
 })
