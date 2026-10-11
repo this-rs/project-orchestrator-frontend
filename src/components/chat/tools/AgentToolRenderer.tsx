@@ -16,13 +16,28 @@
  * `useDetachedRuns` → `ChatSessionProvider`.
  *
  * Degrades on purpose: with no child resolved (older backend, child not listed
- * yet, or a transcript rendered outside the chat panel) the card says so
- * instead of offering a dead link.
+ * yet) the card never offers a dead link. Whether it SAYS a child is coming
+ * depends on who hosts sub-agents — see below.
+ *
+ * Claude Code's own sub-agent tool is ALSO named `Agent` (older CLIs: `Task`),
+ * with the same `prompt` / `subagent_type` input, so a Claude Code call that
+ * is not nested into an `AgentGroup` (background agent, nested call, history
+ * without `parent_tool_use_id`) lands on this card too. Claude Code runs its
+ * sub-agents in-process: PO never opens a child conversation for them. So the
+ * "not listed yet" promise is made only when PO is the one hosting sub-agents —
+ * the provider declares `subagents: 'none'` (the native harness). Elsewhere the
+ * card is a plain sub-agent card: task, kind, answer. A child that DOES answer
+ * to this call's id is linked whatever the capabilities say — only a PO-hosted
+ * child carries a `tool_use_id`, and a transcript outside the chat panel (the
+ * full-page viewer) has no capabilities of its own to ask.
+ *
+ * A call the backend refused (error result, no child) shows the failure, not a
+ * wait for a child that will never be opened.
  */
 
 import { ArrowUpRight, Loader2 } from 'lucide-react'
 import { useT } from '@/i18n'
-import { useChildSessionOf } from '../ChatSessionContext'
+import { useChatCapabilities, useChildSessionOf } from '../ChatSessionContext'
 import type { ToolRendererProps } from './types'
 
 const MAX_RESULT_CHARS = 2000
@@ -34,6 +49,8 @@ function text(value: unknown): string {
 export function AgentToolRenderer({ toolInput, resultContent, isError, isLoading, toolCallId }: ToolRendererProps) {
   const { t } = useT()
   const { child, openSession } = useChildSessionOf(toolCallId)
+  // PO opens the child only for a provider with no sub-agents of its own.
+  const poHostsChild = useChatCapabilities().subagents === 'none'
   const prompt = text(toolInput.prompt)
   const subagentType = text(toolInput.subagent_type)
   const answer = resultContent ?? ''
@@ -56,7 +73,7 @@ export function AgentToolRenderer({ toolInput, resultContent, isError, isLoading
         </div>
       )}
 
-      {/* The child conversation. A resolved child is a link; anything else is said. */}
+      {/* The child conversation. A resolved child is a link; a missing one is said, where PO would open it. */}
       {child && openSession ? (
         <button
           type="button"
@@ -73,11 +90,11 @@ export function AgentToolRenderer({ toolInput, resultContent, isError, isLoading
           <span>{t('chatA-tools.agent.open')}</span>
           <span className="text-gray-500 truncate max-w-[16rem]">{child.title}</span>
         </button>
-      ) : (
+      ) : poHostsChild && !isError ? (
         <p className="text-xs text-gray-600 italic" title={t('chatA-tools.agent.noChildTitle')} data-testid="agent-no-child">
           {t('chatA-tools.agent.noChild')}
         </p>
-      )}
+      ) : null}
 
       {/* While it runs there is no result yet; once answered, the tool result IS the answer. */}
       {isLoading ? (

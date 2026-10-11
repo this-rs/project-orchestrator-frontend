@@ -13,7 +13,8 @@ import { CLAUDE_CODE_CAPABILITIES, type ProviderCapabilities } from '@/types/pro
  * name it, say whether it is still working, and open it. Built from the
  * children endpoint (`useDetachedRuns`), so `toolUseId` is the child's
  * `spawned_by.tool_use_id` — the only join between a native-harness `Agent`
- * tool call and the conversation it ran in.
+ * tool call and the conversation it ran in. A `DetachedRun` satisfies it as
+ * is, so the panels pass `useDetachedRuns().runs` without re-mapping it.
  */
 export interface ChatChildSession {
   sessionId: string
@@ -32,9 +33,10 @@ interface ChatSessionContextValue {
    */
   cancelToolsLive?: () => boolean
   /**
-   * The conversations this session opened. Empty outside the chat panel (a
-   * transcript rendered on a runner page has no children list to read), which
-   * is why the sub-agent card says "not listed yet" instead of inventing a link.
+   * The conversations this session opened. Absent where no children list is
+   * read (a transcript rendered on a runner page): the sub-agent card then
+   * shows no link — and promises none, since it only says "not listed yet"
+   * where the session's capabilities say PO hosts the child.
    */
   childSessions?: readonly ChatChildSession[]
   /** Show another conversation in this panel. Absent where the panel cannot navigate. */

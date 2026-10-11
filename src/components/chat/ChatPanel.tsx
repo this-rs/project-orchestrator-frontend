@@ -41,7 +41,7 @@ import { ComposerDock } from './ComposerDock'
 import { ChatTimelinePanel } from './ChatTimelinePanel'
 import { useResetTimelineOnPhone } from './useResetTimelineOnPhone'
 import { CHAT_COLUMN_WIDTH, CHAT_SIDEBAR_WIDTH, timelineRoom } from './timelineRoom'
-import { collectRunning } from './runningActivity'
+import { collectRunning, subagentSettleSignal } from './runningActivity'
 import type { RunActions } from './ActivityBar'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
 import { SessionList } from './SessionList'
@@ -158,7 +158,14 @@ export function ChatPanel() {
   const dismissSessionOpenError = useCallback(() => setSessionOpenError(null), [setSessionOpenError])
   // Session + panel mode live in the URL, so a reload reopens the chat as it was.
   useChatUrlSync({ sessionId: chat.sessionId, mode, setMode, loadSession: chat.loadSession })
-  const detachedRuns = useDetachedRuns(chat.sessionId)
+  // Refetch the children when this session's stream says a sub-agent may have
+  // ended (its `Agent` result arrived, or the turn ended): a native child sends
+  // no CRUD update of its own when it finishes.
+  const settleSignal = useMemo(
+    () => subagentSettleSignal(chat.messages, chat.isStreaming),
+    [chat.messages, chat.isStreaming],
+  )
+  const detachedRuns = useDetachedRuns(chat.sessionId, { settleSignal })
   // One derivation of "what is running here", rendered above the composer (ActivityBar).
   const trackedBackgroundTasks = useAtomValue(chatBackgroundTasksAtom)
   const backgroundTasks = capabilities.background_tasks ? trackedBackgroundTasks : NO_BACKGROUND_TASKS
@@ -176,18 +183,6 @@ export function ChatPanel() {
   // ones. Showing a live run in both (and in a banner, and in a header pill) was three surfaces
   // for one fact.
   const finishedRuns = useMemo(() => detachedRuns.runs.filter((r) => !r.isStreaming), [detachedRuns.runs])
-  // What the transcript needs of the children: a sub-agent card finds its own
-  // child conversation by the id of its tool call (`spawned_by.tool_use_id`).
-  const childSessions = useMemo(
-    () =>
-      detachedRuns.runs.map((r) => ({
-        sessionId: r.sessionId,
-        title: r.title,
-        isStreaming: r.isStreaming,
-        toolUseId: r.toolUseId,
-      })),
-    [detachedRuns.runs],
-  )
   const panelRef = useRef<HTMLDivElement>(null)
   const setScrollToTurn = useSetAtom(chatScrollToTurnAtom)
   const permissionConfig = useAtomValue(chatPermissionConfigAtom)
@@ -581,7 +576,7 @@ export function ChatPanel() {
   // On desktop: sidebar is a permanent 288px column
   if (isFullscreen) {
     return (
-      <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={childSessions} openSession={handleViewRun}>
+      <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun}>
       <ChatCapabilitiesProvider capabilities={capabilities}>
       <div
         ref={panelRef}
@@ -917,7 +912,7 @@ export function ChatPanel() {
 
   // --- PANEL LAYOUT (non-fullscreen): toggle-based session list ---
   return (
-    <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={childSessions} openSession={handleViewRun}>
+    <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun}>
     <ChatCapabilitiesProvider capabilities={capabilities}>
     <div
       ref={panelRef}

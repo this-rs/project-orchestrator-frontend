@@ -7,13 +7,18 @@
  * declares `subagents: none` and never emits `parent_tool_use_id`, so nothing
  * else links the two.
  *
+ * Claude Code's own sub-agent tool is also named `Agent`, but Claude Code runs
+ * its sub-agents in-process: no child conversation ever exists in PO, so its
+ * card must not promise one.
+ *
  * Run with: npx vitest run src/components/chat/tools/AgentToolRenderer.test.tsx
  */
 import '@testing-library/jest-dom/vitest'
 import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { ChatSessionProvider, type ChatChildSession } from '../ChatSessionContext'
+import { CLAUDE_CODE_CAPABILITIES, MINIMAL_CAPABILITIES, type ProviderCapabilities } from '@/types/provider'
+import { ChatCapabilitiesProvider, ChatSessionProvider, type ChatChildSession } from '../ChatSessionContext'
 import { AgentToolRenderer } from './AgentToolRenderer'
 import { ToolContent, getToolIcon, getToolSummary, resolveToolRenderer } from './index'
 
@@ -24,13 +29,20 @@ const INPUT = {
   subagent_type: 'Explore',
 }
 
+/** The native harness: no sub-agents of its own, so PO hosts the child. */
+const NATIVE_CAPS: Readonly<ProviderCapabilities> = { ...MINIMAL_CAPABILITIES, subagents: 'none' }
+
 function inSession(
   ui: ReactNode,
-  { childSessions, openSession }: { childSessions?: ChatChildSession[]; openSession?: (id: string) => void } = {},
+  {
+    childSessions,
+    openSession,
+    capabilities = NATIVE_CAPS,
+  }: { childSessions?: ChatChildSession[]; openSession?: (id: string) => void; capabilities?: Readonly<ProviderCapabilities> } = {},
 ) {
   return render(
     <ChatSessionProvider sessionId="parent-1" childSessions={childSessions} openSession={openSession}>
-      {ui}
+      <ChatCapabilitiesProvider capabilities={capabilities}>{ui}</ChatCapabilitiesProvider>
     </ChatSessionProvider>,
   )
 }
@@ -117,7 +129,11 @@ describe('the Agent tool card', () => {
   })
 
   it('offers no link outside the chat panel, where there is nothing to navigate', () => {
-    render(<AgentToolRenderer toolName="Agent" toolCallId={CALL} toolInput={INPUT} isLoading={false} />)
+    render(
+      <ChatCapabilitiesProvider capabilities={NATIVE_CAPS}>
+        <AgentToolRenderer toolName="Agent" toolCallId={CALL} toolInput={INPUT} isLoading={false} />
+      </ChatCapabilitiesProvider>,
+    )
     expect(screen.queryByTestId('agent-open-child')).not.toBeInTheDocument()
     expect(screen.getByTestId('agent-no-child')).toBeInTheDocument()
   })
@@ -137,5 +153,72 @@ describe('the Agent tool card', () => {
     )
     expect(screen.getByText('The sub-agent failed')).toBeInTheDocument()
     expect(screen.queryByText('Its answer')).not.toBeInTheDocument()
+  })
+
+  it('a call the backend refused (error, no child) shows the failure, not a wait for a child', () => {
+    inSession(
+      <AgentToolRenderer toolName="Agent" toolCallId={CALL} toolInput={INPUT} isLoading={false} isError resultContent="too many sub-agents for this session" />,
+      { openSession: vi.fn(), childSessions: [] },
+    )
+    expect(screen.getByText('The sub-agent failed')).toBeInTheDocument()
+    expect(screen.getByText('too many sub-agents for this session')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-no-child')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('agent-open-child')).not.toBeInTheDocument()
+  })
+
+  it('a failed call whose child DID open still links it', () => {
+    inSession(
+      <AgentToolRenderer toolName="Agent" toolCallId={CALL} toolInput={INPUT} isLoading={false} isError resultContent="the sub-agent crashed" />,
+      { openSession: vi.fn(), childSessions: [{ sessionId: 'child-1', title: 'Crashed', isStreaming: false, toolUseId: CALL }] },
+    )
+    expect(screen.getByTestId('agent-open-child')).toBeInTheDocument()
+  })
+})
+
+describe("Claude Code's own `Agent` call", () => {
+  // Current Claude Code names its sub-agent tool `Agent`, with a `prompt`. Not
+  // grouped into an AgentGroup (background agent, nested call, history without
+  // `parent_tool_use_id`), it resolves to this card — but its sub-agent runs
+  // inside the CLI and never becomes a PO conversation.
+  const CLAUDE_INPUT = { description: 'Explore the repo', prompt: 'List the chat handlers.', subagent_type: 'general-purpose' }
+
+  it('is a plain sub-agent card: task, kind, answer — no link and no "not listed yet"', () => {
+    inSession(
+      <ToolContent
+        toolName="Agent"
+        toolCallId="toolu_claude_1"
+        toolInput={CLAUDE_INPUT}
+        resultContent="Found 3 handlers."
+        isLoading={false}
+      />,
+      {
+        openSession: vi.fn(),
+        capabilities: CLAUDE_CODE_CAPABILITIES,
+        childSessions: [{ sessionId: 'child-other', title: 'A runner child', isStreaming: false, toolUseId: 'call_other' }],
+      },
+    )
+    expect(screen.getByTestId('agent-tool-card')).toBeInTheDocument()
+    expect(screen.getByText(CLAUDE_INPUT.prompt)).toBeInTheDocument()
+    expect(screen.getByText('general-purpose')).toBeInTheDocument()
+    expect(screen.getByText('Found 3 handlers.')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-open-child')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('agent-no-child')).not.toBeInTheDocument()
+    expect(screen.queryByText('The sub-conversation is not listed yet')).not.toBeInTheDocument()
+  })
+
+  it('outside the chat panel (default capabilities = Claude) it promises no child either', () => {
+    render(<ToolContent toolName="Agent" toolInput={CLAUDE_INPUT} isLoading />)
+    expect(screen.getByTestId('agent-tool-card')).toBeInTheDocument()
+    expect(screen.queryByTestId('agent-no-child')).not.toBeInTheDocument()
+  })
+
+  it('a native session\'s `Agent` call still links its child', () => {
+    const openSession = vi.fn()
+    inSession(
+      <ToolContent providerKind="openai_compatible" canonical="Agent" toolName="Agent" toolCallId={CALL} toolInput={INPUT} isLoading />,
+      { openSession, childSessions: [{ sessionId: 'child-1', title: 'Audit', isStreaming: true, toolUseId: CALL }] },
+    )
+    fireEvent.click(screen.getByTestId('agent-open-child'))
+    expect(openSession).toHaveBeenCalledWith('child-1')
   })
 })

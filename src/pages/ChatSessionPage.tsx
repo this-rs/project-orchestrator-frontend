@@ -18,6 +18,7 @@ import { useDetachedRuns, useWorkspaceSlug } from '@/hooks'
 import { useStickToBottom } from '@/hooks/useStickToBottom'
 import { ChatMessageBubble } from '@/components/chat/ChatMessageBubble'
 import { ChatSessionProvider } from '@/components/chat/ChatSessionContext'
+import { subagentSettleSignal } from '@/components/chat/runningActivity'
 import { AgenticModePill } from '@/components/chat/AgenticModePill'
 import { AgenticModeBanner } from '@/components/chat/AgenticModeBanner'
 import { WsStatusIndicator } from '@/components/runner/WsStatusIndicator'
@@ -37,24 +38,14 @@ export default function ChatSessionPage() {
   // Follows the live conversation, but never pulls back a reader who scrolled up.
   const { scrollRef, scrollToBottom } = useStickToBottom<HTMLDivElement>(messages)
   // Agentic mode surfaces: detached runs spawned by this session.
-  const detachedRuns = useDetachedRuns(sessionId ?? null)
+  // No turn state here: an answered `Agent` call is the signal to refetch the children.
+  const settleSignal = useMemo(() => subagentSettleSignal(messages, false), [messages])
+  const detachedRuns = useDetachedRuns(sessionId ?? null, { settleSignal })
   const source = useReferenceSource(sessionId ? { kind: 'conversation', id: sessionId, label: t('chatA-page.session', { id: sessionId.slice(0, 8) }) } : null)
 
   const handleViewRun = useCallback((childSessionId: string) => {
     navigate(workspacePath(wsSlug, `/chat/${childSessionId}`))
   }, [navigate, wsSlug])
-  // What the transcript needs of the children: a sub-agent card joins on the
-  // child's `spawned_by.tool_use_id`.
-  const childSessions = useMemo(
-    () =>
-      detachedRuns.runs.map((r) => ({
-        sessionId: r.sessionId,
-        title: r.title,
-        isStreaming: r.isStreaming,
-        toolUseId: r.toolUseId,
-      })),
-    [detachedRuns.runs],
-  )
   const handleStopRun = useCallback((childSessionId: string) => {
     // Best-effort interrupt — the UI updates via WebSocket events. Still
     // report failures: a silent catch here is what kept a dead endpoint
@@ -134,7 +125,7 @@ export default function ChatSessionPage() {
           deliberately null — this page is read-only, and a session id would
           hand the transcript the per-tool Stop chip it must not have.
         */}
-        <ChatSessionProvider sessionId={null} childSessions={childSessions} openSession={handleViewRun}>
+        <ChatSessionProvider sessionId={null} childSessions={detachedRuns.runs} openSession={handleViewRun}>
           {messages.map((msg) => (
             <ChatMessageBubble
               key={msg.id}

@@ -185,7 +185,7 @@ export interface ProgressScoreResponse {
   worst_score: number
 }
 
-/** A child session with its streaming status */
+/** A child session, as `GET /chat/sessions/{id}/children` returns it (the backend's `ChatSession`). */
 export interface DetachedSession {
   id: string
   title?: string
@@ -202,7 +202,12 @@ export interface DetachedSession {
    * (`skip_serializing_if = "Option::is_none"`), so never read without a guard.
    */
   spawned_by?: SpawnedBy | null
-  is_streaming: boolean
+  /**
+   * Live activity, stamped by the server from its in-memory map
+   * (`stamp_activity`). Omitted when the child is quiet, so an absent field
+   * means "not streaming". This response has no `is_streaming` field.
+   */
+  activity?: SessionActivity | null
 }
 
 // ============================================================================
