@@ -45,7 +45,8 @@ export default {
     auto: "Auto",
     autoOn: "Poursuite automatique activée",
     autoOff: "Poursuite automatique désactivée",
-    drop: "Déposez pour joindre"
+    drop: "Déposez pour joindre",
+    sendNowHint: "{key}+Entrée envoie tout de suite et interrompt la réponse en cours"
   },
   refs: {
     picker: {

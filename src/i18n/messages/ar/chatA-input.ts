@@ -45,7 +45,8 @@ export default {
     auto: "تلقائي",
     autoOn: "تم تفعيل المتابعة التلقائية",
     autoOff: "تم تعطيل المتابعة التلقائية",
-    drop: "أفلت للإرفاق"
+    drop: "أفلت للإرفاق",
+    sendNowHint: "{key}+Enter يرسل الآن ويقاطع الإجابة الجارية"
   },
   refs: {
     picker: {

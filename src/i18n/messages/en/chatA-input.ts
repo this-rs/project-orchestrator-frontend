@@ -44,6 +44,7 @@ export default {
     autoOn: 'Auto-continue enabled',
     autoOff: 'Auto-continue disabled',
     drop: 'Drop to attach',
+    sendNowHint: '{key}+Enter sends now and interrupts the current answer',
   },
   refs: {
     picker: {

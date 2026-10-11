@@ -45,7 +45,8 @@ export default {
     auto: "自動",
     autoOn: "自動継続を有効にしました",
     autoOff: "自動継続を無効にしました",
-    drop: "ドロップして添付"
+    drop: "ドロップして添付",
+    sendNowHint: "{key}+Enter で今すぐ送信し、生成中の回答を中断します"
   },
   refs: {
     picker: {

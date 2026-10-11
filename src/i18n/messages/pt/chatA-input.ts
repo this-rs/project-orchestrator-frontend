@@ -45,7 +45,8 @@ export default {
     auto: "Auto",
     autoOn: "Continuação automática ativada",
     autoOff: "Continuação automática desativada",
-    drop: "Solte para anexar"
+    drop: "Solte para anexar",
+    sendNowHint: "{key}+Enter envia agora e interrompe a resposta em andamento"
   },
   refs: {
     picker: {
