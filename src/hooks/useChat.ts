@@ -14,6 +14,7 @@ import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusA
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
+import { isUserStoppedTurn } from '@/utils/turnEnd'
 import { chatApi, ChatWebSocket } from '@/services'
 import { applyQueueOp, enqueue, mergeServerQueue, type QueueOp, type QueuedMessage } from '@/components/chat/messageQueue'
 import type { ChatMessage, ChatStreamEvent, ContentBlock, PermissionMode } from '@/types'
@@ -1473,7 +1474,10 @@ export function useChat() {
                 : tr('app.chat.maxTurns'),
               metadata: { num_turns: rNumTurns },
             })
-          } else if (rSubtype === 'error_during_execution') {
+          } else if (
+            rSubtype === 'error_during_execution' &&
+            !isUserStoppedTurn(rData as Record<string, unknown>)
+          ) {
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'result_error',
