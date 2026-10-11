@@ -55,10 +55,11 @@ export function ProviderBadge({ description, model, className = '' }: ProviderBa
 
 /**
  * Whether a session's routing is worth a badge: only when PO decided
- * (`auto`, `fallback`) or left a reason. A session on the default path shows nothing.
+ * (`auto`, `fallback`, `sole_instance`: nothing was configured and the only
+ * instance allowed here took it) or left a reason. A session on the default path shows nothing.
  */
 export function shouldShowRoutedBy(routedBy: RoutedBy | null | undefined, reason: string | null | undefined): boolean {
-  return routedBy === 'auto' || routedBy === 'fallback' || !!reason
+  return routedBy === 'auto' || routedBy === 'fallback' || routedBy === 'sole_instance' || !!reason
 }
 
 interface RoutedByBadgeProps {

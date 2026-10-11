@@ -48,6 +48,7 @@ export default {
       global_rule: "vai trò toàn cục",
       default: "nhà cung cấp mặc định của máy chủ",
       claude_code: "dự phòng sang Claude Code",
+      sole_instance: "phiên bản duy nhất được phép ở đây",
       fallback: "chuỗi dự phòng",
       auto: "định tuyến tự động của PO",
     },

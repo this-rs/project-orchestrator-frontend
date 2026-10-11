@@ -11,6 +11,7 @@ export default {
   badgeUnavailable: 'không khả dụng',
   badgeUnavailableHelp: 'Phiên bản nhà cung cấp của cuộc trò chuyện này đã bị xóa: không thể tiếp tục.',
   autoTarget: 'Tự động',
+  chooseProvider: "Chọn nhà cung cấp",
   autoTargetHelp: 'Máy chủ chọn nhà cung cấp và mô hình cho dự án này.',
   kind: {
     claude_code: 'Claude Code',
@@ -29,6 +30,7 @@ export default {
     global_rule: 'mặc định chung',
     default: 'mặc định của máy chủ',
     claude_code: 'dự phòng Claude Code',
+    sole_instance: "phiên bản duy nhất được phép",
     fallback: 'dự phòng',
     auto: 'PO chọn',
     fallbackDefault: 'mặc định',

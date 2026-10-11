@@ -99,6 +99,10 @@ describe('normalizeProvidersResponse — backend wire', () => {
 
   it('answers "no usable provider" when default_provider is null', () => {
     expect(normalizeProvidersResponse({ default_provider: null, providers: [] }).default).toBeNull()
+    // Even when an instance still says `is_default`: null is the server's answer, never Claude Code.
+    expect(
+      normalizeProvidersResponse({ default_provider: null, providers: [{ id: 'claude-code', kind: 'claude_code', is_default: true }] }).default,
+    ).toBeNull()
   })
 
   it('still reads the shape the interface was written against', () => {

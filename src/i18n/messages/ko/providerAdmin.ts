@@ -48,6 +48,7 @@ export default {
       global_rule: "전역 역할",
       default: "서버의 기본 제공자",
       claude_code: "Claude Code로의 대체",
+      sole_instance: "여기서 허용된 유일한 인스턴스",
       fallback: "대체 체인",
       auto: "PO의 자동 라우팅",
     },

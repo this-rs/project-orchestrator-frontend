@@ -48,6 +48,7 @@ export default {
       global_rule: "o papel global",
       default: "o provedor padrão do servidor",
       claude_code: "o fallback para o Claude Code",
+      sole_instance: "a única instância permitida aqui",
       fallback: "a cadeia de fallback",
       auto: "o roteamento automático do PO",
     },

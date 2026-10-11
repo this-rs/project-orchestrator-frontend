@@ -46,6 +46,7 @@ export default {
       global_rule: "the global role",
       default: "the server’s default provider",
       claude_code: "the fallback to Claude Code",
+      sole_instance: "the only instance allowed here",
       fallback: "the fallback chain",
       auto: "PO’s automatic routing",
     },

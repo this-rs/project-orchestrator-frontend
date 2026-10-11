@@ -48,6 +48,7 @@ export default {
       global_rule: "वैश्विक भूमिका",
       default: "सर्वर का डिफ़ॉल्ट प्रदाता",
       claude_code: "Claude Code पर फ़ॉलबैक",
+      sole_instance: "यहाँ अनुमत एकमात्र इंस्टेंस",
       fallback: "फ़ॉलबैक श्रृंखला",
       auto: "PO की स्वचालित रूटिंग",
     },

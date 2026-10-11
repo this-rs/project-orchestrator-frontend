@@ -269,7 +269,7 @@ describe('a conversation that could not be opened — typed card', () => {
     renderPanel({
       prepare: (s) =>
         s.set(chatSessionOpenErrorAtom, {
-          info: { code: 'endpoint_not_allowed', message: '', origin: 'https://api.deepseek.com' },
+          info: { code: 'endpoint_not_allowed', message: '', origin: 'https://api.deepseek.com', consent_scope: 'project' },
           message: 'Forbidden',
           text: 'hello',
           attachments: [],

@@ -1,7 +1,7 @@
 import { AlertTriangle, X } from 'lucide-react'
 import type { ChatSessionOpenError } from '@/atoms'
 import { ProviderStateCard, type ProviderCardTone } from './ProviderStateCard'
-import type { ProviderFallback } from '@/types/provider'
+import type { ProviderFallback, ProviderId } from '@/types/provider'
 import { panelGlass } from '@/components/ui/panelGlass'
 
 interface SessionOpenErrorProps {
@@ -13,6 +13,8 @@ interface SessionOpenErrorProps {
   onRetryWith?: (fallback: ProviderFallback) => void
   /** Send the unsent message again once the vault is unlocked in the card; defaults to `onRetry`. */
   onUnlocked?: () => void
+  /** Send the unsent message again on this instance (`provider_not_chosen`). */
+  onPickProvider?: (providerId: ProviderId) => void
   /** Project the conversation was about (names it in the consent card). */
   projectSlug?: string | null
   /** Override the visual tone; when omitted, derived from what the card offers (credentials_locked with fallback models shown → warning). */
@@ -27,7 +29,7 @@ interface SessionOpenErrorProps {
  * per `error.info.code` (`ProviderStateCard`). An untyped failure keeps the
  * plain alert with the server's sentence.
  */
-export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, onUnlocked, projectSlug, tone }: SessionOpenErrorProps) {
+export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, onUnlocked, onPickProvider, projectSlug, tone }: SessionOpenErrorProps) {
   if (error.info) {
     return (
       <ProviderStateCard
@@ -36,6 +38,7 @@ export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, onUnl
         onRetry={onRetry}
         onRetryWith={onRetryWith}
         onUnlocked={onUnlocked}
+        onPickProvider={onPickProvider}
         onDismiss={onDismiss}
         floating
         tone={tone}

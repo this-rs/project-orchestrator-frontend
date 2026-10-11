@@ -162,7 +162,7 @@ describe('RoutingSelectionMenu - move an existing conversation to another provid
 
   it('a typed refusal (consent / endpoint guard) is said in the dialog, and nothing moves', async () => {
     switchConversationProvider.mockRejectedValue(
-      new ApiError(403, JSON.stringify({ code: 'endpoint_not_allowed', error: 'not allowed', origin: 'http://10.0.0.5:8080', project_slug: 'po' })),
+      new ApiError(403, JSON.stringify({ code: 'endpoint_not_allowed', error: 'not allowed', origin: 'http://10.0.0.5:8080', project_slug: 'po', consent_scope: 'project' })),
     )
     const store = mount({ draft: 'hello' })
     openMenu()

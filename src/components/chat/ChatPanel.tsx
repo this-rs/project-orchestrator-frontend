@@ -5,8 +5,8 @@ import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
 import { useT } from '@/i18n'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom } from '@/atoms'
-import type { ProviderFallback } from '@/types/provider'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom, providersAtom } from '@/atoms'
+import type { ProviderFallback, ProviderId } from '@/types/provider'
 import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
@@ -377,6 +377,24 @@ export function ChatPanel() {
     [stillShown, store, retrySessionOpen, focusComposer],
   )
 
+  /**
+   * `provider_not_chosen`: send it again on the candidate the person picked, named in the
+   * request (strict on that instance, on its default model), as if picked in the menu.
+   */
+  const retrySessionOpenOn = useCallback(
+    (providerId: ProviderId) => {
+      if (!stillShown()) return
+      const model = store.get(providersAtom)?.providers.find((p) => p.id === providerId)?.default_model ?? null
+      store.set(chatDraftAutoAtom, false)
+      store.set(chatDraftSelectionAtom, model ? [{ provider: providerId, model }] : [])
+      store.set(chatSelectedProviderAtom, providerId)
+      store.set(chatSessionModelAtom, model)
+      store.set(chatForcedTargetAtom, true)
+      if (retrySessionOpen()) focusComposer()
+    },
+    [stillShown, store, retrySessionOpen, focusComposer],
+  )
+
   const handleContinue = useCallback(() => {
     chat.sendContinue()
   }, [chat.sendContinue])
@@ -510,6 +528,7 @@ export function ChatPanel() {
           onRetry={retrySessionOpen}
           onRetryWith={retrySessionOpenWith}
           onUnlocked={retryAfterUnlock}
+          onPickProvider={retrySessionOpenOn}
           projectSlug={selectedProject?.slug}
         />
       )}

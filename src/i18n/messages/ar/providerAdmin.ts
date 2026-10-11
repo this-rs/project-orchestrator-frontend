@@ -48,6 +48,7 @@ export default {
       global_rule: "الدور العام",
       default: "المزوّد الافتراضي للخادم",
       claude_code: "الرجوع إلى Claude Code",
+      sole_instance: "المثيل الوحيد المسموح به هنا",
       fallback: "سلسلة الرجوع",
       auto: "التوجيه التلقائي لـ PO",
     },

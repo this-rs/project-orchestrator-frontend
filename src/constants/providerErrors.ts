@@ -28,6 +28,19 @@ export function providerInstancePath(providerId: string | null | undefined): str
     : PROVIDER_SETTINGS_PATH
 }
 
+/**
+ * The title of a typed failure. `endpoint_not_allowed` says which refusal it is
+ * (backend #722): the project's consent, the consent of the chats outside any
+ * project, or the endpoint guard (no `consent_scope`).
+ */
+export function providerErrorTitle(error: Pick<ProviderErrorInfo, 'code' | 'consent_scope'>): string {
+  if (error.code === 'endpoint_not_allowed') {
+    if (!error.consent_scope) return tr('providerErrors.titles.endpointRefused')
+    if (error.consent_scope === 'no_project') return tr('providerErrors.titles.endpointNotAllowedNoProject')
+  }
+  return PROVIDER_ERROR_TITLES[error.code]
+}
+
 export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> = lazyTexts<ProviderErrorCode>({
   no_provider: 'providerErrors.titles.no_provider',
   endpoint_not_allowed: 'providerErrors.titles.endpoint_not_allowed',
@@ -74,6 +87,7 @@ export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> 
   endpoint_redirects_not_allowed: 'providerErrors.titles.endpoint_redirects_not_allowed',
   credential_test_requires_saved_instance: 'providerErrors.titles.credential_test_requires_saved_instance',
   engine_unavailable: 'providerErrors.titles.engine_unavailable',
+  provider_not_chosen: 'providerErrors.titles.provider_not_chosen',
   invalid_routing_mode: 'providerErrors.titles.invalid_routing_mode',
   invalid_learning_stage: 'providerErrors.titles.invalid_learning_stage',
   invalid_routing_weight: 'providerErrors.titles.invalid_routing_weight',
@@ -129,10 +143,14 @@ export function providerErrorExplanation(
 ): string {
   switch (error.code) {
     case 'endpoint_not_allowed': {
+      const where = error.origin ? tr('providerErrors.explain.toOrigin', { origin: error.origin }) : tr('providerErrors.explain.toThis')
+      // No `consent_scope`: the endpoint guard refused the URL itself, no consent would help.
+      if (!error.consent_scope) return tr('providerErrors.explain.endpointRefused')
+      if (error.consent_scope === 'no_project') return tr('providerErrors.explain.endpointNotAllowedNoProject', { where })
       const project = error.project_slug ?? projectSlug
       return tr('providerErrors.explain.endpoint_not_allowed', {
         who: project ? tr('providerErrors.explain.whoProject', { project }) : tr('providerErrors.explain.whoThis'),
-        where: error.origin ? tr('providerErrors.explain.toOrigin', { origin: error.origin }) : tr('providerErrors.explain.toThis'),
+        where,
       })
     }
     case 'model_no_tools':
@@ -211,6 +229,7 @@ export function providerErrorExplanation(
     case 'endpoint_redirects_not_allowed':
     case 'credential_test_requires_saved_instance':
     case 'engine_unavailable':
+    case 'provider_not_chosen':
     case 'invalid_routing_mode':
     case 'invalid_learning_stage':
     case 'invalid_routing_weight':

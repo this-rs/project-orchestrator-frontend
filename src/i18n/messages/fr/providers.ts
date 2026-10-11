@@ -11,6 +11,7 @@ export default {
   badgeUnavailable: 'indisponible',
   badgeUnavailableHelp: 'L\'instance de provider de cette conversation a été supprimée : elle ne peut pas être reprise.',
   autoTarget: 'Auto',
+  chooseProvider: "Choisissez un fournisseur",
   autoTargetHelp: 'Le serveur choisit le provider et le modèle pour ce projet.',
   kind: {
     claude_code: 'Claude Code',
@@ -29,6 +30,7 @@ export default {
     global_rule: 'défaut global',
     default: 'défaut du serveur',
     claude_code: 'repli sur Claude Code',
+    sole_instance: "seule instance autorisée",
     fallback: 'repli',
     auto: 'PO choisit',
     fallbackDefault: 'défaut',

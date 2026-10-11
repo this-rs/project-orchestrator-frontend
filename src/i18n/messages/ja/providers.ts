@@ -11,6 +11,7 @@ export default {
   badgeUnavailable: '利用不可',
   badgeUnavailableHelp: 'この会話のプロバイダーインスタンスは削除されたため、再開できません。',
   autoTarget: 'Auto',
+  chooseProvider: "プロバイダーを選択",
   autoTargetHelp: 'このプロジェクトのプロバイダーとモデルをサーバーが選びます。',
   kind: {
     claude_code: 'Claude Code',
@@ -29,6 +30,7 @@ export default {
     global_rule: 'グローバルの既定',
     default: 'サーバーの既定',
     claude_code: 'Claude Code へのフォールバック',
+    sole_instance: "唯一許可されたインスタンス",
     fallback: 'フォールバック',
     auto: 'PO が選択',
     fallbackDefault: '既定',

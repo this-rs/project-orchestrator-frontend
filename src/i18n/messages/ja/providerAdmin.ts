@@ -48,6 +48,7 @@ export default {
       global_rule: "グローバルロール",
       default: "サーバーの既定のプロバイダー",
       claude_code: "Claude Code へのフォールバック",
+      sole_instance: "ここで許可された唯一のインスタンス",
       fallback: "フォールバックチェーン",
       auto: "PO の自動ルーティング",
     },

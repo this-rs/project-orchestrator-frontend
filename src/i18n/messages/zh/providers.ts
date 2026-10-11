@@ -11,6 +11,7 @@ export default {
   badgeUnavailable: '不可用',
   badgeUnavailableHelp: '此对话的提供方实例已被删除：无法恢复。',
   autoTarget: '自动',
+  chooseProvider: "选择提供方",
   autoTargetHelp: '由服务器为此项目选择提供方和模型。',
   kind: {
     claude_code: 'Claude Code',
@@ -29,6 +30,7 @@ export default {
     global_rule: '全局默认',
     default: '服务器默认',
     claude_code: 'Claude Code 回退',
+    sole_instance: "唯一允许的实例",
     fallback: '回退',
     auto: 'PO 已选择',
     fallbackDefault: '默认',

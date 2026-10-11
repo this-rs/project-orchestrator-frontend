@@ -48,6 +48,7 @@ export default {
       global_rule: "глобальная роль",
       default: "провайдер сервера по умолчанию",
       claude_code: "переход на Claude Code",
+      sole_instance: "единственный экземпляр, разрешённый здесь",
       fallback: "цепочка отката",
       auto: "автоматическая маршрутизация PO",
     },

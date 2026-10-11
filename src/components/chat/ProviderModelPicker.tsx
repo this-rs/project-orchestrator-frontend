@@ -37,6 +37,7 @@ import {
   providerModelLabel,
   providerUnavailableReason,
   routedByLabel,
+  chooseProviderLabel,
 } from '@/constants/providers'
 import {
   isClaudeCodeProvider,
@@ -115,7 +116,9 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   const showProviders = list !== null && loadState !== 'unsupported'
   const vaultLocked = useVaultLocked(open === 'target' && showProviders)
   const resolvedDefault = showProviders ? (list.default ?? null) : null
-  const effectiveClaude = loadState === 'unsupported' || isClaudeCodeProvider(effectiveId, instance?.kind ?? sessionProvider?.kind)
+  // No target (the server has no default, nothing picked) is not Claude Code.
+  const effectiveClaude =
+    loadState === 'unsupported' || (effectiveId !== null && isClaudeCodeProvider(effectiveId, instance?.kind ?? sessionProvider?.kind))
 
   // ── What is selected ───────────────────────────────────────────────
   // Aliases are offered for a NEW conversation only: the session-creation
@@ -136,7 +139,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   const pickedIsListed = !!pickedProvider && !!list?.providers.some((p) => p.id === pickedProvider)
   const autoActive = showProviders && !hasSession && !pickedIsListed && sessionModel === null
 
-  const providerLabel = sessionProvider?.label ?? (instance ? providerDisplayName(instance) : effectiveId)
+  const providerLabel = sessionProvider?.label ?? (instance ? providerDisplayName(instance) : (effectiveId ?? chooseProviderLabel()))
   const providerKind = providerKindLabel(sessionProvider?.kind ?? instance?.kind)
 
   // What "Auto" resolves to for this project, as the server says.
@@ -199,7 +202,14 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   }
 
   // ── Chip ───────────────────────────────────────────────────────────
-  const chipText = !showProviders ? modelLabel : autoActive ? autoTargetLabel() : `${providerLabel} › ${modelLabel}`
+  // The server has no default (`default_provider: null`) and nothing is picked: say so, never Claude Code.
+  const chipText = !showProviders
+    ? modelLabel
+    : autoActive
+      ? effectiveId === null
+        ? chooseProviderLabel()
+        : autoTargetLabel()
+      : `${providerLabel} › ${modelLabel}`
   const chipTitle = autoActive && resolvedText ? `${autoTargetLabel()}: ${resolvedText}` : chipText
 
   const choices = (p: ProviderInstance | null, active: string, withDefault: boolean, defaultActive = false) => (

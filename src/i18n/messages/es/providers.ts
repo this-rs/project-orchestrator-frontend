@@ -11,6 +11,7 @@ export default {
   badgeUnavailable: 'no disponible',
   badgeUnavailableHelp: 'La instancia de proveedor de esta conversación se eliminó: no se puede retomar.',
   autoTarget: 'Auto',
+  chooseProvider: "Elige un proveedor",
   autoTargetHelp: 'El servidor elige el proveedor y el modelo para este proyecto.',
   kind: {
     claude_code: 'Claude Code',
@@ -29,6 +30,7 @@ export default {
     global_rule: 'predeterminado global',
     default: 'predeterminado del servidor',
     claude_code: 'respaldo de Claude Code',
+    sole_instance: "única instancia permitida",
     fallback: 'respaldo',
     auto: 'PO elige',
     fallbackDefault: 'predeterminado',

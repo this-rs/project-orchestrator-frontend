@@ -293,6 +293,7 @@ const ROUTED_BY = [
   'global_rule',
   'default',
   'claude_code',
+  'sole_instance',
   'fallback',
   'auto',
 ] as const

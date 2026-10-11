@@ -6,7 +6,7 @@ import { useRefreshProviders } from '@/hooks/useProviders'
 import { providersApi } from '@/services/providers'
 import { healthLabel } from '@/constants/providers'
 import {
-  PROVIDER_ERROR_TITLES,
+  providerErrorTitle,
   PROVIDER_SETTINGS_PATH,
   retryBySendingText,
   VAULT_PATH,
@@ -19,9 +19,10 @@ import {
 import { humanizeFeature } from '@/constants/engine'
 import { useT } from '@/i18n'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { chatSessionEngineAtom, chatSessionPermissionOverrideAtom } from '@/atoms'
+import { chatSessionEngineAtom, chatSessionPermissionOverrideAtom, decidesForEveryoneAtom, providersAtom } from '@/atoms'
+import { ApiError, apiErrorMessage } from '@/services/api'
 import { TRUST_FALLBACK_MODE } from '@/constants/toolPolicy'
-import type { ProviderErrorInfo, ProviderFallback } from '@/types/provider'
+import { providerDisplayName, type ConsentScope, type ProviderErrorInfo, type ProviderFallback, type ProviderId } from '@/types/provider'
 import { VaultUnlock } from './VaultUnlock'
 
 export type ProviderCardTone = 'error' | 'warning'
@@ -39,6 +40,8 @@ interface ProviderStateCardProps {
   onUnlocked?: () => void
   /** Start a new conversation (`instance_not_found`). */
   onNewConversation?: () => void
+  /** Send the same message again on this instance (`provider_not_chosen`: one of its `candidates`). */
+  onPickProvider?: (providerId: ProviderId) => void
   onDismiss?: () => void
   className?: string
   /** Floats over the scrolling conversation (above the composer): glass instead of a bare tint. */
@@ -172,6 +175,7 @@ export function ProviderStateCard({
   onRetryWith,
   onUnlocked,
   onNewConversation,
+  onPickProvider,
   onDismiss,
   className = '',
   floating = false,
@@ -191,12 +195,21 @@ export function ProviderStateCard({
   const [modeSwitched, setModeSwitched] = useState(false)
   const { t } = useT()
   const degraded = useAtomValue(chatSessionEngineAtom).degraded
+  const providerList = useAtomValue(providersAtom)
+  const decidesForEveryone = useAtomValue(decidesForEveryoneAtom)
+  // The instance the failure is about, as the SERVER named it (`provider_id`, backend #722 B6):
+  // never the provider the composer happened to show.
+  const instance = error.provider_id ? (providerList?.providers.find((p) => p.id === error.provider_id) ?? null) : null
+  const providerName = error.provider_id ? (instance ? providerDisplayName(instance) : error.provider_id) : null
+  // A consent is bound to the instance's origin: the error body never carries it, the list does.
+  const origin = error.origin ?? instance?.origin ?? undefined
+  const shown: ProviderErrorInfo = origin && !error.origin ? { ...error, origin } : error
   // Project Orchestrator's own gap (engine not ported yet): said as ours, never as the model's.
   const harnessGap = harnessGapOf(error, degraded)
   const harnessNote = harnessGap ? t('session.errors.harnessGap', { feature: humanizeFeature(harnessGap) }) : null
   // An `unsupported` on an engine feature would otherwise blame the provider: the note replaces it.
   const explanation =
-    harnessNote && error.code === 'unsupported' ? harnessNote : providerErrorExplanation(error, projectSlug)
+    harnessNote && error.code === 'unsupported' ? harnessNote : providerErrorExplanation(shown, projectSlug)
   // The French explanation of a sandbox refusal says it all: no raw English sentence under it.
   const serverSentence = error.message && error.message !== explanation && !isSandboxRefusal(error) ? error.message : null
   const canRetry =
@@ -215,9 +228,40 @@ export function ProviderStateCard({
     case 'no_provider':
       action = <SettingsLink to={PROVIDER_SETTINGS_PATH}>Open provider settings</SettingsLink>
       break
-    case 'endpoint_not_allowed':
+    case 'endpoint_not_allowed': {
+      // Which consent is missing (backend #722). None: the endpoint guard refused the URL,
+      // no consent would change it — only the instance's settings can.
+      const project = error.project_slug ?? projectSlug ?? null
+      if (error.consent_scope === 'project') {
+        action = (
+          <>
+            {project && error.provider_id && origin && (
+              <ConsentButton scope="project" project={project} providerId={error.provider_id} origin={origin} onAllowed={onRetry} />
+            )}
+            <SettingsLink to={providerConsentPath(project)}>Review the project&apos;s consent</SettingsLink>
+          </>
+        )
+      } else if (error.consent_scope === 'no_project') {
+        action =
+          decidesForEveryone && error.provider_id && origin ? (
+            <ConsentButton scope="no_project" project={null} providerId={error.provider_id} origin={origin} onAllowed={onRetry} />
+          ) : (
+            <span data-testid="consent-ask-admin" className={`text-[11px] ${tone === 'warning' ? 'text-amber-100/90' : 'text-red-100/90'}`}>
+              {decidesForEveryone ? t('providerErrors.consent.noOrigin') : t('providerErrors.consent.askAdmin')}
+            </span>
+          )
+      } else {
+        action = <SettingsLink to={providerInstancePath(error.provider_id)}>{t('providerErrors.consent.openInstance')}</SettingsLink>
+      }
+      break
+    }
+    case 'provider_not_chosen':
       action = (
-        <SettingsLink to={providerConsentPath(error.project_slug ?? projectSlug)}>Review the project&apos;s consent</SettingsLink>
+        <CandidateChoices
+          candidates={error.candidates ?? []}
+          onPick={onPickProvider}
+          decidesForEveryone={decidesForEveryone}
+        />
       )
       break
     case 'auth_required':
@@ -313,8 +357,13 @@ export function ProviderStateCard({
         <AlertTriangle className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${iconColor}`} aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <p className={`font-medium ${textPrimary}`}>
-            {sandboxRefusal ? 'Mode « Rock’n roll » refusé' : PROVIDER_ERROR_TITLES[error.code]}
+            {sandboxRefusal ? 'Mode « Rock’n roll » refusé' : providerErrorTitle(error)}
           </p>
+          {providerName && error.code !== 'provider_not_chosen' && error.code !== 'no_provider' && (
+            <p data-testid="provider-error-provider" className={`mt-0.5 break-words ${textSecondary70}`}>
+              {t('providerErrors.card.provider', { provider: providerName })}
+            </p>
+          )}
           <p className={`mt-0.5 break-words ${textSecondary90}`}>{explanation}</p>
           {harnessNote && error.code !== 'unsupported' && (
             <p data-testid="harness-gap-note" className={`mt-0.5 break-words ${textSecondary90}`}>
@@ -397,6 +446,132 @@ function LockedVaultActions({
             ))}
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Allow the instance's origin where the opening was refused (`endpoint_not_allowed`
+ * with a `consent_scope`): the project's consent (any signed-in person), or the one of
+ * the chats outside any project (root only: the server answers 403 `root_required`
+ * otherwise, and the card does not offer it). The origin is shown on the button: a
+ * person consents to what they see. Once recorded, the message goes out again.
+ */
+function ConsentButton({
+  scope,
+  project,
+  providerId,
+  origin,
+  onAllowed,
+}: {
+  scope: ConsentScope
+  project: string | null
+  providerId: ProviderId
+  origin: string
+  onAllowed?: () => void
+}) {
+  const { t } = useT()
+  const refresh = useRefreshProviders()
+  const actionClass = useActionClass()
+  const labelColor = useContext(ToneCtx) === 'warning' ? 'text-amber-100/90' : 'text-red-100/90'
+  const [state, setState] = useState<{ kind: 'idle' | 'saving' | 'done' } | { kind: 'failed'; text: string }>({ kind: 'idle' })
+  const allow = useCallback(async () => {
+    setState({ kind: 'saving' })
+    try {
+      if (scope === 'project' && project) await providersApi.allowForProject(project, providerId, origin)
+      else await providersApi.allowOutsideProjects(providerId, origin)
+      await refresh().catch(() => {})
+      setState({ kind: 'done' })
+      onAllowed?.()
+    } catch (err) {
+      const text =
+        err instanceof ApiError && err.status === 403 && scope === 'no_project'
+          ? t('providerErrors.consent.askAdmin')
+          : t('providerErrors.consent.failed', { reason: apiErrorMessage(err) })
+      setState({ kind: 'failed', text })
+    }
+  }, [scope, project, providerId, origin, refresh, onAllowed, t])
+  if (state.kind === 'done') {
+    return (
+      <span role="status" className={`text-[11px] ${labelColor}`}>
+        {onAllowed ? t('providerErrors.consent.allowedResent') : t('providerErrors.consent.allowed')}
+      </span>
+    )
+  }
+  return (
+    <>
+      <button
+        type="button"
+        onClick={allow}
+        disabled={state.kind === 'saving'}
+        className={actionClass}
+        data-testid="consent-allow"
+        data-consent-scope={scope}
+      >
+        {state.kind === 'saving' && <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />}
+        {scope === 'project' && project
+          ? t('providerErrors.consent.allowProject', { origin, project })
+          : t('providerErrors.consent.allowNoProject', { origin })}
+      </button>
+      {state.kind === 'failed' && (
+        <span role="status" className={`text-[11px] ${labelColor}`}>
+          {state.text}
+        </span>
+      )}
+    </>
+  )
+}
+
+/**
+ * `provider_not_chosen`: Claude Code's CLI is absent and several instances can answer
+ * here. Send the message to one of them, or set the pilot role (the default provider
+ * of every new chat) — root only: anyone else is told to ask the administrator.
+ */
+function CandidateChoices({
+  candidates,
+  onPick,
+  decidesForEveryone,
+}: {
+  candidates: ProviderId[]
+  onPick?: (providerId: ProviderId) => void
+  decidesForEveryone: boolean
+}) {
+  const { t } = useT()
+  const list = useAtomValue(providersAtom)
+  const actionClass = useActionClass()
+  const labelColor = useContext(ToneCtx) === 'warning' ? 'text-amber-100/90' : 'text-red-100/90'
+  const nameOf = (id: ProviderId) => {
+    const p = list?.providers.find((x) => x.id === id)
+    return p ? providerDisplayName(p) : id
+  }
+  return (
+    <div className="w-full space-y-1.5" data-testid="provider-candidates">
+      {onPick && candidates.length > 0 && (
+        <div className="space-y-1">
+          <p className={`text-[11px] ${labelColor}`}>{t('providerErrors.candidates.label')}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {candidates.map((id) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onPick(id)}
+                className={actionClass}
+                data-testid="provider-candidate"
+                data-provider-id={id}
+              >
+                {t('providerErrors.candidates.use', { provider: nameOf(id) })}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {decidesForEveryone ? (
+        <SettingsLink to={`${PROVIDER_SETTINGS_PATH}#roles`}>{t('providerErrors.candidates.setPilot')}</SettingsLink>
+      ) : (
+        <p data-testid="pilot-ask-admin" className={`text-[11px] ${labelColor}`}>
+          {t('providerErrors.candidates.askAdminPilot')}
+        </p>
       )}
     </div>
   )

@@ -9,6 +9,7 @@ export default {
   badgeUnavailable: 'unavailable',
   badgeUnavailableHelp: 'The provider instance of this conversation has been deleted: it cannot be resumed.',
   autoTarget: 'Auto',
+  chooseProvider: "Choose a provider",
   autoTargetHelp: 'The server picks the provider and the model for this project.',
   kind: {
     claude_code: 'Claude Code',
@@ -27,6 +28,7 @@ export default {
     global_rule: 'global default',
     default: 'server default',
     claude_code: 'Claude Code fallback',
+    sole_instance: "only allowed instance",
     fallback: 'fallback',
     auto: 'PO chooses',
     fallbackDefault: 'default',
