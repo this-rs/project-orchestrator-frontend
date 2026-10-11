@@ -13,6 +13,8 @@ vi.mock('@/services/providers', () => ({
 
 import { ApiError } from '@/services/api'
 import {
+  conversationStage,
+  sessionRoutingOf,
   chatDefaultModelAtom,
   chatEffectiveProviderIdAtom,
   chatPermissionConfigAtom,
@@ -292,5 +294,27 @@ describe('images — the fallback only holds for the legacy engine', () => {
     store.set(chatSessionEngineAtom, { engine: 'legacy', degraded: [] })
     store.set(chatSessionCapabilitiesSnapshotAtom, { images: false })
     expect(store.get(chatSessionCapabilitiesAtom).images).toBe(false)
+  })
+})
+
+// R-S1: the user's choice on THIS conversation (Auto, or two models ticked or more) is its own
+// `auto` stage; a conversation that chose nothing follows the settings' stage.
+describe('conversationStage', () => {
+  it('a record that names its mode was chosen by the user; one without a mode was not', () => {
+    expect(sessionRoutingOf({ routed_by: 'auto', routing_mode: 'full' })?.chosen).toBe(true)
+    expect(sessionRoutingOf({ routed_by: 'auto', route_reason: 'cheap' })?.chosen).toBeUndefined()
+  })
+
+  it('Auto or a pool chosen on the conversation is auto, whatever the settings say', () => {
+    expect(conversationStage({ routed_by: 'auto', route_reason: null, routing_mode: 'full', chosen: true }, 'shadow')).toBe('auto')
+    const pool = [{ provider: 'p', model: 'a' }, { provider: 'p', model: 'b' }]
+    expect(conversationStage({ routed_by: 'auto', route_reason: null, routing_mode: 'mixed', routing_pool: pool, chosen: true }, 'advisory')).toBe('auto')
+  })
+
+  it('nothing chosen, or one model ticked (strict): the settings stage', () => {
+    expect(conversationStage({ routed_by: 'auto', route_reason: null, routing_mode: 'full' }, 'shadow')).toBe('shadow')
+    expect(conversationStage({ routed_by: 'request', route_reason: null, routing_mode: 'primary', routing_pool: [{ provider: 'p', model: 'a' }], chosen: true }, 'shadow')).toBe('shadow')
+    expect(conversationStage(null, 'advisory')).toBe('advisory')
+    expect(conversationStage(null, null)).toBeNull()
   })
 })

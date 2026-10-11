@@ -11,6 +11,7 @@ import { StrictMode, type ReactNode } from 'react'
 import { Provider, createStore } from 'jotai'
 import { chatDraftInputAtom, chatDraftsMapAtom, chatFollowNoticeAtom, chatLastCancelFailureAtom, chatSessionIdAtom, chatSwitchingSessionAtom } from '@/atoms'
 import { historyEventsToMessages } from '@/utils/chatAssembly'
+import { nextCancelStamp } from '@/utils/cancelFailure'
 
 vi.mock('@/services', () => {
   type Callbacks = { onEvent?: (event: Record<string, unknown>) => void }
@@ -295,23 +296,33 @@ describe('useChat — the cancel notice told to the Stop chips (review of #327, 
     vi.mocked(chatApi.getMessages).mockImplementationOnce(
       () => new Promise((resolve) => { releaseHistory = resolve as typeof releaseHistory }),
     )
-    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'sess-1')
+    const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>
+    const rendered = renderHook(() => useChat(), { wrapper })
+    await waitFor(() => expect(FakeWS.instances.length).toBeGreaterThan(0))
+    const ws = FakeWS.instances[FakeWS.instances.length - 1]
+    act(() => ws.callbacks.onEvent({ ...OWNER_UNREACHABLE }))
+    // Buffered: not handled yet.
+    expect(store.get(chatLastCancelFailureAtom)).toBeNull()
+    // The user clicks Stop while the history is still loading.
+    const clickedAt = nextCancelStamp()
+    await act(async () => releaseHistory({ total_count: 0, messages: [] }))
+    await waitFor(() => expect(rendered.result.current.isLoadingHistory).toBe(false))
+    // The chip must not take this notice, which arrived before its click, for its own.
+    const notice = store.get(chatLastCancelFailureAtom)
+    expect(notice).toMatchObject({ sessionId: 'sess-1', reason: 'owner_unreachable' })
+    expect(notice!.at).toBeLessThan(clickedAt)
+  })
+
+  it('a wall clock set back between two notices does not keep the older one (review of #336)', async () => {
+    const { store, emit } = await setup()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(9_000_000)
     try {
-      const store = createStore()
-      store.set(chatSessionIdAtom, 'sess-1')
-      const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>
-      const rendered = renderHook(() => useChat(), { wrapper })
-      await waitFor(() => expect(FakeWS.instances.length).toBeGreaterThan(0))
-      const ws = FakeWS.instances[FakeWS.instances.length - 1]
-      act(() => ws.callbacks.onEvent({ ...OWNER_UNREACHABLE }))
-      // Buffered: not handled yet.
-      expect(store.get(chatLastCancelFailureAtom)).toBeNull()
-      // The user clicks Stop at 3000; the history comes back at 5000.
-      now.mockReturnValue(5_000)
-      await act(async () => releaseHistory({ total_count: 0, messages: [] }))
-      await waitFor(() => expect(rendered.result.current.isLoadingHistory).toBe(false))
-      // A chip clicked at 3000 must not take this notice (received at 1000) for its own.
-      expect(store.get(chatLastCancelFailureAtom)).toEqual({ sessionId: 'sess-1', reason: 'owner_unreachable', at: 1_000 })
+      emit({ ...OWNER_UNREACHABLE, reason: 'session_gone' })
+      now.mockReturnValue(9_000_000 - 3_600_000)
+      emit({ ...OWNER_UNREACHABLE })
+      expect(store.get(chatLastCancelFailureAtom)).toMatchObject({ sessionId: 'sess-1', reason: 'owner_unreachable' })
     } finally {
       now.mockRestore()
     }

@@ -111,3 +111,18 @@ export function cancelNoticeKey(code: string, reason?: string): MessageKey {
   if (reason === 'owner_timeout') return 'chatA-activity.cancel.timeoutNotice'
   return 'chatA-activity.cancel.failedNotice'
 }
+
+let lastCancelStamp = 0
+
+/**
+ * A strictly increasing number, to order this tab's own moments: the click of a
+ * Stop chip and the arrival of a cancel notice on the stream. Not the wall clock
+ * (`Date.now()` can go back — NTP, a changed system time — and a real notice would
+ * then look older than the click, leaving the chip on "stopping…"), and never two
+ * moments with the same value (a notice that came in the same millisecond as the
+ * click but BEFORE it is not its answer).
+ */
+export function nextCancelStamp(): number {
+  lastCancelStamp += 1
+  return lastCancelStamp
+}

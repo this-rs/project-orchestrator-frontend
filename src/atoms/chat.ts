@@ -189,7 +189,8 @@ export const chatBackgroundTasksAtom = atom<BackgroundTaskInfo[]>([])
  * The last failed or refused cancel of the running tools announced on the live
  * stream (`error { code: cancel_failed | cancel_refused, reason }`), for the Stop
  * chips whose request went over the socket: they get no REST answer, only this.
- * `at` is `Date.now()` on arrival — a chip ignores a failure older than its click.
+ * `at` is the `nextCancelStamp()` of its arrival — a chip ignores a failure that
+ * arrived before its click.
  */
 export interface LastCancelFailure {
   sessionId: string
