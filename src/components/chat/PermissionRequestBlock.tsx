@@ -137,6 +137,32 @@ function formatToolSummary(
   }
 }
 
+/** `value` as JSON with its object keys sorted, as the backend compares and shows an input. */
+function canonicalJson(value: unknown): string {
+  const sorted = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(sorted)
+      : v && typeof v === 'object'
+        ? Object.fromEntries(
+            Object.keys(v as Record<string, unknown>)
+              .sort()
+              .map((k) => [k, sorted((v as Record<string, unknown>)[k])]),
+          )
+        : v
+  return JSON.stringify(sorted(value ?? {}))
+}
+
+/**
+ * What a "for the session" approval of this call would cover, worded like the rule the
+ * backend sends back (`permission_decision.rule`, `chat::session_grants`): the identical
+ * call only, so the command line for a command, the input otherwise. The `description` of
+ * a command is not part of what the backend compares.
+ */
+function sessionGrantPreview(toolName: string, input: Record<string, unknown> | undefined): string {
+  if (input && typeof input.command === 'string') return `${toolName}: ${input.command.trim()}`
+  return `${toolName} ${canonicalJson(input)}`
+}
+
 // ---------------------------------------------------------------------------
 // Category icons (compact)
 // ---------------------------------------------------------------------------
@@ -194,6 +220,8 @@ export function PermissionRequestBlock({
   const decisionRule = block.metadata?.decision_rule as string | undefined
   // A scope the backend refused (`permission_scope_unsupported`): `at` tells refusals apart.
   const scopeRefused = block.metadata?.scope_refused as { scope?: string; at: number } | undefined
+  // A `session` answer that got neither a decision nor a refusal in time (or whose socket died).
+  const scopeUnconfirmed = block.metadata?.scope_unconfirmed as { at: number } | undefined
   const providerKind = useBlockProviderKind()
 
   const category = getToolCategory(toolName, {
@@ -219,6 +247,39 @@ export function PermissionRequestBlock({
     setRefusalSeen(scopeRefused.at)
     setAwaitingScope(false)
   }
+  // No confirmation came back in time, or the socket was lost meanwhile (`useChat`): the
+  // block is answerable again instead of waiting forever.
+  const [unconfirmedSeen, setUnconfirmedSeen] = useState<number | null>(null)
+  if (scopeUnconfirmed && scopeUnconfirmed.at !== unconfirmedSeen) {
+    setUnconfirmedSeen(scopeUnconfirmed.at)
+    setAwaitingScope(false)
+  }
+  // An answer the backend refused before delivering it (`permission_forbidden`): nothing was
+  // answered, so the block is pending again, whatever it showed after the click.
+  const answerForbidden = block.metadata?.answer_forbidden as { reason?: string; at: number } | undefined
+  const [forbiddenSeen, setForbiddenSeen] = useState<number | null>(null)
+  if (answerForbidden && answerForbidden.at !== forbiddenSeen && !persistedDecision) {
+    setForbiddenSeen(answerForbidden.at)
+    setAwaitingScope(false)
+    setResponded(false)
+    setDecision(null)
+  }
+  const forbidden = !!answerForbidden && !persistedDecision
+  // Of the notices (refused scope, unconfirmed, forbidden), only the latest is shown.
+  const latestNotice = [
+    refused && scopeRefused ? { kind: 'refused' as const, at: scopeRefused.at } : null,
+    scopeUnconfirmed && !persistedDecision ? { kind: 'unconfirmed' as const, at: scopeUnconfirmed.at } : null,
+    forbidden && answerForbidden ? { kind: 'forbidden' as const, at: answerForbidden.at } : null,
+  ].reduce<{ kind: 'refused' | 'unconfirmed' | 'forbidden'; at: number } | null>(
+    (latest, notice) => (notice && (!latest || notice.at >= latest.at) ? notice : latest),
+    null,
+  )?.kind
+  // A refusal of `session` is deterministic (the same call is refused again): not offered twice.
+  const sessionRefused = refused && scopeRefused?.scope === 'session'
+  const showSession = offersSession && !sessionRefused
+  // What "for the session" covers, shown BEFORE the click: this exact call, as the backend
+  // describes its grant (`Bash: git status`).
+  const sessionRule = sessionGrantPreview(toolName, toolInput)
 
   // Sync with persisted decision arriving via broadcast after initial render
   if (persistedDecision && !responded) {
@@ -383,13 +444,14 @@ export function PermissionRequestBlock({
             <Check className="w-3 h-3" aria-hidden="true" />
             {t('chatA-tools.permission.allowOnce')}
           </button>
-          {offersSession && (
+          {showSession && (
             <button
               type="button"
               data-scope="session"
               onClick={() => handleRespond(true, 'session')}
               disabled={disabled || awaitingScope}
               title={t('chatA-tools.permission.sessionHint')}
+              aria-describedby={`permission-scope-${toolCallId}`}
               className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-600/10 text-emerald-300 hover:bg-emerald-600/20 transition-colors disabled:opacity-50"
             >
               {t('chatA-tools.permission.allowSession')}
@@ -405,14 +467,38 @@ export function PermissionRequestBlock({
             {t('chatA-tools.permission.deny')}
           </button>
         </div>
+        {showSession && (
+          <p
+            id={`permission-scope-${toolCallId}`}
+            data-testid="permission-session-scope"
+            className="mt-1.5 flex items-baseline gap-1 text-[10px] text-gray-500 min-w-0"
+          >
+            <span className="shrink-0">{t('chatA-tools.permission.sessionCovers')}</span>
+            <code className="font-mono text-gray-400 truncate" title={sessionRule}>
+              {sessionRule}
+            </code>
+          </p>
+        )}
         {awaitingScope && (
           <p role="status" className="mt-1.5 text-[10px] text-gray-400">
             {t('chatA-tools.permission.awaiting')}
           </p>
         )}
-        {refused && !awaitingScope && (
+        {latestNotice === 'refused' && !awaitingScope && (
           <p role="alert" className="mt-1.5 text-[10px] text-amber-400">
             {t('chatA-tools.permission.scopeRefused')}
+          </p>
+        )}
+        {latestNotice === 'unconfirmed' && !awaitingScope && (
+          <p role="alert" className="mt-1.5 text-[10px] text-amber-400">
+            {t('chatA-tools.permission.unconfirmed')}
+          </p>
+        )}
+        {latestNotice === 'forbidden' && !awaitingScope && (
+          <p role="alert" data-testid="permission-forbidden" className="mt-1.5 text-[10px] text-amber-400">
+            {answerForbidden?.reason === 'owner_unreadable'
+              ? t('chatA-tools.permission.ownerUnreadable')
+              : t('chatA-tools.permission.forbidden')}
           </p>
         )}
         {sendFailed && (

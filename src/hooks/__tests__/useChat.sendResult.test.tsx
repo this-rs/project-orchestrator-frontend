@@ -85,7 +85,7 @@ vi.mock('@/services', () => {
 })
 
 import { ChatWebSocket, chatApi } from '@/services'
-import { useChat } from '../useChat'
+import { useChat, SCOPE_CONFIRMATION_TIMEOUT_MS } from '../useChat'
 
 type FakeWs = InstanceType<typeof ChatWebSocket> & {
   callbacks: { onEvent: (event: Record<string, unknown>) => void }
@@ -208,5 +208,110 @@ describe('useChat (regression: a failed ws.send must not apply optimistic effect
     expect((block?.metadata?.scope_refused as { scope: string }).scope).toBe('session')
     expect(block?.metadata?.decided).toBeFalsy()
     expect(blocks.some((b) => b.type === 'error')).toBe(false)
+  })
+
+  const permBlock = (result: { current: ReturnType<typeof useChat> }, id: string) =>
+    result.current.messages
+      .flatMap((m) => m.blocks)
+      .find((b) => b.type === 'permission_request' && b.metadata?.tool_call_id === id)
+
+  it('a refusal names its request: two requests answered "session", the refusal of A lands on A only (#323-1)', async () => {
+    const { result, ws } = await setup()
+    act(() => {
+      ws.callbacks.onEvent({ type: 'permission_request', id: 'A', tool: 'Bash', input: { command: 'python x.py' } })
+      ws.callbacks.onEvent({ type: 'permission_request', id: 'B', tool: 'Bash', input: { command: 'ls' } })
+    })
+    await act(async () => {
+      await result.current.respondPermission('A', true, 'session')
+      await result.current.respondPermission('B', true, 'session')
+    })
+    act(() => {
+      ws.callbacks.onEvent({ type: 'error', message: 'refused', code: 'permission_scope_unsupported', reason: 'session', request_id: 'A' })
+    })
+    expect((permBlock(result, 'A')?.metadata?.scope_refused as { scope: string }).scope).toBe('session')
+    expect(permBlock(result, 'B')?.metadata?.scope_refused).toBeUndefined()
+    // B is still waiting for ITS answer: its decision lands on it.
+    act(() => {
+      ws.callbacks.onEvent({ type: 'permission_decision', id: 'B', allow: true, scope: 'session', rule: 'Bash: ls' })
+    })
+    expect(permBlock(result, 'B')?.metadata?.decision_scope).toBe('session')
+    expect(permBlock(result, 'A')?.metadata?.decided).toBeFalsy()
+    // A refusal named by its request is never an error turn, even repeated.
+    act(() => {
+      ws.callbacks.onEvent({ type: 'error', message: 'refused', code: 'permission_scope_unsupported', reason: 'session', request_id: 'A' })
+    })
+    expect(result.current.messages.flatMap((m) => m.blocks).some((b) => b.type === 'error')).toBe(false)
+  })
+
+  it('a "session" answer that is never confirmed makes its block answerable again after the timeout, a confirmed one does not (#323-2)', async () => {
+    const { result, ws } = await setup()
+    act(() => {
+      ws.callbacks.onEvent({ type: 'permission_request', id: 'p1', tool: 'Bash', input: { command: 'ls' } })
+      ws.callbacks.onEvent({ type: 'permission_request', id: 'p2', tool: 'Bash', input: { command: 'pwd' } })
+    })
+    vi.useFakeTimers()
+    try {
+      act(() => {
+        result.current.respondPermission('p1', true, 'session')
+        result.current.respondPermission('p2', true, 'session')
+      })
+      act(() => {
+        ws.callbacks.onEvent({ type: 'permission_decision', id: 'p2', allow: true, scope: 'session', rule: 'Bash: pwd' })
+      })
+      act(() => {
+        vi.advanceTimersByTime(SCOPE_CONFIRMATION_TIMEOUT_MS - 1)
+      })
+      expect(permBlock(result, 'p1')?.metadata?.scope_unconfirmed).toBeUndefined()
+      act(() => {
+        vi.advanceTimersByTime(1)
+      })
+      expect(permBlock(result, 'p1')?.metadata?.scope_unconfirmed).toBeDefined()
+      expect(permBlock(result, 'p2')?.metadata?.scope_unconfirmed).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a_forbidden_answer_is_shown_on_its_block_and_does_not_mark_it_answered (hook: routed by request_id, never an error turn)', async () => {
+    const { result, ws } = await setup()
+    act(() => {
+      ws.callbacks.onEvent({ type: 'permission_request', id: 'A', tool: 'Bash', input: { command: 'ls' } })
+      ws.callbacks.onEvent({ type: 'permission_request', id: 'B', tool: 'Bash', input: { command: 'pwd' } })
+    })
+    vi.useFakeTimers()
+    try {
+      act(() => {
+        result.current.respondPermission('A', true, 'session')
+      })
+      act(() => {
+        ws.callbacks.onEvent({ type: 'error', message: 'forbidden', code: 'permission_forbidden', reason: 'not_owner', request_id: 'A' })
+      })
+      const a = permBlock(result, 'A')
+      expect((a?.metadata?.answer_forbidden as { reason: string }).reason).toBe('not_owner')
+      expect(a?.metadata?.decided).toBeFalsy()
+      expect(permBlock(result, 'B')?.metadata?.answer_forbidden).toBeUndefined()
+      expect(result.current.messages.flatMap((m) => m.blocks).some((b) => b.type === 'error')).toBe(false)
+      // Its wait ended with the refusal: no "unconfirmed" later.
+      act(() => {
+        vi.advanceTimersByTime(SCOPE_CONFIRMATION_TIMEOUT_MS * 2)
+      })
+      expect(permBlock(result, 'A')?.metadata?.scope_unconfirmed).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a socket lost while a "session" answer waits makes its block answerable again (#323-2)', async () => {
+    const { result, ws } = await setup()
+    act(() => {
+      ws.callbacks.onEvent({ type: 'permission_request', id: 'p1', tool: 'Bash', input: { command: 'ls' } })
+    })
+    await act(async () => {
+      await result.current.respondPermission('p1', true, 'session')
+    })
+    act(() => {
+      ;(ws.callbacks as { onStatusChange: (s: string) => void }).onStatusChange('reconnecting')
+    })
+    expect(permBlock(result, 'p1')?.metadata?.scope_unconfirmed).toBeDefined()
   })
 })

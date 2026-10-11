@@ -152,6 +152,69 @@ describe('permission_scopes', () => {
     expect(screen.getByText('Allowed')).toBeTruthy()
   })
 
+  it('a refusal of "session" is not offered again: the button is gone, once / deny stay (#323-3)', () => {
+    const onRespond = vi.fn(() => true)
+    const update = stage(onRespond)
+    fireEvent.click(screen.getByRole('button', { name: 'For this session' }))
+    update(withMeta({ scope_refused: { scope: 'session', at: 1 } }))
+    expect(screen.queryByRole('button', { name: 'For this session' })).toBeNull()
+    expect(screen.queryByTestId('permission-session-scope')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Allow once' })).toHaveProperty('disabled', false)
+    expect(screen.getByRole('button', { name: 'Deny' })).toHaveProperty('disabled', false)
+  })
+
+  it('what "session" covers is shown before the click: this exact call (#323-4)', () => {
+    mount(<PermissionRequestBlock block={permissionBlock} onRespond={() => true} />)
+    const scope = screen.getByTestId('permission-session-scope')
+    expect(scope.textContent).toMatch(/covers only/)
+    expect(scope.textContent).toContain('Bash: ls')
+    expect(screen.getByRole('button', { name: 'For this session' }).getAttribute('aria-describedby')).toBe(scope.id)
+  })
+
+  it('what "session" covers, for a tool that is not a command: its exact input', () => {
+    const read: ContentBlock = {
+      ...permissionBlock,
+      metadata: { tool_call_id: 'c2', tool_name: 'mcp__nexus__Read', tool_input: { offset: 1, file_path: 'a.rs' } },
+    }
+    mount(<PermissionRequestBlock block={read} onRespond={() => true} />)
+    expect(screen.getByTestId('permission-session-scope').textContent).toContain(
+      'mcp__nexus__Read {"file_path":"a.rs","offset":1}',
+    )
+  })
+
+  it('a "session" answer never confirmed: the wait ends, the request can be answered again (#323-2)', () => {
+    const onRespond = vi.fn(() => true)
+    const update = stage(onRespond)
+    fireEvent.click(screen.getByRole('button', { name: 'For this session' }))
+    expect(screen.getByRole('status').textContent).toMatch(/Waiting for the confirmation/)
+    update(withMeta({ scope_unconfirmed: { at: 2 } }))
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toMatch(/No confirmation came back/)
+    expect(screen.getByRole('button', { name: 'For this session' })).toHaveProperty('disabled', false)
+    expect(screen.getByRole('button', { name: 'Allow once' })).toHaveProperty('disabled', false)
+  })
+
+  it('a_forbidden_answer_is_shown_on_its_block_and_does_not_mark_it_answered', () => {
+    const onRespond = vi.fn(() => true)
+    const update = stage(onRespond)
+    fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
+    expect(screen.getByText('Allowed')).toBeTruthy()
+    // The backend refused it before delivery: nothing was answered.
+    update(withMeta({ answer_forbidden: { reason: 'not_owner', at: 3 } }))
+    expect(screen.queryByText('Allowed')).toBeNull()
+    expect(screen.getByTestId('permission-forbidden').textContent).toMatch(/Only the person this conversation belongs to/)
+    expect(screen.getByRole('button', { name: 'Allow once' })).toHaveProperty('disabled', false)
+    expect(screen.getByRole('button', { name: 'Deny' })).toHaveProperty('disabled', false)
+    // The owner could not be checked: said as such.
+    update(withMeta({ answer_forbidden: { reason: 'owner_unreadable', at: 4 } }))
+    expect(screen.getByTestId('permission-forbidden').textContent).toMatch(/could not be checked/)
+  })
+
+  it('the scope preview reads as conditional: nothing is granted before the backend says so', () => {
+    mount(<PermissionRequestBlock block={permissionBlock} onRespond={() => true} />)
+    expect(screen.getByTestId('permission-session-scope').textContent).toMatch(/^If granted/)
+  })
+
   it('deny carries no scope', () => {
     const onRespond = vi.fn(() => true)
     mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />)
