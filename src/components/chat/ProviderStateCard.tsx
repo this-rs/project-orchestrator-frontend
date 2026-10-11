@@ -279,13 +279,18 @@ export function ProviderStateCard({
       break
   }
 
+  // Every class must appear as a complete string literal so Tailwind's JIT
+  // scanner generates it. Never build a class via `${base}/90` interpolation.
   const isWarning = tone === 'warning'
   const borderColor = isWarning ? 'border-amber-500/30' : 'border-red-500/30'
   const bgTint = isWarning
     ? floating ? panelGlass.warning : 'bg-amber-500/10'
     : floating ? panelGlass.error : 'bg-red-500/10'
   const textPrimary = isWarning ? 'text-amber-100' : 'text-red-100'
+  const textPrimary90 = isWarning ? 'text-amber-100/90' : 'text-red-100/90'
   const textSecondary = isWarning ? 'text-amber-200' : 'text-red-200'
+  const textSecondary90 = isWarning ? 'text-amber-200/90' : 'text-red-200/90'
+  const textSecondary70 = isWarning ? 'text-amber-200/70' : 'text-red-200/70'
   const iconColor = isWarning ? 'text-amber-400' : 'text-red-400'
   const dismissHover = isWarning ? 'hover:bg-amber-500/20' : 'hover:bg-red-500/20'
 
@@ -303,17 +308,17 @@ export function ProviderStateCard({
           <p className={`font-medium ${textPrimary}`}>
             {sandboxRefusal ? 'Mode « Rock’n roll » refusé' : PROVIDER_ERROR_TITLES[error.code]}
           </p>
-          <p className={`mt-0.5 break-words ${textSecondary}/90`}>{explanation}</p>
+          <p className={`mt-0.5 break-words ${textSecondary90}`}>{explanation}</p>
           {harnessNote && error.code !== 'unsupported' && (
-            <p data-testid="harness-gap-note" className={`mt-0.5 break-words ${textSecondary}/90`}>
+            <p data-testid="harness-gap-note" className={`mt-0.5 break-words ${textSecondary90}`}>
               {harnessNote}
             </p>
           )}
           {/* The server's own sentence (already redacted), when it adds something. */}
-          {serverSentence && <p className={`mt-0.5 break-words ${textSecondary}/70`}>{serverSentence}</p>}
+          {serverSentence && <p className={`mt-0.5 break-words ${textSecondary70}`}>{serverSentence}</p>}
           {error.code === 'auth_required' && error.login_hint && <LoginCommand command={error.login_hint} />}
           {showDetail && (
-            <pre className={`mt-1.5 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded bg-black/40 px-2 py-1 font-mono text-[11px] ${textPrimary}/90`}>
+            <pre className={`mt-1.5 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded bg-black/40 px-2 py-1 font-mono text-[11px] ${textPrimary90}`}>
               {error.detail}
             </pre>
           )}
@@ -327,7 +332,7 @@ export function ProviderStateCard({
                     Retry
                   </button>
                 ) : (
-                  <span className={`text-[11px] ${textPrimary}/90`}>{retryBySendingText()}</span>
+                  <span className={`text-[11px] ${textPrimary90}`}>{retryBySendingText()}</span>
                 ))}
             </div>
           )}
@@ -359,6 +364,7 @@ function LockedVaultActions({
 }) {
   const { t } = useT()
   const offered = onPick ? fallbacks : []
+  const labelColor = useContext(ToneCtx) === 'warning' ? 'text-amber-100/90' : 'text-red-100/90'
   // While an unlock runs, its success sends the message: a model picked meanwhile
   // would send it a second time (review of #335, finding 1).
   const [unlocking, setUnlocking] = useState(false)
@@ -367,7 +373,7 @@ function LockedVaultActions({
       <VaultUnlock onUnlocked={onUnlocked} onBusyChange={setUnlocking} doneText={t('session.lockedVault.resent')} />
       {offered.length > 0 && (
         <div className="space-y-1">
-          <p className="text-[11px] text-amber-100/90">{t('session.lockedVault.fallbacksLabel')}</p>
+          <p className={`text-[11px] ${labelColor}`}>{t('session.lockedVault.fallbacksLabel')}</p>
           <div className="flex flex-wrap gap-1.5">
             {offered.map((f) => (
               <button
