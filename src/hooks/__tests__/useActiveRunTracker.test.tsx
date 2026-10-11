@@ -10,12 +10,17 @@
  *
  * Run with: npx vitest run src/hooks/__tests__/useActiveRunTracker.test.tsx
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { getEventBus } from '@/services'
 import type { CrudAction, CrudEvent } from '@/types'
 import { readSpawnedBy, spawnedByParentId } from '@/utils/spawnedBy'
-import { ACTIVE_RUN_TRACKER_CAPACITY, useActiveRunTracker } from '../useDetachedRuns'
+import {
+  ACTIVE_RUN_TRACKER_CAPACITY,
+  ACTIVE_RUN_TRACKER_PENDING_CAPACITY,
+  ACTIVE_RUN_TRACKER_PENDING_TTL_MS,
+  useActiveRunTracker,
+} from '../useDetachedRuns'
 
 const PARENT = 'parent-1'
 const CHILD = 'child-1'
@@ -132,5 +137,97 @@ describe('useActiveRunTracker', () => {
     expect(result.current.get(PARENT)?.runCount).toBe(ACTIVE_RUN_TRACKER_CAPACITY)
     streaming('running', false)
     expect(result.current.get(PARENT)?.runCount).toBe(ACTIVE_RUN_TRACKER_CAPACITY - 1)
+  })
+
+  it('evicts finished children in the order they FINISHED, not the order they were created', () => {
+    const { result } = mount()
+    created('early-created')
+    created('late-created')
+    streaming('late-created', false) // finishes first
+    streaming('early-created', false) // finishes last
+    for (let i = 0; i < ACTIVE_RUN_TRACKER_CAPACITY - 1; i++) created(`filler-${i}`)
+    // `late-created` finished earliest, so it is the one forgotten.
+    expect(result.current.get(PARENT)?.runCount).toBe(ACTIVE_RUN_TRACKER_CAPACITY - 1)
+    streaming('early-created', true)
+    expect(result.current.get(PARENT)?.runCount).toBe(ACTIVE_RUN_TRACKER_CAPACITY)
+    streaming('late-created', true)
+    expect(result.current.get(PARENT)?.runCount).toBe(ACTIVE_RUN_TRACKER_CAPACITY)
+  })
+})
+
+describe('useActiveRunTracker: `is_streaming` that arrives before `created`', () => {
+  it('a `false` before `created` (a turn that ended at once): the child is never counted', () => {
+    const { result } = mount()
+    streaming(CHILD, false)
+    created(CHILD)
+    expect(result.current.size).toBe(0)
+    // it is tracked though: its next turn counts, and ends
+    streaming(CHILD, true)
+    expect(result.current.get(PARENT)?.runCount).toBe(1)
+    streaming(CHILD, false)
+    expect(result.current.size).toBe(0)
+  })
+
+  it('a `true` before `created`: the child is counted once, and its `false` ends it', () => {
+    const { result } = mount()
+    streaming(CHILD, true)
+    created(CHILD)
+    expect(result.current.get(PARENT)?.runCount).toBe(1)
+    streaming(CHILD, false)
+    expect(result.current.size).toBe(0)
+  })
+
+  it('only the LAST early state counts', () => {
+    const { result } = mount()
+    streaming(CHILD, true)
+    streaming(CHILD, false)
+    created(CHILD)
+    expect(result.current.size).toBe(0)
+  })
+
+  it('a remembered state is used once: a second `created` after a delete starts fresh', () => {
+    const { result } = mount()
+    streaming(CHILD, false)
+    created(CHILD)
+    emit('deleted', CHILD, {})
+    created(CHILD)
+    expect(result.current.get(PARENT)?.runCount).toBe(1)
+  })
+
+  it('the early states are bounded: past the capacity the oldest is forgotten', () => {
+    const { result } = mount()
+    for (let i = 0; i <= ACTIVE_RUN_TRACKER_PENDING_CAPACITY; i++) streaming(`early-${i}`, false)
+    // `early-0` was forgotten: its `created` falls back to "running".
+    created('early-0')
+    expect(result.current.get(PARENT)?.runCount).toBe(1)
+    // the newest are still remembered as finished
+    created('early-1')
+    created(`early-${ACTIVE_RUN_TRACKER_PENDING_CAPACITY}`)
+    expect(result.current.get(PARENT)?.runCount).toBe(1)
+  })
+
+  it('a re-sent early state refreshes its place, so it is not the one evicted', () => {
+    const { result } = mount()
+    for (let i = 0; i < ACTIVE_RUN_TRACKER_PENDING_CAPACITY; i++) streaming(`early-${i}`, false)
+    streaming('early-0', false) // now the newest
+    streaming('overflow', false) // evicts `early-1`, not `early-0`
+    created('early-0')
+    expect(result.current.size).toBe(0)
+    created('early-1')
+    expect(result.current.get(PARENT)?.runCount).toBe(1)
+  })
+
+  it('a stale early state (older than the TTL) is ignored', () => {
+    const now = vi.spyOn(Date, 'now')
+    try {
+      now.mockReturnValue(1_000_000)
+      const { result } = mount()
+      streaming(CHILD, false)
+      now.mockReturnValue(1_000_000 + ACTIVE_RUN_TRACKER_PENDING_TTL_MS + 1)
+      created(CHILD)
+      expect(result.current.get(PARENT)?.runCount).toBe(1)
+    } finally {
+      now.mockRestore()
+    }
   })
 })
