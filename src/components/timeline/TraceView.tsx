@@ -254,6 +254,14 @@ export function TraceView({
   // The view: null = everything. Following = the right edge stays on the end while something runs.
   const [userView, setUserView] = useState<View | null>(null)
   const [follow, setFollow] = useState(true)
+  /**
+   * The view that was active before the user clicked a row to zoom into it.
+   * Restored when the detail panel is closed (click-away, Escape, close button).
+   * Cleared on every explicit zoom/pan so a stale state never surprises.
+   */
+  const [savedView, setSavedView] = useState<View | null>(null)
+  /** Brush selection being drawn on the ruler: pixel offsets relative to the track. */
+  const [brush, setBrush] = useState<{ x0: number; x1: number } | null>(null)
   const view: View = useMemo(
     () => (!axis ? { x0: 0, x1: 1 } : userView == null ? fitView(total) : follow && running ? followView(userView, total) : clampView(userView, total)),
     [axis, userView, follow, running, total],
@@ -337,14 +345,22 @@ export function TraceView({
       suppressClick.current = false
       return
     }
+    const node = tree.nodes.get(key)
+    // Zoom into the row's time range and remember the previous view so
+    // `closeDetail` can restore it when the user closes / clicks away.
+    if (axis && node?.start != null && node.end != null) {
+      setSavedView(viewRef.current)
+      move(focusView(toX(axis, node.start), toX(axis, node.end), total))
+    }
     setSelectedKey(key)
     setFocusedKey(key)
-    onSelect?.(tree.nodes.get(key)?.item ?? null)
-  }, [onSelect, tree])
+    onSelect?.(node?.item ?? null)
+  }, [onSelect, tree, axis, move, total])
 
   const zoomOn = useCallback((key: string) => {
     const node = tree.nodes.get(key)
     if (!axis || node?.start == null || node.end == null) return
+    setSavedView(viewRef.current)
     move(focusView(toX(axis, node.start), toX(axis, node.end), total))
   }, [axis, move, total, tree])
 
@@ -352,11 +368,16 @@ export function TraceView({
     const back = selectedKey
     setSelectedKey(null)
     onSelect?.(null)
+    // Restore the zoom that was active before the user clicked into this row.
+    if (savedView) {
+      setUserView(savedView)
+      setSavedView(null)
+    }
     if (back) {
       setFocusedKey(back)
       focusPending.current = true
     }
-  }, [onSelect, selectedKey])
+  }, [onSelect, selectedKey, savedView])
 
   // Ruler / track geometry.
   const trackRef = useRef<HTMLDivElement>(null)
@@ -398,9 +419,9 @@ export function TraceView({
     return () => el.removeEventListener('wheel', onWheel)
   }, [axis, move, trackW])
 
-  // Drag to pan, two fingers to pinch.
+  // Drag to pan (bars), brush to zoom (ruler), two fingers to pinch.
   const pointers = useRef(new Map<number, number>())
-  const gesture = useRef<{ kind: 'drag' | 'pinch'; start: View; x: number; from: [number, number]; moved: boolean } | null>(null)
+  const gesture = useRef<{ kind: 'drag' | 'pinch' | 'brush'; start: View; x: number; from: [number, number]; moved: boolean } | null>(null)
   const rel = (clientX: number) => {
     const rect = trackRef.current?.getBoundingClientRect()
     return clientX - (rect?.left ?? 0)
@@ -408,11 +429,20 @@ export function TraceView({
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (!axis || (e.pointerType === 'mouse' && e.button !== 0)) return
     // A mouse pans from the bars; a finger from anywhere (vertical swipes still scroll).
-    if (e.pointerType === 'mouse' && !(e.target as HTMLElement).closest('[data-track],[data-ruler]')) return
+    const target = e.target as HTMLElement
+    const onRuler = e.pointerType === 'mouse' && !!target.closest('[data-ruler]')
+    const onTrack = !!target.closest('[data-track]')
+    if (e.pointerType === 'mouse' && !onRuler && !onTrack) return
     pointers.current.set(e.pointerId, rel(e.clientX))
     const pts = [...pointers.current.values()]
-    if (pts.length >= 2) gesture.current = { kind: 'pinch', start: viewRef.current, x: 0, from: [pts[0] as number, pts[1] as number], moved: true }
-    else gesture.current = { kind: 'drag', start: viewRef.current, x: rel(e.clientX), from: [0, 0], moved: false }
+    if (pts.length >= 2) {
+      gesture.current = { kind: 'pinch', start: viewRef.current, x: 0, from: [pts[0] as number, pts[1] as number], moved: true }
+    } else if (onRuler) {
+      // Drag on the ruler draws a brush selection; releasing zooms to the selected range.
+      gesture.current = { kind: 'brush', start: viewRef.current, x: rel(e.clientX), from: [0, 0], moved: false }
+    } else {
+      gesture.current = { kind: 'drag', start: viewRef.current, x: rel(e.clientX), from: [0, 0], moved: false }
+    }
   }
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse') {
@@ -427,6 +457,15 @@ export function TraceView({
       if (pts.length >= 2) move(pinchView(g.start, g.from, [pts[0] as number, pts[1] as number], trackW, axis.total))
       return
     }
+    if (g.kind === 'brush') {
+      const dx = rel(e.clientX) - g.x
+      if (!g.moved && Math.abs(dx) < DRAG_SLOP_PX) return
+      g.moved = true
+      const x0 = Math.min(g.x, rel(e.clientX))
+      const x1 = Math.max(g.x, rel(e.clientX))
+      setBrush({ x0, x1 })
+      return
+    }
     const dx = rel(e.clientX) - g.x
     if (!g.moved && Math.abs(dx) < DRAG_SLOP_PX) return
     if (!g.moved) {
@@ -438,6 +477,21 @@ export function TraceView({
   const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
     pointers.current.delete(e.pointerId)
     const g = gesture.current
+    if (g?.kind === 'brush') {
+      setBrush(null)
+      if (axis && g.moved && trackW > 0) {
+        const x0 = Math.min(g.x, rel(e.clientX))
+        const x1 = Math.max(g.x, rel(e.clientX))
+        // The brush is drawn in track-pixel space; convert to view fractions.
+        const f0 = x0 / trackW
+        const f1 = x1 / trackW
+        const v = viewRef.current
+        const span = v.x1 - v.x0
+        move(clampView({ x0: v.x0 + f0 * span, x1: v.x0 + f1 * span }, axis.total))
+      }
+      gesture.current = null
+      return
+    }
     if (g?.moved) suppressClick.current = true
     if (pointers.current.size === 0) gesture.current = null
     else if (g?.kind === 'pinch') {
@@ -659,7 +713,14 @@ export function TraceView({
             {/* Ruler */}
             <div className={`border-b border-white/[0.08] ${wide ? 'grid items-end gap-x-2 pe-2' : 'px-1'}`} style={gridCols}>
               {wide && <span className="truncate pb-1 ps-2 text-[10px] text-gray-400">{L.column}</span>}
-              <div ref={trackRef} data-ruler="true" className="relative h-7 cursor-grab overflow-hidden active:cursor-grabbing" role="img" aria-label={L.ruler}>
+              <div
+                ref={trackRef}
+                data-ruler="true"
+                className="relative h-7 cursor-crosshair overflow-hidden"
+                role="img"
+                aria-label={L.ruler}
+                title={L.ruler}
+              >
                 {ticks.map((t) => (
                   <span key={t.t} className="absolute bottom-0 h-2 w-0 border-s border-white/25" style={{ left: `${t.pct}%` }} title={formatClock(t.t)}>
                     <span className="absolute bottom-2 start-1 whitespace-nowrap text-[10px] tabular-nums leading-3 text-gray-300">{formatOffset(t.offsetMs, step)}</span>
@@ -675,6 +736,14 @@ export function TraceView({
                     <span className="truncate px-0.5 text-[9px] text-amber-100">{fill(labels.idle, { d: formatItemDuration(b.ms) ?? '' })}</span>
                   </span>
                 ))}
+                {/* Brush selection overlay — shown while the user drags to select a range */}
+                {brush && trackW > 0 && (
+                  <span
+                    className="pointer-events-none absolute inset-y-0 bg-indigo-400/25 ring-1 ring-inset ring-indigo-400/50"
+                    style={{ left: `${(brush.x0 / trackW) * 100}%`, width: `${((brush.x1 - brush.x0) / trackW) * 100}%` }}
+                    aria-hidden="true"
+                  />
+                )}
                 {hoverT != null && hover != null && (
                   <span className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded bg-slate-950 px-1 text-[10px] tabular-nums text-gray-100 ring-1 ring-white/20" style={{ left: `${Math.min(Math.max(hover * 100, 8), 92)}%` }} data-testid="trace-hover-time">
                     {formatClock(hoverT)} · {axis ? formatOffset(hoverT - axis.first, Math.min(step, 100)) : ''}
