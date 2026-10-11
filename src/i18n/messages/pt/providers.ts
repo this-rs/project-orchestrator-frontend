@@ -82,6 +82,6 @@ export default {
     authRequiredBody: "Sem login, o servidor só executa o Claude Code: recusa qualquer outro provedor, porque cada sessão de chat com ele deve pertencer a um usuário conectado. Volte à etapa Autenticação e escolha uma senha ou OIDC.",
     authRequiredAction: "Criar uma conta de login",
     authNoneNote: "Sem login, o chat só pode usar o Claude Code. Qualquer outro provedor (compatível com OpenAI, Ollama, DeepSeek…) exige uma conta de login: caso contrário, o servidor o recusa.",
-    embeddingLater: "Você pode continuar agora: o aplicativo continua baixando o modelo em segundo plano. Se não tiver terminado quando o servidor iniciar pela primeira vez, o servidor o baixa antes de responder, então essa primeira inicialização pode levar vários minutos. A busca por significado fica desativada até o modelo estar disponível.",
+    embeddingLater: "Você pode continuar sem ele. O servidor então baixa o modelo na primeira inicialização, antes de responder, então essa primeira inicialização pode levar vários minutos; se o download falhar, a busca por significado fica desativada. Baixe-o aqui primeiro para evitar essa espera.",
   },
 } satisfies Translation<'providers'>

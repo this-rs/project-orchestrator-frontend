@@ -82,6 +82,6 @@ export default {
     authRequiredBody: "Sans connexion, le serveur ne fait tourner que Claude Code : il refuse tout autre provider, car chaque session de chat avec lui doit appartenir à un utilisateur connecté. Revenez à l’étape Authentification et choisissez un mot de passe ou OIDC.",
     authRequiredAction: "Créer un compte de connexion",
     authNoneNote: "Sans connexion, le chat ne peut utiliser que Claude Code. Tout autre provider (compatible OpenAI, Ollama, DeepSeek…) exige un compte de connexion : sinon le serveur le refuse.",
-    embeddingLater: "Vous pouvez continuer maintenant : l’application continue de télécharger le modèle en arrière-plan. S’il n’est pas terminé au premier démarrage du serveur, le serveur le télécharge avant de répondre : ce premier démarrage peut prendre plusieurs minutes. La recherche par le sens reste désactivée tant que le modèle n’est pas là.",
+    embeddingLater: "Vous pouvez continuer sans lui. Le serveur télécharge alors le modèle à son premier démarrage, avant de répondre : ce premier démarrage peut prendre plusieurs minutes ; si le téléchargement échoue, la recherche par le sens reste désactivée. Téléchargez-le ici d’abord pour éviter cette attente.",
   },
 } satisfies Translation<'providers'>

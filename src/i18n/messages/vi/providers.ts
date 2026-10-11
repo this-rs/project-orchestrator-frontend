@@ -82,6 +82,6 @@ export default {
     authRequiredBody: "Không có đăng nhập, máy chủ chỉ chạy Claude Code và từ chối mọi nhà cung cấp khác, vì mỗi phiên trò chuyện với nó phải thuộc về một người dùng đã đăng nhập. Hãy quay lại bước Xác thực và chọn mật khẩu hoặc OIDC.",
     authRequiredAction: "Thiết lập tài khoản đăng nhập",
     authNoneNote: "Không có đăng nhập, trò chuyện chỉ dùng được Claude Code. Mọi nhà cung cấp khác (tương thích OpenAI, Ollama, DeepSeek…) cần tài khoản đăng nhập, nếu không máy chủ sẽ từ chối.",
-    embeddingLater: "Bạn có thể tiếp tục ngay: ứng dụng vẫn tải mô hình ở chế độ nền. Nếu chưa xong khi máy chủ khởi động lần đầu, máy chủ sẽ tải nó trước khi phản hồi, nên lần khởi động đầu có thể mất vài phút. Tìm kiếm theo nghĩa vẫn tắt cho đến khi có mô hình.",
+    embeddingLater: "Bạn có thể tiếp tục mà không có nó. Khi đó máy chủ sẽ tải mô hình ở lần khởi động đầu, trước khi phản hồi, nên lần khởi động đầu có thể mất vài phút; nếu tải thất bại, tìm kiếm theo nghĩa vẫn tắt. Hãy tải nó tại đây trước để tránh phải chờ.",
   },
 } satisfies Translation<'providers'>

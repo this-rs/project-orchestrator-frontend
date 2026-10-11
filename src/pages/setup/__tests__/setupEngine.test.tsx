@@ -8,6 +8,7 @@ const invokeMock = vi.hoisted(() => vi.fn())
 const envMock = vi.hoisted(() => ({ tauri: true }))
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }))
+vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }))
 vi.mock('@/services/env', () => ({
   get isTauri() {
     return envMock.tauri
@@ -145,20 +146,36 @@ describe('setup wizard: chat engine choice', () => {
     await waitFor(() => expect((next() as HTMLButtonElement).disabled).toBe(false))
   })
 
-  it('going on without the local model starts its download in the background, so the first start does not do it', async () => {
+  it('going on without the local model starts no download of its own (it would race the server start), and says the first start may be long', async () => {
     invokeMock.mockImplementation(async (cmd: string) => {
       if (cmd === 'check_cli_status') return { installed: false, version: null }
       if (cmd === 'check_embedding_model') return { available: false, cachePath: null, estimatedSizeMb: 1100 }
       return null
     })
-    renderWith(<SetupWizard />, { ...WITH_LOGIN, embeddingProvider: 'local', embeddingFastembedModel: 'bge-small-en-v1.5' })
-    expect((await screen.findByTestId('setup-embedding-later')).textContent).toMatch(/several minutes/)
-    expect(invokeMock).not.toHaveBeenCalledWith('download_embedding_model', expect.anything())
+    const store = renderWith(<SetupWizard />, { ...WITH_LOGIN, embeddingProvider: 'local', embeddingFastembedModel: 'bge-small-en-v1.5' })
+    const note = await screen.findByTestId('setup-embedding-later')
+    expect(note.textContent).toMatch(/several minutes/)
+    expect(note.textContent).not.toMatch(/background/)
     await waitFor(() => expect((next() as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(next())
+    await waitFor(() => expect(store.get(setupStepAtom)).toBe(3))
+    await act(async () => {})
+    expect(invokeMock).not.toHaveBeenCalledWith('download_embedding_model', expect.anything())
+  })
+
+  it('the "Download the model" button still downloads it', async () => {
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === 'check_cli_status') return { installed: false, version: null }
+      if (cmd === 'check_embedding_model') return { available: false, cachePath: null, estimatedSizeMb: 150 }
+      if (cmd === 'download_embedding_model') return { success: true, modelPath: '/m', error: null }
+      return null
+    })
+    renderWith(<ChatPage />, { ...WITH_LOGIN, embeddingProvider: 'local', embeddingFastembedModel: 'bge-small-en-v1.5' })
+    fireEvent.click(await screen.findByRole('button', { name: /Download the model/ }))
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith('download_embedding_model', { modelName: 'bge-small-en-v1.5' }),
     )
+    expect(await screen.findByText('Search model downloaded and ready')).toBeTruthy()
   })
 
   it('web mode: the login banner is a status, not an alert, when the step opens', async () => {

@@ -80,6 +80,6 @@ export default {
     authRequiredBody: "Without sign-in, the server only runs Claude Code: it refuses any other provider, because each chat session with it must belong to a signed-in user. Go back to the Authentication step and choose a password or OIDC.",
     authRequiredAction: "Set up a login account",
     authNoneNote: "Without sign-in, the chat can only use Claude Code. Any other provider (OpenAI-compatible, Ollama, DeepSeek…) needs a login account: the server refuses it otherwise.",
-    embeddingLater: "You can continue now: the app keeps downloading the model in the background. If it is not finished when the server first starts, the server downloads it before it answers, so that first start may take several minutes. Search by meaning stays off until the model is there.",
+    embeddingLater: "You can continue without it. The server then downloads the model at its first start, before it answers, so that first start may take several minutes; if the download fails, search by meaning stays off. Download it here first to avoid that wait.",
   },
 } as const
