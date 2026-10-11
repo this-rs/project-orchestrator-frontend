@@ -172,7 +172,7 @@ describe('RoutingSelectionMenu', () => {
     expect(store.get(chatDraftRoutingModeAtom)).toBe('mixed')
     expect(screen.getByTestId('target-chip').textContent).toContain('Mixed: 3 models')
     expect(screen.getByTestId('routing-summary').textContent).toContain('Mixed: 3 models')
-    expect(screen.getByTestId('routing-summary').textContent).toContain('PO routes among the 3 picked models')
+    expect(screen.getByTestId('routing-summary').textContent).toContain('PO routes among your 3 models, the first answer included')
   })
 
   it('the Auto switch turns everything below off, and keeps what was ticked for when it comes back', () => {
@@ -228,7 +228,7 @@ describe('RoutingSelectionMenu', () => {
   })
 
   it('switching the mode never writes the settings', () => {
-    mount('mixed')
+    mount('executors_only')
     openMenu()
     fireEvent.click(screen.getByRole('switch'))
     expect(routingApi.put).not.toHaveBeenCalled()

@@ -3,7 +3,7 @@ import type { Translation } from '../../catalog.ts'
 export default {
   modes: {
     primary: { label: '엄격', description: '전체 체인에 하나의 모델: 직접 고른 모델.' },
-    mixed: { label: '혼합', description: '파일럿은 직접 고르고, 각 실행자는 PO가 여러 제공자에 걸쳐 라우팅합니다.' },
+    executors_only: { label: '실행자만', description: '기본 제공자가 대화를 이끌고, PO는 하위 에이전트(러너, 위임, 유틸리티)를 여러 제공자에 걸쳐 라우팅합니다.' },
     full: { label: '자동', description: 'PO가 전체 체인의 제공자와 모델을 선택하고 이유를 설명합니다.' },
   },
   stages: {
@@ -138,7 +138,7 @@ export default {
     poChooses: 'PO가 선택합니다(라우팅: 전체)',
     poRoutes: 'PO가 라우팅(권장)',
   },
-  menu: { aria: '이 대화의 모델', chipDefault: '서버 기본값', modeStrict: '엄격: 모델 1개', modeMixed: '혼합: 모델 {count}개', summaryNone: '선택 없음: 서버 기본값이 적용됩니다.', summaryMixed: 'PO가 선택한 {count}개 모델 사이에서 라우팅합니다.', selectAll: '모두 선택', clearAll: '모두 해제', noProvider: '구성된 제공자가 없습니다', providerToggle: '{provider}의 모든 모델', countOf: '{total}개 중 {selected}개', noModels: '이 제공자의 모델이 없습니다', loading: '모델 불러오는 중…', search: '모델 검색…', refreshModelsAria: '모델 목록 새로 고침', refreshModels: '모델 새로 고침', refreshing: '업데이트 중…', defaultModel: '기본 모델', locked: '대화는 해당 제공자에 머뭅니다', otherProvider: '다른 제공자로 새 대화', liveUnsupported: '이 제공자는 진행 중인 대화의 모델을 바꿀 수 없습니다. 다른 모델을 쓰려면 새 대화를 시작하세요.', autoChose: 'PO의 선택: {model}', autoHint: '아래에서 모델을 고르면 제어를 되찾습니다.', tookControl: '제어를 되찾았습니다: {model}이(가) 이 대화를 맡습니다.', handBack: 'PO에게 맡기기', aliasesGroup: '모델 별칭', modelsGroup: '모델', noMatch: '“{query}”와 일치하는 모델이 없습니다', versionsGroup: '{family} 버전', observing: 'PO가 이 대화를 관찰하지만 아직 모델을 바꾸지는 않습니다(학습 단계: {stage}). 자신이 고를 모델을 기록합니다.', running: '실행 중: {model}', refused: { invalid_routing_pool: '모델을 하나 이상 선택하세요.', routing_pool_other_provider: '이 모델들은 다른 제공자의 것입니다. 대화는 해당 제공자에 머뭅니다.', not_found: '이 대화는 더 이상 존재하지 않습니다.', forbidden: '로그인한 사람만 대화의 라우팅을 바꿀 수 있습니다.', failed: '라우팅을 바꾸지 못했습니다. 다시 시도하세요.' } },
+  menu: { aria: '이 대화의 모델', chipDefault: '서버 기본값', modeStrict: '엄격: 모델 1개', modeMixed: '혼합: 모델 {count}개', summaryNone: '선택 없음: 서버 기본값이 적용됩니다.', summaryMixed: 'PO가 첫 응답부터 선택한 {count}개 모델 사이에서 라우팅합니다.', selectAll: '모두 선택', clearAll: '모두 해제', noProvider: '구성된 제공자가 없습니다', providerToggle: '{provider}의 모든 모델', countOf: '{total}개 중 {selected}개', noModels: '이 제공자의 모델이 없습니다', loading: '모델 불러오는 중…', search: '모델 검색…', refreshModelsAria: '모델 목록 새로 고침', refreshModels: '모델 새로 고침', refreshing: '업데이트 중…', defaultModel: '기본 모델', locked: '대화는 해당 제공자에 머뭅니다', otherProvider: '다른 제공자로 새 대화', liveUnsupported: '이 제공자는 진행 중인 대화의 모델을 바꿀 수 없습니다. 다른 모델을 쓰려면 새 대화를 시작하세요.', autoChose: 'PO의 선택: {model}', autoHint: '아래에서 모델을 고르면 제어를 되찾습니다.', tookControl: '제어를 되찾았습니다: {model}이(가) 이 대화를 맡습니다.', handBack: 'PO에게 맡기기', aliasesGroup: '모델 별칭', modelsGroup: '모델', noMatch: '“{query}”와 일치하는 모델이 없습니다', versionsGroup: '{family} 버전', observing: 'PO가 이 대화를 관찰하지만 아직 모델을 바꾸지는 않습니다(학습 단계: {stage}). 자신이 고를 모델을 기록합니다.', running: '실행 중: {model}', refused: { invalid_routing_pool: '모델을 하나 이상 선택하세요.', routing_pool_other_provider: '이 모델들은 다른 제공자의 것입니다. 대화는 해당 제공자에 머뭅니다.', not_found: '이 대화는 더 이상 존재하지 않습니다.', forbidden: '로그인한 사람만 대화의 라우팅을 바꿀 수 있습니다.', failed: '라우팅을 바꾸지 못했습니다. 다시 시도하세요.' } },
   picker: { routedBy: '라우팅 주체: {by}' },
   modelTargets: {
     loading: '모델 카탈로그를 읽는 중…',

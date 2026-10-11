@@ -62,12 +62,12 @@ describe('RoutingSettings', () => {
   it('shows the three modes and sends the chosen mode in the PUT body', async () => {
     mount()
     const g = await global()
-    expect(g.getAllByRole('radio', { name: /Strict|Mixed|^Auto(?!matic)/ })).toHaveLength(3)
-    fireEvent.click(g.getByRole('radio', { name: /Mixed/ }))
+    expect(g.getAllByRole('radio', { name: /Strict|Executors only|^Auto(?!matic)/ })).toHaveLength(3)
+    fireEvent.click(g.getByRole('radio', { name: /Executors only/ }))
     fireEvent.click(g.getByRole('button', { name: 'Save' }))
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
     expect(put.mock.calls[0][0]).toEqual({
-      mode: 'mixed',
+      mode: 'executors_only',
       stage: 'shadow',
       primary: null,
       exploration_epsilon: 0.05,

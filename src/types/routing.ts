@@ -12,14 +12,33 @@
 import type { ProviderId } from './provider'
 
 /**
+ * The SETTINGS' mode (global or project document, `RoutingSettings.mode`):
  * - `primary` — one exclusive primary provider: the current behaviour. PO only
  *   records what it would have chosen.
- * - `mixed` — the primary pilots the conversation; PO routes the executor
- *   sessions (runner, delegations, utilities).
+ * - `executors_only` — the primary pilots the conversation; PO routes the executor
+ *   sessions only (runner, delegations, utilities). Named `mixed` before decision
+ *   R-S4: a server or a document that still says `mixed` is read as this one.
  * - `full` — PO chooses everything, pilot included, and says why.
+ *
+ * Not to be confused with {@link ConversationRoutingMode}, the menu's choice for ONE
+ * conversation, where `mixed` means "PO routes among the models I ticked".
  */
-export const ROUTING_MODES = ['primary', 'mixed', 'full'] as const
+export const ROUTING_MODES = ['primary', 'executors_only', 'full'] as const
 export type ProviderRoutingMode = (typeof ROUTING_MODES)[number]
+
+/** The name a server older than decision R-S4 gives `executors_only` in the settings. */
+export const LEGACY_EXECUTORS_ONLY = 'mixed'
+
+/**
+ * The mode of ONE conversation (`ChatSession.routing_mode`, `CreateSessionRequest.routing_mode`),
+ * derived from the chat menu, never stored in the settings:
+ * - `full` — Auto: PO routes everything, the provider included;
+ * - `mixed` — two models ticked or more: PO routes among them, the opening model included
+ *   (the "pilot" the menu names is only a fallback);
+ * - `primary` — one model ticked: strict, never substituted.
+ */
+export const CONVERSATION_ROUTING_MODES = ['primary', 'mixed', 'full'] as const
+export type ConversationRoutingMode = (typeof CONVERSATION_ROUTING_MODES)[number]
 
 /**
  * - `shadow` — nothing is applied, every decision is recorded (default).
@@ -34,8 +53,23 @@ export type LearningStage = (typeof LEARNING_STAGES)[number]
 export type RoutingScope = 'global' | 'project' | 'default'
 export const ROUTING_SCOPES = ['global', 'project', 'default'] as const satisfies readonly RoutingScope[]
 
+/** The settings' mode of a server answer; `mixed` (a server older than R-S4) is `executors_only`. */
 export function toProviderRoutingMode(value: unknown): ProviderRoutingMode | null {
+  if (value === LEGACY_EXECUTORS_ONLY) return 'executors_only'
   return typeof value === 'string' && (ROUTING_MODES as readonly string[]).includes(value) ? (value as ProviderRoutingMode) : null
+}
+
+/** A conversation's mode as its record says it; anything else is `null` (the settings decided). */
+export function toConversationRoutingMode(value: unknown): ConversationRoutingMode | null {
+  return typeof value === 'string' && (CONVERSATION_ROUTING_MODES as readonly string[]).includes(value) ? (value as ConversationRoutingMode) : null
+}
+
+/**
+ * What the settings' mode means for a conversation that chose nothing: `full` routes it;
+ * `executors_only` and `primary` leave its pilot alone, i.e. `primary` for the conversation.
+ */
+export function conversationModeOfSettings(mode: ProviderRoutingMode): ConversationRoutingMode {
+  return mode === 'full' ? 'full' : 'primary'
 }
 
 export function toLearningStage(value: unknown): LearningStage | null {
@@ -46,7 +80,7 @@ export function toRoutingScope(value: unknown): RoutingScope | null {
   return typeof value === 'string' && (ROUTING_SCOPES as readonly string[]).includes(value) ? (value as RoutingScope) : null
 }
 
-/** The primary provider of `primary` / `mixed` mode. `model` and `alias` are exclusive. */
+/** The primary provider of `primary` / `executors_only` mode. `model` and `alias` are exclusive. */
 export interface RoutingPrimary {
   provider: ProviderId
   model?: string | null

@@ -71,8 +71,8 @@ describe('RunTargetPicker per routing mode', () => {
     expect(screen.queryByTestId('run-target-po-chooses')).toBeNull()
   })
 
-  it('mixed: the default row reads "PO routes (recommended)" and an explicit choice still works and is sent', async () => {
-    routingGetProject.mockResolvedValue(settings('mixed'))
+  it('executors_only: the default row reads "PO routes (recommended)" and an explicit choice still works and is sent', async () => {
+    routingGetProject.mockResolvedValue(settings('executors_only'))
     mount()
     expect(await screen.findByRole('radio', { name: 'PO routes (recommended)' })).toBeTruthy()
     fireEvent.click(screen.getByRole('radio', { name: /DeepSeek/ }))

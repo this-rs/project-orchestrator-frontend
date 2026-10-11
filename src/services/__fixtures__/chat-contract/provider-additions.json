@@ -64,7 +64,7 @@
           "fallback",
           "auto"
         ],
-        "doc": "auto = choisi par le routeur cognitif (mode mixed|full, stage auto) ; route_reason dit pourquoi. Pas encore émis : la session porte ce niveau quand B-R4 prendra une décision"
+        "doc": "auto = choisi par le routeur cognitif (reglages executors_only|full au stage auto, ou conversation en Auto ou routee parmi son pool) ; route_reason dit pourquoi. Pas encore émis : la session porte ce niveau quand B-R4 prendra une décision"
       },
       "routing_mode": {
         "type": "string",
@@ -79,7 +79,7 @@
       "routing_pool": {
         "type": "array<{provider: string, model: string}> | absent",
         "required": false,
-        "doc": "les modeles coches parmi lesquels PO route cette conversation (mode mixed) ; absent = aucune restriction (Auto, strict, ou rien choisi)"
+        "doc": "les modeles coches parmi lesquels PO route cette conversation (routing_mode mixed) ; absent = aucune restriction (Auto, strict, ou rien choisi)"
       },
       "route_reason": {
         "type": "string | null",
@@ -106,12 +106,12 @@
           "mixed",
           "full"
         ],
-        "doc": "le menu du chat, lu a l'ouverture : full = Auto (PO route l'ouverture ET chaque tour, quels que soient les reglages) ; primary = strict (provider + model nommes) ; mixed = routing_pool. Absent = les reglages decident. Jamais ecrit dans les reglages globaux ou projet"
+        "doc": "le menu du chat, lu a l'ouverture : full = Auto (PO route l'ouverture ET chaque tour, quels que soient les reglages) ; primary = strict (provider + model nommes) ; mixed = PO route parmi routing_pool (decision R-S4 : mixed est le mot de la CONVERSATION ; le mode des reglages ou le primaire pilote et PO ne route que les executants s'appelle executors_only). Absent = les reglages decident. Jamais ecrit dans les reglages globaux ou projet"
       },
       "routing_pool": {
         "type": "array<{provider: string, model: string}>",
         "required": false,
-        "doc": "mixed : les modeles coches (model = id reel, jamais un nom d'alias). Ils sont les SEULS candidats de la decision d'ouverture et de chaque decision par tour, routes comme full a l'interieur ; le pilote nomme (provider/model) ouvre la conversation mais n'est pas epingle. Sans pilote : choix du routeur parmi eux, sinon le premier coche (routed_by request). 1 entree = strict (ce provider et ce modele, primary, epingle, jamais substitue) ; vide ou absent = tout modele eligible. Une conversation tourne sur UN provider : un pool qui couvre plusieurs providers choisit le provider a l'ouverture ; ensuite seuls les modeles coches de CE provider comptent par tour, changer de provider = POST /api/chat/sessions/{id}/switch-provider"
+        "doc": "mixed : les modeles coches (model = id reel, jamais un nom d'alias). Ils sont les SEULS candidats de la decision d'ouverture et de chaque decision par tour, routes comme full a l'interieur ; la decision d'ouverture choisit PARMI eux (routed_by auto, R-S4) ; le pilote nomme (provider/model) n'est qu'un repli : il n'ouvre la conversation que si aucune decision ne s'applique (routed_by request), et il n'est jamais epingle. Sans pilote ni decision : le premier coche (routed_by request). 1 entree = strict (ce provider et ce modele, primary, epingle, jamais substitue) ; vide ou absent = tout modele eligible. Une conversation tourne sur UN provider : un pool qui couvre plusieurs providers choisit le provider a l'ouverture ; ensuite seuls les modeles coches de CE provider comptent par tour, changer de provider = POST /api/chat/sessions/{id}/switch-provider"
       }
     },
     "PUT /api/chat/sessions/{id}/routing": {
@@ -173,7 +173,7 @@
         ],
         "routing": {
           "doc": "LIVRÉ (B-R1). Le mode de routage en vigueur pour le project_slug demandé (réglage projet > global > défaut) ; sans project_slug : global ou défaut. Montré, pas encore appliqué.",
-          "mode": "primary | mixed | full",
+          "mode": "primary | executors_only | full",
           "stage": "shadow | advisory | auto",
           "scope": "project | global | default"
         }
@@ -265,7 +265,7 @@
     "aliases": "GET/PUT /api/chat/model-aliases : [{alias,provider,model}] ; alias = minuscules/chiffres/tirets, uniques ; 404 instance inconnue",
     "policy": "GET/PUT /api/chat/model-policy : {mode: off|shadow|enforce, rules:{role:alias}, fallback:[alias], caps:{per_task_usd?,per_run_usd?,per_task_tokens?,per_run_tokens?}} ; livre `off` ; roles de regle et alias valides (400) ; STOCKEE, pas encore appliquee",
     "routing": {
-      "doc": "LIVRE (B-R1, decision R2). Mode de routage {mode: primary|mixed|full, stage: shadow|advisory|auto, primary?: {provider, model?|alias?}, exploration_epsilon: 0..0.25 (defaut 0.05), cost_weight: 0..1 (0.3), latency_weight: 0..1 (0.1), demote_after: >=5 (20)} + scope (lecture). Stocke LlmSetting{scope: global | project:<slug>, key: routing} ; noeud absent = defaut primary+shadow, aucune migration ; tout champ absent d'un PUT prend son defaut (un PUT remplace le document). STOCKE, montre dans GET /api/chat/providers.routing, PAS ENCORE APPLIQUE : primary+shadow = comportement actuel a l'identique.",
+      "doc": "LIVRE (B-R1, decision R2). Mode de routage {mode: primary|executors_only|full (executors_only = le primaire pilote, PO route les executants ; un document stocke avant R-S4 dit mixed : lu comme executors_only, accepte dans un PUT, jamais reecrit tel quel, aucune migration), stage: shadow|advisory|auto, primary?: {provider, model?|alias?}, exploration_epsilon: 0..0.25 (defaut 0.05), cost_weight: 0..1 (0.3), latency_weight: 0..1 (0.1), demote_after: >=5 (20)} + scope (lecture). Stocke LlmSetting{scope: global | project:<slug>, key: routing} ; noeud absent = defaut primary+shadow, aucune migration ; tout champ absent d'un PUT prend son defaut (un PUT remplace le document). STOCKE, montre dans GET /api/chat/providers.routing, PAS ENCORE APPLIQUE : primary+shadow = comportement actuel a l'identique.",
       "GET /api/chat/routing": "200 reglages + scope: global | default",
       "PUT /api/chat/routing": "corps reglages -> 200 reglages + scope: global ; humain seulement (403 jeton d'agent)",
       "GET /api/projects/{slug}/routing": "200 reglages effectifs pour le projet + scope: project | global | default",

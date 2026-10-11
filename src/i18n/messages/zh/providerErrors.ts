@@ -115,7 +115,7 @@ export default {
     endpoint_redirects_not_allowed: '端点返回了重定向，服务器不会跟随（密钥可能被发送到另一台主机）。请使用最终 URL 作为基础 URL。',
     credential_test_requires_saved_instance: '使用密钥的测试只会在已保存、且端点和密钥引用相同的实例上运行。请先保存实例，再重新测试。',
     engine_unavailable: '此对话是在智能体引擎上打开的，而服务器已不再运行它，因此无法恢复。请新建对话，或请服务器的管理者重新启用智能体引擎（CHAT_PROVIDER_PATH）。',
-    invalid_routing_mode: '路由模式必须是 primary、mixed 或 full。',
+    invalid_routing_mode: '路由模式必须是 primary、executors_only 或 full。',
     invalid_learning_stage: '学习阶段必须是 shadow、advisory 或 auto。',
     invalid_routing_weight: '某个路由权重或探索率超出允许范围。探索率必须在 0 到 1 之间；权重不能为负。',
   },

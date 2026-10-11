@@ -1,7 +1,7 @@
 import type { MessageAttachment } from '@/utils/messageAttachments'
 import type { ChatReference, EntityRef, RefsResolvedEvent } from '@/refs/types'
 import type { CostBasis, LegacyPermissionMode, ProviderCapabilities, ProviderId, ProviderKind, RoutedBy, ToolCategory, ToolPolicy, ToolPolicyMode } from './provider'
-import type { ProviderRoutingMode } from './routing'
+import type { ConversationRoutingMode } from './routing'
 // ============================================================================
 // PERMISSION CONFIG
 // ============================================================================
@@ -306,8 +306,8 @@ export interface ChatSession {
   degraded_features?: string[] | null
   /** Which rule picked the provider/model (`request`, `project_rule`, `auto`, …). */
   routed_by?: RoutedBy | null
-  /** Routing mode in force when the session opened (`primary` when absent). */
-  routing_mode?: ProviderRoutingMode | null
+  /** The conversation's own routing mode, when it chose one (`mixed` = PO routes among `routing_pool`); absent = the settings decided. */
+  routing_mode?: ConversationRoutingMode | null
   /** The models ticked for THIS conversation (mixed: PO routes among them; strict: the one). */
   routing_pool?: { provider: ProviderId; model: string }[] | null
   /** Readable reason of an automatic choice (`routed_by: 'auto'`); `null` otherwise. */
@@ -348,7 +348,7 @@ export interface CreateSessionRequest {
    * Routing mode of THIS conversation (`primary` / `mixed` / `full`), replacing the
    * settings' one for it alone. Omitted = the settings decide.
    */
-  routing_mode?: ProviderRoutingMode
+  routing_mode?: ConversationRoutingMode
   /**
    * `mixed` only: the (provider, model) pairs PO may route this conversation among.
    * Omitted = no restriction beyond the mode.

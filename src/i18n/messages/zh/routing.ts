@@ -3,7 +3,7 @@ import type { Translation } from '../../catalog.ts'
 export default {
   modes: {
     primary: { label: '严格', description: '整条链路只用一个模型：你选定的那个。' },
-    mixed: { label: '混合', description: '由你选择主导者；PO 为每个执行者路由，可跨多个提供商。' },
+    executors_only: { label: '仅执行者', description: '由主提供商主导对话；PO 为子代理（runner、委派、工具）路由，可跨多个提供商。' },
     full: { label: '自动', description: 'PO 为整条链路选择提供商和模型，并说明原因。' },
   },
   stages: {
@@ -138,7 +138,7 @@ export default {
     poChooses: 'PO 将自行选择（路由：完全）',
     poRoutes: 'PO 路由（推荐）',
   },
-  menu: { aria: '此对话的模型', chipDefault: '服务器默认', modeStrict: '严格: 1 个模型', modeMixed: '混合: {count} 个模型', summaryNone: '未选择：使用服务器默认。', summaryMixed: 'PO 在所选的 {count} 个模型之间路由。', selectAll: '全选', clearAll: '全不选', noProvider: '未配置任何提供商', providerToggle: '{provider} 的所有模型', countOf: '共 {total} 个，已选 {selected} 个', noModels: '此提供商没有可列出的模型', loading: '正在加载模型…', search: '搜索模型…', refreshModelsAria: '刷新模型列表', refreshModels: '刷新模型', refreshing: '正在更新…', defaultModel: '默认模型', locked: '对话会保留在其提供方上', otherProvider: '用其他提供方新建对话', liveUnsupported: '此提供方无法更换进行中对话的模型。请新建对话以使用其他模型。', autoChose: 'PO 选择了：{model}', autoHint: '在下方选择一个模型即可收回控制。', tookControl: '你已收回控制：{model} 负责此对话。', handBack: '交还给 PO', aliasesGroup: '模型别名', modelsGroup: '模型', noMatch: '没有与“{query}”匹配的模型', versionsGroup: '{family} 版本', observing: 'PO 正在观察此对话，但尚不切换模型（学习阶段：{stage}）。它会记录自己会做出的选择。', running: '正在运行：{model}', refused: { invalid_routing_pool: '请至少勾选一个模型。', routing_pool_other_provider: '这些模型属于其他提供方：对话会保留在其提供方上。', not_found: '此对话已不存在。', forbidden: '只有已登录的用户才能更改对话的路由。', failed: '无法更改路由，请重试。' } },
+  menu: { aria: '此对话的模型', chipDefault: '服务器默认', modeStrict: '严格: 1 个模型', modeMixed: '混合: {count} 个模型', summaryNone: '未选择：使用服务器默认。', summaryMixed: 'PO 在你的 {count} 个模型之间路由，从第一条回复开始。', selectAll: '全选', clearAll: '全不选', noProvider: '未配置任何提供商', providerToggle: '{provider} 的所有模型', countOf: '共 {total} 个，已选 {selected} 个', noModels: '此提供商没有可列出的模型', loading: '正在加载模型…', search: '搜索模型…', refreshModelsAria: '刷新模型列表', refreshModels: '刷新模型', refreshing: '正在更新…', defaultModel: '默认模型', locked: '对话会保留在其提供方上', otherProvider: '用其他提供方新建对话', liveUnsupported: '此提供方无法更换进行中对话的模型。请新建对话以使用其他模型。', autoChose: 'PO 选择了：{model}', autoHint: '在下方选择一个模型即可收回控制。', tookControl: '你已收回控制：{model} 负责此对话。', handBack: '交还给 PO', aliasesGroup: '模型别名', modelsGroup: '模型', noMatch: '没有与“{query}”匹配的模型', versionsGroup: '{family} 版本', observing: 'PO 正在观察此对话，但尚不切换模型（学习阶段：{stage}）。它会记录自己会做出的选择。', running: '正在运行：{model}', refused: { invalid_routing_pool: '请至少勾选一个模型。', routing_pool_other_provider: '这些模型属于其他提供方：对话会保留在其提供方上。', not_found: '此对话已不存在。', forbidden: '只有已登录的用户才能更改对话的路由。', failed: '无法更改路由，请重试。' } },
   picker: { routedBy: '路由方：{by}' },
   modelTargets: {
     loading: '正在读取模型目录…',

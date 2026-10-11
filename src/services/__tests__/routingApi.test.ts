@@ -25,7 +25,7 @@ import { normalizeProvidersResponse } from '../providers'
 import type { RoutingSettings } from '@/types/routing'
 
 const SETTINGS: RoutingSettings = {
-  mode: 'mixed',
+  mode: 'executors_only',
   stage: 'shadow',
   primary: { provider: 'claude-code', model: null, alias: 'deep' },
   exploration_epsilon: 0.1,
@@ -100,6 +100,11 @@ describe('normalizeRoutingSettings', () => {
     const out = normalizeRoutingSettings({ mode: 'telepathy', stage: 'yolo', primary: null, scope: 'galaxy' })
     expect(out).toMatchObject({ mode: 'primary', stage: 'shadow', primary: null, scope: 'default' })
     expect(out.exploration_epsilon).toBe(0)
+  })
+
+  it('reads a settings mode a server older than R-S4 still calls "mixed" as executors_only', () => {
+    expect(normalizeRoutingSettings({ ...WIRE_SETTINGS, mode: 'mixed' }).mode).toBe('executors_only')
+    expect(normalizeRoutingSettings({ ...WIRE_SETTINGS, mode: 'executors_only' }).mode).toBe('executors_only')
   })
 
   it('drops a primary without provider', () => {

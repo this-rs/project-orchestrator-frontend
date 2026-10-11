@@ -25,6 +25,7 @@ import {
 } from '../chatContract'
 import { CHAT_EVENT_FIELDS, WS_CLIENT_MESSAGE_TYPES } from '@/types/chat'
 import { CAPABILITY_KEYS, normalizeCapabilities, MINIMAL_CAPABILITIES } from '@/types/provider'
+import { CONVERSATION_ROUTING_MODES, ROUTING_MODES } from '@/types/routing'
 import { historyEventsToMessages, readSystemInitRuntime } from '@/utils/chatAssembly'
 
 const dir = resolve(__dirname, '../__fixtures__/chat-contract')
@@ -237,6 +238,15 @@ describe('provider-additions routing enums', () => {
     expect(additions.rest?.CreateSessionRequest?.routing_mode).toMatchObject({ enum: ['primary', 'mixed', 'full'] })
     const bad = { rest: { CreateSessionRequest: { routing_mode: { enum: ['primary', 'random'] } } } } as ProviderAdditionsFile
     expect(checkProviderAdditions(bad)).toEqual(['`CreateSessionRequest.routing_mode` may be `random` on the wire but the frontend does not know that value'])
+  })
+
+  it('names the settings mode apart from the conversation mode (R-S4: executors_only vs mixed)', () => {
+    // A conversation's `mixed` is "PO routes among the models ticked": a conversation value.
+    expect(additions.rest?.ChatSession?.routing_mode).toMatchObject({ enum: [...CONVERSATION_ROUTING_MODES] })
+    // The settings' mode, as GET /api/chat/providers.routing documents it, is the settings enum.
+    const providers = (additions.rest as Record<string, unknown> | undefined)?.['GET /api/chat/providers'] as { response?: { routing?: { mode?: string } } } | undefined
+    expect(providers?.response?.routing?.mode?.split(' | ')).toEqual([...ROUTING_MODES])
+    expect(ROUTING_MODES).not.toContain('mixed')
   })
 
   it('flags a routed_by value the frontend does not know', () => {

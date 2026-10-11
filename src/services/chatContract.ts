@@ -16,7 +16,7 @@ import {
   type ChatEventType,
 } from '@/types/chat'
 import { CAPABILITY_KEYS, ROUTED_BY_VALUES } from '@/types/provider'
-import { LEARNING_STAGES, ROUTING_MODES } from '@/types/routing'
+import { CONVERSATION_ROUTING_MODES, LEARNING_STAGES, ROUTING_MODES } from '@/types/routing'
 
 /** Fields the transport adds around an event; they are not part of the variant. */
 export const ENVELOPE_FIELDS: readonly string[] = ['type', 'seq', 'replaying', 'created_at', 'id_seq']
@@ -201,9 +201,9 @@ export function checkProviderAdditions(file: ProviderAdditionsFile): string[] {
   const session = file.rest?.ChatSession as Record<string, unknown> | undefined
   const settings = file.rest_routing?.RoutingSettings as Record<string, unknown> | undefined
   check('ChatSession.routed_by', enumOf(session, 'routed_by'), ROUTED_BY_VALUES)
-  check('ChatSession.routing_mode', enumOf(session, 'routing_mode'), ROUTING_MODES)
+  check('ChatSession.routing_mode', enumOf(session, 'routing_mode'), CONVERSATION_ROUTING_MODES)
   const create = file.rest?.CreateSessionRequest as Record<string, unknown> | undefined
-  check('CreateSessionRequest.routing_mode', enumOf(create, 'routing_mode'), ROUTING_MODES)
+  check('CreateSessionRequest.routing_mode', enumOf(create, 'routing_mode'), CONVERSATION_ROUTING_MODES)
   check('RoutingSettings.mode', enumOf(settings, 'mode'), ROUTING_MODES)
   check('RoutingSettings.stage', enumOf(settings, 'stage'), LEARNING_STAGES)
   return problems

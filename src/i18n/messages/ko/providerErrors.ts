@@ -115,7 +115,7 @@ export default {
     endpoint_redirects_not_allowed: '엔드포인트가 리디렉션으로 응답했으며 서버는 이를 따르지 않습니다(키가 다른 호스트로 전송될 수 있음). 최종 URL을 기본 URL로 사용하세요.',
     credential_test_requires_saved_instance: '키를 사용하는 테스트는 같은 엔드포인트와 키 참조로 이미 저장된 인스턴스에서만 실행됩니다. 먼저 인스턴스를 저장한 다음 다시 테스트하세요.',
     engine_unavailable: '이 대화는 에이전트 엔진에서 열렸는데 서버가 더 이상 그것을 실행하지 않아 재개할 수 없습니다. 새 대화를 시작하거나, 서버 관리자에게 에이전트 엔진을 다시 켜 달라고 요청하세요(CHAT_PROVIDER_PATH).',
-    invalid_routing_mode: '라우팅 모드는 primary, mixed 또는 full이어야 합니다.',
+    invalid_routing_mode: '라우팅 모드는 primary, executors_only 또는 full이어야 합니다.',
     invalid_learning_stage: '학습 단계는 shadow, advisory 또는 auto여야 합니다.',
     invalid_routing_weight: '라우팅 가중치 또는 탐색 비율이 허용 범위를 벗어났습니다. 탐색 비율은 0과 1 사이여야 하며, 가중치는 음수일 수 없습니다.',
   },

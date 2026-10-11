@@ -19,7 +19,7 @@ import {
   type ToolPolicy,
 } from '@/types/provider'
 import { routingApi } from '@/services/routing'
-import type { LearningStage, ProviderRoutingMode, RoutingSettingsResponse } from '@/types/routing'
+import { conversationModeOfSettings, type ConversationRoutingMode, type LearningStage, type RoutingSettingsResponse } from '@/types/routing'
 import { pickModelResolver } from '@/constants/providers'
 import { modeOf, type RoutingPick } from '@/utils/routingSelection'
 import { chatPermissionConfigAtom, chatSelectedProjectAtom, chatSessionIdAtom, chatSessionModelAtom } from './chat'
@@ -284,7 +284,7 @@ export const chatDraftAutoAtom = atom<boolean | null>(null)
 export const chatDraftSelectionAtom = atom<RoutingPick[]>([])
 
 /** The routing mode the draft stands for - read from the two above, never stored. `null` = the settings decide. */
-export const chatDraftRoutingModeAtom = atom<ProviderRoutingMode | null>((get) =>
+export const chatDraftRoutingModeAtom = atom<ConversationRoutingMode | null>((get) =>
   modeOf(get(chatDraftAutoAtom), get(chatDraftSelectionAtom), pickModelResolver(get(providersAtom))),
 )
 
@@ -295,18 +295,20 @@ export const chatDraftRoutingModeAtom = atom<ProviderRoutingMode | null>((get) =
  * Before the first message: the draft's own choice, else the settings' (what
  * the server will apply to it).
  */
-export const chatRoutingModeAtom = atom<ProviderRoutingMode>((get) => {
+export const chatRoutingModeAtom = atom<ConversationRoutingMode>((get) => {
   if (get(chatSessionIdAtom)) {
     const record = get(chatSessionRoutingAtom)
     return record?.routing_mode ?? (record?.routed_by === 'auto' ? 'full' : 'primary')
   }
-  return get(chatDraftRoutingModeAtom) ?? get(chatRoutingSettingsAtom)?.mode ?? 'primary'
+  const settings = get(chatRoutingSettingsAtom)?.mode
+  return get(chatDraftRoutingModeAtom) ?? (settings ? conversationModeOfSettings(settings) : 'primary')
 })
 
 /**
  * True once the user chose a provider/model for the NEXT conversation through
- * the "Advanced" path. In `mixed` / `full` nothing is sent unless this is set;
- * in `primary` the picker is the way and this is irrelevant.
+ * the "Advanced" path. In `full` nothing is sent unless this is set; in `mixed` the
+ * pool goes out (its pilot only as the server's fallback); in `primary` the picker is
+ * the way and this is irrelevant.
  */
 export const chatForcedTargetAtom = atom<boolean>(false)
 
@@ -314,7 +316,7 @@ export const chatForcedTargetAtom = atom<boolean>(false)
 export interface ChatSessionRouting {
   routed_by: RoutedBy | null
   route_reason: string | null
-  routing_mode: ProviderRoutingMode | null
+  routing_mode: ConversationRoutingMode | null
   /** The models ticked for this conversation, when its record names them. */
   routing_pool?: { provider: string; model: string }[] | null
   /**
@@ -329,7 +331,7 @@ export const chatSessionRoutingAtom = atom<ChatSessionRouting | null>(null)
 export function sessionRoutingOf(session: {
   routed_by?: RoutedBy | null
   route_reason?: string | null
-  routing_mode?: ProviderRoutingMode | null
+  routing_mode?: ConversationRoutingMode | null
   routing_pool?: { provider: string; model: string }[] | null
 }): ChatSessionRouting | null {
   const { routed_by = null, route_reason = null, routing_mode = null, routing_pool } = session
