@@ -272,6 +272,35 @@ describe('useChat (regression: a failed ws.send must not apply optimistic effect
     }
   })
 
+  it('a_forbidden_answer_is_shown_on_its_block_and_does_not_mark_it_answered (hook: routed by request_id, never an error turn)', async () => {
+    const { result, ws } = await setup()
+    act(() => {
+      ws.callbacks.onEvent({ type: 'permission_request', id: 'A', tool: 'Bash', input: { command: 'ls' } })
+      ws.callbacks.onEvent({ type: 'permission_request', id: 'B', tool: 'Bash', input: { command: 'pwd' } })
+    })
+    vi.useFakeTimers()
+    try {
+      act(() => {
+        result.current.respondPermission('A', true, 'session')
+      })
+      act(() => {
+        ws.callbacks.onEvent({ type: 'error', message: 'forbidden', code: 'permission_forbidden', reason: 'not_owner', request_id: 'A' })
+      })
+      const a = permBlock(result, 'A')
+      expect((a?.metadata?.answer_forbidden as { reason: string }).reason).toBe('not_owner')
+      expect(a?.metadata?.decided).toBeFalsy()
+      expect(permBlock(result, 'B')?.metadata?.answer_forbidden).toBeUndefined()
+      expect(result.current.messages.flatMap((m) => m.blocks).some((b) => b.type === 'error')).toBe(false)
+      // Its wait ended with the refusal: no "unconfirmed" later.
+      act(() => {
+        vi.advanceTimersByTime(SCOPE_CONFIRMATION_TIMEOUT_MS * 2)
+      })
+      expect(permBlock(result, 'A')?.metadata?.scope_unconfirmed).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('a socket lost while a "session" answer waits makes its block answerable again (#323-2)', async () => {
     const { result, ws } = await setup()
     act(() => {

@@ -550,6 +550,22 @@ export function useChat() {
       }
     }
 
+    // An answer refused before delivery (`permission_forbidden`): the conversation belongs to
+    // another person (`not_owner`), or its owner could not be checked (`owner_unreadable`).
+    // Nothing was answered: the block goes back to pending and says why.
+    if (
+      event.type === 'error' &&
+      !event.replaying &&
+      (event as { code?: string }).code === 'permission_forbidden' &&
+      (event as { request_id?: string }).request_id
+    ) {
+      const forbiddenId = (event as { request_id: string }).request_id
+      releaseScopedAnswer(forbiddenId)
+      const reason = (event as { reason?: string }).reason
+      stampPermissionBlocks([forbiddenId], { answer_forbidden: { reason, at: Date.now() } })
+      return
+    }
+
     // permission_decision — stamp the decision onto the matching permission_request block
     if (event.type === 'permission_decision') {
       const data = event.replaying

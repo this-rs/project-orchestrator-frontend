@@ -254,8 +254,26 @@ export function PermissionRequestBlock({
     setUnconfirmedSeen(scopeUnconfirmed.at)
     setAwaitingScope(false)
   }
-  const unconfirmed =
-    !!scopeUnconfirmed && !persistedDecision && (!scopeRefused || scopeUnconfirmed.at > scopeRefused.at)
+  // An answer the backend refused before delivering it (`permission_forbidden`): nothing was
+  // answered, so the block is pending again, whatever it showed after the click.
+  const answerForbidden = block.metadata?.answer_forbidden as { reason?: string; at: number } | undefined
+  const [forbiddenSeen, setForbiddenSeen] = useState<number | null>(null)
+  if (answerForbidden && answerForbidden.at !== forbiddenSeen && !persistedDecision) {
+    setForbiddenSeen(answerForbidden.at)
+    setAwaitingScope(false)
+    setResponded(false)
+    setDecision(null)
+  }
+  const forbidden = !!answerForbidden && !persistedDecision
+  // Of the notices (refused scope, unconfirmed, forbidden), only the latest is shown.
+  const latestNotice = [
+    refused && scopeRefused ? { kind: 'refused' as const, at: scopeRefused.at } : null,
+    scopeUnconfirmed && !persistedDecision ? { kind: 'unconfirmed' as const, at: scopeUnconfirmed.at } : null,
+    forbidden && answerForbidden ? { kind: 'forbidden' as const, at: answerForbidden.at } : null,
+  ].reduce<{ kind: 'refused' | 'unconfirmed' | 'forbidden'; at: number } | null>(
+    (latest, notice) => (notice && (!latest || notice.at >= latest.at) ? notice : latest),
+    null,
+  )?.kind
   // A refusal of `session` is deterministic (the same call is refused again): not offered twice.
   const sessionRefused = refused && scopeRefused?.scope === 'session'
   const showSession = offersSession && !sessionRefused
@@ -466,14 +484,21 @@ export function PermissionRequestBlock({
             {t('chatA-tools.permission.awaiting')}
           </p>
         )}
-        {refused && !unconfirmed && !awaitingScope && (
+        {latestNotice === 'refused' && !awaitingScope && (
           <p role="alert" className="mt-1.5 text-[10px] text-amber-400">
             {t('chatA-tools.permission.scopeRefused')}
           </p>
         )}
-        {unconfirmed && !awaitingScope && (
+        {latestNotice === 'unconfirmed' && !awaitingScope && (
           <p role="alert" className="mt-1.5 text-[10px] text-amber-400">
             {t('chatA-tools.permission.unconfirmed')}
+          </p>
+        )}
+        {latestNotice === 'forbidden' && !awaitingScope && (
+          <p role="alert" data-testid="permission-forbidden" className="mt-1.5 text-[10px] text-amber-400">
+            {answerForbidden?.reason === 'owner_unreadable'
+              ? t('chatA-tools.permission.ownerUnreadable')
+              : t('chatA-tools.permission.forbidden')}
           </p>
         )}
         {sendFailed && (
