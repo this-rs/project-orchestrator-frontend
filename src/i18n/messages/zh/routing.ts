@@ -164,4 +164,8 @@ export default {
     pending: '正在移动…',
     refused: { forbidden: '只有已登录的用户才能将对话移至其他提供方。', not_found: '此对话已不存在。', empty_message: '请写下要在新提供方上发送的消息。', same_provider: '对话已在此提供方上。', failed: '无法移动对话。没有任何更改: 请重试。' },
   },
+  capabilities: {
+    banner: { poolLacksImages: "PO 可将此对话路由到的模型中，没有一个接受图片", imagesPoolUnbuilt: "此模型不接受图片，且 PO 的路由池尚未探测（未探测不代表没有模型接受图片）" },
+    composer: { poolLacksImages: "PO 可将此对话路由到的模型中，没有一个接受图片。未附加：{names}。", imagesPoolUnbuilt: "此模型不接受图片，且 PO 的路由池尚未探测。未附加：{names}。" },
+  },
 } satisfies Translation<'routing'>

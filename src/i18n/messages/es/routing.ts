@@ -164,4 +164,8 @@ export default {
     pending: 'Moviendo…',
     refused: { forbidden: 'Solo una persona con sesión iniciada puede mover una conversación a otro proveedor.', not_found: 'Esta conversación ya no existe.', empty_message: 'Escribe el mensaje que se enviará en el nuevo proveedor.', same_provider: 'La conversación ya está en este proveedor.', failed: 'No se pudo mover la conversación. No cambió nada: inténtalo de nuevo.' },
   },
+  capabilities: {
+    banner: { poolLacksImages: "Ningún modelo al que PO puede dirigir esta conversación acepta imágenes", imagesPoolUnbuilt: "Este modelo no acepta imágenes y el pool de enrutamiento de PO aún no se ha sondeado (no sondeado no significa que ningún modelo las acepte)" },
+    composer: { poolLacksImages: "Ningún modelo al que PO puede dirigir esta conversación acepta imágenes. No adjuntado: {names}.", imagesPoolUnbuilt: "Este modelo no acepta imágenes y el pool de enrutamiento de PO aún no se ha sondeado. No adjuntado: {names}." },
+  },
 } satisfies Translation<'routing'>

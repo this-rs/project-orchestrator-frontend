@@ -164,4 +164,8 @@ export default {
     pending: 'Déplacement…',
     refused: { forbidden: 'Seule une personne connectée peut déplacer une conversation vers un autre provider.', not_found: 'Cette conversation n\'existe plus.', empty_message: 'Écrivez le message à envoyer sur le nouveau provider.', same_provider: 'La conversation est déjà sur ce provider.', failed: 'La conversation n\'a pas pu être déplacée. Rien n\'a changé : réessayez.' },
   },
+  capabilities: {
+    banner: { poolLacksImages: "Aucun modèle vers lequel PO peut router cette conversation n'accepte les images", imagesPoolUnbuilt: "Ce modèle n'accepte pas les images, et le pool de routage de PO n'est pas encore sondé (non sondé ne veut pas dire qu'aucun modèle ne les accepte)" },
+    composer: { poolLacksImages: "Aucun modèle vers lequel PO peut router cette conversation n'accepte les images. Non joint : {names}.", imagesPoolUnbuilt: "Ce modèle n'accepte pas les images, et le pool de routage de PO n'est pas encore sondé. Non joint : {names}." },
+  },
 } satisfies Translation<'routing'>

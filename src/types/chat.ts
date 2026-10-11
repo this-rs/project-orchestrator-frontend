@@ -244,6 +244,31 @@ export interface LiveActivityResponse {
   sessions: Record<string, SessionActivity>
 }
 
+/** Where an effective capability was read: the opening model's snapshot, or PO's routing candidates. */
+export type EffectiveSource = 'snapshot' | 'routing_pool'
+
+/**
+ * Why an effective capability says what it says (backend `EffectiveCause`):
+ * `model_has_it` — the session's model has it; `not_routed` — PO does not choose this
+ * conversation's model (the snapshot stands); `no_router` — no live router (the snapshot stands);
+ * `pool_unbuilt` — PO routes but its pool lists no model yet (not probed, NOT absent);
+ * `pool_has_it` — a routing candidate has it; `pool_lacks_it` — none of them has it.
+ */
+export type EffectiveCause = 'model_has_it' | 'not_routed' | 'no_router' | 'pool_unbuilt' | 'pool_has_it' | 'pool_lacks_it'
+
+export interface EffectiveCapability {
+  value: boolean
+  source: EffectiveSource
+  cause: EffectiveCause
+  /** The candidates that have it, when the routing pool was read. */
+  via?: { provider: string; model: string }[]
+}
+
+/** Capabilities that follow the routing candidates rather than the opening model (F-R4). */
+export interface EffectiveCapabilities {
+  images: EffectiveCapability
+}
+
 export interface ChatSession {
   id: string
   cli_session_id?: string
@@ -269,6 +294,12 @@ export interface ChatSession {
   provider_kind?: ProviderKind | null
   /** Capabilities frozen on the session when it opened. Absent = read them from the provider list. */
   capabilities?: Partial<ProviderCapabilities> | null
+  /**
+   * What the next turn can really carry, given the conversation's routing (F-R4): `capabilities`
+   * is the snapshot of the opening model, this follows the candidates PO may route to. Carried by
+   * `GET /chat/sessions/{id}` and `PUT /chat/sessions/{id}/routing`. Absent = nothing said.
+   */
+  effective_capabilities?: EffectiveCapabilities | null
   /** Engine of the session (`agent`; absent = legacy). Same name as on `system_init`; NOT yet in the contract's ChatSession DTO. */
   engine?: string | null
   /** Features the engine cannot provide (same name as on `system_init`; NOT yet in the contract's ChatSession DTO). */

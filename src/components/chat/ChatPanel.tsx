@@ -5,7 +5,7 @@ import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
 import { useT } from '@/i18n'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom } from '@/atoms'
 import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
@@ -114,12 +114,14 @@ export function ChatPanel() {
   const capabilities = useAtomValue(chatSessionCapabilitiesAtom)
   const sessionProvider = useAtomValue(chatSessionProviderAtom)
   const sessionModel = useAtomValue(chatSessionModelAtom)
-  const engine = useAtomValue(chatSessionEngineAtom)
-  const capabilitiesSnapshot = useAtomValue(chatSessionCapabilitiesSnapshotAtom)
+  // The capability facts the banner AND its folded icon read (F-R4): `images` follows the routing
+  // candidates when PO routes, not the snapshot of the opening model.
+  const engine = useAtomValue(chatSessionEngineFactsAtom)
+  const declaredCapabilities = useAtomValue(chatSessionDeclaredFactsAtom)
   // What this conversation cannot do (the capability banner). The reader can put the banner away as an
   // amber icon in the header (on a phone: an amber count on the ⋯ menu button, the header has no room
   // for one more button beside the title); a feature missing for the first time brings it back once.
-  const gapItems = useMemo(() => engineGaps(engine.degraded, capabilitiesSnapshot), [engine.degraded, capabilitiesSnapshot])
+  const gapItems = useMemo(() => engineGaps(engine.degraded, declaredCapabilities), [engine.degraded, declaredCapabilities])
   const gapIds = useMemo(() => gapItems.map((g) => g.id), [gapItems])
   const bannerFold = useCapabilityBannerCollapse(gapIds)
   const gapsIconRef = useRef<HTMLButtonElement>(null)
@@ -476,7 +478,7 @@ export function ChatPanel() {
         <RemoteNoToolsBanner machine={sessionProviderInfo.label} />
       )}
       {!bannerFold.collapsed && (
-        <EngineBanner degraded={engine.degraded} declared={capabilitiesSnapshot} onCollapse={collapseBanner} collapseRef={bannerCollapseRef} />
+        <EngineBanner degraded={engine.degraded} declared={declaredCapabilities} onCollapse={collapseBanner} collapseRef={bannerCollapseRef} />
       )}
     </>
   )
