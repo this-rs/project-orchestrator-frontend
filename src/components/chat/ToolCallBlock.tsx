@@ -12,7 +12,7 @@ import { useBlockProviderKind } from './useBlockProviderKind'
 import { toolCancelUnsupportedText } from '@/constants/capabilities'
 import { ChevronRight, Square } from 'lucide-react'
 import { useT } from '@/i18n'
-import { chipOutcomeOfReason, readCancelFailure, type ChipOutcome } from '@/utils/cancelFailure'
+import { chipOutcomeOfReason, nextCancelStamp, readCancelFailure, type ChipOutcome } from '@/utils/cancelFailure'
 
 const MCP_PREFIX = 'mcp__project-orchestrator__'
 
@@ -106,11 +106,12 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   // tool_result and continues its turn (does NOT end it).
   // Over the socket there is no REST answer: the failure comes back on the stream as a
   // cancel notice (`chatLastCancelFailureAtom`). Its frame has no `retryable`, so the
-  // chip is never re-enabled from it.
+  // chip is never re-enabled from it. Only a notice that arrived AFTER the click
+  // answers it: both are `nextCancelStamp()`s, strictly ordered, never the wall clock.
   const lastCancelFailure = useAtomValue(chatLastCancelFailureAtom)
   const streamOutcome =
     stopRequested && stopClickedAt !== null && lastCancelFailure !== null &&
-    lastCancelFailure.sessionId === sessionId && lastCancelFailure.at >= stopClickedAt
+    lastCancelFailure.sessionId === sessionId && lastCancelFailure.at > stopClickedAt
       ? chipOutcomeOfReason(lastCancelFailure.reason)
       : null
   const stopOutcome = restOutcome ?? streamOutcome
@@ -123,7 +124,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
     e.stopPropagation()
     if (!sessionId || !stopSupported) return
     setStopRequested(true)
-    setStopClickedAt(Date.now())
+    setStopClickedAt(nextCancelStamp())
     // The open chat socket first (`cancel_tools` frame): the cancelled tool_result and
     // `tools_cancelled` come back on the stream like for the REST call. REST otherwise.
     if (cancelToolsLive?.()) return
