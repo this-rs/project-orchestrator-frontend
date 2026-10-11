@@ -38,6 +38,15 @@ export default {
   compaction: {
     label: "Compactando el contexto"
   },
+  spawn: {
+    runner: "ejecutor",
+    conversation: "derivada",
+    delegation: "delegada",
+    pipeline: "canalización",
+    gate: "control",
+    trigger: "disparador",
+    subagentOf: "Subagente de otra conversación"
+  },
   welcome: {
     title: "Project Orchestrator",
     subtitle: "¿Qué te gustaría hacer?",

@@ -4,6 +4,11 @@
  * Displays: Root Session > Agent Task X > Sub-agent Y
  * Each segment is clickable to navigate to that session.
  * Only visible when the current session has `spawned_by`.
+ *
+ * It also names WHAT this session is to its parent: the chain alone shows a
+ * conversation under another one, which a sub-agent's child looks exactly like.
+ * The chip in front of it is the session's own origin (`spawned_by`), in the
+ * same words and colours the session list uses.
  */
 
 import { ChevronRight } from 'lucide-react'
@@ -11,8 +16,10 @@ import { useAtomValue } from 'jotai'
 import { providersAtom } from '@/atoms'
 import { describeSessionProvider, shouldShowProviderBadge } from '@/constants/providers'
 import { useSessionTree } from '@/hooks'
+import { useT } from '@/i18n'
 import { ProviderBadge } from './ProviderBadge'
-import type { SessionTreeNode } from '@/types'
+import { spawnLabel } from './sessionListUtils'
+import type { SessionTreeNode, SpawnedBy } from '@/types'
 
 interface SessionBreadcrumbProps {
   /** Current session ID */
@@ -23,6 +30,8 @@ interface SessionBreadcrumbProps {
   onNavigate: (sessionId: string) => void
   /** Changes when chat activity starts/stops, to refresh the tree */
   isStreaming?: boolean
+  /** Origin of the current session, when it has one: drawn as a leading chip. */
+  spawnedBy?: SpawnedBy | null
 }
 
 /**
@@ -51,9 +60,10 @@ function buildPath(tree: SessionTreeNode[], targetId: string): SessionTreeNode[]
   return path
 }
 
-export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStreaming }: SessionBreadcrumbProps) {
+export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStreaming, spawnedBy }: SessionBreadcrumbProps) {
   const { tree } = useSessionTree(rootSessionId, isStreaming)
   const instances = useAtomValue(providersAtom)?.providers ?? null
+  const { t } = useT()
 
   if (tree.length === 0) return null
 
@@ -62,8 +72,21 @@ export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStre
   // Don't show breadcrumb if we're at the root (path length <= 1)
   if (path.length <= 1) return null
 
+  const spawn = spawnedBy ? spawnLabel(spawnedBy) : null
+
   return (
     <div className="flex items-center gap-1 px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs overflow-x-auto">
+      {spawn && (
+        <span
+          data-testid="breadcrumb-spawn"
+          // Said in full only where it is true: a runner or pipeline child is
+          // not a sub-agent of a conversation.
+          title={spawnedBy?.type === 'conversation' ? t('chatA-messages.spawn.subagentOf') : undefined}
+          className={`shrink-0 px-1.5 py-0.5 rounded bg-white/[0.06] font-mono text-[10px] ${spawn.text}`}
+        >
+          {spawn.label}
+        </span>
+      )}
       {path.map((node, i) => {
         const isLast = i === path.length - 1
         const label = node.title || `Session ${node.session_id.slice(0, 8)}`

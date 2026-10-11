@@ -29,10 +29,11 @@ import { SearchToolRenderer } from './SearchToolRenderer'
 import { WebToolRenderer } from './WebToolRenderer'
 import { McpToolRenderer } from './McpToolRenderer'
 import { TodoWriteRenderer } from './TodoWriteRenderer'
+import { AgentToolRenderer } from './AgentToolRenderer'
 import {
   getBashSummary, getEditSummary, getReadSummary, getWriteSummary,
   getGlobSummary, getGrepSummary, getWebFetchSummary, getWebSearchSummary,
-  getTodoWriteSummary, getMcpSummary,
+  getTodoWriteSummary, getMcpSummary, getAgentSummary,
 } from './summaries'
 
 export type { ToolRendererProps } from './types'
@@ -57,6 +58,12 @@ const TOOL_REGISTRY: Record<string, ComponentType<ToolRendererProps>> = {
   WebFetch: WebToolRenderer,
   WebSearch: WebToolRenderer,
   TodoWrite: TodoWriteRenderer,
+  // `Agent` is NOT a Claude Code tool name (Claude Code's is `Task`, rendered
+  // by the nesting path). It sits in this table because it is also the
+  // canonical vocabulary: a native-harness call arrives as
+  // `tool_name: "Agent", canonical: "Agent"` whatever its provider kind, and
+  // resolves here through the canonical step.
+  Agent: AgentToolRenderer,
   __mcp__: McpToolRenderer,
 }
 
@@ -259,6 +266,7 @@ const SUMMARY_REGISTRY: Record<string, SummaryFn> = {
   WebFetch: getWebFetchSummary,
   WebSearch: getWebSearchSummary,
   TodoWrite: getTodoWriteSummary,
+  Agent: getAgentSummary,
 }
 
 /**
@@ -294,6 +302,7 @@ const ICON_REGISTRY: Record<string, string> = {
   WebFetch: '↓',
   WebSearch: '🔎',
   TodoWrite: '☑',
+  Agent: '⇲',
 }
 
 /**
