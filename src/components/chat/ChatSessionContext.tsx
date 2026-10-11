@@ -13,7 +13,8 @@ import { CLAUDE_CODE_CAPABILITIES, type ProviderCapabilities } from '@/types/pro
  * name it, say whether it is still working, and open it. Built from the
  * children endpoint (`useDetachedRuns`), so `toolUseId` is the child's
  * `spawned_by.tool_use_id` — the only join between a native-harness `Agent`
- * tool call and the conversation it ran in.
+ * tool call and the conversation it ran in. A `DetachedRun` satisfies it as
+ * is, so the panels pass `useDetachedRuns().runs` without re-mapping it.
  */
 export interface ChatChildSession {
   sessionId: string

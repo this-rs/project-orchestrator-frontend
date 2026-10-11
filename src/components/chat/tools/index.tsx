@@ -58,11 +58,13 @@ const TOOL_REGISTRY: Record<string, ComponentType<ToolRendererProps>> = {
   WebFetch: WebToolRenderer,
   WebSearch: WebToolRenderer,
   TodoWrite: TodoWriteRenderer,
-  // `Agent` is NOT a Claude Code tool name (Claude Code's is `Task`, rendered
-  // by the nesting path). It sits in this table because it is also the
-  // canonical vocabulary: a native-harness call arrives as
+  // `Agent` is two things at once. It is Claude Code's own sub-agent tool
+  // (current CLIs name it `Agent`, older ones `Task`), usually rendered by the
+  // nesting path (`AgentGroup`) — but a call that is not grouped lands here.
+  // And it is the canonical vocabulary: a native-harness call arrives as
   // `tool_name: "Agent", canonical: "Agent"` whatever its provider kind, and
-  // resolves here through the canonical step.
+  // resolves here through the canonical step. The card tells the two apart by
+  // the session's `subagents` capability (see AgentToolRenderer).
   Agent: AgentToolRenderer,
   __mcp__: McpToolRenderer,
 }
@@ -195,8 +197,8 @@ export function resolveToolRenderer({ providerKind, toolName, canonical, toolInp
 
   const exact = own(PROVIDER_TOOL_TABLES[kind], toolName)
   if (exact) {
-    // `Agent` is looked up by raw name here too (it is the canonical
-    // vocabulary, not a real Claude Code tool name — see TOOL_REGISTRY).
+    // `Agent` is looked up by raw name here too (Claude Code's sub-agent tool
+    // and the canonical vocabulary — see TOOL_REGISTRY).
     // Gate it on input shape so a provider tool that is merely NAMED `Agent`
     // falls through instead of getting stuck on this card permanently.
     if (toolName !== 'Agent') {

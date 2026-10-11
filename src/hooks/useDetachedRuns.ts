@@ -52,7 +52,11 @@ export function toDetachedRun(s: DetachedSession): DetachedRun {
     sessionId: s.id,
     title: s.title || `Run ${s.id.slice(0, 8)}`,
     model: s.model,
-    isStreaming: s.is_streaming,
+    // The children endpoint returns `ChatSession`, which says whether a child is
+    // working only through `activity` — omitted when it is quiet. There is no
+    // `is_streaming` on this response: reading it made every listed child look
+    // finished, including one whose turn had just started.
+    isStreaming: s.activity?.streaming ?? false,
     costUsd: s.total_cost_usd,
     costBasis: s.cost_basis,
     providerId: s.provider_id,
@@ -62,6 +66,17 @@ export function toDetachedRun(s: DetachedSession): DetachedRun {
     taskId: spawnedBy && 'task_id' in spawnedBy ? spawnedBy.task_id : undefined,
     toolUseId: spawnedByToolUseId(spawnedBy),
   }
+}
+
+/** Same runs, field for field: a refetch that changed nothing keeps the old array (and its identity). */
+function sameRuns(a: readonly DetachedRun[], b: readonly DetachedRun[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((run, i) => {
+    const other = b[i] as unknown as Record<string, unknown>
+    const keys = new Set([...Object.keys(run), ...Object.keys(other)])
+    for (const k of keys) if ((run as unknown as Record<string, unknown>)[k] !== other[k]) return false
+    return true
+  })
 }
 
 /** How long a burst of unrelated `created` events may coalesce into one fetch. */
@@ -101,6 +116,17 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
   // not keep showing the PREVIOUS session's children under the new one.
   const runsSessionIdRef = useRef<string | null>(null)
 
+  // `is_streaming` updates received while the latest fetch is IN FLIGHT, by
+  // session id. The server read its live map somewhere between sending and
+  // answering, so an update that lands after the request left is at least as
+  // new as the answer — and the `updated` handler cannot apply it to a child
+  // the list does not hold yet (a sub-agent whose turn ends within the fetch
+  // would otherwise keep its spinner until the next refetch). Reset on every
+  // send; null while no fetch is in flight, so nothing accumulates between
+  // fetches. Updates that land BEFORE the send are older than the answer,
+  // whose `activity` already covers them — no need to keep those.
+  const inFlightStreamingRef = useRef<Map<string, boolean> | null>(null)
+
   const fetchChildren = useCallback(async () => {
     if (!sessionIdRef.current) {
       setRuns([])
@@ -109,13 +135,23 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
     }
     const sessionAtRequest = sessionIdRef.current
     const requestId = ++requestIdRef.current
+    inFlightStreamingRef.current = new Map()
     setIsLoading(true)
     try {
       const children = await chatApi.getSessionChildren(sessionAtRequest)
       // Stale-response guard (see requestIdRef above). Also refuses to write
       // if `sessionId` moved on under us while the request was in flight.
       if (requestId === requestIdRef.current && sessionIdRef.current === sessionAtRequest) {
-        setRuns(children.map(toDetachedRun))
+        const late = inFlightStreamingRef.current
+        const next = children.map((c) => {
+          const run = toDetachedRun(c)
+          const live = late?.get(run.sessionId)
+          return live === undefined ? run : { ...run, isStreaming: live }
+        })
+        // Keep the previous array when nothing changed: every `created` in the
+        // deployment ends in one of these fetches, and a fresh-but-equal array
+        // would re-render every consumer of the children list for nothing.
+        setRuns((prev) => (sameRuns(prev, next) ? prev : next))
         runsSessionIdRef.current = sessionAtRequest
       }
     } catch {
@@ -138,6 +174,7 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
       }
     } finally {
       if (requestId === requestIdRef.current) {
+        inFlightStreamingRef.current = null
         setIsLoading(false)
       }
     }
@@ -145,8 +182,8 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
 
   // Coalesces a burst of `created` events (e.g. a pipeline wave opening many
   // sessions at once) into a single trailing fetch, so N creations cost one
-  // re-render of the children list — and one `childSessions` memo change,
-  // hence one ChatSessionProvider re-render — rather than N.
+  // re-render of the children list — and at most one new `runs` array (none when
+  // the list is unchanged), hence one ChatSessionProvider re-render — rather than N.
   const scheduleFetch = useCallback(() => {
     if (debounceTimerRef.current !== null) return
     debounceTimerRef.current = setTimeout(() => {
@@ -174,6 +211,7 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
         event.payload &&
         typeof event.payload.is_streaming === 'boolean'
       ) {
+        inFlightStreamingRef.current?.set(event.entity_id, event.payload.is_streaming)
         setRuns(prev => {
           const idx = prev.findIndex(r => r.sessionId === event.entity_id)
           if (idx === -1) return prev

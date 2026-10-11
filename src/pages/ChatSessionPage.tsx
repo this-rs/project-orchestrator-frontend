@@ -8,7 +8,7 @@
  * ChatMessageBubble component as the main chat.
  */
 
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import { useT } from '@/i18n'
 import { AddToChatButton, useReferenceSource } from '@/refs/source'
 import { useParams, Link, useNavigate } from 'react-router-dom'
@@ -43,18 +43,6 @@ export default function ChatSessionPage() {
   const handleViewRun = useCallback((childSessionId: string) => {
     navigate(workspacePath(wsSlug, `/chat/${childSessionId}`))
   }, [navigate, wsSlug])
-  // What the transcript needs of the children: a sub-agent card joins on the
-  // child's `spawned_by.tool_use_id`.
-  const childSessions = useMemo(
-    () =>
-      detachedRuns.runs.map((r) => ({
-        sessionId: r.sessionId,
-        title: r.title,
-        isStreaming: r.isStreaming,
-        toolUseId: r.toolUseId,
-      })),
-    [detachedRuns.runs],
-  )
   const handleStopRun = useCallback((childSessionId: string) => {
     // Best-effort interrupt — the UI updates via WebSocket events. Still
     // report failures: a silent catch here is what kept a dead endpoint
@@ -134,7 +122,7 @@ export default function ChatSessionPage() {
           deliberately null — this page is read-only, and a session id would
           hand the transcript the per-tool Stop chip it must not have.
         */}
-        <ChatSessionProvider sessionId={null} childSessions={childSessions} openSession={handleViewRun}>
+        <ChatSessionProvider sessionId={null} childSessions={detachedRuns.runs} openSession={handleViewRun}>
           {messages.map((msg) => (
             <ChatMessageBubble
               key={msg.id}

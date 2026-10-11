@@ -81,9 +81,11 @@ export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStre
         <span
           data-testid="breadcrumb-spawn"
           // Said in full only where it is true: a `conversation` origin is also
-          // what a HUMAN-opened sub-conversation carries (no `tool_use_id`), so
-          // keying on the variant alone would call that a sub-agent too. Only a
-          // `tool_use_id` means an `Agent` call spawned this session.
+          // what a sub-conversation opened OUTSIDE an `Agent` call carries (by a
+          // person, or by an agent through `chat(send_message)`), with no
+          // `tool_use_id`, so keying on the variant alone would call those
+          // sub-agents too. Only a `tool_use_id` means an `Agent` call spawned
+          // this session.
           title={spawnedByToolUseId(spawnedBy) ? t('chatA-messages.spawn.subagentOf') : undefined}
           className={`shrink-0 px-1.5 py-0.5 rounded bg-white/[0.06] font-mono text-[10px] ${spawn.text}`}
         >
