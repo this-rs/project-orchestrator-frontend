@@ -168,6 +168,22 @@ export default {
     scopeRefused: "Diese Erlaubnis kann nicht für die Sitzung behalten werden (der Aufruf startet einen anderen Befehl, oder die Sitzung bietet es nicht an). Einmal erlauben oder ablehnen.",
     allowed: "Erlaubt",
     allowedSession: "Für die Sitzung erlaubt",
-    denied: "Abgelehnt"
+    denied: "Abgelehnt",
+    allowAlways: "Immer",
+    alwaysHint: "Für genau diesen Aufruf nie wieder gefragt, in all Ihren Unterhaltungen zu diesem Projekt",
+    alwaysCovers: "Wenn erteilt, deckt „Immer“ nur ab:",
+    alwaysRefused: "Dieser Aufruf kann nicht dauerhaft erlaubt werden (nur ein exakter Lesezugriff oder ein schreibgeschützter Befehl ohne Umleitung oder Verkettung). Antworten Sie einmalig oder für die Sitzung.",
+    allowedAlways: "Immer erlaubt"
+  },
+  lastingRules: {
+    title: "Immer erlaubte Aufrufe",
+    description: "Aufrufe, die Sie dauerhaft erlaubt haben, pro Projekt. Jeder deckt nur genau diesen Aufruf ab. Widerrufen, wird er ab der nächsten Anfrage wieder gefragt.",
+    empty: "Kein Aufruf ist dauerhaft erlaubt.",
+    disabled: "Dieser Server speichert keine dauerhaften Freigaben.",
+    revoke: "Widerrufen",
+    revoked: "Widerrufen: Es wird wieder gefragt.",
+    loadFailed: "Ihre dauerhaften Freigaben konnten nicht geladen werden.",
+    revokeFailed: "Konnte nicht widerrufen werden. Erneut versuchen.",
+    notHeld: "Gilt nicht mehr"
   }
 } satisfies Translation<'chatA-tools'>

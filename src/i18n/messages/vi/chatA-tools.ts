@@ -168,6 +168,22 @@ export default {
     scopeRefused: "Quyền này không thể giữ cho phiên (lệnh gọi chạy một lệnh khác, hoặc phiên không cung cấp). Hãy cho phép một lần hoặc từ chối.",
     allowed: "Đã cho phép",
     allowedSession: "Đã cho phép cho phiên",
-    denied: "Đã từ chối"
+    denied: "Đã từ chối",
+    allowAlways: "Luôn luôn",
+    alwaysHint: "Không bao giờ hỏi lại cho đúng lệnh gọi này, trong mọi cuộc trò chuyện của bạn trên dự án này",
+    alwaysCovers: "Nếu được cấp, «Luôn luôn» chỉ bao gồm:",
+    alwaysRefused: "Không thể cho phép vĩnh viễn lệnh gọi này (chỉ một lần đọc chính xác, hoặc một lệnh chỉ đọc không chuyển hướng hay nối lệnh). Hãy trả lời một lần hoặc cho phiên.",
+    allowedAlways: "Luôn được cho phép"
+  },
+  lastingRules: {
+    title: "Lệnh gọi luôn được cho phép",
+    description: "Các lệnh gọi bạn đã cho phép vĩnh viễn, theo dự án. Mỗi mục chỉ bao gồm đúng lệnh gọi đó. Khi thu hồi, nó sẽ được hỏi lại từ yêu cầu tiếp theo.",
+    empty: "Không có lệnh gọi nào được cho phép vĩnh viễn.",
+    disabled: "Máy chủ này không lưu phê duyệt vĩnh viễn nào.",
+    revoke: "Thu hồi",
+    revoked: "Đã thu hồi: sẽ được hỏi lại.",
+    loadFailed: "Không thể tải các phê duyệt vĩnh viễn của bạn.",
+    revokeFailed: "Không thể thu hồi. Hãy thử lại.",
+    notHeld: "Không còn áp dụng"
   }
 } satisfies Translation<'chatA-tools'>

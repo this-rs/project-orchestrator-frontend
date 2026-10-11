@@ -16,6 +16,32 @@ import type { ConversationRoutingMode } from './routing'
 export type PermissionMode = LegacyPermissionMode | ToolPolicyMode
 
 /** Runtime permission configuration (matches backend PermissionConfig struct) */
+/**
+ * One of the caller's lasting approvals (`always`, P11b), as `GET /api/chat/permission-rules` lists
+ * it. A rule covers the IDENTICAL call only, on one project, and is kept by the backend (never by the
+ * provider).
+ */
+export interface LastingPermissionRule {
+  id: string
+  /** The project slug it holds for. */
+  project: string
+  /** The engine it holds on: the Claude Code CLI or the native engine. */
+  engine: 'claude_code' | 'native' | string
+  tool: string
+  /** What it covers, as the decisions say it (`Bash: cat README.md`). */
+  rule: string
+  created_at: string
+  session_id?: string | null
+  /** False when the backend's comparator no longer grants it (it then covers nothing). */
+  holds: boolean
+}
+
+/** `GET /api/chat/permission-rules`: `enabled: false` when the server keeps no lasting approval. */
+export interface LastingPermissionRules {
+  enabled: boolean
+  rules: LastingPermissionRule[]
+}
+
 export interface PermissionConfig {
   /** Permission mode: controls how tool permissions are handled */
   mode: PermissionMode

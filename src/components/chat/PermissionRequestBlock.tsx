@@ -212,9 +212,11 @@ export function PermissionRequestBlock({
 
   const { t } = useT()
   // What the provider of this conversation can do: ask at all, and whether an approval
-  // may last for the session. `always` is never offered (P11b: refused by every engine).
+  // may last for the session, or for good (`always`, P11b: offered by the backend only to a
+  // person's conversation on a project; kept by the backend, never by the provider).
   const caps = useChatCapabilities()
   const offersSession = supportsScope(caps, 'session')
+  const offersAlways = supportsScope(caps, 'always')
   const decisionScope = block.metadata?.decision_scope as PermissionScope | undefined
   // What a session approval covers, as the backend says it (`Bash: git status`).
   const decisionRule = block.metadata?.decision_rule as string | undefined
@@ -277,6 +279,10 @@ export function PermissionRequestBlock({
   // A refusal of `session` is deterministic (the same call is refused again): not offered twice.
   const sessionRefused = refused && scopeRefused?.scope === 'session'
   const showSession = offersSession && !sessionRefused
+  // The same for `always`: the backend approves for good only an exact read, or one read-only
+  // command without redirection or chaining; a refused call is not offered `always` twice.
+  const alwaysRefused = refused && scopeRefused?.scope === 'always'
+  const showAlways = offersAlways && !alwaysRefused
   // What "for the session" covers, shown BEFORE the click: this exact call, as the backend
   // describes its grant (`Bash: git status`).
   const sessionRule = sessionGrantPreview(toolName, toolInput)
@@ -334,8 +340,10 @@ export function PermissionRequestBlock({
             <Check className="w-3 h-3" />
             {decisionScope === 'session'
               ? t('chatA-tools.permission.allowedSession')
-              : t('chatA-tools.permission.allowed')}
-            {decisionScope === 'session' && decisionRule && (
+              : decisionScope === 'always'
+                ? t('chatA-tools.permission.allowedAlways')
+                : t('chatA-tools.permission.allowed')}
+            {(decisionScope === 'session' || decisionScope === 'always') && decisionRule && (
               <code className="font-mono text-[10px] text-emerald-300/80 truncate max-w-[16rem]" title={decisionRule}>
                 {decisionRule}
               </code>
@@ -457,6 +465,19 @@ export function PermissionRequestBlock({
               {t('chatA-tools.permission.allowSession')}
             </button>
           )}
+          {showAlways && (
+            <button
+              type="button"
+              data-scope="always"
+              onClick={() => handleRespond(true, 'always')}
+              disabled={disabled || awaitingScope}
+              title={t('chatA-tools.permission.alwaysHint')}
+              aria-describedby={`permission-always-${toolCallId}`}
+              className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-600/10 text-emerald-300 hover:bg-emerald-600/20 transition-colors disabled:opacity-50"
+            >
+              {t('chatA-tools.permission.allowAlways')}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => handleRespond(false)}
@@ -479,6 +500,18 @@ export function PermissionRequestBlock({
             </code>
           </p>
         )}
+        {showAlways && (
+          <p
+            id={`permission-always-${toolCallId}`}
+            data-testid="permission-always-scope"
+            className="mt-1 flex items-baseline gap-1 text-[10px] text-gray-500 min-w-0"
+          >
+            <span className="shrink-0">{t('chatA-tools.permission.alwaysCovers')}</span>
+            <code className="font-mono text-gray-400 truncate" title={sessionRule}>
+              {sessionRule}
+            </code>
+          </p>
+        )}
         {awaitingScope && (
           <p role="status" className="mt-1.5 text-[10px] text-gray-400">
             {t('chatA-tools.permission.awaiting')}
@@ -486,7 +519,7 @@ export function PermissionRequestBlock({
         )}
         {latestNotice === 'refused' && !awaitingScope && (
           <p role="alert" className="mt-1.5 text-[10px] text-amber-400">
-            {t('chatA-tools.permission.scopeRefused')}
+            {alwaysRefused ? t('chatA-tools.permission.alwaysRefused') : t('chatA-tools.permission.scopeRefused')}
           </p>
         )}
         {latestNotice === 'unconfirmed' && !awaitingScope && (

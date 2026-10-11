@@ -74,7 +74,7 @@ describe('interactive_permissions', () => {
     expect(screen.queryByText(policyOnlyRequestText())).toBeNull()
   })
 
-  it('Claude profile: allow once, for the session, and deny — never "Always" (P11b)', () => {
+  it('Claude profile: allow once, for the session, and deny — "Always" only when the session offers it (P11b)', () => {
     const onRespond = vi.fn(() => true)
     mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />)
     expect(screen.getByRole('button', { name: 'Allow once' })).toBeTruthy()
@@ -116,9 +116,56 @@ describe('permission_scopes', () => {
     expect(onRespond).toHaveBeenCalledWith('c1', true, 'once')
   })
 
-  it('a provider declaring `always` still gets no "Always" button', () => {
-    mount(<PermissionRequestBlock block={permissionBlock} onRespond={() => true} />, caps({ permission_scopes: ['once', 'session', 'always'] }))
+  it('always (P11b): offered by the session, previewed as this exact call, sent with its scope, confirmed by the backend', () => {
+    const onRespond = vi.fn(() => true)
+    const store = createStore()
+    store.set(chatSessionIdAtom, 's1')
+    const view = (b: ContentBlock) => (
+      <Provider store={store}>
+        <ChatCapabilitiesProvider capabilities={caps({ permission_scopes: ['once', 'session', 'always'] })}>
+          <ChatSessionProvider sessionId="s1">
+            <PermissionRequestBlock block={b} onRespond={onRespond} />
+          </ChatSessionProvider>
+        </ChatCapabilitiesProvider>
+      </Provider>
+    )
+    const { rerender } = render(view(permissionBlock))
+    const always = screen.getByRole('button', { name: 'Always' })
+    expect(always.getAttribute('title')).toMatch(/this exact call/)
+    const preview = screen.getByTestId('permission-always-scope')
+    expect(always.getAttribute('aria-describedby')).toBe(preview.id)
+    expect(preview.textContent).toMatch(/^If granted/)
+    expect(preview.textContent).toContain('Bash: ls')
+    fireEvent.click(always)
+    expect(onRespond).toHaveBeenCalledWith('c1', true, 'always')
+    // Not shown as allowed before the backend says so.
+    expect(screen.queryByText('Always allowed')).toBeNull()
+    rerender(view(withMeta({ decided: true, decision: 'allowed', decision_scope: 'always', decision_rule: 'Bash: ls' })))
+    expect(screen.getByText('Always allowed')).toBeTruthy()
+    expect(screen.getByText('Bash: ls')).toBeTruthy()
+  })
+
+  it('always refused (permission_scope_unsupported): said, not offered again; once and session stay', () => {
+    const onRespond = vi.fn(() => true)
+    const store = createStore()
+    store.set(chatSessionIdAtom, 's1')
+    const view = (b: ContentBlock) => (
+      <Provider store={store}>
+        <ChatCapabilitiesProvider capabilities={caps({ permission_scopes: ['once', 'session', 'always'] })}>
+          <ChatSessionProvider sessionId="s1">
+            <PermissionRequestBlock block={b} onRespond={onRespond} />
+          </ChatSessionProvider>
+        </ChatCapabilitiesProvider>
+      </Provider>
+    )
+    const { rerender } = render(view(permissionBlock))
+    fireEvent.click(screen.getByRole('button', { name: 'Always' }))
+    rerender(view(withMeta({ scope_refused: { scope: 'always', at: 1 } })))
+    expect(screen.getByRole('alert').textContent).toMatch(/cannot be allowed for good/)
     expect(screen.queryByRole('button', { name: 'Always' })).toBeNull()
+    expect(screen.queryByTestId('permission-always-scope')).toBeNull()
+    expect(screen.getByRole('button', { name: 'For this session' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Allow once' })).toBeTruthy()
   })
 
   it('session: sent with its scope, NOT shown as allowed until the backend confirms', () => {

@@ -168,6 +168,22 @@ export default {
     scopeRefused: "이 권한은 세션 동안 유지할 수 없습니다 (호출이 다른 명령을 실행하거나 세션이 제공하지 않음). 한 번 허용하거나 거부하세요.",
     allowed: "허용됨",
     allowedSession: "세션 동안 허용됨",
-    denied: "거부됨"
+    denied: "거부됨",
+    allowAlways: "항상",
+    alwaysHint: "이 프로젝트의 모든 대화에서 이 정확한 호출에 대해 다시 묻지 않습니다",
+    alwaysCovers: "허용하면 「항상」은 다음만 포함합니다:",
+    alwaysRefused: "이 호출은 영구적으로 허용할 수 없습니다(정확한 읽기, 또는 리디렉션이나 연결이 없는 읽기 전용 명령 하나만 가능). 한 번 또는 세션 동안으로 답하세요.",
+    allowedAlways: "항상 허용됨"
+  },
+  lastingRules: {
+    title: "항상 허용된 호출",
+    description: "영구적으로 허용한 호출(프로젝트별). 각각 그 정확한 호출만 포함합니다. 취소하면 다음 요청부터 다시 묻습니다.",
+    empty: "영구적으로 허용된 호출이 없습니다.",
+    disabled: "이 서버는 영구 승인을 보관하지 않습니다.",
+    revoke: "취소",
+    revoked: "취소됨: 다시 묻게 됩니다.",
+    loadFailed: "영구 승인을 불러올 수 없습니다.",
+    revokeFailed: "취소할 수 없습니다. 다시 시도하세요.",
+    notHeld: "더 이상 적용되지 않음"
   }
 } satisfies Translation<'chatA-tools'>

@@ -168,6 +168,22 @@ export default {
     scopeRefused: "Cette autorisation ne peut pas être gardée pour la session (l'appel lance une autre commande, ou la session ne le propose pas). Répondez une fois ou refusez.",
     allowed: "Autorisé",
     allowedSession: "Autorisé pour la session",
-    denied: "Refusé"
+    denied: "Refusé",
+    allowAlways: "Toujours",
+    alwaysHint: "Plus jamais demandé pour cet appel exact, dans toutes vos conversations sur ce projet",
+    alwaysCovers: "Si elle est accordée, « Toujours » ne couvre que :",
+    alwaysRefused: "Cet appel ne peut pas être autorisé pour toujours (seuls une lecture exacte, ou une commande en lecture seule sans redirection ni enchaînement, le peuvent). Répondez une fois ou pour la session.",
+    allowedAlways: "Toujours autorisé"
+  },
+  lastingRules: {
+    title: "Appels toujours autorisés",
+    description: "Les appels que vous avez autorisés pour toujours, par projet. Chacun ne couvre que cet appel exact. Révoqué, il est redemandé dès la requête suivante.",
+    empty: "Aucun appel n'est autorisé pour toujours.",
+    disabled: "Ce serveur ne garde aucune autorisation durable.",
+    revoke: "Révoquer",
+    revoked: "Révoqué : il sera redemandé.",
+    loadFailed: "Impossible de charger vos autorisations durables.",
+    revokeFailed: "Impossible de la révoquer. Réessayez.",
+    notHeld: "Ne s'applique plus"
   }
 } satisfies Translation<'chatA-tools'>
