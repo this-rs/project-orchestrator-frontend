@@ -60,7 +60,7 @@ export function RunTargetPicker({ target }: RunTargetPickerProps) {
           id={`${base}-default`}
           checked={choice.provider === null}
           onSelect={() => setChoice({ provider: null, model: null })}
-          label={target.routingMode === 'mixed' ? t('routing.runTarget.poRoutes') : serverDefaultLabel(providers, resolved)}
+          label={target.routingMode === 'executors_only' ? t('routing.runTarget.poRoutes') : serverDefaultLabel(providers, resolved)}
         />
         {providers.map((p) => {
           const reason = providerUnavailableReason(p)

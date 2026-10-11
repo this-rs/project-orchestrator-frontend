@@ -117,7 +117,7 @@ export default {
     endpoint_redirects_not_allowed: 'L\'endpoint a répondu par une redirection, que le serveur ne suit pas (une clé pourrait être envoyée à un autre hôte). Utilisez l\'URL finale comme URL de base.',
     credential_test_requires_saved_instance: 'Un test qui utilise une clé ne s\'exécute que sur une instance déjà enregistrée, avec le même endpoint et la même référence de clé. Enregistrez d\'abord l\'instance, puis testez de nouveau.',
     engine_unavailable: 'Cette conversation a été ouverte sur le moteur d\'agents, et le serveur ne l\'exécute plus : elle ne peut pas être reprise. Ouvrez une nouvelle conversation, ou demandez à la personne qui gère le serveur de réactiver le moteur d\'agents (CHAT_PROVIDER_PATH).',
-    invalid_routing_mode: 'Le mode de routage doit être primary, mixed ou full.',
+    invalid_routing_mode: 'Le mode de routage doit être primary, executors_only ou full.',
     invalid_learning_stage: 'L\'étape d\'apprentissage doit être shadow, advisory ou auto.',
     invalid_routing_weight: 'Un poids de routage ou le taux d\'exploration est hors de sa plage autorisée. L\'exploration doit être comprise entre 0 et 1 ; les poids ne peuvent pas être négatifs.',
   },

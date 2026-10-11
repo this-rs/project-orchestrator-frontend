@@ -46,5 +46,21 @@ export default {
     autoOn: "자동 계속 사용 중",
     autoOff: "자동 계속 사용 안 함",
     drop: "놓아서 첨부"
+  },
+  refs: {
+    picker: {
+      all: "전체",
+      filterByKind: "종류별 필터",
+      hintActors: "액터",
+      hintSearch: "검색",
+      kindOnly: "{kind}만",
+      resultsOne: "결과 {count}개",
+      resultsMany: "결과 {count}개",
+      noResults: "결과 없음",
+      searching: "검색 중…",
+      noActors: "이 서버에서 사용할 수 있는 액터가 없습니다",
+      needsProject: "페르소나와 스킬을 검색하려면 프로젝트를 선택하세요",
+      close: "참조 닫기"
+    }
   }
 } satisfies Translation<'chatA-input'>

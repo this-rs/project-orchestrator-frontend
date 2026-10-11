@@ -115,7 +115,7 @@ export default {
     endpoint_redirects_not_allowed: 'The endpoint answered with a redirect, which the server does not follow (a key could be sent to another host). Use the final URL as the base URL.',
     credential_test_requires_saved_instance: 'A test that uses a key is only run on an instance that is already saved, with the same endpoint and key reference. Save the instance first, then test it again.',
     engine_unavailable: 'This conversation was opened on the agent engine, and the server no longer runs it, so it cannot be resumed. Start a new conversation, or ask whoever runs the server to switch the agent engine back on (CHAT_PROVIDER_PATH).',
-    invalid_routing_mode: 'The routing mode must be primary, mixed or full.',
+    invalid_routing_mode: 'The routing mode must be primary, executors_only or full.',
     invalid_learning_stage: 'The learning stage must be shadow, advisory or auto.',
     invalid_routing_weight: 'A routing weight or the exploration rate is out of its allowed range. Exploration must be between 0 and 1; weights cannot be negative.',
   },

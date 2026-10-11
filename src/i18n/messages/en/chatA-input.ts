@@ -45,4 +45,20 @@ export default {
     autoOff: 'Auto-continue disabled',
     drop: 'Drop to attach',
   },
+  refs: {
+    picker: {
+      all: 'All',
+      filterByKind: 'Filter by kind',
+      hintActors: 'actors',
+      hintSearch: 'search',
+      kindOnly: '{kind} only',
+      resultsOne: '{count} result',
+      resultsMany: '{count} results',
+      noResults: 'No results',
+      searching: 'Searching…',
+      noActors: 'No actors available on this server',
+      needsProject: 'Select a project to search personas and skills',
+      close: 'Close references',
+    },
+  },
 }

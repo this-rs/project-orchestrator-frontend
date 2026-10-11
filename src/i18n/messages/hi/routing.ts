@@ -3,7 +3,7 @@ import type { Translation } from '../../catalog.ts'
 export default {
   modes: {
     primary: { label: 'सख़्त', description: 'पूरी श्रृंखला के लिए एक ही मॉडल: जो आप चुनें।' },
-    mixed: { label: 'मिश्रित', description: 'पायलट आप चुनते हैं; हर निष्पादक को PO रूट करता है, संभवतः कई प्रदाताओं में।' },
+    executors_only: { label: 'केवल निष्पादक', description: 'प्राथमिक प्रदाता बातचीत चलाता है; PO उप-एजेंटों (रनर, प्रतिनिधिमंडल, उपयोगिताएँ) को रूट करता है, संभवतः कई प्रदाताओं में।' },
     full: { label: 'ऑटो', description: 'PO पूरी श्रृंखला के लिए प्रदाता और मॉडल चुनता है और कारण बताता है।' },
   },
   stages: {
@@ -138,7 +138,7 @@ export default {
     poChooses: 'PO चुनेगा (रूटिंग: पूर्ण)',
     poRoutes: 'PO रूट करता है (अनुशंसित)',
   },
-  menu: { aria: 'इस बातचीत के मॉडल', chipDefault: 'सर्वर डिफ़ॉल्ट', modeStrict: 'सख़्त: 1 मॉडल', modeMixed: 'मिश्रित: {count} मॉडल', summaryNone: 'कुछ चुना नहीं गया: सर्वर डिफ़ॉल्ट लागू होगा।', summaryMixed: 'PO चुने गए {count} मॉडलों के बीच रूट करता है।', selectAll: 'सभी चुनें', clearAll: 'सभी हटाएँ', noProvider: 'कोई प्रदाता कॉन्फ़िगर नहीं है', providerToggle: '{provider} के सभी मॉडल', countOf: '{total} में से {selected}', noModels: 'इस प्रदाता के लिए कोई मॉडल सूचीबद्ध नहीं', loading: 'मॉडल लोड हो रहे हैं…', search: 'मॉडल खोजें…', refreshModelsAria: 'मॉडल सूची रीफ़्रेश करें', refreshModels: 'मॉडल रीफ़्रेश करें', refreshing: 'अपडेट हो रहा है…', defaultModel: 'डिफ़ॉल्ट मॉडल', locked: 'बातचीत अपने प्रदाता पर ही रहती है', otherProvider: 'दूसरे प्रदाता के साथ नई बातचीत', liveUnsupported: 'यह प्रदाता चल रही बातचीत का मॉडल नहीं बदल सकता। दूसरा मॉडल इस्तेमाल करने के लिए नई बातचीत शुरू करें।', autoChose: 'PO ने चुना: {model}', autoHint: 'नियंत्रण वापस लेने के लिए नीचे कोई मॉडल चुनें।', tookControl: 'आपने नियंत्रण वापस ले लिया: यह बातचीत {model} चला रहा है।', handBack: 'PO को वापस सौंपें', aliasesGroup: 'मॉडल उपनाम', modelsGroup: 'मॉडल', noMatch: '“{query}” से कोई मॉडल मेल नहीं खाता', versionsGroup: '{family} संस्करण', observing: 'PO इस बातचीत को देख रहा है, पर अभी मॉडल नहीं बदलता (सीखने का चरण: {stage})। वह दर्ज करता है कि वह क्या चुनता।', running: 'चल रहा है: {model}', refused: { invalid_routing_pool: 'कम से कम एक मॉडल चुनें।', routing_pool_other_provider: 'ये मॉडल किसी दूसरे प्रदाता के हैं: बातचीत अपने प्रदाता पर ही रहती है।', not_found: 'यह बातचीत अब मौजूद नहीं है।', forbidden: 'केवल साइन-इन किया हुआ व्यक्ति ही बातचीत की रूटिंग बदल सकता है।', failed: 'रूटिंग नहीं बदली जा सकी। फिर से कोशिश करें।' } },
+  menu: { aria: 'इस बातचीत के मॉडल', chipDefault: 'सर्वर डिफ़ॉल्ट', modeStrict: 'सख़्त: 1 मॉडल', modeMixed: 'मिश्रित: {count} मॉडल', summaryNone: 'कुछ चुना नहीं गया: सर्वर डिफ़ॉल्ट लागू होगा।', summaryMixed: 'PO आपके {count} मॉडलों के बीच रूट करता है, पहले उत्तर से ही।', selectAll: 'सभी चुनें', clearAll: 'सभी हटाएँ', noProvider: 'कोई प्रदाता कॉन्फ़िगर नहीं है', providerToggle: '{provider} के सभी मॉडल', countOf: '{total} में से {selected}', noModels: 'इस प्रदाता के लिए कोई मॉडल सूचीबद्ध नहीं', loading: 'मॉडल लोड हो रहे हैं…', search: 'मॉडल खोजें…', refreshModelsAria: 'मॉडल सूची रीफ़्रेश करें', refreshModels: 'मॉडल रीफ़्रेश करें', refreshing: 'अपडेट हो रहा है…', defaultModel: 'डिफ़ॉल्ट मॉडल', locked: 'बातचीत अपने प्रदाता पर ही रहती है', otherProvider: 'दूसरे प्रदाता के साथ नई बातचीत', liveUnsupported: 'यह प्रदाता चल रही बातचीत का मॉडल नहीं बदल सकता। दूसरा मॉडल इस्तेमाल करने के लिए नई बातचीत शुरू करें।', autoChose: 'PO ने चुना: {model}', autoHint: 'नियंत्रण वापस लेने के लिए नीचे कोई मॉडल चुनें।', tookControl: 'आपने नियंत्रण वापस ले लिया: यह बातचीत {model} चला रहा है।', handBack: 'PO को वापस सौंपें', aliasesGroup: 'मॉडल उपनाम', modelsGroup: 'मॉडल', noMatch: '“{query}” से कोई मॉडल मेल नहीं खाता', versionsGroup: '{family} संस्करण', observing: 'PO इस बातचीत को देख रहा है, पर अभी मॉडल नहीं बदलता (सीखने का चरण: {stage})। वह दर्ज करता है कि वह क्या चुनता।', running: 'चल रहा है: {model}', refused: { invalid_routing_pool: 'कम से कम एक मॉडल चुनें।', routing_pool_other_provider: 'ये मॉडल किसी दूसरे प्रदाता के हैं: बातचीत अपने प्रदाता पर ही रहती है।', not_found: 'यह बातचीत अब मौजूद नहीं है।', forbidden: 'केवल साइन-इन किया हुआ व्यक्ति ही बातचीत की रूटिंग बदल सकता है।', failed: 'रूटिंग नहीं बदली जा सकी। फिर से कोशिश करें।' } },
   picker: { routedBy: 'रूट करने वाला: {by}' },
   modelTargets: {
     loading: 'मॉडल कैटलॉग पढ़ा जा रहा है…',
@@ -163,5 +163,9 @@ export default {
     cancel: 'रद्द करें',
     pending: 'ले जाया जा रहा है…',
     refused: { forbidden: 'केवल साइन-इन किया हुआ व्यक्ति ही बातचीत को दूसरे प्रोवाइडर पर ले जा सकता है।', not_found: 'यह बातचीत अब मौजूद नहीं है।', empty_message: 'नए प्रोवाइडर पर भेजा जाने वाला संदेश लिखें।', same_provider: 'बातचीत पहले से इसी प्रोवाइडर पर है।', failed: 'बातचीत को ले जाया नहीं जा सका। कुछ नहीं बदला: फिर से कोशिश करें।' },
+  },
+  capabilities: {
+    banner: { poolLacksImages: "कोई भी मॉडल जिस पर PO यह बातचीत भेज सकता है, चित्र स्वीकार नहीं करता", imagesPoolUnbuilt: "यह मॉडल चित्र स्वीकार नहीं करता, और PO के रूटिंग पूल की अभी जाँच नहीं हुई है (जाँच न होने का अर्थ यह नहीं कि कोई मॉडल उन्हें स्वीकार नहीं करता)" },
+    composer: { poolLacksImages: "कोई भी मॉडल जिस पर PO यह बातचीत भेज सकता है, चित्र स्वीकार नहीं करता। संलग्न नहीं: {names}.", imagesPoolUnbuilt: "यह मॉडल चित्र स्वीकार नहीं करता, और PO के रूटिंग पूल की अभी जाँच नहीं हुई है। संलग्न नहीं: {names}." },
   },
 } satisfies Translation<'routing'>

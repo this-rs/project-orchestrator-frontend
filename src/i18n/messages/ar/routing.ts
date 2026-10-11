@@ -3,7 +3,7 @@ import type { Translation } from '../../catalog.ts'
 export default {
   modes: {
     primary: { label: 'صارم', description: 'نموذج واحد لكامل السلسلة: الذي تختاره.' },
-    mixed: { label: 'مختلط', description: 'أنت تختار القائد؛ ويوجّه PO كل منفّذ، وقد يكون عبر عدة مزوّدين.' },
+    executors_only: { label: 'المنفّذون فقط', description: 'المزوّد الأساسي يقود المحادثة؛ ويوجّه PO الوكلاء الفرعيين (المشغّل، التفويضات، الأدوات المساعدة)، وقد يكون عبر عدة مزوّدين.' },
     full: { label: 'تلقائي', description: 'يختار PO المزوّد والنموذج لكامل السلسلة ويشرح السبب.' },
   },
   stages: {
@@ -138,7 +138,7 @@ export default {
     poChooses: 'سيختار PO بنفسه (التوجيه: كامل)',
     poRoutes: 'PO يوجّه (موصى به)',
   },
-  menu: { aria: 'نماذج هذه المحادثة', chipDefault: 'الإعداد الافتراضي للخادم', modeStrict: 'صارم: نموذج واحد', modeMixed: 'مختلط: {count} نماذج', summaryNone: 'لا شيء محدد: يُطبَّق الإعداد الافتراضي للخادم.', summaryMixed: 'يوجّه PO بين النماذج المحددة ({count}).', selectAll: 'تحديد الكل', clearAll: 'إلغاء تحديد الكل', noProvider: 'لا يوجد مزوّد مهيّأ', providerToggle: 'كل نماذج {provider}', countOf: '{selected} من {total}', noModels: 'لا توجد نماذج مدرجة لهذا المزوّد', loading: 'جارٍ تحميل النماذج…', search: 'ابحث عن نماذج…', refreshModelsAria: 'تحديث قائمة النماذج', refreshModels: 'تحديث النماذج', refreshing: 'جارٍ التحديث…', defaultModel: 'النموذج الافتراضي', locked: 'تبقى المحادثة على مزوّدها', otherProvider: 'محادثة جديدة مع مزوّد آخر', liveUnsupported: 'لا يستطيع هذا المزوّد تغيير نموذج محادثة جارية. ابدأ محادثة جديدة لاستخدام نموذج آخر.', autoChose: 'اختار PO: {model}', autoHint: 'اختر نموذجًا أدناه لاستعادة التحكم.', tookControl: 'استعدت التحكم: {model} يدير هذه المحادثة.', handBack: 'إعادة التحكم إلى PO', aliasesGroup: 'أسماء النماذج المستعارة', modelsGroup: 'النماذج', noMatch: 'لا يوجد نموذج يطابق «{query}»', versionsGroup: 'إصدارات {family}', observing: 'يراقب PO هذه المحادثة لكنه لا يبدّل النموذج بعد (مرحلة التعلّم: {stage}). يسجّل ما كان سيختاره.', running: 'قيد التشغيل: {model}', refused: { invalid_routing_pool: 'حدّد نموذجًا واحدًا على الأقل.', routing_pool_other_provider: 'تنتمي هذه النماذج إلى مزوّد آخر: تبقى المحادثة على مزوّدها.', not_found: 'لم تعد هذه المحادثة موجودة.', forbidden: 'لا يستطيع تغيير توجيه المحادثة إلا شخص مسجّل الدخول.', failed: 'تعذّر تغيير التوجيه. حاول مرة أخرى.' } },
+  menu: { aria: 'نماذج هذه المحادثة', chipDefault: 'الإعداد الافتراضي للخادم', modeStrict: 'صارم: نموذج واحد', modeMixed: 'مختلط: {count} نماذج', summaryNone: 'لا شيء محدد: يُطبَّق الإعداد الافتراضي للخادم.', summaryMixed: 'يوجّه PO بين نماذجك ({count})، بدءًا من الرد الأول.', selectAll: 'تحديد الكل', clearAll: 'إلغاء تحديد الكل', noProvider: 'لا يوجد مزوّد مهيّأ', providerToggle: 'كل نماذج {provider}', countOf: '{selected} من {total}', noModels: 'لا توجد نماذج مدرجة لهذا المزوّد', loading: 'جارٍ تحميل النماذج…', search: 'ابحث عن نماذج…', refreshModelsAria: 'تحديث قائمة النماذج', refreshModels: 'تحديث النماذج', refreshing: 'جارٍ التحديث…', defaultModel: 'النموذج الافتراضي', locked: 'تبقى المحادثة على مزوّدها', otherProvider: 'محادثة جديدة مع مزوّد آخر', liveUnsupported: 'لا يستطيع هذا المزوّد تغيير نموذج محادثة جارية. ابدأ محادثة جديدة لاستخدام نموذج آخر.', autoChose: 'اختار PO: {model}', autoHint: 'اختر نموذجًا أدناه لاستعادة التحكم.', tookControl: 'استعدت التحكم: {model} يدير هذه المحادثة.', handBack: 'إعادة التحكم إلى PO', aliasesGroup: 'أسماء النماذج المستعارة', modelsGroup: 'النماذج', noMatch: 'لا يوجد نموذج يطابق «{query}»', versionsGroup: 'إصدارات {family}', observing: 'يراقب PO هذه المحادثة لكنه لا يبدّل النموذج بعد (مرحلة التعلّم: {stage}). يسجّل ما كان سيختاره.', running: 'قيد التشغيل: {model}', refused: { invalid_routing_pool: 'حدّد نموذجًا واحدًا على الأقل.', routing_pool_other_provider: 'تنتمي هذه النماذج إلى مزوّد آخر: تبقى المحادثة على مزوّدها.', not_found: 'لم تعد هذه المحادثة موجودة.', forbidden: 'لا يستطيع تغيير توجيه المحادثة إلا شخص مسجّل الدخول.', failed: 'تعذّر تغيير التوجيه. حاول مرة أخرى.' } },
   picker: { routedBy: 'تم التوجيه بواسطة: {by}' },
   modelTargets: {
     loading: 'جارٍ قراءة فهرس النماذج…',
@@ -163,5 +163,9 @@ export default {
     cancel: 'إلغاء',
     pending: 'جارٍ النقل…',
     refused: { forbidden: 'لا يمكن نقل محادثة إلى مزوّد آخر إلا لشخص مسجّل الدخول.', not_found: 'لم تعد هذه المحادثة موجودة.', empty_message: 'اكتب الرسالة المراد إرسالها على المزوّد الجديد.', same_provider: 'المحادثة موجودة بالفعل على هذا المزوّد.', failed: 'تعذّر نقل المحادثة. لم يتغيّر شيء: حاول مرة أخرى.' },
+  },
+  capabilities: {
+    banner: { poolLacksImages: "لا يقبل أي نموذج يمكن لـ PO توجيه هذه المحادثة إليه الصور", imagesPoolUnbuilt: "هذا النموذج لا يقبل الصور، ولم يتم فحص مجموعة التوجيه في PO بعد (عدم الفحص لا يعني أن أي نموذج لا يقبلها)" },
+    composer: { poolLacksImages: "لا يقبل أي نموذج يمكن لـ PO توجيه هذه المحادثة إليه الصور. لم يُرفق: {names}.", imagesPoolUnbuilt: "هذا النموذج لا يقبل الصور، ولم يتم فحص مجموعة التوجيه في PO بعد. لم يُرفق: {names}." },
   },
 } satisfies Translation<'routing'>

@@ -117,7 +117,7 @@ export default {
     endpoint_redirects_not_allowed: 'Endpoint trả lời bằng một chuyển hướng, mà máy chủ không đi theo (khóa có thể bị gửi tới máy khác). Hãy dùng URL cuối cùng làm URL gốc.',
     credential_test_requires_saved_instance: 'Phép kiểm tra dùng khóa chỉ chạy trên phiên bản đã được lưu, với cùng endpoint và tham chiếu khóa. Hãy lưu phiên bản trước, rồi kiểm tra lại.',
     engine_unavailable: 'Cuộc trò chuyện này được mở trên công cụ tác tử, mà máy chủ không còn chạy nó, nên không thể tiếp tục. Hãy bắt đầu cuộc trò chuyện mới, hoặc nhờ người vận hành máy chủ bật lại công cụ tác tử (CHAT_PROVIDER_PATH).',
-    invalid_routing_mode: 'Chế độ định tuyến phải là primary, mixed hoặc full.',
+    invalid_routing_mode: 'Chế độ định tuyến phải là primary, executors_only hoặc full.',
     invalid_learning_stage: 'Giai đoạn học phải là shadow, advisory hoặc auto.',
     invalid_routing_weight: 'Một trọng số định tuyến hoặc tỷ lệ khám phá nằm ngoài khoảng cho phép. Tỷ lệ khám phá phải từ 0 đến 1; trọng số không được âm.',
   },

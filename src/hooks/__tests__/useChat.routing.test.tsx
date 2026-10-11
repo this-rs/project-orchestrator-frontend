@@ -185,8 +185,8 @@ describe('useChat.createSession — routing mode', () => {
     expect(body.model).toBeUndefined()
   })
 
-  it('mixed: the pilot is not named either', async () => {
-    const body = await send(setup('mixed'))
+  it('settings executors_only (the old settings "mixed"): the pilot is not named either', async () => {
+    const body = await send(setup('executors_only'))
     expect(body).not.toHaveProperty('provider')
     expect(body.model).toBeUndefined()
   })

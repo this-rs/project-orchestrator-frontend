@@ -1,7 +1,7 @@
 export default {
   modes: {
     primary: { label: 'Strict', description: 'One model for the whole chain: the one you choose.' },
-    mixed: { label: 'Mixed', description: 'You choose the pilot; PO routes each executor, possibly across several providers.' },
+    executors_only: { label: 'Executors only', description: 'The primary pilots the conversation; PO routes the sub-agents (runner, delegations, utilities), possibly across several providers.' },
     full: { label: 'Auto', description: 'PO picks the provider and the model for the whole chain, and says why.' },
   },
   stages: {
@@ -136,7 +136,7 @@ export default {
     poChooses: 'PO will choose (routing: full)',
     poRoutes: 'PO routes (recommended)',
   },
-  menu: { aria: 'Models for this conversation', chipDefault: 'Server default', modeStrict: 'Strict: 1 model', modeMixed: 'Mixed: {count} models', summaryNone: 'Nothing picked: the server default runs.', summaryMixed: 'PO routes among the {count} picked models.', selectAll: 'Select all', clearAll: 'Clear all', noProvider: 'No provider configured', providerToggle: 'All models of {provider}', countOf: '{selected} of {total}', noModels: 'No models listed for this provider', loading: 'Loading models…', search: 'Search models…', refreshModelsAria: 'Refresh the model list', refreshModels: 'Refresh models', refreshing: 'Updating…', defaultModel: 'Default model', locked: 'A conversation stays on its provider', otherProvider: 'New conversation with another provider', liveUnsupported: 'This provider cannot change the model of a running conversation. Start a new conversation to use another model.', autoChose: 'PO chose: {model}', autoHint: 'Pick a model below to take the hand back.', tookControl: 'You took the hand back: {model} runs this conversation.', handBack: 'Hand it back to PO', aliasesGroup: 'Model aliases', modelsGroup: 'Models', noMatch: 'No model matches “{query}”', versionsGroup: '{family} versions', observing: 'PO observes this conversation but does not switch models yet (learning stage: {stage}). It records what it would choose.', running: 'Running: {model}', refused: { invalid_routing_pool: 'Tick at least one model.', routing_pool_other_provider: 'These models belong to another provider: a conversation stays on its provider.', not_found: 'This conversation no longer exists.', forbidden: 'Only a signed-in person can change how a conversation is routed.', failed: 'The routing could not be changed. Try again.' } },
+  menu: { aria: 'Models for this conversation', chipDefault: 'Server default', modeStrict: 'Strict: 1 model', modeMixed: 'Mixed: {count} models', summaryNone: 'Nothing picked: the server default runs.', summaryMixed: 'PO routes among your {count} models, the first answer included.', selectAll: 'Select all', clearAll: 'Clear all', noProvider: 'No provider configured', providerToggle: 'All models of {provider}', countOf: '{selected} of {total}', noModels: 'No models listed for this provider', loading: 'Loading models…', search: 'Search models…', refreshModelsAria: 'Refresh the model list', refreshModels: 'Refresh models', refreshing: 'Updating…', defaultModel: 'Default model', locked: 'A conversation stays on its provider', otherProvider: 'New conversation with another provider', liveUnsupported: 'This provider cannot change the model of a running conversation. Start a new conversation to use another model.', autoChose: 'PO chose: {model}', autoHint: 'Pick a model below to take the hand back.', tookControl: 'You took the hand back: {model} runs this conversation.', handBack: 'Hand it back to PO', aliasesGroup: 'Model aliases', modelsGroup: 'Models', noMatch: 'No model matches “{query}”', versionsGroup: '{family} versions', observing: 'PO observes this conversation but does not switch models yet (learning stage: {stage}). It records what it would choose.', running: 'Running: {model}', refused: { invalid_routing_pool: 'Tick at least one model.', routing_pool_other_provider: 'These models belong to another provider: a conversation stays on its provider.', not_found: 'This conversation no longer exists.', forbidden: 'Only a signed-in person can change how a conversation is routed.', failed: 'The routing could not be changed. Try again.' } },
   picker: { routedBy: 'Routed by: {by}' },
   modelTargets: {
     loading: 'Reading the model catalog…',
@@ -161,5 +161,9 @@ export default {
     cancel: 'Cancel',
     pending: 'Moving…',
     refused: { forbidden: 'Only a signed-in person can move a conversation to another provider.', not_found: 'This conversation no longer exists.', empty_message: 'Write the message to send on the new provider.', same_provider: 'The conversation is already on this provider.', failed: 'The conversation could not be moved. Nothing changed: try again.' },
+  },
+  capabilities: {
+    banner: { poolLacksImages: "No model PO can route this conversation to accepts images", imagesPoolUnbuilt: "This model does not accept images, and PO's routing pool is not probed yet (not probed does not mean no model accepts them)" },
+    composer: { poolLacksImages: "No model PO can route this conversation to accepts images. Not attached: {names}.", imagesPoolUnbuilt: "This model does not accept images, and PO's routing pool is not probed yet. Not attached: {names}." },
   },
 } as const

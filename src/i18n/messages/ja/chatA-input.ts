@@ -46,5 +46,21 @@ export default {
     autoOn: "自動継続を有効にしました",
     autoOff: "自動継続を無効にしました",
     drop: "ドロップして添付"
+  },
+  refs: {
+    picker: {
+      all: "すべて",
+      filterByKind: "種類で絞り込む",
+      hintActors: "アクター",
+      hintSearch: "検索",
+      kindOnly: "{kind}のみ",
+      resultsOne: "{count} 件",
+      resultsMany: "{count} 件",
+      noResults: "結果なし",
+      searching: "検索中…",
+      noActors: "このサーバーで利用できるアクターはありません",
+      needsProject: "ペルソナとスキルを検索するにはプロジェクトを選択してください",
+      close: "参照を閉じる"
+    }
   }
 } satisfies Translation<'chatA-input'>

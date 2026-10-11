@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { X } from 'lucide-react'
 import { DIALOG_MOTION, useVariants } from '@/utils/motion'
 import { useT } from '@/i18n'
+import { useModalFocus } from '@/hooks/useModalFocus'
 
 export interface DialogProps {
   open: boolean
@@ -21,23 +22,13 @@ const sizeClasses = {
 
 export function Dialog({ open, onClose, title, children, size = 'sm' }: DialogProps) {
   const { t } = useT()
+  const containerRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const variants = useVariants(DIALOG_MOTION)
 
-  // Auto-focus close button
-  useEffect(() => {
-    if (open) closeRef.current?.focus()
-  }, [open])
-
-  // Escape key
-  useEffect(() => {
-    if (!open) return
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [open, onClose])
+  // Focus on the close button, Tab kept inside, the page behind inert, focus back to the trigger.
+  // Escape closes it, when it is the topmost view (a dialog over another view closes alone).
+  useModalFocus(containerRef, { active: open, initialFocus: closeRef, onEscape: onClose })
 
   // Body scroll lock
   useEffect(() => {
@@ -53,6 +44,7 @@ export function Dialog({ open, onClose, title, children, size = 'sm' }: DialogPr
     <AnimatePresence>
       {open && (
         <div
+          ref={containerRef}
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           role="dialog"
           aria-modal="true"

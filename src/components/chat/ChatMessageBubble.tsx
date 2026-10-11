@@ -27,6 +27,7 @@ import { messageBodyToMarkdown } from '@/utils/chatExport'
 import { ProviderStateCard } from './ProviderStateCard'
 import { CostDisplay } from '@/components/ui/CostDisplay'
 import { costOfMessage } from '@/utils/cost'
+import { cancelNoticeKey } from '@/utils/cancelFailure'
 import type { PermissionScope, ProviderErrorInfo, SubagentsSupport } from '@/types/provider'
 import { useChatCapabilities } from './ChatSessionContext'
 
@@ -421,6 +422,22 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
               const providerError = block.metadata?.provider_error as ProviderErrorInfo | undefined
               if (providerError) {
                 return <ProviderStateCard key={block.id} error={providerError} className="my-2" />
+              }
+              // A failed or refused cancel: a notice, the turn goes on.
+              if (block.metadata?.cancel_notice === true) {
+                const code = block.metadata.code as string
+                const reason = block.metadata.reason as string | undefined
+                return (
+                  <div
+                    key={block.id}
+                    role="status"
+                    data-cancel-notice={reason ?? code}
+                    title={block.content}
+                    className="my-2 px-3 py-2 rounded-lg bg-amber-900/10 border border-amber-500/20 text-xs text-amber-300"
+                  >
+                    {t(cancelNoticeKey(code, reason))}
+                  </div>
+                )
               }
               return (
                 <div key={block.id} className="my-2 px-3 py-2 rounded-lg bg-red-900/10 border border-red-500/20 text-sm text-red-400">

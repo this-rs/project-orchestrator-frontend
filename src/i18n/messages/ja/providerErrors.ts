@@ -117,7 +117,7 @@ export default {
     endpoint_redirects_not_allowed: 'エンドポイントがリダイレクトを返しましたが、サーバーは従いません（キーが別のホストに送られる恐れがあるため）。最終的な URL をベース URL にしてください。',
     credential_test_requires_saved_instance: 'キーを使うテストは、同じエンドポイントとキー参照で既に保存済みのインスタンスでのみ実行されます。先にインスタンスを保存してから、もう一度テストしてください。',
     engine_unavailable: 'この会話はエージェントエンジンで開かれましたが、サーバーはもう実行していないため、再開できません。新しい会話を始めるか、サーバーの管理者にエージェントエンジンを再びオンにするよう依頼してください（CHAT_PROVIDER_PATH）。',
-    invalid_routing_mode: 'ルーティングモードは primary、mixed、full のいずれかである必要があります。',
+    invalid_routing_mode: 'ルーティングモードは primary、executors_only、full のいずれかである必要があります。',
     invalid_learning_stage: '学習段階は shadow、advisory、auto のいずれかである必要があります。',
     invalid_routing_weight: 'ルーティングの重みまたは探索率が許容範囲外です。探索率は 0 から 1 の間で、重みは負にできません。',
   },

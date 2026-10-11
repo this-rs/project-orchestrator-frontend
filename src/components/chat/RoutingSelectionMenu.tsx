@@ -19,11 +19,13 @@ import {
   chatRoutingSlugAtom,
   chatSelectedProviderAtom,
   chatSessionCapabilitiesAtom,
+  chatSessionEffectiveCapabilitiesStateAtom,
   chatSessionModelAtom,
   chatSessionProviderAtom,
   chatSessionRoutingAtom,
   chatTargetProviderIdAtom,
   sessionRoutingOf,
+  conversationStage,
   loadRoutingSettingsAtom,
   modelCatalogAtom,
   modelCatalogLoadedAtom,
@@ -208,6 +210,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const setForced = useSetAtom(chatForcedTargetAtom)
   const [sessionRouting, setSessionRouting] = useAtom(chatSessionRoutingAtom)
+  const setEffectiveCapabilities = useSetAtom(chatSessionEffectiveCapabilitiesStateAtom)
   const sessionMode = useAtomValue(chatRoutingModeAtom)
   const targetId = useAtomValue(chatTargetProviderIdAtom)
   const sessionProvider = useAtomValue(chatSessionProviderAtom)
@@ -273,8 +276,10 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
     setRefusal(null)
     changeConversationRouting(sid, change)
       .then((session) => {
-        setSessionRouting(sessionRoutingOf(session) ?? { routed_by: null, route_reason: null, routing_mode: change.auto ? 'full' : null })
+        setSessionRouting(sessionRoutingOf(session) ?? { routed_by: null, route_reason: null, routing_mode: change.auto ? 'full' : null, chosen: true })
         if (session.model) setSessionModel(session.model)
+        // What the next turn can carry follows the new routing (F-R4): the server says it now.
+        setEffectiveCapabilities({ sessionId: sid, capabilities: session.effective_capabilities ?? null })
         setTookControlIn(tookControl ? sid : null)
       })
       .catch((err) => setRefusal({ sessionId: sid, reason: conversationRoutingRefusal(err) }))
@@ -401,10 +406,11 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
               model={liveModel ? nameOf(targetId, liveModel) : null}
               reason={sessionRouting?.route_reason ?? null}
               routedBy={sessionRouting?.routed_by ?? null}
-              stage={settings?.stage ?? null}
+              stage={conversationStage(sessionRouting, settings?.stage ?? null)}
             />
           )}
-          {auto && !hasSession && settings && settings.stage !== 'auto' && (
+          {/* Auto switched on for THIS conversation is its own `auto` stage (R-S1): only Auto by default (the settings') observes. */}
+          {auto && !hasSession && autoDraft !== true && settings && settings.stage !== 'auto' && (
             <p data-testid="routing-stage-note" className="px-3 py-2 text-[11px] leading-snug text-amber-200/90 border-b border-white/[0.06]">
               {t('routing.menu.observing', { stage: t(`routing.stages.${settings.stage}.label`) })}
             </p>
@@ -591,6 +597,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
  * Auto, once the conversation exists: what PO chose and why, and how to take the hand
  * back. Before the `auto` learning stage PO only observes: the server records its
  * decisions but does not switch models, and the panel says so instead of "PO chose".
+ * `stage` is the conversation's own (`conversationStage`): Auto chosen on it is `auto`.
  */
 function AutoPanel({ model, reason, routedBy, stage }: { model: string | null; reason: string | null; routedBy: RoutedBy | null; stage: LearningStage | null }) {
   const { t } = useT()

@@ -49,6 +49,8 @@ function blockToMarkdown(block: ContentBlock): string {
 
     case 'error':
     case 'result_error':
+      // A failed or refused cancel is a notice: the turn went on.
+      if (block.metadata?.cancel_notice === true) return `> **Notice:** ${block.content}`
       return `> **Error:** ${block.content}`
 
     case 'result_max_turns':

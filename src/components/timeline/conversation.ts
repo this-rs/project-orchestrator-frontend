@@ -177,3 +177,46 @@ export async function loadNewer(fetchPage: FetchPage, loaded: number, pageSize: 
   }
   return { events: out, total }
 }
+
+const userText = (m: ChatMessage) => m.blocks.map((b) => b.content).join('\n')
+
+/**
+ * The history's turns under the ids the transcript gave them.
+ *
+ * A turn the reader sent in this tab has a client id in the transcript (the live echo carries no
+ * server id); the history knows it by its server id. A turn's key is its message id, so without
+ * this its row would be rebuilt (and its selection lost) when the history takes over.
+ *
+ * Only ids the history does not know are adopted, each at most once: a transcript turn that came
+ * from the history (a window, even one centred on an older search result) already carries its
+ * server id and pairs by identity — never by text, which would hand one turn the id of another
+ * and fold its calls under the wrong row. The remaining client ids pair with the remaining
+ * history turns by text, from the latest backwards: the transcript may hold newer turns the
+ * history has not caught up with yet (skipped), the history older ones the transcript never had
+ * (left as they are). Same array when nothing changes.
+ */
+export function adoptTranscriptIds(history: ReadonlyArray<ChatMessage>, transcript: ReadonlyArray<ChatMessage>): ReadonlyArray<ChatMessage> {
+  const known = new Set(history.map((m) => m.id))
+  // Client ids only: a transcript turn whose id the history carries is already the same turn.
+  const theirs = transcript.filter((m) => m.role === 'user' && !known.has(m.id))
+  if (theirs.length === 0) return history
+  const taken = new Set(transcript.map((m) => m.id))
+  const alias = new Map<number, string>()
+  const used = new Set<string>()
+  let j = theirs.length - 1
+  for (let i = history.length - 1; i >= 0 && j >= 0; i -= 1) {
+    const m = history[i] as ChatMessage
+    // A history turn the transcript holds under its own id needs nothing.
+    if (m.role !== 'user' || taken.has(m.id)) continue
+    const text = userText(m)
+    let k = j
+    while (k >= 0 && (used.has((theirs[k] as ChatMessage).id) || userText(theirs[k] as ChatMessage) !== text)) k -= 1
+    if (k < 0) continue
+    const id = (theirs[k] as ChatMessage).id
+    alias.set(i, id)
+    used.add(id)
+    j = k - 1
+  }
+  if (alias.size === 0) return history
+  return history.map((m, i) => (alias.has(i) ? { ...m, id: alias.get(i) as string } : m))
+}

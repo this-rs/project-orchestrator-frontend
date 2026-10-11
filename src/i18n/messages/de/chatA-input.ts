@@ -46,5 +46,21 @@ export default {
     autoOn: "Automatisches Fortfahren aktiviert",
     autoOff: "Automatisches Fortfahren deaktiviert",
     drop: "Zum Anhängen ablegen"
+  },
+  refs: {
+    picker: {
+      all: "Alle",
+      filterByKind: "Nach Art filtern",
+      hintActors: "Akteure",
+      hintSearch: "suchen",
+      kindOnly: "Nur {kind}",
+      resultsOne: "{count} Ergebnis",
+      resultsMany: "{count} Ergebnisse",
+      noResults: "Keine Ergebnisse",
+      searching: "Suche…",
+      noActors: "Keine Akteure auf diesem Server verfügbar",
+      needsProject: "Wähle ein Projekt, um Personas und Skills zu suchen",
+      close: "Verweise schließen"
+    }
   }
 } satisfies Translation<'chatA-input'>

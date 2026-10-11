@@ -103,3 +103,27 @@ describe('buildConversationTimeline', () => {
     expect(tl.lanes.find((l) => l.id === 'kid')!.parentLaneId).toBeUndefined()
   })
 })
+
+describe('a cancel notice in the trace', () => {
+  const withNotice = (block: ChatMessage['blocks'][number]): ChatMessage => ({ id: 'a', role: 'assistant', timestamp: at(2), blocks: [block] })
+
+  it('a failed or refused cancel is a marker, and the (child) session is not marked failed', () => {
+    const tl = buildConversationTimeline({
+      rootId: 'root',
+      now: at(100).getTime(),
+      sessions: [session({ messages: [user('r0', 0)] }), session({ id: 'kid', relation: 'child', parentId: 'root', messages: [user('r1', 1), withNotice({ id: 'n', type: 'error', content: 'Error: unsupported', metadata: { cancel_notice: true, code: 'cancel_refused', reason: 'tool_cancel' } })] })],
+    })
+    expect(tl.items.find((i) => i.id === 'n')).toMatchObject({ kind: 'marker', status: 'done' })
+    expect(tl.lanes.find((l) => l.id === 'kid')!.span?.status).toBe('done')
+  })
+
+  it('a real error still marks the session failed', () => {
+    const tl = buildConversationTimeline({
+      rootId: 'root',
+      now: at(100).getTime(),
+      sessions: [session({ messages: [user('r0', 0)] }), session({ id: 'kid', relation: 'child', parentId: 'root', messages: [user('r1', 1), withNotice({ id: 'n', type: 'error', content: 'Error: boom' })] })],
+    })
+    expect(tl.items.find((i) => i.id === 'n')).toMatchObject({ kind: 'error' })
+    expect(tl.lanes.find((l) => l.id === 'kid')!.span?.status).toBe('error')
+  })
+})

@@ -31,6 +31,8 @@ vi.mock('@/services/chat', () => {
 
 import { chatApi } from '@/services/chat'
 import { useBackgroundTasks } from './useBackgroundTasks'
+import { ApiError } from '@/services/api'
+import { CancelFailedError } from '@/utils/cancelFailure'
 
 function withStore(store: ReturnType<typeof createStore>) {
   return ({ children }: { children: ReactNode }) =>
@@ -138,5 +140,33 @@ describe('useBackgroundTasks', () => {
       /no active chat session/i,
     )
     expect(chatApi.cancelTask).not.toHaveBeenCalled()
+  })
+
+  it('a 409 owner_unreachable throws a CancelFailedError that reads "already stopped"', async () => {
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'sess-42')
+    vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(
+      new ApiError(409, JSON.stringify({ error: 'gone', code: 'owner_unreachable', retryable: false })),
+    )
+    const { result } = renderHook(() => useBackgroundTasks(), { wrapper: withStore(store) })
+    const err = await result.current.cancelTask('toolu_X').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(CancelFailedError)
+    expect((err as CancelFailedError).failure).toEqual({ code: 'owner_unreachable', retryable: false, alreadyStopped: true, status: 409 })
+  })
+
+  it('retryable is what the body says: 504 retryable:true, 410 retryable:true, 502 not', async () => {
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'sess-42')
+    const { result } = renderHook(() => useBackgroundTasks(), { wrapper: withStore(store) })
+    const cases: Array<[number, string, boolean]> = [
+      [504, 'owner_timeout', true],
+      [410, 'session_gone', true],
+      [502, 'relay_failed', false],
+    ]
+    for (const [status, code, retryable] of cases) {
+      vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(new ApiError(status, JSON.stringify({ error: 'x', code, retryable })))
+      const err = (await result.current.cancelTask('toolu_X').catch((e: unknown) => e)) as CancelFailedError
+      expect(err.failure).toEqual({ code, retryable, alreadyStopped: false, status })
+    }
   })
 })

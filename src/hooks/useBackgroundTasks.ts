@@ -24,12 +24,16 @@
  * - `cancelTask(taskId)` — POST to the cancel-task endpoint. Returns
  *   the parsed `CancelTaskResult`. Throws if no session is active
  *   (the caller should disable the Stop buttons in that case anyway).
+ *   A refused or failed cancel throws a `CancelFailedError` carrying the
+ *   backend's typed reading (`owner_unreachable` = already stopped,
+ *   `retryable` as the body says it).
  */
 import { useAtomValue } from 'jotai'
 import { useCallback } from 'react'
 import { chatBackgroundTasksAtom, chatSessionIdAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import type { BackgroundTaskInfo, CancelTaskResult } from '@/types'
+import { CancelFailedError, readCancelFailure } from '@/utils/cancelFailure'
 
 export interface UseBackgroundTasksReturn {
   /** Current snapshot from the most recent `active_tasks_update` (or REST hydration). */
@@ -40,7 +44,8 @@ export interface UseBackgroundTasksReturn {
    * surface `capped: true` as a toast when the rate cap is hit.
    *
    * Throws when no session is active — defensive guard, the toolbar
-   * pill should be hidden in that state anyway.
+   * pill should be hidden in that state anyway. Throws a
+   * `CancelFailedError` when the backend refused or failed the cancel.
    */
   cancelTask: (taskId: string) => Promise<CancelTaskResult>
 }
@@ -57,7 +62,11 @@ export function useBackgroundTasks(): UseBackgroundTasksReturn {
             'caller must guard against this state',
         )
       }
-      return chatApi.cancelTask(sessionId, taskId)
+      try {
+        return await chatApi.cancelTask(sessionId, taskId)
+      } catch (err) {
+        throw new CancelFailedError(readCancelFailure(err), err)
+      }
     },
     [sessionId],
   )

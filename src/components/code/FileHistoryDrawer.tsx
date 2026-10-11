@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { GitBranch, History, X } from 'lucide-react'
 import {
@@ -16,6 +16,7 @@ import {
 import { glassFlat, iconButton, popIn } from '@/components/ui/classes'
 import { commitsApi } from '@/services'
 import { useT } from '@/i18n'
+import { useModalFocus } from '@/hooks/useModalFocus'
 import { useCodeCount, useRecencyLabel } from './useCodeCount'
 import { CoChangeGraph } from './CoChangeGraph'
 import type { FileHistoryEntry, CoChanger } from '@/types'
@@ -50,6 +51,11 @@ export function FileHistoryDrawer({
   const [loading, setLoading] = useState(true)
   const [loadingCoChangers, setLoadingCoChangers] = useState(true)
   const [showGraph, setShowGraph] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  // Focus into the sheet (its close button), Tab kept inside, the page behind inert,
+  // focus back to the trigger. Escape closes it, when it is the topmost view.
+  useModalFocus(dialogRef, { onEscape: onClose })
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -78,15 +84,6 @@ export function FileHistoryDrawer({
     loadData()
   }, [loadData])
 
-  // Close on Escape
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
-
   // Lock body scroll
   useEffect(() => {
     document.body.style.overflow = 'hidden'
@@ -99,7 +96,7 @@ export function FileHistoryDrawer({
   const fileName = filePath.split('/').pop() || filePath
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-labelledby="file-history-title">
+    <div ref={dialogRef} className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-labelledby="file-history-title">
       {/* Backdrop (dimmed, not blurred) */}
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
 

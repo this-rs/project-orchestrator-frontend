@@ -1,7 +1,7 @@
 import type { MessageAttachment } from '@/utils/messageAttachments'
 import type { ChatReference, EntityRef, RefsResolvedEvent } from '@/refs/types'
 import type { CostBasis, LegacyPermissionMode, ProviderCapabilities, ProviderId, ProviderKind, RoutedBy, ToolCategory, ToolPolicy, ToolPolicyMode } from './provider'
-import type { ProviderRoutingMode } from './routing'
+import type { ConversationRoutingMode } from './routing'
 // ============================================================================
 // PERMISSION CONFIG
 // ============================================================================
@@ -14,6 +14,36 @@ import type { ProviderRoutingMode } from './routing'
  * `readToolPolicyMode`) and writes with `toWireMode` — see `constants/toolPolicy.ts`.
  */
 export type PermissionMode = LegacyPermissionMode | ToolPolicyMode
+
+/**
+ * One of the caller's lasting approvals (`always`, P11b), as `GET /api/chat/permission-rules` lists
+ * it. A rule covers the IDENTICAL call only, on one project, and is kept by the backend (never by the
+ * provider).
+ */
+export interface LastingPermissionRule {
+  id: string
+  /** The project slug it holds for. */
+  project: string
+  /** The engine it holds on: the Claude Code CLI or the native engine. */
+  engine: 'claude_code' | 'native' | string
+  tool: string
+  /** What it covers, as the decisions say it (`Bash: cat README.md`, every compared field shown). */
+  rule: string
+  /** The project's root directory (canonical) it is bound to: it applies only to a conversation running there. */
+  root: string
+  /** The call asked to run outside the sandbox (never kept by the backend; shown should a rule say so). */
+  sandbox_disabled: boolean
+  created_at: string
+  session_id?: string | null
+  /** False when the backend's comparator no longer grants it (it then covers nothing). */
+  holds: boolean
+}
+
+/** `GET /api/chat/permission-rules`: `enabled: false` when the server keeps no lasting approval. */
+export interface LastingPermissionRules {
+  enabled: boolean
+  rules: LastingPermissionRule[]
+}
 
 /** Runtime permission configuration (matches backend PermissionConfig struct) */
 export interface PermissionConfig {
@@ -244,6 +274,31 @@ export interface LiveActivityResponse {
   sessions: Record<string, SessionActivity>
 }
 
+/** Where an effective capability was read: the opening model's snapshot, or PO's routing candidates. */
+export type EffectiveSource = 'snapshot' | 'routing_pool'
+
+/**
+ * Why an effective capability says what it says (backend `EffectiveCause`):
+ * `model_has_it` — the session's model has it; `not_routed` — PO does not choose this
+ * conversation's model (the snapshot stands); `no_router` — no live router (the snapshot stands);
+ * `pool_unbuilt` — PO routes but its pool lists no model yet (not probed, NOT absent);
+ * `pool_has_it` — a routing candidate has it; `pool_lacks_it` — none of them has it.
+ */
+export type EffectiveCause = 'model_has_it' | 'not_routed' | 'no_router' | 'pool_unbuilt' | 'pool_has_it' | 'pool_lacks_it'
+
+export interface EffectiveCapability {
+  value: boolean
+  source: EffectiveSource
+  cause: EffectiveCause
+  /** The candidates that have it, when the routing pool was read. */
+  via?: { provider: string; model: string }[]
+}
+
+/** Capabilities that follow the routing candidates rather than the opening model (F-R4). */
+export interface EffectiveCapabilities {
+  images: EffectiveCapability
+}
+
 export interface ChatSession {
   id: string
   cli_session_id?: string
@@ -269,14 +324,20 @@ export interface ChatSession {
   provider_kind?: ProviderKind | null
   /** Capabilities frozen on the session when it opened. Absent = read them from the provider list. */
   capabilities?: Partial<ProviderCapabilities> | null
+  /**
+   * What the next turn can really carry, given the conversation's routing (F-R4): `capabilities`
+   * is the snapshot of the opening model, this follows the candidates PO may route to. Carried by
+   * `GET /chat/sessions/{id}` and `PUT /chat/sessions/{id}/routing`. Absent = nothing said.
+   */
+  effective_capabilities?: EffectiveCapabilities | null
   /** Engine of the session (`agent`; absent = legacy). Same name as on `system_init`; NOT yet in the contract's ChatSession DTO. */
   engine?: string | null
   /** Features the engine cannot provide (same name as on `system_init`; NOT yet in the contract's ChatSession DTO). */
   degraded_features?: string[] | null
   /** Which rule picked the provider/model (`request`, `project_rule`, `auto`, …). */
   routed_by?: RoutedBy | null
-  /** Routing mode in force when the session opened (`primary` when absent). */
-  routing_mode?: ProviderRoutingMode | null
+  /** The conversation's own routing mode, when it chose one (`mixed` = PO routes among `routing_pool`); absent = the settings decided. */
+  routing_mode?: ConversationRoutingMode | null
   /** The models ticked for THIS conversation (mixed: PO routes among them; strict: the one). */
   routing_pool?: { provider: ProviderId; model: string }[] | null
   /** Readable reason of an automatic choice (`routed_by: 'auto'`); `null` otherwise. */
@@ -317,7 +378,7 @@ export interface CreateSessionRequest {
    * Routing mode of THIS conversation (`primary` / `mixed` / `full`), replacing the
    * settings' one for it alone. Omitted = the settings decide.
    */
-  routing_mode?: ProviderRoutingMode
+  routing_mode?: ConversationRoutingMode
   /**
    * `mixed` only: the (provider, model) pairs PO may route this conversation among.
    * Omitted = no restriction beyond the mode.
@@ -431,6 +492,27 @@ interface Nested {
 }
 
 /**
+ * When a tool call really ran, as the engine saw it (backend `tool_timing`, sent
+ * right after the call's `tool_result` / `tool_cancelled`). Seconds since the
+ * epoch, milliseconds as the fraction. The wait for the user is
+ * `permission_requested_at`..`permission_resolved_at`; the run is
+ * `run_started_at`..`ended_at`, and `run_started_at` is ABSENT when the tool never
+ * ran or the engine could not see it start (never an estimate).
+ */
+export interface ToolTiming {
+  id: string
+  ended_at: number
+  called_at?: number
+  started_at?: number
+  permission_requested_at?: number
+  permission_resolved_at?: number
+  permission_outcome?: 'allowed' | 'denied'
+  run_started_at?: number
+  cancelled?: boolean
+  incomplete?: boolean
+}
+
+/**
  * `ChatEvent` — the persisted/broadcast events of a session. Mirrors the
  * backend enum `ChatEvent` (`backend/src/chat/types.rs`) variant for variant;
  * the field-level contract test (`chatContract.test.ts`) replays the backend's
@@ -448,9 +530,10 @@ export type ChatEvent =
   | ({ type: 'tool_result'; id: string; result: unknown; is_error?: boolean } & Nested)
   | ({ type: 'tool_use_input_resolved'; id: string; input: Record<string, unknown> } & Nested)
   | { type: 'tool_cancelled'; id: string; parent_tool_use_id?: string }
-  | ({ type: 'permission_request'; id: string; tool: string; input: Record<string, unknown> } & ToolProviderHints & Nested)
-  /** `scope`: how long an approval lasts, when it outlives the call (absent: this call only, or a refusal). */
-  | { type: 'permission_decision'; id: string; allow: boolean; scope?: 'session' | 'always' }
+  | ({ type: 'tool_timing' } & ToolTiming & Nested)
+  | ({ type: 'permission_request'; id: string; tool: string; input: Record<string, unknown>; tool_use_id?: string; /** True when this very call may be answered `always` (P11b). */ always?: boolean } & ToolProviderHints & Nested)
+  /** `scope`: how long an approval lasts, when it outlives the call (absent: this call only, or a refusal); `rule`: what a session approval covers. */
+  | { type: 'permission_decision'; id: string; allow: boolean; scope?: 'session' | 'always'; rule?: string }
   | ({
       type: 'ask_user_question'
       questions: AskUserQuestion[]
@@ -489,6 +572,8 @@ export type ChatEvent =
       code?: string
       index?: number
       reason?: string
+      /** The permission request a refusal is about (`permission_scope_unsupported`, `permission_forbidden`): the `id` of the refused answer. */
+      request_id?: string
     } & Nested)
   | { type: 'streaming_status'; is_streaming: boolean }
   | { type: 'permission_mode_changed'; mode: string; tool_policy?: ToolPolicy | ToolPolicyMode; policy_mode?: ToolPolicyMode }
@@ -577,11 +662,24 @@ export const CHAT_EVENT_FIELDS = {
   tool_result: { id: 'required', result: 'required', is_error: 'optional', parent_tool_use_id: 'optional' },
   tool_use_input_resolved: { id: 'required', input: 'required', parent_tool_use_id: 'optional' },
   tool_cancelled: { id: 'required', parent_tool_use_id: 'optional' },
-  permission_request: { id: 'required', tool: 'required', input: 'required', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
-  permission_decision: { id: 'required', allow: 'required', scope: 'optional' },
+  tool_timing: {
+    id: 'required',
+    ended_at: 'required',
+    called_at: 'optional',
+    started_at: 'optional',
+    permission_requested_at: 'optional',
+    permission_resolved_at: 'optional',
+    permission_outcome: 'optional',
+    run_started_at: 'optional',
+    cancelled: 'optional',
+    incomplete: 'optional',
+    parent_tool_use_id: 'optional',
+  },
+  permission_request: { id: 'required', tool: 'required', input: 'required', tool_use_id: 'optional', always: 'optional', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
+  permission_decision: { id: 'required', allow: 'required', scope: 'optional', rule: 'optional' },
   ask_user_question: { questions: 'required', tool_call_id: 'optional', id: 'optional', input: 'optional', synthetic: 'optional', parent_tool_use_id: 'optional' },
   result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional', stop_reason: 'optional', error: 'optional' },
-  error: { message: 'required', code: 'optional', index: 'optional', reason: 'optional', parent_tool_use_id: 'optional' },
+  error: { message: 'required', code: 'optional', index: 'optional', reason: 'optional', parent_tool_use_id: 'optional', request_id: 'optional' },
   streaming_status: { is_streaming: 'required' },
   permission_mode_changed: { mode: 'required', tool_policy: 'optional', policy_mode: 'optional' },
   model_changed: { model: 'required', reason: 'optional' },
@@ -893,6 +991,13 @@ export interface ChatMessage {
   /** References of a user message: chips in the bubble, statuses from `refs_resolved`. */
   refs?: ChatReference[]
   timestamp: Date
+  /**
+   * A user message this browser showed before the server had it (optimistic): its
+   * `timestamp` is the browser's estimate of the server clock. The live echo of it
+   * gives it the server's own time and clears the flag; a message without it is
+   * never re-dated by an echo.
+   */
+  awaitingEcho?: boolean
   /** Total turn duration in ms (from backend result event) */
   duration_ms?: number
   /** Total turn cost in USD (from backend result event). Absent when there is no figure — never zero by default. */

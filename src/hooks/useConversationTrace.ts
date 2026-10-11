@@ -34,6 +34,8 @@ interface SessionState {
   from: number
   total: number
   status: 'loading' | 'ready' | 'error'
+  /** Relays followed to reach it from the session on screen (bounded by MAX_RELAYS). */
+  depth: number
 }
 
 export interface ConversationTraceData {
@@ -64,6 +66,13 @@ function messagesOf(events: RawEvent[]): ChatMessage[] {
 
 export function useConversationTrace(rootId: string | null, opts: { isStreaming?: boolean; refreshKey?: unknown; rootTitle?: string } = {}): ConversationTraceData {
   const [state, setState] = useState<ReadonlyMap<string, SessionState>>(new Map())
+  // Another conversation: forget the previous one in this very render, so not even one frame
+  // shows its trace under the new title. (A retry keeps what is loaded and reloads what failed.)
+  const [stateRoot, setStateRoot] = useState(rootId)
+  if (stateRoot !== rootId) {
+    setStateRoot(rootId)
+    setState(new Map())
+  }
   const [attempt, setAttempt] = useState(0)
   const stateRef = useRef(state)
   stateRef.current = state
@@ -83,7 +92,7 @@ export function useConversationTrace(rootId: string | null, opts: { isStreaming?
   const loadSession = useCallback(async (meta: SessionState['meta'], cancelled: () => boolean, depth = 0): Promise<void> => {
     if (busy.current.has(meta.id) || stateRef.current.get(meta.id)?.status === 'ready') return
     busy.current.add(meta.id)
-    patch(meta.id, (prev) => ({ meta: prev?.meta ?? meta, events: prev?.events ?? [], from: prev?.from ?? 0, total: prev?.total ?? 0, status: 'loading' }))
+    patch(meta.id, (prev) => ({ meta: prev?.meta ?? meta, events: prev?.events ?? [], from: prev?.from ?? 0, total: prev?.total ?? 0, status: 'loading', depth: prev?.depth ?? depth }))
     try {
       const done = await loadTailFirst(fetcher(meta.id), TRACE_PAGE_SIZE, (p) => {
         if (!cancelled()) patch(meta.id, (prev) => prev && { ...prev, events: p.events, from: p.from, total: p.total })
@@ -129,7 +138,6 @@ export function useConversationTrace(rootId: string | null, opts: { isStreaming?
 
   // First load: the root, its relays, then its children (two at a time).
   useEffect(() => {
-    setState(new Map())
     busy.current.clear()
     if (!rootId) return
     let stop = false
@@ -142,6 +150,15 @@ export function useConversationTrace(rootId: string | null, opts: { isStreaming?
         id: rootId, relation: 'root', title: opts.rootTitle || root?.title || rootId.slice(0, 8),
         provider: root?.provider_id ?? undefined, model: root?.model, createdAt: root?.created_at, isStreaming: rootNode?.is_streaming ?? false,
       }, cancelled)
+      // A retry asks again for every thread that could not be read. A relay is found only in a
+      // history, and the root's (already read) is not read again: without this it stayed failed.
+      // Only on a retry: on a first load the root just followed its relays (within MAX_RELAYS).
+      if (attempt > 0) {
+        for (const s of [...stateRef.current.values()]) {
+          if (stop) return
+          if (s.status === 'error' && s.meta.relation === 'relay') await loadSession(s.meta, cancelled, s.depth)
+        }
+      }
       const children = nodes.filter((n) => n.session_id !== rootId)
       const queue = [...children]
       const worker = async () => {
@@ -216,9 +233,11 @@ export function useConversationTrace(rootId: string | null, opts: { isStreaming?
     return () => window.clearTimeout(id)
   }, [opts.refreshKey, refresh])
 
+  // A session shows once it has something to show: a lane with no events yet would replace
+  // what the reader already sees with an empty trace (the first page lands a moment later).
   const sessions = useMemo<TraceSession[]>(() => {
     const out: TraceSession[] = []
-    for (const s of state.values()) out.push({ ...s.meta, ...(s.meta.relation === 'root' && opts.isStreaming != null ? { isStreaming: opts.isStreaming || s.meta.isStreaming } : {}), messages: messagesOf(s.events) })
+    for (const s of state.values()) if (s.events.length > 0 || s.status === 'ready') out.push({ ...s.meta, ...(s.meta.relation === 'root' && opts.isStreaming != null ? { isStreaming: opts.isStreaming || s.meta.isStreaming } : {}), messages: messagesOf(s.events) })
     return out
   }, [state, opts.isStreaming])
 

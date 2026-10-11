@@ -1,4 +1,4 @@
-import type { ProviderRoutingMode } from '@/types/routing'
+import type { ConversationRoutingMode } from '@/types/routing'
 
 /**
  * What a new conversation may run on, as the menu builds it: a set of
@@ -39,7 +39,7 @@ export function providerState(selection: readonly RoutingPick[], provider: strin
  * says anything (no Auto choice, no pick): the settings decide. `resolve` names
  * the model a pick stands for (an alias and its model are ONE model).
  */
-export function modeOf(auto: boolean | null, selection: readonly RoutingPick[], resolve: (p: RoutingPick) => string = (p) => p.model): ProviderRoutingMode | null {
+export function modeOf(auto: boolean | null, selection: readonly RoutingPick[], resolve: (p: RoutingPick) => string = (p) => p.model): ConversationRoutingMode | null {
   if (auto) return 'full'
   const count = distinctModels(selection, resolve).length
   if (count >= 2) return 'mixed'

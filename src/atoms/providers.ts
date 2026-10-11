@@ -19,10 +19,12 @@ import {
   type ToolPolicy,
 } from '@/types/provider'
 import { routingApi } from '@/services/routing'
-import type { ProviderRoutingMode, RoutingSettingsResponse } from '@/types/routing'
+import { conversationModeOfSettings, type ConversationRoutingMode, type LearningStage, type RoutingSettingsResponse } from '@/types/routing'
 import { pickModelResolver } from '@/constants/providers'
 import { modeOf, type RoutingPick } from '@/utils/routingSelection'
 import { chatPermissionConfigAtom, chatSelectedProjectAtom, chatSessionIdAtom, chatSessionModelAtom } from './chat'
+import type { EffectiveCapabilities } from '@/types/chat'
+import { withEffectiveImages } from '@/constants/engine'
 
 /**
  * - `idle` — never asked.
@@ -119,6 +121,20 @@ export const chatSessionProviderAtom = atom<ProviderRef | null>(null)
 export const chatSessionCapabilitiesSnapshotAtom = atom<Partial<ProviderCapabilities> | null>(null)
 
 /**
+ * What the next turn of the current session can really carry, given its routing (F-R4,
+ * `ChatSession.effective_capabilities`): the snapshot above is the OPENING model's, this follows
+ * the candidates PO may route the turn to. Keyed by session so a previous conversation's fact
+ * never leaks into this one.
+ */
+export const chatSessionEffectiveCapabilitiesStateAtom = atom<{ sessionId: string; capabilities: EffectiveCapabilities | null } | null>(null)
+
+/** The effective capabilities of the CURRENT session; `null` = nothing said (the snapshot alone decides). */
+export const chatSessionEffectiveCapabilitiesAtom = atom<EffectiveCapabilities | null>((get) => {
+  const state = get(chatSessionEffectiveCapabilitiesStateAtom)
+  return state && state.sessionId === get(chatSessionIdAtom) ? state.capabilities : null
+})
+
+/**
  * Engine of the current session and what it cannot do (`system_init.engine`,
  * `degraded_features`, as the backend emits them).
  * Empty = nothing said: no banner.
@@ -128,6 +144,24 @@ export interface ChatSessionEngine {
   degraded: string[]
 }
 export const chatSessionEngineAtom = atom<ChatSessionEngine>({ engine: null, degraded: [] })
+
+/**
+ * The engine's list of what the session cannot do, as the capability banner must read it (F-R4):
+ * when PO routes, `images` follows the routing candidates, not the opening model —
+ * `withEffectiveImages`. Same shape as `chatSessionEngineAtom`.
+ */
+export const chatSessionEngineFactsAtom = atom<ChatSessionEngine>((get) => {
+  const engine = get(chatSessionEngineAtom)
+  const facts = withEffectiveImages(engine.degraded, get(chatSessionCapabilitiesSnapshotAtom), get(chatSessionEffectiveCapabilitiesAtom))
+  return facts.degraded === engine.degraded ? engine : { ...engine, degraded: [...facts.degraded] }
+})
+
+/** The declared capabilities the capability banner reads, `images` adjusted as above. */
+export const chatSessionDeclaredFactsAtom = atom<Partial<ProviderCapabilities> | null>(
+  (get) =>
+    withEffectiveImages(get(chatSessionEngineAtom).degraded, get(chatSessionCapabilitiesSnapshotAtom), get(chatSessionEffectiveCapabilitiesAtom))
+      .declared as Partial<ProviderCapabilities> | null,
+)
 
 /** Neutral tool policy of the current session, from `system_init.tool_policy`. */
 export const chatSessionToolPolicyAtom = atom<ToolPolicy | null>(null)
@@ -250,7 +284,7 @@ export const chatDraftAutoAtom = atom<boolean | null>(null)
 export const chatDraftSelectionAtom = atom<RoutingPick[]>([])
 
 /** The routing mode the draft stands for - read from the two above, never stored. `null` = the settings decide. */
-export const chatDraftRoutingModeAtom = atom<ProviderRoutingMode | null>((get) =>
+export const chatDraftRoutingModeAtom = atom<ConversationRoutingMode | null>((get) =>
   modeOf(get(chatDraftAutoAtom), get(chatDraftSelectionAtom), pickModelResolver(get(providersAtom))),
 )
 
@@ -261,18 +295,20 @@ export const chatDraftRoutingModeAtom = atom<ProviderRoutingMode | null>((get) =
  * Before the first message: the draft's own choice, else the settings' (what
  * the server will apply to it).
  */
-export const chatRoutingModeAtom = atom<ProviderRoutingMode>((get) => {
+export const chatRoutingModeAtom = atom<ConversationRoutingMode>((get) => {
   if (get(chatSessionIdAtom)) {
     const record = get(chatSessionRoutingAtom)
     return record?.routing_mode ?? (record?.routed_by === 'auto' ? 'full' : 'primary')
   }
-  return get(chatDraftRoutingModeAtom) ?? get(chatRoutingSettingsAtom)?.mode ?? 'primary'
+  const settings = get(chatRoutingSettingsAtom)?.mode
+  return get(chatDraftRoutingModeAtom) ?? (settings ? conversationModeOfSettings(settings) : 'primary')
 })
 
 /**
  * True once the user chose a provider/model for the NEXT conversation through
- * the "Advanced" path. In `mixed` / `full` nothing is sent unless this is set;
- * in `primary` the picker is the way and this is irrelevant.
+ * the "Advanced" path. In `full` nothing is sent unless this is set; in `mixed` the
+ * pool goes out (its pilot only as the server's fallback); in `primary` the picker is
+ * the way and this is irrelevant.
  */
 export const chatForcedTargetAtom = atom<boolean>(false)
 
@@ -280,9 +316,14 @@ export const chatForcedTargetAtom = atom<boolean>(false)
 export interface ChatSessionRouting {
   routed_by: RoutedBy | null
   route_reason: string | null
-  routing_mode: ProviderRoutingMode | null
+  routing_mode: ConversationRoutingMode | null
   /** The models ticked for this conversation, when its record names them. */
   routing_pool?: { provider: string; model: string }[] | null
+  /**
+   * The user chose this conversation's routing (Auto or models ticked in the menu): its record
+   * names its mode, or the menu changed it. Absent = the mode is the settings' of the moment.
+   */
+  chosen?: boolean
 }
 export const chatSessionRoutingAtom = atom<ChatSessionRouting | null>(null)
 
@@ -290,12 +331,24 @@ export const chatSessionRoutingAtom = atom<ChatSessionRouting | null>(null)
 export function sessionRoutingOf(session: {
   routed_by?: RoutedBy | null
   route_reason?: string | null
-  routing_mode?: ProviderRoutingMode | null
+  routing_mode?: ConversationRoutingMode | null
   routing_pool?: { provider: string; model: string }[] | null
 }): ChatSessionRouting | null {
   const { routed_by = null, route_reason = null, routing_mode = null, routing_pool } = session
   if (!routed_by && !route_reason && !routing_mode) return null
-  return routing_pool && routing_pool.length > 0 ? { routed_by, route_reason, routing_mode, routing_pool } : { routed_by, route_reason, routing_mode }
+  // The server stores a mode on the record only when the conversation asked for one.
+  const chosen = routing_mode ? { chosen: true } : {}
+  return routing_pool && routing_pool.length > 0 ? { routed_by, route_reason, routing_mode, routing_pool, ...chosen } : { routed_by, route_reason, routing_mode, ...chosen }
+}
+
+/**
+ * The learning stage THIS conversation's decisions are taken at (decision R-S1, as the server
+ * applies it): Auto, or two models ticked or more, chosen by the user on the conversation is
+ * the `auto` stage for it, whatever the settings say; otherwise the settings' stage.
+ */
+export function conversationStage(routing: ChatSessionRouting | null, settingsStage: LearningStage | null): LearningStage | null {
+  const routes = routing?.chosen === true && (routing.routing_mode === 'full' || (routing.routing_pool?.length ?? 0) > 1)
+  return routes ? 'auto' : settingsStage
 }
 
 /**
@@ -356,6 +409,15 @@ export const chatSessionCapabilitiesAtom = atom<ProviderCapabilities>((get) => {
     snapshot?.images !== undefined ||
     instance?.capabilities?.images !== undefined ||
     instance?.models.find((m) => m.id === model)?.capabilities?.images !== undefined
+  // F-R4: when PO routes, a turn may carry images if ONE of the candidates reads them (the turn
+  // is then routed to it): the routing pool governs, not the opening model's snapshot. It only
+  // WIDENS: a "no" from the pool replaces the profile only when the model itself declares no images.
+  const effective = get(chatSessionEffectiveCapabilitiesAtom)?.images
+  const modelDeclaresNoImages =
+    snapshot?.images === false ||
+    instance?.capabilities?.images === false ||
+    instance?.models.find((m) => m.id === model)?.capabilities?.images === false
+  if (effective?.source === 'routing_pool' && (effective.value || modelDeclaresNoImages)) return { ...merged, images: effective.value }
   if (!declared && merged.images && get(chatSessionEngineAtom).engine === 'agent') return { ...merged, images: false }
   return merged
 })
@@ -365,8 +427,13 @@ export const chatSessionCapabilitiesAtom = atom<ProviderCapabilities>((get) => {
  * provider declares `images: false` (or nothing else is known), `harness` when
  * nobody declared it and the agent engine is the one that does not carry
  * images yet. `null` = images are accepted.
+ *
+ * When PO routes the conversation (F-R4): `routing` when no candidate of its routing pool reads
+ * images; `routing_unprobed` when the pool is not built yet (the model's own limit, said with the
+ * fact that nothing else was probed — not probed is not absent).
  */
-export const chatSessionImagesCauseAtom = atom<'model' | 'harness' | null>((get) => {
+export type ImagesCause = 'model' | 'harness' | 'routing' | 'routing_unprobed'
+export const chatSessionImagesCauseAtom = atom<ImagesCause | null>((get) => {
   if (get(chatSessionCapabilitiesAtom).images) return null
   const instance = get(chatEffectiveProviderAtom)
   const model = get(chatSessionModelAtom) ?? instance?.default_model
@@ -374,6 +441,10 @@ export const chatSessionImagesCauseAtom = atom<'model' | 'harness' | null>((get)
     get(chatSessionCapabilitiesSnapshotAtom)?.images === false ||
     instance?.capabilities?.images === false ||
     instance?.models.find((m) => m.id === model)?.capabilities?.images === false
+  // The routing's word only stands for a model that is itself said not to read images.
+  const effective = get(chatSessionEffectiveCapabilitiesAtom)?.images
+  if (declaredFalse && effective?.source === 'routing_pool') return 'routing'
+  if (declaredFalse && effective?.cause === 'pool_unbuilt') return 'routing_unprobed'
   if (declaredFalse) return 'model'
   return get(chatSessionEngineAtom).engine === 'agent' ? 'harness' : 'model'
 })

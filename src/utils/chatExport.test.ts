@@ -78,3 +78,19 @@ describe('messagesToMarkdown — cost by basis', () => {
     expect(bare).toMatch(/### 1\. Assistant — [^(]*\n/)
   })
 })
+
+describe('a cancel notice in the export', () => {
+  it('is written as a notice, not an error; a real error keeps "Error:"', () => {
+    const msg: ChatMessage = {
+      id: 'a', role: 'assistant', timestamp: new Date('2026-10-10T12:00:00Z'),
+      blocks: [
+        { id: 'n', type: 'error', content: 'Error: unsupported', metadata: { cancel_notice: true, code: 'cancel_refused' } },
+        { id: 'e', type: 'error', content: 'boom' },
+      ],
+    }
+    const md = messagesToMarkdown([msg])
+    expect(md).toContain('> **Notice:** Error: unsupported')
+    expect(md).toContain('> **Error:** boom')
+    expect(md).not.toContain('> **Error:** Error: unsupported')
+  })
+})
