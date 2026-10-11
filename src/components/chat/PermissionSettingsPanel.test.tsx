@@ -22,6 +22,8 @@ const api = vi.hoisted(() => ({
   getPermissionConfig: vi.fn(),
   updateChatConfig: vi.fn(),
   updatePermissionConfig: vi.fn(),
+  listPermissionRules: vi.fn(async () => ({ enabled: false, rules: [] })),
+  revokePermissionRule: vi.fn(),
 }))
 vi.mock('@/services/chat', () => ({ chatApi: api }))
 vi.mock('@/hooks', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn() }) }))

@@ -168,6 +168,25 @@ export default {
     scopeRefused: "此权限无法在本次会话中保留（该调用会运行其他命令，或会话不提供此选项）。请允许一次或拒绝。",
     allowed: "已允许",
     allowedSession: "本次会话已允许",
-    denied: "已拒绝"
+    denied: "已拒绝",
+    allowAlways: "始终允许",
+    alwaysHint: "在本机上，此项目在其目录中运行的对话里，不再为这个完全相同的调用询问；如果对话已切换目录，则会再次询问",
+    alwaysCovers: "如获允许，「始终允许」仅涵盖：",
+    alwaysRefused: "此调用无法永久允许（只有完全相同的读取，或一条不含重定向和串联的只读命令可以）。请选择允许一次或本次会话。",
+    allowedAlways: "已始终允许"
+  },
+  lastingRules: {
+    title: "始终允许的调用",
+    description: "你永久允许的调用，按项目列出。每条仅涵盖本机上在项目目录中运行的对话里那个完全相同的调用。撤销后，从本机的下一次请求起会再次询问。",
+    empty: "没有永久允许的调用。",
+    disabled: "此服务器不保存永久授权。",
+    revoke: "撤销",
+    revoked: "已撤销：从本机的下一次请求起会再次询问。",
+    loadFailed: "无法加载你的永久授权。",
+    revokeFailed: "无法撤销。请重试。",
+    notHeld: "已不再适用",
+    engineNative: "原生引擎",
+    engineClaudeCode: "Claude Code",
+    sandboxDisabled: "沙箱之外"
   }
 } satisfies Translation<'chatA-tools'>

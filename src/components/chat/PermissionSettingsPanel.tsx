@@ -17,6 +17,7 @@ import {
 } from '@/constants/toolPolicy'
 import { X, Settings, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui'
+import { LastingPermissionRules } from './LastingPermissionRules'
 import { glassFlat, iconButton } from '@/components/ui/classes'
 
 // ---------------------------------------------------------------------------
@@ -446,6 +447,9 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
                 <p className="text-xs text-gray-500 leading-snug">{rulesUnsupportedText()}</p>
               </section>
             )}
+
+            {/* The person's lasting approvals (`always`): list and revoke (P11b) */}
+            <LastingPermissionRules />
 
             {/* Current mode summary */}
             {activeModeInfo && (

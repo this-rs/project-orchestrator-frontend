@@ -168,6 +168,25 @@ export default {
     scopeRefused: "Este permiso no puede conservarse para la sesión (la llamada ejecuta otro comando, o la sesión no lo ofrece). Responda una vez o deniegue.",
     allowed: "Permitido",
     allowedSession: "Permitido para la sesión",
-    denied: "Denegado"
+    denied: "Denegado",
+    allowAlways: "Siempre",
+    alwaysHint: "No se vuelve a preguntar por esta llamada exacta en tus conversaciones de este proyecto que se ejecutan en su directorio, en esta máquina; se vuelve a preguntar si la conversación cambió de directorio",
+    alwaysCovers: "Si se concede, «Siempre» solo cubre:",
+    alwaysRefused: "Esta llamada no se puede permitir para siempre (solo una lectura exacta, o un comando de solo lectura sin redirección ni encadenamiento). Responde una vez o para la sesión.",
+    allowedAlways: "Siempre permitido"
+  },
+  lastingRules: {
+    title: "Llamadas siempre permitidas",
+    description: "Las llamadas que permitiste para siempre, por proyecto. Cada una cubre solo esa llamada exacta, en las conversaciones que se ejecutan en el directorio del proyecto en esta máquina. Revocada, se vuelve a preguntar desde la siguiente solicitud en esta máquina.",
+    empty: "Ninguna llamada está permitida para siempre.",
+    disabled: "Este servidor no guarda autorizaciones permanentes.",
+    revoke: "Revocar",
+    revoked: "Revocada: se vuelve a preguntar desde la siguiente solicitud en esta máquina.",
+    loadFailed: "No se pudieron cargar tus autorizaciones permanentes.",
+    revokeFailed: "No se pudo revocar. Inténtalo de nuevo.",
+    notHeld: "Ya no se aplica",
+    engineNative: "motor nativo",
+    engineClaudeCode: "Claude Code",
+    sandboxDisabled: "fuera del entorno aislado"
   }
 } satisfies Translation<'chatA-tools'>

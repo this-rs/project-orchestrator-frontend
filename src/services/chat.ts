@@ -19,6 +19,7 @@ import type {
   PaginatedResponse,
   MessageHistoryResponse,
   MessageSearchResult,
+  LastingPermissionRules,
   PermissionConfig,
   SessionInfo,
   SessionTreeNode,
@@ -92,6 +93,14 @@ export const chatApi = {
 
   updatePermissionConfig: (config: PermissionConfig) =>
     api.put<PermissionConfig>('/chat/config/permissions', config),
+
+  /** The caller's lasting approvals (`always`), optionally of one project. Human route. */
+  listPermissionRules: (project?: string) =>
+    api.get<LastingPermissionRules>(`/chat/permission-rules${buildQuery({ project })}`),
+
+  /** Revokes one lasting approval: asked again from the next request, in every session. */
+  revokePermissionRule: (id: string) =>
+    api.delete<void>(`/chat/permission-rules/${encodeURIComponent(id)}`),
 
   // Full chat config (unified GET/PATCH — includes permissions + env config)
   getChatConfig: () =>

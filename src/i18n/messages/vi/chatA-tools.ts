@@ -168,6 +168,25 @@ export default {
     scopeRefused: "Quyền này không thể giữ cho phiên (lệnh gọi chạy một lệnh khác, hoặc phiên không cung cấp). Hãy cho phép một lần hoặc từ chối.",
     allowed: "Đã cho phép",
     allowedSession: "Đã cho phép cho phiên",
-    denied: "Đã từ chối"
+    denied: "Đã từ chối",
+    allowAlways: "Luôn luôn",
+    alwaysHint: "Không hỏi lại cho đúng lệnh gọi này trong các cuộc trò chuyện của dự án này chạy trong thư mục của nó, trên máy này; sẽ hỏi lại nếu cuộc trò chuyện đã đổi thư mục",
+    alwaysCovers: "Nếu được cấp, «Luôn luôn» chỉ bao gồm:",
+    alwaysRefused: "Không thể cho phép vĩnh viễn lệnh gọi này (chỉ một lần đọc chính xác, hoặc một lệnh chỉ đọc không chuyển hướng hay nối lệnh). Hãy trả lời một lần hoặc cho phiên.",
+    allowedAlways: "Luôn được cho phép"
+  },
+  lastingRules: {
+    title: "Lệnh gọi luôn được cho phép",
+    description: "Các lệnh gọi bạn đã cho phép vĩnh viễn, theo dự án. Mỗi mục chỉ bao gồm đúng lệnh gọi đó, trong các cuộc trò chuyện chạy trong thư mục dự án trên máy này. Khi thu hồi, nó sẽ được hỏi lại từ yêu cầu tiếp theo trên máy này.",
+    empty: "Không có lệnh gọi nào được cho phép vĩnh viễn.",
+    disabled: "Máy chủ này không lưu phê duyệt vĩnh viễn nào.",
+    revoke: "Thu hồi",
+    revoked: "Đã thu hồi: được hỏi lại từ yêu cầu tiếp theo trên máy này.",
+    loadFailed: "Không thể tải các phê duyệt vĩnh viễn của bạn.",
+    revokeFailed: "Không thể thu hồi. Hãy thử lại.",
+    notHeld: "Không còn áp dụng",
+    engineNative: "công cụ gốc",
+    engineClaudeCode: "Claude Code",
+    sandboxDisabled: "ngoài sandbox"
   }
 } satisfies Translation<'chatA-tools'>
