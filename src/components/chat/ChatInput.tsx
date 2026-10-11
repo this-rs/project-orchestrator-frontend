@@ -670,6 +670,35 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   }
 
   /**
+   * Cmd+Enter (macOS) / Ctrl+Enter (Windows, Linux) — bypass the queue
+   * entirely and dispatch the message right now, even mid-stream.
+   *
+   * Layer 1 (empty / failed / deferred) still runs so the user never sends
+   * an invalid message. Layer 2 is intentionally skipped.
+   */
+  const handleSendDirect = () => {
+    const text = value.trim()
+    if (refsEnabled && countRefTokens(text) > MAX_REFS_PER_MESSAGE) {
+      setRefsOverflow(true)
+      return
+    }
+    const list = store.get(chatAttachmentsAtom)
+    switch (decideSend({ hasText: text.length > 0, summary: summarize(list) })) {
+      case 'reject-empty':
+        return
+      case 'reject-failed':
+        return
+      case 'defer':
+        store.set(chatAttachmentDeferredSendAtom, true)
+        return
+      case 'send':
+        break
+    }
+    setKindChip(null)
+    dispatchSend(text, list)
+  }
+
+  /**
    * What the send button means right now — derived, never stored.
    *
    * Computed before `deriveInputAction` because the button reads it: the two
@@ -800,7 +829,12 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     if (isMobile) return
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSend()
+      // Cmd+Enter (macOS) / Ctrl+Enter (Win/Linux) — skip the queue, send now.
+      if (e.metaKey || e.ctrlKey) {
+        handleSendDirect()
+      } else {
+        handleSend()
+      }
     }
   }
 
