@@ -65,6 +65,10 @@ export interface TracksViewProps {
   onRetry?: () => void
   /** Where the detail goes when the component is wide: `side` (if there is room) or `below`. */
   detail?: 'side' | 'below'
+  /** When the "fit / show everything" zoom-reset button shows: `always` (default) or only while
+      `zoomed` — as `TraceView`'s `fit` (the chat's narrow panel: no resting "fit" beside its
+      open-page link, but a visible way back after a zoom or a pan). */
+  fit?: 'always' | 'zoomed'
   className?: string
 }
 
@@ -158,7 +162,7 @@ const Bar = memo(function Bar({ it, view, axis, trackW, selected, focused, label
 
 export function TracksView({
   lanes, selectedId, onSelect, onOpen, labels = DEFAULT_TIMELINE_LABELS, density = 'compact', maxRowsHeight = 480,
-  loading = null, failed = false, onRetry, detail = 'side', className = '',
+  loading = null, failed = false, onRetry, detail = 'side', fit = 'always', className = '',
 }: TracksViewProps) {
   const L = labels.trace
   const T = labels.tracks
@@ -526,7 +530,7 @@ export function TracksView({
             <div className="flex items-center gap-0.5">
               <ToolButton wide={wide} label={L.zoomOut} onClick={() => move(zoomView(view, 1 / ZOOM_STEP, 0.5, total), true)}><ZoomOut className="size-4" aria-hidden="true" /></ToolButton>
               <ToolButton wide={wide} label={L.zoomIn} onClick={() => move(zoomView(view, ZOOM_STEP, 0.5, total), true)}><ZoomIn className="size-4" aria-hidden="true" /></ToolButton>
-              <ToolButton wide={wide} label={L.fit} pressed={!zoomed} onClick={() => setUserView(null)}><Maximize2 className="size-4" aria-hidden="true" /></ToolButton>
+              {(fit === 'always' || zoomed) && <ToolButton wide={wide} label={L.fit} pressed={!zoomed} onClick={() => setUserView(null)}><Maximize2 className="size-4" aria-hidden="true" /></ToolButton>}
               <ToolButton wide={wide} label={L.follow} pressed={follow} onClick={() => setFollow((f) => !f)}><Radio className="size-4" aria-hidden="true" /></ToolButton>
             </div>
           </div>

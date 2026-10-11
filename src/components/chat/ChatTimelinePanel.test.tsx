@@ -220,15 +220,19 @@ describe('<ChatTimelinePanel>', () => {
   ] as const)('the zoom reset and the open-page link %s', (_, desktop) => {
     beforeEach(() => setViewport(desktop))
 
-    it('keeps the labelled open-page link, shows no Fit at rest, and Fit once zoomed', () => {
+    // In both views: the tracks (the panel's default) as well as the span tree.
+    it.each(VIEWS)('keeps the labelled open-page link, shows no Fit at rest, and Fit once zoomed (%s)', (view) => {
+      chooseView(view)
       render(<Harness />)
       openWithToggle()
+      if (view === 'tracks') expect(screen.getByRole('list', { name: 'Tracks of the conversation' })).toBeTruthy()
       const link = screen.getByRole('link', { name: 'Open the full timeline' })
       expect(link.getAttribute('href')).toBe('/workspace/ws/chat/s/timeline')
       expect(link.getAttribute('aria-label')).toBe('Open the full timeline')
       expect(screen.queryByRole('button', { name: 'Show everything' })).toBeNull()
 
       fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
+      expect(screen.getByRole('button', { name: 'Show everything' }).getAttribute('aria-pressed')).toBe('false')
       fireEvent.click(screen.getByRole('button', { name: 'Show everything' }))
       expect(screen.queryByRole('button', { name: 'Show everything' })).toBeNull()
     })
