@@ -364,6 +364,7 @@ function LockedVaultActions({
 }) {
   const { t } = useT()
   const offered = onPick ? fallbacks : []
+  const actionClass = useActionClass()
   const labelColor = useContext(ToneCtx) === 'warning' ? 'text-amber-100/90' : 'text-red-100/90'
   // While an unlock runs, its success sends the message: a model picked meanwhile
   // would send it a second time (review of #335, finding 1).
@@ -381,7 +382,7 @@ function LockedVaultActions({
                 type="button"
                 onClick={() => onPick?.(f)}
                 disabled={unlocking}
-                className={useActionClass()}
+                className={actionClass}
                 data-testid="locked-vault-fallback"
               >
                 {t('session.lockedVault.useModel', { model: f.model, provider: f.provider_id })}
