@@ -15,6 +15,7 @@ import {
   chatPanelModeAtom,
   chatSelectedProjectAtom,
   chatSessionCapabilitiesSnapshotAtom,
+  chatSessionEffectiveCapabilitiesStateAtom,
   chatSessionEngineAtom,
   chatSessionIdAtom,
   chatWorkspaceHasProjectsAtom,
@@ -208,6 +209,16 @@ describe('capability banner — collapse into a header icon', () => {
     expect(banner()).toBeNull()
     act(() => store.set(chatSessionEngineAtom, { engine: 'agent', degraded: ['hooks', 'images'] }))
     expect(banner()).toBeNull()
+  })
+
+  it('F-R4: the banner AND the folded icon follow the routing candidates, not the opening model', () => {
+    const { store } = renderPanel({ degraded: ['message_queue', 'images'] })
+    const reachable = { images: { value: true, source: 'routing_pool' as const, cause: 'pool_has_it' as const, via: [{ provider: 'x', model: 'vision' }] } }
+    act(() => store.set(chatSessionEffectiveCapabilitiesStateAtom, { sessionId: 's1', capabilities: reachable }))
+    expect(banner()!.querySelector('li[data-feature="images"]')).toBeNull()
+    expect(banner()!.querySelectorAll('li[data-feature]')).toHaveLength(1)
+    collapse()
+    expect(icon()?.getAttribute('aria-label')).toBe('Unavailable features: 1. Show details')
   })
 
   it('shows neither the banner nor the icon when nothing is missing', () => {

@@ -23,6 +23,7 @@
 
 import type { MessageKey } from '@/i18n'
 import type { ProviderCapabilities } from '@/types/provider'
+import type { EffectiveCapability } from '@/types/chat'
 
 export type DegradationCause = 'harness' | 'installation' | 'model' | 'unprobed'
 
@@ -71,7 +72,7 @@ const ROUTING_FEATURES: readonly string[] = [ROUTING_IMAGES, IMAGES_POOL_UNBUILT
 
 /** The effective `images` fact of a session (`ChatSession.effective_capabilities.images`), as far as this module needs it. */
 export interface EffectiveImagesFact {
-  images: { value: boolean; source: 'snapshot' | 'routing_pool'; cause: string }
+  images: Pick<EffectiveCapability, 'value' | 'source' | 'cause'>
 }
 
 /**
@@ -82,6 +83,8 @@ export interface EffectiveImagesFact {
  * - routing pool, none does → `routing_images` (the pool's limit, honestly said);
  * - snapshot because the pool is not built → `images_pool_unbuilt` in place of the model's line;
  * - otherwise (no routing, no router, the model reads images) → unchanged.
+ * A "no" only ever replaces a "no": it applies when the model itself is said not to read images
+ * (`images` in the engine's list, or declared `false`) — never narrows a capability.
  * Returns the very same arrays/objects when nothing changes.
  */
 export function withEffectiveImages(
@@ -93,6 +96,7 @@ export function withEffectiveImages(
   if (!images) return { degraded, declared }
   const lacking = images.source === 'routing_pool' ? (images.value ? null : ROUTING_IMAGES) : images.cause === 'pool_unbuilt' && !images.value ? IMAGES_POOL_UNBUILT : undefined
   if (lacking === undefined) return { degraded, declared }
+  if (lacking && !degraded.includes('images') && declared?.images !== false) return { degraded, declared }
   // `images` declared present so the declared limit adds no line of its own: the effective fact speaks.
   const rest = degraded.filter((id) => id !== 'images' && id !== ROUTING_IMAGES && id !== IMAGES_POOL_UNBUILT)
   return { degraded: lacking ? [...rest, lacking] : rest, declared: { ...(declared ?? {}), images: true } }

@@ -143,6 +143,25 @@ describe('no routing (primary), or nothing said: exactly as before', () => {
   })
 })
 
+describe('the routing only ever WIDENS what the model can do', () => {
+  it('a pool without vision never takes images away from a model that reads them', () => {
+    const store = storeWith(effective(false, 'routing_pool', 'pool_lacks_it'))
+    store.set(chatSessionCapabilitiesSnapshotAtom, { images: true, tools: true } as never)
+    store.set(chatSessionEngineAtom, { engine: 'agent', degraded: [] })
+    const fileInput = renderComposer(store)
+    fireEvent.change(fileInput, { target: { files: [png] } })
+    expect(uploadMock).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('images-refused')).toBeNull()
+  })
+
+  it('nor adds a banner line for it', () => {
+    const out = withEffectiveImages([], { images: true }, effective(false, 'routing_pool', 'pool_lacks_it'))
+    expect(classifyDegradations(out.degraded, out.declared)).toEqual([])
+    const unknown = withEffectiveImages([], {}, effective(false, 'routing_pool', 'pool_lacks_it'))
+    expect(classifyDegradations(unknown.degraded, unknown.declared)).toEqual([])
+  })
+})
+
 describe('withEffectiveImages (the banner text source)', () => {
   const declared = { images: false, tools: true }
 

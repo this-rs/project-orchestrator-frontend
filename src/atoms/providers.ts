@@ -391,9 +391,14 @@ export const chatSessionCapabilitiesAtom = atom<ProviderCapabilities>((get) => {
     instance?.capabilities?.images !== undefined ||
     instance?.models.find((m) => m.id === model)?.capabilities?.images !== undefined
   // F-R4: when PO routes, a turn may carry images if ONE of the candidates reads them (the turn
-  // is then routed to it): the routing pool governs, not the opening model's snapshot.
+  // is then routed to it): the routing pool governs, not the opening model's snapshot. It only
+  // WIDENS: a "no" from the pool replaces the profile only when the model itself declares no images.
   const effective = get(chatSessionEffectiveCapabilitiesAtom)?.images
-  if (effective?.source === 'routing_pool') return { ...merged, images: effective.value }
+  const modelDeclaresNoImages =
+    snapshot?.images === false ||
+    instance?.capabilities?.images === false ||
+    instance?.models.find((m) => m.id === model)?.capabilities?.images === false
+  if (effective?.source === 'routing_pool' && (effective.value || modelDeclaresNoImages)) return { ...merged, images: effective.value }
   if (!declared && merged.images && get(chatSessionEngineAtom).engine === 'agent') return { ...merged, images: false }
   return merged
 })
@@ -411,15 +416,16 @@ export const chatSessionCapabilitiesAtom = atom<ProviderCapabilities>((get) => {
 export type ImagesCause = 'model' | 'harness' | 'routing' | 'routing_unprobed'
 export const chatSessionImagesCauseAtom = atom<ImagesCause | null>((get) => {
   if (get(chatSessionCapabilitiesAtom).images) return null
-  const effective = get(chatSessionEffectiveCapabilitiesAtom)?.images
-  if (effective?.source === 'routing_pool') return 'routing'
-  if (effective?.cause === 'pool_unbuilt') return 'routing_unprobed'
   const instance = get(chatEffectiveProviderAtom)
   const model = get(chatSessionModelAtom) ?? instance?.default_model
   const declaredFalse =
     get(chatSessionCapabilitiesSnapshotAtom)?.images === false ||
     instance?.capabilities?.images === false ||
     instance?.models.find((m) => m.id === model)?.capabilities?.images === false
+  // The routing's word only stands for a model that is itself said not to read images.
+  const effective = get(chatSessionEffectiveCapabilitiesAtom)?.images
+  if (declaredFalse && effective?.source === 'routing_pool') return 'routing'
+  if (declaredFalse && effective?.cause === 'pool_unbuilt') return 'routing_unprobed'
   if (declaredFalse) return 'model'
   return get(chatSessionEngineAtom).engine === 'agent' ? 'harness' : 'model'
 })
