@@ -208,8 +208,9 @@ describe('ChatPanel — Auto refused on a locked vault', () => {
         attachments: [],
       })
     })
-    const alert = await screen.findByRole('alert')
-    fireEvent.click(within(alert).getByTestId('locked-vault-fallback'))
+    // credentials_locked WITH fallbacks → warning tone (role="status"), found by testid.
+    const card = await screen.findByTestId('session-open-error')
+    fireEvent.click(within(card).getByTestId('locked-vault-fallback'))
     expect(store.get(chatDraftAutoAtom)).toBe(false)
     expect(store.get(chatDraftSelectionAtom)).toEqual([{ provider: 'ollama', model: 'qwen3' }])
     expect(store.get(chatSelectedProviderAtom)).toBe('ollama')
@@ -269,9 +270,10 @@ describe('ChatPanel — the unlock started in the card (review of #335)', () => 
     })
     sendClears(store)
     const unlock = heldUnlock()
-    const alert = await screen.findByRole('alert')
-    startUnlock(alert)
-    const fallback = within(alert).getByTestId('locked-vault-fallback')
+    // credentials_locked WITH fallbacks → warning tone (role="status"), found by testid.
+    const card = await screen.findByTestId('session-open-error')
+    startUnlock(card)
+    const fallback = within(card).getByTestId('locked-vault-fallback')
     expect(fallback).toHaveProperty('disabled', true)
     fireEvent.click(fallback)
     await unlock.finish()
@@ -321,7 +323,8 @@ describe('ChatPanel — the unlock started in the card (review of #335)', () => 
       s.set(chatSessionOpenErrorAtom, lockedAuto([{ provider_id: 'ollama', model: 'qwen3' }])),
     )
     sendClears(store)
-    fireEvent.click(within(await screen.findByRole('alert')).getByTestId('locked-vault-fallback'))
+    // credentials_locked WITH fallbacks → warning tone (role="status"), found by testid.
+    fireEvent.click(within(await screen.findByTestId('session-open-error')).getByTestId('locked-vault-fallback'))
     expect(chatStub.sendMessage).toHaveBeenCalledTimes(1)
     await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('composer')))
   })

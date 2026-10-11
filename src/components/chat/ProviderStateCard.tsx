@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 import { Link, useInRouterContext } from 'react-router-dom'
 import { AlertTriangle, Check, ClipboardCopy, Loader2, RefreshCw, X } from 'lucide-react'
 import { panelGlass } from '@/components/ui/panelGlass'
@@ -24,6 +24,8 @@ import { TRUST_FALLBACK_MODE } from '@/constants/toolPolicy'
 import type { ProviderErrorInfo, ProviderFallback } from '@/types/provider'
 import { VaultUnlock } from './VaultUnlock'
 
+export type ProviderCardTone = 'error' | 'warning'
+
 interface ProviderStateCardProps {
   /** The typed failure, or the `no_provider` state (`NO_PROVIDER_ERROR`). */
   error: ProviderErrorInfo
@@ -41,11 +43,25 @@ interface ProviderStateCardProps {
   className?: string
   /** Floats over the scrolling conversation (above the composer): glass instead of a bare tint. */
   floating?: boolean
+  /**
+   * Visual tone of the card.
+   * - `'error'` (default): red, `role="alert"` — no alternatives, the user is blocked.
+   * - `'warning'`: amber, `role="status"` — alternatives exist, this is informational.
+   */
+  tone?: ProviderCardTone
   testId?: string
 }
 
-const ACTION_CLASS =
+const ACTION_CLASS_ERROR =
   'inline-flex items-center gap-1 rounded border border-red-400/30 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-100 hover:bg-red-500/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-red-300 disabled:opacity-60'
+const ACTION_CLASS_WARNING =
+  'inline-flex items-center gap-1 rounded border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-100 hover:bg-amber-500/20 focus:outline-none focus-visible:ring-1 focus-visible:ring-amber-300 disabled:opacity-60'
+
+/** Internal context: lets sub-components (SettingsLink, RecheckButton…) pick up the card's tone. */
+const ToneCtx = createContext<ProviderCardTone>('error')
+function useActionClass(): string {
+  return useContext(ToneCtx) === 'warning' ? ACTION_CLASS_WARNING : ACTION_CLASS_ERROR
+}
 
 /**
  * A link that works where the card is rendered: inside the app's router it is
@@ -54,12 +70,13 @@ const ACTION_CLASS =
  */
 function SettingsLink({ to, children }: { to: string; children: ReactNode }) {
   const inRouter = useInRouterContext()
+  const cls = useActionClass()
   return inRouter ? (
-    <Link to={to} className={ACTION_CLASS}>
+    <Link to={to} className={cls}>
       {children}
     </Link>
   ) : (
-    <a href={to} className={ACTION_CLASS}>
+    <a href={to} className={cls}>
       {children}
     </a>
   )
@@ -68,6 +85,7 @@ function SettingsLink({ to, children }: { to: string; children: ReactNode }) {
 /** The command the user must run themselves, with a copy button. */
 function LoginCommand({ command }: { command: string }) {
   const [copied, setCopied] = useState(false)
+  const cls = useActionClass()
   const copy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(command)
@@ -82,7 +100,7 @@ function LoginCommand({ command }: { command: string }) {
       <code className="min-w-0 flex-1 select-all break-all rounded bg-black/40 px-2 py-1 font-mono text-[11px] text-red-50">
         {command}
       </code>
-      <button type="button" onClick={copy} className={ACTION_CLASS} aria-label="Copy the command">
+      <button type="button" onClick={copy} className={cls} aria-label="Copy the command">
         {copied ? <Check className="h-3 w-3" aria-hidden="true" /> : <ClipboardCopy className="h-3 w-3" aria-hidden="true" />}
         {copied ? 'Copied' : 'Copy'}
       </button>
@@ -118,7 +136,7 @@ function RecheckButton({ providerId }: { providerId?: string }) {
   }, [providerId, refresh])
   return (
     <>
-      <button type="button" onClick={run} disabled={recheck.state === 'checking'} className={ACTION_CLASS}>
+      <button type="button" onClick={run} disabled={recheck.state === 'checking'} className={useActionClass()}>
         {recheck.state === 'checking' ? (
           <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
         ) : (
@@ -153,8 +171,14 @@ export function ProviderStateCard({
   onDismiss,
   className = '',
   floating = false,
+  tone: toneProp,
   testId = 'provider-state-card',
 }: ProviderStateCardProps) {
+  // The effective tone: explicit prop wins; otherwise `credentials_locked` with
+  // available fallbacks is a warning (alternatives exist), everything else is an error.
+  const tone: ProviderCardTone = toneProp ?? (
+    error.code === 'credentials_locked' && (error.fallbacks?.length ?? 0) > 0 ? 'warning' : 'error'
+  )
   const setModeOverride = useSetAtom(chatSessionPermissionOverrideAtom)
   const sandboxRefusal = isSandboxRefusal(error)
   const [modeSwitched, setModeSwitched] = useState(false)
@@ -226,7 +250,7 @@ export function ProviderStateCard({
     case 'engine_unavailable':
     case 'instance_not_found':
       action = onNewConversation ? (
-        <button type="button" onClick={onNewConversation} className={ACTION_CLASS}>
+        <button type="button" onClick={onNewConversation} className={tone === 'warning' ? ACTION_CLASS_WARNING : ACTION_CLASS_ERROR}>
           Start a new conversation
         </button>
       ) : null
@@ -240,7 +264,7 @@ export function ProviderStateCard({
         ) : (
           <button
             type="button"
-            className={ACTION_CLASS}
+            className={tone === 'warning' ? ACTION_CLASS_WARNING : ACTION_CLASS_ERROR}
             onClick={() => {
               // The next opening uses `ask`, a mode every provider accepts.
               setModeOverride(TRUST_FALLBACK_MODE)
@@ -255,58 +279,71 @@ export function ProviderStateCard({
       break
   }
 
+  const isWarning = tone === 'warning'
+  const borderColor = isWarning ? 'border-amber-500/30' : 'border-red-500/30'
+  const bgTint = isWarning
+    ? floating ? panelGlass.warning : 'bg-amber-500/10'
+    : floating ? panelGlass.error : 'bg-red-500/10'
+  const textPrimary = isWarning ? 'text-amber-100' : 'text-red-100'
+  const textSecondary = isWarning ? 'text-amber-200' : 'text-red-200'
+  const iconColor = isWarning ? 'text-amber-400' : 'text-red-400'
+  const dismissHover = isWarning ? 'hover:bg-amber-500/20' : 'hover:bg-red-500/20'
+
   return (
-    <div
-      role="alert"
-      data-testid={testId}
-      data-error-code={error.code}
-      className={`flex items-start gap-2 rounded-lg border border-red-500/30 ${floating ? panelGlass.error : 'bg-red-500/10'} px-3 py-2 text-xs text-red-200 ${className}`}
-    >
-      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" aria-hidden="true" />
-      <div className="min-w-0 flex-1">
-        <p className="font-medium text-red-100">
-          {sandboxRefusal ? 'Mode « Rock’n roll » refusé' : PROVIDER_ERROR_TITLES[error.code]}
-        </p>
-        <p className="mt-0.5 break-words text-red-200/90">{explanation}</p>
-        {harnessNote && error.code !== 'unsupported' && (
-          <p data-testid="harness-gap-note" className="mt-0.5 break-words text-red-200/90">
-            {harnessNote}
+    <ToneCtx.Provider value={tone}>
+      <div
+        role={isWarning ? 'status' : 'alert'}
+        data-testid={testId}
+        data-error-code={error.code}
+        data-tone={tone}
+        className={`flex items-start gap-2 rounded-lg border ${borderColor} ${bgTint} px-3 py-2 text-xs ${textSecondary} ${className}`}
+      >
+        <AlertTriangle className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${iconColor}`} aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <p className={`font-medium ${textPrimary}`}>
+            {sandboxRefusal ? 'Mode « Rock’n roll » refusé' : PROVIDER_ERROR_TITLES[error.code]}
           </p>
-        )}
-        {/* The server's own sentence (already redacted), when it adds something. */}
-        {serverSentence && <p className="mt-0.5 break-words text-red-200/70">{serverSentence}</p>}
-        {error.code === 'auth_required' && error.login_hint && <LoginCommand command={error.login_hint} />}
-        {showDetail && (
-          <pre className="mt-1.5 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded bg-black/40 px-2 py-1 font-mono text-[11px] text-red-100/90">
-            {error.detail}
-          </pre>
-        )}
-        {(action || canRetry) && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            {action}
-            {canRetry &&
-              (onRetry ? (
-                <button type="button" onClick={onRetry} className={ACTION_CLASS}>
-                  <RefreshCw className="h-3 w-3" aria-hidden="true" />
-                  Retry
-                </button>
-              ) : (
-                <span className="text-[11px] text-red-100/90">{retryBySendingText()}</span>
-              ))}
-          </div>
+          <p className={`mt-0.5 break-words ${textSecondary}/90`}>{explanation}</p>
+          {harnessNote && error.code !== 'unsupported' && (
+            <p data-testid="harness-gap-note" className={`mt-0.5 break-words ${textSecondary}/90`}>
+              {harnessNote}
+            </p>
+          )}
+          {/* The server's own sentence (already redacted), when it adds something. */}
+          {serverSentence && <p className={`mt-0.5 break-words ${textSecondary}/70`}>{serverSentence}</p>}
+          {error.code === 'auth_required' && error.login_hint && <LoginCommand command={error.login_hint} />}
+          {showDetail && (
+            <pre className={`mt-1.5 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded bg-black/40 px-2 py-1 font-mono text-[11px] ${textPrimary}/90`}>
+              {error.detail}
+            </pre>
+          )}
+          {(action || canRetry) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              {action}
+              {canRetry &&
+                (onRetry ? (
+                  <button type="button" onClick={onRetry} className={isWarning ? ACTION_CLASS_WARNING : ACTION_CLASS_ERROR}>
+                    <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                    Retry
+                  </button>
+                ) : (
+                  <span className={`text-[11px] ${textPrimary}/90`}>{retryBySendingText()}</span>
+                ))}
+            </div>
+          )}
+        </div>
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${textSecondary} ${dismissHover}`}
+          >
+            <X className="h-3 w-3" aria-hidden="true" />
+            Dismiss
+          </button>
         )}
       </div>
-      {onDismiss && (
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-red-200 hover:bg-red-500/20"
-        >
-          <X className="h-3 w-3" aria-hidden="true" />
-          Dismiss
-        </button>
-      )}
-    </div>
+    </ToneCtx.Provider>
   )
 }
 
@@ -330,7 +367,7 @@ function LockedVaultActions({
       <VaultUnlock onUnlocked={onUnlocked} onBusyChange={setUnlocking} doneText={t('session.lockedVault.resent')} />
       {offered.length > 0 && (
         <div className="space-y-1">
-          <p className="text-[11px] text-red-100/90">{t('session.lockedVault.fallbacksLabel')}</p>
+          <p className="text-[11px] text-amber-100/90">{t('session.lockedVault.fallbacksLabel')}</p>
           <div className="flex flex-wrap gap-1.5">
             {offered.map((f) => (
               <button
@@ -338,7 +375,7 @@ function LockedVaultActions({
                 type="button"
                 onClick={() => onPick?.(f)}
                 disabled={unlocking}
-                className={ACTION_CLASS}
+                className={useActionClass()}
                 data-testid="locked-vault-fallback"
               >
                 {t('session.lockedVault.useModel', { model: f.model, provider: f.provider_id })}

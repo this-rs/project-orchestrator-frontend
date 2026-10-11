@@ -314,8 +314,10 @@ describe('the instance of the conversation was deleted', () => {
     listProviders.mockResolvedValue(listOf(instance('claude-code')))
     const store = renderPanel({ prepare: onLlama(FULL) })
     await ready(store)
-    const card = await screen.findByRole('alert')
+    // The deleted instance has alternatives (claude-code is available) → warning tone (role="status").
+    const card = await screen.findByTestId('provider-state-card')
     expect(card.getAttribute('data-error-code')).toBe('instance_not_found')
+    expect(card.getAttribute('data-tone')).toBe('warning')
     expect(input().getAttribute('data-disabled')).toBe('true')
     expect(input().getAttribute('data-reason')).toBe(instanceMissingComposerText())
 

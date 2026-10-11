@@ -303,6 +303,10 @@ export function ChatPanel() {
   const sessionProviderInfo = describeSessionProvider(sessionProvider, providerList)
   // Its instance was deleted since: the conversation cannot be resumed.
   const instanceMissing = !isNewConversation && sessionProviderInfo.unavailable
+  // When the instance is missing, are there OTHER usable providers?
+  // If yes → the card is a warning (alternatives exist); if no → blocker (nothing works).
+  const hasAlternativeProviders =
+    instanceMissing && providerList !== null && providerList.some((p) => providerUnavailableReason(p) === null)
   // A provider that cannot resume can only be talked to while its process lives.
   const sessionLive = useSessionLive(chat.sessionId, !isNewConversation && !capabilities.resume, chat.isStreaming)
   const cannotResume = !isNewConversation && !capabilities.resume && sessionLive === false
@@ -521,6 +525,7 @@ export function ChatPanel() {
           error={{ code: 'instance_not_found', message: '', provider_id: sessionProvider?.id }}
           onNewConversation={handleNewSession}
           floating
+          tone={hasAlternativeProviders ? 'warning' : 'error'}
           className="mx-3 mb-1"
         />
       )}
