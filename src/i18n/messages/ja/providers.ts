@@ -75,5 +75,13 @@ export default {
     otherDescription: '今はスキップ：セットアップ後に「設定 → プロバイダー」でエンジンを追加します。',
     noEngineNote: 'ここではエンジンが設定されていません。Claude Code CLI は必須ではありません：アプリの起動後に「設定 → プロバイダー」でプロバイダーを追加してください。',
     launchSummary: '「設定 → プロバイダー」で設定してください',
+    cliAbsentNote: "このコンピューターには Claude Code がインストールされていません。任意です。使う場合は上で選択してください。アプリがインストールできます。",
+    cliOptionalTitle: "Claude Code はインストールされていません",
+    cliOptionalBody: "任意です。今すぐインストールする（アプリが公式インストーラーを実行します。Claude Code に求められた場合、Claude へのサインインはターミナルで一度だけ行います）、後でインストールする、または上で別のプロバイダーを選んでください。",
+    authRequiredTitle: "別のプロバイダーにはログインアカウントが必要です",
+    authRequiredBody: "サインインなしでは、サーバーは Claude Code しか実行せず、他のプロバイダーはすべて拒否します。そのプロバイダーとのチャットセッションは、サインインしたユーザーに属している必要があるためです。「認証」ステップに戻り、パスワードまたは OIDC を選んでください。",
+    authRequiredAction: "ログインアカウントを設定",
+    authNoneNote: "サインインなしでは、チャットは Claude Code しか使えません。他のプロバイダー（OpenAI 互換、Ollama、DeepSeek…）にはログインアカウントが必要で、ないとサーバーが拒否します。",
+    embeddingLater: "待たずに続行できます。サーバー起動時にモデルがなければ、そのときサーバーがダウンロードします（初回の起動は長くなります）。モデルが揃うまで意味検索はオフのままです。",
   },
 } satisfies Translation<'providers'>

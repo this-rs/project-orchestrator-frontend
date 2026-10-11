@@ -4,14 +4,14 @@ import { Check, Info, Loader2, RotateCw, Download } from 'lucide-react'
 import { Button, Input, ProgressLine, Switch, surface } from '@/components/ui'
 import { Field } from './Field'
 import { StatusBanner } from './StatusBanner'
-import { setupConfigAtom, chatValidAtom, trayNavigationAtom, type McpSetupStatus } from '@/atoms/setup'
+import { setupConfigAtom, chatValidAtom, chatEngineChosenAtom, setupAuthReady, setupStepAtom, trayNavigationAtom, type McpSetupStatus } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
 import { useToast } from '@/hooks'
 import { modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
 import type { CliVersionStatus } from '@/types'
 import { POLICY_TO_LEGACY_MODE, toToolPolicyMode } from '@/types/provider'
 import { setupModeOptions } from '@/constants/toolPolicy'
-import { setupChatEngineOptions, setupNoEngineNote } from '@/constants/setupProviders'
+import { setupChatEngineOptions, setupChatTexts, setupNoEngineNote } from '@/constants/setupProviders'
 
 /** Format bytes into a human-readable string (KB, MB, GB). */
 function formatBytes(bytes: number): string {
@@ -35,7 +35,6 @@ const TEXT = {
   embeddingHint: 'A small model turns notes into vectors, so a search finds a note by its meaning and related notes link up by themselves.',
   searchModel: 'Search model',
   cliHint: 'The chat runs through Claude Code on this computer, signed in to your own Claude account. The AI itself is not included.',
-  cliRequired: 'Install Claude Code to use the chat. The app runs the official installer for you; signing in to Claude is done once, in a terminal, if Claude Code asks for it.',
   mcp: 'MCP server',
   mcpHint: 'Lets Claude Code reach your projects, plans and notes from this app, as tools.',
 } as const
@@ -70,31 +69,46 @@ export function ChatPage() {
   const [embeddingTestResult, setEmbeddingTestResult] = useState<{ success: boolean; dimensions?: number; latencyMs?: number } | null>(null)
   const [testingEmbedding, setTestingEmbedding] = useState(false)
   const toast = useToast()
+  const [engineChosen, setEngineChosen] = useAtom(chatEngineChosenAtom)
+  const setStep = useSetAtom(setupStepAtom)
+  const texts = setupChatTexts()
   // Pre-existing configs have no `chatProvider`: they are Claude Code.
   const isClaude = config.chatProvider !== 'none'
+  // Another engine runs only behind a login account (server: `security_gate_closed`).
+  const authMissing = !isClaude && !setupAuthReady(config, isTrayNavigation)
 
   const update = (patch: Partial<typeof config>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
 
   // ── Auto-detect CLI at mount ──────────────────────────────────────
+  // Claude Code is preselected only when its CLI is here; otherwise the step
+  // stays on "another provider". A choice the user made (or a config being
+  // reconfigured) is never overridden.
   useEffect(() => {
     if (!isTauri || cliAutoChecked) return
     let cancelled = false
     ;(async () => {
+      let detected = false
       try {
         const { invoke } = await import('@tauri-apps/api/core')
         const status = await invoke<CliVersionStatus>('check_cli_status')
         if (cancelled) return
         setCliStatus(status)
-        const detected = status.installed
+        detected = status.installed === true
         setCliDetected(detected)
-        setConfig((prev) => ({ ...prev, claudeCodeDetected: detected }))
       } catch {
         if (!cancelled) {
           setCliDetected(false)
         }
       } finally {
-        if (!cancelled) setCliAutoChecked(true)
+        if (!cancelled) {
+          setCliAutoChecked(true)
+          setConfig((prev) => ({
+            ...prev,
+            claudeCodeDetected: detected,
+            ...(isTrayNavigation || engineChosen ? {} : { chatProvider: detected ? 'claude-code' : 'none' }),
+          }))
+        }
       }
     })()
     return () => { cancelled = true }
@@ -102,22 +116,15 @@ export function ChatPage() {
   }, [])
 
   // ── Propagate chatValidAtom ──────────────────────────────────────
+  // Neither the CLI nor a local search model still to download gate the step.
   useEffect(() => {
     if (isTrayNavigation) {
       setChatValid(true)
       return
     }
-    // No Claude Code chosen: nothing to detect, only the embedding model gates the step.
-    if (!isClaude) {
-      setChatValid(!isTauri || embeddingReady)
-      return
-    }
-    if (!isTauri) {
-      setChatValid(true)
-      return
-    }
-    setChatValid(cliDetected && embeddingReady)
-  }, [cliDetected, embeddingReady, isClaude, isTrayNavigation, setChatValid])
+    const embeddingOk = !isTauri || config.embeddingProvider !== 'http' || embeddingReady
+    setChatValid(embeddingOk && !authMissing)
+  }, [authMissing, config.embeddingProvider, embeddingReady, isTrayNavigation, setChatValid])
 
   // ── Check local embedding model availability ────────────────────────
   useEffect(() => {
@@ -403,7 +410,10 @@ export function ChatPage() {
                 key={opt.value}
                 role="radio"
                 selected={selected}
-                onClick={() => update({ chatProvider: opt.value })}
+                onClick={() => {
+                  setEngineChosen(true)
+                  update({ chatProvider: opt.value })
+                }}
                 title={opt.label}
                 description={opt.description}
               />
@@ -414,6 +424,26 @@ export function ChatPage() {
           <p className="text-xs leading-4 text-gray-400" data-testid="setup-no-engine-note">
             {setupNoEngineNote()}
           </p>
+        )}
+        {!isClaude && isTauri && cliAutoChecked && !cliDetected && (
+          <p className="text-xs leading-4 text-gray-400" data-testid="setup-cli-absent-note">
+            {texts.cliAbsentNote}
+          </p>
+        )}
+        {authMissing && (
+          <StatusBanner
+            tone="warning"
+            title={texts.authRequiredTitle}
+            role="alert"
+            className="mt-1"
+            action={
+              <Button variant="secondary" size="sm" onClick={() => setStep(1)}>
+                {texts.authRequiredAction}
+              </Button>
+            }
+          >
+            <p data-testid="setup-auth-required">{texts.authRequiredBody}</p>
+          </StatusBanner>
         )}
       </fieldset>
 
@@ -607,6 +637,7 @@ export function ChatPage() {
                   It is downloaded once; search by meaning works without it only after that.
                   {embeddingEstimatedSize > 0 && <span className="ml-1 text-gray-500">About {sizeLabel(embeddingEstimatedSize)}.</span>}
                 </p>
+                <p data-testid="setup-embedding-later">{texts.embeddingLater}</p>
                 {downloadError && (
                   <p role="alert" className="break-words text-xs leading-4 text-red-300">
                     {downloadError}
@@ -732,9 +763,9 @@ export function ChatPage() {
 
         {isTauri && cliAutoChecked && !cliDetected && (
           <StatusBanner
-            tone="danger"
-            title="Claude Code CLI is required"
-            role="alert"
+            tone="warning"
+            title={texts.cliOptionalTitle}
+            role="status"
             action={
               <Button variant="secondary" size="sm" onClick={() => handleInstallCli()} disabled={installingCli}>
                 {installingCli ? (
@@ -751,7 +782,7 @@ export function ChatPage() {
               </Button>
             }
           >
-            <p>{TEXT.cliRequired}</p>
+            <p>{texts.cliOptionalBody}</p>
             {installError && (
               <p className="break-words text-xs leading-4 text-red-300">{installError}</p>
             )}

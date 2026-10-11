@@ -14,6 +14,8 @@ const remove = vi.fn()
 const allow = vi.fn()
 const list = vi.fn()
 const sshHostKey = vi.fn()
+const roles = vi.fn()
+const setRoles = vi.fn()
 vi.mock('@/services/providers', async (orig) => ({
   ...(await orig<typeof import('@/services/providers')>()),
   providersApi: {
@@ -24,6 +26,8 @@ vi.mock('@/services/providers', async (orig) => ({
     update: (...a: unknown[]) => update(...a),
     list: (...a: unknown[]) => list(...a),
     sshHostKey: (...a: unknown[]) => sshHostKey(...a),
+    roles: () => roles(),
+    setRoles: (...a: unknown[]) => setRoles(...a),
     status: vi.fn(),
   },
 }))
@@ -113,6 +117,8 @@ beforeEach(() => {
     sshHostKey,
   ])
     m.mockReset()
+  roles.mockReset().mockResolvedValue({})
+  setRoles.mockReset().mockImplementation(async (r: unknown) => r)
   proof = true
   overview.mockReset().mockResolvedValue(OPEN_VAULT)
   create.mockResolvedValue({})
@@ -932,5 +938,111 @@ describe('ProviderWizard — Claude Code distant (SSH)', () => {
     await waitFor(() => expect(screen.getAllByRole('alert').length).toBeGreaterThan(0))
     expect(screen.queryByTestId('remote-fingerprint')).toBeNull()
     expect(button('Next').hasAttribute('disabled')).toBe(true)
+  })
+})
+
+describe('ProviderWizard — the first chat works (B2/B3 from the interface)', () => {
+  /** Claude Code without its CLI: the list says `cli_not_found`, read as unhealthy. */
+  const CLAUDE_NO_CLI = { ...CLAUDE, health: { status: 'unhealthy' as const, version: null } }
+
+  function mountWith(providers = [CLAUDE_NO_CLI, DEEPSEEK]) {
+    list.mockReset().mockResolvedValue(response(providers))
+    return mountSettings(
+      <ProviderWizard existingIds={providers.map((p) => p.id)} onClose={onClose} onFinished={onFinished} />,
+      { providers, list }
+    )
+  }
+
+  async function toSummary() {
+    fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Save and test'))
+    await screen.findByTestId('wizard-test-result')
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Skip this step'))
+    await screen.findByTestId('wizard-summary')
+  }
+
+  it('Claude Code unusable and no pilot: Finish gives the new instance the pilot role, other roles kept', async () => {
+    roles.mockResolvedValue({ executor: { provider: 'deepseek' } })
+    mountWith()
+    await toSummary()
+    const sw = screen.getByRole('switch', { name: 'Use this provider for new chats' })
+    await waitFor(() => expect(sw.getAttribute('aria-checked')).toBe('true'))
+    expect(screen.getByTestId('wizard-pilot-help').textContent).toMatch(/no engine can answer a new chat/)
+    fireEvent.click(button('Finish'))
+    await waitFor(() => expect(onFinished).toHaveBeenCalledWith('ollama'))
+    expect(setRoles).toHaveBeenCalledTimes(1)
+    const sent = setRoles.mock.calls[0][0] as Record<string, { provider: string }>
+    expect(sent.pilot.provider).toBe('ollama')
+    expect(sent.executor).toEqual({ provider: 'deepseek' })
+    expect(setRoles.mock.invocationCallOrder[0]).toBeLessThan(onFinished.mock.invocationCallOrder[0])
+  })
+
+  it('a pilot that can answer: the switch is only an offer, Finish leaves the roles alone', async () => {
+    mountWith([CLAUDE, DEEPSEEK])
+    await toSummary()
+    await waitFor(() => expect(roles).toHaveBeenCalled())
+    const sw = screen.getByRole('switch', { name: 'Use this provider for new chats' })
+    expect(sw.getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByTestId('wizard-pilot-help').textContent).toContain('Claude Code')
+    fireEvent.click(button('Finish'))
+    expect(onFinished).toHaveBeenCalledWith('ollama')
+    expect(setRoles).not.toHaveBeenCalled()
+  })
+
+  it('the user can decline the pilot role even when it is recommended', async () => {
+    mountWith()
+    await toSummary()
+    const sw = screen.getByRole('switch', { name: 'Use this provider for new chats' })
+    await waitFor(() => expect(sw.getAttribute('aria-checked')).toBe('true'))
+    fireEvent.click(sw)
+    fireEvent.click(button('Finish'))
+    expect(onFinished).toHaveBeenCalledWith('ollama')
+    expect(setRoles).not.toHaveBeenCalled()
+  })
+
+  it('a refused role change keeps the wizard open and says why', async () => {
+    setRoles.mockRejectedValue(new ApiError(403, 'provider settings can only be changed by a signed-in user'))
+    mountWith()
+    await toSummary()
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: 'Use this provider for new chats' }).getAttribute('aria-checked')).toBe('true')
+    )
+    fireEvent.click(button('Finish'))
+    expect((await screen.findByTestId('wizard-finish-error')).textContent).toMatch(/Could not make this provider the default/)
+    expect(onFinished).not.toHaveBeenCalled()
+  })
+
+  it('roles that cannot be read: nothing is written, the switch is off and says where to set it', async () => {
+    roles.mockRejectedValue(new ApiError(404, 'not found'))
+    mountWith()
+    await toSummary()
+    await waitFor(() => expect(screen.getByTestId('wizard-pilot-help').textContent).toMatch(/could not be read/))
+    fireEvent.click(button('Finish'))
+    expect(onFinished).toHaveBeenCalledWith('ollama')
+    expect(setRoles).not.toHaveBeenCalled()
+  })
+
+  it('B3: the project step proposes the project in use, and the summary warns when none is allowed', async () => {
+    mountWith()
+    fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Save and test'))
+    await screen.findByTestId('wizard-test-result')
+    fireEvent.click(button('Next'))
+    // The only project is proposed: one click on "Allow" is enough.
+    const allowBtn = await screen.findByRole('button', { name: 'Allow http://localhost:11434' })
+    fireEvent.click(allowBtn)
+    await screen.findByTestId('wizard-consented')
+    expect(allow).toHaveBeenCalledWith('acme', 'ollama', 'http://localhost:11434')
+    fireEvent.click(button('Next'))
+    expect(screen.queryByTestId('wizard-no-consent')).toBeNull()
+  })
+
+  it('B3: skipping consent is said on the summary', async () => {
+    mountWith()
+    await toSummary()
+    expect(screen.getByTestId('wizard-no-consent').textContent).toMatch(/refused until that project allows it/)
   })
 })

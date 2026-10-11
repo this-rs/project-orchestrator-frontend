@@ -75,5 +75,13 @@ export default {
     otherDescription: 'Passer pour l\'instant : ajoutez un moteur dans Réglages → Providers après l\'installation.',
     noEngineNote: 'Aucun moteur n\'est configuré ici. Le CLI Claude Code n\'est pas obligatoire : ajoutez un provider dans Réglages → Providers une fois l\'application lancée.',
     launchSummary: 'À configurer dans Réglages → Providers',
+    cliAbsentNote: "Claude Code n’est pas installé sur cet ordinateur. Il est facultatif : choisissez-le ci-dessus si vous voulez l’utiliser, l’application peut l’installer pour vous.",
+    cliOptionalTitle: "Claude Code n’est pas installé",
+    cliOptionalBody: "Il est facultatif. Installez-le maintenant (l’application lance l’installateur officiel ; la connexion à Claude se fait une fois, dans un terminal, si Claude Code la demande), plus tard, ou choisissez un autre provider ci-dessus.",
+    authRequiredTitle: "Un autre provider exige un compte de connexion",
+    authRequiredBody: "Sans connexion, le serveur ne fait tourner que Claude Code : il refuse tout autre provider, car chaque session de chat avec lui doit appartenir à un utilisateur connecté. Revenez à l’étape Authentification et choisissez un mot de passe ou OIDC.",
+    authRequiredAction: "Créer un compte de connexion",
+    authNoneNote: "Sans connexion, le chat ne peut utiliser que Claude Code. Tout autre provider (compatible OpenAI, Ollama, DeepSeek…) exige un compte de connexion : sinon le serveur le refuse.",
+    embeddingLater: "Vous pouvez continuer sans attendre : si le modèle n’est pas là au démarrage du serveur, le serveur le télécharge alors (le premier démarrage est plus long). La recherche par le sens reste désactivée jusqu’à ce qu’il soit là.",
   },
 } satisfies Translation<'providers'>

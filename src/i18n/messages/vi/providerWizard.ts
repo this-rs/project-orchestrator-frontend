@@ -244,4 +244,12 @@ export default {
     sentMid: "sẽ được gửi tới",
     consented: "Dự án {name} được phép với {origin}.",
   },
+  pilot: {
+    label: "Dùng nhà cung cấp này cho các cuộc trò chuyện mới",
+    needed: "Khuyến nghị: hiện không có công cụ nào trả lời được cuộc trò chuyện mới (Claude Code không có trên máy chủ này, hoặc chưa đặt mặc định). Việc này giao vai trò pilot cho nhà cung cấp.",
+    optional: "Hiện các cuộc trò chuyện mới dùng {current}. Bật mục này để dùng nhà cung cấp này thay thế (vai trò pilot).",
+    unknown: "Không đọc được các vai trò hiện tại: hãy đặt vai trò pilot sau trong Nâng cao → Vai trò.",
+    failed: "Không thể đặt nhà cung cấp này làm mặc định cho cuộc trò chuyện mới: {message}",
+    noConsent: "Chưa có dự án nào cho phép nhà cung cấp này: cuộc trò chuyện trong một dự án sẽ bị từ chối cho đến khi dự án đó cho phép (bước 4, hoặc “Quyền của dự án” trên trang này).",
+  },
 } satisfies Translation<'providerWizard'>

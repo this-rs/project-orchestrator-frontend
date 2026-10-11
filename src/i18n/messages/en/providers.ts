@@ -73,5 +73,13 @@ export default {
     otherDescription: 'Skip for now: add an engine in Settings → Providers after setup.',
     noEngineNote: 'No engine is set up here. The Claude Code CLI is not required: add a provider in Settings → Providers once the app is running.',
     launchSummary: 'To configure in Settings → Providers',
+    cliAbsentNote: "Claude Code is not installed on this computer. It is optional: choose it above if you want to use it, the app can install it for you.",
+    cliOptionalTitle: "Claude Code is not installed",
+    cliOptionalBody: "It is optional. Install it now (the app runs the official installer; signing in to Claude is done once, in a terminal, if Claude Code asks for it), install it later, or choose another provider above.",
+    authRequiredTitle: "Another provider needs a login account",
+    authRequiredBody: "Without sign-in, the server only runs Claude Code: it refuses any other provider, because each chat session with it must belong to a signed-in user. Go back to the Authentication step and choose a password or OIDC.",
+    authRequiredAction: "Set up a login account",
+    authNoneNote: "Without sign-in, the chat can only use Claude Code. Any other provider (OpenAI-compatible, Ollama, DeepSeek…) needs a login account: the server refuses it otherwise.",
+    embeddingLater: "You can continue without waiting: if the model is not here when the server starts, the server downloads it then (the first start takes longer). Search by meaning stays off until it is there.",
   },
 } as const

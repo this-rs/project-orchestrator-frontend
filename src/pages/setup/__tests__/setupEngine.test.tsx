@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, configure } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
-import { setupConfigAtom, setupStepAtom, defaultSetupConfig, withSetupModelFallback, type SetupConfig } from '@/atoms/setup'
+import { setupConfigAtom, setupStepAtom, chatEngineChosenAtom, defaultSetupConfig, withSetupModelFallback, type SetupConfig } from '@/atoms/setup'
 
 const invokeMock = vi.hoisted(() => vi.fn())
 const envMock = vi.hoisted(() => ({ tauri: true }))
@@ -21,6 +21,7 @@ vi.mock('@/hooks', async (importOriginal) => ({
 }))
 
 import { installMatchMedia } from '@/pages/__tests__/testUtils'
+import { AuthPage } from '../AuthPage'
 import { ChatPage } from '../ChatPage'
 import { LaunchPage } from '../LaunchPage'
 import { SetupWizard } from '../SetupWizard'
@@ -53,30 +54,63 @@ installMatchMedia()
 
 const next = () => screen.getByRole('button', { name: /next/i })
 
+/** A login account the server will enforce: what another engine than Claude Code needs (B1). */
+const WITH_LOGIN: Partial<SetupConfig> = { authMode: 'password', rootEmail: 'admin@example.com', rootPassword: 'correct-horse' }
+
 describe('setup wizard: chat engine choice', () => {
   beforeEach(() => {
     invokeMock.mockReset()
     envMock.tauri = true
   })
 
-  it('keeps the Claude Code path unchanged: CLI section shown, step blocked until the CLI is found', async () => {
+  it('B4: CLI absent → Claude Code is not preselected, the step passes without it, install stays offered', async () => {
     cli(false)
-    renderWith(<SetupWizard />)
-    expect(await screen.findByText('Claude Code CLI')).toBeTruthy()
-    expect(screen.getByText('Default Model')).toBeTruthy()
+    const store = renderWith(<SetupWizard />, WITH_LOGIN)
     await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('check_cli_status'))
-    expect((next() as HTMLButtonElement).disabled).toBe(true)
-  })
-
-  it('Claude Code chosen with the CLI present: the step can be passed', async () => {
-    cli(true)
-    renderWith(<SetupWizard />)
+    expect(await screen.findByTestId('setup-cli-absent-note')).toBeTruthy()
+    expect(store.get(setupConfigAtom).chatProvider).toBe('none')
+    expect((screen.getByRole('radio', { name: /^Claude Code/ }) as HTMLElement).getAttribute('aria-checked')).toBe('false')
+    expect(screen.queryByText('Claude Code CLI')).toBeNull()
     await waitFor(() => expect((next() as HTMLButtonElement).disabled).toBe(false))
   })
 
-  it('another provider: no CLI needed, Claude fields hidden, step passable', async () => {
+  it('B4: Claude Code picked without its CLI → optional banner with install, Next not greyed', async () => {
     cli(false)
     renderWith(<SetupWizard />)
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('check_cli_status'))
+    fireEvent.click(await screen.findByRole('radio', { name: /^Claude Code/ }))
+    expect(await screen.findByText('Claude Code is not installed')).toBeTruthy()
+    expect(screen.queryByText('Claude Code CLI is required')).toBeNull()
+    expect(screen.getByRole('button', { name: /Install Claude Code CLI/ })).toBeTruthy()
+    await waitFor(() => expect((next() as HTMLButtonElement).disabled).toBe(false))
+  })
+
+  it('CLI present → Claude Code is preselected and the step can be passed', async () => {
+    cli(true)
+    const store = renderWith(<SetupWizard />)
+    await waitFor(() => expect(store.get(setupConfigAtom).chatProvider).toBe('claude-code'))
+    expect(await screen.findByText('Claude Code CLI')).toBeTruthy()
+    await waitFor(() => expect((next() as HTMLButtonElement).disabled).toBe(false))
+  })
+
+  it('a choice the user made is not undone by the CLI detection', async () => {
+    cli(false)
+    const store = createStore()
+    store.set(setupConfigAtom, { ...defaultSetupConfig, embeddingProvider: 'disabled', chatProvider: 'claude-code' })
+    store.set(chatEngineChosenAtom, true)
+    store.set(setupStepAtom, 2)
+    render(
+      <Provider store={store}>
+        <MemoryRouter><SetupWizard /></MemoryRouter>
+      </Provider>,
+    )
+    await screen.findByText('Claude Code is not installed')
+    expect(store.get(setupConfigAtom).chatProvider).toBe('claude-code')
+  })
+
+  it('another provider: no CLI needed, Claude fields hidden, step passable with a login account', async () => {
+    cli(true)
+    renderWith(<SetupWizard />, WITH_LOGIN)
     await screen.findByText('Claude Code CLI')
     fireEvent.click(screen.getByRole('radio', { name: /another provider/i }))
     // The click re-renders asynchronously: wait for the Claude fields to go before asserting they are gone.
@@ -87,14 +121,46 @@ describe('setup wizard: chat engine choice', () => {
     await waitFor(() => expect((next() as HTMLButtonElement).disabled).toBe(false))
   })
 
-  it('another provider still waits for the embedding model (local, not downloaded)', async () => {
-    cli(false)
+  it('B4: a local search model not downloaded yet does not block the step; continuing is offered', async () => {
     invokeMock.mockImplementation(async (cmd: string) => {
-      if (cmd === 'check_embedding_model') return { available: false, cachePath: null, estimatedSizeMb: 100 }
+      if (cmd === 'check_cli_status') return { installed: false, version: null }
+      if (cmd === 'check_embedding_model') return { available: false, cachePath: null, estimatedSizeMb: 1100 }
       return null
     })
-    renderWith(<SetupWizard />, { embeddingProvider: 'local', chatProvider: 'none' })
+    renderWith(<SetupWizard />, { ...WITH_LOGIN, embeddingProvider: 'local' })
+    expect(await screen.findByTestId('setup-embedding-later')).toBeTruthy()
+    await waitFor(() => expect((next() as HTMLButtonElement).disabled).toBe(false))
+  })
+
+  it('B1: another engine without a login account → Next blocked, the reason said, a way back to Authentication', async () => {
+    cli(false)
+    const store = renderWith(<SetupWizard />)
+    const reason = await screen.findByTestId('setup-auth-required')
+    expect(reason.textContent).toMatch(/only runs Claude Code/)
+    expect(screen.getByText('Another provider needs a login account')).toBeTruthy()
     await waitFor(() => expect((next() as HTMLButtonElement).disabled).toBe(true))
+    fireEvent.click(screen.getByRole('button', { name: 'Set up a login account' }))
+    expect(store.get(setupStepAtom)).toBe(1)
+  })
+
+  it('B1: a password without its account details still counts as no login', async () => {
+    cli(false)
+    renderWith(<SetupWizard />, { authMode: 'password', rootEmail: '', rootPassword: '' })
+    await screen.findByTestId('setup-auth-required')
+    await waitFor(() => expect((next() as HTMLButtonElement).disabled).toBe(true))
+  })
+
+  it('B1: Claude Code needs no login account', async () => {
+    cli(true)
+    renderWith(<SetupWizard />)
+    await screen.findByText('Claude Code CLI')
+    expect(screen.queryByTestId('setup-auth-required')).toBeNull()
+    await waitFor(() => expect((next() as HTMLButtonElement).disabled).toBe(false))
+  })
+
+  it('B1: the Authentication step says why "No authentication" limits the chat to Claude Code', () => {
+    renderWith(<AuthPage />, {}, 1)
+    expect(screen.getByTestId('setup-auth-none-providers').textContent).toMatch(/only use Claude Code/)
   })
 
   it('selecting the engine writes chatProvider without touching Claude fields', async () => {
@@ -104,6 +170,7 @@ describe('setup wizard: chat engine choice', () => {
     const c = store.get(setupConfigAtom)
     expect(c.chatProvider).toBe('none')
     expect(c.chatClaudeCliPath).toBe('')
+    expect(store.get(chatEngineChosenAtom)).toBe(true)
     fireEvent.click(screen.getByRole('radio', { name: /^Claude Code/ }))
     expect(store.get(setupConfigAtom).chatProvider).toBe('claude-code')
   })
@@ -133,7 +200,7 @@ describe('setup wizard: launch summary and generated config', () => {
   })
 
   it('Claude Code summary is unchanged and keeps the model fallback', async () => {
-    renderWith(<LaunchPage />, { chatModel: '' }, 3)
+    renderWith(<LaunchPage />, { chatProvider: 'claude-code', chatModel: '' }, 3)
     expect(screen.getByText('Chat Model')).toBeTruthy()
     expect(screen.queryByText('Chat provider')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /generate config/i }))

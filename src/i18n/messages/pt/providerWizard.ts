@@ -244,4 +244,12 @@ export default {
     sentMid: "será enviado para",
     consented: "Projeto {name} autorizado para {origin}.",
   },
+  pilot: {
+    label: "Usar este provedor para novos chats",
+    needed: "Recomendado: nenhum motor pode responder a um novo chat agora (o Claude Code não está disponível neste servidor ou nenhum padrão foi definido). Isto dá ao provedor o papel de piloto.",
+    optional: "Os novos chats usam {current} hoje. Ative isto para usar este provedor no lugar (papel de piloto).",
+    unknown: "Não foi possível ler os papéis atuais: defina o papel de piloto mais tarde em Avançado → Papéis.",
+    failed: "Não foi possível tornar este provedor o padrão para novos chats: {message}",
+    noConsent: "Nenhum projeto autoriza este provedor ainda: um chat em um projeto é recusado até que esse projeto o autorize (etapa 4, ou “Autorizações dos projetos” nesta página).",
+  },
 } satisfies Translation<'providerWizard'>

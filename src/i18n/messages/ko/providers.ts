@@ -75,5 +75,13 @@ export default {
     otherDescription: '지금은 건너뛰기: 설정이 끝난 뒤 설정 → 제공자에서 엔진을 추가하세요.',
     noEngineNote: '여기에는 설정된 엔진이 없습니다. Claude Code CLI는 필수가 아닙니다. 앱이 실행되면 설정 → 제공자에서 제공자를 추가하세요.',
     launchSummary: '설정 → 제공자에서 구성할 항목',
+    cliAbsentNote: "이 컴퓨터에 Claude Code가 설치되어 있지 않습니다. 선택 사항입니다. 사용하려면 위에서 선택하세요. 앱이 대신 설치할 수 있습니다.",
+    cliOptionalTitle: "Claude Code가 설치되어 있지 않습니다",
+    cliOptionalBody: "선택 사항입니다. 지금 설치하거나(앱이 공식 설치 프로그램을 실행합니다. Claude Code가 요청하면 Claude 로그인은 터미널에서 한 번만 합니다), 나중에 설치하거나, 위에서 다른 제공자를 선택하세요.",
+    authRequiredTitle: "다른 제공자는 로그인 계정이 필요합니다",
+    authRequiredBody: "로그인 없이 서버는 Claude Code만 실행하고 다른 제공자는 모두 거부합니다. 그 제공자와의 각 채팅 세션은 로그인한 사용자에게 속해야 하기 때문입니다. 인증 단계로 돌아가 비밀번호 또는 OIDC를 선택하세요.",
+    authRequiredAction: "로그인 계정 설정",
+    authNoneNote: "로그인 없이 채팅은 Claude Code만 사용할 수 있습니다. 다른 제공자(OpenAI 호환, Ollama, DeepSeek…)는 로그인 계정이 필요하며, 없으면 서버가 거부합니다.",
+    embeddingLater: "기다리지 않고 계속할 수 있습니다. 서버가 시작될 때 모델이 없으면 그때 서버가 다운로드합니다(첫 시작이 더 오래 걸립니다). 모델이 준비될 때까지 의미 검색은 꺼져 있습니다.",
   },
 } satisfies Translation<'providers'>

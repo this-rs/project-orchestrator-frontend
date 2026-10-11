@@ -75,5 +75,13 @@ export default {
     otherDescription: 'Pular por enquanto: adicione um motor em Configurações → Provedores depois da configuração inicial.',
     noEngineNote: 'Nenhum motor está configurado aqui. A CLI do Claude Code não é obrigatória: adicione um provedor em Configurações → Provedores quando o aplicativo estiver em execução.',
     launchSummary: 'Para configurar em Configurações → Provedores',
+    cliAbsentNote: "O Claude Code não está instalado neste computador. É opcional: escolha-o acima se quiser usá-lo, o aplicativo pode instalá-lo para você.",
+    cliOptionalTitle: "O Claude Code não está instalado",
+    cliOptionalBody: "É opcional. Instale-o agora (o aplicativo executa o instalador oficial; o login no Claude é feito uma vez, em um terminal, se o Claude Code pedir), mais tarde, ou escolha outro provedor acima.",
+    authRequiredTitle: "Outro provedor exige uma conta de login",
+    authRequiredBody: "Sem login, o servidor só executa o Claude Code: recusa qualquer outro provedor, porque cada sessão de chat com ele deve pertencer a um usuário conectado. Volte à etapa Autenticação e escolha uma senha ou OIDC.",
+    authRequiredAction: "Criar uma conta de login",
+    authNoneNote: "Sem login, o chat só pode usar o Claude Code. Qualquer outro provedor (compatível com OpenAI, Ollama, DeepSeek…) exige uma conta de login: caso contrário, o servidor o recusa.",
+    embeddingLater: "Você pode continuar sem esperar: se o modelo não estiver aqui quando o servidor iniciar, o servidor o baixa nesse momento (a primeira inicialização demora mais). A busca por significado fica desativada até que ele esteja disponível.",
   },
 } satisfies Translation<'providers'>

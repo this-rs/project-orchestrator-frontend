@@ -75,5 +75,13 @@ export default {
     otherDescription: '暂时跳过：完成设置后，在“设置 → 提供方”中添加引擎。',
     noEngineNote: '此处尚未设置任何引擎。Claude Code CLI 并非必需：应用运行后，在“设置 → 提供方”中添加提供方即可。',
     launchSummary: '待在“设置 → 提供方”中配置',
+    cliAbsentNote: "这台电脑上没有安装 Claude Code。它是可选的：如果想用，请在上方选择它，应用可以帮你安装。",
+    cliOptionalTitle: "未安装 Claude Code",
+    cliOptionalBody: "它是可选的。现在安装（应用会运行官方安装程序；如果 Claude Code 要求，登录 Claude 只需在终端中进行一次）、稍后安装，或在上方选择其他提供方。",
+    authRequiredTitle: "其他提供方需要登录账户",
+    authRequiredBody: "未启用登录时，服务器只运行 Claude Code，会拒绝任何其他提供方，因为与其进行的每个聊天会话都必须属于已登录的用户。请返回“身份验证”步骤，选择密码或 OIDC。",
+    authRequiredAction: "设置登录账户",
+    authNoneNote: "未启用登录时，聊天只能使用 Claude Code。任何其他提供方（兼容 OpenAI、Ollama、DeepSeek…）都需要登录账户，否则服务器会拒绝。",
+    embeddingLater: "你可以不等待直接继续：如果服务器启动时模型不在，服务器会在那时下载（首次启动更慢）。在模型就绪前，按语义搜索保持关闭。",
   },
 } satisfies Translation<'providers'>

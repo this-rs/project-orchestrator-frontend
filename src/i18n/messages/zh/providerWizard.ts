@@ -244,4 +244,12 @@ export default {
     sentMid: "的内容将发送到",
     consented: "项目 {name} 已获准发送到 {origin}。",
   },
+  pilot: {
+    label: "新聊天使用此提供方",
+    needed: "推荐：目前没有引擎能回复新聊天（此服务器上 Claude Code 不可用，或未设置默认值）。这会把领航角色交给该提供方。",
+    optional: "目前新聊天使用 {current}。开启后改用此提供方（领航角色）。",
+    unknown: "无法读取当前角色：请稍后在“高级 → 角色”中设置领航角色。",
+    failed: "无法将此提供方设为新聊天的默认值：{message}",
+    noConsent: "目前还没有项目允许此提供方：在项目中聊天会被拒绝，直到该项目允许它（第 4 步，或本页的“项目授权”）。",
+  },
 } satisfies Translation<'providerWizard'>

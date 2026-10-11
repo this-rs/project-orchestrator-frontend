@@ -244,4 +244,12 @@ export default {
     sentMid: "wird gesendet an",
     consented: "Projekt {name} für {origin} erlaubt.",
   },
+  pilot: {
+    label: "Diesen Provider für neue Chats verwenden",
+    needed: "Empfohlen: Derzeit kann keine Engine einen neuen Chat beantworten (Claude Code ist auf diesem Server nicht verfügbar oder kein Standard ist gesetzt). Damit erhält der Provider die Pilot-Rolle.",
+    optional: "Neue Chats verwenden derzeit {current}. Aktivieren Sie dies, um stattdessen diesen Provider zu verwenden (Pilot-Rolle).",
+    unknown: "Die aktuellen Rollen konnten nicht gelesen werden: Legen Sie die Pilot-Rolle später unter Erweitert → Rollen fest.",
+    failed: "Dieser Provider konnte nicht zum Standard für neue Chats gemacht werden: {message}",
+    noConsent: "Noch kein Projekt erlaubt diesen Provider: Ein Chat in einem Projekt wird abgelehnt, bis dieses Projekt ihn erlaubt (Schritt 4 oder „Projektfreigaben“ auf dieser Seite).",
+  },
 } satisfies Translation<'providerWizard'>
