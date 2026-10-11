@@ -11,6 +11,7 @@ import {
   chatEffectiveProviderAtom,
   chatRoutingModeAtom,
   chatTargetProviderIdAtom,
+  chatOneOffProviderPickAtom,
   chatSelectedProviderAtom,
   chatSessionCapabilitiesAtom,
   chatSessionModelAtom,
@@ -94,6 +95,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
   const list = useAtomValue(providersAtom)
   const loadState = useAtomValue(providersLoadStateAtom)
   const [pickedProvider, setPickedProvider] = useAtom(chatSelectedProviderAtom)
+  const setOneOffPick = useSetAtom(chatOneOffProviderPickAtom)
   const effectiveId = useAtomValue(chatTargetProviderIdAtom)
   const instance = useAtomValue(chatEffectiveProviderAtom)
   const sessionProvider = useAtomValue(chatSessionProviderAtom)
@@ -183,6 +185,8 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
       // Picking the server default's own instance is not a choice to remember:
       // nothing is sent and the server keeps resolving it.
       setPickedProvider(target.id === resolvedDefault?.provider ? null : target.id)
+      // The user's own pick: no longer the candidate of one refused opening.
+      setOneOffPick(false)
       setSessionModel(modelId)
       onForce?.(true)
     } else {
@@ -195,6 +199,7 @@ export function ProviderModelPicker({ sessionId, open, onOpenChange, onChangeMod
 
   const selectAuto = () => {
     setPickedProvider(null)
+    setOneOffPick(false)
     setSessionModel(null)
     onForce?.(false)
     close()

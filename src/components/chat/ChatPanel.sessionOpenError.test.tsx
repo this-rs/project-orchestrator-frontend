@@ -384,6 +384,27 @@ describe('ChatPanel — the refusals of backend #722', () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('composer')))
   })
 
+  it('a candidate picked, then the card dismissed: the pick it covered goes with it', async () => {
+    const store = renderPanel('open', (s) => {
+      s.set(providersAtom, LIST)
+      s.set(providersLoadStateAtom, 'ready')
+      s.set(chatSessionOpenErrorAtom, {
+        info: { code: 'provider_not_chosen', message: '', candidates: ['deepseek'], status: 409 },
+        message: '',
+        text: 'hello',
+        attachments: [],
+      })
+    })
+    // The send does not clear the failure here: the card stays to be dismissed.
+    chatStub.sendMessage.mockImplementation(async () => {})
+    const card = await screen.findByRole('alert')
+    fireEvent.click(within(card).getByRole('button', { name: 'Use DeepSeek' }))
+    expect(store.get(chatOneOffProviderPickAtom)).toBe(true)
+    fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Dismiss' }))
+    expect(store.get(chatSelectedProviderAtom)).toBeNull()
+    expect(store.get(chatOneOffProviderPickAtom)).toBe(false)
+  })
+
   it('a candidate picked is named for this opening only', async () => {
     const store = renderPanel('open', (s) => {
       s.set(providersAtom, LIST)

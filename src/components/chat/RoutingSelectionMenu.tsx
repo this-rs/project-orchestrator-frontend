@@ -24,6 +24,7 @@ import {
   chatSessionProviderAtom,
   chatSessionRoutingAtom,
   chatTargetProviderIdAtom,
+  chatOneOffProviderPickAtom,
   sessionRoutingOf,
   conversationStage,
   loadRoutingSettingsAtom,
@@ -207,6 +208,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
   const draftSelection = useAtomValue(chatDraftSelectionAtom)
   const setDraftSelection = useSetAtom(chatDraftSelectionAtom)
   const setPickedProvider = useSetAtom(chatSelectedProviderAtom)
+  const setOneOffPick = useSetAtom(chatOneOffProviderPickAtom)
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const setForced = useSetAtom(chatForcedTargetAtom)
   const [sessionRouting, setSessionRouting] = useAtom(chatSessionRoutingAtom)
@@ -309,6 +311,8 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
     setDraftSelection(next)
     const pilot = nextAuto ? undefined : next[0]
     setPickedProvider(pilot?.provider ?? null)
+    // A pick in the menu is the user's own: no longer the candidate of one refused opening.
+    setOneOffPick(false)
     setSessionModel(pilot?.model ?? null)
     setForced(!!pilot)
   }

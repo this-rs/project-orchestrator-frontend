@@ -174,7 +174,7 @@ export const chatSessionToolPolicyAtom = atom<ToolPolicy | null>(null)
 const SELECTED_PROVIDER_KEY = 'chat-selected-provider'
 
 /** localStorage that never throws (private window, blocked site data): the pick is then just not remembered. */
-const selectedProviderStorage = createJSONStorage<ProviderId | null>(() => ({
+const safeLocalStorage = (): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> => ({
   getItem: (key) => {
     try {
       return localStorage.getItem(key)
@@ -196,7 +196,8 @@ const selectedProviderStorage = createJSONStorage<ProviderId | null>(() => ({
       /* nothing to forget */
     }
   },
-}))
+})
+const selectedProviderStorage = createJSONStorage<ProviderId | null>(safeLocalStorage)
 
 export const chatSelectedProviderAtom = atomWithStorage<ProviderId | null>(SELECTED_PROVIDER_KEY, null, selectedProviderStorage, {
   getOnInit: true,
@@ -208,23 +209,18 @@ function findInstance(list: ProvidersResponse | null, id: ProviderId | null): Pr
 }
 
 /**
- * The stored pick, when it can still be used: listed by the server and not
- * `unhealthy` (Claude Code whose CLI is absent, `cli_not_found`). A stale pick
- * is ignored rather than sent: it would only get the opening refused. No list
+ * The stored pick, when it can still be used: listed by the server, and not an
+ * instance whose program is missing (`cli_not_found`: Claude Code without its
+ * CLI) — a pick that can never open. Any other failure (unreachable, signed out…)
+ * keeps the pick: the opening then says what is wrong with THAT instance. No list
  * yet: the pick stands.
  */
 export function usablePickedProvider(list: ProvidersResponse | null, picked: ProviderId | null): ProviderId | null {
   if (!picked) return null
   if (!list) return picked
   const instance = findInstance(list, picked)
-  return instance && instance.health?.status !== 'unhealthy' ? picked : null
+  return instance && instance.health?.error?.code !== 'cli_not_found' ? picked : null
 }
-
-/**
- * The pick was made for ONE opening (a candidate of `provider_not_chosen`), not
- * in the menu: once that conversation opens, it is not remembered for the next.
- */
-export const chatOneOffProviderPickAtom = atom<boolean>(false)
 
 // ----------------------------------------------------------------------------
 // Routing mode (primary / mixed / full)
@@ -332,6 +328,54 @@ export const chatRoutingModeAtom = atom<ConversationRoutingMode>((get) => {
  * the way and this is irrelevant.
  */
 export const chatForcedTargetAtom = atom<boolean>(false)
+
+/**
+ * A stored pick that can no longer be used (see `usablePickedProvider`) is dropped
+ * with what it carried — its model and its ticks in the draft — so the chip and the
+ * request agree: never a model id of one instance sent without its instance.
+ * A new conversation only: an open session keeps its provider.
+ */
+export const dropStalePickAtom = atom(null, (get, set) => {
+  if (get(chatSessionIdAtom)) return
+  const list = get(providersAtom)
+  const stored = get(chatSelectedProviderAtom)
+  if (!list || !stored || usablePickedProvider(list, stored)) return
+  set(chatSelectedProviderAtom, null)
+  set(chatSessionModelAtom, null)
+  const rest = get(chatDraftSelectionAtom).filter((p) => p.provider !== stored)
+  set(chatDraftSelectionAtom, rest)
+  if (rest.length === 0) set(chatForcedTargetAtom, false)
+  set(chatOneOffProviderPickAtom, false)
+})
+
+/**
+ * The pick was made for ONE opening (a candidate of `provider_not_chosen`), not
+ * in the menu: once that conversation opens, it is not remembered for the next.
+ * Stored next to the pick it covers, so a reload does not turn the candidate into
+ * a permanent choice: the next opening, a dismissed card or a new conversation
+ * still clear both.
+ */
+export const chatOneOffProviderPickAtom = atomWithStorage<boolean>(
+  'chat-selected-provider-one-off',
+  false,
+  createJSONStorage<boolean>(safeLocalStorage),
+  { getOnInit: true },
+)
+
+/**
+ * The opening a one-off candidate pick was for is over without opening (card
+ * dismissed, new conversation): the pick goes with it, and the draft is back to
+ * the settings. A pick made in the menu meanwhile already cleared the flag.
+ */
+export const clearOneOffProviderPickAtom = atom(null, (get, set) => {
+  if (!get(chatOneOffProviderPickAtom)) return
+  set(chatOneOffProviderPickAtom, false)
+  set(chatSelectedProviderAtom, null)
+  set(chatForcedTargetAtom, false)
+  set(chatDraftAutoAtom, null)
+  set(chatDraftSelectionAtom, [])
+  if (!get(chatSessionIdAtom)) set(chatSessionModelAtom, null)
+})
 
 /** How the CURRENT session was routed, from its record. `null` = not said. */
 export interface ChatSessionRouting {

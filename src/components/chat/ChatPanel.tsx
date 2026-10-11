@@ -5,7 +5,7 @@ import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
 import { useT } from '@/i18n'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom, providersAtom, chatOneOffProviderPickAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom, providersAtom, chatOneOffProviderPickAtom, clearOneOffProviderPickAtom, dropStalePickAtom } from '@/atoms'
 import type { ProviderFallback, ProviderId } from '@/types/provider'
 import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
@@ -155,7 +155,11 @@ export function ChatPanel() {
     <CapabilityGapsPopover open={gapsMenuOpen && gapsInMenu} onClose={closeGapsMenu} anchorRef={overflowRef} items={gapItems} onExpand={expandBanner} />
   )
   const [sessionOpenError, setSessionOpenError] = useAtom(chatSessionOpenErrorAtom)
-  const dismissSessionOpenError = useCallback(() => setSessionOpenError(null), [setSessionOpenError])
+  const dismissSessionOpenError = useCallback(() => {
+    setSessionOpenError(null)
+    // A candidate picked on that card was for that opening only.
+    store.set(clearOneOffProviderPickAtom)
+  }, [setSessionOpenError, store])
   // Session + panel mode live in the URL, so a reload reopens the chat as it was.
   useChatUrlSync({ sessionId: chat.sessionId, mode, setMode, loadSession: chat.loadSession })
   const detachedRuns = useDetachedRuns(chat.sessionId)
@@ -296,6 +300,11 @@ export function ChatPanel() {
   // (`unsupported`): the list is never `ready` there, and a session names no
   // provider — the chat behaves as it always has.
   const providerList = providers.state === 'ready' ? providers.providers : null
+  // A stored pick that can never open (Claude Code without its CLI) is dropped with its
+  // model and ticks as soon as the list says so: the chip then says what will be sent.
+  useEffect(() => {
+    if (providerList) store.set(dropStalePickAtom)
+  }, [providerList, store])
   // A new conversation with no instance that is both healthy and allowed.
   const noProvider =
     isNewConversation && providerList !== null && !providerList.some((p) => providerUnavailableReason(p) === null)
@@ -370,6 +379,7 @@ export function ChatPanel() {
       store.set(chatDraftAutoAtom, false)
       store.set(chatDraftSelectionAtom, [{ provider: fallback.provider_id, model: fallback.model }])
       store.set(chatSelectedProviderAtom, fallback.provider_id)
+      store.set(chatOneOffProviderPickAtom, false)
       store.set(chatSessionModelAtom, fallback.model)
       store.set(chatForcedTargetAtom, true)
       if (retrySessionOpen()) focusComposer()
