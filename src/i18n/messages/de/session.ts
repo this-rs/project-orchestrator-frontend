@@ -15,6 +15,7 @@ export default {
     wrongPassphrase: "Falsche Passphrase.",
     failed: "Der Tresor konnte nicht entsperrt werden: {reason}",
     settings: "Tresor-Einstellungen",
+    durationLabel: "Entsperrdauer",
   },
   degradation: {
     title: "Einige Funktionen sind in dieser Unterhaltung nicht verfügbar",

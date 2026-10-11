@@ -8,14 +8,34 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Link, useInRouterContext } from 'react-router-dom'
-import { Check, Lock } from 'lucide-react'
+import { Check, ChevronDown, Lock } from 'lucide-react'
 import { useT } from '@/i18n'
 import { ApiError } from '@/services/api'
-import { vaultApi, vaultErrorMessage } from '@/services/vault'
+import { DURATION_CHOICES, vaultApi, vaultErrorMessage } from '@/services/vault'
 import { VAULT_PATH } from '@/constants/providerErrors'
 
-/** Same default as the chat's secret tray: an hour, then the vault locks itself again. */
-const UNLOCK_MINUTES = 60
+/** Default = 1 hour, matching the chat's secret tray. */
+const DEFAULT_MINUTES = 60
+
+/** Key for remembering the user's last chosen duration across unlocks (session only). */
+const DURATION_STORAGE_KEY = 'po-vault-unlock-minutes'
+
+function readLastDuration(): number {
+  try {
+    const v = sessionStorage.getItem(DURATION_STORAGE_KEY)
+    if (v) {
+      const n = Number(v)
+      // Only a short choice is remembered: a 4 h or 12 h unlock is chosen each time, never
+      // the silent default of a secrets vault (review of #354, nit 5).
+      if (n <= DEFAULT_MINUTES && DURATION_CHOICES.some((d) => d.minutes === n)) return n
+    }
+  } catch { /* private mode, blocked storage */ }
+  return DEFAULT_MINUTES
+}
+
+function saveLastDuration(minutes: number): void {
+  try { sessionStorage.setItem(DURATION_STORAGE_KEY, String(minutes)) } catch { /* ignore */ }
+}
 
 interface VaultUnlockProps {
   /** Called once the vault is open: the caller re-reads the providers that depend on it. */
@@ -30,6 +50,7 @@ export function VaultUnlock({ onUnlocked, doneText, onBusyChange }: VaultUnlockP
   const { t } = useT()
   const inputId = useId()
   const [passphrase, setPassphrase] = useState('')
+  const [minutes, setMinutes] = useState(readLastDuration)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
@@ -60,8 +81,9 @@ export function VaultUnlock({ onUnlocked, doneText, onBusyChange }: VaultUnlockP
     setBusy(true)
     setError(null)
     try {
-      await vaultApi.unlock(passphrase, UNLOCK_MINUTES)
+      await vaultApi.unlock(passphrase, minutes)
       if (!mounted.current) return
+      saveLastDuration(minutes)
       setPassphrase('')
       setDone(true)
       onUnlocked()
@@ -104,6 +126,23 @@ export function VaultUnlock({ onUnlocked, doneText, onBusyChange }: VaultUnlockP
           aria-describedby={error ? `${inputId}-error` : undefined}
           className="min-w-0 flex-1 h-7 rounded border border-white/[0.08] bg-surface-base px-2 text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-400/50 focus-visible:ring-1 focus-visible:ring-indigo-300 sm:text-xs"
         />
+        {/* Duration selector — reuses the same choices as VaultPage / SecretRequestTray */}
+        <div className="relative shrink-0">
+          <select
+            value={minutes}
+            onChange={(e) => setMinutes(Number(e.target.value))}
+            disabled={busy}
+            aria-label={t('session.vaultUnlock.durationLabel')}
+            className="h-7 appearance-none rounded border border-white/[0.08] bg-surface-base pl-2 pr-6 text-xs text-gray-200 focus:outline-none focus:border-indigo-400/50 focus-visible:ring-1 focus-visible:ring-indigo-300 disabled:opacity-60"
+          >
+            {DURATION_CHOICES.map((d) => (
+              <option key={d.minutes} value={d.minutes}>
+                {d.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+        </div>
         <button
           type="submit"
           disabled={busy || passphrase.length === 0}

@@ -27,6 +27,7 @@ import { deriveInputAction, describeAction } from './inputAction'
 import { MessageQueueBar } from './MessageQueueBar'
 import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
 import { Attachments } from './Attachments'
+import { sendNowShortcut } from './sendNowShortcut'
 import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget'
 import { ReferenceChip } from './ReferenceChip'
 import { COMPOSER_CHIP, DRAFT_REFS_LIST } from './chipGeometry'
@@ -151,6 +152,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const trustHelpId = useId()
   const refListId = useId()
   const disabledHelpId = useId()
+  const sendNowHintId = useId()
   // Whether the model in front of the composer takes images. Read at add time
   // through the store too (see `addFiles`), this value drives nothing else.
   const acceptsImages = useAtomValue(chatSessionCapabilitiesAtom).images
@@ -230,7 +232,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     return () => clearTimeout(timer)
   }, [pickNote])
   const attachments = useAtomValue(chatAttachmentsAtom)
-  const deferredSend = useAtomValue(chatAttachmentDeferredSendAtom)
+  const deferredSend = useAtomValue(chatAttachmentDeferredSendAtom) !== false
   const selectedProject = useAtomValue(chatSelectedProjectAtom)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDraggingFiles, setIsDraggingFiles] = useState(false)
@@ -461,7 +463,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
    */
   const settleDeferredSend = useCallback(
     (list: Attachment[]) => {
-      if (!store.get(chatAttachmentDeferredSendAtom)) return
+      const held = store.get(chatAttachmentDeferredSendAtom)
+      if (!held) return
       const outcome = resolveDeferred(summarize(list))
       if (outcome === 'wait') return
       store.set(chatAttachmentDeferredSendAtom, false)
@@ -469,9 +472,13 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
       // The text is read now, not at click time: it stayed in the box and the
       // user may have kept typing (or cleared it) while the upload ran.
       const text = store.get(chatDraftInputAtom).trim()
-      if (text) enqueueOrDispatch(text, list)
+      if (!text) return
+      // The intent of the send that was held: Cmd/Ctrl+Enter meant "now", even
+      // mid-stream — the queue rules apply only to a plain send.
+      if (held === 'direct') dispatchSend(text, list)
+      else enqueueOrDispatch(text, list)
     },
-    [store, enqueueOrDispatch],
+    [store, enqueueOrDispatch, dispatchSend],
   )
 
   /**
@@ -635,7 +642,17 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     store.set(chatAttachmentDeferredSendAtom, false)
   }, [sessionId, store])
 
-  const handleSend = () => {
+  /**
+   * The one send path of the composer. `direct` is Cmd+Enter (macOS) /
+   * Ctrl+Enter (elsewhere): the message leaves right now even mid-stream, which
+   * the server treats as "interrupt the running answer" (a `user_message`
+   * without `queue`). Without it, Enter and the button: Layer 2 decides.
+   *
+   * Layer 1 runs either way, so neither path can send an invalid message, and a
+   * send held for an upload keeps its intent (`chatAttachmentDeferredSendAtom`):
+   * a direct send held for a file still leaves directly.
+   */
+  const handleSend = (direct = false) => {
     const text = value.trim()
     // A restored draft may hold more tokens than a message may carry: never send a state the wire cannot say.
     if (refsEnabled && countRefTokens(text) > MAX_REFS_PER_MESSAGE) {
@@ -655,7 +672,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
         // button; a second, transient error elsewhere would only add noise.
         return
       case 'defer':
-        store.set(chatAttachmentDeferredSendAtom, true)
+        // A held direct send stays direct: a later plain Enter (impatience) does
+        // not take back a "now" the user already asked for.
+        store.set(chatAttachmentDeferredSendAtom, (held) => (direct || held === 'direct' ? 'direct' : 'auto'))
         return
       case 'send':
         break
@@ -666,36 +685,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     // Only a complete message may enter the queue. Queueing one whose upload
     // is still running would flush it later with ids that never resolved —
     // which is why layer 1 runs first and returns rather than falling through.
-    enqueueOrDispatch(text, list)
-  }
-
-  /**
-   * Cmd+Enter (macOS) / Ctrl+Enter (Windows, Linux) — bypass the queue
-   * entirely and dispatch the message right now, even mid-stream.
-   *
-   * Layer 1 (empty / failed / deferred) still runs so the user never sends
-   * an invalid message. Layer 2 is intentionally skipped.
-   */
-  const handleSendDirect = () => {
-    const text = value.trim()
-    if (refsEnabled && countRefTokens(text) > MAX_REFS_PER_MESSAGE) {
-      setRefsOverflow(true)
-      return
-    }
-    const list = store.get(chatAttachmentsAtom)
-    switch (decideSend({ hasText: text.length > 0, summary: summarize(list) })) {
-      case 'reject-empty':
-        return
-      case 'reject-failed':
-        return
-      case 'defer':
-        store.set(chatAttachmentDeferredSendAtom, true)
-        return
-      case 'send':
-        break
-    }
-    setKindChip(null)
-    dispatchSend(text, list)
+    if (direct) dispatchSend(text, list)
+    else enqueueOrDispatch(text, list)
   }
 
   /**
@@ -735,6 +726,12 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     deferredSend,
   })
 
+  // Cmd/Ctrl+Enter interrupts the running answer: said where and when it matters —
+  // a response is streaming and there is something to send (Enter would queue it).
+  // Not on mobile, where the return key inserts a newline.
+  const shortcut = sendNowShortcut()
+  const showSendNowHint = !isMobile && isStreaming && !disabled && value.trim().length > 0
+
   /** Put the caret back in the textarea (the focus never left it, except after a chip's remove button). */
   const restoreCaret = (pos: number) => {
     setCaret(pos)
@@ -772,8 +769,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   }
 
   const handleRefKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
-    // IME: the keys belong to the composition (Enter confirms a candidate, it does not pick or send).
-    if (composing || e.nativeEvent.isComposing || e.keyCode === 229) return true
+    // IME composition is handled by the caller (`handleKeyDown`), before this runs.
     if (pickerOpen) {
       const count = refSearch.items.length
       switch (e.key) {
@@ -822,6 +818,11 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // IME first, whatever else is on: the keys belong to the composition. Some
+    // IMEs commit the candidate with Enter or Ctrl+Enter; read as a send, Ctrl+Enter
+    // would even interrupt the running answer. (`composing` is tracked with refs
+    // on; the native flag and keyCode 229 cover the other case.)
+    if (composing || e.nativeEvent.isComposing || e.keyCode === 229) return
     if (refsEnabled && handleRefKeyDown(e)) return
     // On mobile, the on-screen keyboard's return key must insert a real newline —
     // sending is done via the dedicated send button. Let the keypress fall through
@@ -829,12 +830,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     if (isMobile) return
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      // Cmd+Enter (macOS) / Ctrl+Enter (Win/Linux) — skip the queue, send now.
-      if (e.metaKey || e.ctrlKey) {
-        handleSendDirect()
-      } else {
-        handleSend()
-      }
+      // Cmd+Enter (macOS) / Ctrl+Enter (Win/Linux) — skip the queue, send now
+      // (and so interrupt the running answer; the hint under the box says so).
+      handleSend(e.metaKey || e.ctrlKey)
     }
   }
 
@@ -1091,7 +1089,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             : {})}
           onPaste={handlePaste}
           disabled={disabled}
-          aria-describedby={disabled && disabledReason ? disabledHelpId : undefined}
+          aria-describedby={[disabled && disabledReason ? disabledHelpId : null, showSendNowHint ? sendNowHintId : null].filter(Boolean).join(' ') || undefined}
+          // Desktop only: on mobile the return key inserts a newline and sends nothing.
+          aria-keyshortcuts={isMobile ? undefined : shortcut.aria}
           rows={2}
           // On mobile the return key inserts a newline (sending is via the button);
           // on desktop it submits, so hint the soft keyboard accordingly.
@@ -1107,6 +1107,12 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           placeholder={t('chatA-input.composer.placeholder')}
           className="block w-full resize-none bg-transparent border-0 px-2 pt-1.5 pb-1 text-sm text-gray-200 placeholder-gray-600 focus:outline-none"
         />
+
+        {showSendNowHint && (
+          <p id={sendNowHintId} data-testid="send-now-hint" className="px-2 pb-0.5 text-[10px] leading-snug text-gray-500">
+            {t('chatA-input.composer.sendNowHint', { key: shortcut.key })}
+          </p>
+        )}
 
         {/* Controls row. `relative` makes it the model picker's containing
             block on mobile, so the picker spans the composer's width. */}
@@ -1234,7 +1240,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
 
           {/* One slot for both affordances — see `deriveInputAction`. */}
           <button
-            onClick={action === 'stop' ? handleStop : handleSend}
+            onClick={action === 'stop' ? handleStop : () => handleSend()}
             disabled={action === 'idle' || action === 'stopping' || action === 'waiting'}
             aria-label={describeAction(action, sendDecision, t)}
             title={describeAction(action, sendDecision, t)}

@@ -3,6 +3,7 @@ import { Navigate, Outlet, useNavigate } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   authModeAtom,
+  authModeConfirmedAtom,
   authProvidersAtom,
   authProvidersLoadedAtom,
   authTokenAtom,
@@ -42,6 +43,7 @@ export function ProtectedRoute() {
   const authMode = useAtomValue(authModeAtom)
   const [providersLoaded, setProvidersLoaded] = useAtom(authProvidersLoadedAtom)
   const setAuthMode = useSetAtom(authModeAtom)
+  const setAuthModeConfirmed = useSetAtom(authModeConfirmedAtom)
   const setProviders = useSetAtom(authProvidersAtom)
   const setAllowRegistration = useSetAtom(allowRegistrationAtom)
   const [user, setUser] = useAtom(currentUserAtom)
@@ -77,17 +79,19 @@ export function ProtectedRoute() {
         const mode = resp.auth_required ? 'required' : 'none'
         setAuthMode(mode)
         setAuthModeService(mode) // sync module-level cache for api.ts 401 handling
+        setAuthModeConfirmed(true)
         setProviders(resp.providers)
         setAllowRegistration(resp.allow_registration)
         setProvidersLoaded(true)
       })
       .catch(() => {
         // Backend unreachable or no auth configured → fall back to no-auth
+        // (a guess: authModeConfirmedAtom stays false)
         setAuthMode('none')
         setAuthModeService('none')
         setProvidersLoaded(true)
       })
-  }, [providersLoaded, setAuthMode, setProviders, setAllowRegistration, setProvidersLoaded])
+  }, [providersLoaded, setAuthMode, setAuthModeConfirmed, setProviders, setAllowRegistration, setProvidersLoaded])
 
   // Phase 2: Silent token refresh via HttpOnly cookie on page reload.
   //

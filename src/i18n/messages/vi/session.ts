@@ -15,6 +15,7 @@ export default {
     wrongPassphrase: "Mật khẩu không đúng.",
     failed: "Không thể mở khóa kho: {reason}",
     settings: "Cài đặt kho",
+    durationLabel: "Thời gian mở khóa",
   },
   degradation: {
     title: "Một số tính năng không khả dụng trong cuộc trò chuyện này",

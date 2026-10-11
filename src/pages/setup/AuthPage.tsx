@@ -13,6 +13,7 @@ import { Button, Input, focusRing, inlineLink, surface } from '@/components/ui'
 import { ExternalLink } from '@/components/ui/ExternalLink'
 import { Field } from './Field'
 import { StatusBanner } from './StatusBanner'
+import { setupChatTexts } from '@/constants/setupProviders'
 
 // ============================================================================
 // AuthPage — Step 2 of the setup wizard
@@ -81,6 +82,7 @@ export function AuthPage() {
       {config.authMode === 'none' && (
         <StatusBanner tone="warning" title={TEXT.noticeTitle} role="status">
           <p>{TEXT.notice}</p>
+          <p data-testid="setup-auth-none-providers">{setupChatTexts().authNoneNote}</p>
         </StatusBanner>
       )}
 

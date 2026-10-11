@@ -45,7 +45,8 @@ export default {
     auto: "자동",
     autoOn: "자동 계속 사용 중",
     autoOff: "자동 계속 사용 안 함",
-    drop: "놓아서 첨부"
+    drop: "놓아서 첨부",
+    sendNowHint: "{key}+Enter: 지금 보내고 진행 중인 답변을 중단합니다"
   },
   refs: {
     picker: {

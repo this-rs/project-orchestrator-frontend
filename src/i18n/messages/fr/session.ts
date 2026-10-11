@@ -15,6 +15,7 @@ export default {
     wrongPassphrase: "Phrase de passe incorrecte.",
     failed: "Impossible de déverrouiller le coffre : {reason}",
     settings: "Réglages du coffre",
+    durationLabel: "Durée de déverrouillage",
   },
   degradation: {
     title: "Certaines fonctions ne sont pas disponibles dans cette conversation",

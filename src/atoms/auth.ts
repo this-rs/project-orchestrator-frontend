@@ -20,6 +20,14 @@ export const currentUserAtom = atom<AuthUser | null>(null)
  */
 export const authModeAtom = atom<AuthMode>('required')
 
+/**
+ * True only when GET /auth/providers itself answered (whatever the mode). The
+ * `'none'` that ProtectedRoute falls back to when that call FAILS is a guess,
+ * not a fact about the server: code that relaxes something for a server
+ * without sign-in must require this.
+ */
+export const authModeConfirmedAtom = atom<boolean>(false)
+
 /** List of available auth providers from GET /auth/providers */
 export const authProvidersAtom = atom<AuthProviderInfo[]>([])
 

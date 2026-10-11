@@ -63,9 +63,12 @@ export interface TraceViewProps {
   onRetry?: () => void
   /** Where the detail goes when the component is wide: `side` (if there is room) or `below`. */
   detail?: 'side' | 'below'
-  /** Show the "fit / show everything" zoom-reset button in the toolbar (default true).
-      The chat's embedded strip hides it: it opens already fitted, so the control reads as dead. */
-  showFit?: boolean
+  /** When the "fit / show everything" zoom-reset button shows in the toolbar: `always` (default,
+      where it doubles as the "everything is shown" indicator), or only while `zoomed`. The chat's
+      20rem panel shows it only while zoomed: there a resting "fit" reads as a second "enlarge"
+      next to the panel's open-page link — but after a zoom or a pan (buttons, wheel, pinch) it is
+      the only visible, touchable way back (the `0` key is neither). */
+  fit?: 'always' | 'zoomed'
   className?: string
 }
 
@@ -224,7 +227,7 @@ const Row = memo(function Row({ node, top, height, view, axis, wide, selected, f
 
 export function TraceView({
   lanes, selectedId, onSelect, onOpen, labels = DEFAULT_TIMELINE_LABELS, density = 'compact', maxRowsHeight = 480,
-  loading = null, failed = false, onRetry, detail = 'side', showFit = true, className = '',
+  loading = null, failed = false, onRetry, detail = 'side', fit = 'always', className = '',
 }: TraceViewProps) {
   const L = labels.trace
   const rootRef = useRef<HTMLDivElement>(null)
@@ -677,7 +680,7 @@ export function TraceView({
             <div className="flex items-center gap-0.5">
               <ToolButton wide={wide} label={L.zoomOut} onClick={() => move(zoomView(view, 1 / ZOOM_STEP, 0.5, total), true)}><ZoomOut className="size-4" aria-hidden="true" /></ToolButton>
               <ToolButton wide={wide} label={L.zoomIn} onClick={() => move(zoomView(view, ZOOM_STEP, 0.5, total), true)}><ZoomIn className="size-4" aria-hidden="true" /></ToolButton>
-              {showFit && <ToolButton wide={wide} label={L.fit} pressed={!zoomed} onClick={() => setUserView(null)}><Maximize2 className="size-4" aria-hidden="true" /></ToolButton>}
+              {(fit === 'always' || zoomed) && <ToolButton wide={wide} label={L.fit} pressed={!zoomed} onClick={() => setUserView(null)}><Maximize2 className="size-4" aria-hidden="true" /></ToolButton>}
               <ToolButton wide={wide} label={L.follow} pressed={follow} onClick={() => setFollow((f) => !f)}><Radio className="size-4" aria-hidden="true" /></ToolButton>
             </div>
           </div>

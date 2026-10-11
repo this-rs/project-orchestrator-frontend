@@ -208,8 +208,10 @@ describe('ChatPanel — Auto refused on a locked vault', () => {
         attachments: [],
       })
     })
-    const alert = await screen.findByRole('alert')
-    fireEvent.click(within(alert).getByTestId('locked-vault-fallback'))
+    // Warning tone (fallbacks offered) and still announced: role="alert" in both tones.
+    const card = await screen.findByRole('alert')
+    expect(card.getAttribute('data-tone')).toBe('warning')
+    fireEvent.click(within(card).getByTestId('locked-vault-fallback'))
     expect(store.get(chatDraftAutoAtom)).toBe(false)
     expect(store.get(chatDraftSelectionAtom)).toEqual([{ provider: 'ollama', model: 'qwen3' }])
     expect(store.get(chatSelectedProviderAtom)).toBe('ollama')
@@ -269,9 +271,11 @@ describe('ChatPanel — the unlock started in the card (review of #335)', () => 
     })
     sendClears(store)
     const unlock = heldUnlock()
-    const alert = await screen.findByRole('alert')
-    startUnlock(alert)
-    const fallback = within(alert).getByTestId('locked-vault-fallback')
+    // Warning tone (fallbacks offered) and still announced: role="alert" in both tones.
+    const card = await screen.findByRole('alert')
+    expect(card.getAttribute('data-tone')).toBe('warning')
+    startUnlock(card)
+    const fallback = within(card).getByTestId('locked-vault-fallback')
     expect(fallback).toHaveProperty('disabled', true)
     fireEvent.click(fallback)
     await unlock.finish()

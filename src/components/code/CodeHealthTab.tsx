@@ -16,6 +16,7 @@ import {
 } from '@/components/ui'
 import { codeApi } from '@/services'
 import { useT } from '@/i18n'
+import { finite, fmt, fmtPct, MISSING } from '@/utils/fmt'
 import { useCodeCount, useRiskLevelLabel } from './useCodeCount'
 import type { CodeHealth, ChangeHotspot, KnowledgeGap, RiskFile, RiskAssessmentSummary } from '@/types'
 
@@ -46,9 +47,9 @@ const RISK_TONE: Record<string, StatusTone> = {
   low: 'success',
 }
 
-/** Higher churn / lower density is worse. */
-const churnTone = (ratio: number): StatusTone => (ratio > 0.66 ? 'danger' : ratio > 0.33 ? 'warning' : 'success')
-const densityTone = (density: number): StatusTone => (density < 0.3 ? 'danger' : density < 0.6 ? 'warning' : 'success')
+/** Higher churn / lower density is worse. An unknown value has no tone: unknown is not "bad". */
+const churnTone = (ratio: number | null): StatusTone => (ratio == null ? 'neutral' : ratio > 0.66 ? 'danger' : ratio > 0.33 ? 'warning' : 'success')
+const densityTone = (density: number | null): StatusTone => (density == null ? 'neutral' : density < 0.3 ? 'danger' : density < 0.6 ? 'warning' : 'success')
 
 const PAGE = 20
 
@@ -158,7 +159,9 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
   if (error) return <ErrorState title={t('code.healthTab.failed')} description={error} onRetry={loadAll} />
   if (!health) return null
 
-  const maxChurn = hotspots.length > 0 ? Math.max(...hotspots.map((h) => h.churn_score)) : 1
+  // Raw values are normalised once: what is drawn (meter, tone) and what is written agree.
+  const churns = hotspots.map((h) => finite(h.churn_score)).filter((c): c is number => c != null)
+  const maxChurn = churns.length > 0 ? Math.max(...churns) : 1
   const coupling = health.coupling_metrics
   const neural = health.neural_metrics
   const godFunctions = health.god_functions ?? []
@@ -180,7 +183,7 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
           {
             label: t('code.healthTab.avgCoupling'),
             hidden: !coupling,
-            value: (coupling?.avg_clustering_coefficient ?? 0).toFixed(3),
+            value: fmt(coupling?.avg_clustering_coefficient, 3),
             sub: coupling?.most_coupled_file ? t('code.healthTab.mostCoupled', { file: stripBase(coupling.most_coupled_file, basePath) }) : undefined,
           },
           {
@@ -195,11 +198,11 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
         <StatTiles
           items={[
             { label: t('code.healthTab.activeSynapses'), value: neural.active_synapses },
-            { label: t('code.healthTab.avgEnergy'), value: `${((neural.avg_energy ?? 0) * 100).toFixed(0)}%` },
+            { label: t('code.healthTab.avgEnergy'), value: fmtPct(neural.avg_energy) },
             {
               label: t('code.healthTab.weakSynapses'),
-              value: `${((neural.weak_synapses_ratio ?? 0) * 100).toFixed(0)}%`,
-              tone: neural.weak_synapses_ratio > 0.5 ? 'warning' : undefined,
+              value: fmtPct(neural.weak_synapses_ratio),
+              tone: (finite(neural.weak_synapses_ratio) ?? 0) > 0.5 ? 'warning' : undefined,
             },
             { label: t('code.healthTab.deadNotes'), value: neural.dead_notes_count, tone: neural.dead_notes_count > 10 ? 'danger' : undefined },
           ]}
@@ -272,7 +275,10 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
         ) : (
           <>
             <EntityList aria-label={t('code.healthTab.hotspots')}>
-              {hotspots.map((h) => (
+              {hotspots.map((h) => {
+                const churn = finite(h.churn_score)
+                const ratio = churn != null && maxChurn > 0 ? churn / maxChurn : null
+                return (
                 <EntityRow
                   key={h.path}
                   title={<FilePath path={h.path} basePath={basePath} />}
@@ -283,14 +289,15 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
                     <Meter
                       key="churn"
                       size="inline"
-                      value={maxChurn > 0 ? h.churn_score / maxChurn : 0}
-                      display={t('code.healthTab.churn', { value: (h.churn_score ?? 0).toFixed(2) })}
-                      tone={churnTone(maxChurn > 0 ? h.churn_score / maxChurn : 0)}
+                      value={ratio ?? 0}
+                      display={t('code.healthTab.churn', { value: fmt(churn, 2) })}
+                      tone={churnTone(ratio)}
                     />,
                     h.co_change_count > 0 ? count('coChange', h.co_change_count) : null,
                   ]}
                 />
-              ))}
+                )
+              })}
             </EntityList>
             {hotspots.length < hotspotsTotal && (
               <ShowMore remaining={hotspotsTotal - hotspots.length} loading={loading} onClick={() => setHotspotsLimit((l) => l + PAGE)} />
@@ -310,7 +317,9 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
         ) : (
           <>
             <EntityList aria-label={t('code.healthTab.knowledgeGaps')}>
-              {knowledgeGaps.map((g) => (
+              {knowledgeGaps.map((g) => {
+                const density = finite(g.knowledge_density)
+                return (
                 <EntityRow
                   key={g.path}
                   title={<FilePath path={g.path} basePath={basePath} />}
@@ -320,15 +329,16 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
                     <Meter
                       key="density"
                       size="inline"
-                      value={g.knowledge_density}
-                      display={t('code.healthTab.covered', { percent: ((g.knowledge_density ?? 0) * 100).toFixed(0) })}
-                      tone={densityTone(g.knowledge_density)}
+                      value={density ?? 0}
+                      display={density == null ? MISSING : t('code.healthTab.covered', { percent: fmt(density, 0, 100) })}
+                      tone={densityTone(density)}
                     />,
                     count('note', g.note_count),
                     count('decision', g.decision_count),
                   ]}
                 />
-              ))}
+                )
+              })}
             </EntityList>
             {knowledgeGaps.length < gapsTotal && (
               <ShowMore remaining={gapsTotal - knowledgeGaps.length} loading={loading} onClick={() => setGapsLimit((l) => l + PAGE)} />
@@ -366,15 +376,15 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
                     ariaLabel={t('code.common.historyOf', { path: r.path })}
                     onClick={() => onOpenFile(r.path)}
                     leading={<StatusDot tone={tone} label={t('code.healthTab.riskLevel', { level: levelLabel(r.risk_level) })} />}
-                    trailing={(r.risk_score ?? 0).toFixed(3)}
+                    trailing={fmt(r.risk_score, 3)}
                     meta={[
                       <span key="l" className={TONE_CLASSES[tone].text}>
                         {levelLabel(r.risk_level)}
                       </span>,
-                      t('code.healthTab.pagerank', { value: (r.factors?.pagerank ?? 0).toFixed(4) }),
-                      t('code.healthTab.churn', { value: (r.factors?.churn ?? 0).toFixed(3) }),
-                      t('code.healthTab.knowledgeGap', { value: (r.factors?.knowledge_gap ?? 0).toFixed(3) }),
-                      t('code.healthTab.betweenness', { value: (r.factors?.betweenness ?? 0).toFixed(4) }),
+                      t('code.healthTab.pagerank', { value: fmt(r.factors?.pagerank, 4) }),
+                      t('code.healthTab.churn', { value: fmt(r.factors?.churn, 3) }),
+                      t('code.healthTab.knowledgeGap', { value: fmt(r.factors?.knowledge_gap, 3) }),
+                      t('code.healthTab.betweenness', { value: fmt(r.factors?.betweenness, 4) }),
                     ]}
                   />
                 )

@@ -156,3 +156,67 @@ describe('a stopped turn shows no error block', () => {
     expect(errorBlocks(historyEventsToMessages(turn(realError)))).toHaveLength(1)
   })
 })
+
+/**
+ * Cmd/Ctrl+Enter mid-stream (front #353): the composer sends WITHOUT `queue`, which
+ * the server documents as "interrupt the running response and send now" — it sets
+ * the same interrupt flag as Stop, the CLI ends the turn with `stop_reason:
+ * "interrupted"`, then the held message opens the next turn. The answer that was cut
+ * short must read exactly as one the user stopped: its text kept, no error block,
+ * the turn end on IT (not on the bubble just sent) — and the new turn streams.
+ */
+describe('a send that interrupts the running answer reads as a stop', () => {
+  beforeEach(() => {
+    FakeWS.instances.length = 0
+    vi.clearAllMocks()
+  })
+
+  const view = (messages: { role: string; duration_ms?: number; blocks: { type: string; content?: string }[] }[]) =>
+    messages.map((m) => ({
+      role: m.role,
+      text: m.blocks.filter((b) => b.type === 'text').map((b) => b.content).join(''),
+      duration_ms: m.duration_ms,
+    }))
+
+  it('keeps the cut answer as a stopped turn, identical to Stop, and streams the next one', async () => {
+    const { emit, result: hook } = await setup()
+    emit({ type: 'user_message', content: 'explain', seq: 0, created_at: T })
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'stream_delta', text: 'Half an ans' })
+    // Cmd/Ctrl+Enter: the composer calls sendMessage, no `queue`.
+    await act(async () => {
+      await hook.current.sendMessage('stop, do this instead')
+    })
+    // The server interrupts the turn exactly as Stop does…
+    emit({ ...stoppedLive, seq: 0, created_at: T + 2 })
+    // …then the held message opens the next turn.
+    emit({ type: 'user_message', content: 'stop, do this instead', seq: 0, created_at: T + 3 })
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'stream_delta', text: 'Doing it' })
+
+    expect(errorBlocks(hook.current.messages)).toEqual([])
+    // The turn end is the cut answer's (as after Stop, and as the reloaded history
+    // shows it: the user message is stored after the interrupted result), not an
+    // empty boundary under the bubble just sent.
+    expect(view(hook.current.messages)).toEqual([
+      { role: 'user', text: 'explain', duration_ms: undefined },
+      { role: 'assistant', text: 'Half an ans', duration_ms: 4200 },
+      { role: 'user', text: 'stop, do this instead', duration_ms: undefined },
+      { role: 'assistant', text: 'Doing it', duration_ms: undefined },
+    ])
+    expect(hook.current.isStreaming).toBe(true)
+
+    // Same shape as the stored conversation once reloaded.
+    const stored = historyEventsToMessages([
+      { type: 'user_message', content: 'explain', created_at: T },
+      { type: 'assistant_text', content: 'Half an ans', created_at: T + 1 },
+      { ...stoppedStored, created_at: T + 2 },
+      { type: 'user_message', content: 'stop, do this instead', created_at: T + 3 },
+      { type: 'assistant_text', content: 'Doing it', created_at: T + 4 },
+    ] as never[])
+    expect(view(stored).map(({ role, text }) => ({ role, text }))).toEqual(
+      view(hook.current.messages).map(({ role, text }) => ({ role, text })),
+    )
+    expect(stored[1].duration_ms).toBe(4200)
+  })
+})

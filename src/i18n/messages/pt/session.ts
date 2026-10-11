@@ -15,6 +15,7 @@ export default {
     wrongPassphrase: "Senha incorreta.",
     failed: "Não foi possível desbloquear o cofre: {reason}",
     settings: "Configurações do cofre",
+    durationLabel: "Duração do desbloqueio",
   },
   degradation: {
     title: "Alguns recursos não estão disponíveis nesta conversa",

@@ -21,6 +21,7 @@
  *   items sorted by start uses the fewest rows an interval graph allows.)
  * - an item without a date (a plan, a step: `startedAt` 0) is not on a time axis.
  */
+import { buildAxis, toT, toX } from './axis'
 import { endOf, isDated } from './gantt'
 import type { TimelineItem, TimelineLane } from './model'
 
@@ -31,8 +32,14 @@ export interface TrackItem {
   /** Real epoch ms the bar covers (a running call ends at `now`). */
   start: number
   end: number
-  /** A moment, not a stretch: drawn as a mark. */
+  /** A moment, not a stretch: drawn as a mark. Never true while the item is open. */
   instant: boolean
+  /**
+   * Still going (running, or a wait not answered yet): its end is not known yet.
+   * It packs as open-ended, so nothing else lands after it on its row while it
+   * lasts, whatever the gap between the server clock and the browser's `now`.
+   */
+  open?: boolean
 }
 
 export interface Track {
@@ -48,6 +55,8 @@ export interface Track {
   /** In time order. */
   items: TrackItem[]
   running: boolean
+  /** Holds a wait for the reader not answered yet. */
+  blocked: boolean
 }
 
 export interface TrackGroup {
@@ -66,6 +75,12 @@ export interface TrackLayout {
 
 /** The order of the families in a group; a sub-agent's family comes after `agents`, by its start. */
 const FAMILY_ORDER: readonly TrackFamily[] = ['turns', 'tools', 'agents', 'waits', 'signals']
+
+/**
+ * How much of a session's duration an instant takes when rows are packed: about
+ * the width of its mark (16 px) on a track ~800 px wide showing everything.
+ */
+export const INSTANT_SHARE = 0.02
 
 function familyOf(kind: TimelineItem['kind']): TrackFamily | null {
   switch (kind) {
@@ -106,16 +121,24 @@ function agentAbove(item: TimelineItem, byId: ReadonlyMap<string, TimelineItem>)
  * Pack items (sorted by start) into rows: the first row free at the item's
  * start, else a new one. An item that starts exactly when the previous one
  * ended shares its row. Returns the row of each item and the row count.
+ *
+ * - An instant packs as if it lasted until `instantEnd(start)` (at least 1 ms):
+ *   two events at the same moment, or an event and a bar starting then, are
+ *   drawn one above the other instead of stacked on one row where only the top
+ *   mark can be clicked.
+ * - An open item (running, or a wait not answered) packs as open-ended: its
+ *   row stays taken while it lasts.
  */
-export function packRows(items: ReadonlyArray<TrackItem>): { rowOf: number[]; rows: number } {
+export function packRows(items: ReadonlyArray<TrackItem>, instantEnd: (start: number) => number = (s) => s + 1): { rowOf: number[]; rows: number } {
   const ends: number[] = []
   const rowOf: number[] = []
   for (const it of items) {
-    let row = ends.findIndex((end) => end <= it.start)
+    const end = it.open ? Number.POSITIVE_INFINITY : it.instant ? Math.max(it.end, it.start + 1, instantEnd(it.start)) : it.end
+    let row = ends.findIndex((e) => e <= it.start)
     if (row < 0) {
       row = ends.length
-      ends.push(it.end)
-    } else ends[row] = it.end
+      ends.push(end)
+    } else ends[row] = end
     rowOf.push(row)
   }
   return { rowOf, rows: ends.length }
@@ -127,9 +150,11 @@ interface Family {
   items: TrackItem[]
 }
 
+const familyKey = (f: TrackFamily, agent?: TimelineItem) => (agent ? `${f}/${agent.id}` : f)
+
 export function buildTracks(lanes: ReadonlyArray<TimelineLane>, now: number): TrackLayout {
-  const groups: TrackGroup[] = []
   const intervals: Array<readonly [number, number]> = []
+  const collected: Array<{ lane: TimelineLane; families: Family[] }> = []
   let itemCount = 0
 
   for (const lane of lanes) {
@@ -138,7 +163,6 @@ export function buildTracks(lanes: ReadonlyArray<TimelineLane>, now: number): Tr
     if (lane.span && !items.some((i) => i.id === lane.span?.id)) items.push(lane.span)
     const byId = new Map(items.map((i) => [i.id, i]))
     const families = new Map<string, Family>()
-    const familyKey = (f: TrackFamily, agent?: TimelineItem) => (agent ? `${f}/${agent.id}` : f)
 
     for (const item of items) {
       if (!isDated(item)) continue
@@ -152,7 +176,9 @@ export function buildTracks(lanes: ReadonlyArray<TimelineLane>, now: number): Tr
         families.set(key, fam)
       }
       const end = endOf(item, now)
-      fam.items.push({ item, start: item.startedAt, end, instant: end === item.startedAt })
+      // Running or waiting: never a moment, even when the browser clock is behind the server's.
+      const open = item.endedAt == null && (item.status === 'running' || item.status === 'blocked')
+      fam.items.push({ item, start: item.startedAt, end, instant: !open && end === item.startedAt, ...(open && { open }) })
       intervals.push([item.startedAt, item.status === 'blocked' && item.endedAt == null ? item.startedAt : end])
       itemCount += 1
     }
@@ -160,12 +186,18 @@ export function buildTracks(lanes: ReadonlyArray<TimelineLane>, now: number): Tr
 
     // Families in their order; a sub-agent's family after `agents`, sub-agents by their start.
     const rank = (f: Family) => (f.agent ? FAMILY_ORDER.indexOf('agents') + 0.5 : FAMILY_ORDER.indexOf(f.family))
-    const ordered = [...families.values()].sort((a, b) => rank(a) - rank(b) || (a.agent?.startedAt ?? 0) - (b.agent?.startedAt ?? 0))
+    collected.push({ lane, families: [...families.values()].sort((a, b) => rank(a) - rank(b) || (a.agent?.startedAt ?? 0) - (b.agent?.startedAt ?? 0)) })
+  }
 
+  // An instant packs as wide as its mark: a share of the axis the view draws (silences cut), back in real time.
+  const axis = buildAxis(intervals)
+  const instantEnd = (start: number) => (axis ? toT(axis, toX(axis, start) + axis.total * INSTANT_SHARE) : start + 1)
+
+  const groups: TrackGroup[] = collected.map(({ lane, families }) => {
     const tracks: Track[] = []
-    for (const fam of ordered) {
+    for (const fam of families) {
       fam.items.sort((a, b) => a.start - b.start || a.end - b.end)
-      const { rowOf, rows } = packRows(fam.items)
+      const { rowOf, rows } = packRows(fam.items, instantEnd)
       const rowItems: TrackItem[][] = Array.from({ length: rows }, () => [])
       fam.items.forEach((it, i) => (rowItems[rowOf[i] as number] as TrackItem[]).push(it))
       rowItems.forEach((its, row) => {
@@ -178,11 +210,12 @@ export function buildTracks(lanes: ReadonlyArray<TimelineLane>, now: number): Tr
           rows,
           items: its,
           running: its.some((it) => it.item.status === 'running'),
+          blocked: its.some((it) => it.open === true && it.item.status === 'blocked'),
         })
       })
     }
-    groups.push({ lane, tracks })
-  }
+    return { lane, tracks }
+  })
 
   return { groups, tracks: groups.flatMap((g) => g.tracks), itemCount, intervals }
 }

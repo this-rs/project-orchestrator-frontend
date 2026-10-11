@@ -15,6 +15,7 @@ export default {
     wrongPassphrase: "عبارة المرور غير صحيحة.",
     failed: "تعذّر فك قفل الخزنة: {reason}",
     settings: "إعدادات الخزنة",
+    durationLabel: "مدة فتح القفل",
   },
   degradation: {
     title: "بعض الميزات غير متاحة في هذه المحادثة",

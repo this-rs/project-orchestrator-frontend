@@ -193,8 +193,9 @@ export const defaultSetupConfig: SetupConfig = {
   allowedEmailDomain: '',
   allowedEmails: '',
 
-  // Chat
-  chatProvider: 'claude-code',
+  // Chat: no engine is preselected. The Chat step picks Claude Code only when its CLI is
+  // found on this computer (or when the user clicks it); Claude Code is never required.
+  chatProvider: 'none',
   // Empty until the wizard reads the live catalog (ChatPage): no model id is
   // hardcoded here, the lineup changes without this file.
   chatModel: '',
@@ -286,17 +287,42 @@ export const infraValidAtom = atom<boolean>(false)
 /**
  * True when the Chat AI step prerequisites are met.
  *
- * Both conditions must be true:
- * - Claude Code CLI detected (installed)
- * - Embedding model ready:
- *   - Local provider: ONNX model downloaded
- *   - HTTP provider: test endpoint successful
- *   - Disabled provider: always true
+ * Neither the Claude Code CLI nor the local search model gate the step: the
+ * CLI is optional (offered for install), and a local model that is not
+ * downloaded yet is fetched by the server when it starts. What does gate it:
+ * - HTTP embedding provider: the endpoint test must have succeeded;
+ * - an engine other than Claude Code: a login account must be set up
+ *   (`setupAuthReady`), since the server refuses third-party providers while
+ *   authentication is off (`security_gate_closed`).
  *
  * Written by ChatPage, read by SetupWizard to compute nextDisabled.
  * Defaults to `false` — the user must satisfy the prerequisites to proceed.
  */
 export const chatValidAtom = atom<boolean>(false)
+
+/**
+ * True once the user clicked an engine on the Chat step: from then on the
+ * step no longer follows the CLI detection (it would otherwise undo the
+ * user's choice each time the step is shown again).
+ */
+export const chatEngineChosenAtom = atom<boolean>(false)
+
+/**
+ * Whether the wizard sets up a login account the server will enforce.
+ *
+ * Password: an email and a password of 8 characters or more. OIDC: a client
+ * id. In reconfigure mode the stored password is never read back, so the
+ * mode alone counts.
+ */
+export function setupAuthReady(
+  config: Pick<SetupConfig, 'authMode' | 'rootEmail' | 'rootPassword' | 'oidcClientId'>,
+  reconfigure = false,
+): boolean {
+  if (config.authMode === 'none') return false
+  if (reconfigure) return true
+  if (config.authMode === 'password') return config.rootEmail.trim() !== '' && config.rootPassword.length >= 8
+  return config.oidcClientId.trim() !== ''
+}
 
 /**
  * Model written to the config file when the wizard reaches "Launch" with no

@@ -244,4 +244,14 @@ export default {
     sentMid: "sera envoyé à",
     consented: "Projet {name} autorisé pour {origin}.",
   },
+  pilot: {
+    label: "Utiliser ce provider pour les nouveaux chats, pour tout le monde sur ce serveur",
+    needed: "Aucun moteur ne peut répondre à un nouveau chat pour l’instant (Claude Code n’est pas disponible sur ce serveur, ou aucun défaut n’est défini). Cela donne au provider le rôle pilote, pour tout le monde sur ce serveur.",
+    optional: "Les nouveaux chats utilisent {current} aujourd’hui. Activez ceci pour utiliser ce provider à la place (rôle pilote).",
+    unknown: "Les rôles actuels n’ont pas pu être lus : définissez le rôle pilote plus tard sous Avancé → Rôles.",
+    failed: "Impossible de faire de ce provider le défaut des nouveaux chats : {message}",
+    noConsent: "Aucun projet n’autorise encore ce provider : un chat dans un projet est refusé tant que ce projet ne l’autorise pas (étape 4, ou « Autorisations des projets » sur cette page).",
+    testNotPassed: "Le test n’a pas réussi avec un appel d’outil : en pilote, ce provider ferait échouer les nouveaux chats. Il reste désactivé sauf si vous l’activez.",
+    notAdmin: "Le rôle pilote s’applique à tout le monde sur ce serveur et utilise pour eux la clé de ce provider : laissez ce choix à l’administrateur, sauf si c’est vous.",
+  },
 } satisfies Translation<'providerWizard'>

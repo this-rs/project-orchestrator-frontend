@@ -21,7 +21,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
-import { authTokenAtom } from '@/atoms'
+import { authModeAtom, authModeConfirmedAtom, authTokenAtom } from '@/atoms'
 
 vi.mock('@/services', () => ({
   authApi: {
@@ -93,5 +93,45 @@ describe('ProtectedRoute (regression: background refresh must not strand the spi
     expect(authApi.me).toHaveBeenCalledTimes(1)
     // Phase 2's boot refresh must NOT have run — the token was already present.
     expect(refreshToken).not.toHaveBeenCalled()
+  })
+})
+
+describe('ProtectedRoute: an auth mode the server said vs. a guess', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  function mountWithStore() {
+    const store = createStore()
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/p']}>
+          <Routes>
+            <Route element={<ProtectedRoute />}>
+              <Route path="/p" element={<div>Protected content</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </Provider>
+    )
+    return store
+  }
+
+  it('/auth/providers answering "no sign-in" confirms the mode', async () => {
+    vi.mocked(authApi.getProviders).mockResolvedValue({
+      auth_required: false,
+      providers: [],
+      allow_registration: false,
+    } as Awaited<ReturnType<typeof authApi.getProviders>>)
+    const store = mountWithStore()
+    await waitFor(() => expect(store.get(authModeConfirmedAtom)).toBe(true))
+    expect(store.get(authModeAtom)).toBe('none')
+  })
+
+  it('/auth/providers failing falls back to "none" but does not confirm it', async () => {
+    vi.mocked(authApi.getProviders).mockRejectedValue(new Error('unreachable'))
+    const store = mountWithStore()
+    await waitFor(() => expect(store.get(authModeAtom)).toBe('none'))
+    expect(store.get(authModeConfirmedAtom)).toBe(false)
   })
 })

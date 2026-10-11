@@ -36,6 +36,7 @@ import { projectsApi } from '@/services/projects'
 import { intelligenceSummaryAtom } from '@/atoms/intelligence'
 import type { IntelligenceSummary } from '@/types/intelligence'
 import type { CodeHealth, Project } from '@/types'
+import { finite, fmt } from '@/utils/fmt'
 import { useT, type MessageKey } from '@/i18n'
 
 // ============================================================================
@@ -157,13 +158,16 @@ function RiskBadge({ risk }: { risk: CodeHealth['risk_assessment'] }) {
   if (!risk) return null
   const total = risk.critical_count + risk.high_count + risk.medium_count + risk.low_count
   if (total === 0) return null
+  const avg = finite(risk.avg_risk_score)
+  // Nothing critical or high and no known average: nothing to say (not "0%").
+  if (risk.critical_count === 0 && risk.high_count === 0 && avg == null) return null
 
   const Icon =
     risk.critical_count > 0
       ? ShieldX
       : risk.high_count > 0
         ? ShieldAlert
-        : risk.avg_risk_score > 0.3
+        : (avg ?? 0) > 0.3
           ? ShieldCheck
           : Shield
   const color =
@@ -171,7 +175,7 @@ function RiskBadge({ risk }: { risk: CodeHealth['risk_assessment'] }) {
       ? '#f87171'
       : risk.high_count > 0
         ? '#fb923c'
-        : risk.avg_risk_score > 0.3
+        : (avg ?? 0) > 0.3
           ? '#fbbf24'
           : '#4ade80'
 
@@ -182,7 +186,7 @@ function RiskBadge({ risk }: { risk: CodeHealth['risk_assessment'] }) {
         ? t('intelDashboard.risk.critical', { count: risk.critical_count })
         : risk.high_count > 0
           ? t('intelDashboard.risk.high', { count: risk.high_count })
-          : t('intelDashboard.risk.avg', { pct: (risk.avg_risk_score * 100).toFixed(0) })}
+          : t('intelDashboard.risk.avg', { pct: fmt(avg, 0, 100) })}
     </div>
   )
 }

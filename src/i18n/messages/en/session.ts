@@ -13,6 +13,7 @@ export default {
     wrongPassphrase: "Wrong passphrase.",
     failed: "Could not unlock the vault: {reason}",
     settings: "Vault settings",
+    durationLabel: "Unlock duration",
   },
   degradation: {
     title: 'Some features are not available in this conversation',

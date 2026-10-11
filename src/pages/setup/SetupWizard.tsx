@@ -214,7 +214,7 @@ export function SetupWizard() {
     if (isTrayNavigation) return false
     switch (step) {
       case 0: return !infraValid   // Infrastructure: Docker running OR connections tested
-      case 2: return !chatValid    // Chat AI: CLI installed AND embedding ready
+      case 2: return !chatValid    // Chat AI: HTTP embedding tested; another engine needs a login account
       default: return false        // Auth (step 1) and Launch (step 3): no blocking
     }
   })()

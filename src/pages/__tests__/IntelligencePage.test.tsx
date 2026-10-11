@@ -113,6 +113,22 @@ describe('IntelligencePage', () => {
     expect(screen.getByText('50 total activations')).toBeTruthy()
   })
 
+  it('renders unknown health numbers (null from the backend) as "—", never a fake average risk', async () => {
+    intelligenceApi.getSummary.mockResolvedValue({ ...structuredClone(summary), code: { ...summary.code, hotspots: [{ path: 'src/api/client.ts', churn_score: null }] } })
+    codeApi.getHealth.mockResolvedValue({
+      ...structuredClone(health),
+      coupling_metrics: { avg_clustering_coefficient: null, max_clustering_coefficient: null, most_coupled_file: '' },
+      risk_assessment: { avg_risk_score: null, critical_count: 0, high_count: 0, medium_count: 1, low_count: 2 },
+      neural_metrics: null,
+    })
+    renderPage()
+    const tile = (await screen.findByText('Avg coupling')).parentElement as HTMLElement
+    expect(tile.textContent).toContain('—')
+    expect(tile.textContent).toContain('max: —')
+    expect(document.body.textContent).not.toMatch(/Avg risk/)
+    expect(within(screen.getByRole('list', { name: 'Hotspots' })).getByText('churn —')).toBeTruthy()
+  })
+
   it('runs a maintenance action and reports its result inline', async () => {
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: 'Run Update staleness' }))

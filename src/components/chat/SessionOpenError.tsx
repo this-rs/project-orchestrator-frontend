@@ -1,6 +1,6 @@
 import { AlertTriangle, X } from 'lucide-react'
 import type { ChatSessionOpenError } from '@/atoms'
-import { ProviderStateCard } from './ProviderStateCard'
+import { ProviderStateCard, type ProviderCardTone } from './ProviderStateCard'
 import type { ProviderFallback } from '@/types/provider'
 import { panelGlass } from '@/components/ui/panelGlass'
 
@@ -15,6 +15,8 @@ interface SessionOpenErrorProps {
   onUnlocked?: () => void
   /** Project the conversation was about (names it in the consent card). */
   projectSlug?: string | null
+  /** Override the visual tone; when omitted, derived from what the card offers (credentials_locked with fallback models shown → warning). */
+  tone?: ProviderCardTone
 }
 
 /**
@@ -25,7 +27,7 @@ interface SessionOpenErrorProps {
  * per `error.info.code` (`ProviderStateCard`). An untyped failure keeps the
  * plain alert with the server's sentence.
  */
-export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, onUnlocked, projectSlug }: SessionOpenErrorProps) {
+export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, onUnlocked, projectSlug, tone }: SessionOpenErrorProps) {
   if (error.info) {
     return (
       <ProviderStateCard
@@ -36,6 +38,7 @@ export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, onUnl
         onUnlocked={onUnlocked}
         onDismiss={onDismiss}
         floating
+        tone={tone}
         className="mx-3 mb-1"
         testId="session-open-error"
       />

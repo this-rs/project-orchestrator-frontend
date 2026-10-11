@@ -15,6 +15,7 @@ export default {
     wrongPassphrase: "पासफ़्रेज़ गलत है।",
     failed: "वॉल्ट अनलॉक नहीं हो सका: {reason}",
     settings: "वॉल्ट सेटिंग्स",
+    durationLabel: "अनलॉक अवधि",
   },
   degradation: {
     title: "इस बातचीत में कुछ सुविधाएँ उपलब्ध नहीं हैं",

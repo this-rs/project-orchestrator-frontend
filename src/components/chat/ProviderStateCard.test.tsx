@@ -33,6 +33,7 @@ function mount(error: ProviderErrorInfo, props: Partial<Parameters<typeof Provid
       </MemoryRouter>
     </Provider>,
   )
+  // The card is announced (role="alert") whatever its tone.
   const card = screen.getByRole('alert')
   return { store, card, link: (name: RegExp | string) => within(card).getByRole('link', { name }) }
 }
@@ -325,5 +326,58 @@ describe('ProviderStateCard — trust refused for lack of a sandbox', () => {
     const { card } = mount(err('unsupported', { message: 'The provider does not support this capability: sandbox.' }))
     expect(card.textContent).toContain(sandboxTrustRefusedText())
     expect(card.textContent).not.toContain('does not support this capability')
+  })
+})
+
+describe('ProviderStateCard — tone (error vs warning)', () => {
+  it('defaults to error tone (role="alert", red border)', () => {
+    const { card } = mount(err('no_provider'))
+    expect(card.getAttribute('role')).toBe('alert')
+    expect(card.getAttribute('data-tone')).toBe('error')
+    expect(card.className).toContain('border-red')
+  })
+
+  it('credentials_locked WITHOUT fallbacks → error tone', () => {
+    const { card } = mount(err('credentials_locked'))
+    expect(card.getAttribute('role')).toBe('alert')
+    expect(card.getAttribute('data-tone')).toBe('error')
+  })
+
+  it('credentials_locked WITH fallbacks → warning tone auto-detected', () => {
+    const fallbacks = [{ provider_id: 'ollama', model: 'qwen3' }]
+    const { card } = mount(err('credentials_locked', { fallbacks }), { onRetry: vi.fn(), onRetryWith: vi.fn() })
+    expect(card.getAttribute('role')).toBe('alert')
+    expect(card.getAttribute('data-tone')).toBe('warning')
+    expect(card.className).toContain('border-amber')
+  })
+
+  // Review of #354, finding 3: the tone follows what the card offers, not what the error carries.
+  it('credentials_locked with fallbacks but no onRetryWith (none shown) → error tone', () => {
+    const fallbacks = [{ provider_id: 'ollama', model: 'qwen3' }]
+    const { card } = mount(err('credentials_locked', { fallbacks }), { onRetry: vi.fn() })
+    expect(within(card).queryByTestId('locked-vault-fallback')).toBeNull()
+    expect(card.getAttribute('data-tone')).toBe('error')
+    expect(card.className).toContain('border-red')
+  })
+
+  it('credentials_locked with fallbacks in the transcript (no handlers) → error tone', () => {
+    const fallbacks = [{ provider_id: 'ollama', model: 'qwen3' }]
+    const { card } = mount(err('credentials_locked', { fallbacks }))
+    expect(within(card).queryByTestId('locked-vault-fallback')).toBeNull()
+    expect(card.getAttribute('data-tone')).toBe('error')
+  })
+
+  it('explicit tone prop overrides auto-detection', () => {
+    const { card } = mount(err('instance_not_found'), { tone: 'warning' })
+    expect(card.getAttribute('role')).toBe('alert')
+    expect(card.getAttribute('data-tone')).toBe('warning')
+    expect(card.className).toContain('border-amber')
+  })
+
+  it('explicit error tone on credentials_locked with fallbacks', () => {
+    const fallbacks = [{ provider_id: 'ollama', model: 'qwen3' }]
+    const { card } = mount(err('credentials_locked', { fallbacks }), { onRetry: vi.fn(), tone: 'error' })
+    expect(card.getAttribute('role')).toBe('alert')
+    expect(card.getAttribute('data-tone')).toBe('error')
   })
 })
