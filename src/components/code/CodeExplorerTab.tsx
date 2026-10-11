@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Button, EmptyState, EntityList, EntityListSkeleton, EntityRow, ErrorState, FilterBar } from '@/components/ui'
 import { useT } from '@/i18n'
+import { fmtPct } from '@/utils/fmt'
 import { useCodeCount } from './useCodeCount'
 import { codeApi } from '@/services'
 import type { SearchResult } from '@/services'
@@ -86,7 +87,7 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug, onOpenFile }: Code
                 title={<span className="font-mono">{name}</span>}
                 ariaLabel={t('code.common.historyOf', { path: doc.path })}
                 onClick={() => onOpenFile(doc.path)}
-                trailing={<span title={t('code.explorer.match')}>{((result.score ?? 0) * 100).toFixed(0)}%</span>}
+                trailing={<span title={t('code.explorer.match')}>{fmtPct(result.score)}</span>}
                 description={
                   <>
                     <span className="font-mono break-all">{doc.path}</span>
