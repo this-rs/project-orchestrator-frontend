@@ -310,56 +310,100 @@ export interface ActiveRunInfo {
   hasStreaming: boolean
 }
 
+/** A child the tracker has seen created, keyed by its own session id. */
+interface TrackedChild {
+  parentId: string
+  active: boolean
+}
+
+/**
+ * How many children the tracker remembers. A finished child is kept (it can
+ * start another turn) until this many are tracked; then the oldest finished
+ * ones are forgotten first, so the map cannot grow without bound.
+ */
+export const ACTIVE_RUN_TRACKER_CAPACITY = 256
+
+function countByParent(children: Map<string, TrackedChild>): Map<string, ActiveRunInfo> {
+  const counts = new Map<string, ActiveRunInfo>()
+  for (const { parentId, active } of children.values()) {
+    if (!active) continue
+    const runCount = (counts.get(parentId)?.runCount ?? 0) + 1
+    counts.set(parentId, { runCount, hasStreaming: true })
+  }
+  return counts
+}
+
+function sameCounts(a: Map<string, ActiveRunInfo>, b: Map<string, ActiveRunInfo>): boolean {
+  if (a.size !== b.size) return false
+  for (const [k, v] of a) {
+    const w = b.get(k)
+    if (!w || w.runCount !== v.runCount || w.hasStreaming !== v.hasStreaming) return false
+  }
+  return true
+}
+
 /**
  * Hook that tracks active run counts per parent session via CrudEvents only.
  * Used by SessionList for the compact indicator — no API calls.
  *
- * Listens to chat_session CrudEvents where payload.spawned_by is set.
- * Maintains a Map<parentSessionId, ActiveRunInfo>.
+ * Children are tracked by their OWN session id. Only the `created` event names
+ * the parent (`payload.spawned_by`); the backend's `updated` events are kept
+ * minimal and never carry `spawned_by`, so a finish (`is_streaming: false`) is
+ * matched to its parent through the child id remembered at creation. Counting
+ * per child (not per event) also makes a multi-turn child, or a second
+ * `created` for the same id (provider switch), count once.
  */
 export function useActiveRunTracker(): Map<string, ActiveRunInfo> {
   const [activeRuns, setActiveRuns] = useState<Map<string, ActiveRunInfo>>(() => new Map())
+  const childrenRef = useRef<Map<string, TrackedChild>>(new Map())
 
   useEffect(() => {
+    const children = childrenRef.current
+    const publish = () => {
+      const next = countByParent(children)
+      setActiveRuns(prev => (sameCounts(prev, next) ? prev : next))
+    }
+
     const bus = getEventBus()
     const off = bus.on((event: CrudEvent) => {
       if (event.entity_type !== 'chat_session') return
-
+      const childId = event.entity_id
+      if (!childId) return
       const payload = event.payload
-      if (!payload?.spawned_by) return
-
-      // No API call here: without a readable parent in the payload there is
-      // nothing to count against, so the row keeps the count it has.
-      const parentId = spawnedByParentId(readSpawnedBy(payload.spawned_by))
-      if (!parentId) return
 
       if (event.action === 'created') {
-        setActiveRuns(prev => {
-          const next = new Map(prev)
-          const info = next.get(parentId) || { runCount: 0, hasStreaming: false }
-          next.set(parentId, {
-            runCount: info.runCount + 1,
-            hasStreaming: true, // just created = probably streaming
-          })
-          return next
-        })
+        if (children.has(childId)) return
+        // No API call here: without a readable parent in the payload there is
+        // nothing to count against.
+        const parentId = spawnedByParentId(readSpawnedBy(payload?.spawned_by))
+        if (!parentId) return
+        children.set(childId, { parentId, active: true })
+        // Bound the memory: forget the oldest finished children first, and
+        // only if every tracked child is still running, the oldest of all.
+        if (children.size > ACTIVE_RUN_TRACKER_CAPACITY) {
+          for (const [id, c] of children) {
+            if (children.size <= ACTIVE_RUN_TRACKER_CAPACITY) break
+            if (!c.active) children.delete(id)
+          }
+          for (const id of children.keys()) {
+            if (children.size <= ACTIVE_RUN_TRACKER_CAPACITY) break
+            children.delete(id)
+          }
+        }
+        publish()
+        return
       }
 
-      if (event.action === 'updated' && typeof payload.is_streaming === 'boolean') {
-        setActiveRuns(prev => {
-          const next = new Map(prev)
-          const info = next.get(parentId)
-          if (!info) return prev
-          if (!payload.is_streaming) {
-            const newCount = Math.max(0, info.runCount - 1)
-            if (newCount === 0) {
-              next.delete(parentId)
-            } else {
-              next.set(parentId, { runCount: newCount, hasStreaming: newCount > 0 })
-            }
-          }
-          return next
-        })
+      if (event.action === 'updated' && typeof payload?.is_streaming === 'boolean') {
+        const tracked = children.get(childId)
+        if (!tracked || tracked.active === payload.is_streaming) return
+        tracked.active = payload.is_streaming
+        publish()
+        return
+      }
+
+      if (event.action === 'deleted' && children.delete(childId)) {
+        publish()
       }
     })
 
