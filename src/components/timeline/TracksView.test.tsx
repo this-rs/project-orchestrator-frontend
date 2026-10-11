@@ -97,18 +97,80 @@ describe('<TracksView>', () => {
     // The first bar is the one that takes the Tab.
     expect(bar(/list the files/).getAttribute('tabindex')).toBe('0')
     expect(bar(/Grep · x/).getAttribute('tabindex')).toBe('-1')
+    act(() => bar(/list the files/).focus())
     fireEvent.keyDown(list, { key: 'ArrowDown' })
     expect(bar(/Grep · x/).getAttribute('tabindex')).toBe('0')
+    expect(document.activeElement).toBe(bar(/Grep · x/))
     fireEvent.keyDown(list, { key: 'ArrowDown' })
-    expect(bar(/Read · a.ts/).getAttribute('tabindex')).toBe('0')
+    expect(document.activeElement).toBe(bar(/Read · a.ts/))
     fireEvent.keyDown(list, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(bar(/Task · dig/))
     expect(bar(/Task · dig/).getAttribute('tabindex')).toBe('0')
     fireEvent.keyDown(list, { key: 'ArrowUp' })
     fireEvent.keyDown(list, { key: 'ArrowUp' })
     fireEvent.keyDown(list, { key: 'ArrowRight' })
-    expect(bar(/Grep · x/).getAttribute('tabindex')).toBe('0')
+    expect(document.activeElement).toBe(bar(/Grep · x/))
     fireEvent.keyDown(list, { key: 'Enter' })
     expect(screen.getByTestId('trace-detail').textContent).toContain('Grep · x')
+  })
+
+  it('zoomed in, → past the edge of the window pans the time to the next bar and focuses it', () => {
+    render(<TracksView lanes={[lane([span('req', 0, 10_000, { kind: 'request' }), span('a', 0, 500, { label: 'First' }), span('b', 9000, 9500, { label: 'Last' })])]} />)
+    const list = screen.getByRole('list', { name: 'Tracks of the conversation' })
+    act(() => bar(/list the files|req/).focus())
+    fireEvent.keyDown(list, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(bar(/First/))
+    // Zoom on the middle: neither call is in the window any more.
+    for (let i = 0; i < 6; i += 1) fireEvent.keyDown(list, { key: 'w' })
+    expect(screen.queryByRole('button', { name: /Last/ })).toBeNull()
+    // The focused bar stays rendered (it takes the Tab), wherever it is.
+    expect(bar(/First/).getAttribute('tabindex')).toBe('0')
+    fireEvent.keyDown(list, { key: 'ArrowRight' })
+    const last = bar(/Last/)
+    expect(document.activeElement).toBe(last)
+    expect(last.getAttribute('tabindex')).toBe('0')
+    // The window moved onto it: its bar starts inside the track.
+    const left = parseFloat(last.style.left)
+    expect(left).toBeGreaterThanOrEqual(0)
+    expect(left).toBeLessThan(100)
+  })
+
+  it('zoomed away from every bar, Tab can still enter the tracks, and the bar it lands on comes into view', () => {
+    render(<TracksView lanes={[lane([span('a', 0, 500, { label: 'First' }), span('m', 4000, 4100, { label: 'Middle' }), span('b', 9000, 9500, { label: 'Last' })])]} />)
+    const region = screen.getByRole('region', { name: 'Tracks of the conversation' })
+    for (let i = 0; i < 6; i += 1) fireEvent.keyDown(region, { key: 'w' })
+    for (let i = 0; i < 12; i += 1) fireEvent.keyDown(region, { key: 'd' })
+    expect(screen.queryByRole('button', { name: /Middle/ })).toBeNull()
+    // One bar of the tracks always takes the Tab: the first one, even out of the window.
+    const list = screen.getByRole('list', { name: 'Tracks of the conversation' })
+    const tabStop = list.querySelector('[data-timeline-item][tabindex="0"]') as HTMLElement
+    expect(tabStop).toBe(bar(/First/))
+    act(() => tabStop.focus())
+    expect(document.activeElement).toBe(bar(/First/))
+    const left = parseFloat(bar(/First/).style.left)
+    expect(left).toBeGreaterThanOrEqual(0)
+    expect(left).toBeLessThan(100)
+  })
+
+  it('on a phone, the number of a row is drawn apart from its name, never cut off with it', () => {
+    withWidth(390)
+    render(<TracksView lanes={piece()} />)
+    const row = rowsOf().find((r) => r.getAttribute('data-track') === 'l/tools/1') as HTMLElement
+    const number = row.querySelector('[data-row-number]') as HTMLElement
+    expect(number.textContent).toBe('· 2')
+    expect(number.className).toContain('shrink-0')
+    expect(number.className).toContain('tabular-nums')
+    // The name truncates on its own; the number is not inside it.
+    const name = within(row).getByText('Tool calls', { selector: '.truncate' })
+    expect(name.contains(number)).toBe(false)
+    // Read aloud whole.
+    expect(within(row).getByText('Tool calls · 2').className).toContain('sr-only')
+  })
+
+  it('a row with a wait not answered yet pulses like a running one', () => {
+    render(<TracksView lanes={[lane([span('req', 0, 1000, { kind: 'request' }), item('ask', { kind: 'permission', label: 'Allow rm?', startedAt: T0 + 200, endedAt: undefined, status: 'blocked' })])]} />)
+    const row = rowsOf().find((r) => r.getAttribute('data-track') === 'l/waits/0') as HTMLElement
+    expect(within(row).getByRole('img', { name: 'Waiting for you' })).toBeTruthy()
   })
 
   it('zooms with W and shows everything again with 0', () => {

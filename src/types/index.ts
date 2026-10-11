@@ -533,6 +533,16 @@ export interface CodeCommunities {
 }
 
 // --- Health ---
+//
+// What is really null (backend origin/main, GET /api/code/health): whole
+// objects, when a metric was never computed — `coupling_metrics` (no file has a
+// clustering coefficient yet), `neural_metrics` (its query failed),
+// `risk_assessment` (no file has a risk score). The numbers inside are `f64`
+// with guarded divisions and COALESCE/unwrap_or(0.0), but a NaN stored on a
+// graph node would still pass through and serde_json writes NaN/Infinity as
+// `null`; older backends left fields out. So they are typed `number | null`
+// too: every display goes through `fmt` (utils/fmt.ts) and shows "—", never a
+// plausible 0 nor a crash.
 
 export interface GodFunction {
   name: string
@@ -542,15 +552,15 @@ export interface GodFunction {
 }
 
 export interface CouplingMetrics {
-  avg_clustering_coefficient: number
-  max_clustering_coefficient: number
+  avg_clustering_coefficient: number | null
+  max_clustering_coefficient: number | null
   most_coupled_file: string
 }
 
 export interface NeuralMetrics {
   active_synapses: number
-  avg_energy: number
-  weak_synapses_ratio: number
+  avg_energy: number | null
+  weak_synapses_ratio: number | null
   dead_notes_count: number
 }
 
@@ -560,13 +570,13 @@ export interface CodeHealth {
   god_function_threshold: number
   orphan_files: string[]
   orphan_file_count: number
-  coupling_metrics: CouplingMetrics
+  coupling_metrics?: CouplingMetrics | null
   circular_dependencies: string[]
   circular_dependency_count: number
   hotspots: ChangeHotspot[]
   knowledge_gaps: KnowledgeGap[]
   risk_assessment: RiskAssessmentSummary | null
-  neural_metrics: NeuralMetrics
+  neural_metrics?: NeuralMetrics | null
 }
 
 // --- Hotspots ---
@@ -576,7 +586,7 @@ export interface ChangeHotspot {
   commit_count: number
   total_churn: number
   co_change_count: number
-  churn_score: number
+  churn_score: number | null
 }
 
 export interface HotspotsResponse {
@@ -591,7 +601,7 @@ export interface KnowledgeGap {
   path: string
   note_count: number
   decision_count: number
-  knowledge_density: number
+  knowledge_density: number | null
 }
 
 export interface KnowledgeGapsResponse {
@@ -605,23 +615,24 @@ export interface KnowledgeGapsResponse {
 export type RiskLevel = 'critical' | 'high' | 'medium' | 'low'
 
 export interface RiskFactors {
-  pagerank: number
-  churn: number
-  knowledge_gap: number
-  betweenness: number
+  pagerank: number | null
+  churn: number | null
+  knowledge_gap: number | null
+  betweenness: number | null
 }
 
 export interface RiskFile {
   path: string
-  risk_score: number
+  risk_score: number | null
   risk_level: RiskLevel
-  factors: RiskFactors
+  /** Always sent by today's backend; absent from older payloads. */
+  factors?: Partial<RiskFactors> | null
 }
 
 export interface RiskAssessmentSummary {
   files_assessed?: number
-  avg_risk_score: number
-  max_risk_score?: number
+  avg_risk_score: number | null
+  max_risk_score?: number | null
   critical_count: number
   high_count: number
   medium_count: number

@@ -50,6 +50,7 @@ import type { IntelligenceSummary } from '@/types/intelligence'
 import type { CodeHealth, Project } from '@/types'
 import { useConfirmDialog, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { finite, fmt } from '@/utils/fmt'
 import { NOMENCLATURE } from '@/constants/nomenclature'
 import { useT, type MessageKey } from '@/i18n'
 
@@ -472,13 +473,14 @@ export function IntelligencePage() {
             <ScoreRing score={healthScore} />
             <div>
               <p className={`text-sm font-medium ${TONE_CLASSES[healthTone(healthScore)].text}`}>{t(healthScoreKey(healthScore))}</p>
-              {risk && riskTotal > 0 && (
+              {/* The average risk is left out when it is unknown, rather than written "0%". */}
+              {risk && riskTotal > 0 && (risk.critical_count > 0 || risk.high_count > 0 || finite(risk.avg_risk_score) != null) && (
                 <p className="text-[11px] text-gray-500">
                   {risk.critical_count > 0
                     ? t('intelPage.health.critical', { count: risk.critical_count })
                     : risk.high_count > 0
                       ? t('intelPage.health.high', { count: risk.high_count })
-                      : t('intelPage.health.avgRisk', { percent: (risk.avg_risk_score * 100).toFixed(0) })}
+                      : t('intelPage.health.avgRisk', { percent: fmt(risk.avg_risk_score, 0, 100) })}
                 </p>
               )}
             </div>
@@ -548,7 +550,7 @@ export function IntelligencePage() {
                     ariaLabel={t('intelPage.code.historyOf', { path: h.path })}
                     href={codeHref({ file: h.path })}
                     description={<span className="font-mono break-all">{h.path}</span>}
-                    trailing={t('intelPage.code.churn', { score: h.churn_score.toFixed(1) })}
+                    trailing={t('intelPage.code.churn', { score: fmt(h.churn_score, 1) })}
                   />
                 ))}
               </EntityList>
@@ -619,8 +621,8 @@ export function IntelligencePage() {
               {
                 label: t('intelPage.fabric.avgCoupling'),
                 hidden: !health?.coupling_metrics,
-                value: health?.coupling_metrics?.avg_clustering_coefficient.toFixed(2),
-                sub: health?.coupling_metrics ? t('intelPage.fabric.max', { value: health.coupling_metrics.max_clustering_coefficient.toFixed(2) }) : undefined,
+                value: fmt(health?.coupling_metrics?.avg_clustering_coefficient, 2),
+                sub: health?.coupling_metrics ? t('intelPage.fabric.max', { value: fmt(health.coupling_metrics.max_clustering_coefficient, 2) }) : undefined,
               },
             ]}
           />
