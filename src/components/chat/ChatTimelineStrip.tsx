@@ -14,8 +14,10 @@ import { useNavigate } from 'react-router-dom'
 import { useTimelineLabels } from '@/hooks/useTimelineLabels'
 import { useConversationTrace } from '@/hooks/useConversationTrace'
 import type { ChatMessage } from '@/types'
-import { TraceView, adoptTranscriptIds, buildConversationTimeline, buildTimeline, resolveTarget, type TimelineItem, type TimelineRunInput } from '@/components/timeline'
+import { TraceView, TracksView, adoptTranscriptIds, buildConversationTimeline, buildTimeline, resolveTarget, type TimelineItem, type TimelineRunInput } from '@/components/timeline'
 import { useTimelineContext } from '@/hooks/useTimelineContext'
+import { useTimelineView } from '@/hooks/useTimelineView'
+import { TimelineViewTabs } from './TimelineViewTabs'
 
 interface ChatTimelineStripProps {
   sessionId: string | null
@@ -62,9 +64,14 @@ export const ChatTimelineStrip = memo(function ChatTimelineStrip({ sessionId, me
     } else navigate(target.to)
   }, [navigate, sessionId, workspaceSlug, onShown])
 
+  const [view, setView] = useTimelineView()
+  const View = view === 'tracks' ? TracksView : TraceView
   return (
     <div className="min-w-0" data-testid="chat-timeline-strip">
-      <TraceView
+      <div className="flex justify-end pb-1">
+        <TimelineViewTabs value={view} onChange={setView} />
+      </div>
+      <View
         lanes={timeline.lanes}
         onOpen={handleOpen}
         labels={labels}

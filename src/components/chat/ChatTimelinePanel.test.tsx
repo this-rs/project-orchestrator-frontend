@@ -80,6 +80,9 @@ const openWithToggle = () => {
   return toggle
 }
 
+// These tests walk the span tree; the panel opens as tracks unless the reader chose otherwise.
+beforeEach(() => localStorage.setItem('po.timeline.view', 'tree'))
+
 describe('<ChatTimelinePanel>', () => {
   afterEach(() => {
     vi.unstubAllGlobals()

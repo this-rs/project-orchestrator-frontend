@@ -4,7 +4,7 @@
  * reader sees remain the same DOM nodes. Real `useConversationTrace`, a REST layer that
  * answers when the test says so.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLayoutEffect } from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -53,6 +53,9 @@ afterEach(() => {
   api.pending.length = 0
   api.histories.clear()
 })
+
+// These tests read the span tree; the strip opens as tracks unless the reader chose otherwise.
+beforeEach(() => localStorage.setItem('po.timeline.view', 'tree'))
 
 describe('<ChatTimelineStrip> first display', () => {
   it('keeps what the transcript shows until the history lands, then merges it in place (same nodes, no blank)', async () => {

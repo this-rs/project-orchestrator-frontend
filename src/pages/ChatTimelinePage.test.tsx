@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import type { ChatMessage } from '@/types'
@@ -31,7 +31,20 @@ const open = (search = '') => render(
   </MemoryRouter>,
 )
 
+// These tests walk the span tree; the page opens as tracks unless the reader chose otherwise.
+beforeEach(() => localStorage.setItem('po.timeline.view', 'tree'))
+
 describe('<ChatTimelinePage>', () => {
+  it('opens as tracks by default, and remembers the view the reader picks', () => {
+    localStorage.removeItem('po.timeline.view')
+    open()
+    expect(screen.getByRole('button', { name: /Bash · ls/ })).toBeTruthy()
+    expect(screen.queryByRole('treeitem', { name: /Bash · ls/ })).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: 'Tree' }))
+    expect(screen.getByRole('treeitem', { name: /Bash · ls/ })).toBeTruthy()
+    expect(localStorage.getItem('po.timeline.view')).toBe('tree')
+  })
+
   it('asks to pick an event when none is selected', () => {
     open()
     expect(screen.getByText(/Pick an event/)).toBeTruthy()
