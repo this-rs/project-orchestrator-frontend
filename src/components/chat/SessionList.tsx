@@ -412,7 +412,7 @@ export const SessionRow = memo(function SessionRow({
   const cost = costReport(session.total_cost_usd, session.cost_basis)
   const provider = describeSessionProvider({ id: session.provider_id, kind: session.provider_kind }, providers)
   const showProvider = shouldShowProviderBadge(provider, providers)
-  const spawn = session.spawned_by ? spawnLabel(session.spawned_by) : null
+  const spawn = session.spawned_by ? spawnLabel(session.spawned_by, session.mirror_of) : null
   const activate = () => { onCloseMenu(); if (isActive) { onClose() } else { onSelect(session.id, undefined, title) } }
 
   return (

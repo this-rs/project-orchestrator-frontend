@@ -5,6 +5,7 @@ export default {
   noProviderComposer: 'Nenhum provedor está disponível: não é possível enviar uma mensagem.',
   instanceMissingComposer: 'O provedor desta conversa foi excluído: ela não pode ser retomada. Inicie uma nova conversa.',
   retryBySending: 'Envie sua mensagem de novo para tentar outra vez.',
+  mirrorReadOnlyComposer: "Somente leitura: esta conversa espelha um subagente do Claude Code, que é executado na sessão do Claude Code da conversa principal. Escreva na conversa principal.",
   delay: { seconds: '{n} s', minutes: '{n} min' },
   titles: {
     no_provider: 'Nenhum provedor disponível',
@@ -56,6 +57,7 @@ export default {
     invalid_learning_stage: 'Etapa de aprendizado desconhecida',
     invalid_routing_weight: 'Peso de roteamento fora do intervalo',
     provider_not_chosen: "Escolha um provedor",
+    mirror_read_only: "Esta conversa é somente leitura",
     endpointRefused: "Endpoint recusado",
     endpointNotAllowedNoProject: "Endpoint não permitido fora de um projeto",
   },
@@ -124,6 +126,7 @@ export default {
     invalid_learning_stage: 'A etapa de aprendizado deve ser shadow, advisory ou auto.',
     invalid_routing_weight: 'Um peso de roteamento ou a taxa de exploração está fora do intervalo permitido. A exploração deve ficar entre 0 e 1; os pesos não podem ser negativos.',
     provider_not_chosen: "O Claude Code não está instalado no servidor e vários provedores podem responder aqui, então nenhum foi escolhido por você. Escolha um para esta mensagem ou defina o provedor padrão.",
+    mirror_read_only: "Ela espelha um subagente do Claude Code, que é executado na sessão do Claude Code da conversa principal: nenhuma mensagem pode ser enviada aqui. Escreva na conversa principal.",
     endpointRefused: "O servidor se recusa a chamar o endpoint desta instância (endereço ou URL não permitido). Nenhum consentimento muda isso: corrija a URL base nas configurações da instância.",
     endpointNotAllowedNoProject: "As conversas fora de um projeto não foram autorizadas a enviar seu conteúdo {where}. Nada foi enviado.",
   },

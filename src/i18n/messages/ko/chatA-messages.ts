@@ -45,6 +45,7 @@ export default {
     pipeline: "파이프라인",
     gate: "게이트",
     trigger: "트리거",
+    mirrorClaudeCode: "서브에이전트 (Claude Code)",
     subagentOf: "다른 대화의 서브에이전트"
   },
   welcome: {
@@ -130,6 +131,7 @@ export default {
     exitFullscreen: "전체 화면 종료",
     close: "닫기",
     backToParent: "상위로 돌아가기",
+    mirrorBanner: "Claude Code 서브에이전트의 읽기 전용 미러",
     actions: "대화 작업",
     attach: "플랜 또는 작업에 연결…",
     hideTree: "어시스턴트 트리 숨기기",

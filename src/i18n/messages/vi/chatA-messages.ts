@@ -45,6 +45,7 @@ export default {
     pipeline: "chuỗi xử lý",
     gate: "cổng kiểm",
     trigger: "bộ kích hoạt",
+    mirrorClaudeCode: "tác tử con (Claude Code)",
     subagentOf: "Tác nhân con của một hội thoại khác"
   },
   welcome: {
@@ -130,6 +131,7 @@ export default {
     exitFullscreen: "Thoát toàn màn hình",
     close: "Đóng",
     backToParent: "Quay lại phiên cha",
+    mirrorBanner: "Bản phản chiếu chỉ đọc của một tác tử con Claude Code",
     actions: "Thao tác của cuộc trò chuyện",
     attach: "Gắn vào một kế hoạch hoặc tác vụ…",
     hideTree: "Ẩn cây trợ lý",

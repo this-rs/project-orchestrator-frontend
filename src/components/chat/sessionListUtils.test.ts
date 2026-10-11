@@ -147,6 +147,14 @@ describe('metadata formatting', () => {
     expect(spawnLabel({ type: 'unknown' }).label).toBe('spawned')
   })
 
+  it('spawnLabel names the read-only mirror of a Claude Code sub-agent (mirror_of)', () => {
+    const origin = { type: 'conversation', parent_session_id: 's', tool_use_id: 'toolu_1' } as const
+    expect(spawnLabel(origin, 'claude_code').label).toBe('sub-agent (Claude Code)')
+    // No mirror (or a backend without mirrors): the origin's own tag, as before.
+    expect(spawnLabel(origin, null).label).toBe('spawned')
+    expect(spawnLabel(origin).label).toBe('spawned')
+  })
+
   it('countActiveFilters counts non-default filters', () => {
     expect(countActiveFilters({ project: '', planOrRfc: '', showSpawned: true })).toBe(0)
     expect(countActiveFilters({ project: 'p', planOrRfc: 'plan:1', showSpawned: false })).toBe(3)

@@ -491,6 +491,19 @@ export function sessionErrorMetadata(evt: unknown): { code?: string; provider_er
 }
 
 /**
+ * What a plain `error` frame refusing a message leaves on its error block, when
+ * the refusal is typed: today only `mirror_read_only` (P18c — a message sent to
+ * the read-only mirror of a Claude Code sub-agent, e.g. from a stale composer).
+ * The block then renders the card of that refusal instead of a raw red line.
+ * `null` for every other `error` frame, which keeps the block it always had.
+ * Shared by BOTH reducers.
+ */
+export function refusedSendMetadata(evt: unknown): { code: string; provider_error: ProviderErrorInfo } | null {
+  const info = readProviderError(evt)
+  return info?.code === 'mirror_read_only' ? { code: info.code, provider_error: info } : null
+}
+
+/**
  * The block of a session-level event the transcript states on its own line:
  * `conversation_relayed` (the conversation moved to another provider),
  * `session_closed` (the server closed the session) and `compaction_recovery`
@@ -872,7 +885,7 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
           id: nextBlockId(),
           type: 'error',
           content: evt.message ?? tr('app.chat.unknownError'),
-          metadata: withCreatedAt(withParent(cancelNoticeMetadata(evt) ?? undefined, parent), stamp),
+          metadata: withCreatedAt(withParent(cancelNoticeMetadata(evt) ?? refusedSendMetadata(evt) ?? undefined, parent), stamp),
         })
         break
       }
