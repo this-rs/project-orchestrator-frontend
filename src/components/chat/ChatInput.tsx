@@ -1067,6 +1067,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           // textarea with no autocomplete hint can get misclassified by
           // iCloud Keychain / password managers.
           autoComplete="off"
+          data-chat-composer="true"
           data-1p-ignore="true"
           data-lpignore="true"
           placeholder={t('chatA-input.composer.placeholder')}

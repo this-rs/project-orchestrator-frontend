@@ -22,9 +22,11 @@ interface VaultUnlockProps {
   onUnlocked: () => void
   /** The status line once unlocked; the default says the providers were refreshed. */
   doneText?: string
+  /** Told when an unlock starts and ends: the caller can hold its other actions meanwhile. */
+  onBusyChange?: (busy: boolean) => void
 }
 
-export function VaultUnlock({ onUnlocked, doneText }: VaultUnlockProps) {
+export function VaultUnlock({ onUnlocked, doneText, onBusyChange }: VaultUnlockProps) {
   const { t } = useT()
   const inputId = useId()
   const [passphrase, setPassphrase] = useState('')
@@ -32,6 +34,19 @@ export function VaultUnlock({ onUnlocked, doneText }: VaultUnlockProps) {
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const doneRef = useRef<HTMLParagraphElement>(null)
+  // An unlock still running when the form goes away (the card was dismissed, or the
+  // message went out another way) must not act for it: `onUnlocked` would send a
+  // message nobody is looking at any more (review of #335, finding 1).
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+  useEffect(() => {
+    onBusyChange?.(busy)
+  }, [busy, onBusyChange])
 
   // The form unmounts on success: the focus moves to the status line instead of
   // falling back to the page.
@@ -46,16 +61,18 @@ export function VaultUnlock({ onUnlocked, doneText }: VaultUnlockProps) {
     setError(null)
     try {
       await vaultApi.unlock(passphrase, UNLOCK_MINUTES)
+      if (!mounted.current) return
       setPassphrase('')
       setDone(true)
       onUnlocked()
     } catch (err) {
+      if (!mounted.current) return
       // The server answers 403 for a wrong passphrase; anything else (rate limit,
       // network) is said as the server or the browser says it.
       const wrong = err instanceof ApiError && err.status === 403
       setError(wrong ? t('session.vaultUnlock.wrongPassphrase') : t('session.vaultUnlock.failed', { reason: vaultErrorMessage(err) }))
     } finally {
-      setBusy(false)
+      if (mounted.current) setBusy(false)
     }
   }
 

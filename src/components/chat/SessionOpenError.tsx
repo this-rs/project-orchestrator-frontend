@@ -11,6 +11,8 @@ interface SessionOpenErrorProps {
   onRetry?: () => void
   /** Send the unsent message again on this model (a vault-free fallback). */
   onRetryWith?: (fallback: ProviderFallback) => void
+  /** Send the unsent message again once the vault is unlocked in the card; defaults to `onRetry`. */
+  onUnlocked?: () => void
   /** Project the conversation was about (names it in the consent card). */
   projectSlug?: string | null
 }
@@ -23,7 +25,7 @@ interface SessionOpenErrorProps {
  * per `error.info.code` (`ProviderStateCard`). An untyped failure keeps the
  * plain alert with the server's sentence.
  */
-export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, projectSlug }: SessionOpenErrorProps) {
+export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, onUnlocked, projectSlug }: SessionOpenErrorProps) {
   if (error.info) {
     return (
       <ProviderStateCard
@@ -31,6 +33,7 @@ export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, proje
         projectSlug={projectSlug}
         onRetry={onRetry}
         onRetryWith={onRetryWith}
+        onUnlocked={onUnlocked}
         onDismiss={onDismiss}
         floating
         className="mx-3 mb-1"

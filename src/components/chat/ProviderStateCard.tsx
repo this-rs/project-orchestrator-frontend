@@ -33,6 +33,8 @@ interface ProviderStateCardProps {
   onRetry?: () => void
   /** Send the same message again on this model (`credentials_locked` with `fallbacks`). */
   onRetryWith?: (fallback: ProviderFallback) => void
+  /** Send the same message again once the vault is unlocked in the card (`credentials_locked`); defaults to `onRetry`. */
+  onUnlocked?: () => void
   /** Start a new conversation (`instance_not_found`). */
   onNewConversation?: () => void
   onDismiss?: () => void
@@ -146,6 +148,7 @@ export function ProviderStateCard({
   projectSlug,
   onRetry,
   onRetryWith,
+  onUnlocked,
   onNewConversation,
   onDismiss,
   className = '',
@@ -191,9 +194,11 @@ export function ProviderStateCard({
       break
     case 'credentials_locked':
       // Where the message can be sent again: unlock right here, then it goes out;
-      // or, when the server offered some, continue on a model that needs no vault.
+      // or, when the server offered some (Auto refused), continue on a model that
+      // needs no vault. A named instance's locked key gets the same unlock-and-send,
+      // without models to offer.
       action = onRetry ? (
-        <LockedVaultActions fallbacks={error.fallbacks ?? []} onUnlocked={onRetry} onPick={onRetryWith} />
+        <LockedVaultActions fallbacks={error.fallbacks ?? []} onUnlocked={onUnlocked ?? onRetry} onPick={onRetryWith} />
       ) : (
         <SettingsLink to={VAULT_PATH}>Unlock the vault</SettingsLink>
       )
@@ -317,9 +322,12 @@ function LockedVaultActions({
 }) {
   const { t } = useT()
   const offered = onPick ? fallbacks : []
+  // While an unlock runs, its success sends the message: a model picked meanwhile
+  // would send it a second time (review of #335, finding 1).
+  const [unlocking, setUnlocking] = useState(false)
   return (
     <div className="w-full space-y-2" data-testid="locked-vault-actions">
-      <VaultUnlock onUnlocked={onUnlocked} doneText={t('session.lockedVault.resent')} />
+      <VaultUnlock onUnlocked={onUnlocked} onBusyChange={setUnlocking} doneText={t('session.lockedVault.resent')} />
       {offered.length > 0 && (
         <div className="space-y-1">
           <p className="text-[11px] text-red-100/90">{t('session.lockedVault.fallbacksLabel')}</p>
@@ -329,6 +337,7 @@ function LockedVaultActions({
                 key={`${f.provider_id}/${f.model}`}
                 type="button"
                 onClick={() => onPick?.(f)}
+                disabled={unlocking}
                 className={ACTION_CLASS}
                 data-testid="locked-vault-fallback"
               >
