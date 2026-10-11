@@ -3,7 +3,7 @@
  * full-screen view on a phone (the `md` breakpoint, read through matchMedia).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import type { ChatMessage } from '@/types'
@@ -82,6 +82,16 @@ const openWithToggle = () => {
 
 // These tests walk the span tree; the panel opens as tracks unless the reader chose otherwise.
 beforeEach(() => localStorage.setItem('po.timeline.view', 'tree'))
+
+/** For the cases that hold in both views: `tracks` is the default (nothing stored). */
+const VIEWS = ['tracks', 'tree'] as const
+const chooseView = (view: (typeof VIEWS)[number]) => {
+  if (view === 'tracks') localStorage.removeItem('po.timeline.view')
+  else localStorage.setItem('po.timeline.view', view)
+}
+/** An event: a row of the span tree, a bar on the tracks. */
+const pick = (view: (typeof VIEWS)[number], name: RegExp) =>
+  view === 'tree' ? screen.getByRole('treeitem', { name }) : within(screen.getByRole('list', { name: 'Tracks of the conversation' })).getByRole('button', { name })
 
 describe('<ChatTimelinePanel>', () => {
   afterEach(() => {
@@ -254,7 +264,8 @@ describe('<ChatTimelinePanel>', () => {
       expect(screen.queryByRole('dialog', { name: 'Timeline' })).toBeNull()
     })
 
-    it('closes after "Show in the conversation" so the block can be seen', () => {
+    it.each(VIEWS)('closes after "Show in the conversation" so the block can be seen (%s)', (view) => {
+      chooseView(view)
       const block = document.createElement('div')
       block.dataset.toolCallId = 'c1'
       block.scrollIntoView = vi.fn()
@@ -262,7 +273,7 @@ describe('<ChatTimelinePanel>', () => {
       try {
         render(<Harness />)
         openWithToggle()
-        fireEvent.click(screen.getByRole('treeitem', { name: /Bash · ls/ }))
+        fireEvent.click(pick(view, /Bash · ls/))
         fireEvent.click(screen.getByRole('button', { name: 'Show in the conversation' }))
         expect(block.scrollIntoView).toHaveBeenCalled()
         expect(screen.queryByRole('dialog', { name: 'Timeline' })).toBeNull()
@@ -271,7 +282,8 @@ describe('<ChatTimelinePanel>', () => {
       }
     })
 
-    it('Escape closes the detail sheet first, then the view', () => {
+    it.each(VIEWS)('Escape closes the detail sheet first, then the view (%s)', (view) => {
+      chooseView(view)
       // The trace measures 390 px: its detail is a bottom sheet.
       vi.stubGlobal('ResizeObserver', class {
         constructor(private cb: ResizeObserverCallback) {}
@@ -281,7 +293,7 @@ describe('<ChatTimelinePanel>', () => {
       })
       render(<Harness />)
       openWithToggle()
-      fireEvent.click(screen.getByRole('treeitem', { name: /Bash · ls/ }))
+      fireEvent.click(pick(view, /Bash · ls/))
       expect(screen.getByTestId('trace-sheet')).toBeTruthy()
       fireEvent.keyDown(document, { key: 'Escape' })
       expect(screen.queryByTestId('trace-sheet')).toBeNull()

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import type { ChatMessage } from '@/types'
 
@@ -59,9 +59,10 @@ describe('<ChatTimelinePage>', () => {
     expect(chain.textContent).toContain('a.txt')
   })
 
-  it('puts the chosen item in the URL, so a link lands on the same item', () => {
+  it.each(['tracks', 'tree'] as const)('puts the chosen item in the URL, so a link lands on the same item (%s)', (view) => {
+    if (view === 'tracks') localStorage.removeItem('po.timeline.view')
     open()
-    fireEvent.click(screen.getByRole('treeitem', { name: /Bash · ls/ }))
+    fireEvent.click(view === 'tree' ? screen.getByRole('treeitem', { name: /Bash · ls/ }) : within(screen.getByRole('list', { name: 'Tracks of the conversation' })).getByRole('button', { name: /Bash · ls/ }))
     expect(screen.getByTestId('where').textContent).toContain('?item=c1')
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.getByTestId('where').textContent).not.toContain('?item=')
@@ -76,8 +77,10 @@ describe('<ChatTimelinePage>', () => {
     expect(screen.queryByTestId('where')).toBeNull()
   })
 
-  it('opens the conversation from a call', () => {
+  it.each(['tracks', 'tree'] as const)('opens the conversation from a call (%s)', (view) => {
+    if (view === 'tracks') localStorage.removeItem('po.timeline.view')
     open('?item=c1')
+    if (view === 'tracks') expect(screen.queryAllByRole('treeitem')).toHaveLength(0)
     fireEvent.click(screen.getByRole('button', { name: 'Show in the conversation' }))
     expect(screen.queryByTestId('where')).toBeNull()
   })

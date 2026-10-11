@@ -23,20 +23,22 @@ const msgs: ChatMessage[] = [
 const strip = () => render(
   <MemoryRouter><ChatTimelineStrip sessionId="s" messages={msgs} isStreaming={false} workspaceSlug="ws" /></MemoryRouter>,
 )
-const goTo = (name: RegExp) => {
-  fireEvent.click(screen.getByRole('treeitem', { name }))
+type View = 'tracks' | 'tree'
+/** An event: a row of the span tree, a bar on the tracks. */
+const pick = (view: View, name: RegExp) => (view === 'tree' ? screen.getByRole('treeitem', { name }) : within(screen.getByRole('list', { name: 'Tracks of the conversation' })).getByRole('button', { name }))
+const goTo = (name: RegExp, view: View = 'tree') => {
+  fireEvent.click(pick(view, name))
   fireEvent.click(within(screen.getByTestId('trace-detail')).getByRole('button', { name: 'Show in the conversation' }))
 }
+const useView = (view: View) => beforeEach(() => {
+  // `tracks` is the default: nothing stored.
+  if (view === 'tracks') localStorage.removeItem('po.timeline.view')
+  else localStorage.setItem('po.timeline.view', view)
+})
 
-// These tests walk the span tree; the strip opens as tracks unless the reader chose otherwise.
-beforeEach(() => localStorage.setItem('po.timeline.view', 'tree'))
-
-describe('<ChatTimelineStrip>', () => {
-  it('shows the work lane and the conversation with its provider · model', () => {
-    strip()
-    expect(screen.getByRole('treeitem', { name: /Ship/ })).toBeTruthy()
-    expect(screen.getByText('native · deepseek-chat')).toBeTruthy()
-  })
+// Whatever the view: choosing a call and "Show in the conversation" reaches its block.
+describe.each(['tracks', 'tree'] as const)('<ChatTimelineStrip> in the %s view', (view) => {
+  useView(view)
 
   it('scrolls to a call whose block is on the page', () => {
     const block = document.createElement('div')
@@ -45,17 +47,38 @@ describe('<ChatTimelineStrip>', () => {
     document.body.appendChild(block)
     navigate.mockClear()
     strip()
-    goTo(/Bash · ls/)
+    if (view === 'tracks') expect(screen.queryAllByRole('treeitem')).toHaveLength(0)
+    goTo(/Bash · ls/, view)
     expect(block.scrollIntoView).toHaveBeenCalled()
     expect(navigate).not.toHaveBeenCalled()
     block.remove()
   })
 
-  it('opens the page instead of doing nothing when the block is not loaded, and the plan page for a plan', () => {
+  it('opens the page instead of doing nothing when the block is not loaded', () => {
     navigate.mockClear()
     strip()
-    goTo(/Bash · ls/)
+    goTo(/Bash · ls/, view)
     expect(navigate).toHaveBeenLastCalledWith('/workspace/ws/chat/s/timeline?item=c1')
+  })
+
+  it('shows the conversation with its provider · model', () => {
+    strip()
+    expect(screen.getByText('native · deepseek-chat')).toBeTruthy()
+  })
+})
+
+// The work lane (plans, tasks) and the session links live in the span tree.
+describe('<ChatTimelineStrip> in the tree view', () => {
+  useView('tree')
+
+  it('shows the work lane', () => {
+    strip()
+    expect(screen.getByRole('treeitem', { name: /Ship/ })).toBeTruthy()
+  })
+
+  it('opens the plan page for a plan', () => {
+    navigate.mockClear()
+    strip()
     goTo(/Ship/)
     expect(navigate).toHaveBeenLastCalledWith('/workspace/ws/plans/p1')
   })

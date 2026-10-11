@@ -18,8 +18,14 @@ describe('packRows', () => {
   it('shares a row between things that follow each other, and opens a row for things at once', () => {
     expect(packRows([ti(0, 10), ti(10, 20), ti(15, 30), ti(20, 25)])).toEqual({ rowOf: [0, 0, 1, 0], rows: 2 })
   })
-  it('an instant takes a row too, and the next thing at the same moment shares it', () => {
-    expect(packRows([ti(5, 5), ti(5, 5), ti(5, 9)])).toEqual({ rowOf: [0, 0, 0], rows: 1 })
+  it('an instant has a width: things at the same moment are one above the other, not stacked', () => {
+    expect(packRows([ti(5, 5), ti(5, 5), ti(5, 9)])).toEqual({ rowOf: [0, 1, 2], rows: 3 })
+    // With a wider mark, a thing that starts under the mark takes another row; one after it shares.
+    expect(packRows([ti(5, 5), ti(8, 9), ti(15, 16)], (s) => s + 10)).toEqual({ rowOf: [0, 1, 0], rows: 2 })
+  })
+  it('an open item keeps its row while it lasts, whatever its end says', () => {
+    const open: TrackItem = { ...ti(0, 10), open: true }
+    expect(packRows([open, ti(10, 20), ti(30, 40)])).toEqual({ rowOf: [0, 1, 1], rows: 2 })
   })
   it('three things at once are three rows', () => {
     expect(packRows([ti(0, 10), ti(1, 10), ti(2, 10)]).rows).toBe(3)
@@ -91,6 +97,39 @@ describe('buildTracks', () => {
     expect(layout.tracks.find((t) => t.family === 'tools')?.items[0]?.end).toBe(NOW)
     expect(layout.intervals).toContainEqual([T0 + 300, T0 + 300])
     expect(layout.intervals).toContainEqual([T0 + 200, NOW])
+  })
+
+  it('two events on the same millisecond are on two rows, both reachable', () => {
+    const layout = buildTracks([lane([
+      span('req', 0, 10_000, { kind: 'request' }),
+      span('route', 1, 1, { kind: 'routing' }),
+      span('mark', 1, 1, { kind: 'marker' }),
+      span('boom', 1, 1, { kind: 'error', status: 'error' }),
+    ])], NOW)
+    const signals = layout.tracks.filter((t) => t.family === 'signals')
+    expect(signals.map((t) => t.items.map((i) => i.item.id))).toEqual([['route'], ['mark'], ['boom']])
+  })
+
+  it('a running call is never a moment, even when the server clock is ahead of the browser, and keeps its row', () => {
+    // The server is 2 s ahead: the call "started" after the browser's now.
+    const layout = buildTracks([lane([
+      span('req', 0, 100, { kind: 'request', status: 'running', endedAt: undefined }),
+      item('go', { startedAt: NOW + 2000, endedAt: undefined, status: 'running' }),
+      span('next', 60_000 + 2500, 60_000 + 3000),
+    ])], NOW)
+    const go = findOnTracks(layout, 'go')
+    expect(go?.track.items[go.index]).toMatchObject({ instant: false, open: true })
+    // `next` starts after the browser thinks `go` ended, but `go` still runs: another row.
+    expect(findOnTracks(layout, 'next')?.track.row).toBe(1)
+  })
+
+  it('a row holding an open wait says so', () => {
+    const layout = buildTracks([lane([
+      span('req', 0, 100, { kind: 'request' }),
+      item('ask', { kind: 'permission', startedAt: T0 + 50, endedAt: undefined, status: 'blocked' }),
+    ])], NOW)
+    expect(layout.tracks.find((t) => t.family === 'waits')).toMatchObject({ blocked: true, running: false })
+    expect(layout.tracks.find((t) => t.family === 'turns')?.blocked).toBe(false)
   })
 
   it('finds an item on its track', () => {

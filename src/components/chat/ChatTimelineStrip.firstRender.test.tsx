@@ -47,17 +47,25 @@ const answer = () => act(async () => {
   api.pending.shift()?.()
   await new Promise((r) => setTimeout(r, 0))
 })
-const turnRow = (text: string) => screen.queryAllByRole('treeitem').find((r) => (r.getAttribute('aria-label') ?? '').includes(text)) ?? null
+type View = 'tracks' | 'tree'
+/** What stands for an event in each view: a row of the span tree, a bar on the tracks. */
+const itemsOf = (view: View): HTMLElement[] =>
+  view === 'tree' ? screen.queryAllByRole('treeitem') : Array.from(document.querySelectorAll<HTMLElement>('button[data-timeline-item]'))
+const SELECTED = { tree: 'aria-selected', tracks: 'aria-pressed' } as const
 
 afterEach(() => {
   api.pending.length = 0
   api.histories.clear()
 })
 
-// These tests read the span tree; the strip opens as tracks unless the reader chose otherwise.
-beforeEach(() => localStorage.setItem('po.timeline.view', 'tree'))
+// Both views: the default (tracks, nothing stored) and the span tree the reader can choose.
+describe.each(['tracks', 'tree'] as const)('<ChatTimelineStrip> first display (%s)', (view) => {
+  beforeEach(() => {
+    if (view === 'tracks') localStorage.removeItem('po.timeline.view')
+    else localStorage.setItem('po.timeline.view', view)
+  })
+  const turnRow = (text: string) => itemsOf(view).find((r) => (r.getAttribute('aria-label') ?? '').includes(text)) ?? null
 
-describe('<ChatTimelineStrip> first display', () => {
   it('keeps what the transcript shows until the history lands, then merges it in place (same nodes, no blank)', async () => {
     const events = history('a', 5)
     api.histories.set('s', events)
@@ -65,11 +73,13 @@ describe('<ChatTimelineStrip> first display', () => {
 
     const shown = turnRow('a turn 4')
     expect(shown).not.toBeNull()
+    // The default view is the tracks: no span tree on screen.
+    if (view === 'tracks') expect(screen.queryAllByRole('treeitem')).toHaveLength(0)
     expect(screen.queryByTestId('trace-skeleton')).toBeNull()
 
     // The session and its tree are known, the first page is not here yet: the transcript stays.
     await settle()
-    expect(screen.getAllByRole('treeitem').length).toBeGreaterThan(0)
+    expect(itemsOf(view).length).toBeGreaterThan(0)
     expect(turnRow('a turn 4')).toBe(shown)
 
     // The page lands: the earlier turns join, the row on screen is the same node.
@@ -86,13 +96,13 @@ describe('<ChatTimelineStrip> first display', () => {
     render(<MemoryRouter><ChatTimelineStrip sessionId="s" messages={transcript} isStreaming={false} workspaceSlug="ws" /></MemoryRouter>)
     const sent = turnRow('a turn 2') as HTMLElement
     fireEvent.click(sent)
-    expect(sent.getAttribute('aria-selected')).toBe('true')
+    expect(sent.getAttribute(SELECTED[view])).toBe('true')
 
     await settle()
     await answer()
     expect(turnRow('a turn 0')).not.toBeNull()
     expect(turnRow('a turn 2')).toBe(sent)
-    expect(sent.getAttribute('aria-selected')).toBe('true')
+    expect(sent.getAttribute(SELECTED[view])).toBe('true')
   })
 
   it('another conversation never shows the previous one\'s trace, not even for one render', async () => {

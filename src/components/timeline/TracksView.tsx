@@ -35,7 +35,7 @@ import { TraceSkeleton } from './TraceSkeleton'
 import { KIND_BAR, KIND_SWATCH, statusBar } from './traceStyle'
 import { buildTracks, findOnTracks, type Track, type TrackFamily, type TrackItem, type TrackLayout } from './tracks'
 import {
-  PAN_STEP, ZOOM_STEP, breaksIn, clampView, dragView, fitView, focusView, followView, formatClock, formatOffset, isFit,
+  PAN_STEP, ZOOM_STEP, breaksIn, centreView, clampView, dragView, fitView, focusView, followView, formatClock, formatOffset, isFit,
   panView, pinchView, ticksFor, timeAt, viewPct, zoomView, type View,
 } from './viewport'
 
@@ -68,11 +68,17 @@ export interface TracksViewProps {
   className?: string
 }
 
-/** What a row is called: its family, the sub-agent it belongs to, its number when the family has several. */
-function trackName(track: Track, labels: TimelineLabels): string {
+/**
+ * What a row is called: its family, the sub-agent it belongs to, its number when
+ * the family has several. `base` and `n` apart, so the number is drawn on its
+ * own and never cut off with the name on a narrow screen.
+ */
+function trackName(track: Track, labels: TimelineLabels): { name: string; base: string; n: number | null } {
   const T = labels.tracks
   const base = track.agent ? fill(T.of, { agent: track.agent.label }) : T.family[track.family]
-  return track.rows > 1 ? fill(T.row, { name: base, n: track.row + 1 }) : base
+  if (track.rows <= 1) return { name: base, base, n: null }
+  const n = track.row + 1
+  return { name: fill(T.row, { name: base, n }), base, n }
 }
 
 interface BarProps {
@@ -246,6 +252,18 @@ export function TracksView({
     move(focusView(toX(axis, it.start), toX(axis, it.end), total))
   }, [axis, itemOf, move, total])
 
+  /** Pan the time window, same zoom, so that the bar `id` is in it (the arrows, a Tab onto a bar out of view). */
+  const reveal = useCallback((id: string) => {
+    const it = itemOf(id)
+    if (!axis || !it) return
+    const v = viewRef.current
+    const x0 = toX(axis, it.start)
+    const x1 = toX(axis, it.end)
+    if (x1 >= v.x0 && x0 <= v.x1) return
+    // A bar longer than the window shows its start; a shorter one sits in the middle.
+    move(centreView(v, x1 - x0 > v.x1 - v.x0 ? x0 + (v.x1 - v.x0) / 2 : (x0 + x1) / 2, total))
+  }, [axis, itemOf, move, total])
+
   const closeDetail = useCallback(() => {
     const back = selected
     setSelected(null)
@@ -374,6 +392,7 @@ export function TracksView({
     focusPending.current = true
     const hit = findOnTracks(layout, id)
     if (hit) scrollToRow(hit.track.key)
+    reveal(id)
   }
   const onRowsKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const id = focusTarget
@@ -563,6 +582,10 @@ export function TracksView({
               role="list"
               aria-label={T.label}
               onKeyDown={onRowsKeyDown}
+              onFocus={(e) => {
+                const id = (e.target as HTMLElement).dataset?.timelineItem
+                if (id) reveal(id)
+              }}
               className="relative overflow-y-auto overscroll-contain"
               style={{ height: bodyH }}
             >
@@ -651,16 +674,31 @@ interface TrackRowProps {
 }
 
 const TrackRow = memo(function TrackRow({ track, top, height, odd, view, axis, trackW, selected, focused, labels, gridCols, onChoose, onZoom }: TrackRowProps) {
-  const name = trackName(track, labels)
-  // Only the bars in the window are drawn (a long row may hold hundreds).
-  const visible = axis ? track.items.filter((it) => viewPct(view, toX(axis, it.end)) >= -1 && viewPct(view, toX(axis, it.start)) <= 101) : []
+  const { name, base, n } = trackName(track, labels)
+  // Only the bars in the window are drawn (a long row may hold hundreds), and the
+  // one that takes the Tab wherever it is: the keyboard never loses its way in.
+  const visible = axis
+    ? track.items.filter((it) => it.item.id === focused || (viewPct(view, toX(axis, it.end)) >= -1 && viewPct(view, toX(axis, it.start)) <= 101))
+    : []
   return (
     <div role="listitem" data-track={track.key} className={`absolute inset-x-0 border-b border-white/[0.04] ${odd ? 'bg-white/[0.015]' : ''}`} style={{ top, height }}>
       <div className="grid h-full items-center gap-x-2 pe-2" style={gridCols}>
         <span className="flex min-w-0 items-center gap-1.5 ps-2" title={name}>
           <span aria-hidden="true" className={`size-2 shrink-0 rounded-sm ${KIND_SWATCH[FAMILY_KIND[track.family]]}`} />
-          <span className="min-w-0 truncate text-gray-300">{name}</span>
-          {track.running && <StatusDot tone="progress" pulse size="md" label={labels.status.running} />}
+          {n == null ? (
+            <span className="min-w-0 truncate text-gray-300">{base}</span>
+          ) : (
+            <>
+              <span className="sr-only">{name}</span>
+              <span aria-hidden="true" className="min-w-0 truncate text-gray-300">{base}</span>
+              <span aria-hidden="true" data-row-number="" className="shrink-0 tabular-nums text-gray-400">· {n}</span>
+            </>
+          )}
+          {track.running ? (
+            <StatusDot tone="progress" pulse size="md" label={labels.status.running} />
+          ) : track.blocked ? (
+            <StatusDot tone="warning" pulse size="md" label={labels.status.blocked} />
+          ) : null}
         </span>
         <span className="relative block h-full min-w-0 overflow-hidden" data-track="true">
           {axis && visible.map((it) => (
