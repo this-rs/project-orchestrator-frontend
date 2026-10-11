@@ -1,4 +1,4 @@
-import { useAtom, useSetAtom, useAtomValue } from 'jotai'
+import { useAtom, useSetAtom, useAtomValue, useStore } from 'jotai'
 import { useCallback, useEffect, useState } from 'react'
 import { Check, Info, Loader2, RotateCw, Download } from 'lucide-react'
 import { Button, Input, ProgressLine, Switch, surface } from '@/components/ui'
@@ -69,7 +69,8 @@ export function ChatPage() {
   const [embeddingTestResult, setEmbeddingTestResult] = useState<{ success: boolean; dimensions?: number; latencyMs?: number } | null>(null)
   const [testingEmbedding, setTestingEmbedding] = useState(false)
   const toast = useToast()
-  const [engineChosen, setEngineChosen] = useAtom(chatEngineChosenAtom)
+  const store = useStore()
+  const setEngineChosen = useSetAtom(chatEngineChosenAtom)
   const setStep = useSetAtom(setupStepAtom)
   const texts = setupChatTexts()
   // Pre-existing configs have no `chatProvider`: they are Claude Code.
@@ -106,7 +107,7 @@ export function ChatPage() {
           setConfig((prev) => ({
             ...prev,
             claudeCodeDetected: detected,
-            ...(isTrayNavigation || engineChosen ? {} : { chatProvider: detected ? 'claude-code' : 'none' }),
+            ...(isTrayNavigation || store.get(chatEngineChosenAtom) ? {} : { chatProvider: detected ? 'claude-code' : 'none' }),
           }))
         }
       }

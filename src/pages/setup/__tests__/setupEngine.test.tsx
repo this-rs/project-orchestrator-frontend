@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, configure } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor, configure } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
 import { setupConfigAtom, setupStepAtom, chatEngineChosenAtom, defaultSetupConfig, withSetupModelFallback, type SetupConfig } from '@/atoms/setup'
@@ -106,6 +106,19 @@ describe('setup wizard: chat engine choice', () => {
     )
     await screen.findByText('Claude Code is not installed')
     expect(store.get(setupConfigAtom).chatProvider).toBe('claude-code')
+  })
+
+  it('a click made while the CLI detection is still running is not undone when it answers', async () => {
+    let answer: (v: unknown) => void = () => {}
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'check_cli_status' ? new Promise((resolve) => { answer = resolve }) : Promise.resolve(null),
+    )
+    const store = renderWith(<ChatPage />, WITH_LOGIN)
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledWith('check_cli_status'))
+    fireEvent.click(screen.getByRole('radio', { name: /another provider/i }))
+    await act(async () => { answer({ installed: true, version: '1.0.0' }) })
+    await waitFor(() => expect(store.get(setupConfigAtom).claudeCodeDetected).toBe(true))
+    expect(store.get(setupConfigAtom).chatProvider).toBe('none')
   })
 
   it('another provider: no CLI needed, Claude fields hidden, step passable with a login account', async () => {
