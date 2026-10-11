@@ -15,6 +15,7 @@ export default {
     wrongPassphrase: "Неправильна парольна фраза.",
     failed: "Не вдалося розблокувати сховище: {reason}",
     settings: "Налаштування сховища",
+    durationLabel: "Тривалість розблокування",
   },
   degradation: {
     title: "Деякі функції недоступні в цій розмові",
