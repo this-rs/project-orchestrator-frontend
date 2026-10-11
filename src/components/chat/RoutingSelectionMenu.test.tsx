@@ -38,6 +38,7 @@ import type { ContentBlock } from '@/types'
 import { I18nProvider, type LocaleCode } from '@/i18n'
 import { loadLocale } from '@/i18n/store'
 import { ChatInput } from './ChatInput'
+import { COMPOSER_CHIP_HEIGHT, COMPOSER_CHIP_HIT } from './chipGeometry'
 import { ChatHeaderTitle } from './ChatHeaderTitle'
 import { ModelChangedBlock } from './ModelChangedBlock'
 
@@ -114,6 +115,13 @@ function mount(mode: ProviderRoutingMode, { sessionId = null as string | null, p
   )
   render(locale ? <I18nProvider initial={locale}>{input}</I18nProvider> : input)
   return store
+}
+
+/** The classes that set a composer chip's height: identical on both chips, nothing else that would change it. */
+function expectComposerChipHeight(el: HTMLElement) {
+  const cls = el.className.split(/\s+/)
+  for (const c of [COMPOSER_CHIP_HEIGHT, 'leading-none', ...COMPOSER_CHIP_HIT.split(' ')]) expect(cls, el.outerHTML.slice(0, 120)).toContain(c)
+  expect(el.className).not.toMatch(/(^|\s)(min-h-|py-|h-(?!5\b))|pointer-coarse:min-h/)
 }
 
 describe('RoutingSelectionMenu', () => {
@@ -506,11 +514,22 @@ describe('RoutingSelectionMenu', () => {
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
   })
 
-  it('every control has a visible focus ring and a target of 24px (44px on touch)', () => {
+  it('the model chip is exactly as tall as the permission-mode chip next to it', () => {
+    mount('primary')
+    const mode = screen.getByTestId('mode-chip')
+    const target = screen.getByTestId('target-chip')
+    expectComposerChipHeight(mode)
+    expectComposerChipHeight(target)
+    // a 24px target, 32px on touch (the controls row), drawn by ::before
+    expect(target.className).toMatch(/focus-visible:ring-2/)
+    expect(target.className).toMatch(/\brelative\b/)
+  })
+
+  it('every control in the menu has a visible focus ring and a target of 24px (44px on touch)', () => {
     mount('primary', { prepare: (s) => s.set(modelCatalogAtom, CLAUDE_MODELS) })
     openMenu()
     const popover = screen.getByTestId('target-picker-popover')
-    const controls = [screen.getByTestId('target-chip'), ...within(popover).getAllByRole('button'), ...within(popover).getAllByRole('checkbox')]
+    const controls = [...within(popover).getAllByRole('button'), ...within(popover).getAllByRole('checkbox')]
     for (const el of controls) {
       expect(el.className, el.outerHTML.slice(0, 120)).toMatch(/focus-visible:ring-2/)
       expect(el.className, el.outerHTML.slice(0, 120)).toMatch(/min-h-6|size-6|h-9|min-h-11/)

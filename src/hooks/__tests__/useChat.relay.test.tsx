@@ -7,9 +7,9 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import type { ReactNode } from 'react'
+import { StrictMode, type ReactNode } from 'react'
 import { Provider, createStore } from 'jotai'
-import { chatDraftInputAtom, chatDraftsMapAtom, chatFollowNoticeAtom, chatSessionIdAtom, chatSwitchingSessionAtom } from '@/atoms'
+import { chatDraftInputAtom, chatDraftsMapAtom, chatFollowNoticeAtom, chatLastCancelFailureAtom, chatSessionIdAtom, chatSwitchingSessionAtom } from '@/atoms'
 import { historyEventsToMessages } from '@/utils/chatAssembly'
 
 vi.mock('@/services', () => {
@@ -202,5 +202,127 @@ describe('useChat — cancel the running tools over the socket', () => {
     ws().status = 'reconnecting'
     expect(result.current.cancelToolsLive()).toBe(false)
     expect(ws().sendCancelTools).not.toHaveBeenCalled()
+  })
+})
+
+describe('useChat — a failed or refused cancel does not end the turn', () => {
+  const CANCEL_FAILED = { type: 'error', message: 'Error: no answer in time', code: 'cancel_failed', reason: 'owner_timeout' }
+
+  it('cancel_failed during a live turn: the stream goes on, with a notice on the turn', async () => {
+    const { result, emit, blocks } = await setup()
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ ...CANCEL_FAILED })
+    expect(result.current.isStreaming).toBe(true)
+    const [notice] = blocks().filter((b) => b.type === 'error')
+    expect(notice.metadata).toEqual({ cancel_notice: true, code: 'cancel_failed', reason: 'owner_timeout' })
+  })
+
+  it('cancel_refused during a live turn: the stream goes on', async () => {
+    const { result, emit } = await setup()
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'error', message: 'Error: unsupported', code: 'cancel_refused', reason: 'tool_cancel' })
+    expect(result.current.isStreaming).toBe(true)
+  })
+
+  it('any other error still ends the turn', async () => {
+    const { result, emit } = await setup()
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'error', message: 'Error: boom' })
+    expect(result.current.isStreaming).toBe(false)
+  })
+
+  // `cancel_refused` is the one the backend persists (broadcast); `cancel_failed` goes to the asker only.
+  const CANCEL_REFUSED = { type: 'error', message: 'Error: unsupported', code: 'cancel_refused', reason: 'tool_cancel' }
+
+  it('the live block is the one the history reducer builds (cancel_refused, as persisted)', async () => {
+    const { emit, blocks } = await setup()
+    emit({ ...CANCEL_REFUSED })
+    expect(shape(blocks())).toEqual(fromHistory([{ ...CANCEL_REFUSED }]))
+    expect(blocks()[0].metadata).toEqual({ cancel_notice: true, code: 'cancel_refused', reason: 'tool_cancel' })
+  })
+
+  it('the replayed form ({replaying, data}) gives the same block, without touching the stream', async () => {
+    const { result, emit, blocks } = await setup()
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'error', replaying: true, data: { ...CANCEL_REFUSED } })
+    expect(shape(blocks())).toEqual(fromHistory([{ ...CANCEL_REFUSED }]))
+    expect(result.current.isStreaming).toBe(true)
+  })
+
+  it('a live cancel notice tells the Stop chips (lastCancelFailure); a replayed one does not', async () => {
+    const { store, emit } = await setup()
+    emit({ type: 'error', replaying: true, data: { ...CANCEL_FAILED, reason: 'owner_unreachable' } })
+    expect(store.get(chatLastCancelFailureAtom)).toBeNull()
+    emit({ ...CANCEL_FAILED, reason: 'owner_unreachable' })
+    expect(store.get(chatLastCancelFailureAtom)).toMatchObject({ sessionId: 'sess-1', reason: 'owner_unreachable' })
+  })
+
+  it('a refused background-task cancel is not about the running tools: the chips are not told', async () => {
+    const { store, emit } = await setup()
+    emit({ type: 'error', message: 'Error: unsupported', code: 'cancel_refused', reason: 'background_tasks' })
+    expect(store.get(chatLastCancelFailureAtom)).toBeNull()
+  })
+})
+
+describe('useChat — the cancel notice told to the Stop chips (review of #327, round 3)', () => {
+  const OWNER_UNREACHABLE = { type: 'error', message: 'Error: no instance holds this session', code: 'cancel_failed', reason: 'owner_unreachable' }
+
+  it('is written once, outside the message updater (React calls an updater twice in StrictMode)', async () => {
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'sess-1')
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <StrictMode>
+        <Provider store={store}>{children}</Provider>
+      </StrictMode>
+    )
+    const rendered = renderHook(() => useChat(), { wrapper })
+    await waitFor(() => expect(rendered.result.current.isLoadingHistory).toBe(false))
+    const ws = FakeWS.instances[FakeWS.instances.length - 1]
+    // Push a block first so the next updater is not computed eagerly.
+    act(() => ws.callbacks.onEvent({ type: 'streaming_status', is_streaming: true }))
+    const writes: unknown[] = []
+    const unsub = store.sub(chatLastCancelFailureAtom, () => writes.push(store.get(chatLastCancelFailureAtom)))
+    act(() => ws.callbacks.onEvent({ ...OWNER_UNREACHABLE }))
+    unsub()
+    expect(writes).toHaveLength(1)
+    expect(writes[0]).toMatchObject({ sessionId: 'sess-1', reason: 'owner_unreachable' })
+    // The notice is still on the turn, once.
+    expect(rendered.result.current.messages.flatMap((m) => m.blocks).filter((b) => b.type === 'error')).toHaveLength(1)
+  })
+
+  it('a notice buffered while the history loads is stamped when it ARRIVED, not when it is handled', async () => {
+    let releaseHistory: (v: { total_count: number; messages: never[] }) => void = () => {}
+    vi.mocked(chatApi.getMessages).mockImplementationOnce(
+      () => new Promise((resolve) => { releaseHistory = resolve as typeof releaseHistory }),
+    )
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    try {
+      const store = createStore()
+      store.set(chatSessionIdAtom, 'sess-1')
+      const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>
+      const rendered = renderHook(() => useChat(), { wrapper })
+      await waitFor(() => expect(FakeWS.instances.length).toBeGreaterThan(0))
+      const ws = FakeWS.instances[FakeWS.instances.length - 1]
+      act(() => ws.callbacks.onEvent({ ...OWNER_UNREACHABLE }))
+      // Buffered: not handled yet.
+      expect(store.get(chatLastCancelFailureAtom)).toBeNull()
+      // The user clicks Stop at 3000; the history comes back at 5000.
+      now.mockReturnValue(5_000)
+      await act(async () => releaseHistory({ total_count: 0, messages: [] }))
+      await waitFor(() => expect(rendered.result.current.isLoadingHistory).toBe(false))
+      // A chip clicked at 3000 must not take this notice (received at 1000) for its own.
+      expect(store.get(chatLastCancelFailureAtom)).toEqual({ sessionId: 'sess-1', reason: 'owner_unreachable', at: 1_000 })
+    } finally {
+      now.mockRestore()
+    }
+  })
+
+  it('an older notice handled late never replaces a newer one of the same session', async () => {
+    const { store, ws } = await setup()
+    act(() => store.set(chatLastCancelFailureAtom, { sessionId: 'sess-1', reason: 'session_gone', at: 9_000 }))
+    act(() => ws().callbacks.onEvent({ ...OWNER_UNREACHABLE, receivedAt: 4_000 }))
+    expect(store.get(chatLastCancelFailureAtom)).toEqual({ sessionId: 'sess-1', reason: 'session_gone', at: 9_000 })
+    act(() => ws().callbacks.onEvent({ ...OWNER_UNREACHABLE, receivedAt: 9_500 }))
+    expect(store.get(chatLastCancelFailureAtom)).toEqual({ sessionId: 'sess-1', reason: 'owner_unreachable', at: 9_500 })
   })
 })

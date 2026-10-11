@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pickModelResolver } from '@/constants/providers'
 import { distinctModels } from '@/utils/routingSelection'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -19,7 +19,6 @@ import { applyQueueOp, enqueue, mergeServerQueue, type QueueOp, type QueuedMessa
 import type { ChatMessage, ChatStreamEvent, ContentBlock, PermissionMode } from '@/types'
 import { isTrustAllowed, readToolPolicyMode, toWireMode, TRUST_FALLBACK_MODE, usableMode } from '@/constants/toolPolicy'
 import {
-  historyEventsToMessages,
   decodeStoredRefs,
   nextBlockId,
   nextMessageId,
@@ -41,9 +40,19 @@ import {
   isQuestionToolUse,
   questionMetadata,
   answerSyntheticQuestion,
+  attachToolTiming,
+  EarlyToolTimings,
+  ServerClock,
+  hasToolUse,
+  historyEventsToWindow,
+  placeTimings,
+  serverTimeOf,
+  permissionCallOf,
+  userEchoTarget,
   type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
+import { cancelNoticeMetadata, chipOutcomeOfNotice } from '@/utils/cancelFailure'
 import { tr } from '@/i18n/lazy'
 import { toProviderRef, toToolPolicy, type PermissionScope, type ToolPolicyMode } from '@/types/provider'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
@@ -71,9 +80,18 @@ export const SCOPE_CONFIRMATION_TIMEOUT_MS = 15_000
  */
 const MAX_RENDERABLE_TAIL = PAGE_SIZE * 16
 
+/**
+ * A stream event as `handleEvent` sees it. `receivedAt` is `Date.now()` when this
+ * tab first got it: an event buffered (history loading, resync, not at the tail)
+ * and handled later keeps the moment it arrived, not the moment it was handled.
+ */
+type LiveEvent = ChatStreamEvent & { seq?: number; replaying?: boolean; receivedAt?: number }
+
 /** One loaded window of history, assembled and with its raw-event bookkeeping. */
 interface LoadedWindow {
   messages: ChatMessage[]
+  /** Timings of calls on an older page (see `historyEventsToWindow`). */
+  unplacedTimings: EarlyToolTimings
   /** Raw events in the window — the pagination cursor advances by this, NOT by `messages.length`. */
   rawCount: number
   offset: number
@@ -92,8 +110,10 @@ function hasConversation(messages: ReadonlyArray<ChatMessage>): boolean {
 /** Fetch one window of raw events and assemble it. */
 async function fetchWindow(sid: string, offset: number, limit: number, refsEnabled: boolean): Promise<LoadedWindow> {
   const data = await chatApi.getMessages(sid, { limit, offset })
+  const assembled = historyEventsToWindow(data.messages, { refsEnabled })
   return {
-    messages: historyEventsToMessages(data.messages, { refsEnabled }),
+    messages: assembled.messages,
+    unplacedTimings: assembled.unplacedTimings,
     rawCount: data.messages.length,
     offset,
     totalCount: data.total_count,
@@ -343,7 +363,7 @@ export function useChat() {
   // Whether the loaded message window includes the tail (end) of the conversation.
   // When false (pagination centrée), live WS events are buffered to avoid disorder.
   const isAtTailRef = useRef(true)
-  const pendingTailEventsRef = useRef<Array<ChatStreamEvent & { seq?: number; replaying?: boolean }>>([])
+  const pendingTailEventsRef = useRef<Array<LiveEvent>>([])
   // True when live WS events are being buffered (user is viewing centered pagination)
   const [hasLiveActivity, setHasLiveActivity] = useState(false)
 
@@ -352,7 +372,23 @@ export function useChat() {
   // The auto-connect useEffect sets it to false before starting REST,
   // then back to true after setMessages(history) + replaying buffered events.
   const historyLoadedRef = useRef(true)
-  const pendingEventsRef = useRef<Array<ChatStreamEvent & { seq?: number; replaying?: boolean }>>([])
+  const pendingEventsRef = useRef<Array<LiveEvent>>([])
+  // The live `tool_timing`s of this turn, by call id: every one is held here (the
+  // message updater that places it must stay pure, it cannot say whether it found
+  // the call), and a `tool_use` that comes after its timing takes it. Read and
+  // written in handleEvent, never in an updater. At the turn's end the ones whose
+  // call is not on screen move to `unplacedTimingsRef`, the rest are dropped.
+  const earlyTimingsRef = useRef(new EarlyToolTimings())
+  // Timings whose call is on an OLDER page than the ones loaded (the call began
+  // before the window, its timing is inside it): placed when `loadOlderMessages`
+  // brings that page. Replaced with each window loaded from scratch.
+  const unplacedTimingsRef = useRef(new EarlyToolTimings())
+  // The calls (`tool_use` ids) seen live in this turn: on screen even before the
+  // render catches up. Cleared at the turn's end and with each window loaded.
+  const liveCallIdsRef = useRef(new Set<string>())
+  // The server's clock (gap learnt from each live frame): what the browser stamps
+  // itself is on it, like what the server stamps.
+  const serverClockRef = useRef(new ServerClock())
 
   // ------------------------------------------------------------------------
   // Replay reconciliation — APPEND-ONLY, NEVER DESTRUCTIVE.
@@ -464,7 +500,9 @@ export function useChat() {
   // ========================================================================
   // Event handler — processes LIVE events only (no more replay)
   // ========================================================================
-  const handleEvent = useCallback((event: ChatStreamEvent & { seq?: number; replaying?: boolean }) => {
+  const handleEvent = useCallback((incoming: LiveEvent) => {
+    // Stamped once, on receipt: a buffered event replayed later keeps this time.
+    const event: LiveEvent = incoming.receivedAt === undefined ? { ...incoming, receivedAt: Date.now() } : incoming
     // The messages the session holds until the running turn ends — always the
     // full list, published to EVERY device connected to the session, so a
     // message queued on one shows on the others. It replaces what we showed for
@@ -514,6 +552,13 @@ export function useChat() {
       setHasLiveActivity(true)
       return
     }
+
+    // The server's time of this event (#662 envelope), when it carries one: a row
+    // is then on the server's clock, like a timing and like the history. What has
+    // none is stamped on the server's clock as the browser estimates it.
+    const serverTime = serverTimeOf(event)
+    // Read once, outside the updaters (they must stay pure).
+    const eventTime = serverTime ?? serverClockRef.current.now().toISOString()
 
     // streaming_status — set isStreaming flag without touching messages
     // Broadcast by backend to ALL connected clients (multi-tab support)
@@ -642,27 +687,39 @@ export function useChat() {
           }
         }
 
-        // Avoid duplicate: check if ANY recent user message has the same content.
-        // This handles mid-stream sends where the optimistic user message is followed
-        // by assistant messages before the broadcast arrives from the dequeue.
-        for (let i = prev.length - 1; i >= Math.max(0, prev.length - 10); i--) {
+        // The echo of a bubble already shown (`userEchoTarget`): the oldest bubble
+        // of this browser waiting for an echo of this text (a mid-stream send is
+        // followed by assistant messages before the broadcast of its dequeue), or
+        // the bubble opening the turn in progress (a replay). Anything else is a
+        // new message, even with the text of an older one (sent from another tab).
+        const target = userEchoTarget(prev, content)
+        if (target) {
+          const i = target.index
           const msg = prev[i]
-          if (msg.role === 'user' && msg.blocks[0]?.content === content) {
-            // The optimistic bubble knows no filenames; the broadcast does.
-            const needsAttachments = sentAttachments.length > 0 && !msg.attachments?.length
-            // The optimistic bubble already knows the labels of its refs: keep them.
-            const needsRefs = sentRefs.length > 0 && !msg.refs?.length
-            if (needsAttachments || needsRefs) {
-              const next = [...prev]
-              next[i] = {
-                ...msg,
-                ...(needsAttachments ? { attachments: sentAttachments } : {}),
-                ...(needsRefs ? { refs: refsFromBlock(sentRefs) } : {}),
-              }
-              return next
+          // The optimistic bubble knows no filenames; the broadcast does.
+          const needsAttachments = sentAttachments.length > 0 && !msg.attachments?.length
+          // The optimistic bubble already knows the labels of its refs: keep them.
+          const needsRefs = sentRefs.length > 0 && !msg.refs?.length
+          // An echo, live or replayed (a reconnect snapshot may be the only one this
+          // tab gets), is THE echo of a waiting bubble: the bubble stops waiting (a
+          // later message with the same text gets its own bubble). It was stamped on
+          // the browser's estimate of the server's clock (exact only once a frame
+          // taught it the gap); a LIVE echo carries the server's own time: the turn
+          // starts there. A replayed frame only says the server has the message.
+          const echoed = target.awaiting
+          const serverStamp = echoed && !event.replaying && serverTime ? new Date(serverTime) : undefined
+          if (needsAttachments || needsRefs || echoed) {
+            const next = [...prev]
+            next[i] = {
+              ...msg,
+              ...(needsAttachments ? { attachments: sentAttachments } : {}),
+              ...(needsRefs ? { refs: refsFromBlock(sentRefs) } : {}),
+              ...(serverStamp ? { timestamp: serverStamp } : {}),
+              ...(echoed ? { awaitingEcho: undefined } : {}),
             }
-            return prev
+            return next
           }
+          return prev
         }
         return [
           ...prev,
@@ -672,7 +729,7 @@ export function useChat() {
             blocks: [{ id: nextBlockId(), type: 'text' as const, content }],
             ...(sentAttachments.length > 0 ? { attachments: sentAttachments } : {}),
             ...(sentRefs.length > 0 ? { refs: refsFromBlock(sentRefs) } : {}),
-            timestamp: new Date(),
+            timestamp: new Date(eventTime),
           },
         ]
       })
@@ -698,6 +755,46 @@ export function useChat() {
     // A closed session streams nothing more.
     if (event.type === 'session_closed' && !event.replaying) setIsStreaming(false)
 
+    // A live cancel notice answers the Stop chips whose request went over the socket.
+    // Written HERE, not in the message updater below: an updater must stay pure (React
+    // may call it twice). `at` is when the frame arrived, and an older notice handled
+    // late (buffered during a resync) never replaces a newer one.
+    if (event.type === 'error' && !event.replaying) {
+      const notice = cancelNoticeMetadata(event)
+      const chip = notice ? chipOutcomeOfNotice(notice.code, notice.reason) : null
+      const noticeSid = chip ? store.get(chatSessionIdAtom) : null
+      if (chip && noticeSid) {
+        const at = event.receivedAt ?? Date.now()
+        const current = store.get(chatLastCancelFailureAtom)
+        if (!current || current.sessionId !== noticeSid || current.at <= at) {
+          store.set(chatLastCancelFailureAtom, { sessionId: noticeSid, reason: chip.reason, at })
+        }
+      }
+    }
+
+    // Every timing is held here, placed or not: the updater below places it on its
+    // call when the call is on screen, but must stay pure and cannot say whether it
+    // did. A tool_use that comes after its timing takes it from here. At the turn's
+    // end, a held timing whose call is not on screen (its tool_use is on an older
+    // page) is kept for that page (`unplacedTimingsRef`), the others are dropped.
+    // Done before the updater.
+    let earlyTiming: Record<string, unknown> | undefined
+    {
+      const payload = (event.replaying ? (event as { data?: Record<string, unknown> }).data ?? event : event) as Record<string, unknown>
+      if (event.type === 'tool_timing') earlyTimingsRef.current.hold(payload)
+      else if (event.type === 'tool_use' && typeof payload.id === 'string') {
+        // Its timing came first: live, or at the end of the window loaded from REST.
+        earlyTiming = earlyTimingsRef.current.take(payload.id) ?? unplacedTimingsRef.current.take(payload.id)
+        liveCallIdsRef.current.add(payload.id)
+      } else if (event.type === 'result') {
+        // A call seen in this turn is on screen even when the render has not caught
+        // up yet (`messagesRef` lags behind a synchronous burst of frames).
+        const shown = messagesRef.current
+        const seen = liveCallIdsRef.current
+        earlyTimingsRef.current.moveTo(unplacedTimingsRef.current, (id) => !seen.has(id) && !hasToolUse(shown, id))
+        seen.clear()
+      }
+    }
     setMessages((prev) => {
       const updated = [...prev]
       let lastMsg = updated[updated.length - 1]
@@ -706,7 +803,7 @@ export function useChat() {
       // rendered, the empty boundary message is popped before returning.
       let createdBoundary = false
       if (!lastMsg || lastMsg.role !== 'assistant') {
-        lastMsg = { id: nextMessageId(), role: 'assistant', blocks: [], timestamp: new Date() }
+        lastMsg = { id: nextMessageId(), role: 'assistant', blocks: [], timestamp: new Date(eventTime) }
         updated.push(lastMsg)
         createdBoundary = true
       } else {
@@ -825,7 +922,7 @@ export function useChat() {
           const toolId = (data as { id?: string }).id ?? ''
           const toolInput = (data as { input?: Record<string, unknown> }).input ?? {}
           const tuParent = getParentToolUseId(event)
-          const tuTs = new Date().toISOString()
+          const tuTs = eventTime
 
           // Mid-stream join dedup: the WS snapshot replays the current stream
           // from its START, but the REST history already contains the events
@@ -848,6 +945,7 @@ export function useChat() {
                 streamWindow,
                 (b) => b.type === 'ask_user_question' && b.metadata?.tool_call_id === toolId,
               )
+              // A question call is timed like any call: its timing (come first) goes on this block.
               if (!isDupe) {
                 lastMsg.blocks.push({
                   id: nextBlockId(),
@@ -856,8 +954,11 @@ export function useChat() {
                   metadata: withCreatedAt(withParent({
                     tool_call_id: toolId,
                     questions,
+                    ...(earlyTiming ? { tool_timing: earlyTiming } : {}),
                   }, tuParent), tuTs),
                 })
+              } else if (earlyTiming) {
+                attachToolTiming(updated, { ...earlyTiming, id: toolId })
               }
             }
           } else {
@@ -902,6 +1003,7 @@ export function useChat() {
                       ? { child_outputs: initialChildOutputs }
                       : {}),
                     ...(initialChildData ? { child_data: initialChildData } : {}),
+                    ...(earlyTiming ? { tool_timing: earlyTiming } : {}),
                   },
                   tuParent,
                 ),
@@ -963,7 +1065,7 @@ export function useChat() {
           // Calculate tool duration from matching tool_use block
           let trDurationMs: number | undefined
           if (toolCallId) {
-            const now = Date.now()
+            const now = Date.parse(eventTime)
             for (let mi = updated.length - 1; mi >= 0; mi--) {
               const tuBlock = updated[mi].blocks.find(
                 (b) => b.type === 'tool_use' && b.metadata?.tool_call_id === toolCallId && b.metadata?.created_at,
@@ -985,6 +1087,17 @@ export function useChat() {
               ...(trDurationMs != null && { duration_ms: trDurationMs }),
             }, trParent),
           })
+          break
+        }
+
+        case 'tool_timing': {
+          // Not a message: the timing of a call already shown, put on its tool_use block
+          // (one not shown yet takes it from `earlyTimingsRef` when it comes).
+          const ttData = (event.replaying
+            ? (event as { data?: Record<string, unknown> }).data ?? event
+            : event) as Record<string, unknown>
+          // (an empty boundary message opened for this event is dropped by `finalize`)
+          attachToolTiming(updated, ttData)
           break
         }
 
@@ -1023,12 +1136,14 @@ export function useChat() {
             id: nextBlockId(),
             type: 'permission_request',
             content: `Tool "${(data as { tool?: string }).tool}" wants to execute`,
-            metadata: withParent({
+            // Its own time: without it the trace would date the wait from the message's start.
+            metadata: withCreatedAt(withParent({
               tool_call_id: (data as { id?: string }).id,
               tool_name: (data as { tool?: string }).tool,
               tool_input: (data as { input?: Record<string, unknown> }).input,
               ...toolHintMetadata(data),
-            }, prParent),
+              ...permissionCallOf(data),
+            }, prParent), eventTime),
           })
           break
         }
@@ -1071,7 +1186,8 @@ export function useChat() {
                 id: nextBlockId(),
                 type: 'ask_user_question',
                 content: questions.map((q) => q.question).join('\n'),
-                metadata: withParent(questionMetadata(data, toolCallId, questions), auqParent),
+                // Its server time when the frame has one (as the history does).
+                metadata: withCreatedAt(withParent(questionMetadata(data, toolCallId, questions), auqParent), serverTime),
               })
             }
           }
@@ -1083,15 +1199,19 @@ export function useChat() {
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event
           const errParent = getParentToolUseId(event)
+          // A failed or refused cancel (`cancel_failed`, `cancel_refused`) is a notice
+          // on the turn: the turn goes on, so the stream is NOT stopped.
+          const cancelNotice = cancelNoticeMetadata(data)
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'error',
             content: (data as { message?: string }).message ?? tr('app.chat.unknownError'),
-            metadata: withParent(undefined, errParent),
+            metadata: withCreatedAt(withParent(cancelNotice ?? undefined, errParent), serverTime),
           })
-          if (!event.replaying) {
+          if (!event.replaying && !cancelNotice) {
             setIsStreaming(false)
           }
+          // The Stop chips are told before this updater (it must stay pure).
           break
         }
 
@@ -1108,7 +1228,7 @@ export function useChat() {
             metadata: withParent(
               (() => {
                 const typed = sessionErrorMetadata(data)
-                return typed.code ? typed : undefined
+                return withCreatedAt(typed.code ? typed : undefined, serverTime)
               })(),
               getParentToolUseId(event),
             ),
@@ -1232,7 +1352,7 @@ export function useChat() {
           // Same block as the history reducer (chatAssembly.sessionEventBlock).
           const payload = event.replaying ? (event as { data?: Record<string, unknown> }).data ?? event : event
           const block = sessionEventBlock({ ...payload, type: event.type })
-          if (block) lastMsg.blocks.push({ id: nextBlockId(), ...block })
+          if (block) lastMsg.blocks.push({ id: nextBlockId(), ...block, metadata: withCreatedAt(block.metadata, serverTime) })
           break
         }
 
@@ -1244,7 +1364,7 @@ export function useChat() {
             id: nextBlockId(),
             type: 'error',
             content: toolsCancelledText(data as { killed_count?: number; requested_by?: string }),
-            metadata: withParent(undefined, getParentToolUseId(event)),
+            metadata: withCreatedAt(withParent(undefined, getParentToolUseId(event)), serverTime),
           })
           break
         }
@@ -1263,7 +1383,7 @@ export function useChat() {
             id: nextBlockId(),
             type: 'model_changed',
             content: `Model changed to ${newModel}`,
-            metadata: newReason ? { model: newModel, reason: newReason } : { model: newModel },
+            metadata: withCreatedAt(newReason ? { model: newModel, reason: newReason } : { model: newModel }, serverTime),
           })
           break
         }
@@ -1282,7 +1402,7 @@ export function useChat() {
             id: nextBlockId(),
             type: 'compact_boundary',
             content: label,
-            metadata: { trigger, pre_tokens: preTokens },
+            metadata: withCreatedAt({ trigger, pre_tokens: preTokens }, serverTime),
           })
           break
         }
@@ -1353,7 +1473,7 @@ export function useChat() {
               id: nextBlockId(),
               type: 'result_error',
               content: rResultText ?? tr('app.chat.executionError'),
-              metadata: { result_text: rResultText },
+              metadata: withCreatedAt({ result_text: rResultText }, serverTime),
             })
           }
 
@@ -1411,7 +1531,7 @@ export function useChat() {
           // — one block per correlation_id. Should the parent tool_use
           // arrive afterwards, the tool_use case drains that block.
           const tick: BackgroundTick = event.type === 'workflow'
-            ? workflowEventToTick(event, new Date().toISOString())
+            ? workflowEventToTick(event, eventTime)
             : {
                 correlation_id: event.correlation_id,
                 source: event.source,
@@ -1476,12 +1596,17 @@ export function useChat() {
         const total = meta.total_count
         const win: LoadedWindow =
           total === 0
-            ? { messages: [], rawCount: 0, offset: 0, totalCount: 0, runtime: null }
+            ? { messages: [], unplacedTimings: new EarlyToolTimings(), rawCount: 0, offset: 0, totalCount: 0, runtime: null }
             : await fetchRenderableTail(sid, total, store.get(refsEnabledAtom))
         if (gen !== resyncGenRef.current) return
         if (win.runtime) applySessionRuntime(win.runtime)
 
         setMessages(win.messages)
+        // The tail is rebuilt: what was held for the old one goes with it (the
+        // live events since then are buffered and replayed below).
+        earlyTimingsRef.current.clear()
+        liveCallIdsRef.current.clear()
+        unplacedTimingsRef.current = win.unplacedTimings
         paginationRef.current = {
           offset: win.offset,
           tailOffset: win.offset + win.rawCount,
@@ -1517,7 +1642,12 @@ export function useChat() {
   useEffect(() => {
     const ws = getWs()
     ws.setCallbacks({
-      onEvent: handleEvent,
+      // The gap to the server's clock is learnt when a frame COMES, not when a
+      // buffered one is handled later.
+      onEvent: (event) => {
+        serverClockRef.current.observe(event)
+        handleEvent(event)
+      },
       onStatusChange: (status) => {
         setWsStatus(status)
         // The socket's announcement dies with it: back to what the REST probe knows (or unknown).
@@ -1657,6 +1787,9 @@ export function useChat() {
     // will be queued in pendingEventsRef and replayed after setMessages().
     historyLoadedRef.current = false
     pendingEventsRef.current = []
+    earlyTimingsRef.current.clear()
+    liveCallIdsRef.current.clear()
+    unplacedTimingsRef.current = new EarlyToolTimings()
 
     // Phase 1: Connect WS IMMEDIATELY for live streaming (parallel with REST).
     // This eliminates the latency of the old sequential approach where
@@ -1785,6 +1918,7 @@ export function useChat() {
             if (win.runtime) applySessionRuntime(win.runtime)
 
             setMessages(win.messages)
+            unplacedTimingsRef.current = win.unplacedTimings
 
             const endOffset = win.offset + win.rawCount
 
@@ -1854,10 +1988,20 @@ export function useChat() {
       })
 
       if (data.messages.length > 0) {
-        const olderMessages = historyEventsToMessages(data.messages, { refsEnabled: store.get(refsEnabledAtom) })
-
+        const older = historyEventsToWindow(data.messages, { refsEnabled: store.get(refsEnabledAtom) })
+        const olderMessages = older.messages
+        // A call of this page whose timing came on a newer one gets it now; the
+        // timings of this page whose call is older still wait for their page.
+        unplacedTimingsRef.current.placeIn(olderMessages)
+        // The other way: a timing stored before its call, at the end of this page,
+        // whose tool_use is on the page already shown. Placed from an immutable
+        // snapshot (the holder is emptied below, the updater may be replayed).
+        const olderTimings = older.unplacedTimings.snapshot()
         // Prepend older messages to the beginning
-        setMessages((prev) => [...olderMessages, ...prev])
+        setMessages((prev) => placeTimings([...olderMessages, ...prev], olderTimings))
+        // What found no call on screen waits for an even older page.
+        const shown = messagesRef.current
+        older.unplacedTimings.moveTo(unplacedTimingsRef.current, (id) => !hasToolUse(shown, id))
 
         // Move the offset cursor back (tailOffset unchanged — we only prepended)
         paginationRef.current = {
@@ -1900,10 +2044,21 @@ export function useChat() {
       })
 
       if (data.messages.length > 0) {
-        const newerMessages = historyEventsToMessages(data.messages, { refsEnabled: store.get(refsEnabledAtom) })
+        const newer = historyEventsToWindow(data.messages, { refsEnabled: store.get(refsEnabledAtom) })
+        const newerMessages = newer.messages
+        const unplaced = newer.unplacedTimings
 
-        // Append newer messages to the end
-        setMessages((prev) => [...prev, ...newerMessages])
+        // Append newer messages to the end. A timing of this page whose call is on
+        // screen goes on it, and a timing held from the pages shown (stored before
+        // its call) goes on its call in this page. From immutable snapshots: the
+        // holders change right below, and the updater may be replayed.
+        const timings = [...unplaced.snapshot(), ...unplacedTimingsRef.current.snapshot()]
+        setMessages((prev) => placeTimings([...prev, ...newerMessages], timings))
+        // A held timing whose call came with this page is placed: no longer held.
+        for (const { id } of timings) if (hasToolUse(newerMessages, id)) unplacedTimingsRef.current.take(id)
+        // The others belong to calls on a page not loaded yet.
+        const shown = messagesRef.current
+        unplaced.moveTo(unplacedTimingsRef.current, (id) => !hasToolUse(shown, id))
 
         const newTailOffset = tailOffset + data.messages.length
         paginationRef.current = {
@@ -1948,6 +2103,11 @@ export function useChat() {
       const win = await fetchRenderableTail(sessionId, meta.total_count, store.get(refsEnabledAtom))
 
       setMessages(win.messages)
+      // A window loaded from scratch: what was held for the one it replaces goes
+      // with it (the live events since then are buffered and replayed below).
+      earlyTimingsRef.current.clear()
+      liveCallIdsRef.current.clear()
+      unplacedTimingsRef.current = win.unplacedTimings
 
       const endOffset = win.offset + win.rawCount
       paginationRef.current = {
@@ -2038,7 +2198,8 @@ export function useChat() {
         blocks: [{ id: nextBlockId(), type: 'text', content: text }],
         // The chips of the bubble: the labels the composer already knows.
         ...(sentRefs ? { refs } : {}),
-        timestamp: new Date(),
+        timestamp: serverClockRef.current.now(),
+        awaitingEcho: true,
       })
       return updated
     })
@@ -2288,7 +2449,8 @@ export function useChat() {
           id: nextMessageId(),
           role: 'user' as const,
           blocks: [{ id: nextBlockId(), type: 'text' as const, content: response }],
-          timestamp: new Date(),
+          timestamp: serverClockRef.current.now(),
+          awaitingEcho: true,
         },
       ]
     })

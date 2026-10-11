@@ -46,5 +46,21 @@ export default {
     autoOn: "已启用自动继续",
     autoOff: "已禁用自动继续",
     drop: "拖放到此处以附加"
+  },
+  refs: {
+    picker: {
+      all: "全部",
+      filterByKind: "按类型筛选",
+      hintActors: "角色",
+      hintSearch: "搜索",
+      kindOnly: "仅{kind}",
+      resultsOne: "{count} 个结果",
+      resultsMany: "{count} 个结果",
+      noResults: "无结果",
+      searching: "正在搜索…",
+      noActors: "此服务器上没有可用的角色",
+      needsProject: "选择一个项目以搜索角色设定和技能",
+      close: "关闭引用"
+    }
   }
 } satisfies Translation<'chatA-input'>

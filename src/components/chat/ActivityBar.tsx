@@ -20,6 +20,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Bot, CheckCircle2, ChevronDown, CornerRightUp, ExternalLink, Eye, Layers, Loader2, MessageSquare, Square, Terminal, Workflow } from 'lucide-react'
 import { useT } from '@/i18n'
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks'
+import { readCancelFailure } from '@/utils/cancelFailure'
 import { countByKind, type RunningItem, type RunningKind } from './runningActivity'
 import { useElapsedMs, formatDurationShort } from './useElapsedMs'
 
@@ -43,6 +44,7 @@ const FEEDBACK_TTL_MS = 2500
  */
 type Feedback =
   | { kind: 'success'; killed: number }
+  | { kind: 'stopped'; message: string }
   | { kind: 'fallback' }
   | { kind: 'error'; message: string }
 
@@ -216,9 +218,20 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
       } else {
         flash({ kind: 'fallback' })
       }
-    } catch {
+    } catch (err) {
       setStoppingFor(taskId, false)
-      flash({ kind: 'error', message: t('chatA-activity.bar.cancelFailed') })
+      const failure = readCancelFailure(err)
+      if (failure.alreadyStopped) {
+        // 409 owner_unreachable: nothing runs any more, nothing to retry.
+        flash({ kind: 'stopped', message: t('chatA-activity.cancel.alreadyStoppedNotice') })
+      } else if (failure.code === 'owner_timeout') {
+        // No answer in time: it may still happen (retryable or not, say that first).
+        flash({ kind: 'error', message: t('chatA-activity.cancel.timeoutNotice') })
+      } else if (failure.retryable) {
+        flash({ kind: 'error', message: t('chatA-activity.cancel.retryNotice') })
+      } else {
+        flash({ kind: 'error', message: t('chatA-activity.bar.cancelFailed') })
+      }
     }
   }
 
@@ -276,10 +289,11 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
         <div
           role="status"
           className={`flex items-start gap-2 px-2.5 py-1.5 border-t border-white/[0.06] text-[11px] ${
-            feedback.kind === 'success' ? 'text-emerald-300' : 'text-amber-300'
+            feedback.kind === 'success' || feedback.kind === 'stopped' ? 'text-emerald-300' : 'text-amber-300'
           }`}
+          data-feedback={feedback.kind}
         >
-          {feedback.kind === 'success' ? (
+          {feedback.kind === 'success' || feedback.kind === 'stopped' ? (
             <CheckCircle2 className="w-3 h-3 mt-0.5 shrink-0" />
           ) : (
             <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />

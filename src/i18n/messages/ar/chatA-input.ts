@@ -46,5 +46,21 @@ export default {
     autoOn: "تم تفعيل المتابعة التلقائية",
     autoOff: "تم تعطيل المتابعة التلقائية",
     drop: "أفلت للإرفاق"
+  },
+  refs: {
+    picker: {
+      all: "الكل",
+      filterByKind: "تصفية حسب النوع",
+      hintActors: "الجهات",
+      hintSearch: "بحث",
+      kindOnly: "{kind} فقط",
+      resultsOne: "نتيجة واحدة ({count})",
+      resultsMany: "{count} نتائج",
+      noResults: "لا توجد نتائج",
+      searching: "جارٍ البحث…",
+      noActors: "لا توجد جهات متاحة على هذا الخادم",
+      needsProject: "اختر مشروعًا للبحث عن الشخصيات والمهارات",
+      close: "إغلاق المراجع"
+    }
   }
 } satisfies Translation<'chatA-input'>

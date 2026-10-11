@@ -46,5 +46,21 @@ export default {
     autoOn: "Đã bật tự động tiếp tục",
     autoOff: "Đã tắt tự động tiếp tục",
     drop: "Thả để đính kèm"
+  },
+  refs: {
+    picker: {
+      all: "Tất cả",
+      filterByKind: "Lọc theo loại",
+      hintActors: "tác nhân",
+      hintSearch: "tìm kiếm",
+      kindOnly: "Chỉ {kind}",
+      resultsOne: "{count} kết quả",
+      resultsMany: "{count} kết quả",
+      noResults: "Không có kết quả",
+      searching: "Đang tìm…",
+      noActors: "Không có tác nhân nào trên máy chủ này",
+      needsProject: "Chọn một dự án để tìm persona và skill",
+      close: "Đóng tham chiếu"
+    }
   }
 } satisfies Translation<'chatA-input'>

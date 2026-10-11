@@ -1,6 +1,6 @@
 import type { StatusTone } from '@/components/ui/statusMeta'
 import { routedByLabel } from '@/constants/providers'
-import { shortModel, type TimelineKind, type TimelineLane, type TimelineStatus } from './model'
+import { shortModel, type TimelineItem, type TimelineKind, type TimelineLane, type TimelineStatus } from './model'
 
 export const STATUS_TONE: Record<TimelineStatus, StatusTone> = {
   running: 'progress',
@@ -15,6 +15,8 @@ export const STATUS_TONE: Record<TimelineStatus, StatusTone> = {
 export interface TimelineLabels {
   status: Record<TimelineStatus, string>
   empty: string
+  /** Under `empty`: what the trace will show once something happens. */
+  emptyHint: string
   /** Button that reveals the rows before the window; `{n}` is their count. */
   earlier: string
   /** `aria-label` of the chart. */
@@ -50,7 +52,11 @@ export interface TraceLabels {
   /** `{loaded}` of `{total}` events. */
   loading: string
   loadingStart: string
+  /** The same, short enough for the skeleton's toolbar in a 20rem panel. */
+  loadingShort: string
   failed: string
+  /** Nothing could be read at all (no trace to show behind the message). */
+  failedAll: string
   retry: string
   noDate: string
   child: string
@@ -75,6 +81,12 @@ export interface TraceLabels {
     goTo: string
     openSession: string
     zoom: string
+    /** A call the engine says never ran (permission denied). */
+    notRun: string
+    /** A call whose start the engine did not see. */
+    runUnseen: string
+    /** The engine's timing of a call may have missed a wait. */
+    incomplete: string
   }
 }
 
@@ -95,7 +107,9 @@ export const DEFAULT_TRACE_LABELS: TraceLabels = {
   collapse: 'Collapse',
   loading: 'Loading earlier turns… {loaded} of {total} events',
   loadingStart: 'Loading the history…',
+  loadingShort: 'Loading…',
   failed: 'Part of the history could not be loaded.',
+  failedAll: 'The history could not be loaded.',
   retry: 'Try again',
   noDate: 'no date',
   child: 'Delegated session',
@@ -123,12 +137,16 @@ export const DEFAULT_TRACE_LABELS: TraceLabels = {
     goTo: 'Show in the conversation',
     openSession: 'Open this session',
     zoom: 'Zoom on this span',
+    notRun: 'Did not run: the permission was denied',
+    runUnseen: 'The engine did not see it start running',
+    incomplete: 'Timing incomplete: a wait may be missing',
   },
 }
 
 export const DEFAULT_TIMELINE_LABELS: TimelineLabels = {
   status: { running: 'Running', done: 'Done', error: 'Failed', blocked: 'Waiting for you', cancelled: 'Cancelled', pending: 'Pending', unknown: 'No result' },
   empty: 'Nothing has happened yet.',
+  emptyHint: 'Each request, tool call and delegated session will appear here, on one time axis.',
   earlier: 'Show {n} earlier',
   list: 'Timeline',
   calls: 'Calls: {n}',
@@ -151,4 +169,11 @@ export function formatItemDuration(ms?: number): string | null {
 export function describeContext(ctx: TimelineLane['context']): string {
   if (!ctx) return ''
   return [ctx.provider, shortModel(ctx.model), ctx.routedBy ? routedByLabel(ctx.routedBy as never) : ''].filter(Boolean).join(' · ')
+}
+
+/** What the engine's timing says of a call that is not a plain run: denied, start unseen, incomplete. */
+export function runNote(item: TimelineItem | undefined, words: TraceLabels['detail']): string {
+  if (!item) return ''
+  const run = item.run === 'denied' ? words.notRun : item.run === 'unseen' ? words.runUnseen : ''
+  return [run, item.timingIncomplete ? words.incomplete : ''].filter(Boolean).join(' · ')
 }

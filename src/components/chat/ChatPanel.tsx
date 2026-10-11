@@ -6,15 +6,16 @@ import { useAtom } from 'jotai'
 import { useT } from '@/i18n'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
 import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom } from '@/atoms'
-import { useChat, useDetachedRuns, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
+import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
+import { useModalFocus } from '@/hooks/useModalFocus'
 import { describeSessionProvider, providerUnavailableReason } from '@/constants/providers'
 import { instanceMissingComposerText, noProviderComposerText, NO_PROVIDER_ERROR } from '@/constants/providerErrors'
 import { resumeUnsupportedText } from '@/constants/capabilities'
 import type { BackgroundTaskInfo } from '@/types'
 import { chatApi } from '@/services/chat'
-import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2 } from 'lucide-react'
+import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2, TriangleAlert } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
 import { RefsAnnouncer } from './RefsAnnouncer'
 import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget'
@@ -28,12 +29,17 @@ import { glassButton, glassFlat, iconButton } from '@/components/ui/classes'
 import { PolicyOnlyBanner } from './PolicyOnlyBanner'
 import { RemoteNoToolsBanner } from './RemoteNoToolsBanner'
 import { EngineBanner } from './EngineBanner'
+import { CapabilityGapsButton, CapabilityGapsPopover } from './CapabilityGapsButton'
+import { useCapabilityBannerCollapse } from './capabilityBannerCollapse'
+import { engineGaps } from '@/constants/engine'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { SecretRequestTray } from './SecretRequestTray'
 import { SessionOpenError } from './SessionOpenError'
 import { FollowNotice } from './FollowNotice'
 import { ComposerDock } from './ComposerDock'
-import { ChatTimelineStrip } from './ChatTimelineStrip'
+import { ChatTimelinePanel } from './ChatTimelinePanel'
+import { useResetTimelineOnPhone } from './useResetTimelineOnPhone'
+import { CHAT_COLUMN_WIDTH, CHAT_SIDEBAR_WIDTH, timelineRoom } from './timelineRoom'
 import { collectRunning } from './runningActivity'
 import type { RunActions } from './ActivityBar'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
@@ -77,7 +83,11 @@ export function ChatPanel() {
   const [panelWidth, setPanelWidth] = useAtom(chatPanelWidthAtom)
   const [showSessions, setShowSessions] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const timelineOpen = useAtomValue(chatTimelineOpenAtom)
+  const [timelineOpen, setTimelineOpen] = useAtom(chatTimelineOpenAtom)
+  const closeTimeline = useCallback(() => setTimelineOpen(false), [setTimelineOpen])
+  useResetTimelineOnPhone(setTimelineOpen, MOBILE_BREAKPOINT)
+  const isLg = useMediaQuery('(min-width: 1024px)')
+  const isXl = useMediaQuery('(min-width: 1280px)')
   // Height of the composer floating over the bottom of the transcript (see ComposerDock)
   const [dockHeight, setDockHeight] = useState(0)
   const [showMobileSidebar, setShowMobileSidebar] = useState(false)
@@ -106,6 +116,41 @@ export function ChatPanel() {
   const sessionModel = useAtomValue(chatSessionModelAtom)
   const engine = useAtomValue(chatSessionEngineAtom)
   const capabilitiesSnapshot = useAtomValue(chatSessionCapabilitiesSnapshotAtom)
+  // What this conversation cannot do (the capability banner). The reader can put the banner away as an
+  // amber icon in the header (on a phone: an amber count on the ⋯ menu button, the header has no room
+  // for one more button beside the title); a feature missing for the first time brings it back once.
+  const gapItems = useMemo(() => engineGaps(engine.degraded, capabilitiesSnapshot), [engine.degraded, capabilitiesSnapshot])
+  const gapIds = useMemo(() => gapItems.map((g) => g.id), [gapItems])
+  const bannerFold = useCapabilityBannerCollapse(gapIds)
+  const gapsIconRef = useRef<HTMLButtonElement>(null)
+  const overflowRef = useRef<HTMLButtonElement>(null)
+  const [gapsMenuOpen, setGapsMenuOpen] = useState(false)
+  const closeGapsMenu = useCallback((focusAnchor: boolean) => {
+    setGapsMenuOpen(false)
+    if (focusAnchor) overflowRef.current?.focus()
+  }, [])
+  const bannerCollapseRef = useRef<HTMLButtonElement>(null)
+  // Focus follows the control that replaced the one just used (it unmounts).
+  const { collapse: foldBanner, expand: unfoldBanner } = bannerFold
+  const collapseBanner = useCallback(() => {
+    foldBanner()
+    requestAnimationFrame(() => (gapsIconRef.current ?? overflowRef.current)?.focus())
+  }, [foldBanner])
+  const expandBanner = useCallback(() => {
+    unfoldBanner()
+    requestAnimationFrame(() => bannerCollapseRef.current?.focus())
+  }, [unfoldBanner])
+  const gapsFolded = bannerFold.collapsed && gapItems.length > 0
+  const gapsIcon = gapsFolded && !isMobile ? (
+    <CapabilityGapsButton items={gapItems} onExpand={expandBanner} triggerRef={gapsIconRef} />
+  ) : null
+  const gapsInMenu = gapsFolded && isMobile
+  const gapsCountLabel = t('session.degradation.count', { count: gapItems.length })
+  const gapsMenuBadge = gapsInMenu ? { count: gapItems.length, label: gapsCountLabel } : undefined
+  const gapsMenuAction = { label: gapsCountLabel, icon: TriangleAlert, tone: 'warning' as const, hidden: !gapsInMenu, onClick: () => setGapsMenuOpen(true) }
+  const gapsMenuPopover = (
+    <CapabilityGapsPopover open={gapsMenuOpen && gapsInMenu} onClose={closeGapsMenu} anchorRef={overflowRef} items={gapItems} onExpand={expandBanner} />
+  )
   const [sessionOpenError, setSessionOpenError] = useAtom(chatSessionOpenErrorAtom)
   const dismissSessionOpenError = useCallback(() => setSessionOpenError(null), [setSessionOpenError])
   // Session + panel mode live in the URL, so a reload reopens the chat as it was.
@@ -360,11 +405,9 @@ export function ChatPanel() {
     if (!isFullscreen) {
       setShowSessions(false)
     }
-    // Close mobile sidebar overlay on selection
-    if (isMobile) {
-      setShowMobileSidebar(false)
-    }
-  }, [chat.loadSession, setScrollToTurn, isFullscreen, isMobile])
+    // Close the full-screen list on selection (a phone, or the sidebar set aside for the timeline)
+    setShowMobileSidebar(false)
+  }, [chat.loadSession, setScrollToTurn, isFullscreen])
 
   // Determine header title
   const headerTitle = isNewConversation
@@ -432,9 +475,39 @@ export function ChatPanel() {
       {!isNewConversation && sessionProviderInfo.isRemote && !capabilities.per_session_mcp && (
         <RemoteNoToolsBanner machine={sessionProviderInfo.label} />
       )}
-      <EngineBanner degraded={engine.degraded} declared={capabilitiesSnapshot} />
+      {!bannerFold.collapsed && (
+        <EngineBanner degraded={engine.degraded} declared={capabilitiesSnapshot} onCollapse={collapseBanner} collapseRef={bannerCollapseRef} />
+      )}
     </>
   )
+
+  // While the timeline column is open, what the full-screen chat sets aside for the conversation.
+  const room = timelineRoom({ timelineOpen, treeOpen: showAgentTree && !!rootSessionId, lg: isLg, xl: isXl })
+  // No sidebar column (a phone, or set aside for the timeline): the list opens full screen
+  // from the header, and the header carries "New conversation".
+  const compactSidebar = isMobile || room.hideSidebar
+  const compactOnly = room.hideSidebar ? '' : 'md:hidden'
+  // Back to a sidebar column (timeline closed, window widened): the full-screen list is put away,
+  // so it does not come back unasked when the layout turns compact again.
+  const [wasCompact, setWasCompact] = useState(compactSidebar)
+  if (wasCompact !== compactSidebar) {
+    setWasCompact(compactSidebar)
+    if (!compactSidebar) setShowMobileSidebar(false)
+  }
+  // The full-screen list is modal: focus on its close control, Tab kept inside, the chat
+  // behind inert, Escape closes it, focus back to the header's Sessions button.
+  const mobileSidebarRef = useRef<HTMLDivElement>(null)
+  const closeMobileSidebar = useCallback(() => setShowMobileSidebar(false), [])
+  useModalFocus(mobileSidebarRef, { active: isFullscreen && compactSidebar && showMobileSidebar, onEscape: closeMobileSidebar })
+  // The tree as the reader sees it: set aside for the timeline below lg, it is not "on".
+  const treeShown = showAgentTree && !room.hideTree
+  const toggleTree = () => {
+    setShowSettings(false)
+    if (treeShown) { setShowAgentTree(false); return }
+    setShowAgentTree(true)
+    // Below lg the tree and the timeline share one column: the last one asked for wins.
+    if (timelineRoom({ timelineOpen, treeOpen: true, lg: isLg, xl: isXl }).hideTree) setTimelineOpen(false)
+  }
 
   // --- FULLSCREEN LAYOUT: sidebar + conversation side by side ---
   // On mobile (<768px): sidebar is a full-screen overlay toggled via hamburger
@@ -452,7 +525,7 @@ export function ChatPanel() {
         {panelDrop.over && <RefDropOverlay />}
         {/* Left sidebar — hidden on mobile, permanent on desktop */}
         {/* Desktop: static sidebar */}
-        <div className="hidden md:flex w-72 shrink-0 border-r border-white/[0.06] flex-col">
+        <div className={`hidden ${CHAT_SIDEBAR_WIDTH.className} shrink-0 flex-col border-r border-white/[0.06] ${room.hideSidebar ? '' : 'md:flex'}`} data-testid="chat-sessions-sidebar">
           {/* Sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
           <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
             <span className="text-sm font-medium text-gray-300">{t('chatA-messages.panel.conversations')}</span>
@@ -476,14 +549,21 @@ export function ChatPanel() {
           />
         </div>
 
-        {/* Mobile: full-screen overlay sidebar */}
-        {isMobile && showMobileSidebar && (
-          <div className="fixed inset-0 z-40 flex flex-col bg-surface-raised">
+        {/* Compact: full-screen overlay sidebar (a phone, or the sidebar set aside for the timeline) */}
+        {compactSidebar && showMobileSidebar && (
+          <div
+            ref={mobileSidebarRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('chatA-messages.panel.conversations')}
+            data-testid="chat-sessions-overlay"
+            className="fixed inset-0 z-40 flex flex-col bg-surface-raised"
+          >
             {/* Mobile sidebar header — taller on Tauri (non-fullscreen) to clear traffic lights */}
             <div className={`flex items-center justify-between px-4 shrink-0 ${trafficLightPad ? 'h-[88px] pt-7' : 'h-14'}`}>
               <span className="text-sm font-medium text-gray-300">{t('chatA-messages.panel.conversations')}</span>
               <div className="flex items-center gap-1">
-                <button type="button" onClick={() => setShowMobileSidebar(false)} className={chromeIcon()} title={t('chatA-messages.panel.backToChat')} aria-label={t('chatA-messages.panel.backToChat')}>
+                <button type="button" onClick={closeMobileSidebar} className={chromeIcon()} title={t('chatA-messages.panel.backToChat')} aria-label={t('chatA-messages.panel.backToChat')}>
                   <X className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
@@ -506,7 +586,7 @@ export function ChatPanel() {
             <SessionList
               activeSessionId={chat.sessionId}
               onSelect={handleSelectSession}
-              onClose={() => setShowMobileSidebar(false)}
+              onClose={closeMobileSidebar}
               embedded
             />
           </div>
@@ -515,13 +595,13 @@ export function ChatPanel() {
         {/* Right side — conversation (full width on mobile) */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Conversation header */}
-          <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
+          <div className="h-14 flex items-center justify-between px-3 md:px-4 border-b border-white/[0.06] shrink-0">
             <div className="min-w-0 flex flex-1 items-center gap-2">
               {/* Mobile: hamburger to toggle sidebar */}
               <button
                 type="button"
-                onClick={() => { if (isMobile) setShowMobileSidebar(true) }}
-                className={`shrink-0 md:hidden ${chromeIcon(showMobileSidebar)}`}
+                onClick={() => { if (compactSidebar) setShowMobileSidebar(true) }}
+                className={`shrink-0 ${compactOnly} ${chromeIcon(showMobileSidebar)}`}
                 title={t('chatA-messages.panel.sessions')}
                 aria-label={t('chatA-messages.panel.sessions')}
                 aria-expanded={showMobileSidebar}
@@ -547,29 +627,30 @@ export function ChatPanel() {
               />
             </div>
             <div className="flex shrink-0 items-center gap-1">
+              {gapsIcon}
               <button
                 type="button"
                 onClick={handleNewSession}
                 disabled={isNewConversation}
-                className={`md:hidden ${isNewConversation ? chromeIconDisabled : chromeIcon()}`}
+                className={`${compactOnly} ${isNewConversation ? chromeIconDisabled : chromeIcon()}`}
                 title={t('chatA-messages.panel.newChat')}
                 aria-label={t('chatA-messages.panel.newChat')}
               >
                 <Plus className="w-4 h-4" aria-hidden="true" />
               </button>
               {/* Link this conversation to a plan or a task of its project */}
-              {!isNewConversation && chat.sessionId && (
+              {!isMobile && !isNewConversation && chat.sessionId && (
                 <AttachSessionButton variant="icon" sessionId={chat.sessionId} projectSlug={chat.sessionMeta?.projectSlug} />
               )}
               {/* Agent Tree toggle — visible when session has children */}
-              {hasChildren && chat.sessionId && (
+              {!isMobile && hasChildren && chat.sessionId && (
                 <button
                   type="button"
-                  onClick={() => { setShowAgentTree(!showAgentTree); setShowSettings(false) }}
-                  className={chromeIcon(showAgentTree)}
+                  onClick={toggleTree}
+                  className={chromeIcon(treeShown)}
                   title={t('chatA-messages.panel.assistantTree')}
                   aria-label={t('chatA-messages.panel.assistantTree')}
-                  aria-pressed={showAgentTree}
+                  aria-pressed={treeShown}
                 >
                   <TreePine className="w-4 h-4" aria-hidden="true" />
                 </button>
@@ -589,7 +670,7 @@ export function ChatPanel() {
                 )}
               </button>
               {/* Copy chat to clipboard */}
-              {chat.messages.length > 0 && (
+              {!isMobile && chat.messages.length > 0 && (
                 <button
                   type="button"
                   onClick={handleCopyChat}
@@ -600,14 +681,47 @@ export function ChatPanel() {
                   {copiedChat ? <Check className="w-4 h-4" aria-hidden="true" /> : <ClipboardCopy className="w-4 h-4" aria-hidden="true" />}
                 </button>
               )}
-              <button type="button" onClick={() => setMode('open')} className={chromeIcon()} title={t('chatA-messages.panel.exitFullscreen')} aria-label={t('chatA-messages.panel.exitFullscreen')}>
-                <Minimize2 className="w-4 h-4" aria-hidden="true" />
-              </button>
+              {isMobile ? (
+                // A 360 px phone has no room for seven buttons beside the title: the less frequent ones
+                // go under the ⋯ menu, as in the docked panel, and so does the list of missing features
+                // (its amber count stays visible on the ⋯ button).
+                <>
+                  <OverflowMenu
+                    size="sm"
+                    label={t('chatA-messages.panel.actions')}
+                    badge={gapsMenuBadge}
+                    triggerRef={overflowRef}
+                    actions={[
+                      gapsMenuAction,
+                      { label: t('chatA-messages.panel.attach'), icon: Link2, hidden: isNewConversation || !chat.sessionId, onClick: () => setShowAttach(true) },
+                      { label: treeShown ? t('chatA-messages.panel.hideTree') : t('chatA-messages.panel.showTree'), icon: TreePine, hidden: !(hasChildren && chat.sessionId), onClick: toggleTree },
+                      { label: copiedChat ? t('chatA-messages.panel.copied') : t('chatA-messages.panel.copyChat'), icon: copiedChat ? Check : ClipboardCopy, hidden: chat.messages.length === 0, onClick: handleCopyChat },
+                      { label: t('chatA-messages.panel.exitFullscreen'), icon: Minimize2, onClick: () => setMode('open') },
+                    ]}
+                  />
+                  {gapsMenuPopover}
+                </>
+              ) : (
+                <button type="button" onClick={() => setMode('open')} className={chromeIcon()} title={t('chatA-messages.panel.exitFullscreen')} aria-label={t('chatA-messages.panel.exitFullscreen')}>
+                  <Minimize2 className="w-4 h-4" aria-hidden="true" />
+                </button>
+              )}
               <button type="button" onClick={() => setMode('closed')} className={chromeIcon()} title={t('chatA-messages.panel.close')} aria-label={t('chatA-messages.panel.close')}>
                 <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
           </div>
+
+          {/* "Attach to a plan or task…" from the phone's ⋯ menu (a header button on a wider screen) */}
+          {chat.sessionId && isMobile && (
+            <AttachSessionDialog
+              open={showAttach}
+              onClose={() => setShowAttach(false)}
+              sessionId={chat.sessionId}
+              projectSlug={chat.sessionMeta?.projectSlug}
+              onAttached={requestAttentionRefresh}
+            />
+          )}
 
           {/* Back to parent button — shown when session is spawned */}
           {parentSessionId && (
@@ -665,9 +779,6 @@ export function ChatPanel() {
                     onStopRun={handleStopRun}
                   />
                 )}
-                {timelineOpen && (
-                  <ChatTimelineStrip sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
-                )}
                 {/* The composer floats over the transcript: the messages scroll under its glass. */}
                 <div className="relative flex flex-1 min-h-0 flex-col">
                   <RefsAnnouncer />
@@ -717,9 +828,13 @@ export function ChatPanel() {
                 </div>
               </div>
 
+              {/* Timeline: a right-hand column on desktop, a full-screen view on a phone */}
+              {timelineOpen && (
+                <ChatTimelinePanel placement="column" onClose={closeTimeline} sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
+              )}
               {/* Agent Tree right panel — fullscreen layout */}
-              {showAgentTree && rootSessionId && (
-                <div className="w-80 shrink-0 border-l border-white/[0.06] flex flex-col overflow-y-auto p-3">
+              {treeShown && rootSessionId && (
+                <div className={`${CHAT_COLUMN_WIDTH.className} shrink-0 border-l border-white/[0.06] flex flex-col overflow-y-auto p-3`} data-testid="chat-tree-column">
                   <DiscussionTreeView sessionId={rootSessionId} onNavigate={handleTreeNavigate} />
                 </div>
               )}
@@ -750,7 +865,7 @@ export function ChatPanel() {
       />
 
       {/* Header */}
-      <div className="h-14 flex items-center justify-between px-4 border-b border-white/[0.06] shrink-0">
+      <div className="h-14 flex items-center justify-between px-3 md:px-4 border-b border-white/[0.06] shrink-0">
         <div className="flex flex-1 items-center gap-2 min-w-0">
           <button
             type="button"
@@ -782,6 +897,7 @@ export function ChatPanel() {
         {/* Four controls, not seven: a docked panel is narrow (400 px by default) and seven 28 px
             buttons left the title about 70 px. The less frequent ones live under the ⋯ menu. */}
         <div className="flex shrink-0 items-center gap-1">
+          {gapsIcon}
           <button
             type="button"
             onClick={handleNewSession}
@@ -809,7 +925,10 @@ export function ChatPanel() {
           <OverflowMenu
             size="sm"
             label={t('chatA-messages.panel.actions')}
+            badge={gapsMenuBadge}
+            triggerRef={overflowRef}
             actions={[
+              gapsMenuAction,
               // Link this conversation to a plan or a task of its project
               { label: t('chatA-messages.panel.attach'), icon: Link2, hidden: isNewConversation || !chat.sessionId, onClick: () => setShowAttach(true) },
               // Agent Tree toggle — visible when session has children
@@ -824,6 +943,7 @@ export function ChatPanel() {
               { label: t('chatA-messages.panel.fullscreen'), icon: Maximize2, hidden: isMobile, onClick: () => setMode('fullscreen') },
             ]}
           />
+          {gapsMenuPopover}
           <button type="button" onClick={() => setMode('closed')} className={chromeIcon()} title={t('chatA-messages.panel.close')} aria-label={t('chatA-messages.panel.close')}>
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -905,9 +1025,6 @@ export function ChatPanel() {
               onStopRun={handleStopRun}
             />
           )}
-          {timelineOpen && (
-            <ChatTimelineStrip sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
-          )}
           {/* The composer floats over the transcript: the messages scroll under its glass. */}
           <div className="relative flex flex-1 min-h-0 flex-col">
             <RefsAnnouncer />
@@ -958,6 +1075,10 @@ export function ChatPanel() {
         </>
       )}
     </div>
+    {/* Timeline: a side panel against the docked chat on desktop, a full-screen view on a phone */}
+    {isOpen && timelineOpen && (
+      <ChatTimelinePanel placement="docked" dockOffset={panelWidth} onClose={closeTimeline} sessionId={chat.sessionId} messages={chat.messages} isStreaming={chat.isStreaming} title={sessionTitle} runs={detachedRuns.runs} workspaceSlug={activeWsSlug} />
+    )}
     </ChatCapabilitiesProvider>
     </ChatSessionProvider>
   )

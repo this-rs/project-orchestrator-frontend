@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from 'react'
 import { useAtomValue } from 'jotai'
-import { chatBackgroundTasksAtom } from '@/atoms'
+import { chatBackgroundTasksAtom, chatLastCancelFailureAtom } from '@/atoms'
 import { buildActivityFromToolCall } from '@/utils/backgroundActivity'
 import { ActivityCard } from './BackgroundActivityCard'
 import type { ContentBlock } from '@/types'
@@ -11,6 +11,8 @@ import { useCancelToolsLive, useChatCapabilities, useChatSessionId } from './Cha
 import { useBlockProviderKind } from './useBlockProviderKind'
 import { toolCancelUnsupportedText } from '@/constants/capabilities'
 import { ChevronRight, Square } from 'lucide-react'
+import { useT } from '@/i18n'
+import { chipOutcomeOfReason, readCancelFailure, type ChipOutcome } from '@/utils/cancelFailure'
 
 const MCP_PREFIX = 'mcp__project-orchestrator__'
 
@@ -38,6 +40,13 @@ interface ToolCallBlockProps {
 export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false)
   const [stopRequested, setStopRequested] = useState(false)
+  // What a refused stop left: `already_stopped` (409 owner_unreachable), `pending`
+  // (504 owner_timeout: it may still happen) or `failed` (not retryable). All keep
+  // the chip disabled.
+  const [restOutcome, setRestOutcome] = useState<ChipOutcome | null>(null)
+  // When the click was sent; a failure announced on the stream before it is not ours.
+  const [stopClickedAt, setStopClickedAt] = useState<number | null>(null)
+  const { t } = useT()
   const sessionId = useChatSessionId()
   const cancelToolsLive = useCancelToolsLive()
   const toolName = block.metadata?.tool_name as string || block.content
@@ -95,6 +104,16 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
   // POST /api/chat/sessions/{id}/cancel-tools which sends SIGINT to
   // the CLI's descendant process(es). The agent receives a cancelled
   // tool_result and continues its turn (does NOT end it).
+  // Over the socket there is no REST answer: the failure comes back on the stream as a
+  // cancel notice (`chatLastCancelFailureAtom`). Its frame has no `retryable`, so the
+  // chip is never re-enabled from it.
+  const lastCancelFailure = useAtomValue(chatLastCancelFailureAtom)
+  const streamOutcome =
+    stopRequested && stopClickedAt !== null && lastCancelFailure !== null &&
+    lastCancelFailure.sessionId === sessionId && lastCancelFailure.at >= stopClickedAt
+      ? chipOutcomeOfReason(lastCancelFailure.reason)
+      : null
+  const stopOutcome = restOutcome ?? streamOutcome
   const canStop = isLoading && !isCancelled && sessionId !== null && !stopRequested
   // The provider cannot stop one tool: the chip stays where it is expected,
   // disabled, and says what to use instead (the turn-level Stop still works).
@@ -104,6 +123,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
     e.stopPropagation()
     if (!sessionId || !stopSupported) return
     setStopRequested(true)
+    setStopClickedAt(Date.now())
     // The open chat socket first (`cancel_tools` frame): the cancelled tool_result and
     // `tools_cancelled` come back on the stream like for the REST call. REST otherwise.
     if (cancelToolsLive?.()) return
@@ -117,9 +137,16 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
       // Otherwise stays disabled — the cancelled ToolResult arriving
       // on the broadcast will switch isLoading→false and the button
       // will disappear naturally.
-    } catch {
-      // Network/404 — re-enable after a beat so the user can retry.
-      setTimeout(() => setStopRequested(false), 2000)
+    } catch (err) {
+      // Typed refusal (`{error, code, retryable}`): the chip comes back only when the
+      // backend says asking again is safe — a cancel-tools retried after a timeout
+      // would stop the tools started since. A timeout is said first, retryable or not
+      // (as in the ActivityBar): the stop may still happen, the chip waits.
+      const failure = readCancelFailure(err)
+      if (failure.alreadyStopped) setRestOutcome('already_stopped')
+      else if (failure.code === 'owner_timeout') setRestOutcome('pending')
+      else if (failure.retryable) setTimeout(() => setStopRequested(false), 2000)
+      else setRestOutcome('failed')
     }
   }
 
@@ -187,9 +214,35 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
           </span>
         )}
         {stopRequested && isLoading && !isCancelled && (
-          <span className="ml-2 text-[10px] font-mono text-amber-300 shrink-0">
-            stopping…
-          </span>
+          stopOutcome === 'already_stopped' ? (
+            <span
+              className="ml-2 text-[10px] font-mono text-gray-500 shrink-0"
+              title={t('chatA-activity.cancel.alreadyStoppedNotice')}
+              data-stop-outcome="already_stopped"
+            >
+              {t('chatA-activity.cancel.alreadyStopped')}
+            </span>
+          ) : stopOutcome === 'pending' ? (
+            <span
+              className="ml-2 text-[10px] font-mono text-amber-300 shrink-0"
+              title={t('chatA-activity.cancel.timeoutNotice')}
+              data-stop-outcome="pending"
+            >
+              {t('chatA-activity.cancel.timeoutNotice')}
+            </span>
+          ) : stopOutcome === 'failed' ? (
+            <span
+              className="ml-2 text-[10px] font-mono text-amber-300 shrink-0"
+              title={t('chatA-activity.cancel.failedNotice')}
+              data-stop-outcome="failed"
+            >
+              {t('chatA-activity.cancel.notStopped')}
+            </span>
+          ) : (
+            <span className="ml-2 text-[10px] font-mono text-amber-300 shrink-0">
+              stopping…
+            </span>
+          )
         )}
       </button>
 

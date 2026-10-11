@@ -46,5 +46,21 @@ export default {
     autoOn: "ऑटो-कंटिन्यू चालू है",
     autoOff: "ऑटो-कंटिन्यू बंद है",
     drop: "अटैच करने के लिए छोड़ें"
+  },
+  refs: {
+    picker: {
+      all: "सभी",
+      filterByKind: "प्रकार से फ़िल्टर करें",
+      hintActors: "एक्टर",
+      hintSearch: "खोजें",
+      kindOnly: "केवल {kind}",
+      resultsOne: "{count} परिणाम",
+      resultsMany: "{count} परिणाम",
+      noResults: "कोई परिणाम नहीं",
+      searching: "खोज रहे हैं…",
+      noActors: "इस सर्वर पर कोई एक्टर उपलब्ध नहीं",
+      needsProject: "पर्सोना और स्किल खोजने के लिए एक प्रोजेक्ट चुनें",
+      close: "संदर्भ बंद करें"
+    }
   }
 } satisfies Translation<'chatA-input'>

@@ -50,8 +50,10 @@ export const chatSessionModelAtom = atom<string | null>(null)
 /** Whether auto-continue is enabled (automatically sends "Continue" after max_turns) */
 export const chatAutoContinueAtom = atom<boolean>(false)
 
-/** Whether the horizontal timeline strip is shown above the transcript (remembered per browser). */
-export const chatTimelineOpenAtom = atomWithStorage<boolean>('chat-timeline-open', false)
+/** Storage key of `chatTimelineOpenAtom` (also read by the reset on phones). */
+export const CHAT_TIMELINE_OPEN_KEY = 'chat-timeline-open'
+/** Whether the chat's timeline panel is open (remembered per browser). */
+export const chatTimelineOpenAtom = atomWithStorage<boolean>(CHAT_TIMELINE_OPEN_KEY, false)
 
 /** Draft key of a conversation that has no id yet (nothing sent so far). */
 export const NEW_CONVERSATION_DRAFT_KEY = '__new__'
@@ -182,6 +184,19 @@ export const showSpawnedSessionsAtom = atomWithStorage<boolean>('show-spawned-se
  * sees fit (typically by `started_at` ascending).
  */
 export const chatBackgroundTasksAtom = atom<BackgroundTaskInfo[]>([])
+
+/**
+ * The last failed or refused cancel of the running tools announced on the live
+ * stream (`error { code: cancel_failed | cancel_refused, reason }`), for the Stop
+ * chips whose request went over the socket: they get no REST answer, only this.
+ * `at` is `Date.now()` on arrival — a chip ignores a failure older than its click.
+ */
+export interface LastCancelFailure {
+  sessionId: string
+  reason: string
+  at: number
+}
+export const chatLastCancelFailureAtom = atom<LastCancelFailure | null>(null)
 
 /**
  * Secrets the agent of the CURRENT session asked for and the user has not
