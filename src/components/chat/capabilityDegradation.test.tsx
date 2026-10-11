@@ -132,6 +132,8 @@ describe('permission_scopes', () => {
     const { rerender } = render(view(withMeta({ always_eligible: true })))
     const always = screen.getByRole('button', { name: 'Always' })
     expect(always.getAttribute('title')).toMatch(/this exact call/)
+    // It says when it no longer holds (review of #714, A/B): another directory asks again.
+    expect(always.getAttribute("title")).toMatch(/asked again if the conversation has changed directory/)
     const preview = screen.getByTestId('permission-always-scope')
     expect(always.getAttribute('aria-describedby')).toBe(preview.id)
     expect(preview.textContent).toMatch(/^If granted/)
@@ -168,7 +170,7 @@ describe('permission_scopes', () => {
     }
     mount(<PermissionRequestBlock block={block} onRespond={() => true} />, caps({ permission_scopes: ['once', 'session'] }))
     expect(screen.getByTestId('permission-session-scope').textContent).toContain(
-      'Bash: ls [dangerouslyDisableSandbox=true, timeout=5000]',
+      'Bash: ls ["dangerouslyDisableSandbox"=true, "timeout"=5000]',
     )
   })
 

@@ -170,7 +170,7 @@ export default {
     allowedSession: "Permitido para la sesión",
     denied: "Denegado",
     allowAlways: "Siempre",
-    alwaysHint: "No se vuelve a preguntar por esta llamada exacta en tus conversaciones de este proyecto que se ejecutan en su directorio, en esta máquina",
+    alwaysHint: "No se vuelve a preguntar por esta llamada exacta en tus conversaciones de este proyecto que se ejecutan en su directorio, en esta máquina; se vuelve a preguntar si la conversación cambió de directorio",
     alwaysCovers: "Si se concede, «Siempre» solo cubre:",
     alwaysRefused: "Esta llamada no se puede permitir para siempre (solo una lectura exacta, o un comando de solo lectura sin redirección ni encadenamiento). Responde una vez o para la sesión.",
     allowedAlways: "Siempre permitido"

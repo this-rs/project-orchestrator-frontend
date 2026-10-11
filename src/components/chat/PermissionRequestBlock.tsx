@@ -165,7 +165,7 @@ function sessionGrantPreview(toolName: string, input: Record<string, unknown> | 
     const extras = Object.keys(input)
       .filter((k) => k !== 'command' && k !== 'description')
       .sort()
-      .map((k) => `${k}=${canonicalJson(input[k])}`)
+      .map((k) => `${JSON.stringify(k)}=${canonicalJson(input[k])}`)
     const line = `${toolName}: ${input.command.trim()}`
     return extras.length ? `${line} [${extras.join(', ')}]` : line
   }

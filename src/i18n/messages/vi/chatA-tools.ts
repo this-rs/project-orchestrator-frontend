@@ -170,7 +170,7 @@ export default {
     allowedSession: "Đã cho phép cho phiên",
     denied: "Đã từ chối",
     allowAlways: "Luôn luôn",
-    alwaysHint: "Không bao giờ hỏi lại cho đúng lệnh gọi này trong các cuộc trò chuyện của dự án này chạy trong thư mục của nó, trên máy này",
+    alwaysHint: "Không hỏi lại cho đúng lệnh gọi này trong các cuộc trò chuyện của dự án này chạy trong thư mục của nó, trên máy này; sẽ hỏi lại nếu cuộc trò chuyện đã đổi thư mục",
     alwaysCovers: "Nếu được cấp, «Luôn luôn» chỉ bao gồm:",
     alwaysRefused: "Không thể cho phép vĩnh viễn lệnh gọi này (chỉ một lần đọc chính xác, hoặc một lệnh chỉ đọc không chuyển hướng hay nối lệnh). Hãy trả lời một lần hoặc cho phiên.",
     allowedAlways: "Luôn được cho phép"

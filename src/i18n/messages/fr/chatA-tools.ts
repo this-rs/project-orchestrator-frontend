@@ -170,7 +170,7 @@ export default {
     allowedSession: "Autorisé pour la session",
     denied: "Refusé",
     allowAlways: "Toujours",
-    alwaysHint: "Plus jamais demandé pour cet appel exact dans vos conversations de ce projet qui s'exécutent dans son dossier, sur cette machine",
+    alwaysHint: "Plus demandé pour cet appel exact dans vos conversations de ce projet qui s'exécutent dans son dossier, sur cette machine ; redemandé si la conversation a changé de dossier",
     alwaysCovers: "Si elle est accordée, « Toujours » ne couvre que :",
     alwaysRefused: "Cet appel ne peut pas être autorisé pour toujours (seuls une lecture exacte, ou une commande en lecture seule sans redirection ni enchaînement, le peuvent). Répondez une fois ou pour la session.",
     allowedAlways: "Toujours autorisé"

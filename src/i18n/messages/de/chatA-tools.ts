@@ -170,7 +170,7 @@ export default {
     allowedSession: "Für die Sitzung erlaubt",
     denied: "Abgelehnt",
     allowAlways: "Immer",
-    alwaysHint: "Für genau diesen Aufruf nie wieder gefragt, in Ihren Unterhaltungen zu diesem Projekt, die in seinem Verzeichnis laufen, auf diesem Rechner",
+    alwaysHint: "Für genau diesen Aufruf nicht mehr gefragt, in Ihren Unterhaltungen zu diesem Projekt, die in seinem Verzeichnis laufen, auf diesem Rechner; erneut gefragt, wenn die Unterhaltung das Verzeichnis gewechselt hat",
     alwaysCovers: "Wenn erteilt, deckt „Immer“ nur ab:",
     alwaysRefused: "Dieser Aufruf kann nicht dauerhaft erlaubt werden (nur ein exakter Lesezugriff oder ein schreibgeschützter Befehl ohne Umleitung oder Verkettung). Antworten Sie einmalig oder für die Sitzung.",
     allowedAlways: "Immer erlaubt"

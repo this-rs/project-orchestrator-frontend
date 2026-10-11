@@ -159,7 +159,7 @@ export default {
     allowedSession: 'Allowed for the session',
     denied: 'Denied',
     allowAlways: 'Always',
-    alwaysHint: 'Never asked again for this exact call in your conversations of this project that run in its directory, on this machine',
+    alwaysHint: 'Not asked again for this exact call in your conversations of this project that run in its directory, on this machine; asked again if the conversation has changed directory',
     alwaysCovers: 'If granted, "Always" covers only:',
     alwaysRefused: 'This call cannot be allowed for good (only an exact read, or one read-only command without redirection or chaining, can). Answer once or for the session.',
     allowedAlways: 'Always allowed',

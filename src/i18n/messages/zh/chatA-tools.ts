@@ -170,7 +170,7 @@ export default {
     allowedSession: "本次会话已允许",
     denied: "已拒绝",
     allowAlways: "始终允许",
-    alwaysHint: "在本机上，此项目在其目录中运行的对话里，不再为这个完全相同的调用询问",
+    alwaysHint: "在本机上，此项目在其目录中运行的对话里，不再为这个完全相同的调用询问；如果对话已切换目录，则会再次询问",
     alwaysCovers: "如获允许，「始终允许」仅涵盖：",
     alwaysRefused: "此调用无法永久允许（只有完全相同的读取，或一条不含重定向和串联的只读命令可以）。请选择允许一次或本次会话。",
     allowedAlways: "已始终允许"
