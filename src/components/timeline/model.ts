@@ -326,14 +326,17 @@ export function buildTimeline(input: TimelineInput): Timeline {
   const ran = () => ({ ...(provider && { provider }), ...(model && { model }) })
   /**
    * The key of an error or a marker. The assembler numbers blocks at random, so the same event read
-   * twice (the transcript, then the history) would get two keys and its row would be rebuilt: its
-   * server time is the same both times (numbered on a tie).
+   * twice (the transcript, then the history) would get two keys and its row would be rebuilt. Both
+   * reducers date these blocks with the server's time: whole seconds (what the history stores),
+   * numbered on a tie. The session is part of it: a relay is an event of BOTH sessions, and the
+   * trace keeps only one item per key.
    */
   const stamped = new Map<string, number>()
   const stableId = (block: ContentBlock) => {
-    const at = block.metadata?.created_at
-    if (typeof at !== 'string' || !at) return block.id
-    const base = `${block.type}@${at}`
+    const iso = block.metadata?.created_at
+    const ms = typeof iso === 'string' ? Date.parse(iso) : NaN
+    if (!Number.isFinite(ms)) return block.id
+    const base = `${block.type}:${sessionId}@${Math.floor(ms / 1000)}`
     const n = stamped.get(base) ?? 0
     stamped.set(base, n + 1)
     return n === 0 ? base : `${base}#${n}`

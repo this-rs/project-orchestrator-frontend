@@ -148,6 +148,12 @@ export function useConversationTrace(rootId: string | null, opts: { isStreaming?
         id: rootId, relation: 'root', title: opts.rootTitle || root?.title || rootId.slice(0, 8),
         provider: root?.provider_id ?? undefined, model: root?.model, createdAt: root?.created_at, isStreaming: rootNode?.is_streaming ?? false,
       }, cancelled)
+      // A retry asks again for every thread that could not be read. A relay is found only in a
+      // history, and the root's (already read) is not read again: without this it stayed failed.
+      for (const s of [...stateRef.current.values()]) {
+        if (stop) return
+        if (s.status === 'error' && s.meta.relation === 'relay') await loadSession(s.meta, cancelled)
+      }
       const children = nodes.filter((n) => n.session_id !== rootId)
       const queue = [...children]
       const worker = async () => {

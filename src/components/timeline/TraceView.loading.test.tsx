@@ -53,10 +53,10 @@ describe('<TraceView> while the history loads', () => {
     const skeleton = screen.getByTestId('trace-skeleton')
     expect(skeleton.getAttribute('aria-hidden')).toBe('true')
     expect((container.firstElementChild as HTMLElement).getAttribute('aria-busy')).toBe('true')
-    // jsdom measures no width: the wide layout, 28 px rows, a 224 px rows area → 8 rows.
+    // jsdom measures no width: the wide layout, 28 px rows; six rows at most (224 px offered).
     const rowsArea = skeleton.lastElementChild as HTMLElement
-    expect(rowsArea.style.height).toBe('224px')
-    expect(rowsArea.children).toHaveLength(8)
+    expect(rowsArea.style.height).toBe('168px')
+    expect(rowsArea.children).toHaveLength(6)
     // The pulse stops under prefers-reduced-motion.
     expect(skeleton.querySelector('.animate-pulse')).toBeNull()
     expect(skeleton.querySelector('[class*="motion-safe:animate-pulse"]')).toBeTruthy()
@@ -85,6 +85,11 @@ describe('<TraceView> with a trace on screen', () => {
     const counts = toolbar.firstElementChild as HTMLElement
     expect(counts.className).toMatch(/\btruncate\b/)
     expect(counts.title).toBe('Spans: 2 · Peak in parallel: 1 · 6.0 s')
+    // A touch screen has no hover: a tap shows the counts and the help in full.
+    fireEvent.click(counts)
+    expect(counts.getAttribute('aria-expanded')).toBe('true')
+    expect(counts.className).not.toMatch(/\btruncate\b/)
+    expect(screen.getByTestId('trace-help').className).not.toMatch(/\btruncate\b/)
   })
 
   it('the rest of the history loading moves nothing: the progress line is always reserved and the rows stay the same nodes', () => {
@@ -103,6 +108,15 @@ describe('<TraceView> with a trace on screen', () => {
 })
 
 describe('<TraceView> empty and error states', () => {
+  it('after "Try again" the focus is on the trace\'s frame, not lost on the page', () => {
+    const { rerender, container } = render(<TraceView lanes={nothing()} failed onRetry={() => {}} />)
+    const button = screen.getByRole('button', { name: 'Try again' })
+    button.focus()
+    fireEvent.click(button)
+    rerender(<TraceView lanes={nothing()} loading={starting} onRetry={() => {}} />)
+    expect(document.activeElement).toBe(container.firstElementChild)
+  })
+
   it('nothing happened: an empty state that says what will appear', () => {
     render(<TraceView lanes={nothing()} />)
     const empty = screen.getByTestId('trace-empty')

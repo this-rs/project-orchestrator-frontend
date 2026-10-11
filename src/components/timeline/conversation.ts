@@ -177,3 +177,35 @@ export async function loadNewer(fetchPage: FetchPage, loaded: number, pageSize: 
   }
   return { events: out, total }
 }
+
+const userText = (m: ChatMessage) => m.blocks.map((b) => b.content).join('\n')
+
+/**
+ * The history's turns under the ids the transcript gave them.
+ *
+ * A turn the reader sent in this tab has a client id in the transcript (the live echo carries no
+ * server id); the history knows it by its server id. A turn's key is its message id, so without
+ * this its row would be rebuilt (and its selection lost) when the history takes over. Pairs the
+ * user messages by text from the latest backwards — the transcript may hold newer turns the
+ * history has not caught up with yet (skipped), and the history older ones the transcript never
+ * had (left as they are). Same array when nothing changes.
+ */
+export function adoptTranscriptIds(history: ReadonlyArray<ChatMessage>, transcript: ReadonlyArray<ChatMessage>): ReadonlyArray<ChatMessage> {
+  const theirs = transcript.filter((m) => m.role === 'user')
+  if (theirs.length === 0) return history
+  const alias = new Map<number, string>()
+  let j = theirs.length - 1
+  for (let i = history.length - 1; i >= 0 && j >= 0; i -= 1) {
+    const m = history[i] as ChatMessage
+    if (m.role !== 'user') continue
+    const text = userText(m)
+    let k = j
+    while (k >= 0 && userText(theirs[k] as ChatMessage) !== text) k -= 1
+    if (k < 0) continue
+    const id = (theirs[k] as ChatMessage).id
+    if (id !== m.id) alias.set(i, id)
+    j = k - 1
+  }
+  if (alias.size === 0) return history
+  return history.map((m, i) => (alias.has(i) ? { ...m, id: alias.get(i) as string } : m))
+}

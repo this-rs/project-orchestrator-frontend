@@ -80,17 +80,21 @@ describe('useConversationTrace', () => {
     await waitFor(() => expect(result.current.sessions[0]?.messages.length).toBeGreaterThan(0))
   })
 
-  it('a retry reloads what failed and keeps what is on screen', async () => {
-    histories.set('root', turns(2, 'r'))
+  it('a retry reloads what failed (a child, a relayed thread) and keeps what is on screen', async () => {
+    const relay = { type: 'conversation_relayed', from_session_id: 'old', to_session_id: 'root', from_provider: 'native', to_provider: 'claude-code' }
+    histories.set('root', turns(2, 'r', [relay]))
+    histories.set('old', turns(1, 'o', [relay]))
     histories.set('kid', turns(1, 'k'))
     tree.nodes = [
       { session_id: 'root', depth: 0, is_streaming: false },
       { session_id: 'kid', parent_session_id: 'root', depth: 1, title: 'Delegated', is_streaming: false },
     ]
     failing.add('kid')
+    failing.add('old')
     const { result } = renderHook(() => useConversationTrace('root'))
     await waitFor(() => expect(result.current.failed).toBe(true))
-    // The child that could not be read is not a lane with nothing in it.
+    await waitFor(() => expect(vi.mocked(chatApi.getMessages).mock.calls.some((c) => c[0] === 'kid')).toBe(true))
+    // A thread that could not be read is not a lane with nothing in it.
     expect(result.current.sessions.map((s) => s.id)).toEqual(['root'])
     failing.clear()
     vi.mocked(chatApi.getMessages).mockClear()
@@ -98,9 +102,10 @@ describe('useConversationTrace', () => {
     // Same render as the retry: the root is still there.
     expect(result.current.sessions.map((s) => s.id)).toContain('root')
     await waitFor(() => expect(result.current.failed).toBe(false))
-    expect(result.current.sessions.map((s) => s.id).sort()).toEqual(['kid', 'root'])
-    // Only the child was asked again.
-    expect(vi.mocked(chatApi.getMessages).mock.calls.every((c) => c[0] === 'kid')).toBe(true)
+    await waitFor(() => expect(result.current.sessions.map((s) => s.id).sort()).toEqual(['kid', 'old', 'root']))
+    // Only what had failed was asked again.
+    const asked = new Set(vi.mocked(chatApi.getMessages).mock.calls.map((c) => c[0]))
+    expect([...asked].sort()).toEqual(['kid', 'old'])
   })
 
   it('fetches only the new events while a turn streams', async () => {

@@ -14,7 +14,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTimelineLabels } from '@/hooks/useTimelineLabels'
 import { useConversationTrace } from '@/hooks/useConversationTrace'
 import type { ChatMessage } from '@/types'
-import { TraceView, buildConversationTimeline, buildTimeline, resolveTarget, type TimelineItem, type TimelineRunInput } from '@/components/timeline'
+import { TraceView, adoptTranscriptIds, buildConversationTimeline, buildTimeline, resolveTarget, type TimelineItem, type TimelineRunInput } from '@/components/timeline'
 import { useTimelineContext } from '@/hooks/useTimelineContext'
 
 interface ChatTimelineStripProps {
@@ -41,7 +41,11 @@ export const ChatTimelineStrip = memo(function ChatTimelineStrip({ sessionId, me
     const shared = { session: context.session, decisions: context.decisions, work: context.work }
     // The history replaces the transcript only once the session on screen has a page of it: never
     // a blank between the two, and the rows the reader already sees keep their place (same keys).
-    if (trace.sessions.some((s) => s.relation === 'root')) return buildConversationTimeline({ sessions: trace.sessions, rootId: sid, ...shared })
+    if (trace.sessions.some((s) => s.relation === 'root')) {
+      // Turns sent from this tab keep the client id the transcript gave them (their key).
+      const sessions = trace.sessions.map((s) => (s.relation === 'root' ? { ...s, messages: adoptTranscriptIds(s.messages, messages) } : s))
+      return buildConversationTimeline({ sessions, rootId: sid, ...shared })
+    }
     // Before the history arrives (or for a conversation not saved yet): what the transcript holds.
     return buildTimeline({ messages, sessionId: sid, title: title ?? context.title, isStreaming, runs, ...shared })
   }, [trace.sessions, messages, sessionId, title, isStreaming, runs, context])

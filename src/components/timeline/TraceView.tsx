@@ -51,6 +51,8 @@ const TREE_COLUMN = 'minmax(11rem, 36%)'
  * nothing to the trace, without a placeholder blinking in between.
  */
 export const SKELETON_DELAY_MS = 180
+/** Rows the skeleton draws at most: the real count is not known yet, a short stand-in grows less. */
+const SKELETON_ROWS = 6
 
 export interface TraceViewProps {
   lanes: ReadonlyArray<TimelineLane>
@@ -306,6 +308,8 @@ export function TraceView({
   const total = axis?.total ?? 1
 
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
+  /** The counts and the help line in full (a tap: no hover on a touch screen to read the tooltip). */
+  const [infoOpen, setInfoOpen] = useState(false)
   const rows = useMemo(() => visibleRows(tree, collapsed), [tree, collapsed])
   const indexOf = useMemo(() => new Map(rows.map((r, i) => [r.key, i])), [rows])
   const siblings = useMemo(() => {
@@ -588,8 +592,14 @@ export function TraceView({
   // the eye gets the skeleton (nothing yet) or the progress line (a trace is already on screen).
   const status = <p role="status" data-testid={loading ? 'trace-loading' : undefined} className="sr-only">{loadingText}</p>
   const showSkeleton = useDelayed(empty && !!loading, SKELETON_DELAY_MS)
-  const retryButton = onRetry && (
-    <button type="button" onClick={onRetry} className={`inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-indigo-300 hover:bg-white/[0.06] ${focusRing}`}>
+  // "Try again" goes away with the failure: focus lands on the trace's frame (which says it is
+  // loading), not on the page.
+  const retry = onRetry && (() => {
+    rootRef.current?.focus({ preventScroll: true })
+    onRetry()
+  })
+  const retryButton = retry && (
+    <button type="button" onClick={retry} className={`inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-indigo-300 hover:bg-white/[0.06] ${focusRing}`}>
       <RotateCw className="size-3.5" aria-hidden="true" />
       {L.retry}
     </button>
@@ -598,14 +608,14 @@ export function TraceView({
   if (empty) {
     const nothingRead = !loading && failed
     return (
-      <div ref={rootRef} className={`min-w-0 text-xs ${className}`} aria-busy={loading ? true : undefined}>
+      <div ref={rootRef} tabIndex={-1} className={`min-w-0 text-xs outline-none ${className}`} aria-busy={loading ? true : undefined}>
         {status}
         {loading ? (
           showSkeleton && (
             <TraceSkeleton
               wide={wide}
               rowH={rowH}
-              bodyH={Math.max(rowH * 4, maxRowsHeight)}
+              bodyH={Math.min(maxRowsHeight, rowH * SKELETON_ROWS)}
               gridCols={wide ? { gridTemplateColumns: `${TREE_COLUMN} minmax(0,1fr) 4rem` } : undefined}
               indentPx={wide ? INDENT_PX : 10}
               caption={L.loadingShort}
@@ -616,7 +626,7 @@ export function TraceView({
             <AlertTriangle className="mb-2 size-5 text-amber-300" strokeWidth={1.75} aria-hidden="true" />
             <p className="text-sm text-gray-200">{L.failedAll}</p>
             {onRetry && (
-              <Button variant="secondary" size="sm" className="mt-3" onClick={onRetry}>
+              <Button variant="secondary" size="sm" className="mt-3" onClick={retry}>
                 <RotateCw className="size-3.5" aria-hidden="true" />
                 {L.retry}
               </Button>
@@ -662,16 +672,22 @@ export function TraceView({
   const gridCols = wide ? { gridTemplateColumns: `${TREE_COLUMN} minmax(0,1fr) 4rem` } : undefined
 
   return (
-    <div ref={rootRef} className={`min-w-0 text-xs ${className}`}>
+    <div ref={rootRef} tabIndex={-1} className={`min-w-0 text-xs outline-none ${className}`}>
       {status}
       <div className={side && detailPanel ? 'flex items-start gap-3' : ''}>
         <div role="region" aria-label={L.label} className="min-w-0 flex-1" onKeyDown={onKeyDown}>
           {/* Toolbar: ONE line at any width (the counts truncate, the full text is the tooltip), so the
               skeleton reserves exactly its height and nothing moves when the trace replaces it. */}
           <div className="flex items-center gap-x-3 px-1 pb-1" data-testid="trace-toolbar">
-            <div className="min-w-0 flex-1 truncate text-[11px] text-gray-400" title={stats.join(' · ')}>
+            <button
+              type="button"
+              onClick={() => setInfoOpen((o) => !o)}
+              aria-expanded={infoOpen}
+              className={`min-w-0 flex-1 rounded text-start text-[11px] text-gray-400 ${infoOpen ? 'whitespace-normal' : 'truncate'} ${focusRing}`}
+              title={stats.join(' · ')}
+            >
               {stats.map((s, i) => <span key={i} className={`tabular-nums ${i > 0 ? 'ms-3' : ''}`}>{s}</span>)}
-            </div>
+            </button>
             <div className="flex items-center gap-0.5">
               <ToolButton wide={wide} label={L.zoomOut} onClick={() => move(zoomView(view, 1 / ZOOM_STEP, 0.5, total), true)}><ZoomOut className="size-4" aria-hidden="true" /></ToolButton>
               <ToolButton wide={wide} label={L.zoomIn} onClick={() => move(zoomView(view, ZOOM_STEP, 0.5, total), true)}><ZoomIn className="size-4" aria-hidden="true" /></ToolButton>
@@ -686,8 +702,17 @@ export function TraceView({
               <TraceMinimap axis={axis} view={view} overview={overview} onChange={(v) => move(v)} label={L.overview} windowLabel={L.window} idleLabel={labels.idle} tall={!wide} />
             </div>
           )}
-          {/* A div, not a p: the global `p { text-wrap: pretty }` would undo `truncate` and wrap it. */}
-          <div className="truncate px-1 pb-1 text-[10px] text-gray-400" title={wide ? L.help : L.helpTouch} data-testid="trace-help">{wide ? L.help : L.helpTouch}</div>
+          {/* Not a p: the global `p { text-wrap: pretty }` would undo `truncate`. A tap shows it in full. */}
+          <button
+            type="button"
+            onClick={() => setInfoOpen((o) => !o)}
+            aria-expanded={infoOpen}
+            className={`block w-full rounded px-1 pb-1 text-start text-[10px] text-gray-400 ${infoOpen ? 'whitespace-normal' : 'truncate'} ${focusRingInset}`}
+            title={wide ? L.help : L.helpTouch}
+            data-testid="trace-help"
+          >
+            {wide ? L.help : L.helpTouch}
+          </button>
 
           <div
             ref={gestureRef}

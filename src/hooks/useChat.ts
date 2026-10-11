@@ -1095,7 +1095,7 @@ export function useChat() {
             id: nextBlockId(),
             type: 'error',
             content: (data as { message?: string }).message ?? tr('app.chat.unknownError'),
-            metadata: withParent(undefined, errParent),
+            metadata: withCreatedAt(withParent(undefined, errParent), serverTime),
           })
           if (!event.replaying) {
             setIsStreaming(false)
@@ -1116,7 +1116,7 @@ export function useChat() {
             metadata: withParent(
               (() => {
                 const typed = sessionErrorMetadata(data)
-                return typed.code ? typed : undefined
+                return withCreatedAt(typed.code ? typed : undefined, serverTime)
               })(),
               getParentToolUseId(event),
             ),
@@ -1240,7 +1240,7 @@ export function useChat() {
           // Same block as the history reducer (chatAssembly.sessionEventBlock).
           const payload = event.replaying ? (event as { data?: Record<string, unknown> }).data ?? event : event
           const block = sessionEventBlock({ ...payload, type: event.type })
-          if (block) lastMsg.blocks.push({ id: nextBlockId(), ...block })
+          if (block) lastMsg.blocks.push({ id: nextBlockId(), ...block, metadata: withCreatedAt(block.metadata, serverTime) })
           break
         }
 
@@ -1252,7 +1252,7 @@ export function useChat() {
             id: nextBlockId(),
             type: 'error',
             content: toolsCancelledText(data as { killed_count?: number; requested_by?: string }),
-            metadata: withParent(undefined, getParentToolUseId(event)),
+            metadata: withCreatedAt(withParent(undefined, getParentToolUseId(event)), serverTime),
           })
           break
         }
@@ -1271,7 +1271,7 @@ export function useChat() {
             id: nextBlockId(),
             type: 'model_changed',
             content: `Model changed to ${newModel}`,
-            metadata: newReason ? { model: newModel, reason: newReason } : { model: newModel },
+            metadata: withCreatedAt(newReason ? { model: newModel, reason: newReason } : { model: newModel }, serverTime),
           })
           break
         }
@@ -1290,7 +1290,7 @@ export function useChat() {
             id: nextBlockId(),
             type: 'compact_boundary',
             content: label,
-            metadata: { trigger, pre_tokens: preTokens },
+            metadata: withCreatedAt({ trigger, pre_tokens: preTokens }, serverTime),
           })
           break
         }
@@ -1361,7 +1361,7 @@ export function useChat() {
               id: nextBlockId(),
               type: 'result_error',
               content: rResultText ?? tr('app.chat.executionError'),
-              metadata: { result_text: rResultText },
+              metadata: withCreatedAt({ result_text: rResultText }, serverTime),
             })
           }
 

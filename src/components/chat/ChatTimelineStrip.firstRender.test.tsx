@@ -6,7 +6,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useLayoutEffect } from 'react'
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 type Ev = Record<string, unknown>
@@ -73,6 +73,23 @@ describe('<ChatTimelineStrip> first display', () => {
     await answer()
     expect(turnRow('a turn 0')).not.toBeNull()
     expect(turnRow('a turn 4')).toBe(shown)
+  })
+
+  it('a turn sent from this tab (client id) keeps its row and its selection when the history (server id) lands', async () => {
+    const events = history('a', 3)
+    api.histories.set('s', events)
+    // The transcript: the last turn was sent live from this tab, its echo carries no server id.
+    const transcript = transcriptOf(events, 2).map((m) => (m.role === 'user' && m.blocks[0]?.content === 'a turn 2' ? { ...m, id: 'm-7-client' } : m))
+    render(<MemoryRouter><ChatTimelineStrip sessionId="s" messages={transcript} isStreaming={false} workspaceSlug="ws" /></MemoryRouter>)
+    const sent = turnRow('a turn 2') as HTMLElement
+    fireEvent.click(sent)
+    expect(sent.getAttribute('aria-selected')).toBe('true')
+
+    await settle()
+    await answer()
+    expect(turnRow('a turn 0')).not.toBeNull()
+    expect(turnRow('a turn 2')).toBe(sent)
+    expect(sent.getAttribute('aria-selected')).toBe('true')
   })
 
   it('another conversation never shows the previous one\'s trace, not even for one render', async () => {
