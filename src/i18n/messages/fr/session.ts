@@ -112,6 +112,27 @@ export default {
     peak: "Pic en parallèle : {n}",
     parallel: "En parallèle",
     idle: "{d} d’inactivité",
+    view: {
+      label: "Vue de la chronologie",
+      tracks: "Pistes",
+      tree: "Arbre",
+    },
+    tracks: {
+      label: "Pistes de la conversation",
+      rows: "Pistes : {n}",
+      column: "Piste",
+      family: {
+        turns: "Tours",
+        tools: "Appels d’outils",
+        agents: "Sous-agents",
+        waits: "En attente de vous",
+        signals: "Événements",
+      },
+      of: "Appels de {agent}",
+      row: "{name} · {n}",
+      help: "Zoom : Ctrl/⌘ + molette ou W/S · Défilement : glisser ou A/D · Les flèches parcourent les barres, Entrée en ouvre une, Z cadre dessus",
+      helpTouch: "Pincer pour zoomer, glisser latéralement pour défiler, toucher une barre pour son détail",
+    },
     trace: {
       label: "Trace de la conversation",
       spans: "Spans : {n}",

@@ -1,6 +1,7 @@
 import type { StatusTone } from '@/components/ui/statusMeta'
 import { routedByLabel } from '@/constants/providers'
 import { shortModel, type TimelineItem, type TimelineKind, type TimelineLane, type TimelineStatus } from './model'
+import type { TrackFamily } from './tracks'
 
 export const STATUS_TONE: Record<TimelineStatus, StatusTone> = {
   running: 'progress',
@@ -30,6 +31,25 @@ export interface TimelineLabels {
   /** A stretch with nothing happening, drawn as a break; `{d}` is its length. */
   idle: string
   trace: TraceLabels
+  tracks: TracksLabels
+}
+
+/** The words of the tracks view (one row per parallel action). */
+export interface TracksLabels {
+  /** `aria-label` of the view. */
+  label: string
+  /** `Tracks: {n}`. */
+  rows: string
+  /** Header of the label column. */
+  column: string
+  /** Name of each family of rows. */
+  family: Record<TrackFamily, string>
+  /** The calls of a sub-agent: `{agent}` is its label. */
+  of: string
+  /** A row of a family that has several: `{name} · {n}`. */
+  row: string
+  help: string
+  helpTouch: string
 }
 
 /** The words of the trace view. `{x}` markers are filled by the component. */
@@ -143,6 +163,17 @@ export const DEFAULT_TRACE_LABELS: TraceLabels = {
   },
 }
 
+export const DEFAULT_TRACKS_LABELS: TracksLabels = {
+  label: 'Tracks of the conversation',
+  rows: 'Tracks: {n}',
+  column: 'Track',
+  family: { turns: 'Turns', tools: 'Tool calls', agents: 'Sub-agents', waits: 'Waiting for you', signals: 'Events' },
+  of: 'Calls of {agent}',
+  row: '{name} · {n}',
+  help: 'Zoom: Ctrl/⌘ + wheel or W/S · Pan: drag or A/D · Arrows walk the bars, Enter opens one, Z zooms on it',
+  helpTouch: 'Pinch to zoom, drag sideways to pan, tap a bar for its details',
+}
+
 export const DEFAULT_TIMELINE_LABELS: TimelineLabels = {
   status: { running: 'Running', done: 'Done', error: 'Failed', blocked: 'Waiting for you', cancelled: 'Cancelled', pending: 'Pending', unknown: 'No result' },
   empty: 'Nothing has happened yet.',
@@ -154,6 +185,7 @@ export const DEFAULT_TIMELINE_LABELS: TimelineLabels = {
   parallel: 'In parallel',
   idle: '{d} idle',
   trace: DEFAULT_TRACE_LABELS,
+  tracks: DEFAULT_TRACKS_LABELS,
 }
 
 export function formatItemDuration(ms?: number): string | null {

@@ -112,6 +112,17 @@ export default {
     peak: "Pico em paralelo: {n}",
     parallel: "Em paralelo",
     idle: "{d} de inatividade",
+    view: { label: "Vista da cronologia", tracks: "Faixas", tree: "Árvore" },
+    tracks: {
+      label: "Faixas da conversa",
+      rows: "Faixas: {n}",
+      column: "Faixa",
+      family: { turns: "Turnos", tools: "Chamadas de ferramentas", agents: "Subagentes", waits: "À espera de si", signals: "Eventos" },
+      of: "Chamadas de {agent}",
+      row: "{name} · {n}",
+      help: "Zoom: Ctrl/⌘ + roda ou W/S · Deslocar: arrastar ou A/D · As setas percorrem as barras, Enter abre uma, Z enquadra-a",
+      helpTouch: "Belisque para ampliar, arraste de lado para deslocar, toque numa barra para o seu detalhe",
+    },
     trace: {
       label: "Rastro da conversa",
       spans: "Trechos: {n}",

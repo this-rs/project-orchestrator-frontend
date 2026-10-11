@@ -24,6 +24,22 @@ export function useTimelineLabels(): TimelineLabels {
       peak: t('session.timeline.peak'),
       parallel: t('session.timeline.parallel'),
       idle: t('session.timeline.idle'),
+      tracks: {
+        label: t('session.timeline.tracks.label'),
+        rows: t('session.timeline.tracks.rows', { n: '{n}' }),
+        column: t('session.timeline.tracks.column'),
+        family: {
+          turns: t('session.timeline.tracks.family.turns'),
+          tools: t('session.timeline.tracks.family.tools'),
+          agents: t('session.timeline.tracks.family.agents'),
+          waits: t('session.timeline.tracks.family.waits'),
+          signals: t('session.timeline.tracks.family.signals'),
+        },
+        of: t('session.timeline.tracks.of', { agent: '{agent}' }),
+        row: t('session.timeline.tracks.row', { name: '{name}', n: '{n}' }),
+        help: t('session.timeline.tracks.help'),
+        helpTouch: t('session.timeline.tracks.helpTouch'),
+      },
       trace: {
         label: t('session.timeline.trace.label'),
         spans: t('session.timeline.trace.spans', { n: '{n}' }),
