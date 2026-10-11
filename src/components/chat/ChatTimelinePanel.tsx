@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ComponentProps, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useLocation } from 'react-router-dom'
-import { ChartNoAxesGantt, Maximize2, X } from 'lucide-react'
+import { ChartNoAxesGantt, Expand, X } from 'lucide-react'
 import { useIsMobile } from '@/hooks'
 import { useModalFocus, useRestoreFocus } from '@/hooks/useModalFocus'
 import { useT } from '@/i18n'
@@ -79,7 +79,7 @@ function Header({ titleId, sessionId, workspaceSlug, onClose, mobile }: { titleI
           title={t('session.timeline.openPage')}
           aria-label={t('session.timeline.openPage')}
         >
-          <Maximize2 className="size-4" aria-hidden="true" />
+          <Expand className="size-4" aria-hidden="true" />
         </Link>
       )}
       <HeaderClose onClose={onClose} className={control} />

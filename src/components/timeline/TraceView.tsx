@@ -70,6 +70,9 @@ export interface TraceViewProps {
   onRetry?: () => void
   /** Where the detail goes when the component is wide: `side` (if there is room) or `below`. */
   detail?: 'side' | 'below'
+  /** Show the "fit / show everything" zoom-reset button in the toolbar (default true).
+      The chat's embedded strip hides it: it opens already fitted, so the control reads as dead. */
+  showFit?: boolean
   className?: string
 }
 
@@ -292,7 +295,7 @@ function ToolButton({ label, onClick, pressed, wide, children }: { label: string
 
 export function TraceView({
   lanes, selectedId, onSelect, onOpen, labels = DEFAULT_TIMELINE_LABELS, density = 'compact', maxRowsHeight = 480,
-  loading = null, failed = false, onRetry, detail = 'side', className = '',
+  loading = null, failed = false, onRetry, detail = 'side', showFit = true, className = '',
 }: TraceViewProps) {
   const L = labels.trace
   const rootRef = useRef<HTMLDivElement>(null)
@@ -691,7 +694,7 @@ export function TraceView({
             <div className="flex items-center gap-0.5">
               <ToolButton wide={wide} label={L.zoomOut} onClick={() => move(zoomView(view, 1 / ZOOM_STEP, 0.5, total), true)}><ZoomOut className="size-4" aria-hidden="true" /></ToolButton>
               <ToolButton wide={wide} label={L.zoomIn} onClick={() => move(zoomView(view, ZOOM_STEP, 0.5, total), true)}><ZoomIn className="size-4" aria-hidden="true" /></ToolButton>
-              <ToolButton wide={wide} label={L.fit} pressed={!zoomed} onClick={() => setUserView(null)}><Maximize2 className="size-4" aria-hidden="true" /></ToolButton>
+              {showFit && <ToolButton wide={wide} label={L.fit} pressed={!zoomed} onClick={() => setUserView(null)}><Maximize2 className="size-4" aria-hidden="true" /></ToolButton>}
               <ToolButton wide={wide} label={L.follow} pressed={follow} onClick={() => setFollow((f) => !f)}><Radio className="size-4" aria-hidden="true" /></ToolButton>
             </div>
           </div>

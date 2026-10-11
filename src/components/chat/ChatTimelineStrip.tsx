@@ -70,6 +70,7 @@ export const ChatTimelineStrip = memo(function ChatTimelineStrip({ sessionId, me
         labels={labels}
         maxRowsHeight={maxRowsHeight}
         detail="below"
+        showFit={false}
         loading={sessionId ? trace.loading : null}
         failed={trace.failed}
         onRetry={trace.retry}
