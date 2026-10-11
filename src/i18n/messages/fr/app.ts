@@ -54,7 +54,7 @@ export default {
     relayedOut: 'Cette conversation continue sur {to} : cette session est fermée.',
     relayedAuto: 'Déplacée par PO.',
     openContinuation: 'Ouvrir la suite',
-    sessionClosed: { closed: 'Session fermée par le serveur. Ouvrez une nouvelle conversation pour continuer.', idle: 'Session fermée après une longue inactivité. Ouvrez une nouvelle conversation pour continuer.', error: 'Session fermée après une erreur. Ouvrez une nouvelle conversation pour continuer.' },
+    sessionClosed: { closed: 'Session terminée.', idle: 'Session terminée (inactivité).', error: 'Session terminée (erreur).' },
     compactionRecovered: 'Contexte restauré après compaction (~{tokens} jetons réinjectés, {ms} ms).',
     compactionRecoveryFailed: 'Le contexte n\'a pas pu être restauré après compaction ({ms} ms) : reformulez l\'objectif si les réponses dérivent.',
     followed: 'Cette conversation a été déplacée de {from} vers {to} ailleurs : cet onglet suit maintenant la nouvelle session.',

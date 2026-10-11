@@ -54,7 +54,7 @@ export default {
     relayedOut: 'この会話は {to} で続いています: このセッションは終了しました。',
     relayedAuto: 'PO が移動しました。',
     openContinuation: '続きを開く',
-    sessionClosed: { closed: 'サーバーがセッションを終了しました。続けるには新しい会話を始めてください。', idle: '長時間操作がなかったためセッションを終了しました。続けるには新しい会話を始めてください。', error: 'エラーのためセッションを終了しました。続けるには新しい会話を始めてください。' },
+    sessionClosed: { closed: 'セッション終了。', idle: '長時間操作がなかったためセッション終了。', error: 'エラーのためセッション終了。' },
     compactionRecovered: '圧縮後にコンテキストを復元しました (~{tokens} トークンを再投入、{ms} ms)。',
     compactionRecoveryFailed: '圧縮後にコンテキストを復元できませんでした ({ms} ms): 回答がずれる場合は目的を伝え直してください。',
     followed: 'この会話は別の場所で {from} から {to} に移されました: このタブは新しいセッションを表示しています。',
