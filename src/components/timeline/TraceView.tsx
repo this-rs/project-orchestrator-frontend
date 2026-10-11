@@ -18,8 +18,8 @@
  * lanes (see `buildConversationTimeline` / `buildTimeline`).
  */
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
-import { ChevronDown, ChevronRight, Maximize2, Radio, RotateCw, ZoomIn, ZoomOut } from 'lucide-react'
-import { StatusDot, StatusIcon } from '@/components/ui'
+import { AlertTriangle, ChartNoAxesGantt, ChevronDown, ChevronRight, Maximize2, Radio, RotateCw, ZoomIn, ZoomOut } from 'lucide-react'
+import { Button, EmptyState, StatusIcon, StatusDot } from '@/components/ui'
 import { focusRing, focusRingInset } from '@/components/ui/classes'
 import { TONE_CLASSES } from '@/components/ui/statusMeta'
 import { buildAxis, toX, type Axis } from './axis'
@@ -28,6 +28,7 @@ import type { TimelineItem, TimelineLane } from './model'
 import { DEFAULT_TIMELINE_LABELS, STATUS_TONE, describeContext, formatItemDuration, runNote, type TimelineLabels } from './status'
 import { TraceDetail } from './TraceDetail'
 import { TraceMinimap } from './TraceMinimap'
+import { TraceSkeleton } from './TraceSkeleton'
 import { KIND_BAR, KIND_SWATCH, statusBar } from './traceStyle'
 import { ancestorsOf, buildTraceTree, visibleRows, type TraceNode, type TraceTree } from './trace'
 import {
@@ -45,6 +46,13 @@ const OVERSCAN = 8
 /** A drag shorter than this is a click. */
 const DRAG_SLOP_PX = 4
 const TREE_COLUMN = 'minmax(11rem, 36%)'
+/**
+ * A first load shorter than this shows no skeleton at all: a fast answer goes straight from
+ * nothing to the trace, without a placeholder blinking in between.
+ */
+export const SKELETON_DELAY_MS = 180
+/** Rows the skeleton draws at most: the real count is not known yet, a short stand-in grows less. */
+const SKELETON_ROWS = 6
 
 export interface TraceViewProps {
   lanes: ReadonlyArray<TimelineLane>
@@ -79,6 +87,20 @@ function useWidth(ref: React.RefObject<HTMLElement | null>): number {
     return () => ro.disconnect()
   }, [ref])
   return width
+}
+
+/** True once `active` has stayed true for `ms`; false again as soon as it turns false. */
+function useDelayed(active: boolean, ms: number): boolean {
+  const [elapsed, setElapsed] = useState(false)
+  useEffect(() => {
+    if (!active) return
+    const id = window.setTimeout(() => setElapsed(true), ms)
+    return () => {
+      window.clearTimeout(id)
+      setElapsed(false)
+    }
+  }, [active, ms])
+  return active && elapsed
 }
 
 /** A clock that ticks while something runs, and not at all otherwise. */
@@ -286,6 +308,8 @@ export function TraceView({
   const total = axis?.total ?? 1
 
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
+  /** The counts and the help line in full (a tap: no hover on a touch screen to read the tooltip). */
+  const [infoOpen, setInfoOpen] = useState(false)
   const rows = useMemo(() => visibleRows(tree, collapsed), [tree, collapsed])
   const indexOf = useMemo(() => new Map(rows.map((r, i) => [r.key, i])), [rows])
   const siblings = useMemo(() => {
@@ -563,49 +587,107 @@ export function TraceView({
 
   const empty = tree.spanCount === 0
   const zoomed = axis ? !isFit(view, total) : false
-  const statusLine = loading ? (
-    <p className="flex items-center gap-2 px-2 py-1 text-[11px] text-gray-300" role="status" data-testid="trace-loading">
-      <StatusDot tone="progress" pulse size="md" />
-      {loading.total > 0 ? fill(L.loading, { loaded: loading.loaded, total: loading.total }) : L.loadingStart}
-    </p>
-  ) : failed ? (
-    <p className="flex flex-wrap items-center gap-2 px-2 py-1 text-[11px] text-amber-200" role="alert">
-      {L.failed}
-      {onRetry && (
-        <button type="button" onClick={onRetry} className={`inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-indigo-300 hover:bg-white/[0.06] ${focusRing}`}>
-          <RotateCw className="size-3.5" aria-hidden="true" />
-          {L.retry}
-        </button>
-      )}
-    </p>
-  ) : null
+  const loadingText = loading ? (loading.total > 0 ? fill(L.loading, { loaded: loading.loaded, total: loading.total }) : L.loadingStart) : ''
+  // The live region is always there (an announcement needs a region that existed before it);
+  // the eye gets the skeleton (nothing yet) or the progress line (a trace is already on screen).
+  const status = <p role="status" data-testid={loading ? 'trace-loading' : undefined} className="sr-only">{loadingText}</p>
+  const showSkeleton = useDelayed(empty && !!loading, SKELETON_DELAY_MS)
+  // "Try again" goes away with the failure: focus lands on the trace's frame (which says it is
+  // loading), not on the page.
+  const retry = onRetry && (() => {
+    rootRef.current?.focus({ preventScroll: true })
+    onRetry()
+  })
+  const retryButton = retry && (
+    <button type="button" onClick={retry} className={`inline-flex min-h-9 items-center gap-1 rounded-md px-2 text-indigo-300 hover:bg-white/[0.06] ${focusRing}`}>
+      <RotateCw className="size-3.5" aria-hidden="true" />
+      {L.retry}
+    </button>
+  )
 
   if (empty) {
+    const nothingRead = !loading && failed
     return (
-      <div ref={rootRef} className={`min-w-0 text-xs ${className}`}>
-        {statusLine}
-        {!loading && <p className="px-3 py-2 text-xs text-gray-400">{labels.empty}</p>}
+      <div ref={rootRef} tabIndex={-1} className={`min-w-0 text-xs outline-none ${className}`} aria-busy={loading ? true : undefined}>
+        {status}
+        {loading ? (
+          showSkeleton && (
+            <TraceSkeleton
+              wide={wide}
+              rowH={rowH}
+              bodyH={Math.min(maxRowsHeight, rowH * SKELETON_ROWS)}
+              gridCols={wide ? { gridTemplateColumns: `${TREE_COLUMN} minmax(0,1fr) 4rem` } : undefined}
+              indentPx={wide ? INDENT_PX : 10}
+              caption={L.loadingShort}
+            />
+          )
+        ) : nothingRead ? (
+          <div role="alert" data-testid="trace-error" className="flex flex-col items-center px-4 py-8 text-center">
+            <AlertTriangle className="mb-2 size-5 text-amber-300" strokeWidth={1.75} aria-hidden="true" />
+            <p className="text-sm text-gray-200">{L.failedAll}</p>
+            {onRetry && (
+              <Button variant="secondary" size="sm" className="mt-3" onClick={retry}>
+                <RotateCw className="size-3.5" aria-hidden="true" />
+                {L.retry}
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div data-testid="trace-empty">
+            <EmptyState size="sm" icon={<ChartNoAxesGantt aria-hidden="true" />} title={labels.empty} description={labels.emptyHint} />
+          </div>
+        )}
       </div>
     )
   }
+
+  // A trace is on screen: the history still coming in is a thin bar in a line that is always
+  // reserved, so nothing below it moves when the load ends.
+  const progress = loading ? (loading.total > 0 ? Math.min(1, loading.loaded / loading.total) : null) : 0
+  const progressLine = (
+    <div className="relative mx-1 mb-1 h-0.5 overflow-hidden rounded-full" aria-hidden="true" data-testid="trace-progress" title={loadingText || undefined}>
+      {loading && (
+        progress == null
+          ? <span className="absolute inset-0 bg-indigo-400/40 motion-safe:animate-pulse" />
+          : <span className="absolute inset-0 origin-left bg-indigo-400/70 rtl:origin-right" style={{ transform: `scaleX(${progress})` }} />
+      )}
+    </div>
+  )
+  const failedLine = failed && !loading ? (
+    <p className="flex flex-wrap items-center gap-2 px-2 py-1 text-[11px] text-amber-200" role="alert">
+      {L.failed}
+      {retryButton}
+    </p>
+  ) : null
 
   const hoverT = axis && hover != null ? timeAt(axis, view, hover) : null
   const detailPanel = selected && axis ? (
     <TraceDetail node={selected} origin={axis.first} labels={labels} onClose={closeDetail} onZoom={() => zoomOn(selected.key)} onOpen={onOpen} />
   ) : null
+  const stats = [
+    fill(L.spans, { n: tree.spanCount }),
+    ...(overview.peak > 0 ? [fill(labels.peak, { n: overview.peak })] : []),
+    ...(axis && axis.last > axis.first ? [formatItemDuration(axis.last - axis.first) ?? ''] : []),
+  ].filter(Boolean)
   const gridCols = wide ? { gridTemplateColumns: `${TREE_COLUMN} minmax(0,1fr) 4rem` } : undefined
 
   return (
-    <div ref={rootRef} className={`min-w-0 text-xs ${className}`}>
+    <div ref={rootRef} tabIndex={-1} className={`min-w-0 text-xs outline-none ${className}`}>
+      {status}
       <div className={side && detailPanel ? 'flex items-start gap-3' : ''}>
         <div role="region" aria-label={L.label} className="min-w-0 flex-1" onKeyDown={onKeyDown}>
-          {/* Toolbar */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-1">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 text-[11px] text-gray-400">
-              <span>{fill(L.spans, { n: tree.spanCount })}</span>
-              {overview.peak > 0 && <span>{fill(labels.peak, { n: overview.peak })}</span>}
-              {axis && axis.last > axis.first && <span className="tabular-nums">{formatItemDuration(axis.last - axis.first)}</span>}
-            </div>
+          {/* Toolbar: ONE line at any width (the counts truncate, the full text is the tooltip), so the
+              skeleton reserves exactly its height and nothing moves when the trace replaces it. */}
+          <div className="flex items-center gap-x-3 px-1 pb-1" data-testid="trace-toolbar">
+            <button
+              type="button"
+              onClick={() => setInfoOpen((o) => !o)}
+              aria-expanded={infoOpen}
+              className={`min-w-0 flex-1 rounded text-start text-[11px] text-gray-400 ${infoOpen ? 'whitespace-normal' : 'truncate'} ${focusRing}`}
+              title={stats.join(' · ')}
+            >
+              {stats.map((s, i) => <span key={i} className={`tabular-nums ${i > 0 ? 'ms-3' : ''}`}>{s}</span>)}
+            </button>
             <div className="flex items-center gap-0.5">
               <ToolButton wide={wide} label={L.zoomOut} onClick={() => move(zoomView(view, 1 / ZOOM_STEP, 0.5, total), true)}><ZoomOut className="size-4" aria-hidden="true" /></ToolButton>
               <ToolButton wide={wide} label={L.zoomIn} onClick={() => move(zoomView(view, ZOOM_STEP, 0.5, total), true)}><ZoomIn className="size-4" aria-hidden="true" /></ToolButton>
@@ -613,13 +695,24 @@ export function TraceView({
               <ToolButton wide={wide} label={L.follow} pressed={follow} onClick={() => setFollow((f) => !f)}><Radio className="size-4" aria-hidden="true" /></ToolButton>
             </div>
           </div>
-          {statusLine}
+          {progressLine}
+          {failedLine}
           {axis && (
             <div className="px-1 pb-1">
               <TraceMinimap axis={axis} view={view} overview={overview} onChange={(v) => move(v)} label={L.overview} windowLabel={L.window} idleLabel={labels.idle} tall={!wide} />
             </div>
           )}
-          <p className="px-1 pb-1 text-[10px] text-gray-400">{wide ? L.help : L.helpTouch}</p>
+          {/* Not a p: the global `p { text-wrap: pretty }` would undo `truncate`. A tap shows it in full. */}
+          <button
+            type="button"
+            onClick={() => setInfoOpen((o) => !o)}
+            aria-expanded={infoOpen}
+            className={`block w-full rounded px-1 pb-1 text-start text-[10px] text-gray-400 ${infoOpen ? 'whitespace-normal' : 'truncate'} ${focusRingInset}`}
+            title={wide ? L.help : L.helpTouch}
+            data-testid="trace-help"
+          >
+            {wide ? L.help : L.helpTouch}
+          </button>
 
           <div
             ref={gestureRef}

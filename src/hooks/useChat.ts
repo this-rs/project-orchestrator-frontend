@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pickModelResolver } from '@/constants/providers'
 import { distinctModels } from '@/utils/routingSelection'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -52,6 +52,7 @@ import {
   type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
+import { cancelNoticeMetadata, chipOutcomeOfNotice } from '@/utils/cancelFailure'
 import { tr } from '@/i18n/lazy'
 import { useEffectiveCapabilities } from './useEffectiveCapabilities'
 import { toProviderRef, toToolPolicy, type PermissionScope, type ToolPolicyMode } from '@/types/provider'
@@ -72,6 +73,13 @@ const INTERRUPT_ACK_TIMEOUT_MS = 4000
  * to drag a whole multi-thousand-event conversation over the wire on open.
  */
 const MAX_RENDERABLE_TAIL = PAGE_SIZE * 16
+
+/**
+ * A stream event as `handleEvent` sees it. `receivedAt` is `Date.now()` when this
+ * tab first got it: an event buffered (history loading, resync, not at the tail)
+ * and handled later keeps the moment it arrived, not the moment it was handled.
+ */
+type LiveEvent = ChatStreamEvent & { seq?: number; replaying?: boolean; receivedAt?: number }
 
 /** One loaded window of history, assembled and with its raw-event bookkeeping. */
 interface LoadedWindow {
@@ -314,7 +322,7 @@ export function useChat() {
   // Whether the loaded message window includes the tail (end) of the conversation.
   // When false (pagination centrée), live WS events are buffered to avoid disorder.
   const isAtTailRef = useRef(true)
-  const pendingTailEventsRef = useRef<Array<ChatStreamEvent & { seq?: number; replaying?: boolean }>>([])
+  const pendingTailEventsRef = useRef<Array<LiveEvent>>([])
   // True when live WS events are being buffered (user is viewing centered pagination)
   const [hasLiveActivity, setHasLiveActivity] = useState(false)
 
@@ -323,7 +331,7 @@ export function useChat() {
   // The auto-connect useEffect sets it to false before starting REST,
   // then back to true after setMessages(history) + replaying buffered events.
   const historyLoadedRef = useRef(true)
-  const pendingEventsRef = useRef<Array<ChatStreamEvent & { seq?: number; replaying?: boolean }>>([])
+  const pendingEventsRef = useRef<Array<LiveEvent>>([])
   // The live `tool_timing`s of this turn, by call id: every one is held here (the
   // message updater that places it must stay pure, it cannot say whether it found
   // the call), and a `tool_use` that comes after its timing takes it. Read and
@@ -451,7 +459,9 @@ export function useChat() {
   // ========================================================================
   // Event handler — processes LIVE events only (no more replay)
   // ========================================================================
-  const handleEvent = useCallback((event: ChatStreamEvent & { seq?: number; replaying?: boolean }) => {
+  const handleEvent = useCallback((incoming: LiveEvent) => {
+    // Stamped once, on receipt: a buffered event replayed later keeps this time.
+    const event: LiveEvent = incoming.receivedAt === undefined ? { ...incoming, receivedAt: Date.now() } : incoming
     // The messages the session holds until the running turn ends — always the
     // full list, published to EVERY device connected to the session, so a
     // message queued on one shows on the others. It replaces what we showed for
@@ -666,6 +676,23 @@ export function useChat() {
     }
     // A closed session streams nothing more.
     if (event.type === 'session_closed' && !event.replaying) setIsStreaming(false)
+
+    // A live cancel notice answers the Stop chips whose request went over the socket.
+    // Written HERE, not in the message updater below: an updater must stay pure (React
+    // may call it twice). `at` is when the frame arrived, and an older notice handled
+    // late (buffered during a resync) never replaces a newer one.
+    if (event.type === 'error' && !event.replaying) {
+      const notice = cancelNoticeMetadata(event)
+      const chip = notice ? chipOutcomeOfNotice(notice.code, notice.reason) : null
+      const noticeSid = chip ? store.get(chatSessionIdAtom) : null
+      if (chip && noticeSid) {
+        const at = event.receivedAt ?? Date.now()
+        const current = store.get(chatLastCancelFailureAtom)
+        if (!current || current.sessionId !== noticeSid || current.at <= at) {
+          store.set(chatLastCancelFailureAtom, { sessionId: noticeSid, reason: chip.reason, at })
+        }
+      }
+    }
 
     // Every timing is held here, placed or not: the updater below places it on its
     // call when the call is on screen, but must stay pure and cannot say whether it
@@ -1094,15 +1121,19 @@ export function useChat() {
             ? (event as { data?: Record<string, unknown> }).data ?? event
             : event
           const errParent = getParentToolUseId(event)
+          // A failed or refused cancel (`cancel_failed`, `cancel_refused`) is a notice
+          // on the turn: the turn goes on, so the stream is NOT stopped.
+          const cancelNotice = cancelNoticeMetadata(data)
           lastMsg.blocks.push({
             id: nextBlockId(),
             type: 'error',
             content: (data as { message?: string }).message ?? tr('app.chat.unknownError'),
-            metadata: withParent(undefined, errParent),
+            metadata: withCreatedAt(withParent(cancelNotice ?? undefined, errParent), serverTime),
           })
-          if (!event.replaying) {
+          if (!event.replaying && !cancelNotice) {
             setIsStreaming(false)
           }
+          // The Stop chips are told before this updater (it must stay pure).
           break
         }
 
@@ -1119,7 +1150,7 @@ export function useChat() {
             metadata: withParent(
               (() => {
                 const typed = sessionErrorMetadata(data)
-                return typed.code ? typed : undefined
+                return withCreatedAt(typed.code ? typed : undefined, serverTime)
               })(),
               getParentToolUseId(event),
             ),
@@ -1243,7 +1274,7 @@ export function useChat() {
           // Same block as the history reducer (chatAssembly.sessionEventBlock).
           const payload = event.replaying ? (event as { data?: Record<string, unknown> }).data ?? event : event
           const block = sessionEventBlock({ ...payload, type: event.type })
-          if (block) lastMsg.blocks.push({ id: nextBlockId(), ...block })
+          if (block) lastMsg.blocks.push({ id: nextBlockId(), ...block, metadata: withCreatedAt(block.metadata, serverTime) })
           break
         }
 
@@ -1255,7 +1286,7 @@ export function useChat() {
             id: nextBlockId(),
             type: 'error',
             content: toolsCancelledText(data as { killed_count?: number; requested_by?: string }),
-            metadata: withParent(undefined, getParentToolUseId(event)),
+            metadata: withCreatedAt(withParent(undefined, getParentToolUseId(event)), serverTime),
           })
           break
         }
@@ -1274,7 +1305,7 @@ export function useChat() {
             id: nextBlockId(),
             type: 'model_changed',
             content: `Model changed to ${newModel}`,
-            metadata: newReason ? { model: newModel, reason: newReason } : { model: newModel },
+            metadata: withCreatedAt(newReason ? { model: newModel, reason: newReason } : { model: newModel }, serverTime),
           })
           break
         }
@@ -1293,7 +1324,7 @@ export function useChat() {
             id: nextBlockId(),
             type: 'compact_boundary',
             content: label,
-            metadata: { trigger, pre_tokens: preTokens },
+            metadata: withCreatedAt({ trigger, pre_tokens: preTokens }, serverTime),
           })
           break
         }
@@ -1364,7 +1395,7 @@ export function useChat() {
               id: nextBlockId(),
               type: 'result_error',
               content: rResultText ?? tr('app.chat.executionError'),
-              metadata: { result_text: rResultText },
+              metadata: withCreatedAt({ result_text: rResultText }, serverTime),
             })
           }
 
@@ -2163,7 +2194,9 @@ export function useChat() {
         store.set(chatDraftSelectionAtom, [])
         // The conversation keeps the mode it was opened with (its own, or the settings' of that
         // moment), before its record says so: it never follows the settings afterwards.
-        store.set(chatSessionRoutingAtom, { routed_by: null, route_reason: null, routing_mode: mode })
+        // `chosen`: the menu chose this conversation's routing (R-S1: its own `auto` stage).
+        const chosen = chosenMode ? { chosen: true } : {}
+        store.set(chatSessionRoutingAtom, { routed_by: null, route_reason: null, routing_mode: mode, ...chosen })
         if (mode !== 'primary') {
           // How PO routed it (`routed_by`, `route_reason`): read from the record, best effort.
           void Promise.resolve()
@@ -2172,7 +2205,7 @@ export function useChat() {
               if (store.get(chatSessionIdAtom) !== response.session_id) return
               const record = sessionRoutingOf(session)
               // A server that does not echo the mode yet: keep the one this chat was opened with.
-              store.set(chatSessionRoutingAtom, record && !record.routing_mode ? { ...record, routing_mode: mode } : (record ?? { routed_by: null, route_reason: null, routing_mode: mode }))
+              store.set(chatSessionRoutingAtom, record && !record.routing_mode ? { ...record, routing_mode: mode, ...chosen } : (record ?? { routed_by: null, route_reason: null, routing_mode: mode, ...chosen }))
             })
             .catch(() => {})
         }

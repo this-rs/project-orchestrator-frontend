@@ -19,7 +19,7 @@ import {
   type ToolPolicy,
 } from '@/types/provider'
 import { routingApi } from '@/services/routing'
-import type { ProviderRoutingMode, RoutingSettingsResponse } from '@/types/routing'
+import type { LearningStage, ProviderRoutingMode, RoutingSettingsResponse } from '@/types/routing'
 import { pickModelResolver } from '@/constants/providers'
 import { modeOf, type RoutingPick } from '@/utils/routingSelection'
 import { chatPermissionConfigAtom, chatSelectedProjectAtom, chatSessionIdAtom, chatSessionModelAtom } from './chat'
@@ -317,6 +317,11 @@ export interface ChatSessionRouting {
   routing_mode: ProviderRoutingMode | null
   /** The models ticked for this conversation, when its record names them. */
   routing_pool?: { provider: string; model: string }[] | null
+  /**
+   * The user chose this conversation's routing (Auto or models ticked in the menu): its record
+   * names its mode, or the menu changed it. Absent = the mode is the settings' of the moment.
+   */
+  chosen?: boolean
 }
 export const chatSessionRoutingAtom = atom<ChatSessionRouting | null>(null)
 
@@ -329,7 +334,19 @@ export function sessionRoutingOf(session: {
 }): ChatSessionRouting | null {
   const { routed_by = null, route_reason = null, routing_mode = null, routing_pool } = session
   if (!routed_by && !route_reason && !routing_mode) return null
-  return routing_pool && routing_pool.length > 0 ? { routed_by, route_reason, routing_mode, routing_pool } : { routed_by, route_reason, routing_mode }
+  // The server stores a mode on the record only when the conversation asked for one.
+  const chosen = routing_mode ? { chosen: true } : {}
+  return routing_pool && routing_pool.length > 0 ? { routed_by, route_reason, routing_mode, routing_pool, ...chosen } : { routed_by, route_reason, routing_mode, ...chosen }
+}
+
+/**
+ * The learning stage THIS conversation's decisions are taken at (decision R-S1, as the server
+ * applies it): Auto, or two models ticked or more, chosen by the user on the conversation is
+ * the `auto` stage for it, whatever the settings say; otherwise the settings' stage.
+ */
+export function conversationStage(routing: ChatSessionRouting | null, settingsStage: LearningStage | null): LearningStage | null {
+  const routes = routing?.chosen === true && (routing.routing_mode === 'full' || (routing.routing_pool?.length ?? 0) > 1)
+  return routes ? 'auto' : settingsStage
 }
 
 /**
