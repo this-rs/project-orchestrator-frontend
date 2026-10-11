@@ -158,13 +158,16 @@ export default {
     actions: "이 권한 요청에 응답",
     allowOnce: "한 번 허용",
     allowSession: "이 세션 동안",
-    allowAlways: "항상",
     deny: "거부",
-    sessionHint: "이 대화에서는 다시 묻지 않음",
-    alwaysHint: "이 프로젝트에서는 재시작 후에도 다시 묻지 않음",
+    sessionHint: "이 대화에서 동일한 호출은 다시 묻지 않음",
+    awaiting: "확인을 기다리는 중…",
+    sessionCovers: "허용되면 '이 세션 동안'의 적용 범위:",
+    forbidden: "이 대화의 소유자만 응답할 수 있습니다. 아무것도 응답되지 않았습니다.",
+    ownerUnreadable: "이 대화의 소유자를 확인할 수 없습니다. 아무것도 응답되지 않았습니다. 다시 시도하세요.",
+    unconfirmed: "확인을 받지 못했습니다. 다시 응답하세요.",
+    scopeRefused: "이 권한은 세션 동안 유지할 수 없습니다 (호출이 다른 명령을 실행하거나 세션이 제공하지 않음). 한 번 허용하거나 거부하세요.",
     allowed: "허용됨",
     allowedSession: "세션 동안 허용됨",
-    allowedAlways: "항상 허용됨",
     denied: "거부됨"
   }
 } satisfies Translation<'chatA-tools'>

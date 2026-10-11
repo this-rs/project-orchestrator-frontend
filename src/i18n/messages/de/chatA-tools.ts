@@ -158,13 +158,16 @@ export default {
     actions: "Diese Berechtigungsanfrage beantworten",
     allowOnce: "Einmal erlauben",
     allowSession: "Für diese Sitzung",
-    allowAlways: "Immer",
     deny: "Ablehnen",
-    sessionHint: "In dieser Unterhaltung nicht mehr gefragt",
-    alwaysHint: "In diesem Projekt nicht mehr gefragt, auch nach einem Neustart",
+    sessionHint: "In dieser Unterhaltung für genau diesen Aufruf nicht mehr gefragt",
+    awaiting: "Warte auf die Bestätigung…",
+    sessionCovers: "Falls gewährt, gilt „Für diese Sitzung“ nur für:",
+    forbidden: "Nur die Person, der diese Unterhaltung gehört, kann antworten. Es wurde nichts beantwortet.",
+    ownerUnreadable: "Wem diese Unterhaltung gehört, konnte nicht geprüft werden. Es wurde nichts beantwortet: bitte erneut versuchen.",
+    unconfirmed: "Keine Bestätigung erhalten. Bitte erneut antworten.",
+    scopeRefused: "Diese Erlaubnis kann nicht für die Sitzung behalten werden (der Aufruf startet einen anderen Befehl, oder die Sitzung bietet es nicht an). Einmal erlauben oder ablehnen.",
     allowed: "Erlaubt",
     allowedSession: "Für die Sitzung erlaubt",
-    allowedAlways: "Immer erlaubt",
     denied: "Abgelehnt"
   }
 } satisfies Translation<'chatA-tools'>

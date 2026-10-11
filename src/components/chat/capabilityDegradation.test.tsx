@@ -74,44 +74,145 @@ describe('interactive_permissions', () => {
     expect(screen.queryByText(policyOnlyRequestText())).toBeNull()
   })
 
-  it('Claude profile: allow once, for the session, always, and deny', () => {
+  it('Claude profile: allow once, for the session, and deny — never "Always" (P11b)', () => {
     const onRespond = vi.fn(() => true)
     mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />)
     expect(screen.getByRole('button', { name: 'Allow once' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'For this session' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Always' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Deny' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Always' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
     expect(onRespond).toHaveBeenCalledWith('c1', true, 'once')
   })
 })
 
 describe('permission_scopes', () => {
-  it('only `once`: no lasting scope is offered — Allow once / Deny stay', () => {
+  const withMeta = (extra: Record<string, unknown>): ContentBlock => ({
+    ...permissionBlock,
+    metadata: { ...permissionBlock.metadata, ...extra },
+  })
+  /** The same tree (same store) rendered again with another block: the component keeps its state. */
+  function stage(onRespond: (...a: unknown[]) => boolean) {
+    const store = createStore()
+    store.set(chatSessionIdAtom, 's1')
+    const view = (b: ContentBlock) => (
+      <Provider store={store}>
+        <ChatCapabilitiesProvider capabilities={caps({ permission_scopes: ['once', 'session'] })}>
+          <ChatSessionProvider sessionId="s1">
+            <PermissionRequestBlock block={b} onRespond={onRespond} />
+          </ChatSessionProvider>
+        </ChatCapabilitiesProvider>
+      </Provider>
+    )
+    const { rerender } = render(view(permissionBlock))
+    return (b: ContentBlock) => rerender(view(b))
+  }
+
+  it('only `once`: no session scope is offered — Allow once / Deny stay', () => {
     const onRespond = vi.fn(() => true)
     mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />, caps({ permission_scopes: ['once'] }))
     expect(screen.queryByRole('button', { name: 'For this session' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Always' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
     expect(onRespond).toHaveBeenCalledWith('c1', true, 'once')
   })
 
-  it('once and session (native harness without lasting rules): no "Always"', () => {
-    const onRespond = vi.fn(() => true)
-    mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />, caps({ permission_scopes: ['once', 'session'] }))
+  it('a provider declaring `always` still gets no "Always" button', () => {
+    mount(<PermissionRequestBlock block={permissionBlock} onRespond={() => true} />, caps({ permission_scopes: ['once', 'session', 'always'] }))
     expect(screen.queryByRole('button', { name: 'Always' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'For this session' }))
+  })
+
+  it('session: sent with its scope, NOT shown as allowed until the backend confirms', () => {
+    const onRespond = vi.fn(() => true)
+    const update = stage(onRespond)
+    const session = screen.getByRole('button', { name: 'For this session' })
+    expect(session.getAttribute('title')).toMatch(/this exact call/)
+    fireEvent.click(session)
     expect(onRespond).toHaveBeenCalledWith('c1', true, 'session')
+    expect(screen.queryByText('Allowed')).toBeNull()
+    expect(screen.queryByText('Allowed for the session')).toBeNull()
+    expect(screen.getByRole('status').textContent).toMatch(/Waiting for the confirmation/)
+    expect(screen.getByRole('button', { name: 'Allow once' })).toHaveProperty('disabled', true)
+    // The decision arrives with what was granted.
+    update(withMeta({ decided: true, decision: 'allowed', decision_scope: 'session', decision_rule: 'Bash: git status' }))
+    expect(screen.getByText('Allowed for the session')).toBeTruthy()
+    expect(screen.getByText('Bash: git status')).toBeTruthy()
+  })
+
+  it('a refused scope (permission_scope_unsupported): never "Allowed", the request can be answered again', () => {
+    const onRespond = vi.fn(() => true)
+    const update = stage(onRespond)
+    fireEvent.click(screen.getByRole('button', { name: 'For this session' }))
+    update(withMeta({ scope_refused: { scope: 'session', at: 1 } }))
+    expect(screen.queryByText('Allowed')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toMatch(/cannot be kept for the session/)
+    const once = screen.getByRole('button', { name: 'Allow once' })
+    expect(once).toHaveProperty('disabled', false)
+    fireEvent.click(once)
+    expect(onRespond).toHaveBeenLastCalledWith('c1', true, 'once')
     expect(screen.getByText('Allowed')).toBeTruthy()
   })
 
-  it('always: sent with its scope, the hint says it outlives the session', () => {
+  it('a refusal of "session" is not offered again: the button is gone, once / deny stay (#323-3)', () => {
     const onRespond = vi.fn(() => true)
-    mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />, caps({ permission_scopes: ['once', 'session', 'always'] }))
-    const always = screen.getByRole('button', { name: 'Always' })
-    expect(always.getAttribute('title')).toMatch(/after a restart/)
-    fireEvent.click(always)
-    expect(onRespond).toHaveBeenCalledWith('c1', true, 'always')
+    const update = stage(onRespond)
+    fireEvent.click(screen.getByRole('button', { name: 'For this session' }))
+    update(withMeta({ scope_refused: { scope: 'session', at: 1 } }))
+    expect(screen.queryByRole('button', { name: 'For this session' })).toBeNull()
+    expect(screen.queryByTestId('permission-session-scope')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Allow once' })).toHaveProperty('disabled', false)
+    expect(screen.getByRole('button', { name: 'Deny' })).toHaveProperty('disabled', false)
+  })
+
+  it('what "session" covers is shown before the click: this exact call (#323-4)', () => {
+    mount(<PermissionRequestBlock block={permissionBlock} onRespond={() => true} />)
+    const scope = screen.getByTestId('permission-session-scope')
+    expect(scope.textContent).toMatch(/covers only/)
+    expect(scope.textContent).toContain('Bash: ls')
+    expect(screen.getByRole('button', { name: 'For this session' }).getAttribute('aria-describedby')).toBe(scope.id)
+  })
+
+  it('what "session" covers, for a tool that is not a command: its exact input', () => {
+    const read: ContentBlock = {
+      ...permissionBlock,
+      metadata: { tool_call_id: 'c2', tool_name: 'mcp__nexus__Read', tool_input: { offset: 1, file_path: 'a.rs' } },
+    }
+    mount(<PermissionRequestBlock block={read} onRespond={() => true} />)
+    expect(screen.getByTestId('permission-session-scope').textContent).toContain(
+      'mcp__nexus__Read {"file_path":"a.rs","offset":1}',
+    )
+  })
+
+  it('a "session" answer never confirmed: the wait ends, the request can be answered again (#323-2)', () => {
+    const onRespond = vi.fn(() => true)
+    const update = stage(onRespond)
+    fireEvent.click(screen.getByRole('button', { name: 'For this session' }))
+    expect(screen.getByRole('status').textContent).toMatch(/Waiting for the confirmation/)
+    update(withMeta({ scope_unconfirmed: { at: 2 } }))
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByRole('alert').textContent).toMatch(/No confirmation came back/)
+    expect(screen.getByRole('button', { name: 'For this session' })).toHaveProperty('disabled', false)
+    expect(screen.getByRole('button', { name: 'Allow once' })).toHaveProperty('disabled', false)
+  })
+
+  it('a_forbidden_answer_is_shown_on_its_block_and_does_not_mark_it_answered', () => {
+    const onRespond = vi.fn(() => true)
+    const update = stage(onRespond)
+    fireEvent.click(screen.getByRole('button', { name: 'Allow once' }))
+    expect(screen.getByText('Allowed')).toBeTruthy()
+    // The backend refused it before delivery: nothing was answered.
+    update(withMeta({ answer_forbidden: { reason: 'not_owner', at: 3 } }))
+    expect(screen.queryByText('Allowed')).toBeNull()
+    expect(screen.getByTestId('permission-forbidden').textContent).toMatch(/Only the person this conversation belongs to/)
+    expect(screen.getByRole('button', { name: 'Allow once' })).toHaveProperty('disabled', false)
+    expect(screen.getByRole('button', { name: 'Deny' })).toHaveProperty('disabled', false)
+    // The owner could not be checked: said as such.
+    update(withMeta({ answer_forbidden: { reason: 'owner_unreadable', at: 4 } }))
+    expect(screen.getByTestId('permission-forbidden').textContent).toMatch(/could not be checked/)
+  })
+
+  it('the scope preview reads as conditional: nothing is granted before the backend says so', () => {
+    mount(<PermissionRequestBlock block={permissionBlock} onRespond={() => true} />)
+    expect(screen.getByTestId('permission-session-scope').textContent).toMatch(/^If granted/)
   })
 
   it('deny carries no scope', () => {
@@ -119,19 +220,6 @@ describe('permission_scopes', () => {
     mount(<PermissionRequestBlock block={permissionBlock} onRespond={onRespond} />)
     fireEvent.click(screen.getByRole('button', { name: 'Deny' }))
     expect(onRespond).toHaveBeenCalledWith('c1', false, undefined)
-  })
-
-  it.each([
-    ['session', 'Allowed for the session'],
-    ['always', 'Allowed always'],
-  ])('a decision recorded with the scope %s says how long it lasts', (scope, label) => {
-    mount(
-      <PermissionRequestBlock
-        block={{ ...permissionBlock, metadata: { ...permissionBlock.metadata, decided: true, decision: 'allowed', decision_scope: scope } }}
-        onRespond={() => true}
-      />,
-    )
-    expect(screen.getByText(label)).toBeTruthy()
   })
 
   it('the actions are one labelled group', () => {

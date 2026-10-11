@@ -137,6 +137,32 @@ function formatToolSummary(
   }
 }
 
+/** `value` as JSON with its object keys sorted, as the backend compares and shows an input. */
+function canonicalJson(value: unknown): string {
+  const sorted = (v: unknown): unknown =>
+    Array.isArray(v)
+      ? v.map(sorted)
+      : v && typeof v === 'object'
+        ? Object.fromEntries(
+            Object.keys(v as Record<string, unknown>)
+              .sort()
+              .map((k) => [k, sorted((v as Record<string, unknown>)[k])]),
+          )
+        : v
+  return JSON.stringify(sorted(value ?? {}))
+}
+
+/**
+ * What a "for the session" approval of this call would cover, worded like the rule the
+ * backend sends back (`permission_decision.rule`, `chat::session_grants`): the identical
+ * call only, so the command line for a command, the input otherwise. The `description` of
+ * a command is not part of what the backend compares.
+ */
+function sessionGrantPreview(toolName: string, input: Record<string, unknown> | undefined): string {
+  if (input && typeof input.command === 'string') return `${toolName}: ${input.command.trim()}`
+  return `${toolName} ${canonicalJson(input)}`
+}
+
 // ---------------------------------------------------------------------------
 // Category icons (compact)
 // ---------------------------------------------------------------------------
@@ -185,11 +211,17 @@ export function PermissionRequestBlock({
     : null
 
   const { t } = useT()
-  // What the provider of this conversation can do: ask at all, and how long an
-  // approval may last (only the scopes the session declares are offered).
+  // What the provider of this conversation can do: ask at all, and whether an approval
+  // may last for the session. `always` is never offered (P11b: refused by every engine).
   const caps = useChatCapabilities()
-  const lastingScopes = (['session', 'always'] as const).filter((s) => supportsScope(caps, s))
+  const offersSession = supportsScope(caps, 'session')
   const decisionScope = block.metadata?.decision_scope as PermissionScope | undefined
+  // What a session approval covers, as the backend says it (`Bash: git status`).
+  const decisionRule = block.metadata?.decision_rule as string | undefined
+  // A scope the backend refused (`permission_scope_unsupported`): `at` tells refusals apart.
+  const scopeRefused = block.metadata?.scope_refused as { scope?: string; at: number } | undefined
+  // A `session` answer that got neither a decision nor a refusal in time (or whose socket died).
+  const scopeUnconfirmed = block.metadata?.scope_unconfirmed as { at: number } | undefined
   const providerKind = useBlockProviderKind()
 
   const category = getToolCategory(toolName, {
@@ -206,6 +238,48 @@ export function PermissionRequestBlock({
   const [decision, setDecision] = useState<'allowed' | 'denied' | null>(initialDecision)
   const [showDetail, setShowDetail] = useState(false)
   const [sendFailed, setSendFailed] = useState(false)
+  // A `session` answer sent, not yet confirmed: the block waits for the decision (or the
+  // refusal) instead of claiming "Allowed".
+  const [awaitingScope, setAwaitingScope] = useState(false)
+  const [refusalSeen, setRefusalSeen] = useState<number | null>(null)
+  const refused = !!scopeRefused && !persistedDecision
+  if (scopeRefused && scopeRefused.at !== refusalSeen) {
+    setRefusalSeen(scopeRefused.at)
+    setAwaitingScope(false)
+  }
+  // No confirmation came back in time, or the socket was lost meanwhile (`useChat`): the
+  // block is answerable again instead of waiting forever.
+  const [unconfirmedSeen, setUnconfirmedSeen] = useState<number | null>(null)
+  if (scopeUnconfirmed && scopeUnconfirmed.at !== unconfirmedSeen) {
+    setUnconfirmedSeen(scopeUnconfirmed.at)
+    setAwaitingScope(false)
+  }
+  // An answer the backend refused before delivering it (`permission_forbidden`): nothing was
+  // answered, so the block is pending again, whatever it showed after the click.
+  const answerForbidden = block.metadata?.answer_forbidden as { reason?: string; at: number } | undefined
+  const [forbiddenSeen, setForbiddenSeen] = useState<number | null>(null)
+  if (answerForbidden && answerForbidden.at !== forbiddenSeen && !persistedDecision) {
+    setForbiddenSeen(answerForbidden.at)
+    setAwaitingScope(false)
+    setResponded(false)
+    setDecision(null)
+  }
+  const forbidden = !!answerForbidden && !persistedDecision
+  // Of the notices (refused scope, unconfirmed, forbidden), only the latest is shown.
+  const latestNotice = [
+    refused && scopeRefused ? { kind: 'refused' as const, at: scopeRefused.at } : null,
+    scopeUnconfirmed && !persistedDecision ? { kind: 'unconfirmed' as const, at: scopeUnconfirmed.at } : null,
+    forbidden && answerForbidden ? { kind: 'forbidden' as const, at: answerForbidden.at } : null,
+  ].reduce<{ kind: 'refused' | 'unconfirmed' | 'forbidden'; at: number } | null>(
+    (latest, notice) => (notice && (!latest || notice.at >= latest.at) ? notice : latest),
+    null,
+  )?.kind
+  // A refusal of `session` is deterministic (the same call is refused again): not offered twice.
+  const sessionRefused = refused && scopeRefused?.scope === 'session'
+  const showSession = offersSession && !sessionRefused
+  // What "for the session" covers, shown BEFORE the click: this exact call, as the backend
+  // describes its grant (`Bash: git status`).
+  const sessionRule = sessionGrantPreview(toolName, toolInput)
 
   // Sync with persisted decision arriving via broadcast after initial render
   if (persistedDecision && !responded) {
@@ -222,7 +296,7 @@ export function PermissionRequestBlock({
   }, [])
 
   const handleRespond = (allowed: boolean, scope: PermissionScope = 'once') => {
-    if (responded) return
+    if (responded || awaitingScope) return
     // Only show the decision once it was actually delivered: on a dead socket
     // onRespond returns false and the agent is still waiting for an answer.
     if (onRespond(toolCallId, allowed, allowed ? scope : undefined) === false) {
@@ -230,6 +304,11 @@ export function PermissionRequestBlock({
       return
     }
     setSendFailed(false)
+    if (allowed && scope !== 'once') {
+      // Confirmed by `permission_decision` (or refused): never shown as allowed before.
+      setAwaitingScope(true)
+      return
+    }
     setResponded(true)
     setDecision(allowed ? 'allowed' : 'denied')
   }
@@ -253,11 +332,14 @@ export function PermissionRequestBlock({
         {decision === 'allowed' ? (
           <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400/80 shrink-0">
             <Check className="w-3 h-3" />
-            {decisionScope === 'always'
-              ? t('chatA-tools.permission.allowedAlways')
-              : decisionScope === 'session'
-                ? t('chatA-tools.permission.allowedSession')
-                : t('chatA-tools.permission.allowed')}
+            {decisionScope === 'session'
+              ? t('chatA-tools.permission.allowedSession')
+              : t('chatA-tools.permission.allowed')}
+            {decisionScope === 'session' && decisionRule && (
+              <code className="font-mono text-[10px] text-emerald-300/80 truncate max-w-[16rem]" title={decisionRule}>
+                {decisionRule}
+              </code>
+            )}
           </span>
         ) : (
           <span className="flex items-center gap-1 text-[11px] font-medium text-red-400/80 shrink-0">
@@ -351,40 +433,74 @@ export function PermissionRequestBlock({
           </div>
         )}
 
-        {/* Actions: allow once, for the session, always (only the scopes the session offers), deny */}
+        {/* Actions: allow once, for the session (when the session offers it), deny */}
         <div role="group" aria-label={t('chatA-tools.permission.actions')} className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => handleRespond(true, 'once')}
-            disabled={disabled}
+            disabled={disabled || awaitingScope}
             className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 transition-colors disabled:opacity-50 flex items-center gap-1"
           >
             <Check className="w-3 h-3" aria-hidden="true" />
             {t('chatA-tools.permission.allowOnce')}
           </button>
-          {lastingScopes.map((scope) => (
+          {showSession && (
             <button
-              key={scope}
               type="button"
-              data-scope={scope}
-              onClick={() => handleRespond(true, scope)}
-              disabled={disabled}
-              title={t(scope === 'session' ? 'chatA-tools.permission.sessionHint' : 'chatA-tools.permission.alwaysHint')}
+              data-scope="session"
+              onClick={() => handleRespond(true, 'session')}
+              disabled={disabled || awaitingScope}
+              title={t('chatA-tools.permission.sessionHint')}
+              aria-describedby={`permission-scope-${toolCallId}`}
               className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-600/10 text-emerald-300 hover:bg-emerald-600/20 transition-colors disabled:opacity-50"
             >
-              {t(scope === 'session' ? 'chatA-tools.permission.allowSession' : 'chatA-tools.permission.allowAlways')}
+              {t('chatA-tools.permission.allowSession')}
             </button>
-          ))}
+          )}
           <button
             type="button"
             onClick={() => handleRespond(false)}
-            disabled={disabled}
+            disabled={disabled || awaitingScope}
             className="px-2.5 py-1 text-[11px] font-medium rounded bg-red-600/20 text-red-400 hover:bg-red-600/30 transition-colors disabled:opacity-50 flex items-center gap-1"
           >
             <X className="w-3 h-3" aria-hidden="true" />
             {t('chatA-tools.permission.deny')}
           </button>
         </div>
+        {showSession && (
+          <p
+            id={`permission-scope-${toolCallId}`}
+            data-testid="permission-session-scope"
+            className="mt-1.5 flex items-baseline gap-1 text-[10px] text-gray-500 min-w-0"
+          >
+            <span className="shrink-0">{t('chatA-tools.permission.sessionCovers')}</span>
+            <code className="font-mono text-gray-400 truncate" title={sessionRule}>
+              {sessionRule}
+            </code>
+          </p>
+        )}
+        {awaitingScope && (
+          <p role="status" className="mt-1.5 text-[10px] text-gray-400">
+            {t('chatA-tools.permission.awaiting')}
+          </p>
+        )}
+        {latestNotice === 'refused' && !awaitingScope && (
+          <p role="alert" className="mt-1.5 text-[10px] text-amber-400">
+            {t('chatA-tools.permission.scopeRefused')}
+          </p>
+        )}
+        {latestNotice === 'unconfirmed' && !awaitingScope && (
+          <p role="alert" className="mt-1.5 text-[10px] text-amber-400">
+            {t('chatA-tools.permission.unconfirmed')}
+          </p>
+        )}
+        {latestNotice === 'forbidden' && !awaitingScope && (
+          <p role="alert" data-testid="permission-forbidden" className="mt-1.5 text-[10px] text-amber-400">
+            {answerForbidden?.reason === 'owner_unreadable'
+              ? t('chatA-tools.permission.ownerUnreadable')
+              : t('chatA-tools.permission.forbidden')}
+          </p>
+        )}
         {sendFailed && (
           <p role="alert" className="mt-1.5 text-[10px] text-red-400">
             Not sent: connection lost. Try again once reconnected.

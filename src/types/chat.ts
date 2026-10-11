@@ -502,8 +502,8 @@ export type ChatEvent =
   | { type: 'tool_cancelled'; id: string; parent_tool_use_id?: string }
   | ({ type: 'tool_timing' } & ToolTiming & Nested)
   | ({ type: 'permission_request'; id: string; tool: string; input: Record<string, unknown>; tool_use_id?: string } & ToolProviderHints & Nested)
-  /** `scope`: how long an approval lasts, when it outlives the call (absent: this call only, or a refusal). */
-  | { type: 'permission_decision'; id: string; allow: boolean; scope?: 'session' | 'always' }
+  /** `scope`: how long an approval lasts, when it outlives the call (absent: this call only, or a refusal); `rule`: what a session approval covers. */
+  | { type: 'permission_decision'; id: string; allow: boolean; scope?: 'session' | 'always'; rule?: string }
   | ({
       type: 'ask_user_question'
       questions: AskUserQuestion[]
@@ -542,6 +542,8 @@ export type ChatEvent =
       code?: string
       index?: number
       reason?: string
+      /** The permission request a refusal is about (`permission_scope_unsupported`, `permission_forbidden`): the `id` of the refused answer. */
+      request_id?: string
     } & Nested)
   | { type: 'streaming_status'; is_streaming: boolean }
   | { type: 'permission_mode_changed'; mode: string; tool_policy?: ToolPolicy | ToolPolicyMode; policy_mode?: ToolPolicyMode }
@@ -644,10 +646,10 @@ export const CHAT_EVENT_FIELDS = {
     parent_tool_use_id: 'optional',
   },
   permission_request: { id: 'required', tool: 'required', input: 'required', tool_use_id: 'optional', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
-  permission_decision: { id: 'required', allow: 'required', scope: 'optional' },
+  permission_decision: { id: 'required', allow: 'required', scope: 'optional', rule: 'optional' },
   ask_user_question: { questions: 'required', tool_call_id: 'optional', id: 'optional', input: 'optional', synthetic: 'optional', parent_tool_use_id: 'optional' },
   result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional', stop_reason: 'optional', error: 'optional' },
-  error: { message: 'required', code: 'optional', index: 'optional', reason: 'optional', parent_tool_use_id: 'optional' },
+  error: { message: 'required', code: 'optional', index: 'optional', reason: 'optional', parent_tool_use_id: 'optional', request_id: 'optional' },
   streaming_status: { is_streaming: 'required' },
   permission_mode_changed: { mode: 'required', tool_policy: 'optional', policy_mode: 'optional' },
   model_changed: { model: 'required', reason: 'optional' },

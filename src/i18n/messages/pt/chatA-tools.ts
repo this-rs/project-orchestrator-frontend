@@ -158,13 +158,16 @@ export default {
     actions: "Responder a este pedido de permissão",
     allowOnce: "Permitir uma vez",
     allowSession: "Para esta sessão",
-    allowAlways: "Sempre",
     deny: "Negar",
-    sessionHint: "Não será perguntado de novo nesta conversa",
-    alwaysHint: "Não será perguntado de novo neste projeto, nem após reiniciar",
+    sessionHint: "Não será perguntado de novo nesta conversa para esta chamada exata",
+    awaiting: "Aguardando a confirmação…",
+    sessionCovers: "Se concedido, “Para esta sessão” cobre apenas:",
+    forbidden: "Só a pessoa a quem esta conversa pertence pode responder. Nada foi respondido.",
+    ownerUnreadable: "Não foi possível verificar a quem esta conversa pertence. Nada foi respondido: tente novamente.",
+    unconfirmed: "Nenhuma confirmação recebida. Responda novamente.",
+    scopeRefused: "Esta permissão não pode ser mantida para a sessão (a chamada executa outro comando, ou a sessão não a oferece). Responda uma vez ou negue.",
     allowed: "Permitido",
     allowedSession: "Permitido para a sessão",
-    allowedAlways: "Sempre permitido",
     denied: "Negado"
   }
 } satisfies Translation<'chatA-tools'>

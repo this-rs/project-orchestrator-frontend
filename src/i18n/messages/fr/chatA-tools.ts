@@ -158,13 +158,16 @@ export default {
     actions: "Répondre à cette demande d'autorisation",
     allowOnce: "Autoriser une fois",
     allowSession: "Pour la session",
-    allowAlways: "Toujours",
     deny: "Refuser",
-    sessionHint: "Plus demandé dans cette conversation",
-    alwaysHint: "Plus demandé dans ce projet, même après un redémarrage",
+    sessionHint: "Plus demandé dans cette conversation pour cet appel exact",
+    awaiting: "En attente de la confirmation…",
+    sessionCovers: "Si elle est accordée, « Pour la session » ne couvre que :",
+    forbidden: "Seule la personne à qui appartient cette conversation peut y répondre. Rien n'a été répondu.",
+    ownerUnreadable: "Impossible de vérifier à qui appartient cette conversation. Rien n'a été répondu : réessayez.",
+    unconfirmed: "Aucune confirmation n'est revenue. Répondez à nouveau.",
+    scopeRefused: "Cette autorisation ne peut pas être gardée pour la session (l'appel lance une autre commande, ou la session ne le propose pas). Répondez une fois ou refusez.",
     allowed: "Autorisé",
     allowedSession: "Autorisé pour la session",
-    allowedAlways: "Toujours autorisé",
     denied: "Refusé"
   }
 } satisfies Translation<'chatA-tools'>

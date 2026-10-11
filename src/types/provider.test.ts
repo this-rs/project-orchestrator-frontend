@@ -97,7 +97,10 @@ describe('capabilities', () => {
     for (const key of ['interactive_permissions', 'thinking', 'images', 'tools', 'set_model_live', 'native_question', 'tool_cancel', 'background_tasks', 'resume', 'compaction_signal'] as const) {
       expect(CLAUDE_CODE_CAPABILITIES[key]).toBe(true)
     }
-    expect(CLAUDE_CODE_CAPABILITIES.permission_scopes).toEqual(['once', 'session', 'always'])
+    // What the backend's Claude Code engine declares and accepts (`always` is refused by every
+    // engine, P11b): the fallback never claims more.
+    expect(CLAUDE_CODE_CAPABILITIES.permission_scopes).toEqual(['once', 'session'])
+    expect(supportsScope(CLAUDE_CODE_CAPABILITIES, 'always')).toBe(false)
     expect(CLAUDE_CODE_CAPABILITIES.subagents).toBe('nested')
     expect(CLAUDE_CODE_CAPABILITIES.cost).toBe('reported')
   })
@@ -107,7 +110,7 @@ describe('capabilities', () => {
     a.images = false
     a.permission_scopes.push('once')
     expect(CLAUDE_CODE_CAPABILITIES.images).toBe(true)
-    expect(CLAUDE_CODE_CAPABILITIES.permission_scopes).toHaveLength(3)
+    expect(CLAUDE_CODE_CAPABILITIES.permission_scopes).toHaveLength(2)
   })
 
   it('reads declared fields and falls back to the base for the rest', () => {

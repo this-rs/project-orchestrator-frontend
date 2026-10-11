@@ -197,7 +197,7 @@ export interface ProviderCapabilities {
  */
 export const CLAUDE_CODE_CAPABILITIES: Readonly<ProviderCapabilities> = Object.freeze({
   interactive_permissions: true,
-  permission_scopes: ['once', 'session', 'always'],
+  permission_scopes: ['once', 'session'],
   sandbox: 'none',
   secret_isolation: true,
   per_session_mcp: true,

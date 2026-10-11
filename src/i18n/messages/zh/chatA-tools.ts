@@ -158,13 +158,16 @@ export default {
     actions: "回应此权限请求",
     allowOnce: "允许一次",
     allowSession: "本次会话",
-    allowAlways: "始终",
     deny: "拒绝",
-    sessionHint: "本对话中不再询问",
-    alwaysHint: "本项目中不再询问，重启后也是",
+    sessionHint: "本对话中同一调用不再询问",
+    awaiting: "正在等待确认…",
+    sessionCovers: "如获准，“本次会话”仅涵盖：",
+    forbidden: "只有此对话的所有者可以回答。未作任何回答。",
+    ownerUnreadable: "无法确认此对话的所有者。未作任何回答，请重试。",
+    unconfirmed: "未收到确认。请重新回答。",
+    scopeRefused: "此权限无法在本次会话中保留（该调用会运行其他命令，或会话不提供此选项）。请允许一次或拒绝。",
     allowed: "已允许",
     allowedSession: "本次会话已允许",
-    allowedAlways: "已始终允许",
     denied: "已拒绝"
   }
 } satisfies Translation<'chatA-tools'>

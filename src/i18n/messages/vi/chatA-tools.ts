@@ -158,13 +158,16 @@ export default {
     actions: "Trả lời yêu cầu cấp quyền này",
     allowOnce: "Cho phép một lần",
     allowSession: "Cho phiên này",
-    allowAlways: "Luôn luôn",
     deny: "Từ chối",
-    sessionHint: "Không hỏi lại trong cuộc trò chuyện này",
-    alwaysHint: "Không hỏi lại trong dự án này, kể cả sau khi khởi động lại",
+    sessionHint: "Không hỏi lại trong cuộc trò chuyện này cho đúng lệnh gọi này",
+    awaiting: "Đang chờ xác nhận…",
+    sessionCovers: "Nếu được chấp nhận, “Cho phiên này” chỉ áp dụng cho:",
+    forbidden: "Chỉ người sở hữu cuộc trò chuyện này mới có thể trả lời. Chưa có gì được trả lời.",
+    ownerUnreadable: "Không thể kiểm tra cuộc trò chuyện này thuộc về ai. Chưa có gì được trả lời: hãy thử lại.",
+    unconfirmed: "Không nhận được xác nhận. Hãy trả lời lại.",
+    scopeRefused: "Quyền này không thể giữ cho phiên (lệnh gọi chạy một lệnh khác, hoặc phiên không cung cấp). Hãy cho phép một lần hoặc từ chối.",
     allowed: "Đã cho phép",
     allowedSession: "Đã cho phép cho phiên",
-    allowedAlways: "Luôn cho phép",
     denied: "Đã từ chối"
   }
 } satisfies Translation<'chatA-tools'>

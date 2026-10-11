@@ -835,7 +835,7 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
           for (let bi = 0; bi < msg.blocks.length; bi++) {
             const block = msg.blocks[bi]
             if (block.type === 'permission_request' && block.metadata?.tool_call_id === decisionId) {
-              msg.blocks[bi] = { ...block, metadata: { ...block.metadata, decided: true, decision: allowed ? 'allowed' : 'denied', decision_scope: lasting } }
+              msg.blocks[bi] = { ...block, metadata: { ...block.metadata, decided: true, decision: allowed ? 'allowed' : 'denied', decision_scope: lasting, decision_rule: (evt as { rule?: string }).rule } }
             }
           }
         }
