@@ -48,6 +48,7 @@ import {
   placeTimings,
   serverTimeOf,
   permissionCallOf,
+  userEchoTarget,
   type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
@@ -598,35 +599,39 @@ export function useChat() {
           }
         }
 
-        // Avoid duplicate: check if ANY recent user message has the same content.
-        // This handles mid-stream sends where the optimistic user message is followed
-        // by assistant messages before the broadcast arrives from the dequeue.
-        for (let i = prev.length - 1; i >= Math.max(0, prev.length - 10); i--) {
+        // The echo of a bubble already shown (`userEchoTarget`): the oldest bubble
+        // of this browser waiting for an echo of this text (a mid-stream send is
+        // followed by assistant messages before the broadcast of its dequeue), or
+        // the bubble opening the turn in progress (a replay). Anything else is a
+        // new message, even with the text of an older one (sent from another tab).
+        const target = userEchoTarget(prev, content)
+        if (target) {
+          const i = target.index
           const msg = prev[i]
-          if (msg.role === 'user' && msg.blocks[0]?.content === content) {
-            // The optimistic bubble knows no filenames; the broadcast does.
-            const needsAttachments = sentAttachments.length > 0 && !msg.attachments?.length
-            // The optimistic bubble already knows the labels of its refs: keep them.
-            const needsRefs = sentRefs.length > 0 && !msg.refs?.length
-            // The optimistic bubble was stamped on the browser's estimate of the
-            // server's clock (exact only once a frame taught it the gap); the live
-            // echo carries the server's own time: the turn starts there.
-            // Only a bubble of this browser still waiting for its echo: a message that
-            // already has a server time (the history, an earlier turn) is never re-dated.
-            const serverStamp = msg.awaitingEcho && !event.replaying && serverTime ? new Date(serverTime) : undefined
-            const needsStamp = serverStamp != null
-            if (needsAttachments || needsRefs || needsStamp) {
-              const next = [...prev]
-              next[i] = {
-                ...msg,
-                ...(needsAttachments ? { attachments: sentAttachments } : {}),
-                ...(needsRefs ? { refs: refsFromBlock(sentRefs) } : {}),
-                ...(needsStamp ? { timestamp: serverStamp, awaitingEcho: undefined } : {}),
-              }
-              return next
+          // The optimistic bubble knows no filenames; the broadcast does.
+          const needsAttachments = sentAttachments.length > 0 && !msg.attachments?.length
+          // The optimistic bubble already knows the labels of its refs: keep them.
+          const needsRefs = sentRefs.length > 0 && !msg.refs?.length
+          // An echo, live or replayed (a reconnect snapshot may be the only one this
+          // tab gets), is THE echo of a waiting bubble: the bubble stops waiting (a
+          // later message with the same text gets its own bubble). It was stamped on
+          // the browser's estimate of the server's clock (exact only once a frame
+          // taught it the gap); a LIVE echo carries the server's own time: the turn
+          // starts there. A replayed frame only says the server has the message.
+          const echoed = target.awaiting
+          const serverStamp = echoed && !event.replaying && serverTime ? new Date(serverTime) : undefined
+          if (needsAttachments || needsRefs || echoed) {
+            const next = [...prev]
+            next[i] = {
+              ...msg,
+              ...(needsAttachments ? { attachments: sentAttachments } : {}),
+              ...(needsRefs ? { refs: refsFromBlock(sentRefs) } : {}),
+              ...(serverStamp ? { timestamp: serverStamp } : {}),
+              ...(echoed ? { awaitingEcho: undefined } : {}),
             }
-            return prev
+            return next
           }
+          return prev
         }
         return [
           ...prev,
@@ -835,6 +840,7 @@ export function useChat() {
                 streamWindow,
                 (b) => b.type === 'ask_user_question' && b.metadata?.tool_call_id === toolId,
               )
+              // A question call is timed like any call: its timing (come first) goes on this block.
               if (!isDupe) {
                 lastMsg.blocks.push({
                   id: nextBlockId(),
@@ -843,8 +849,11 @@ export function useChat() {
                   metadata: withCreatedAt(withParent({
                     tool_call_id: toolId,
                     questions,
+                    ...(earlyTiming ? { tool_timing: earlyTiming } : {}),
                   }, tuParent), tuTs),
                 })
+              } else if (earlyTiming) {
+                attachToolTiming(updated, { ...earlyTiming, id: toolId })
               }
             }
           } else {
@@ -1982,6 +1991,10 @@ export function useChat() {
       const win = await fetchRenderableTail(sessionId, meta.total_count, store.get(refsEnabledAtom))
 
       setMessages(win.messages)
+      // A window loaded from scratch: what was held for the one it replaces goes
+      // with it (the live events since then are buffered and replayed below).
+      earlyTimingsRef.current.clear()
+      liveCallIdsRef.current.clear()
       unplacedTimingsRef.current = win.unplacedTimings
 
       const endOffset = win.offset + win.rawCount

@@ -11,6 +11,10 @@ export default {
   },
   degradation: {
     title: 'Some features are not available in this conversation',
+    collapse: 'Collapse into an icon',
+    collapsedLabel: 'Unavailable features: {count}. Show details',
+    count: 'Unavailable features: {count}',
+    expand: 'Show above the message box',
     installation: {
       heading: "Missing from this installation",
       note: "To fix on the server: not a gap in the engine, not a limit of the model.",

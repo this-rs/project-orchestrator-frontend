@@ -169,6 +169,14 @@ export function classifyDegradations(
     .sort((a, b) => CAUSE_ORDER.indexOf(a.cause) - CAUSE_ORDER.indexOf(b.cause))
 }
 
+/**
+ * What the capability banner lists for a session: nothing while the engine names no missing
+ * feature (the declared limits alone do not raise the banner), the classified list otherwise.
+ */
+export function engineGaps(degraded: readonly string[], declared?: DeclaredCapabilities | null): Degradation[] {
+  return degraded.length === 0 ? [] : classifyDegradations(degraded, declared)
+}
+
 const HARNESS_KEYS: Readonly<Record<string, MessageKey>> = {
   hooks: 'session.harness.hooks',
   message_queue: 'session.harness.message_queue',

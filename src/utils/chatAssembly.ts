@@ -198,8 +198,18 @@ export function toolTimingOf(evt: Record<string, unknown>): { id: string; timing
 }
 
 /**
- * Put a `tool_timing` on the `tool_use` block of its call (latest message first),
- * as `metadata.tool_timing`: the trace reads the real run from it. The block is
+ * Whether `b` is the block a call is shown as: its `tool_use`, or the
+ * `ask_user_question` a question call is shown as instead (both reducers turn a
+ * question's `tool_use` into that block, with the call's id).
+ */
+function isCallBlock(b: ContentBlock, id: string): boolean {
+  return (b.type === 'tool_use' || b.type === 'ask_user_question') && b.metadata?.tool_call_id === id
+}
+
+/**
+ * Put a `tool_timing` on the block of its call (latest message first): its
+ * `tool_use`, or the `ask_user_question` of a question call, as
+ * `metadata.tool_timing`: the trace reads the real run from it. The block is
  * replaced in its message's `blocks` (never mutated). `false` when the call is
  * not in `messages`.
  */
@@ -207,7 +217,7 @@ export function attachToolTiming(messages: ChatMessage[], evt: Record<string, un
   const found = toolTimingOf(evt)
   if (!found) return false
   for (let mi = messages.length - 1; mi >= 0; mi--) {
-    const bi = messages[mi].blocks.findIndex((b) => b.type === 'tool_use' && b.metadata?.tool_call_id === found.id)
+    const bi = messages[mi].blocks.findIndex((b) => isCallBlock(b, found.id))
     if (bi < 0) continue
     const blocks = [...messages[mi].blocks]
     blocks[bi] = { ...blocks[bi], metadata: { ...blocks[bi].metadata, tool_timing: found.timing } }
@@ -296,9 +306,43 @@ export function placeTimings(messages: ReadonlyArray<ChatMessage>, held: Readonl
   return out
 }
 
-/** Whether a `tool_use` block of call `id` is in `messages`. */
+/** Whether the block of call `id` (its `tool_use`, or a question's `ask_user_question`) is in `messages`. */
 export function hasToolUse(messages: ReadonlyArray<ChatMessage>, id: string): boolean {
-  return messages.some((m) => m.blocks.some((b) => b.type === 'tool_use' && b.metadata?.tool_call_id === id))
+  return messages.some((m) => m.blocks.some((b) => isCallBlock(b, id)))
+}
+
+/**
+ * Which bubble the echo of a user message with text `content` (its broadcast,
+ * or the replay of it) belongs to, or `null` when it is a new message:
+ * - the OLDEST bubble of this browser still waiting for its echo with that text
+ *   (`awaitingEcho`), sent after the last turn result: the echoes come in the
+ *   order the messages were sent, and a bubble a result has gone past without
+ *   its echo will not get one any more (it never captures a later message);
+ * - otherwise the bubble that opens the turn in progress, when it has that text:
+ *   the same message shown again (a snapshot replayed on reconnect);
+ * - otherwise none. An older bubble with the same text is another message (an
+ *   "ok" sent from another tab after an earlier "ok"), and so is the opener of a
+ *   turn already over (a result closed it).
+ */
+export function userEchoTarget(messages: ReadonlyArray<ChatMessage>, content: string): { index: number; awaiting: boolean } | null {
+  const sameText = (m: ChatMessage) => m.role === 'user' && m.blocks[0]?.content === content
+  let since = 0
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'assistant' && messages[i].duration_ms != null) {
+      since = i + 1
+      break
+    }
+  }
+  for (let i = since; i < messages.length; i++) {
+    if (messages[i].awaitingEcho === true && sameText(messages[i])) return { index: i, awaiting: true }
+  }
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role === 'user') return sameText(m) ? { index: i, awaiting: false } : null
+    // The turn's result was received: no turn is in progress.
+    if (m.duration_ms != null) return null
+  }
+  return null
 }
 
 /**
@@ -330,6 +374,8 @@ export class ServerClock {
   private offsetMs = 0
   /** Recent samples (browser time seen, gap), newest last, within `SERVER_CLOCK_WINDOW_MS`. */
   private samples: Array<{ at: number; offset: number }> = []
+  /** Browser time of the latest frame observed. */
+  private lastAt: number | null = null
 
   /**
    * Learn the gap from a frame (ignored when replayed or without `created_at`).
@@ -342,6 +388,14 @@ export class ServerClock {
     const t = serverTimeOf(evt)
     if (!t) return
     const at = Date.now()
+    // No frame for longer than the window (a frozen or sleeping tab): the frames
+    // that come now were held back, they are late by up to that long and
+    // understate the gap. The samples from before the silence age only while
+    // frames flow: they are kept, so the burst does not drag the clock back, and
+    // the frames that follow in real time take over within the window.
+    const idle = this.lastAt == null ? 0 : at - this.lastAt
+    if (idle > SERVER_CLOCK_WINDOW_MS) this.samples = this.samples.map((s) => ({ ...s, at: s.at + idle }))
+    this.lastAt = at
     this.samples.push({ at, offset: Date.parse(t) - at })
     // A sample from the browser's future (its clock went back) is dropped too.
     this.samples = this.samples.filter((s) => s.at <= at && at - s.at <= SERVER_CLOCK_WINDOW_MS).slice(-SERVER_CLOCK_SAMPLES_MAX)
@@ -640,13 +694,17 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
             const isDupe = toolId && msg.blocks.some(
               (b) => b.type === 'ask_user_question' && b.metadata?.tool_call_id === toolId,
             )
+            // A question call is timed like any call: its timing goes on this block.
+            const early = toolId ? earlyTimings.take(toolId) : undefined
             if (!isDupe) {
               msg.blocks.push({
                 id: nextBlockId(),
                 type: 'ask_user_question',
                 content: questions.map((q: { question: string }) => q.question).join('\n'),
-                metadata: withCreatedAt(withParent({ tool_call_id: toolId, questions }, parent), ts),
+                metadata: withCreatedAt(withParent({ tool_call_id: toolId, questions, ...(early && { tool_timing: early }) }, parent), ts),
               })
+            } else if (early) {
+              attachToolTiming(messages, { ...early, id: toolId })
             }
           }
         } else {

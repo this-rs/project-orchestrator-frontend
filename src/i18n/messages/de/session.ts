@@ -13,6 +13,10 @@ export default {
   },
   degradation: {
     title: "Einige Funktionen sind in dieser Unterhaltung nicht verfügbar",
+    collapse: "Zu einem Symbol verkleinern",
+    collapsedLabel: "Nicht verfügbare Funktionen: {count}. Details anzeigen",
+    count: "Nicht verfügbare Funktionen: {count}",
+    expand: "Über dem Eingabefeld anzeigen",
     installation: {
       heading: "Fehlt in dieser Installation",
       note: "Auf dem Server zu beheben: weder eine Lücke der Engine noch eine Grenze des Modells.",

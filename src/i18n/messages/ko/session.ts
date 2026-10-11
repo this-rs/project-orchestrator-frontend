@@ -13,6 +13,10 @@ export default {
   },
   degradation: {
     title: "이 대화에서는 일부 기능을 사용할 수 없습니다",
+    collapse: "아이콘으로 접기",
+    collapsedLabel: "사용할 수 없는 기능: {count}. 자세히 보기",
+    count: "사용할 수 없는 기능: {count}",
+    expand: "메시지 입력란 위에 표시",
     installation: {
       heading: "이 설치에 없는 항목",
       note: "서버에서 해결해야 합니다. 엔진의 미지원도, 모델의 한계도 아닙니다.",
