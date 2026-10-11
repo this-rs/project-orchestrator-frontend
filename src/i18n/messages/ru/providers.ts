@@ -11,6 +11,7 @@ export default {
   badgeUnavailable: 'недоступен',
   badgeUnavailableHelp: 'Экземпляр провайдера этого разговора удалён: возобновить его нельзя.',
   autoTarget: 'Авто',
+  chooseProvider: "Выберите провайдера",
   autoTargetHelp: 'Сервер сам выбирает провайдера и модель для этого проекта.',
   kind: {
     claude_code: 'Claude Code',
@@ -29,6 +30,7 @@ export default {
     global_rule: 'глобальное умолчание',
     default: 'умолчание сервера',
     claude_code: 'резерв Claude Code',
+    sole_instance: "единственный разрешённый экземпляр",
     fallback: 'резерв',
     auto: 'PO выбирает',
     fallbackDefault: 'по умолчанию',

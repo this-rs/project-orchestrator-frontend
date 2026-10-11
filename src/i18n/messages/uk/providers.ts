@@ -11,6 +11,7 @@ export default {
   badgeUnavailable: 'недоступний',
   badgeUnavailableHelp: 'Екземпляр провайдера цієї розмови видалено: її не можна відновити.',
   autoTarget: 'Авто',
+  chooseProvider: "Виберіть провайдера",
   autoTargetHelp: 'Сервер сам обирає провайдера й модель для цього проєкту.',
   kind: {
     claude_code: 'Claude Code',
@@ -29,6 +30,7 @@ export default {
     global_rule: 'глобальне типове',
     default: 'типове значення сервера',
     claude_code: 'резерв Claude Code',
+    sole_instance: "єдиний дозволений екземпляр",
     fallback: 'резерв',
     auto: 'PO обирає',
     fallbackDefault: 'типовий',

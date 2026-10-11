@@ -24,6 +24,7 @@ import {
   chatSessionProviderAtom,
   chatSessionRoutingAtom,
   chatTargetProviderIdAtom,
+  chatOneOffProviderPickAtom,
   sessionRoutingOf,
   conversationStage,
   loadRoutingSettingsAtom,
@@ -207,6 +208,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
   const draftSelection = useAtomValue(chatDraftSelectionAtom)
   const setDraftSelection = useSetAtom(chatDraftSelectionAtom)
   const setPickedProvider = useSetAtom(chatSelectedProviderAtom)
+  const setOneOffPick = useSetAtom(chatOneOffProviderPickAtom)
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const setForced = useSetAtom(chatForcedTargetAtom)
   const [sessionRouting, setSessionRouting] = useAtom(chatSessionRoutingAtom)
@@ -252,7 +254,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
     if (!hasSession) return draftSelection
     const pool = sessionRouting?.routing_mode === 'mixed' ? (sessionRouting.routing_pool ?? []).filter((p) => p.provider === targetId) : []
     if (pool.length > 1) return pool
-    return liveModel ? [{ provider: targetId, model: liveModel }] : []
+    return liveModel && targetId ? [{ provider: targetId, model: liveModel }] : []
   }, [hasSession, liveModel, targetId, draftSelection, sessionRouting])
   /** An existing chat can change model live only if its provider can. */
   const liveLocked = hasSession && !capabilities.set_model_live
@@ -309,6 +311,8 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
     setDraftSelection(next)
     const pilot = nextAuto ? undefined : next[0]
     setPickedProvider(pilot?.provider ?? null)
+    // A pick in the menu is the user's own: no longer the candidate of one refused opening.
+    setOneOffPick(false)
     setSessionModel(pilot?.model ?? null)
     setForced(!!pilot)
   }
@@ -317,7 +321,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
     if (hasSession) {
       // Off: the chat keeps the model it runs now, imposed (strict).
       if (on) sendRouting({ auto: true }, false)
-      else if (liveModel) sendRouting({ auto: false, routing_pool: [{ provider: targetId, model: liveModel }] }, true)
+      else if (liveModel && targetId) sendRouting({ auto: false, routing_pool: [{ provider: targetId, model: liveModel }] }, true)
       return
     }
     commit(on, selection)
@@ -353,7 +357,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
       })
   }
 
-  const nameOf = (provider: string, model: string) => {
+  const nameOf = (provider: string | null, model: string) => {
     const p = instances.find((x) => x.id === provider) ?? null
     const alias = hasSession ? undefined : aliasesForInstance(p, list?.aliases).find((a) => a.alias === model)
     if (alias) return alias.alias
@@ -363,7 +367,10 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
   const count = useMemo(() => distinctModels(selection, pickModelResolver(list)).length, [selection, list])
   const first = selection[0]
   const firstInstance = first ? (instances.find((p) => p.id === first.provider) ?? null) : null
-  const sessionLabel = sessionProvider?.label ?? (firstInstance ? providerDisplayName(firstInstance) : targetId)
+  const sessionLabel = sessionProvider?.label ?? (firstInstance ? providerDisplayName(firstInstance) : (targetId ?? ''))
+  // The server has no default (`default_provider: null`, backend #722) and nothing is picked:
+  // a new chat must name a provider; never shown as the server default, never as Claude Code.
+  const noDefault = !hasSession && targetId === null
   // The mode is READ from the ticks: nothing stored, nothing to keep in step.
   const modeLabel = auto ? t('routing.modes.full.label') : count === 0 ? '' : count === 1 ? t('routing.menu.modeStrict') : t('routing.menu.modeMixed', { count })
   const chipText = auto
@@ -371,11 +378,13 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
     : count === 0
       ? hasSession
         ? `${sessionLabel} › ${t('routing.menu.defaultModel')}`
-        : t('routing.menu.chipDefault')
+        : noDefault
+          ? t('routing.menu.chipChooseProvider')
+          : t('routing.menu.chipDefault')
       : count === 1
         ? `${hasSession ? sessionLabel : firstInstance ? providerDisplayName(firstInstance) : first.provider} › ${nameOf(first.provider, first.model)}`
         : modeLabel
-  const summary = auto ? t('routing.modes.full.description') : count === 0 ? t('routing.menu.summaryNone') : count === 1 ? t('routing.modes.primary.description') : t('routing.menu.summaryMixed', { count })
+  const summary = auto ? t('routing.modes.full.description') : count === 0 ? t(noDefault ? 'routing.menu.summaryChoose' : 'routing.menu.summaryNone') : count === 1 ? t('routing.modes.primary.description') : t('routing.menu.summaryMixed', { count })
   const mode = auto ? 'full' : count > 1 ? 'mixed' : 'primary'
 
   return (

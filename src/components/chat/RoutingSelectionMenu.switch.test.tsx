@@ -162,7 +162,7 @@ describe('RoutingSelectionMenu - move an existing conversation to another provid
 
   it('a typed refusal (consent / endpoint guard) is said in the dialog, and nothing moves', async () => {
     switchConversationProvider.mockRejectedValue(
-      new ApiError(403, JSON.stringify({ code: 'endpoint_not_allowed', error: 'not allowed', origin: 'http://10.0.0.5:8080', project_slug: 'po' })),
+      new ApiError(403, JSON.stringify({ code: 'endpoint_not_allowed', error: 'not allowed', origin: 'http://10.0.0.5:8080', project_slug: 'po', consent_scope: 'project' })),
     )
     const store = mount({ draft: 'hello' })
     openMenu()
@@ -174,6 +174,19 @@ describe('RoutingSelectionMenu - move an existing conversation to another provid
     expect(screen.getByRole('dialog')).toBeTruthy()
     expect(store.get(chatFollowRequestAtom)).toBeNull()
     expect(store.get(chatDraftInputAtom)).toBe('hello')
+  })
+
+  it('an endpoint-guard refusal (no consent_scope) is titled as such, never as a project consent', async () => {
+    switchConversationProvider.mockRejectedValue(
+      new ApiError(403, JSON.stringify({ code: 'endpoint_not_allowed', error: 'refused', provider_id: 'local-llama' })),
+    )
+    mount({ draft: 'hello' })
+    openMenu()
+    pickOther('local-llama', /Local llama/, 'phi')
+    fireEvent.click(within(await screen.findByRole('dialog')).getByTestId('switch-provider-confirm'))
+    const refusal = await screen.findByTestId('switch-provider-refusal')
+    expect(refusal.textContent).toContain('Endpoint refused.')
+    expect(refusal.textContent).not.toContain('for this project')
   })
 
   it('an agent token (403 without a code) is told apart from a failure; Escape cancels and gives focus back', async () => {

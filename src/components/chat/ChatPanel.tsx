@@ -5,8 +5,8 @@ import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
 import { useT } from '@/i18n'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom } from '@/atoms'
-import type { ProviderFallback } from '@/types/provider'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom, providersAtom, chatOneOffProviderPickAtom, clearOneOffProviderPickAtom, dropStalePickAtom } from '@/atoms'
+import type { ProviderFallback, ProviderId } from '@/types/provider'
 import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
@@ -155,7 +155,11 @@ export function ChatPanel() {
     <CapabilityGapsPopover open={gapsMenuOpen && gapsInMenu} onClose={closeGapsMenu} anchorRef={overflowRef} items={gapItems} onExpand={expandBanner} />
   )
   const [sessionOpenError, setSessionOpenError] = useAtom(chatSessionOpenErrorAtom)
-  const dismissSessionOpenError = useCallback(() => setSessionOpenError(null), [setSessionOpenError])
+  const dismissSessionOpenError = useCallback(() => {
+    setSessionOpenError(null)
+    // A candidate picked on that card was for that opening only.
+    store.set(clearOneOffProviderPickAtom)
+  }, [setSessionOpenError, store])
   // Session + panel mode live in the URL, so a reload reopens the chat as it was.
   useChatUrlSync({ sessionId: chat.sessionId, mode, setMode, loadSession: chat.loadSession })
   const detachedRuns = useDetachedRuns(chat.sessionId)
@@ -296,6 +300,11 @@ export function ChatPanel() {
   // (`unsupported`): the list is never `ready` there, and a session names no
   // provider — the chat behaves as it always has.
   const providerList = providers.state === 'ready' ? providers.providers : null
+  // A stored pick that can never open (Claude Code without its CLI) is dropped with its
+  // model and ticks as soon as the list says so: the chip then says what will be sent.
+  useEffect(() => {
+    if (providerList) store.set(dropStalePickAtom)
+  }, [providerList, store])
   // A new conversation with no instance that is both healthy and allowed.
   const noProvider =
     isNewConversation && providerList !== null && !providerList.some((p) => providerUnavailableReason(p) === null)
@@ -370,12 +379,44 @@ export function ChatPanel() {
       store.set(chatDraftAutoAtom, false)
       store.set(chatDraftSelectionAtom, [{ provider: fallback.provider_id, model: fallback.model }])
       store.set(chatSelectedProviderAtom, fallback.provider_id)
+      store.set(chatOneOffProviderPickAtom, false)
       store.set(chatSessionModelAtom, fallback.model)
       store.set(chatForcedTargetAtom, true)
       if (retrySessionOpen()) focusComposer()
     },
     [stillShown, store, retrySessionOpen, focusComposer],
   )
+
+  /**
+   * `provider_not_chosen`: send it again on the candidate the person picked, named in the
+   * request (strict on that instance, on its default model), as if picked in the menu.
+   */
+  const retrySessionOpenOn = useCallback(
+    (providerId: ProviderId) => {
+      if (!stillShown()) return
+      const model = store.get(providersAtom)?.providers.find((p) => p.id === providerId)?.default_model ?? null
+      store.set(chatDraftAutoAtom, false)
+      store.set(chatDraftSelectionAtom, model ? [{ provider: providerId, model }] : [])
+      store.set(chatSelectedProviderAtom, providerId)
+      store.set(chatSessionModelAtom, model)
+      store.set(chatForcedTargetAtom, true)
+      // For this opening only: the next conversation is not parked on it.
+      store.set(chatOneOffProviderPickAtom, true)
+      if (retrySessionOpen()) focusComposer()
+    },
+    [stillShown, store, retrySessionOpen, focusComposer],
+  )
+
+  /**
+   * A consent was given in the card: the message goes out again. The card unmounts
+   * with the send, so it is said in the region that stays and the focus goes back to
+   * the composer (as after an unlock).
+   */
+  const retryAfterConsent = useCallback(() => {
+    if (!retrySessionOpen()) return
+    setResentNotice(t('providerErrors.consent.allowedResent'))
+    focusComposer()
+  }, [retrySessionOpen, t, focusComposer])
 
   const handleContinue = useCallback(() => {
     chat.sendContinue()
@@ -510,6 +551,8 @@ export function ChatPanel() {
           onRetry={retrySessionOpen}
           onRetryWith={retrySessionOpenWith}
           onUnlocked={retryAfterUnlock}
+          onPickProvider={retrySessionOpenOn}
+          onConsented={retryAfterConsent}
           projectSlug={selectedProject?.slug}
         />
       )}

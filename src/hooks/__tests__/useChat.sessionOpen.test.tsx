@@ -9,6 +9,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { Provider, createStore } from 'jotai'
 import {
+  chatOneOffProviderPickAtom,
   chatDraftInputAtom,
   chatPermissionConfigAtom,
   chatSessionPermissionOverrideAtom,
@@ -223,6 +224,63 @@ describe('useChat.sendMessage — provider and model of a new session', () => {
       store.set(chatSelectedProviderAtom, 'gone')
     })
     expect(request).not.toHaveProperty('provider')
+  })
+
+  const withHealth = (id: string, health: ProvidersResponse['providers'][number]['health']) => (store: ReturnType<typeof createStore>) => {
+    store.set(providersAtom, { ...PROVIDERS, providers: PROVIDERS.providers.map((p) => (p.id === id ? { ...p, health } : p)) })
+    store.set(providersLoadStateAtom, 'ready')
+  }
+
+  it('drops a remembered Claude Code pick whose CLI is absent (cli_not_found), with its model', async () => {
+    vi.mocked(chatApi.createSession).mockResolvedValue({ session_id: 'sess-1' } as never)
+    const { result, store } = setup((s) => {
+      withHealth('claude-code', { status: 'unhealthy' as const, error: { code: 'cli_not_found' as const, message: '' } })(s)
+      s.set(chatSelectedProviderAtom, 'claude-code')
+      s.set(chatSessionModelAtom, 'opus')
+    })
+    await act(async () => {
+      await result.current.sendMessage('hello', OPTIONS)
+    })
+    expect(created()).not.toHaveProperty('provider')
+    // Never a model of the dropped instance sent to whatever the server resolves.
+    expect(created().model).toBeUndefined()
+    expect(store.get(chatSelectedProviderAtom)).toBeNull()
+  })
+
+  it('keeps a pick whose instance is merely unreachable: the request names it, with its model', async () => {
+    const request = await send((store) => {
+      withHealth('local-llama', { status: 'unhealthy', error: { code: 'endpoint_unreachable', message: '' } })(store)
+      store.set(chatSelectedProviderAtom, 'local-llama')
+      store.set(chatSessionModelAtom, 'qwen2.5-coder-32b')
+    })
+    expect(request.provider).toBe('local-llama')
+    expect(request.model).toBe('qwen2.5-coder-32b')
+  })
+
+  it('a new conversation ends a one-off candidate pick, and the pick it covered', () => {
+    const { result, store } = setup((s) => {
+      ready(s)
+      s.set(chatSelectedProviderAtom, 'local-llama')
+      s.set(chatOneOffProviderPickAtom, true)
+    })
+    act(() => result.current.newSession())
+    expect(store.get(chatSelectedProviderAtom)).toBeNull()
+    expect(store.get(chatOneOffProviderPickAtom)).toBe(false)
+  })
+
+  it('a candidate picked for one opening (no model) is named, then not kept for the next chat', async () => {
+    vi.mocked(chatApi.createSession).mockResolvedValue({ session_id: 'sess-1' } as never)
+    const { result, store } = setup((s) => {
+      ready(s)
+      s.set(chatSelectedProviderAtom, 'local-llama')
+      s.set(chatOneOffProviderPickAtom, true)
+    })
+    await act(async () => {
+      await result.current.sendMessage('hello', OPTIONS)
+    })
+    expect(created().provider).toBe('local-llama')
+    expect(store.get(chatSelectedProviderAtom)).toBeNull()
+    expect(store.get(chatOneOffProviderPickAtom)).toBe(false)
   })
 
   it('omits `provider` on a backend without provider routes, whatever was remembered', async () => {

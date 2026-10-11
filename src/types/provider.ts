@@ -481,6 +481,8 @@ export type ProviderErrorCode =
   | 'credential_test_requires_saved_instance'
   /** 409 on resuming a session opened on the agent engine once it is switched off. */
   | 'engine_unavailable'
+  /** 409: nothing names a provider, Claude Code's CLI is absent, several instances can answer (`candidates`). */
+  | 'provider_not_chosen'
   /** 400 of the routing settings routes (`routing_handlers.rs`, see `types/routing.ts`). */
   | RoutingErrorCode
 
@@ -530,6 +532,7 @@ export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'endpoint_redirects_not_allowed',
   'credential_test_requires_saved_instance',
   'engine_unavailable',
+  'provider_not_chosen',
   ...ROUTING_ERROR_CODES,
 ]
 
@@ -550,6 +553,24 @@ function readFallbacks(v: unknown): ProviderFallback[] | undefined {
       : [],
   )
   return out
+}
+
+/**
+ * Which consent an `endpoint_not_allowed` misses (backend #722):
+ * - `project`: the project's (`PUT /api/projects/{slug}/llm-consents/{id}`), any signed-in person;
+ * - `no_project`: the one of the chats outside any project (`PUT /api/chat/llm-consents/{id}`), root only.
+ * Absent = the endpoint guard refused the URL itself: no consent would help.
+ */
+export type ConsentScope = 'project' | 'no_project'
+
+function readConsentScope(v: unknown): ConsentScope | undefined {
+  return v === 'project' || v === 'no_project' ? v : undefined
+}
+
+/** The `candidates` of a `provider_not_chosen`: instance ids only. */
+function readCandidates(v: unknown): ProviderId[] | undefined {
+  if (!Array.isArray(v)) return undefined
+  return v.filter((c): c is string => typeof c === 'string' && c !== '')
 }
 
 /** A provider error as the interface handles it. Never carries a credential. */
@@ -578,6 +599,10 @@ export interface ProviderErrorInfo {
   model?: string
   /** `credentials_locked` on an Auto opening: models that need no vault, best first (present, maybe empty, only then). */
   fallbacks?: ProviderFallback[]
+  /** `endpoint_not_allowed`: the consent that is missing; absent = an endpoint-guard refusal. */
+  consent_scope?: ConsentScope
+  /** `provider_not_chosen`: the instances that can answer here, to pick one from. */
+  candidates?: ProviderId[]
   /** HTTP status the error arrived with, when it came over REST. */
   status?: number
 }
@@ -622,6 +647,8 @@ export function readProviderError(body: unknown, status?: number): ProviderError
     project_slug: str(b.project_slug),
     model: str(b.model),
     fallbacks: readFallbacks(b.fallbacks),
+    consent_scope: readConsentScope(b.consent_scope),
+    candidates: readCandidates(b.candidates),
     status,
   }
 }
@@ -689,7 +716,9 @@ export interface ProviderInstance {
 /**
  * Which rule picked the default (persisted server-side as `routed_by`).
  * `auto` = the cognitive router chose (see `types/routing.ts`); the decision
- * carries a readable reason. Open-ended: an unknown rule still renders as "default".
+ * carries a readable reason. `sole_instance` = nothing configured and Claude Code's CLI
+ * absent: the only other instance allowed here opened it. Open-ended: an unknown rule
+ * still renders as "default".
  */
 export const ROUTED_BY_VALUES = [
   'session',
@@ -701,6 +730,7 @@ export const ROUTED_BY_VALUES = [
   'global_rule',
   'default',
   'claude_code',
+  'sole_instance',
   'fallback',
   'auto',
 ] as const

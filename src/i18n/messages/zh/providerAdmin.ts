@@ -48,6 +48,7 @@ export default {
       global_rule: "全局角色",
       default: "服务器的默认提供方",
       claude_code: "回退到 Claude Code",
+      sole_instance: "此处唯一允许的实例",
       fallback: "回退链",
       auto: "PO 的自动路由",
     },

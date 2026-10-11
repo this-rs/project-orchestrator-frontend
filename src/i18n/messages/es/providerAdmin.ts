@@ -48,6 +48,7 @@ export default {
       global_rule: "el rol global",
       default: "el proveedor predeterminado del servidor",
       claude_code: "el respaldo a Claude Code",
+      sole_instance: "la única instancia permitida aquí",
       fallback: "la cadena de respaldo",
       auto: "el enrutamiento automático de PO",
     },

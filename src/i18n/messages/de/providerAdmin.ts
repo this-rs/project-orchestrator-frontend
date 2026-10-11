@@ -48,6 +48,7 @@ export default {
       global_rule: "die globale Rolle",
       default: "der Standardanbieter des Servers",
       claude_code: "der Rückgriff auf Claude Code",
+      sole_instance: "die einzige hier erlaubte Instanz",
       fallback: "die Rückfallkette",
       auto: "das automatische Routing von PO",
     },

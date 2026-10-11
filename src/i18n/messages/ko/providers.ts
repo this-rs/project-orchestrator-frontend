@@ -11,6 +11,7 @@ export default {
   badgeUnavailable: '사용 불가',
   badgeUnavailableHelp: '이 대화의 제공자 인스턴스가 삭제되어 재개할 수 없습니다.',
   autoTarget: 'Auto',
+  chooseProvider: "공급자 선택",
   autoTargetHelp: '서버가 이 프로젝트의 제공자와 모델을 선택합니다.',
   kind: {
     claude_code: 'Claude Code',
@@ -29,6 +30,7 @@ export default {
     global_rule: '전역 기본값',
     default: '서버 기본값',
     claude_code: 'Claude Code 대체',
+    sole_instance: "유일하게 허용된 인스턴스",
     fallback: '대체',
     auto: 'PO가 선택함',
     fallbackDefault: '기본값',

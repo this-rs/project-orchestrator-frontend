@@ -64,14 +64,14 @@ describe('ProviderStateCard', () => {
   })
 
   it('endpoint_not_allowed — names the project and the origin, links to the project consent', () => {
-    const { card, link } = mount(err('endpoint_not_allowed', { project_slug: 'demo', origin: 'https://api.deepseek.com' }))
+    const { card, link } = mount(err('endpoint_not_allowed', { project_slug: 'demo', origin: 'https://api.deepseek.com', consent_scope: 'project' }))
     expect(card.textContent).toContain('Project "demo"')
     expect(card.textContent).toContain('https://api.deepseek.com')
     expect(link(/consent/i).getAttribute('href')).toBe('/providers?project=demo#consent')
   })
 
   it('endpoint_not_allowed — falls back on the project the chat is about', () => {
-    const { card, link } = mount(err('endpoint_not_allowed', { origin: 'http://localhost:8080' }), { projectSlug: 'alpha' })
+    const { card, link } = mount(err('endpoint_not_allowed', { origin: 'http://localhost:8080', consent_scope: 'project' }), { projectSlug: 'alpha' })
     expect(card.textContent).toContain('Project "alpha"')
     expect(link(/consent/i).getAttribute('href')).toBe('/providers?project=alpha#consent')
   })

@@ -28,6 +28,16 @@ export const authModeAtom = atom<AuthMode>('required')
  */
 export const authModeConfirmedAtom = atom<boolean>(false)
 
+/**
+ * Whether the person signed in decides for EVERY user of the server: the root
+ * account, or the one user of a server without sign-in (as the server SAID, not
+ * the fallback of a failed /auth/providers). Server-wide routing settings — the
+ * global pilot role, the consent of the chats outside any project — are root-only.
+ */
+export const decidesForEveryoneAtom = atom((get) =>
+  get(currentUserAtom)?.is_root === true || (get(authModeAtom) === 'none' && get(authModeConfirmedAtom)),
+)
+
 /** List of available auth providers from GET /auth/providers */
 export const authProvidersAtom = atom<AuthProviderInfo[]>([])
 

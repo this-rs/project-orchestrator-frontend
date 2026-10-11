@@ -27,6 +27,8 @@ import {
   chatSessionIdAtom,
   chatSessionProviderAtom,
   chatSessionRoutingAtom,
+  chatTargetProviderIdAtom,
+  chatOneOffProviderPickAtom,
   modelCatalogAtom,
   modelCatalogLoadedAtom,
   providersAtom,
@@ -149,6 +151,52 @@ describe('RoutingSelectionMenu', () => {
     expect(screen.getByTestId('target-provider-local-llama')).toBeTruthy()
     expect(screen.queryByTestId('routing-tabs')).toBeNull()
     expect(screen.queryByTestId('routing-chip')).toBeNull()
+  })
+
+  it('default_provider null (no CLI, several instances): the chip asks to choose a provider, never Claude Code', () => {
+    const store = mount('primary', {
+      prepare: (s) =>
+        s.set(providersAtom, {
+          providers: PROVIDERS.providers.map((p) => (p.id === 'claude-code' ? { ...p, health: { status: 'unhealthy' as const } } : p)),
+          default: null,
+        }),
+    })
+    expect(store.get(chatTargetProviderIdAtom)).toBeNull()
+    expect(store.get(chatEffectiveProviderIdAtom)).toBeNull()
+    const chip = screen.getByTestId('target-chip')
+    expect(chip.textContent).toContain('Choose a provider')
+    expect(chip.textContent).not.toContain('Server default')
+    expect(chip.textContent).not.toContain('Claude Code')
+    openMenu()
+    expect(screen.getByTestId('routing-summary').textContent).toContain('the server has no default provider')
+  })
+
+  it('a stored pick of Claude Code is ignored while its CLI is absent (cli_not_found)', () => {
+    const store = mount('primary', {
+      prepare: (s) => {
+        s.set(providersAtom, {
+          providers: PROVIDERS.providers.map((p) => (p.id === 'claude-code' ? { ...p, health: { status: 'unhealthy' as const, error: { code: 'cli_not_found' as const, message: '' } } } : p)),
+          default: null,
+        })
+        s.set(chatSelectedProviderAtom, 'claude-code')
+      },
+    })
+    expect(store.get(chatTargetProviderIdAtom)).toBeNull()
+    expect(screen.getByTestId('target-chip').textContent).toContain('Choose a provider')
+  })
+
+  it('a pick in the menu is the user\'s own: it ends a one-off candidate pick', () => {
+    const store = mount('primary', {
+      prepare: (s) => {
+        s.set(chatSelectedProviderAtom, 'claude-code')
+        s.set(chatOneOffProviderPickAtom, true)
+      },
+    })
+    openMenu()
+    fireEvent.click(within(screen.getByTestId('target-provider-local-llama')).getByRole('button', { name: /Local llama/ }))
+    fireEvent.click(within(screen.getByTestId('target-provider-local-llama')).getByRole('checkbox', { name: 'qwen' }))
+    expect(store.get(chatSelectedProviderAtom)).toBe('local-llama')
+    expect(store.get(chatOneOffProviderPickAtom)).toBe(false)
   })
 
   it('the mode is read from the ticks: none = server default, one = strict, several = mixed', () => {

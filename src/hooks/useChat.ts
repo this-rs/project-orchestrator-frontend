@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pickModelResolver } from '@/constants/providers'
 import { distinctModels } from '@/utils/routingSelection'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom, chatOneOffProviderPickAtom, usablePickedProvider, dropStalePickAtom, clearOneOffProviderPickAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -2236,6 +2236,9 @@ export function useChat() {
         // — no routing routes, a failed read — is `primary`, today's behaviour.
         const slug = options?.projectSlug ?? store.get(chatRoutingSlugAtom)
         await store.set(loadRoutingSettingsAtom, { slug })
+        // A stored pick that can never open (Claude Code without its CLI) goes, with its
+        // model and ticks: never a model of one instance sent without that instance.
+        store.set(dropStalePickAtom)
         // The conversation's own choice (the menu) wins over the settings.
         const chosenMode = store.get(chatDraftRoutingModeAtom)
         // The settings' mode, for a conversation that chose nothing: `executors_only` leaves its pilot
@@ -2261,7 +2264,7 @@ export function useChat() {
         // server lists. Otherwise the field is left out and the server
         // resolves its default (project rule, global rule…) — sending the
         // id the interface merely DISPLAYS would freeze that routing.
-        const picked = store.get(chatSelectedProviderAtom)
+        const picked = usablePickedProvider(store.get(providersAtom), store.get(chatSelectedProviderAtom))
         const provider =
           explicit &&
           picked &&
@@ -2295,7 +2298,9 @@ export function useChat() {
         store.set(chatForcedTargetAtom, false)
         // So did its mode: the next conversation starts from the settings again.
         // The provider the menu parked for the composer belonged to it as well, not to the next chat.
-        if (store.get(chatDraftSelectionAtom).length > 0) store.set(chatSelectedProviderAtom, null)
+        // So did a candidate picked on a `provider_not_chosen` card (one opening only).
+        if (store.get(chatDraftSelectionAtom).length > 0 || store.get(chatOneOffProviderPickAtom)) store.set(chatSelectedProviderAtom, null)
+        store.set(chatOneOffProviderPickAtom, false)
         store.set(chatDraftAutoAtom, null)
         store.set(chatDraftSelectionAtom, [])
         // The conversation keeps the mode it was opened with (its own, or the settings' of that
@@ -2629,6 +2634,8 @@ export function useChat() {
     // Reset session-scoped state
     setPermissionOverride(null)
     setSessionModel(null)
+    // A candidate picked for the opening that is being left behind goes with it.
+    store.set(clearOneOffProviderPickAtom)
     setAutoContinue(false)
     applySessionRuntime(null)
     store.set(chatSessionRoutingAtom, null)

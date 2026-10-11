@@ -42,6 +42,7 @@ const ROUTED_BY_LABEL_KEYS = {
   global_rule: 'providers.routedBy.global_rule',
   default: 'providers.routedBy.default',
   claude_code: 'providers.routedBy.claude_code',
+  sole_instance: 'providers.routedBy.sole_instance',
   fallback: 'providers.routedBy.fallback',
   auto: 'providers.routedBy.auto',
 } as const satisfies Record<string, MessageKey>
@@ -220,4 +221,6 @@ export function shouldShowProviderBadge(
 
 /** The "no explicit choice" target of a new conversation: the server resolves provider and model. */
 export const autoTargetLabel = (): string => tr('providers.autoTarget')
+/** A new chat with no server default (`default_provider: null`) and nothing picked. */
+export const chooseProviderLabel = (): string => tr('providers.chooseProvider')
 export const autoTargetHelp = (): string => tr('providers.autoTargetHelp')

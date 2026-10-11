@@ -21,6 +21,7 @@ export default {
     global_rule: 'グローバルルール',
     default: 'サーバーの既定',
     claude_code: 'Claude Code へのフォールバック',
+    sole_instance: "唯一許可されたインスタンス",
     fallback: 'フォールバックチェーン',
     auto: 'PO が選択',
   },
@@ -138,7 +139,7 @@ export default {
     poChooses: 'PO が選びます（ルーティング: フル）',
     poRoutes: 'PO がルーティング（推奨）',
   },
-  menu: { aria: 'この会話のモデル', chipDefault: 'サーバーの既定', modeStrict: '厳密: 1 モデル', modeMixed: '混合: {count} モデル', summaryNone: '未選択：サーバーの既定が適用されます。', summaryMixed: 'PO はあなたの {count} モデルの間で、最初の応答から振り分けます。', selectAll: 'すべて選択', clearAll: 'すべて解除', noProvider: 'プロバイダーが未設定です', providerToggle: '{provider} のすべてのモデル', countOf: '{total} 中 {selected}', noModels: 'このプロバイダーのモデルはありません', loading: 'モデルを読み込み中…', search: 'モデルを検索…', refreshModelsAria: 'モデル一覧を更新', refreshModels: 'モデルを更新', refreshing: '更新中…', defaultModel: '既定のモデル', locked: '会話はそのプロバイダーに留まります', otherProvider: '別のプロバイダーで新しい会話', liveUnsupported: 'このプロバイダーは進行中の会話のモデルを変更できません。別のモデルを使うには新しい会話を始めてください。', autoChose: 'PO の選択: {model}', autoHint: '下でモデルを選ぶと操作を取り戻せます。', tookControl: '操作を取り戻しました: {model} がこの会話を担当します。', handBack: 'PO に任せる', aliasesGroup: 'モデルのエイリアス', modelsGroup: 'モデル', noMatch: '「{query}」に一致するモデルはありません', versionsGroup: '{family} のバージョン', observing: 'PO はこの会話を観察していますが、まだモデルを切り替えません（学習段階: {stage}）。選ぶはずのモデルを記録します。', running: '実行中: {model}', refused: { invalid_routing_pool: '少なくとも 1 つのモデルを選択してください。', routing_pool_other_provider: 'これらのモデルは別のプロバイダーのものです。会話はそのプロバイダーに留まります。', not_found: 'この会話はもう存在しません。', forbidden: '会話のルーティングを変更できるのはサインインした人だけです。', failed: 'ルーティングを変更できませんでした。もう一度お試しください。' } },
+  menu: { aria: 'この会話のモデル', chipChooseProvider: "プロバイダーを選択", summaryChoose: "何も選択されておらず、サーバーに既定のプロバイダーがありません。メッセージを送るにはモデルを選択してください。", chipDefault: 'サーバーの既定', modeStrict: '厳密: 1 モデル', modeMixed: '混合: {count} モデル', summaryNone: '未選択：サーバーの既定が適用されます。', summaryMixed: 'PO はあなたの {count} モデルの間で、最初の応答から振り分けます。', selectAll: 'すべて選択', clearAll: 'すべて解除', noProvider: 'プロバイダーが未設定です', providerToggle: '{provider} のすべてのモデル', countOf: '{total} 中 {selected}', noModels: 'このプロバイダーのモデルはありません', loading: 'モデルを読み込み中…', search: 'モデルを検索…', refreshModelsAria: 'モデル一覧を更新', refreshModels: 'モデルを更新', refreshing: '更新中…', defaultModel: '既定のモデル', locked: '会話はそのプロバイダーに留まります', otherProvider: '別のプロバイダーで新しい会話', liveUnsupported: 'このプロバイダーは進行中の会話のモデルを変更できません。別のモデルを使うには新しい会話を始めてください。', autoChose: 'PO の選択: {model}', autoHint: '下でモデルを選ぶと操作を取り戻せます。', tookControl: '操作を取り戻しました: {model} がこの会話を担当します。', handBack: 'PO に任せる', aliasesGroup: 'モデルのエイリアス', modelsGroup: 'モデル', noMatch: '「{query}」に一致するモデルはありません', versionsGroup: '{family} のバージョン', observing: 'PO はこの会話を観察していますが、まだモデルを切り替えません（学習段階: {stage}）。選ぶはずのモデルを記録します。', running: '実行中: {model}', refused: { invalid_routing_pool: '少なくとも 1 つのモデルを選択してください。', routing_pool_other_provider: 'これらのモデルは別のプロバイダーのものです。会話はそのプロバイダーに留まります。', not_found: 'この会話はもう存在しません。', forbidden: '会話のルーティングを変更できるのはサインインした人だけです。', failed: 'ルーティングを変更できませんでした。もう一度お試しください。' } },
   picker: { routedBy: 'ルーティング元: {by}' },
   modelTargets: {
     loading: 'モデルカタログを読み込み中…',

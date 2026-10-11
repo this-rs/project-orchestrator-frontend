@@ -11,6 +11,7 @@ export default {
   badgeUnavailable: 'nicht verfügbar',
   badgeUnavailableHelp: 'Die Provider-Instanz dieser Unterhaltung wurde gelöscht: Sie kann nicht fortgesetzt werden.',
   autoTarget: 'Auto',
+  chooseProvider: "Anbieter wählen",
   autoTargetHelp: 'Der Server wählt Provider und Modell für dieses Projekt.',
   kind: {
     claude_code: 'Claude Code',
@@ -29,6 +30,7 @@ export default {
     global_rule: 'globaler Standard',
     default: 'Serverstandard',
     claude_code: 'Claude-Code-Rückfall',
+    sole_instance: "einzige erlaubte Instanz",
     fallback: 'Rückfall',
     auto: 'PO wählt',
     fallbackDefault: 'Standard',

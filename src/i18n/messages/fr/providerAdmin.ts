@@ -48,6 +48,7 @@ export default {
       global_rule: "le rôle global",
       default: "le provider par défaut du serveur",
       claude_code: "le repli sur Claude Code",
+      sole_instance: "la seule instance autorisée ici",
       fallback: "la chaîne de repli",
       auto: "le routage automatique de PO",
     },

@@ -11,6 +11,7 @@ export default {
   badgeUnavailable: 'غير متاح',
   badgeUnavailableHelp: 'حُذفت نسخة المزوّد التي تعمل عليها هذه المحادثة: لا يمكن استئنافها.',
   autoTarget: 'تلقائي',
+  chooseProvider: "اختر مزوّدًا",
   autoTargetHelp: 'يختار الخادم المزوّد والنموذج لهذا المشروع.',
   kind: {
     claude_code: 'Claude Code',
@@ -29,6 +30,7 @@ export default {
     global_rule: 'افتراضي عام',
     default: 'افتراضي الخادم',
     claude_code: 'بديل Claude Code',
+    sole_instance: "المثيل الوحيد المسموح به",
     fallback: 'بديل',
     auto: 'يختار PO',
     fallbackDefault: 'افتراضي',

@@ -11,6 +11,7 @@ export default {
   badgeUnavailable: 'उपलब्ध नहीं',
   badgeUnavailableHelp: 'इस बातचीत का प्रदाता इंस्टेंस हटा दिया गया है: इसे फिर शुरू नहीं किया जा सकता।',
   autoTarget: 'ऑटो',
+  chooseProvider: "एक प्रदाता चुनें",
   autoTargetHelp: 'सर्वर इस प्रोजेक्ट के लिए प्रदाता और मॉडल चुनता है।',
   kind: {
     claude_code: 'Claude Code',
@@ -29,6 +30,7 @@ export default {
     global_rule: 'वैश्विक डिफ़ॉल्ट',
     default: 'सर्वर डिफ़ॉल्ट',
     claude_code: 'Claude Code विकल्प',
+    sole_instance: "एकमात्र अनुमत इंस्टेंस",
     fallback: 'वैकल्पिक',
     auto: 'PO चुनता है',
     fallbackDefault: 'डिफ़ॉल्ट',

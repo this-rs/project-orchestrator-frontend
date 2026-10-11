@@ -80,6 +80,22 @@ export const providersApi = {
     // Only `PUT /api/projects/{slug}/llm-consent` is known from the backend's
     // human-only guard (auth/middleware.rs); the body shape is an assumption.
     api.put<unknown>(`/projects/${encodeURIComponent(projectSlug)}/llm-consent`, { provider_id: providerId, origin }),
+  /**
+   * Allow one instance's origin for a project (`consent_scope: "project"` of a refused
+   * opening): `PUT /api/projects/{slug}/llm-consents/{id}` with `{origin}`. Any signed-in person.
+   */
+  allowForProject: (projectSlug: string, providerId: ProviderId, origin: string) =>
+    api.put<unknown>(
+      `/projects/${encodeURIComponent(projectSlug)}/llm-consents/${encodeURIComponent(providerId)}`,
+      { origin },
+    ),
+  /**
+   * Allow one instance's origin for the chats OUTSIDE any project (`consent_scope:
+   * "no_project"`): `PUT /api/chat/llm-consents/{id}` with `{origin}`. Root account only
+   * (403 `root_required`): it decides for every user's chats. A project never inherits it.
+   */
+  allowOutsideProjects: (providerId: ProviderId, origin: string) =>
+    api.put<unknown>(`/chat/llm-consents/${encodeURIComponent(providerId)}`, { origin }),
   revoke: (projectSlug: string, providerId: ProviderId) =>
     api.delete<void>(
       `/projects/${encodeURIComponent(projectSlug)}/llm-consent/${encodeURIComponent(providerId)}`,
@@ -302,7 +318,9 @@ export function normalizeProvidersResponse(raw: unknown): ProvidersResponse {
   } else if (r.default === null) {
     resolved = null
   } else {
-    const id = str(r.default_provider) ?? providers.find((p) => p.is_default)?.id
+    // `default_provider: null` (backend #722): nothing can answer by default here — never
+    // read as Claude Code; the interface asks to choose a provider.
+    const id = r.default_provider === null ? undefined : (str(r.default_provider) ?? providers.find((p) => p.is_default)?.id)
     resolved = id ? { provider: id, model: providers.find((p) => p.id === id)?.default_model ?? null, routed_by: str(r.routed_by) ?? 'default' } : r.default_provider === null ? null : undefined
   }
 
