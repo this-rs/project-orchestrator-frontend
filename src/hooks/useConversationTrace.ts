@@ -34,6 +34,8 @@ interface SessionState {
   from: number
   total: number
   status: 'loading' | 'ready' | 'error'
+  /** Relays followed to reach it from the session on screen (bounded by MAX_RELAYS). */
+  depth: number
 }
 
 export interface ConversationTraceData {
@@ -90,7 +92,7 @@ export function useConversationTrace(rootId: string | null, opts: { isStreaming?
   const loadSession = useCallback(async (meta: SessionState['meta'], cancelled: () => boolean, depth = 0): Promise<void> => {
     if (busy.current.has(meta.id) || stateRef.current.get(meta.id)?.status === 'ready') return
     busy.current.add(meta.id)
-    patch(meta.id, (prev) => ({ meta: prev?.meta ?? meta, events: prev?.events ?? [], from: prev?.from ?? 0, total: prev?.total ?? 0, status: 'loading' }))
+    patch(meta.id, (prev) => ({ meta: prev?.meta ?? meta, events: prev?.events ?? [], from: prev?.from ?? 0, total: prev?.total ?? 0, status: 'loading', depth: prev?.depth ?? depth }))
     try {
       const done = await loadTailFirst(fetcher(meta.id), TRACE_PAGE_SIZE, (p) => {
         if (!cancelled()) patch(meta.id, (prev) => prev && { ...prev, events: p.events, from: p.from, total: p.total })
@@ -150,9 +152,12 @@ export function useConversationTrace(rootId: string | null, opts: { isStreaming?
       }, cancelled)
       // A retry asks again for every thread that could not be read. A relay is found only in a
       // history, and the root's (already read) is not read again: without this it stayed failed.
-      for (const s of [...stateRef.current.values()]) {
-        if (stop) return
-        if (s.status === 'error' && s.meta.relation === 'relay') await loadSession(s.meta, cancelled)
+      // Only on a retry: on a first load the root just followed its relays (within MAX_RELAYS).
+      if (attempt > 0) {
+        for (const s of [...stateRef.current.values()]) {
+          if (stop) return
+          if (s.status === 'error' && s.meta.relation === 'relay') await loadSession(s.meta, cancelled, s.depth)
+        }
       }
       const children = nodes.filter((n) => n.session_id !== rootId)
       const queue = [...children]

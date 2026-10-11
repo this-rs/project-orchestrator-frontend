@@ -63,3 +63,38 @@ describe('turns sent from this tab', () => {
     expect(adoptTranscriptIds(history, historyEventsToWindow(served('r')).messages)).toBe(history)
   })
 })
+
+describe('turns of a window centred on an older turn (a search result)', () => {
+  it('never hands one turn the id of another: three turns, three request rows, each with its own call', () => {
+    // ok (s1) · other (s2) · ok (s3): two turns with the same text.
+    const turn = (text: string, call: string, at: number) => [
+      { type: 'user_message', content: text, created_at: at },
+      { type: 'tool_use', id: call, tool: 'Bash', input: { command: call }, created_at: at + 1 },
+      { type: 'tool_result', id: call, result: 'ok', created_at: at + 2 },
+      { type: 'result', duration_ms: 2000, created_at: at + 3 },
+    ]
+    const events = [...turn('ok', 'c1', T), ...turn('other', 'c2', T + 10), ...turn('ok', 'c3', T + 20)]
+      .map((e, seq) => ({ ...e, seq, ...(e.type === 'user_message' ? { id: `s${seq / 4 + 1}` } : {}) }))
+    // The transcript: the window around s1 only (it came from the history: server ids).
+    const transcript = historyEventsToWindow(events.slice(0, 4)).messages
+    const history = historyEventsToMessages(events)
+    const adopted = adoptTranscriptIds(history, transcript)
+    expect(adopted).toBe(history)
+
+    const { items } = buildTimeline({ messages: [...adopted], sessionId: 'root' })
+    const requests = items.filter((i) => i.kind === 'request')
+    expect(requests.map((r) => r.id)).toEqual(['request:s1', 'request:s2', 'request:s3'])
+    const parentOf = (call: string) => items.find((i) => i.id === call)?.parentId
+    expect([parentOf('c1'), parentOf('c2'), parentOf('c3')]).toEqual(['request:s1', 'request:s2', 'request:s3'])
+  })
+
+  it('adopts a client id once, and only for a turn the transcript does not already hold', () => {
+    const user = (id: string, content: string): ChatMessage => ({ id, role: 'user', timestamp: new Date(T * 1000), blocks: [{ id: `${id}-b`, type: 'text', content }] })
+    const history = [user('s1', 'ok'), user('s2', 'other'), user('s3', 'ok')]
+    // The transcript holds s1 (server id) and a live turn "ok" (client id): only s3 takes it.
+    const adopted = adoptTranscriptIds(history, [user('s1', 'ok'), user('m-live', 'ok')])
+    expect(adopted.map((m) => m.id)).toEqual(['s1', 's2', 'm-live'])
+    // A client id is never given twice, nor an id the history already carries.
+    expect(adoptTranscriptIds(history, [user('s3', 'ok')])).toBe(history)
+  })
+})
