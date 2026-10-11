@@ -202,6 +202,28 @@ describe('<ChatTimelinePanel>', () => {
     })
   })
 
+  // Review of front #349: the panel hid Fit for good, leaving the hidden `0` key as the only
+  // way back after a zoom (none at all on touch). Fit now shows only while zoomed.
+  describe.each([
+    ['on desktop', true],
+    ['on a phone', false],
+  ] as const)('the zoom reset and the open-page link %s', (_, desktop) => {
+    beforeEach(() => setViewport(desktop))
+
+    it('keeps the labelled open-page link, shows no Fit at rest, and Fit once zoomed', () => {
+      render(<Harness />)
+      openWithToggle()
+      const link = screen.getByRole('link', { name: 'Open the full timeline' })
+      expect(link.getAttribute('href')).toBe('/workspace/ws/chat/s/timeline')
+      expect(link.getAttribute('aria-label')).toBe('Open the full timeline')
+      expect(screen.queryByRole('button', { name: 'Show everything' })).toBeNull()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Show everything' }))
+      expect(screen.queryByRole('button', { name: 'Show everything' })).toBeNull()
+    })
+  })
+
   describe('on a phone', () => {
     beforeEach(() => setViewport(false))
 

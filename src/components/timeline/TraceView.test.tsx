@@ -148,6 +148,29 @@ describe('<TraceView>', () => {
     expect(screen.getByTestId('trace-detail')).toBeTruthy()
   })
 
+  it('shows Fit always by default, and with fit="zoomed" only while zoomed — the way back stays visible', () => {
+    const { unmount } = render(<TraceView lanes={turn()} />)
+    expect(screen.getByRole('button', { name: 'Show everything' }).getAttribute('aria-pressed')).toBe('true')
+    unmount()
+
+    render(<TraceView lanes={turn()} fit="zoomed" />)
+    // Everything is shown: nothing to reset, no control.
+    expect(screen.queryByRole('button', { name: 'Show everything' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
+    // Zoomed: the reset is there, clickable (touch has no `0` key)…
+    const fit = screen.getByRole('button', { name: 'Show everything' })
+    expect(fit.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(fit)
+    // …and goes away once everything is shown again.
+    expect(screen.queryByRole('button', { name: 'Show everything' })).toBeNull()
+    // A pan of a zoomed view keeps it, and the `0` key still resets.
+    fireEvent.keyDown(screen.getByRole('tree'), { key: 'w' })
+    fireEvent.keyDown(screen.getByRole('tree'), { key: 'd' })
+    expect(screen.getByRole('button', { name: 'Show everything' })).toBeTruthy()
+    fireEvent.keyDown(screen.getByRole('tree'), { key: '0' })
+    expect(screen.queryByRole('button', { name: 'Show everything' })).toBeNull()
+  })
+
   it('zooms with W/S and the buttons, pans with A/D, and 0 shows everything again', () => {
     render(<TraceView lanes={turn()} />)
     const fit = screen.getByRole('button', { name: 'Show everything' })
