@@ -67,6 +67,7 @@ import {
   type RoutingPick,
 } from '@/utils/routingSelection'
 import { ProviderModelPicker, RefreshClaudeModels, type ProviderModelMenu } from './ProviderModelPicker'
+import { COMPOSER_CHIP } from './chipGeometry'
 import { SwitchProviderDialog } from './SwitchProviderDialog'
 import { VaultUnlock } from './VaultUnlock'
 import { useVaultLocked } from './useVaultLocked'
@@ -74,9 +75,15 @@ import { useVaultLocked } from './useVaultLocked'
 /** Visible keyboard focus on every control of the menu. */
 const FOCUS = 'outline-none focus-visible:ring-2 focus-visible:ring-indigo-400'
 const FOCUS_INSET = 'outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400'
-/** Targets: 24px at least with a mouse, 44px on a touch screen. */
+/**
+ * Targets (WCAG 2.2, 2.5.8): 24px at least. The menu's rows and buttons grow
+ * to 44px on a touch screen — the popover has the room. The composer chips
+ * are the exception: 32px on touch (`COMPOSER_CHIP`), the height of the
+ * controls row they sit in, so their target never reaches into the textarea.
+ */
 const TARGET = 'min-h-6 pointer-coarse:min-h-11'
-const CHIP = `inline-flex min-w-0 max-w-full items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] border border-white/[0.08] text-gray-300 hover:bg-white/[0.06] transition-colors ${TARGET} ${FOCUS}`
+/** Same height as the permission-mode chip next to it: one shared geometry. */
+const CHIP = `${COMPOSER_CHIP} border-white/[0.08]`
 const POPOVER =
   'absolute bottom-full left-0 right-0 sm:right-auto sm:w-80 mb-1 z-20 max-h-[min(28rem,65dvh)] overflow-y-auto overscroll-contain bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl'
 const BTN = `inline-flex items-center rounded text-[11px] text-indigo-300 hover:text-indigo-200 underline underline-offset-2 disabled:text-gray-600 disabled:no-underline ${TARGET} ${FOCUS}`

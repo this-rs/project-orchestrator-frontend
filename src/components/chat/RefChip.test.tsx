@@ -5,6 +5,7 @@ import tokens from '@/refs/__fixtures__/tokens.json'
 import { MarkdownText } from './MarkdownText'
 import { RefChip } from './RefChip'
 import { ReferenceChip } from './ReferenceChip'
+import { REF_CHIP_HEIGHT, REF_CHIP_HIT } from './chipGeometry'
 import type { ChatReference } from '@/refs/types'
 
 const plan = tokens.valid[0]
@@ -81,12 +82,21 @@ describe('RefChip — inline density (citations in the agent prose)', () => {
     expect(icon).toContain('w-3')
   })
 
-  it('stays a 24px target (44px on touch) with a 2px focus ring', () => {
+  it('stays a 24px target with a 2px focus ring, the target drawn by ::before, not by the line', () => {
     cite()
     const cls = screen.getByTestId('cited-ref').className
-    expect(cls).toContain('min-h-6')
-    expect(cls).toContain('[@media(pointer:coarse)]:min-h-11')
+    expect(cls).toContain(REF_CHIP_HIT)
+    expect(cls).toMatch(/\brelative\b/)
     expect(cls).toContain('focus-visible:ring-2')
+  })
+
+  it('fits inside its line of text: 20px drawn, 16px counted, nothing taller on touch', () => {
+    cite()
+    const cls = screen.getByTestId('cited-ref').className
+    for (const c of REF_CHIP_HEIGHT.split(' ')) expect(cls.split(' ')).toContain(c)
+    expect(cls).toContain('align-baseline')
+    // what made a line with a chip taller than the others
+    expect(cls).not.toMatch(/\bmin-h-|\bh-(6|11)\b|pointer[-:]coarse[^ ]*:(min-)?h-/)
   })
 
   it('never whispers a problem: a non-ok state is drawn full even when asked inline', () => {
@@ -114,6 +124,6 @@ describe('RefChip — full density (composer and user bubble)', () => {
   it('shares its geometry with the inline chip', () => {
     render(<ReferenceChip reference={{ ...task, resolution: 'ok' }} />)
     const full = atRest(screen.getByTestId('reference-chip'))
-    for (const c of ['inline-flex', 'min-h-6', 'rounded-md', 'border', 'px-1.5', 'gap-1', 'text-xs']) expect(full).toContain(c)
+    for (const c of ['inline-flex', 'rounded-md', 'border', 'px-1.5', 'gap-1', 'text-xs', ...REF_CHIP_HEIGHT.split(' ')]) expect(full).toContain(c)
   })
 })

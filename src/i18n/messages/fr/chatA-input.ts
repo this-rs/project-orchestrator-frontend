@@ -46,5 +46,21 @@ export default {
     autoOn: "Poursuite automatique activée",
     autoOff: "Poursuite automatique désactivée",
     drop: "Déposez pour joindre"
+  },
+  refs: {
+    picker: {
+      all: "Tout",
+      filterByKind: "Filtrer par type",
+      hintActors: "acteurs",
+      hintSearch: "rechercher",
+      kindOnly: "{kind} uniquement",
+      resultsOne: "{count} résultat",
+      resultsMany: "{count} résultats",
+      noResults: "Aucun résultat",
+      searching: "Recherche…",
+      noActors: "Aucun acteur disponible sur ce serveur",
+      needsProject: "Choisissez un projet pour chercher personas et skills",
+      close: "Fermer les références"
+    }
   }
 } satisfies Translation<'chatA-input'>

@@ -36,6 +36,7 @@ import { providersApi } from '@/services/providers'
 import { ApiError } from '@/services/api'
 import type { VaultOverview } from '@/services/vault'
 import { ChatInput } from './ChatInput'
+import { COMPOSER_CHIP } from './chipGeometry'
 
 vi.mock('@/hooks', () => ({ useIsMobile: () => false }))
 vi.mock('@/services/chat', () => ({
@@ -179,6 +180,16 @@ const vaultState = (over: Partial<VaultOverview> = {}): VaultOverview => ({
 })
 
 describe('ProviderModelPicker — new conversation', () => {
+  it('its chip has the geometry of the permission-mode chip: one height for both', () => {
+    mount({ prepare: withProviders() })
+    const mode = screen.getByTestId('mode-chip').className.split(/\s+/)
+    const target = targetChip().className.split(/\s+/)
+    for (const c of COMPOSER_CHIP.split(' ')) {
+      expect(mode).toContain(c)
+      expect(target).toContain(c)
+    }
+  })
+
   it('starts on Auto, says what the server would pick, and remembers nothing', () => {
     mount({ prepare: withProviders() })
     expect(targetChip().textContent).toContain('Auto')

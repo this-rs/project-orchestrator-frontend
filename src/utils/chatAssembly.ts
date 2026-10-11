@@ -174,6 +174,245 @@ export function attachToParentToolUse(messages: ChatMessage[], tick: BackgroundT
   return false
 }
 
+/** The keys of a `tool_timing` event kept on the call's block (`metadata.tool_timing`). */
+const TOOL_TIMING_KEYS = [
+  'ended_at',
+  'called_at',
+  'started_at',
+  'permission_requested_at',
+  'permission_resolved_at',
+  'permission_outcome',
+  'run_started_at',
+  'cancelled',
+  'incomplete',
+] as const
+
+/** The call id and the times of a `tool_timing` event; `null` when it is not one. */
+export function toolTimingOf(evt: Record<string, unknown>): { id: string; timing: Record<string, unknown> } | null {
+  const id = typeof evt.id === 'string' ? evt.id : ''
+  if (!id || typeof evt.ended_at !== 'number') return null
+  const timing: Record<string, unknown> = {}
+  for (const key of TOOL_TIMING_KEYS) {
+    if (evt[key] !== undefined) timing[key] = evt[key]
+  }
+  return { id, timing }
+}
+
+/**
+ * Whether `b` is the block a call is shown as: its `tool_use`, or the
+ * `ask_user_question` a question call is shown as instead (both reducers turn a
+ * question's `tool_use` into that block, with the call's id).
+ */
+function isCallBlock(b: ContentBlock, id: string): boolean {
+  return (b.type === 'tool_use' || b.type === 'ask_user_question') && b.metadata?.tool_call_id === id
+}
+
+/**
+ * Put a `tool_timing` on the block of its call (latest message first): its
+ * `tool_use`, or the `ask_user_question` of a question call, as
+ * `metadata.tool_timing`: the trace reads the real run from it. The block is
+ * replaced in its message's `blocks` (never mutated). `false` when the call is
+ * not in `messages`.
+ */
+export function attachToolTiming(messages: ChatMessage[], evt: Record<string, unknown>): boolean {
+  const found = toolTimingOf(evt)
+  if (!found) return false
+  for (let mi = messages.length - 1; mi >= 0; mi--) {
+    const bi = messages[mi].blocks.findIndex((b) => isCallBlock(b, found.id))
+    if (bi < 0) continue
+    const blocks = [...messages[mi].blocks]
+    blocks[bi] = { ...blocks[bi], metadata: { ...blocks[bi].metadata, tool_timing: found.timing } }
+    messages[mi] = { ...messages[mi], blocks }
+    return true
+  }
+  return false
+}
+
+/** At most this many timings wait for their call (a timing that came before its `tool_use`). */
+export const EARLY_TOOL_TIMINGS_MAX = 64
+
+/**
+ * The timings that came before the `tool_use` of their call (a stored row can
+ * precede it), keyed by call id, until that call shows up (`take`). Bounded: the
+ * oldest is dropped past `EARLY_TOOL_TIMINGS_MAX`; the owner clears it when a
+ * turn ends (`result`). Holding the same id twice keeps the latest (idempotent).
+ */
+export class EarlyToolTimings {
+  private readonly byId = new Map<string, Record<string, unknown>>()
+
+  hold(evt: Record<string, unknown>): void {
+    const found = toolTimingOf(evt)
+    if (!found) return
+    this.byId.delete(found.id)
+    this.byId.set(found.id, found.timing)
+    if (this.byId.size > EARLY_TOOL_TIMINGS_MAX) this.byId.delete(this.byId.keys().next().value as string)
+  }
+
+  /** The timing held for `id`, removed from the holder; `undefined` when none. */
+  take(id: string): Record<string, unknown> | undefined {
+    const timing = this.byId.get(id)
+    if (timing) this.byId.delete(id)
+    return timing
+  }
+
+  clear(): void {
+    this.byId.clear()
+  }
+
+  get size(): number {
+    return this.byId.size
+  }
+
+  /**
+   * Put each held timing whose call is in `messages` on it (`attachToolTiming`:
+   * the message is replaced in the array, no block is mutated); a placed timing
+   * leaves the holder, the others stay.
+   */
+  placeIn(messages: ChatMessage[]): void {
+    for (const [id, timing] of [...this.byId]) {
+      if (attachToolTiming(messages, { ...timing, id })) this.byId.delete(id)
+    }
+  }
+
+  /**
+   * The held timings as an immutable list, for a React updater: the holder may be
+   * emptied right after (`moveTo`), and an updater React replays must still see them.
+   */
+  snapshot(): ReadonlyArray<HeldTiming> {
+    return Object.freeze([...this.byId].map(([id, timing]) => Object.freeze({ id, timing })))
+  }
+
+  /** Move the held timings into `into` (all, or those `keep` accepts), leaving this holder empty. */
+  moveTo(into: EarlyToolTimings, keep: (id: string) => boolean = () => true): void {
+    for (const [id, timing] of this.byId) {
+      if (keep(id)) into.hold({ ...timing, id })
+    }
+    this.byId.clear()
+  }
+}
+
+/** A timing held for call `id` (see `EarlyToolTimings.snapshot`). */
+export interface HeldTiming {
+  readonly id: string
+  readonly timing: Record<string, unknown>
+}
+
+/**
+ * `messages` with each timing of `held` whose call is in them placed on it, as a
+ * new array; `messages` is not changed (pure: safe in a React updater, even replayed).
+ */
+export function placeTimings(messages: ReadonlyArray<ChatMessage>, held: ReadonlyArray<HeldTiming>): ChatMessage[] {
+  const out = [...messages]
+  for (const { id, timing } of held) attachToolTiming(out, { ...timing, id })
+  return out
+}
+
+/** Whether the block of call `id` (its `tool_use`, or a question's `ask_user_question`) is in `messages`. */
+export function hasToolUse(messages: ReadonlyArray<ChatMessage>, id: string): boolean {
+  return messages.some((m) => m.blocks.some((b) => isCallBlock(b, id)))
+}
+
+/**
+ * Which bubble the echo of a user message with text `content` (its broadcast,
+ * or the replay of it) belongs to, or `null` when it is a new message:
+ * - the OLDEST bubble of this browser still waiting for its echo with that text
+ *   (`awaitingEcho`), sent after the last turn result: the echoes come in the
+ *   order the messages were sent, and a bubble a result has gone past without
+ *   its echo will not get one any more (it never captures a later message);
+ * - otherwise the bubble that opens the turn in progress, when it has that text:
+ *   the same message shown again (a snapshot replayed on reconnect);
+ * - otherwise none. An older bubble with the same text is another message (an
+ *   "ok" sent from another tab after an earlier "ok"), and so is the opener of a
+ *   turn already over (a result closed it).
+ */
+export function userEchoTarget(messages: ReadonlyArray<ChatMessage>, content: string): { index: number; awaiting: boolean } | null {
+  const sameText = (m: ChatMessage) => m.role === 'user' && m.blocks[0]?.content === content
+  let since = 0
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'assistant' && messages[i].duration_ms != null) {
+      since = i + 1
+      break
+    }
+  }
+  for (let i = since; i < messages.length; i++) {
+    if (messages[i].awaitingEcho === true && sameText(messages[i])) return { index: i, awaiting: true }
+  }
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role === 'user') return sameText(m) ? { index: i, awaiting: false } : null
+    // The turn's result was received: no turn is in progress.
+    if (m.duration_ms != null) return null
+  }
+  return null
+}
+
+/**
+ * The server time of an event (`created_at` of its envelope, #662: seconds since
+ * the epoch, or an ISO string), as ISO; `undefined` when the frame has none.
+ * Live blocks are stamped with it so a call is measured on ONE clock, the
+ * server's, like the engine's `tool_timing` and like the history.
+ */
+export function serverTimeOf(evt: unknown): string | undefined {
+  if (typeof evt !== 'object' || evt === null) return undefined
+  const raw = (evt as { created_at?: unknown }).created_at
+  const ms = typeof raw === 'number' ? raw * 1000 : typeof raw === 'string' ? Date.parse(raw) : NaN
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : undefined
+}
+
+/** How long a sample of the clock gap counts (browser ms). */
+export const SERVER_CLOCK_WINDOW_MS = 60_000
+const SERVER_CLOCK_SAMPLES_MAX = 256
+
+/**
+ * The server's clock, as seen from the browser: the gap between the `created_at`
+ * of the latest LIVE frame and the browser's clock when it came. What the browser
+ * stamps itself (a message it sends, an assistant message opened before any
+ * frame of it) is stamped on `now()`, so every row of a trace is on the server's
+ * clock even when the browser's is off. A replayed frame carries the time of an
+ * old event: it says nothing of the gap. Until a frame comes, the gap is 0.
+ */
+export class ServerClock {
+  private offsetMs = 0
+  /** Recent samples (browser time seen, gap), newest last, within `SERVER_CLOCK_WINDOW_MS`. */
+  private samples: Array<{ at: number; offset: number }> = []
+  /** Browser time of the latest frame observed. */
+  private lastAt: number | null = null
+
+  /**
+   * Learn the gap from a frame (ignored when replayed or without `created_at`).
+   * A frame that came late (a burst delivered after a stall) understates the gap
+   * by its delay, never overstates it: the gap kept is the LARGEST of the recent
+   * samples, so one late frame does not drag the clock back.
+   */
+  observe(evt: unknown): void {
+    if (typeof evt !== 'object' || evt === null || (evt as { replaying?: unknown }).replaying) return
+    const t = serverTimeOf(evt)
+    if (!t) return
+    const at = Date.now()
+    // No frame for longer than the window (a frozen or sleeping tab): the frames
+    // that come now were held back, they are late by up to that long and
+    // understate the gap. The samples from before the silence age only while
+    // frames flow: they are kept, so the burst does not drag the clock back, and
+    // the frames that follow in real time take over within the window.
+    const idle = this.lastAt == null ? 0 : at - this.lastAt
+    if (idle > SERVER_CLOCK_WINDOW_MS) this.samples = this.samples.map((s) => ({ ...s, at: s.at + idle }))
+    this.lastAt = at
+    this.samples.push({ at, offset: Date.parse(t) - at })
+    // A sample from the browser's future (its clock went back) is dropped too.
+    this.samples = this.samples.filter((s) => s.at <= at && at - s.at <= SERVER_CLOCK_WINDOW_MS).slice(-SERVER_CLOCK_SAMPLES_MAX)
+    this.offsetMs = Math.max(...this.samples.map((s) => s.offset))
+  }
+
+  /** The server's time now (browser clock + gap). */
+  now(): Date {
+    return new Date(Date.now() + this.offsetMs)
+  }
+
+  get offset(): number {
+    return this.offsetMs
+  }
+}
+
 /**
  * F10 fallback: fold an orphan tick into a `background_activity` block
  * on `msg`. Orphans sharing a `correlation_id` within the same assistant
@@ -323,6 +562,23 @@ export function toolsCancelledText(evt: { killed_count?: number; requested_by?: 
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boolean } = {}): ChatMessage[] {
+  return historyEventsToWindow(events, opts).messages
+}
+
+/** A page of history, assembled. */
+export interface HistoryWindow {
+  messages: ChatMessage[]
+  /**
+   * The timings of calls NOT in this page: their `tool_use` is on an older page
+   * (a call that began before the page and ended inside it). Kept by the caller
+   * and placed when that older page is loaded (`EarlyToolTimings.placeIn`).
+   */
+  unplacedTimings: EarlyToolTimings
+}
+
+/** `historyEventsToMessages`, with the timings whose call is not in the page. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boolean } = {}): HistoryWindow {
   // Without refs_v1 a stored `<po-refs>` block is plain text: the chat is what it was.
   const refsEnabled = opts.refsEnabled ?? false
   const messages: ChatMessage[] = []
@@ -339,12 +595,18 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
   // Track whether the previous event was a result/error_max_turns so we can
   // transform the following "Continue" user_message into a discreet indicator.
   let lastEventWasMaxTurns = false
+  // Timings stored before the tool_use of their call, until it comes. At each turn's
+  // end the ones still waiting go to `unplacedTimings`: their call is not in this page.
+  const earlyTimings = new EarlyToolTimings()
+  const unplacedTimings = new EarlyToolTimings()
 
   for (const evt of events) {
     const type = evt.type as string
     const createdAt = evt.created_at
       ? new Date(typeof evt.created_at === 'number' ? evt.created_at * 1000 : evt.created_at)
       : new Date()
+    /** The server time of the event (ISO), on the blocks the trace keys by it; absent when the server sent none. */
+    const stamp = evt.created_at ? createdAt.toISOString() : undefined
 
     switch (type) {
       case 'user_message': {
@@ -435,21 +697,26 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
             const isDupe = toolId && msg.blocks.some(
               (b) => b.type === 'ask_user_question' && b.metadata?.tool_call_id === toolId,
             )
+            // A question call is timed like any call: its timing goes on this block.
+            const early = toolId ? earlyTimings.take(toolId) : undefined
             if (!isDupe) {
               msg.blocks.push({
                 id: nextBlockId(),
                 type: 'ask_user_question',
                 content: questions.map((q: { question: string }) => q.question).join('\n'),
-                metadata: withCreatedAt(withParent({ tool_call_id: toolId, questions }, parent), ts),
+                metadata: withCreatedAt(withParent({ tool_call_id: toolId, questions, ...(early && { tool_timing: early }) }, parent), ts),
               })
+            } else if (early) {
+              attachToolTiming(messages, { ...early, id: toolId })
             }
           }
         } else {
+          const early = toolId ? earlyTimings.take(toolId) : undefined
           msg.blocks.push({
             id: nextBlockId(),
             type: 'tool_use',
             content: toolName,
-            metadata: withCreatedAt(withParent({ tool_call_id: toolId, tool_name: toolName, tool_input: toolInput, ...toolHintMetadata(evt) }, parent), ts),
+            metadata: withCreatedAt(withParent({ tool_call_id: toolId, tool_name: toolName, tool_input: toolInput, ...toolHintMetadata(evt), ...(early && { tool_timing: early }) }, parent), ts),
           })
         }
         break
@@ -505,6 +772,13 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
         break
       }
 
+      case 'tool_timing':
+        // Not a message: the timing of a call already shown. It must not reset
+        // `lastEventWasMaxTurns` (a timing can follow a max-turns result).
+        // Before its call (a stored row can precede it): held until the call comes.
+        if (!attachToolTiming(messages, evt)) earlyTimings.hold(evt)
+        break
+
       case 'tool_cancelled': {
         const msg = lastAssistant(createdAt)
         const parent = getParentToolUseId(evt)
@@ -542,7 +816,11 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
           id: nextBlockId(),
           type: 'permission_request',
           content: `Tool "${evt.tool}" wants to execute`,
-          metadata: withParent({ tool_call_id: evt.id, tool_name: evt.tool, tool_input: evt.input, ...toolHintMetadata(evt) }, parent),
+          // Its own time: without it the trace would date the wait from the message's start.
+          metadata: withCreatedAt(
+            withParent({ tool_call_id: evt.id, tool_name: evt.tool, tool_input: evt.input, ...toolHintMetadata(evt), ...permissionCallOf(evt) }, parent),
+            evt.created_at ? createdAt.toISOString() : undefined,
+          ),
         })
         break
       }
@@ -579,7 +857,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
               id: nextBlockId(),
               type: 'ask_user_question',
               content: questions.map((q: { question: string }) => q.question).join('\n'),
-              metadata: withParent(questionMetadata(evt, toolCallId, questions), parent),
+              metadata: withCreatedAt(withParent(questionMetadata(evt, toolCallId, questions), parent), evt.created_at ? createdAt.toISOString() : undefined),
             })
           }
         }
@@ -593,7 +871,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
           id: nextBlockId(),
           type: 'error',
           content: evt.message ?? tr('app.chat.unknownError'),
-          metadata: withParent(cancelNoticeMetadata(evt) ?? undefined, parent),
+          metadata: withCreatedAt(withParent(cancelNoticeMetadata(evt) ?? undefined, parent), stamp),
         })
         break
       }
@@ -607,7 +885,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
           id: nextBlockId(),
           type: 'error',
           content: sessionErrorText(evt),
-          ...(typed.code ? { metadata: typed } : {}),
+          ...(typed.code || stamp ? { metadata: withCreatedAt(typed.code ? typed : undefined, stamp) } : {}),
         })
         break
       }
@@ -616,7 +894,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
       case 'session_closed':
       case 'compaction_recovery': {
         const block = sessionEventBlock(evt)
-        if (block) lastAssistant(createdAt).blocks.push({ id: nextBlockId(), ...block })
+        if (block) lastAssistant(createdAt).blocks.push({ id: nextBlockId(), ...block, metadata: withCreatedAt(block.metadata, stamp) })
         break
       }
 
@@ -627,6 +905,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
           id: nextBlockId(),
           type: 'error',
           content: toolsCancelledText(evt),
+          ...(stamp ? { metadata: withCreatedAt(undefined, stamp) } : {}),
         })
         break
       }
@@ -640,7 +919,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
           id: nextBlockId(),
           type: 'model_changed',
           content: `Model changed to ${changedModel}`,
-          metadata: changedReason ? { model: changedModel, reason: changedReason } : { model: changedModel },
+          metadata: withCreatedAt(changedReason ? { model: changedModel, reason: changedReason } : { model: changedModel }, stamp),
         })
         break
       }
@@ -656,7 +935,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
           id: nextBlockId(),
           type: 'compact_boundary',
           content: label,
-          metadata: { trigger, pre_tokens: preTokens },
+          metadata: withCreatedAt({ trigger, pre_tokens: preTokens }, stamp),
         })
         break
       }
@@ -690,6 +969,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
       }
 
       case 'result': {
+        earlyTimings.moveTo(unplacedTimings)
         const rSubtype = (evt.subtype as string) ?? 'success'
         const rNumTurns = evt.num_turns as number | undefined
         const rResultText = evt.result_text as string | undefined
@@ -714,7 +994,7 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
             id: nextBlockId(),
             type: 'result_error',
             content: rResultText ?? tr('app.chat.executionError'),
-            metadata: { result_text: rResultText },
+            metadata: withCreatedAt({ result_text: rResultText }, stamp),
           })
           lastEventWasMaxTurns = false
         } else {
@@ -816,7 +1096,8 @@ export function historyEventsToMessages(events: any[], opts: { refsEnabled?: boo
     }
   }
 
-  return messages
+  earlyTimings.moveTo(unplacedTimings)
+  return { messages, unplacedTimings }
 }
 
 // ---------------------------------------------------------------------------
@@ -860,6 +1141,17 @@ export function toolHintMetadata(evt: unknown): { tool_category?: string; tool_c
   if (typeof e.category === 'string' && e.category !== '') out.tool_category = e.category
   if (typeof e.canonical === 'string' && e.canonical !== '') out.tool_canonical = e.canonical
   return out
+}
+
+/**
+ * The tool call a permission is about (`permission_request.tool_use_id`, when the
+ * engine gives it), kept as `metadata.tool_use_id`: the control id of a
+ * permission is not the call's id. Shared by BOTH reducers.
+ */
+export function permissionCallOf(evt: unknown): { tool_use_id?: string } {
+  if (typeof evt !== 'object' || evt === null) return {}
+  const id = (evt as { tool_use_id?: unknown }).tool_use_id
+  return typeof id === 'string' && id !== '' ? { tool_use_id: id } : {}
 }
 
 // ============================================================================
