@@ -351,6 +351,22 @@ describe('ProviderStateCard — tone (error vs warning)', () => {
     expect(card.className).toContain('border-amber')
   })
 
+  // Review of #354, finding 3: the tone follows what the card offers, not what the error carries.
+  it('credentials_locked with fallbacks but no onRetryWith (none shown) → error tone', () => {
+    const fallbacks = [{ provider_id: 'ollama', model: 'qwen3' }]
+    const { card } = mount(err('credentials_locked', { fallbacks }), { onRetry: vi.fn() })
+    expect(within(card).queryByTestId('locked-vault-fallback')).toBeNull()
+    expect(card.getAttribute('data-tone')).toBe('error')
+    expect(card.className).toContain('border-red')
+  })
+
+  it('credentials_locked with fallbacks in the transcript (no handlers) → error tone', () => {
+    const fallbacks = [{ provider_id: 'ollama', model: 'qwen3' }]
+    const { card } = mount(err('credentials_locked', { fallbacks }))
+    expect(within(card).queryByTestId('locked-vault-fallback')).toBeNull()
+    expect(card.getAttribute('data-tone')).toBe('error')
+  })
+
   it('explicit tone prop overrides auto-detection', () => {
     const { card } = mount(err('instance_not_found'), { tone: 'warning' })
     expect(card.getAttribute('role')).toBe('alert')

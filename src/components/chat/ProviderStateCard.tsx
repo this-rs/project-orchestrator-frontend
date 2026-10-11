@@ -177,11 +177,13 @@ export function ProviderStateCard({
   tone: toneProp,
   testId = 'provider-state-card',
 }: ProviderStateCardProps) {
-  // The effective tone: explicit prop wins; otherwise `credentials_locked` with
-  // available fallbacks is a warning (alternatives exist), everything else is an error.
-  const tone: ProviderCardTone = toneProp ?? (
-    error.code === 'credentials_locked' && (error.fallbacks?.length ?? 0) > 0 ? 'warning' : 'error'
-  )
+  // The effective tone: explicit prop wins; otherwise a warning only when the card itself
+  // offers a way on: `credentials_locked` whose fallback models are shown (they are only
+  // rendered with `onRetry` and `onRetryWith`). Fallbacks the card cannot offer (the
+  // transcript renders it without handlers) leave the user blocked: an error.
+  const offersFallbacks =
+    error.code === 'credentials_locked' && !!onRetry && !!onRetryWith && (error.fallbacks?.length ?? 0) > 0
+  const tone: ProviderCardTone = toneProp ?? (offersFallbacks ? 'warning' : 'error')
   const setModeOverride = useSetAtom(chatSessionPermissionOverrideAtom)
   const sandboxRefusal = isSandboxRefusal(error)
   const [modeSwitched, setModeSwitched] = useState(false)

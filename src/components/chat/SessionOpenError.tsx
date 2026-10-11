@@ -15,7 +15,7 @@ interface SessionOpenErrorProps {
   onUnlocked?: () => void
   /** Project the conversation was about (names it in the consent card). */
   projectSlug?: string | null
-  /** Override the visual tone; when omitted, auto-detected from the error (credentials_locked with fallbacks → warning). */
+  /** Override the visual tone; when omitted, derived from what the card offers (credentials_locked with fallback models shown → warning). */
   tone?: ProviderCardTone
 }
 
