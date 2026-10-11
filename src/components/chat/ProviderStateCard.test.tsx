@@ -33,8 +33,8 @@ function mount(error: ProviderErrorInfo, props: Partial<Parameters<typeof Provid
       </MemoryRouter>
     </Provider>,
   )
-  // The card is role="alert" (error tone) or role="status" (warning tone, e.g. credentials_locked with fallbacks).
-  const card = screen.getByTestId('provider-state-card')
+  // The card is announced (role="alert") whatever its tone.
+  const card = screen.getByRole('alert')
   return { store, card, link: (name: RegExp | string) => within(card).getByRole('link', { name }) }
 }
 
@@ -346,14 +346,14 @@ describe('ProviderStateCard — tone (error vs warning)', () => {
   it('credentials_locked WITH fallbacks → warning tone auto-detected', () => {
     const fallbacks = [{ provider_id: 'ollama', model: 'qwen3' }]
     const { card } = mount(err('credentials_locked', { fallbacks }), { onRetry: vi.fn(), onRetryWith: vi.fn() })
-    expect(card.getAttribute('role')).toBe('status')
+    expect(card.getAttribute('role')).toBe('alert')
     expect(card.getAttribute('data-tone')).toBe('warning')
     expect(card.className).toContain('border-amber')
   })
 
   it('explicit tone prop overrides auto-detection', () => {
     const { card } = mount(err('instance_not_found'), { tone: 'warning' })
-    expect(card.getAttribute('role')).toBe('status')
+    expect(card.getAttribute('role')).toBe('alert')
     expect(card.getAttribute('data-tone')).toBe('warning')
     expect(card.className).toContain('border-amber')
   })

@@ -45,8 +45,11 @@ interface ProviderStateCardProps {
   floating?: boolean
   /**
    * Visual tone of the card.
-   * - `'error'` (default): red, `role="alert"` — no alternatives, the user is blocked.
-   * - `'warning'`: amber, `role="status"` — alternatives exist, this is informational.
+   * - `'error'` (default): red — no alternatives, the user is blocked.
+   * - `'warning'`: amber — alternatives exist.
+   * Only the colour changes: the card is `role="alert"` in both tones, because it
+   * mounts with its content (a `status` region mounted already filled is often not
+   * announced) and a refused send must be announced whichever way out is offered.
    */
   tone?: ProviderCardTone
   testId?: string
@@ -297,7 +300,7 @@ export function ProviderStateCard({
   return (
     <ToneCtx.Provider value={tone}>
       <div
-        role={isWarning ? 'status' : 'alert'}
+        role="alert"
         data-testid={testId}
         data-error-code={error.code}
         data-tone={tone}
