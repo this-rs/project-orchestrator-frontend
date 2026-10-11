@@ -86,7 +86,7 @@ export function CodeExplorerTab({ projectSlug, workspaceSlug, onOpenFile }: Code
                 title={<span className="font-mono">{name}</span>}
                 ariaLabel={t('code.common.historyOf', { path: doc.path })}
                 onClick={() => onOpenFile(doc.path)}
-                trailing={<span title={t('code.explorer.match')}>{(result.score * 100).toFixed(0)}%</span>}
+                trailing={<span title={t('code.explorer.match')}>{((result.score ?? 0) * 100).toFixed(0)}%</span>}
                 description={
                   <>
                     <span className="font-mono break-all">{doc.path}</span>
