@@ -448,6 +448,20 @@ export function buildTimeline(input: TimelineInput): Timeline {
         }
         push(permission)
         permissions.push({ item: permission, callId: aboutCall })
+      } else if (block.type === 'error' && block.metadata?.cancel_notice === true) {
+        // A failed or refused cancel is a notice: the turn went on, the session did not fail.
+        push({
+          id: stableId(block),
+          kind: 'marker',
+          status: 'done',
+          label: clip(block.content) || 'Cancel',
+          startedAt: blockTime(block, msgTime),
+          laneId: sessionId,
+          parentId: requestId,
+          requestId,
+          output: block.content,
+          ...ran(),
+        })
       } else if (block.type === 'error' || block.type === 'result_error') {
         push({
           id: stableId(block),

@@ -9,6 +9,7 @@ import { splitAttachments } from './messageAttachments'
 import { splitRefs } from './messageRefs'
 import { bindResolvedRefs, parseResolvedRefs, refsFromBlock } from '@/refs/refState'
 import { applyResultCost } from './cost'
+import { cancelNoticeMetadata } from './cancelFailure'
 import type {
   BackgroundActivityMetadata,
   BackgroundOutputEntry,
@@ -870,7 +871,7 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
           id: nextBlockId(),
           type: 'error',
           content: evt.message ?? tr('app.chat.unknownError'),
-          metadata: withCreatedAt(withParent(undefined, parent), stamp),
+          metadata: withCreatedAt(withParent(cancelNoticeMetadata(evt) ?? undefined, parent), stamp),
         })
         break
       }
