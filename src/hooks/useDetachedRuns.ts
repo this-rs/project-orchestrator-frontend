@@ -306,7 +306,10 @@ export function useDetachedRuns(sessionId: string | null, options: UseDetachedRu
 
 export interface ActiveRunInfo {
   runCount: number
-  /** True if at least one child is streaming */
+  /**
+   * Always true: a parent is in the tracker's map only while at least one of
+   * its children is running (`runCount >= 1`). Kept for the callers' shape.
+   */
   hasStreaming: boolean
 }
 
@@ -318,10 +321,27 @@ interface TrackedChild {
 
 /**
  * How many children the tracker remembers. A finished child is kept (it can
- * start another turn) until this many are tracked; then the oldest finished
- * ones are forgotten first, so the map cannot grow without bound.
+ * start another turn) until this many are tracked; then the ones that finished
+ * EARLIEST are forgotten first, so the map cannot grow without bound. Only if
+ * every tracked child is still running is the oldest running one forgotten:
+ * past that degenerate point its parent is undercounted (never stuck).
  */
 export const ACTIVE_RUN_TRACKER_CAPACITY = 256
+
+/**
+ * An `updated {is_streaming}` can reach us BEFORE the child's `created`: the
+ * backend starts the child's first turn before it emits `created`, so a turn
+ * that ends at once sends its `false` first. The last such state is remembered
+ * per (not yet tracked) id, at most this many ids, oldest forgotten first...
+ */
+export const ACTIVE_RUN_TRACKER_PENDING_CAPACITY = 256
+/** ...and for this long: a `created` that comes later uses its own default. */
+export const ACTIVE_RUN_TRACKER_PENDING_TTL_MS = 60_000
+
+interface PendingStreaming {
+  streaming: boolean
+  at: number
+}
 
 function countByParent(children: Map<string, TrackedChild>): Map<string, ActiveRunInfo> {
   const counts = new Map<string, ActiveRunInfo>()
@@ -337,7 +357,7 @@ function sameCounts(a: Map<string, ActiveRunInfo>, b: Map<string, ActiveRunInfo>
   if (a.size !== b.size) return false
   for (const [k, v] of a) {
     const w = b.get(k)
-    if (!w || w.runCount !== v.runCount || w.hasStreaming !== v.hasStreaming) return false
+    if (!w || w.runCount !== v.runCount) return false
   }
   return true
 }
@@ -351,14 +371,18 @@ function sameCounts(a: Map<string, ActiveRunInfo>, b: Map<string, ActiveRunInfo>
  * minimal and never carry `spawned_by`, so a finish (`is_streaming: false`) is
  * matched to its parent through the child id remembered at creation. Counting
  * per child (not per event) also makes a multi-turn child, or a second
- * `created` for the same id (provider switch), count once.
+ * `created` for the same id (provider switch), count once. An `is_streaming`
+ * that arrives before its `created` is held (bounded, short-lived) and applied
+ * when `created` comes, so a child that ended first is not counted forever.
  */
 export function useActiveRunTracker(): Map<string, ActiveRunInfo> {
   const [activeRuns, setActiveRuns] = useState<Map<string, ActiveRunInfo>>(() => new Map())
   const childrenRef = useRef<Map<string, TrackedChild>>(new Map())
+  const pendingRef = useRef<Map<string, PendingStreaming>>(new Map())
 
   useEffect(() => {
     const children = childrenRef.current
+    const pending = pendingRef.current
     const publish = () => {
       const next = countByParent(children)
       setActiveRuns(prev => (sameCounts(prev, next) ? prev : next))
@@ -376,10 +400,16 @@ export function useActiveRunTracker(): Map<string, ActiveRunInfo> {
         // No API call here: without a readable parent in the payload there is
         // nothing to count against.
         const parentId = spawnedByParentId(readSpawnedBy(payload?.spawned_by))
+        // A state seen before this `created` (the turn already started, or
+        // already ended) wins over the default "running"; a stale one does not.
+        const early = pending.get(childId)
+        pending.delete(childId)
+        const fresh = early && Date.now() - early.at <= ACTIVE_RUN_TRACKER_PENDING_TTL_MS
         if (!parentId) return
-        children.set(childId, { parentId, active: true })
-        // Bound the memory: forget the oldest finished children first, and
-        // only if every tracked child is still running, the oldest of all.
+        children.set(childId, { parentId, active: fresh ? early.streaming : true })
+        // Bound the memory: forget the earliest finished children first (the
+        // map's order puts a child at the end when it finishes), and only if
+        // every tracked child is still running, the oldest of all.
         if (children.size > ACTIVE_RUN_TRACKER_CAPACITY) {
           for (const [id, c] of children) {
             if (children.size <= ACTIVE_RUN_TRACKER_CAPACITY) break
@@ -396,14 +426,30 @@ export function useActiveRunTracker(): Map<string, ActiveRunInfo> {
 
       if (event.action === 'updated' && typeof payload?.is_streaming === 'boolean') {
         const tracked = children.get(childId)
-        if (!tracked || tracked.active === payload.is_streaming) return
+        if (!tracked) {
+          // Not created yet (or never ours): remember the last state, bounded.
+          pending.delete(childId)
+          pending.set(childId, { streaming: payload.is_streaming, at: Date.now() })
+          if (pending.size > ACTIVE_RUN_TRACKER_PENDING_CAPACITY) {
+            const oldest = pending.keys().next().value
+            if (oldest !== undefined) pending.delete(oldest)
+          }
+          return
+        }
+        if (tracked.active === payload.is_streaming) return
         tracked.active = payload.is_streaming
+        if (!tracked.active) {
+          // Move it to the end: eviction then follows finish order.
+          children.delete(childId)
+          children.set(childId, tracked)
+        }
         publish()
         return
       }
 
-      if (event.action === 'deleted' && children.delete(childId)) {
-        publish()
+      if (event.action === 'deleted') {
+        pending.delete(childId)
+        if (children.delete(childId)) publish()
       }
     })
 
