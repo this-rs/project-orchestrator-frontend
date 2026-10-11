@@ -516,6 +516,8 @@ export function ChatPanel() {
       {noProvider && !sessionOpenError && (
         <ProviderStateCard error={NO_PROVIDER_ERROR} projectSlug={selectedProject?.slug} floating className="mx-3 mb-1" />
       )}
+      {/* Error tone even when other providers work: this conversation stays blocked (composer off),
+          the only way out is a new one (review of #354, finding 2). */}
       {instanceMissing && (
         <ProviderStateCard
           error={{ code: 'instance_not_found', message: '', provider_id: sessionProvider?.id }}

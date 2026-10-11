@@ -15,6 +15,7 @@ export default {
     wrongPassphrase: "口令错误。",
     failed: "无法解锁保险库：{reason}",
     settings: "保险库设置",
+    durationLabel: "解锁时长",
   },
   degradation: {
     title: "此对话中部分功能不可用",

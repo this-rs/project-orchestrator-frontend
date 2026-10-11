@@ -15,6 +15,7 @@ export default {
     wrongPassphrase: "암호 구절이 올바르지 않습니다.",
     failed: "보관함의 잠금을 해제할 수 없습니다: {reason}",
     settings: "보관함 설정",
+    durationLabel: "잠금 해제 기간",
   },
   degradation: {
     title: "이 대화에서는 일부 기능을 사용할 수 없습니다",

@@ -15,6 +15,7 @@ export default {
     wrongPassphrase: "パスフレーズが正しくありません。",
     failed: "保管庫のロックを解除できませんでした：{reason}",
     settings: "保管庫の設定",
+    durationLabel: "ロック解除の期間",
   },
   degradation: {
     title: "この会話では一部の機能を利用できません",

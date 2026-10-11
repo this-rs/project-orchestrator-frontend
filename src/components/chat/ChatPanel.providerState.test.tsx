@@ -314,13 +314,26 @@ describe('the instance of the conversation was deleted', () => {
     listProviders.mockResolvedValue(listOf(instance('claude-code')))
     const store = renderPanel({ prepare: onLlama(FULL) })
     await ready(store)
+    // Other providers work (claude-code), yet this conversation stays blocked: an error, announced.
     const card = await screen.findByRole('alert')
     expect(card.getAttribute('data-error-code')).toBe('instance_not_found')
+    expect(card.getAttribute('data-tone')).toBe('error')
     expect(input().getAttribute('data-disabled')).toBe('true')
     expect(input().getAttribute('data-reason')).toBe(instanceMissingComposerText())
 
     fireEvent.click(within(card).getByRole('button', { name: /start a new conversation/i }))
     expect(chatStub.newSession).toHaveBeenCalled()
+  })
+
+  it('instance_not_found with no other usable provider: an error too, composer disabled', async () => {
+    listProviders.mockResolvedValue(listOf(instance('claude-code', { health: { status: 'auth_required' } })))
+    const store = renderPanel({ prepare: onLlama(FULL) })
+    await ready(store)
+    const card = await screen.findByRole('alert')
+    expect(card.getAttribute('data-error-code')).toBe('instance_not_found')
+    expect(card.getAttribute('data-tone')).toBe('error')
+    expect(input().getAttribute('data-disabled')).toBe('true')
+    expect(input().getAttribute('data-reason')).toBe(instanceMissingComposerText())
   })
 
   it('while the list is not loaded, nothing is declared missing', async () => {

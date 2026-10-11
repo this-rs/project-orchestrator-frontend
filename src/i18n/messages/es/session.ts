@@ -15,6 +15,7 @@ export default {
     wrongPassphrase: "Frase de contraseña incorrecta.",
     failed: "No se pudo desbloquear la bóveda: {reason}",
     settings: "Ajustes de la bóveda",
+    durationLabel: "Duración del desbloqueo",
   },
   degradation: {
     title: "Algunas funciones no están disponibles en esta conversación",
