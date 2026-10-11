@@ -38,6 +38,15 @@ export default {
   compaction: {
     label: "コンテキストを圧縮中"
   },
+  spawn: {
+    runner: "ランナー",
+    conversation: "派生",
+    delegation: "委任",
+    pipeline: "パイプライン",
+    gate: "ゲート",
+    trigger: "トリガー",
+    subagentOf: "別の会話のサブエージェント"
+  },
   welcome: {
     title: "Project Orchestrator",
     subtitle: "何をしますか？",

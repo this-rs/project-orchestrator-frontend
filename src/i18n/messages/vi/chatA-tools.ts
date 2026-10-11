@@ -1,6 +1,17 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  agent: {
+    asked: "Giao cho tác nhân con",
+    kind: "Loại tác nhân",
+    answer: "Câu trả lời của nó",
+    failed: "Tác nhân con đã thất bại",
+    open: "Mở hội thoại con",
+    openTitle: "Mở hội thoại mà tác nhân con này đã làm việc",
+    running: "Tác nhân con vẫn đang làm việc…",
+    noChild: "Hội thoại con chưa có trong danh sách",
+    noChildTitle: "Hội thoại con được tìm theo mã của lần gọi công cụ này. Nó xuất hiện ngay khi máy chủ liệt kê."
+  },
   bash: {
     emptyCommand: "(lệnh trống)",
     showLess: "thu gọn",

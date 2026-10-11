@@ -29,10 +29,11 @@ import { SearchToolRenderer } from './SearchToolRenderer'
 import { WebToolRenderer } from './WebToolRenderer'
 import { McpToolRenderer } from './McpToolRenderer'
 import { TodoWriteRenderer } from './TodoWriteRenderer'
+import { AgentToolRenderer } from './AgentToolRenderer'
 import {
   getBashSummary, getEditSummary, getReadSummary, getWriteSummary,
   getGlobSummary, getGrepSummary, getWebFetchSummary, getWebSearchSummary,
-  getTodoWriteSummary, getMcpSummary,
+  getTodoWriteSummary, getMcpSummary, getAgentSummary,
 } from './summaries'
 
 export type { ToolRendererProps } from './types'
@@ -57,6 +58,14 @@ const TOOL_REGISTRY: Record<string, ComponentType<ToolRendererProps>> = {
   WebFetch: WebToolRenderer,
   WebSearch: WebToolRenderer,
   TodoWrite: TodoWriteRenderer,
+  // `Agent` is two things at once. It is Claude Code's own sub-agent tool
+  // (current CLIs name it `Agent`, older ones `Task`), usually rendered by the
+  // nesting path (`AgentGroup`) — but a call that is not grouped lands here.
+  // And it is the canonical vocabulary: a native-harness call arrives as
+  // `tool_name: "Agent", canonical: "Agent"` whatever its provider kind, and
+  // resolves here through the canonical step. The card tells the two apart by
+  // the session's `subagents` capability (see AgentToolRenderer).
+  Agent: AgentToolRenderer,
   __mcp__: McpToolRenderer,
 }
 
@@ -156,6 +165,13 @@ function toCanonicalInput(key: string, input: Record<string, unknown>): Record<s
     case 'Read':
     case 'Write':
       return typeof input.file_path === 'string' ? input : null
+    case 'Agent':
+      // `Agent` is a tool name AND the canonical vocabulary (see
+      // TOOL_REGISTRY below): an unrelated provider tool that merely happens
+      // to be named `Agent` would otherwise get this card stuck forever on
+      // "the sub-conversation is not listed yet". The real native-harness
+      // call always carries a task `prompt`; anything without one is not it.
+      return typeof input.prompt === 'string' ? input : null
     default:
       return input
   }
@@ -180,7 +196,17 @@ export function resolveToolRenderer({ providerKind, toolName, canonical, toolInp
   const input = toolInput ?? {}
 
   const exact = own(PROVIDER_TOOL_TABLES[kind], toolName)
-  if (exact) return { Renderer: exact, key: toolName, via: 'provider', toolInput: input, toolName }
+  if (exact) {
+    // `Agent` is looked up by raw name here too (Claude Code's sub-agent tool
+    // and the canonical vocabulary — see TOOL_REGISTRY).
+    // Gate it on input shape so a provider tool that is merely NAMED `Agent`
+    // falls through instead of getting stuck on this card permanently.
+    if (toolName !== 'Agent') {
+      return { Renderer: exact, key: toolName, via: 'provider', toolInput: input, toolName }
+    }
+    const adapted = toCanonicalInput('Agent', input)
+    if (adapted) return { Renderer: exact, key: toolName, via: 'provider', toolInput: adapted, toolName }
+  }
 
   const borrowed: Array<[string | null | undefined, 'canonical' | 'alias']> = [
     [canonical, 'canonical'],
@@ -259,6 +285,7 @@ const SUMMARY_REGISTRY: Record<string, SummaryFn> = {
   WebFetch: getWebFetchSummary,
   WebSearch: getWebSearchSummary,
   TodoWrite: getTodoWriteSummary,
+  Agent: getAgentSummary,
 }
 
 /**
@@ -294,6 +321,7 @@ const ICON_REGISTRY: Record<string, string> = {
   WebFetch: '↓',
   WebSearch: '🔎',
   TodoWrite: '☑',
+  Agent: '⇲',
 }
 
 /**

@@ -1,6 +1,17 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  agent: {
+    asked: "交给子代理的任务",
+    kind: "代理类型",
+    answer: "它的回答",
+    failed: "子代理失败",
+    open: "打开子对话",
+    openTitle: "打开此子代理所在的对话",
+    running: "子代理仍在工作…",
+    noChild: "子对话尚未列出",
+    noChildTitle: "子对话按此工具调用的标识符查找。服务器列出后它就会出现。"
+  },
   bash: {
     emptyCommand: "（空命令）",
     showLess: "显示更少",

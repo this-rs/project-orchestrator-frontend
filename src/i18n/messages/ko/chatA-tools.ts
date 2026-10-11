@@ -1,6 +1,17 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  agent: {
+    asked: "서브에이전트에게 맡긴 일",
+    kind: "에이전트 종류",
+    answer: "그 답변",
+    failed: "서브에이전트가 실패했습니다",
+    open: "하위 대화 열기",
+    openTitle: "이 서브에이전트가 작업한 대화 열기",
+    running: "서브에이전트가 아직 작업 중입니다…",
+    noChild: "하위 대화가 아직 목록에 없습니다",
+    noChildTitle: "하위 대화는 이 도구 호출의 식별자로 찾습니다. 서버가 목록에 올리면 바로 나타납니다."
+  },
   bash: {
     emptyCommand: "(빈 명령)",
     showLess: "접기",

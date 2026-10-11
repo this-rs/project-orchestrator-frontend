@@ -1,6 +1,17 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  agent: {
+    asked: "Dem Subagenten aufgetragen",
+    kind: "Art des Agenten",
+    answer: "Seine Antwort",
+    failed: "Der Subagent ist gescheitert",
+    open: "Die Unterhaltung des Subagenten öffnen",
+    openTitle: "Die Unterhaltung öffnen, in der dieser Subagent gearbeitet hat",
+    running: "Der Subagent arbeitet noch…",
+    noChild: "Die untergeordnete Unterhaltung ist noch nicht aufgeführt",
+    noChildTitle: "Die untergeordnete Unterhaltung wird über die Kennung dieses Werkzeugaufrufs gefunden. Sie erscheint, sobald der Server sie auflistet."
+  },
   bash: {
     emptyCommand: "(leerer Befehl)",
     showLess: "weniger anzeigen",

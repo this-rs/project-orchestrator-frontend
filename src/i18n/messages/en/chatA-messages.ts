@@ -31,6 +31,16 @@ export default {
     newActivity: 'New activity ↓',
   },
   compaction: { label: 'Compacting context' },
+  /** One-word tag on a spawned session, by the `type` of its origin. */
+  spawn: {
+    runner: 'runner',
+    conversation: 'spawned',
+    delegation: 'delegated',
+    pipeline: 'pipeline',
+    gate: 'gate',
+    trigger: 'trigger',
+    subagentOf: 'Sub-agent of another conversation',
+  },
   welcome: {
     title: 'Project Orchestrator',
     subtitle: 'What would you like to do?',

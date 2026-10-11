@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { AgentToolRenderer } from './AgentToolRenderer'
 import { BashToolRenderer } from './BashToolRenderer'
 import { DefaultToolRenderer } from './DefaultToolRenderer'
 import { EditToolRenderer } from './EditToolRenderer'
@@ -85,6 +86,24 @@ describe('resolveToolRenderer', () => {
         <ToolContent providerKind="openai_compatible" toolName="mcp__project-orchestrator__note" toolInput={toolInput} isLoading />
       </MemoryRouter>,
     )
+  })
+
+  it('a tool merely NAMED `Agent` without a task `prompt` does not get the sub-agent card', () => {
+    // `Agent` is both a real tool name (the native harness) and the canonical
+    // vocabulary (see TOOL_REGISTRY's comment in index.tsx). A provider or
+    // custom MCP tool that happens to share the name, but not the shape,
+    // must fall through rather than render a permanently-broken "not listed
+    // yet" card.
+    const noPrompt = resolveToolRenderer({ toolName: 'Agent', toolInput: { foo: 'bar' } })
+    expect(noPrompt.Renderer).not.toBe(AgentToolRenderer)
+    expect(noPrompt.via).toBe('default')
+
+    const viaCanonical = resolveToolRenderer({ providerKind: 'openai_compatible', toolName: 'weird_agent', canonical: 'Agent', toolInput: { foo: 'bar' } })
+    expect(viaCanonical.Renderer).not.toBe(AgentToolRenderer)
+
+    // The real shape (a task `prompt`) still resolves, by exact name or by canonical.
+    const real = resolveToolRenderer({ toolName: 'Agent', toolInput: { prompt: 'Audit the spawn path' } })
+    expect(real.Renderer).toBe(AgentToolRenderer)
   })
 })
 

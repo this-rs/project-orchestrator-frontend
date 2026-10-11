@@ -109,13 +109,32 @@ export interface CliInstallResult {
 // SPAWNED BY (detached sessions)
 // ============================================================================
 
-/** Origin of a detached session — runner, conversation, pipeline, gate, or trigger */
+/**
+ * Origin of a spawned session, field for field the backend's `chat::types::SpawnedBy`
+ * (`#[serde(tag = "type", rename_all = "snake_case")]`, written as JSON on
+ * `ChatSession.spawned_by`). The legacy `runner::models::SpawnedBy` — `plan_id`,
+ * `gate_type`, `retry_count`, `event_type` — is dead in the backend (only its own
+ * tests mention it) and must not be mirrored here: it made `planId` undefined on
+ * every runner child (`useDetachedRuns`).
+ *
+ * Every variant but `trigger` may carry the session that asked for it, and the
+ * `conversation` variant carries `tool_use_id`: the id of the parent's `Agent`
+ * tool call. That id is the ONLY join between a native harness `Agent` call and
+ * the child conversation it opened (the native harness declares
+ * `subagents: none` and never emits `parent_tool_use_id`).
+ */
 export type SpawnedBy =
-  | { type: 'runner'; run_id: string; plan_id: string }
-  | { type: 'conversation'; parent_session_id: string }
-  | { type: 'pipeline'; run_id: string; plan_id: string; wave: number; task_id?: string }
-  | { type: 'gate'; run_id: string; gate_type: string; retry_count: number }
-  | { type: 'trigger'; trigger_id: string; event_type: string }
+  | { type: 'runner'; run_id: string; task_id: string; parent_session_id?: string }
+  | { type: 'pipeline'; run_id: string; task_id: string; wave: number; parent_session_id?: string }
+  | { type: 'gate'; run_id: string; task_id: string; gate_name: string; attempt: number; parent_session_id?: string }
+  | { type: 'trigger'; trigger_id: string; run_id?: string; task_id?: string }
+  | { type: 'conversation'; parent_session_id: string; tool_use_id?: string }
+  | { type: 'delegation'; plan_id: string; task_id: string; parent_session_id?: string; scaffolding_level?: number }
+
+/** The `type` tags of {@link SpawnedBy}, in the backend's order. */
+export const SPAWNED_BY_TYPES = ['runner', 'pipeline', 'gate', 'trigger', 'conversation', 'delegation'] as const
+
+export type SpawnedByType = SpawnedBy['type']
 
 // ============================================================================
 // PIPELINE GATE RESULTS
@@ -166,7 +185,7 @@ export interface ProgressScoreResponse {
   worst_score: number
 }
 
-/** A child session with its streaming status */
+/** A child session, as `GET /chat/sessions/{id}/children` returns it (the backend's `ChatSession`). */
 export interface DetachedSession {
   id: string
   title?: string
@@ -178,8 +197,17 @@ export interface DetachedSession {
   cost_basis?: CostBasis | null
   /** Provider instance of the child. Absent = `claude-code`. */
   provider_id?: ProviderId | null
-  spawned_by: SpawnedBy
-  is_streaming: boolean
+  /**
+   * Absent on the wire when the backend has none for that child
+   * (`skip_serializing_if = "Option::is_none"`), so never read without a guard.
+   */
+  spawned_by?: SpawnedBy | null
+  /**
+   * Live activity, stamped by the server from its in-memory map
+   * (`stamp_activity`). Omitted when the child is quiet, so an absent field
+   * means "not streaming". This response has no `is_streaming` field.
+   */
+  activity?: SessionActivity | null
 }
 
 // ============================================================================

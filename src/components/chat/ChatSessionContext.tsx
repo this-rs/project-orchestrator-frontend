@@ -8,6 +8,22 @@ import { CLAUDE_CODE_CAPABILITIES, type ProviderCapabilities } from '@/types/pro
  *
  * Mounted by `ChatPanel` once per active session.
  */
+/**
+ * A conversation this session opened, as the transcript needs it: enough to
+ * name it, say whether it is still working, and open it. Built from the
+ * children endpoint (`useDetachedRuns`), so `toolUseId` is the child's
+ * `spawned_by.tool_use_id` — the only join between a native-harness `Agent`
+ * tool call and the conversation it ran in. A `DetachedRun` satisfies it as
+ * is, so the panels pass `useDetachedRuns().runs` without re-mapping it.
+ */
+export interface ChatChildSession {
+  sessionId: string
+  title: string
+  isStreaming: boolean
+  /** The parent tool call that opened it, when it was opened by one. */
+  toolUseId?: string
+}
+
 interface ChatSessionContextValue {
   /** UUID of the currently-open chat session, or null on the "new conversation" screen. */
   sessionId: string | null
@@ -16,6 +32,15 @@ interface ChatSessionContextValue {
    * sent (socket not open on this session): the caller falls back to REST.
    */
   cancelToolsLive?: () => boolean
+  /**
+   * The conversations this session opened. Absent where no children list is
+   * read (a transcript rendered on a runner page): the sub-agent card then
+   * shows no link — and promises none, since it only says "not listed yet"
+   * where the session's capabilities say PO hosts the child.
+   */
+  childSessions?: readonly ChatChildSession[]
+  /** Show another conversation in this panel. Absent where the panel cannot navigate. */
+  openSession?: (sessionId: string) => void
 }
 
 const ChatSessionContext = createContext<ChatSessionContextValue>({ sessionId: null })
@@ -23,13 +48,20 @@ const ChatSessionContext = createContext<ChatSessionContextValue>({ sessionId: n
 export function ChatSessionProvider({
   sessionId,
   cancelToolsLive,
+  childSessions,
+  openSession,
   children,
 }: {
   sessionId: string | null
   cancelToolsLive?: () => boolean
+  childSessions?: readonly ChatChildSession[]
+  openSession?: (sessionId: string) => void
   children: ReactNode
 }) {
-  const value = useMemo(() => ({ sessionId, cancelToolsLive }), [sessionId, cancelToolsLive])
+  const value = useMemo(
+    () => ({ sessionId, cancelToolsLive, childSessions, openSession }),
+    [sessionId, cancelToolsLive, childSessions, openSession],
+  )
   return (
     <ChatSessionContext.Provider value={value}>
       {children}
@@ -47,6 +79,21 @@ export function useChatSessionId(): string | null {
 // eslint-disable-next-line react-refresh/only-export-components
 export function useCancelToolsLive(): (() => boolean) | undefined {
   return useContext(ChatSessionContext).cancelToolsLive
+}
+
+/**
+ * The child conversation opened by the tool call `toolUseId`, and the way to
+ * show it — `undefined` for either when the transcript knows no such child
+ * (yet), or cannot navigate.
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useChildSessionOf(toolUseId: string | undefined): {
+  child?: ChatChildSession
+  openSession?: (sessionId: string) => void
+} {
+  const { childSessions, openSession } = useContext(ChatSessionContext)
+  const child = toolUseId ? childSessions?.find((c) => c.toolUseId === toolUseId) : undefined
+  return { child, openSession }
 }
 
 // ----------------------------------------------------------------------------

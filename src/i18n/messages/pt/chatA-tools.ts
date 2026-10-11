@@ -1,6 +1,17 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  agent: {
+    asked: "Pedido ao subagente",
+    kind: "Tipo de agente",
+    answer: "A sua resposta",
+    failed: "O subagente falhou",
+    open: "Abrir a subconversa",
+    openTitle: "Abrir a conversa em que este subagente trabalhou",
+    running: "O subagente ainda está a trabalhar…",
+    noChild: "A subconversa ainda não está listada",
+    noChildTitle: "A conversa filha é encontrada pelo identificador desta chamada de ferramenta. Aparece assim que o servidor a listar."
+  },
   bash: {
     emptyCommand: "(comando vazio)",
     showLess: "mostrar menos",

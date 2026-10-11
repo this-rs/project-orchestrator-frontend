@@ -38,6 +38,15 @@ export default {
   compaction: {
     label: "Đang nén ngữ cảnh"
   },
+  spawn: {
+    runner: "bộ chạy",
+    conversation: "phát sinh",
+    delegation: "được uỷ quyền",
+    pipeline: "chuỗi xử lý",
+    gate: "cổng kiểm",
+    trigger: "bộ kích hoạt",
+    subagentOf: "Tác nhân con của một hội thoại khác"
+  },
   welcome: {
     title: "Project Orchestrator",
     subtitle: "Bạn muốn làm gì?",

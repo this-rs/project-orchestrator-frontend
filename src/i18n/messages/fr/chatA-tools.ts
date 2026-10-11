@@ -1,6 +1,17 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  agent: {
+    asked: "Demandé au sous-agent",
+    kind: "Type d’agent",
+    answer: "Sa réponse",
+    failed: "Le sous-agent a échoué",
+    open: "Ouvrir la sous-conversation",
+    openTitle: "Ouvrir la conversation dans laquelle ce sous-agent a travaillé",
+    running: "Le sous-agent travaille encore…",
+    noChild: "La sous-conversation n’est pas encore répertoriée",
+    noChildTitle: "La conversation fille est retrouvée par l’identifiant de cet appel d’outil. Elle apparaît dès que le serveur la répertorie."
+  },
   bash: {
     emptyCommand: "(commande vide)",
     showLess: "afficher moins",
