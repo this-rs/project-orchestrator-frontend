@@ -163,6 +163,13 @@ function toCanonicalInput(key: string, input: Record<string, unknown>): Record<s
     case 'Read':
     case 'Write':
       return typeof input.file_path === 'string' ? input : null
+    case 'Agent':
+      // `Agent` is a tool name AND the canonical vocabulary (see
+      // TOOL_REGISTRY below): an unrelated provider tool that merely happens
+      // to be named `Agent` would otherwise get this card stuck forever on
+      // "the sub-conversation is not listed yet". The real native-harness
+      // call always carries a task `prompt`; anything without one is not it.
+      return typeof input.prompt === 'string' ? input : null
     default:
       return input
   }
@@ -187,7 +194,17 @@ export function resolveToolRenderer({ providerKind, toolName, canonical, toolInp
   const input = toolInput ?? {}
 
   const exact = own(PROVIDER_TOOL_TABLES[kind], toolName)
-  if (exact) return { Renderer: exact, key: toolName, via: 'provider', toolInput: input, toolName }
+  if (exact) {
+    // `Agent` is looked up by raw name here too (it is the canonical
+    // vocabulary, not a real Claude Code tool name — see TOOL_REGISTRY).
+    // Gate it on input shape so a provider tool that is merely NAMED `Agent`
+    // falls through instead of getting stuck on this card permanently.
+    if (toolName !== 'Agent') {
+      return { Renderer: exact, key: toolName, via: 'provider', toolInput: input, toolName }
+    }
+    const adapted = toCanonicalInput('Agent', input)
+    if (adapted) return { Renderer: exact, key: toolName, via: 'provider', toolInput: adapted, toolName }
+  }
 
   const borrowed: Array<[string | null | undefined, 'canonical' | 'alias']> = [
     [canonical, 'canonical'],

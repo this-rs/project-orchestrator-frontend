@@ -64,6 +64,9 @@ export function toDetachedRun(s: DetachedSession): DetachedRun {
   }
 }
 
+/** How long a burst of unrelated `created` events may coalesce into one fetch. */
+const CREATED_FETCH_DEBOUNCE_MS = 250
+
 /**
  * Hook that tracks detached child sessions for a given parent session.
  * Combines:
@@ -78,24 +81,58 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
   const sessionIdRef = useRef(sessionId)
   sessionIdRef.current = sessionId
 
+  // Generation counter: every call to `fetchChildren` takes a ticket, and only
+  // the ticket matching the CURRENT value when its response lands may write
+  // `runs`. Today's backend sends no `spawned_by` on the `created` CRUD event
+  // (see the comment below), so the fallback fetch fires for every session
+  // created anywhere in the deployment — a pipeline wave opening N sessions
+  // means N concurrent requests. Without this guard the LAST RESPONSE TO LAND
+  // wins, not the last one sent: an earlier, shorter list resolving after a
+  // later one would rewrite `runs` backwards and make a just-created child
+  // disappear again.
+  const requestIdRef = useRef(0)
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   const fetchChildren = useCallback(async () => {
     if (!sessionIdRef.current) {
       setRuns([])
       return
     }
+    const sessionAtRequest = sessionIdRef.current
+    const requestId = ++requestIdRef.current
     setIsLoading(true)
     try {
-      const children = await chatApi.getSessionChildren(sessionIdRef.current)
-      if (sessionIdRef.current) {
+      const children = await chatApi.getSessionChildren(sessionAtRequest)
+      // Stale-response guard (see requestIdRef above). Also refuses to write
+      // if `sessionId` moved on under us while the request was in flight.
+      if (requestId === requestIdRef.current && sessionIdRef.current === sessionAtRequest) {
         setRuns(children.map(toDetachedRun))
       }
     } catch {
-      // API not available yet (backend T2 not deployed) — graceful fallback
-      setRuns([])
+      // API not available yet (backend T2 not deployed), or a transient
+      // failure on one of a burst of fetches fired by unrelated sessions
+      // being created elsewhere. Keep the previous list rather than blanking
+      // it: a single flaky/429/504 response must not wipe every child's link
+      // until the next unrelated creation happens to succeed. The only path
+      // that intentionally empties `runs` is "no session" above.
     } finally {
-      setIsLoading(false)
+      if (requestId === requestIdRef.current) {
+        setIsLoading(false)
+      }
     }
   }, [])
+
+  // Coalesces a burst of `created` events (e.g. a pipeline wave opening many
+  // sessions at once) into a single trailing fetch, so N creations cost one
+  // re-render of the children list — and one `childSessions` memo change,
+  // hence one ChatSessionProvider re-render — rather than N.
+  const scheduleFetch = useCallback(() => {
+    if (debounceTimerRef.current !== null) return
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null
+      fetchChildren()
+    }, CREATED_FETCH_DEBOUNCE_MS)
+  }, [fetchChildren])
 
   // Fetch on mount and when sessionId changes
   useEffect(() => {
@@ -133,20 +170,29 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
       //
       // The payload carries `spawned_by` only on a backend that sends it (a
       // sibling PR adds the field). When it IS there we re-fetch only for our
-      // own children; when it is NOT, the event says nothing about the parent
-      // and the only honest answer is to ask the children endpoint — which
-      // answers with ours alone. Skipping the fetch here is what used to make
-      // a sub-agent's conversation invisible until the panel was remounted.
+      // own children; when it is NOT — which is every `created` event on
+      // today's backend (`manager.rs` and `chat_handlers.rs` send neither
+      // `spawned_by` nor a parent id in this payload) — the event says
+      // nothing about the parent and the only honest answer is to ask the
+      // children endpoint, debounced, which answers with ours alone.
+      // Skipping the fetch here is what used to make a sub-agent's
+      // conversation invisible until the panel was remounted.
       if (event.action === 'created') {
         const spawnedBy = readSpawnedBy(event.payload?.spawned_by)
         if (!spawnedBy || spawnedByParentId(spawnedBy) === sessionId) {
-          fetchChildren()
+          scheduleFetch()
         }
       }
     })
 
-    return () => { off() }
-  }, [sessionId, fetchChildren])
+    return () => {
+      off()
+      if (debounceTimerRef.current !== null) {
+        clearTimeout(debounceTimerRef.current)
+        debounceTimerRef.current = null
+      }
+    }
+  }, [sessionId, scheduleFetch])
 
   const hasActiveRuns = runs.some(r => r.isStreaming)
 

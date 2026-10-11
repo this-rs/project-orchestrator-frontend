@@ -39,7 +39,7 @@ export default {
     pipeline: 'pipeline',
     gate: 'gate',
     trigger: 'trigger',
-    subagentOf: 'Sub-agent of this conversation',
+    subagentOf: 'Sub-agent of another conversation',
   },
   welcome: {
     title: 'Project Orchestrator',
