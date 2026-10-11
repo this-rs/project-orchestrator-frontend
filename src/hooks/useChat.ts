@@ -803,7 +803,20 @@ export function useChat() {
     }
     setMessages((prev) => {
       const updated = [...prev]
-      let lastMsg = updated[updated.length - 1]
+      // The end of a turn cut short by a message sent mid-stream without `queue`
+      // (Cmd/Ctrl+Enter): the server interrupts the running answer as Stop does,
+      // but the optimistic bubble already sits below that answer, still waiting
+      // for its echo — its own turn has not started. The turn that ends is the
+      // answer's: the result lands on it (duration, cost) instead of opening an
+      // empty boundary under the bubble, as after Stop and as the reloaded history
+      // shows it (the message is stored after the interrupted result).
+      let tailIndex = updated.length - 1
+      if (event.type === 'result' && !event.replaying) {
+        let i = tailIndex
+        while (i > 0 && updated[i].role === 'user' && updated[i].awaitingEcho) i--
+        if (i < tailIndex && updated[i].role === 'assistant') tailIndex = i
+      }
+      let lastMsg = updated[tailIndex]
       // Track whether THIS event forced a fresh assistant boundary — if the
       // window-based reconciliation then skips the event as already
       // rendered, the empty boundary message is popped before returning.
@@ -814,7 +827,7 @@ export function useChat() {
         createdBoundary = true
       } else {
         lastMsg = { ...lastMsg, blocks: [...lastMsg.blocks] }
-        updated[updated.length - 1] = lastMsg
+        updated[tailIndex] = lastMsg
       }
 
       // Reconciliation window: the whole current stream, not just lastMsg.

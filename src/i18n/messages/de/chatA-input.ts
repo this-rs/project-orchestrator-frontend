@@ -45,7 +45,8 @@ export default {
     auto: "Auto",
     autoOn: "Automatisches Fortfahren aktiviert",
     autoOff: "Automatisches Fortfahren deaktiviert",
-    drop: "Zum Anhängen ablegen"
+    drop: "Zum Anhängen ablegen",
+    sendNowHint: "{key}+Eingabe sendet sofort und unterbricht die laufende Antwort"
   },
   refs: {
     picker: {

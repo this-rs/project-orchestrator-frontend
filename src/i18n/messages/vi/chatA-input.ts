@@ -45,7 +45,8 @@ export default {
     auto: "Tự động",
     autoOn: "Đã bật tự động tiếp tục",
     autoOff: "Đã tắt tự động tiếp tục",
-    drop: "Thả để đính kèm"
+    drop: "Thả để đính kèm",
+    sendNowHint: "{key}+Enter gửi ngay và ngắt câu trả lời đang chạy"
   },
   refs: {
     picker: {

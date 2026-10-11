@@ -16,8 +16,8 @@
  *
  * Run with: npx vitest run src/components/chat/ChatInput.queue.test.tsx
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, act } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import { Provider, createStore, type createStore as CreateStore } from 'jotai'
 import { chatMessageQueuesAtom } from '@/atoms/chat'
 import { ChatInput } from './ChatInput'
@@ -28,6 +28,9 @@ vi.mock('@/services/chat', () => ({
   chatApi: { getPermissionConfig: () => Promise.resolve({ mode: 'default' }) },
 }))
 vi.mock('@/services/documents', () => ({ documentsApi: { upload: vi.fn() } }))
+
+const { documentsApi } = await import('@/services/documents')
+const uploadMock = documentsApi.upload as unknown as ReturnType<typeof vi.fn>
 
 type Store = ReturnType<typeof CreateStore>
 
@@ -185,5 +188,104 @@ describe('ChatInput — queued messages', () => {
 
     expect(onQueue).toHaveBeenCalledWith('queued please', [])
     expect(onSend).not.toHaveBeenCalled()
+  })
+
+  // ── Cmd/Ctrl+Enter follow-ups (review of front #353) ─────────────────────
+
+  /** An upload the test resolves by hand. */
+  function heldUpload() {
+    let resolve!: (doc: unknown) => void
+    uploadMock.mockImplementationOnce(() => new Promise((res) => (resolve = res)))
+    return {
+      resolve: (id: string) =>
+        resolve({ id, filename: 'shot.png', format: 'png', size_bytes: 3, sha256: 'a'.repeat(64), page_count: 1, chunk_count: 1, warnings: [] }),
+    }
+  }
+  const attach = () => {
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File([new Uint8Array([1])], 'shot.png', { type: 'image/png' })] } })
+  }
+
+  it('a Cmd+Enter held for an upload still leaves directly, never through the queue', async () => {
+    const upload = heldUpload()
+    mount('conversation-a', true)
+    attach()
+    const ta = screen.getByRole('textbox')
+    fireEvent.change(ta, { target: { value: 'now, with the file' } })
+    fireEvent.keyDown(ta, { key: 'Enter', metaKey: true })
+    expect(onSend).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByTestId('attachment-pending-send')).toBeTruthy())
+
+    // An impatient plain Enter while it is held does not take the "now" back.
+    fireEvent.keyDown(ta, { key: 'Enter' })
+    await act(async () => upload.resolve('doc-1'))
+
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('now, with the file', ['doc-1']))
+    expect(onQueue).not.toHaveBeenCalled()
+  })
+
+  it('a plain Enter held for an upload still joins the queue mid-stream', async () => {
+    const upload = heldUpload()
+    mount('conversation-a', true)
+    attach()
+    const ta = screen.getByRole('textbox')
+    fireEvent.change(ta, { target: { value: 'later, with the file' } })
+    fireEvent.keyDown(ta, { key: 'Enter' })
+    await act(async () => upload.resolve('doc-2'))
+
+    await waitFor(() => expect(onQueue).toHaveBeenCalledWith('later, with the file', ['doc-2']))
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('never sends on Ctrl+Enter or Enter that commits an IME composition (references off)', () => {
+    mount('conversation-a', true)
+    const ta = screen.getByRole('textbox')
+    // References are off here: the guard used to live only in the references handler.
+    expect(ta.getAttribute('role')).not.toBe('combobox')
+    fireEvent.change(ta, { target: { value: '日本語' } })
+    fireEvent.keyDown(ta, { key: 'Enter', ctrlKey: true, isComposing: true })
+    fireEvent.keyDown(ta, { key: 'Enter', ctrlKey: true, keyCode: 229 })
+    fireEvent.keyDown(ta, { key: 'Enter', isComposing: true })
+
+    expect(onSend).not.toHaveBeenCalled()
+    expect(onQueue).not.toHaveBeenCalled()
+    expect((ta as HTMLTextAreaElement).value).toBe('日本語')
+  })
+
+  describe('the send-now hint', () => {
+    const platform = (value: string) => vi.spyOn(navigator, 'platform', 'get').mockReturnValue(value)
+    // The draft outlives a test (it is kept per conversation): start from an empty box.
+    beforeEach(() => localStorage.clear())
+    afterEach(() => vi.restoreAllMocks())
+
+    it('says Ctrl+Enter interrupts the answer, while one streams and there is text', () => {
+      platform('Win32')
+      mount('conversation-a', true)
+      const ta = screen.getByRole('textbox')
+      expect(ta.getAttribute('aria-keyshortcuts')).toBe('Control+Enter')
+      // Nothing to send yet: no hint.
+      expect(screen.queryByTestId('send-now-hint')).toBeNull()
+
+      fireEvent.change(ta, { target: { value: 'urgent' } })
+      const hint = screen.getByTestId('send-now-hint')
+      expect(hint.textContent).toBe('Ctrl+Enter sends now and interrupts the current answer')
+      expect(ta.getAttribute('aria-describedby')?.split(' ')).toContain(hint.id)
+    })
+
+    it('names ⌘ on macOS', () => {
+      platform('MacIntel')
+      mount('conversation-a', true)
+      const ta = screen.getByRole('textbox')
+      fireEvent.change(ta, { target: { value: 'urgent' } })
+      expect(screen.getByTestId('send-now-hint').textContent).toBe('⌘+Enter sends now and interrupts the current answer')
+      expect(ta.getAttribute('aria-keyshortcuts')).toBe('Meta+Enter')
+    })
+
+    it('is absent when nothing is streaming: there is nothing to interrupt', () => {
+      platform('Win32')
+      mount('conversation-a', false)
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'hello' } })
+      expect(screen.queryByTestId('send-now-hint')).toBeNull()
+    })
   })
 })

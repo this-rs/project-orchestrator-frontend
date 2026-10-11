@@ -277,9 +277,15 @@ export const chatAttachmentsAtom = atom<Attachment[]>([])
  * `ChatInput` remounts (layout switch) while a send is held, component state
  * would forget the held send and the message would never leave.
  *
+ * Holds the intent of the held send, not just its existence: `'auto'` (Enter,
+ * the send button) leaves through the queue rules when the uploads finish,
+ * `'direct'` (Cmd/Ctrl+Enter) leaves at once even mid-stream — the user
+ * asked for "now", and an upload in flight must not turn that into "later".
+ *
  * Cleared alongside `chatAttachmentsAtom` on session switch.
  */
-export const chatAttachmentDeferredSendAtom = atom<boolean>(false)
+export type DeferredSend = false | 'auto' | 'direct'
+export const chatAttachmentDeferredSendAtom = atom<DeferredSend>(false)
 
 /**
  * Capabilities the server announced in `auth_ok.features` (contract C7).
