@@ -83,7 +83,7 @@ describe('session_closed', () => {
     mount(<SessionEventBlock block={blockOf({ type: 'session_closed', session_id: 's1', reason: 'error' })} />, 's1')
     const closed = screen.getByTestId('session-closed')
     expect(closed.getAttribute('role')).toBe('status')
-    expect(closed.textContent).toBe('Session closed after an error. Start a new conversation to continue.')
+    expect(closed.textContent).toBe('Session ended (error).')
   })
 })
 
