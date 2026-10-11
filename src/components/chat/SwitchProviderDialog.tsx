@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboard
 import { createPortal } from 'react-dom'
 import { AlertTriangle, ArrowRightLeft } from 'lucide-react'
 import { useT } from '@/i18n'
-import { PROVIDER_ERROR_TITLES, providerErrorExplanation } from '@/constants/providerErrors'
+import { providerErrorExplanation, providerErrorTitle } from '@/constants/providerErrors'
 import type { SwitchProviderRefusal } from '@/services/chat'
 
 const FOCUS = 'outline-none focus-visible:ring-2 focus-visible:ring-indigo-400'
@@ -86,7 +86,7 @@ export function SwitchProviderDialog({ target, current, initialMessage, pending,
     refusal === null
       ? null
       : refusal.kind === 'provider'
-        ? `${PROVIDER_ERROR_TITLES[refusal.info.code]}. ${providerErrorExplanation(refusal.info, projectSlug)}`
+        ? `${providerErrorTitle(refusal.info)}. ${providerErrorExplanation(refusal.info, projectSlug)}`
         : t(`routing.switch.refused.${refusal.kind}`)
 
   return createPortal(

@@ -19,6 +19,8 @@ import {
 } from '@/atoms'
 import type { Project } from '@/types'
 import {
+  chatOneOffProviderPickAtom,
+  providersAtom,
   chatDraftAutoAtom,
   chatDraftSelectionAtom,
   chatForcedTargetAtom,
@@ -56,6 +58,7 @@ const chatStub = {
 
 const listProviders = vi.fn()
 const unlockVault = vi.fn()
+const allowForProject = vi.fn()
 
 vi.mock('@/hooks', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/hooks')>()),
@@ -69,7 +72,7 @@ vi.mock('@/hooks/useChatUrlSync', () => ({ useChatUrlSync: () => undefined }))
 vi.mock('@/services/chat', () => ({ chatApi: { getSession: vi.fn().mockResolvedValue(null) } }))
 vi.mock('@/services/providers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/providers')>()),
-  providersApi: { list: (...a: unknown[]) => listProviders(...a) },
+  providersApi: { list: (...a: unknown[]) => listProviders(...a), allowForProject: (...a: unknown[]) => allowForProject(...a) },
 }))
 vi.mock('@/services/vault', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/vault')>()),
@@ -341,5 +344,62 @@ describe('ChatPanel — the unlock started in the card (review of #335)', () => 
     await unlock.finish()
     expect(chatStub.sendMessage).toHaveBeenCalledTimes(1)
     expect(chatStub.sendMessage.mock.calls[0][0]).toBe('Plan the release')
+  })
+})
+
+describe('ChatPanel — the refusals of backend #722', () => {
+  const LIST = {
+    providers: [
+      { id: 'claude-code', kind: 'claude_code', label: 'Claude Code', builtin: true, health: { status: 'unhealthy' as const }, models: [] },
+      { id: 'deepseek', kind: 'openai_compatible', label: 'DeepSeek', origin: 'https://api.deepseek.com', health: { status: 'healthy' as const }, models: [] },
+    ],
+    default: null,
+  }
+  const sendClears = (store: ReturnType<typeof createStore>) =>
+    chatStub.sendMessage.mockImplementation(async () => {
+      store.set(chatSessionOpenErrorAtom, null)
+    })
+  beforeEach(() => {
+    listProviders.mockResolvedValue(LIST)
+    allowForProject.mockReset().mockResolvedValue({})
+  })
+
+  it('after a consent the message goes out, the focus is on the composer and it is said where it stays', async () => {
+    const store = renderPanel('open', (s) => {
+      s.set(providersAtom, LIST)
+      s.set(providersLoadStateAtom, 'ready')
+      s.set(chatSessionOpenErrorAtom, {
+        info: { code: 'endpoint_not_allowed', message: '', provider_id: 'deepseek', consent_scope: 'project', status: 403 },
+        message: '',
+        text: 'hello',
+        attachments: [],
+      })
+    })
+    sendClears(store)
+    fireEvent.click(within(await screen.findByRole('alert')).getByTestId('consent-allow'))
+    await vi.waitFor(() => expect(chatStub.sendMessage).toHaveBeenCalledTimes(1))
+    expect(allowForProject).toHaveBeenCalledWith('demo', 'deepseek', 'https://api.deepseek.com')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByTestId('session-open-resent').textContent).toBe('Allowed. Your message is sent again.')
+    await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('composer')))
+  })
+
+  it('a candidate picked is named for this opening only', async () => {
+    const store = renderPanel('open', (s) => {
+      s.set(providersAtom, LIST)
+      s.set(providersLoadStateAtom, 'ready')
+      s.set(chatSessionOpenErrorAtom, {
+        info: { code: 'provider_not_chosen', message: '', candidates: ['deepseek'], status: 409 },
+        message: '',
+        text: 'hello',
+        attachments: [],
+      })
+    })
+    sendClears(store)
+    fireEvent.click(within(await screen.findByRole('alert')).getByRole('button', { name: 'Use DeepSeek' }))
+    expect(chatStub.sendMessage).toHaveBeenCalledTimes(1)
+    expect(store.get(chatSelectedProviderAtom)).toBe('deepseek')
+    expect(store.get(chatOneOffProviderPickAtom)).toBe(true)
+    await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('composer')))
   })
 })

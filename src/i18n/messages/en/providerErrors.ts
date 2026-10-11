@@ -132,7 +132,7 @@ export default {
     askAdmin: "Only the administrator can allow an endpoint for chats outside a project. Ask them, or open this chat in a project.",
     noOrigin: "The endpoint of this instance is not known here: allow it from the provider settings.",
     openInstance: "Open the instance settings",
-    allowed: "Allowed. Send your message again.",
+    review: "Review the project’s consent",
     allowedResent: "Allowed. Your message is sent again.",
     failed: "The consent could not be recorded: {reason}",
   },

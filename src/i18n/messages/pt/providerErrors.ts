@@ -134,7 +134,7 @@ export default {
     askAdmin: "Somente o administrador pode permitir um endpoint para conversas fora de um projeto. Peça a ele, ou abra esta conversa em um projeto.",
     noOrigin: "O endpoint desta instância não é conhecido aqui: permita-o nas configurações de provedores.",
     openInstance: "Abrir as configurações da instância",
-    allowed: "Permitido. Envie sua mensagem novamente.",
+    review: "Rever o consentimento do projeto",
     allowedResent: "Permitido. Sua mensagem foi reenviada.",
     failed: "Não foi possível registrar o consentimento: {reason}",
   },

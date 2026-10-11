@@ -5,7 +5,7 @@ import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
 import { useT } from '@/i18n'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom, providersAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom, providersAtom, chatOneOffProviderPickAtom } from '@/atoms'
 import type { ProviderFallback, ProviderId } from '@/types/provider'
 import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
@@ -390,10 +390,23 @@ export function ChatPanel() {
       store.set(chatSelectedProviderAtom, providerId)
       store.set(chatSessionModelAtom, model)
       store.set(chatForcedTargetAtom, true)
+      // For this opening only: the next conversation is not parked on it.
+      store.set(chatOneOffProviderPickAtom, true)
       if (retrySessionOpen()) focusComposer()
     },
     [stillShown, store, retrySessionOpen, focusComposer],
   )
+
+  /**
+   * A consent was given in the card: the message goes out again. The card unmounts
+   * with the send, so it is said in the region that stays and the focus goes back to
+   * the composer (as after an unlock).
+   */
+  const retryAfterConsent = useCallback(() => {
+    if (!retrySessionOpen()) return
+    setResentNotice(t('providerErrors.consent.allowedResent'))
+    focusComposer()
+  }, [retrySessionOpen, t, focusComposer])
 
   const handleContinue = useCallback(() => {
     chat.sendContinue()
@@ -529,6 +542,7 @@ export function ChatPanel() {
           onRetryWith={retrySessionOpenWith}
           onUnlocked={retryAfterUnlock}
           onPickProvider={retrySessionOpenOn}
+          onConsented={retryAfterConsent}
           projectSlug={selectedProject?.slug}
         />
       )}

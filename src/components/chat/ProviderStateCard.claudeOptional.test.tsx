@@ -29,6 +29,7 @@ import type { AuthUser } from '@/types'
 import { ProviderStateCard } from './ProviderStateCard'
 import { SessionOpenError } from './SessionOpenError'
 import { RoutedByBadge } from './ProviderBadge'
+import { SettingsErrorCard } from '@/components/settings/SettingsErrorCard'
 
 const PROVIDERS: ProvidersResponse = {
   providers: [
@@ -80,7 +81,8 @@ describe('provider_not_chosen (409, candidates)', () => {
     const { card } = mount(fromBody(409, body), { onPickProvider })
     expect(card.getAttribute('data-error-code')).toBe('provider_not_chosen')
     expect(card.textContent).toContain('Choose a provider')
-    const offered = within(card).getAllByTestId('provider-candidate')
+    const group = within(card).getByRole('group', { name: 'Send this message to:' })
+    const offered = within(group).getAllByTestId('provider-candidate')
     expect(offered.map((b) => b.textContent)).toEqual(['Use DeepSeek', 'Use Local llama'])
     fireEvent.click(within(card).getByRole('button', { name: 'Use Local llama' }))
     expect(onPickProvider).toHaveBeenCalledWith('local-llama')
@@ -174,6 +176,35 @@ describe('endpoint_not_allowed (403) by consent_scope', () => {
     expect(onRetry).not.toHaveBeenCalled()
   })
 
+  it('no_project, root, a 403 that is not root_required (an agent token): the failure is said, not "ask the administrator"', async () => {
+    const { ApiError } = await import('@/services/api')
+    allowOutsideProjects.mockRejectedValue(new ApiError(403, JSON.stringify({ error: 'provider settings can only be changed by a signed-in user' })))
+    const { card } = mount(refused('no_project'), { onRetry: vi.fn() }, { root: true })
+    fireEvent.click(within(card).getByTestId('consent-allow'))
+    await waitFor(() => expect(card.textContent).toContain('The consent could not be recorded'))
+    expect(card.textContent).not.toMatch(/only the administrator/i)
+  })
+
+  it('on a past error of the transcript (no way to send again): no consent button, the settings link stays', () => {
+    const { card } = mount(refused('project'), { projectSlug: 'demo' })
+    expect(within(card).queryByTestId('consent-allow')).toBeNull()
+    expect(within(card).getByRole('link', { name: /consent/i }).getAttribute('href')).toBe('/providers?project=demo#consent')
+  })
+
+  it('no_project on a past error, root: no consent button either', () => {
+    const { card } = mount(refused('no_project'), {}, { root: true })
+    expect(within(card).queryByTestId('consent-allow')).toBeNull()
+  })
+
+  it('onConsented is what runs after a consent, when given', async () => {
+    const onRetry = vi.fn()
+    const onConsented = vi.fn()
+    const { card } = mount(refused('project'), { projectSlug: 'demo', onRetry, onConsented })
+    fireEvent.click(within(card).getByTestId('consent-allow'))
+    await waitFor(() => expect(onConsented).toHaveBeenCalledTimes(1))
+    expect(onRetry).not.toHaveBeenCalled()
+  })
+
   it('no consent_scope: an endpoint-guard refusal, no consent button and no consent link', () => {
     const { card } = mount(refused(), { projectSlug: 'demo', onRetry: vi.fn() }, { root: true })
     expect(card.textContent).toContain('Endpoint refused')
@@ -212,5 +243,18 @@ describe('routed_by sole_instance', () => {
   it('is labelled on the session badge', () => {
     render(<RoutedByBadge routedBy="sole_instance" />)
     expect(screen.getByTestId('routed-by-badge').textContent).toBe('Only allowed instance')
+  })
+})
+
+describe('the title says which refusal it is, outside the chat card too', () => {
+  const guard: ProviderErrorInfo = { code: 'endpoint_not_allowed', message: '' }
+  it('SettingsErrorCard: an endpoint-guard refusal is not titled as a project consent', () => {
+    render(<SettingsErrorCard error={guard} />)
+    expect(screen.getByRole('alert').textContent).toContain('Endpoint refused')
+    expect(screen.getByRole('alert').textContent).not.toContain('for this project')
+  })
+  it('SettingsErrorCard: the no-project consent has its own title', () => {
+    render(<SettingsErrorCard error={{ ...guard, consent_scope: 'no_project' }} />)
+    expect(screen.getByRole('alert').textContent).toContain('Endpoint not allowed outside a project')
   })
 })

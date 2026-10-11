@@ -170,6 +170,20 @@ describe('RoutingSelectionMenu', () => {
     expect(screen.getByTestId('routing-summary').textContent).toContain('the server has no default provider')
   })
 
+  it('a stored pick of Claude Code is ignored while its CLI is absent (unhealthy)', () => {
+    const store = mount('primary', {
+      prepare: (s) => {
+        s.set(providersAtom, {
+          providers: PROVIDERS.providers.map((p) => (p.id === 'claude-code' ? { ...p, health: { status: 'unhealthy' as const } } : p)),
+          default: null,
+        })
+        s.set(chatSelectedProviderAtom, 'claude-code')
+      },
+    })
+    expect(store.get(chatTargetProviderIdAtom)).toBeNull()
+    expect(screen.getByTestId('target-chip').textContent).toContain('Choose a provider')
+  })
+
   it('the mode is read from the ticks: none = server default, one = strict, several = mixed', () => {
     const store = mount('primary', { prepare: (s) => s.set(modelCatalogAtom, CLAUDE_MODELS) })
     openMenu()

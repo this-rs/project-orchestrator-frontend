@@ -9,6 +9,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { Provider, createStore } from 'jotai'
 import {
+  chatOneOffProviderPickAtom,
   chatDraftInputAtom,
   chatPermissionConfigAtom,
   chatSessionPermissionOverrideAtom,
@@ -223,6 +224,33 @@ describe('useChat.sendMessage — provider and model of a new session', () => {
       store.set(chatSelectedProviderAtom, 'gone')
     })
     expect(request).not.toHaveProperty('provider')
+  })
+
+  it('omits a remembered pick the server lists as unhealthy (Claude Code without its CLI)', async () => {
+    const request = await send((store) => {
+      store.set(providersAtom, {
+        ...PROVIDERS,
+        providers: PROVIDERS.providers.map((p) => (p.id === 'claude-code' ? { ...p, health: { status: 'unhealthy' as const } } : p)),
+      })
+      store.set(providersLoadStateAtom, 'ready')
+      store.set(chatSelectedProviderAtom, 'claude-code')
+    })
+    expect(request).not.toHaveProperty('provider')
+  })
+
+  it('a candidate picked for one opening (no model) is named, then not kept for the next chat', async () => {
+    vi.mocked(chatApi.createSession).mockResolvedValue({ session_id: 'sess-1' } as never)
+    const { result, store } = setup((s) => {
+      ready(s)
+      s.set(chatSelectedProviderAtom, 'local-llama')
+      s.set(chatOneOffProviderPickAtom, true)
+    })
+    await act(async () => {
+      await result.current.sendMessage('hello', OPTIONS)
+    })
+    expect(created().provider).toBe('local-llama')
+    expect(store.get(chatSelectedProviderAtom)).toBeNull()
+    expect(store.get(chatOneOffProviderPickAtom)).toBe(false)
   })
 
   it('omits `provider` on a backend without provider routes, whatever was remembered', async () => {

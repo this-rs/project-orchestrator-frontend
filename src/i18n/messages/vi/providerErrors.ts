@@ -134,7 +134,7 @@ export default {
     askAdmin: "Chỉ quản trị viên mới có thể cho phép một điểm cuối cho các cuộc trò chuyện ngoài dự án. Hãy hỏi họ, hoặc mở cuộc trò chuyện này trong một dự án.",
     noOrigin: "Điểm cuối của phiên bản này không được biết ở đây: hãy cho phép nó trong cài đặt nhà cung cấp.",
     openInstance: "Mở cài đặt phiên bản",
-    allowed: "Đã cho phép. Hãy gửi lại tin nhắn.",
+    review: "Xem lại sự đồng ý của dự án",
     allowedResent: "Đã cho phép. Tin nhắn đang được gửi lại.",
     failed: "Không thể ghi nhận sự đồng ý: {reason}",
   },

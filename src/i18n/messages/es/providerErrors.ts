@@ -134,7 +134,7 @@ export default {
     askAdmin: "Solo el administrador puede permitir un endpoint para los chats fuera de un proyecto. Pídeselo, o abre este chat en un proyecto.",
     noOrigin: "El endpoint de esta instancia no se conoce aquí: permítelo desde los ajustes de proveedores.",
     openInstance: "Abrir los ajustes de la instancia",
-    allowed: "Permitido. Envía tu mensaje de nuevo.",
+    review: "Revisar el consentimiento del proyecto",
     allowedResent: "Permitido. Tu mensaje se envía de nuevo.",
     failed: "No se pudo registrar el consentimiento: {reason}",
   },

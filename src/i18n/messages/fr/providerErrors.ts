@@ -134,7 +134,7 @@ export default {
     askAdmin: "Seul l’administrateur peut autoriser un point d’accès pour les conversations hors projet. Demandez-le-lui, ou ouvrez cette conversation dans un projet.",
     noOrigin: "Le point d’accès de cette instance n’est pas connu ici : autorisez-le depuis les réglages des fournisseurs.",
     openInstance: "Ouvrir les réglages de l’instance",
-    allowed: "Autorisé. Envoyez votre message à nouveau.",
+    review: "Revoir le consentement du projet",
     allowedResent: "Autorisé. Votre message est renvoyé.",
     failed: "Le consentement n’a pas pu être enregistré : {reason}",
   },

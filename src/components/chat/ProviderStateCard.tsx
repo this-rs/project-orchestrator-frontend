@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useId, useState, type ReactNode } from 'react'
 import { Link, useInRouterContext } from 'react-router-dom'
 import { AlertTriangle, Check, ClipboardCopy, Loader2, RefreshCw, X } from 'lucide-react'
 import { panelGlass } from '@/components/ui/panelGlass'
@@ -42,6 +42,8 @@ interface ProviderStateCardProps {
   onNewConversation?: () => void
   /** Send the same message again on this instance (`provider_not_chosen`: one of its `candidates`). */
   onPickProvider?: (providerId: ProviderId) => void
+  /** Send the same message again once a consent was given in the card; defaults to `onRetry`. Without either, no consent button. */
+  onConsented?: () => void
   onDismiss?: () => void
   className?: string
   /** Floats over the scrolling conversation (above the composer): glass instead of a bare tint. */
@@ -176,6 +178,7 @@ export function ProviderStateCard({
   onUnlocked,
   onNewConversation,
   onPickProvider,
+  onConsented,
   onDismiss,
   className = '',
   floating = false,
@@ -204,6 +207,8 @@ export function ProviderStateCard({
   // A consent is bound to the instance's origin: the error body never carries it, the list does.
   const origin = error.origin ?? instance?.origin ?? undefined
   const shown: ProviderErrorInfo = origin && !error.origin ? { ...error, origin } : error
+  // A consent given in the card sends the message again: only where that is possible.
+  const onAllowed = onConsented ?? onRetry
   // Project Orchestrator's own gap (engine not ported yet): said as ours, never as the model's.
   const harnessGap = harnessGapOf(error, degraded)
   const harnessNote = harnessGap ? t('session.errors.harnessGap', { feature: humanizeFeature(harnessGap) }) : null
@@ -235,21 +240,26 @@ export function ProviderStateCard({
       if (error.consent_scope === 'project') {
         action = (
           <>
-            {project && error.provider_id && origin && (
-              <ConsentButton scope="project" project={project} providerId={error.provider_id} origin={origin} onAllowed={onRetry} />
+            {/* Only where the message can go out again: never on a past error of the transcript. */}
+            {onAllowed && project && error.provider_id && origin && (
+              <ConsentButton scope="project" project={project} providerId={error.provider_id} origin={origin} onAllowed={onAllowed} />
             )}
-            <SettingsLink to={providerConsentPath(project)}>Review the project&apos;s consent</SettingsLink>
+            <SettingsLink to={providerConsentPath(project)}>{t('providerErrors.consent.review')}</SettingsLink>
           </>
         )
       } else if (error.consent_scope === 'no_project') {
-        action =
-          decidesForEveryone && error.provider_id && origin ? (
-            <ConsentButton scope="no_project" project={null} providerId={error.provider_id} origin={origin} onAllowed={onRetry} />
-          ) : (
-            <span data-testid="consent-ask-admin" className={`text-[11px] ${tone === 'warning' ? 'text-amber-100/90' : 'text-red-100/90'}`}>
-              {decidesForEveryone ? t('providerErrors.consent.noOrigin') : t('providerErrors.consent.askAdmin')}
-            </span>
-          )
+        // Root only (403 `root_required` for anyone else): the others are told whom to ask.
+        action = !decidesForEveryone ? (
+          <span data-testid="consent-ask-admin" className={`text-[11px] ${tone === 'warning' ? 'text-amber-100/90' : 'text-red-100/90'}`}>
+            {t('providerErrors.consent.askAdmin')}
+          </span>
+        ) : onAllowed && error.provider_id && origin ? (
+          <ConsentButton scope="no_project" project={null} providerId={error.provider_id} origin={origin} onAllowed={onAllowed} />
+        ) : onAllowed ? (
+          <span data-testid="consent-ask-admin" className={`text-[11px] ${tone === 'warning' ? 'text-amber-100/90' : 'text-red-100/90'}`}>
+            {t('providerErrors.consent.noOrigin')}
+          </span>
+        ) : null
       } else {
         action = <SettingsLink to={providerInstancePath(error.provider_id)}>{t('providerErrors.consent.openInstance')}</SettingsLink>
       }
@@ -279,10 +289,10 @@ export function ProviderStateCard({
       )
       break
     case 'unauthorized':
-      action = <SettingsLink to={providerInstancePath(error.provider_id)}>Open the instance settings</SettingsLink>
+      action = <SettingsLink to={providerInstancePath(error.provider_id)}>{t('providerErrors.consent.openInstance')}</SettingsLink>
       break
     case 'origin_mismatch':
-      action = <SettingsLink to={providerConsentPath(error.project_slug ?? projectSlug)}>Review the project&apos;s consent</SettingsLink>
+      action = <SettingsLink to={providerConsentPath(error.project_slug ?? projectSlug)}>{t('providerErrors.consent.review')}</SettingsLink>
       break
     case 'endpoint_invalid_url':
     case 'endpoint_scheme_not_allowed':
@@ -293,7 +303,7 @@ export function ProviderStateCard({
     case 'endpoint_unresolvable':
     case 'endpoint_redirects_not_allowed':
     case 'credential_test_requires_saved_instance':
-      action = <SettingsLink to={providerInstancePath(error.provider_id)}>Open the instance settings</SettingsLink>
+      action = <SettingsLink to={providerInstancePath(error.provider_id)}>{t('providerErrors.consent.openInstance')}</SettingsLink>
       break
     case 'provider_error':
       action = <SettingsLink to={PROVIDER_SETTINGS_PATH}>Choose another provider</SettingsLink>
@@ -452,6 +462,23 @@ function LockedVaultActions({
 }
 
 /**
+ * The server refused a write for not being the root account (`403 root_required`,
+ * backend #722). Any other 403 (an agent token on a human-only route…) is not that.
+ */
+function isRootRequired(err: unknown): boolean {
+  if (!(err instanceof ApiError) || err.status !== 403) return false
+  let text = err.message
+  try {
+    const body = JSON.parse(err.message) as { code?: unknown; error?: unknown }
+    if (body.code === 'root_required') return true
+    if (typeof body.error === 'string') text = body.error
+  } catch {
+    // A plain-text body: read as is.
+  }
+  return text.startsWith('root_required')
+}
+
+/**
  * Allow the instance's origin where the opening was refused (`endpoint_not_allowed`
  * with a `consent_scope`): the project's consent (any signed-in person), or the one of
  * the chats outside any project (root only: the server answers 403 `root_required`
@@ -469,7 +496,7 @@ function ConsentButton({
   project: string | null
   providerId: ProviderId
   origin: string
-  onAllowed?: () => void
+  onAllowed: () => void
 }) {
   const { t } = useT()
   const refresh = useRefreshProviders()
@@ -479,14 +506,15 @@ function ConsentButton({
   const allow = useCallback(async () => {
     setState({ kind: 'saving' })
     try {
-      if (scope === 'project' && project) await providersApi.allowForProject(project, providerId, origin)
-      else await providersApi.allowOutsideProjects(providerId, origin)
+      if (scope === 'no_project') await providersApi.allowOutsideProjects(providerId, origin)
+      else if (project) await providersApi.allowForProject(project, providerId, origin)
+      else return setState({ kind: 'idle' })
       await refresh().catch(() => {})
       setState({ kind: 'done' })
-      onAllowed?.()
+      onAllowed()
     } catch (err) {
       const text =
-        err instanceof ApiError && err.status === 403 && scope === 'no_project'
+        scope === 'no_project' && isRootRequired(err)
           ? t('providerErrors.consent.askAdmin')
           : t('providerErrors.consent.failed', { reason: apiErrorMessage(err) })
       setState({ kind: 'failed', text })
@@ -495,7 +523,7 @@ function ConsentButton({
   if (state.kind === 'done') {
     return (
       <span role="status" className={`text-[11px] ${labelColor}`}>
-        {onAllowed ? t('providerErrors.consent.allowedResent') : t('providerErrors.consent.allowed')}
+        {t('providerErrors.consent.allowedResent')}
       </span>
     )
   }
@@ -541,6 +569,7 @@ function CandidateChoices({
   const list = useAtomValue(providersAtom)
   const actionClass = useActionClass()
   const labelColor = useContext(ToneCtx) === 'warning' ? 'text-amber-100/90' : 'text-red-100/90'
+  const labelId = useId()
   const nameOf = (id: ProviderId) => {
     const p = list?.providers.find((x) => x.id === id)
     return p ? providerDisplayName(p) : id
@@ -549,8 +578,8 @@ function CandidateChoices({
     <div className="w-full space-y-1.5" data-testid="provider-candidates">
       {onPick && candidates.length > 0 && (
         <div className="space-y-1">
-          <p className={`text-[11px] ${labelColor}`}>{t('providerErrors.candidates.label')}</p>
-          <div className="flex flex-wrap gap-1.5">
+          <p id={labelId} className={`text-[11px] ${labelColor}`}>{t('providerErrors.candidates.label')}</p>
+          <div role="group" aria-labelledby={labelId} className="flex flex-wrap gap-1.5">
             {candidates.map((id) => (
               <button
                 key={id}

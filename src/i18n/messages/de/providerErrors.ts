@@ -134,7 +134,7 @@ export default {
     askAdmin: "Nur der Administrator kann einen Endpunkt für Chats außerhalb eines Projekts erlauben. Fragen Sie ihn oder öffnen Sie diesen Chat in einem Projekt.",
     noOrigin: "Der Endpunkt dieser Instanz ist hier nicht bekannt: Erlauben Sie ihn in den Anbietereinstellungen.",
     openInstance: "Instanzeinstellungen öffnen",
-    allowed: "Erlaubt. Senden Sie Ihre Nachricht erneut.",
+    review: "Zustimmung des Projekts prüfen",
     allowedResent: "Erlaubt. Ihre Nachricht wird erneut gesendet.",
     failed: "Die Zustimmung konnte nicht gespeichert werden: {reason}",
   },

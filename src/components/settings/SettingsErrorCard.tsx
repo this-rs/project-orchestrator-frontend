@@ -9,7 +9,7 @@ import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Check, ClipboardCopy } from 'lucide-react'
 import { Button } from '@/components/ui'
-import { PROVIDER_ERROR_TITLES, VAULT_PATH } from '@/constants/providerErrors'
+import { providerErrorTitle, VAULT_PATH } from '@/constants/providerErrors'
 import { useT } from '@/i18n'
 import type { MessageKey } from '@/i18n'
 import { providerErrorFr } from '@/constants/providerWizard'
@@ -65,7 +65,10 @@ export function SettingsErrorCard({
   const { t } = useT()
   const titleKey = `settingsShared.errorTitle.${error.code}` as MessageKey
   const own = t(titleKey)
-  const title = own !== titleKey ? own : PROVIDER_ERROR_TITLES[error.code]
+  // The settings' own wording of `endpoint_not_allowed` is the project's consent: a guard
+  // refusal or the no-project consent take the title that says which one it is.
+  const otherRefusal = error.code === 'endpoint_not_allowed' && error.consent_scope !== 'project'
+  const title = own !== titleKey && !otherRefusal ? own : providerErrorTitle(error)
   return (
     <div
       role="alert"

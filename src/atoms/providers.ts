@@ -207,6 +207,25 @@ function findInstance(list: ProvidersResponse | null, id: ProviderId | null): Pr
   return list?.providers.find((p) => p.id === id) ?? null
 }
 
+/**
+ * The stored pick, when it can still be used: listed by the server and not
+ * `unhealthy` (Claude Code whose CLI is absent, `cli_not_found`). A stale pick
+ * is ignored rather than sent: it would only get the opening refused. No list
+ * yet: the pick stands.
+ */
+export function usablePickedProvider(list: ProvidersResponse | null, picked: ProviderId | null): ProviderId | null {
+  if (!picked) return null
+  if (!list) return picked
+  const instance = findInstance(list, picked)
+  return instance && instance.health?.status !== 'unhealthy' ? picked : null
+}
+
+/**
+ * The pick was made for ONE opening (a candidate of `provider_not_chosen`), not
+ * in the menu: once that conversation opens, it is not remembered for the next.
+ */
+export const chatOneOffProviderPickAtom = atom<boolean>(false)
+
 // ----------------------------------------------------------------------------
 // Routing mode (primary / mixed / full)
 // ----------------------------------------------------------------------------
@@ -370,8 +389,8 @@ export const chatTargetProviderIdAtom = atom<ProviderId | null>((get) => {
   if (ofSession) return ofSession.id
   if (get(chatSessionIdAtom)) return CLAUDE_CODE_PROVIDER_ID
   const list = get(providersAtom)
-  const picked = get(chatSelectedProviderAtom)
-  if (picked && (!list || findInstance(list, picked))) return picked
+  const picked = usablePickedProvider(list, get(chatSelectedProviderAtom))
+  if (picked) return picked
   if (list?.default === null && get(providersLoadStateAtom) !== 'unsupported') return null
   return list?.default?.provider ?? CLAUDE_CODE_PROVIDER_ID
 })
