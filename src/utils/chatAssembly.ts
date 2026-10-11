@@ -9,6 +9,7 @@ import { splitAttachments } from './messageAttachments'
 import { splitRefs } from './messageRefs'
 import { bindResolvedRefs, parseResolvedRefs, refsFromBlock } from '@/refs/refState'
 import { applyResultCost } from './cost'
+import { isUserStoppedTurn } from './turnEnd'
 import { cancelNoticeMetadata } from './cancelFailure'
 import type {
   BackgroundActivityMetadata,
@@ -989,7 +990,7 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
             metadata: { num_turns: rNumTurns },
           })
           lastEventWasMaxTurns = true
-        } else if (rSubtype === 'error_during_execution') {
+        } else if (rSubtype === 'error_during_execution' && !isUserStoppedTurn(evt)) {
           rMsg.blocks.push({
             id: nextBlockId(),
             type: 'result_error',
