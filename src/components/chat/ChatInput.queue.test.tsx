@@ -154,4 +154,36 @@ describe('ChatInput — queued messages', () => {
     expect(onQueueOp).toHaveBeenLastCalledWith({ op: 'send_now', id: '1' })
     expect(onSend).not.toHaveBeenCalled()
   })
+
+  it('Cmd+Enter bypasses the queue and sends directly even while streaming', () => {
+    mount('conversation-a', true)
+    const ta = screen.getByRole('textbox')
+    fireEvent.change(ta, { target: { value: 'urgent now' } })
+    // metaKey = Cmd on macOS
+    fireEvent.keyDown(ta, { key: 'Enter', metaKey: true })
+
+    expect(onSend).toHaveBeenCalledWith('urgent now', [])
+    expect(onQueue).not.toHaveBeenCalled()
+    expect((ta as HTMLTextAreaElement).value).toBe('')
+  })
+
+  it('Ctrl+Enter bypasses the queue on Windows / Linux while streaming', () => {
+    mount('conversation-a', true)
+    const ta = screen.getByRole('textbox')
+    fireEvent.change(ta, { target: { value: 'ctrl send' } })
+    fireEvent.keyDown(ta, { key: 'Enter', ctrlKey: true })
+
+    expect(onSend).toHaveBeenCalledWith('ctrl send', [])
+    expect(onQueue).not.toHaveBeenCalled()
+  })
+
+  it('plain Enter while streaming still queues (no regression)', () => {
+    mount('conversation-a', true)
+    const ta = screen.getByRole('textbox')
+    fireEvent.change(ta, { target: { value: 'queued please' } })
+    fireEvent.keyDown(ta, { key: 'Enter' })
+
+    expect(onQueue).toHaveBeenCalledWith('queued please', [])
+    expect(onSend).not.toHaveBeenCalled()
+  })
 })
