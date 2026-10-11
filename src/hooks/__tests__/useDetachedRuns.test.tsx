@@ -2,16 +2,21 @@
  * `useDetachedRuns`: the children of the open session, and how they stay up to
  * date live.
  *
- * Two things are pinned here:
+ * Several things are pinned here:
  *
  *  1. the mapping of `spawned_by` onto a run — `toolUseId` (the join to the
  *     parent's `Agent` tool call) and `planId`, which the old type read off a
  *     `runner` origin that has no `plan_id` at all, so it was always undefined;
  *  2. the CRUD "created" path, WITH and WITHOUT `spawned_by` in the payload.
- *     The field is added by a sibling backend PR: on an older server the event
- *     says nothing about the parent, and the only honest move is to ask the
- *     children endpoint rather than ignore the event and leave the sub-agent's
- *     conversation invisible.
+ *     Today's backend sends neither — `manager.rs:6899-6911` and
+ *     `chat_handlers.rs:173-183` carry no `spawned_by` at all — so the
+ *     fallback fetch fires for every session created anywhere, and the hook
+ *     must survive that without corrupting its own state:
+ *       a. a STALE response landing after a newer one must not overwrite it
+ *          (`requestIdRef` generation guard);
+ *       b. a FAILED fetch must keep the previous list, not blank it;
+ *       c. a BURST of unrelated creations must coalesce into one fetch, not
+ *          one per event.
  *
  * Run with: npx vitest run src/hooks/__tests__/useDetachedRuns.test.tsx
  */
@@ -130,5 +135,92 @@ describe('useDetachedRuns live "created" path', () => {
     act(() => emitCreated({ id: 'x', spawned_by: { type: 'conversation', parent_session_id: 'someone-else' } }))
     await act(async () => {})
     expect(getSessionChildren).toHaveBeenCalledTimes(1)
+  })
+
+  it('coalesces a burst of unrelated creations into a single trailing fetch', async () => {
+    vi.useFakeTimers()
+    try {
+      renderHook(() => useDetachedRuns(PARENT))
+      await act(async () => {})
+      expect(getSessionChildren).toHaveBeenCalledTimes(1)
+
+      // A pipeline wave opening several sessions elsewhere, none of them ours
+      // (today's backend sends no `spawned_by`, so every one of these takes
+      // the fallback path).
+      act(() => {
+        emitCreated({ id: 'a' })
+        emitCreated({ id: 'b' })
+        emitCreated({ id: 'c' })
+      })
+      // Still debounced — no extra fetch has fired yet.
+      expect(getSessionChildren).toHaveBeenCalledTimes(1)
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250)
+      })
+      // One trailing fetch for the whole burst, not three.
+      expect(getSessionChildren).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('useDetachedRuns fetch robustness', () => {
+  it('a stale response cannot overwrite a newer one (last SENT wins, not last to LAND)', async () => {
+    const { result } = renderHook(() => useDetachedRuns(PARENT))
+    await waitFor(() => expect(getSessionChildren).toHaveBeenCalledTimes(1))
+
+    const deferred: Array<(v: DetachedSession[]) => void> = []
+    getSessionChildren.mockImplementation(
+      () => new Promise(resolve => { deferred.push(resolve as (v: DetachedSession[]) => void) }),
+    )
+
+    act(() => { result.current.refresh() })
+    await waitFor(() => expect(getSessionChildren).toHaveBeenCalledTimes(2))
+    act(() => { result.current.refresh() })
+    await waitFor(() => expect(getSessionChildren).toHaveBeenCalledTimes(3))
+
+    // deferred[0] is the OLDER of the two in-flight requests (index 1 overall,
+    // after the initial mount fetch), deferred[1] is the NEWER. Resolve the
+    // newer one first, then the older one landing late — the older must lose.
+    act(() => { deferred[1]([child({ id: 'newer' })] as never) })
+    await waitFor(() => expect(result.current.runs.map(r => r.sessionId)).toEqual(['newer']))
+
+    act(() => { deferred[0]([child({ id: 'older' })] as never) })
+    await act(async () => {})
+    expect(result.current.runs.map(r => r.sessionId)).toEqual(['newer'])
+  })
+
+  it('keeps the previous list when a fetch fails, instead of blanking it', async () => {
+    getSessionChildren.mockResolvedValueOnce([child({ id: 'existing' })] as never)
+    const { result } = renderHook(() => useDetachedRuns(PARENT))
+    await waitFor(() => expect(result.current.runs.map(r => r.sessionId)).toEqual(['existing']))
+
+    getSessionChildren.mockRejectedValueOnce(new Error('network blip'))
+    act(() => { result.current.refresh() })
+    await waitFor(() => expect(getSessionChildren).toHaveBeenCalledTimes(2))
+    await act(async () => {})
+
+    expect(result.current.runs.map(r => r.sessionId)).toEqual(['existing'])
+  })
+
+  it('clears the list rather than leaking the OLD session\'s children when the fetch for a NEW session fails', async () => {
+    getSessionChildren.mockResolvedValueOnce([child({ id: 'a-child' })] as never)
+    const { result, rerender } = renderHook(
+      ({ sessionId }: { sessionId: string | null }) => useDetachedRuns(sessionId),
+      { initialProps: { sessionId: 'session-a' } },
+    )
+    await waitFor(() => expect(result.current.runs.map(r => r.sessionId)).toEqual(['a-child']))
+
+    // User switches to an unrelated session B. Its fetch fails (transient
+    // network blip/429/504) — unlike a same-session refetch failure, there is
+    // no honest "previous list" to fall back to: A's children are not B's.
+    getSessionChildren.mockRejectedValueOnce(new Error('network blip'))
+    rerender({ sessionId: 'session-b' })
+    await waitFor(() => expect(getSessionChildren).toHaveBeenCalledTimes(2))
+    await act(async () => {})
+
+    expect(result.current.runs).toEqual([])
   })
 })

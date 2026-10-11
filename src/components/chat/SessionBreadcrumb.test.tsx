@@ -39,8 +39,22 @@ describe('SessionBreadcrumb', () => {
     )
     const chip = screen.getByTestId('breadcrumb-spawn')
     expect(chip).toHaveTextContent('spawned')
-    expect(chip).toHaveAttribute('title', 'Sub-agent of this conversation')
+    expect(chip).toHaveAttribute('title', 'Sub-agent of another conversation')
     expect(screen.getByText('The parent conversation')).toBeInTheDocument()
+  })
+
+  it('does NOT call a human-opened sub-conversation a sub-agent (no tool_use_id)', () => {
+    show(
+      <SessionBreadcrumb
+        sessionId="child-1"
+        rootSessionId="parent-1"
+        onNavigate={vi.fn()}
+        spawnedBy={{ type: 'conversation', parent_session_id: 'parent-1' }}
+      />,
+    )
+    const chip = screen.getByTestId('breadcrumb-spawn')
+    expect(chip).toHaveTextContent('spawned')
+    expect(chip).not.toHaveAttribute('title')
   })
 
   it('names a runner child a runner, and does not call it a sub-agent of a conversation', () => {

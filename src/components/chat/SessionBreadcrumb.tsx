@@ -19,6 +19,7 @@ import { useSessionTree } from '@/hooks'
 import { useT } from '@/i18n'
 import { ProviderBadge } from './ProviderBadge'
 import { spawnLabel } from './sessionListUtils'
+import { spawnedByToolUseId } from '@/utils/spawnedBy'
 import type { SessionTreeNode, SpawnedBy } from '@/types'
 
 interface SessionBreadcrumbProps {
@@ -79,9 +80,11 @@ export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStre
       {spawn && (
         <span
           data-testid="breadcrumb-spawn"
-          // Said in full only where it is true: a runner or pipeline child is
-          // not a sub-agent of a conversation.
-          title={spawnedBy?.type === 'conversation' ? t('chatA-messages.spawn.subagentOf') : undefined}
+          // Said in full only where it is true: a `conversation` origin is also
+          // what a HUMAN-opened sub-conversation carries (no `tool_use_id`), so
+          // keying on the variant alone would call that a sub-agent too. Only a
+          // `tool_use_id` means an `Agent` call spawned this session.
+          title={spawnedByToolUseId(spawnedBy) ? t('chatA-messages.spawn.subagentOf') : undefined}
           className={`shrink-0 px-1.5 py-0.5 rounded bg-white/[0.06] font-mono text-[10px] ${spawn.text}`}
         >
           {spawn.label}
