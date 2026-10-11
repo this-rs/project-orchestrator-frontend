@@ -100,6 +100,11 @@ describe('toDetachedRun', () => {
     expect(toDetachedRun(child({ id: 'c6', activity: { ...STREAMING, streaming: false } })).isStreaming).toBe(false)
   })
 
+  it('reads liveness through normalizeActivity: a non-boolean `streaming` is coerced', () => {
+    const run = toDetachedRun(child({ id: 'child-1', activity: { ...STREAMING, streaming: 1 as unknown as boolean } }))
+    expect(run.isStreaming).toBe(true)
+  })
+
   it('a child with no origin on the wire is still a run, with no origin fields', () => {
     const run = toDetachedRun(child({ id: 'c3' }))
     expect(run.sessionId).toBe('c3')
@@ -263,6 +268,144 @@ describe('useDetachedRuns liveness of a just-opened child', () => {
     await waitFor(() => expect(getSessionChildren).toHaveBeenCalledTimes(2))
     await act(async () => {})
     expect(result.current.runs).toBe(before)
+  })
+})
+
+describe('useDetachedRuns: the parent\'s stream settles a native child (no CRUD `updated` on backend main)', () => {
+  it('a native child fetched mid-turn shows as finished once the parent receives its Agent tool_result', async () => {
+    vi.useFakeTimers()
+    try {
+      const native = (activity?: typeof STREAMING) =>
+        child({
+          id: 'child-1',
+          ...(activity ? { activity } : {}),
+          spawned_by: { type: 'conversation', parent_session_id: PARENT, tool_use_id: CALL },
+        })
+      getSessionChildren.mockResolvedValue([native(STREAMING)] as never)
+      // `settleSignal` as ChatPanel builds it: 0 answered Agent calls, turn streaming.
+      const { result, rerender } = renderHook(
+        ({ signal }) => useDetachedRuns(PARENT, { settleSignal: signal }),
+        { initialProps: { signal: '0:streaming' } },
+      )
+      await act(async () => {})
+      expect(result.current.runs[0].isStreaming).toBe(true)
+
+      // The child answers and is closed. agent_runtime sends NO `updated`
+      // event: the only news is the Agent tool_result in the parent's stream.
+      getSessionChildren.mockResolvedValue([native()] as never)
+      rerender({ signal: '1:streaming' })
+      expect(getSessionChildren).toHaveBeenCalledTimes(1) // debounced
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250)
+      })
+
+      expect(getSessionChildren).toHaveBeenCalledTimes(2)
+      expect(result.current.runs[0].isStreaming).toBe(false)
+      expect(result.current.hasActiveRuns).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('the parent\'s turn ending refetches too; an unchanged signal does not', async () => {
+    vi.useFakeTimers()
+    try {
+      const { rerender } = renderHook(
+        ({ signal }) => useDetachedRuns(PARENT, { settleSignal: signal }),
+        { initialProps: { signal: '0:streaming' } },
+      )
+      await act(async () => {})
+      expect(getSessionChildren).toHaveBeenCalledTimes(1)
+
+      rerender({ signal: '0:streaming' })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250)
+      })
+      expect(getSessionChildren).toHaveBeenCalledTimes(1)
+
+      rerender({ signal: '0:idle' })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250)
+      })
+      expect(getSessionChildren).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a session change does not add a settle refetch to its own fetch', async () => {
+    vi.useFakeTimers()
+    try {
+      const { rerender } = renderHook(
+        ({ id, signal }) => useDetachedRuns(id, { settleSignal: signal }),
+        { initialProps: { id: PARENT, signal: '2:idle' } },
+      )
+      await act(async () => {})
+      rerender({ id: 'parent-2', signal: '0:idle' })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250)
+      })
+      expect(getSessionChildren).toHaveBeenCalledTimes(2)
+      expect(getSessionChildren).toHaveBeenLastCalledWith('parent-2')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('useDetachedRuns in-flight buffer keeps only finishes', () => {
+  it('a late `true` landing during the fetch does not override an answer that says finished', async () => {
+    const { result } = renderHook(() => useDetachedRuns(PARENT))
+    await waitFor(() => expect(getSessionChildren).toHaveBeenCalledTimes(1))
+
+    let resolve: (v: DetachedSession[]) => void = () => {}
+    getSessionChildren.mockImplementation(() => new Promise((r) => { resolve = r as (v: DetachedSession[]) => void }))
+    act(() => { result.current.refresh() })
+    await waitFor(() => expect(getSessionChildren).toHaveBeenCalledTimes(2))
+
+    // `updated(true)` emitted before the child finished, delivered during the
+    // fetch; the server's snapshot was taken after the finish.
+    act(() => emit('updated', 'child-1', { is_streaming: true }))
+    act(() => resolve([child({ id: 'child-1' })]))
+
+    await waitFor(() => expect(result.current.runs).toHaveLength(1))
+    expect(result.current.runs[0].isStreaming).toBe(false)
+  })
+
+  it('a `true` after a buffered `false` (the child started again) lets the answer decide', async () => {
+    const { result } = renderHook(() => useDetachedRuns(PARENT))
+    await waitFor(() => expect(getSessionChildren).toHaveBeenCalledTimes(1))
+
+    let resolve: (v: DetachedSession[]) => void = () => {}
+    getSessionChildren.mockImplementation(() => new Promise((r) => { resolve = r as (v: DetachedSession[]) => void }))
+    act(() => { result.current.refresh() })
+    await waitFor(() => expect(getSessionChildren).toHaveBeenCalledTimes(2))
+
+    act(() => {
+      emit('updated', 'child-1', { is_streaming: false })
+      emit('updated', 'child-1', { is_streaming: true })
+    })
+    act(() => resolve([child({ id: 'child-1', activity: STREAMING })]))
+
+    await waitFor(() => expect(result.current.runs).toHaveLength(1))
+    expect(result.current.runs[0].isStreaming).toBe(true)
+  })
+})
+
+describe('useDetachedRuns `updated` events', () => {
+  it('an update that changes nothing keeps the same array; a real change replaces it', async () => {
+    getSessionChildren.mockResolvedValue([child({ id: 'child-1', activity: STREAMING, total_cost_usd: 0.5 })] as never)
+    const { result } = renderHook(() => useDetachedRuns(PARENT))
+    await waitFor(() => expect(result.current.runs).toHaveLength(1))
+    const before = result.current.runs
+
+    act(() => emit('updated', 'child-1', { is_streaming: true }))
+    act(() => emit('updated', 'child-1', { is_streaming: true, total_cost_usd: 0.5 }))
+    expect(result.current.runs).toBe(before)
+
+    act(() => emit('updated', 'child-1', { is_streaming: false, total_cost_usd: 0.7 }))
+    expect(result.current.runs).not.toBe(before)
+    expect(result.current.runs[0]).toMatchObject({ isStreaming: false, costUsd: 0.7 })
   })
 })
 

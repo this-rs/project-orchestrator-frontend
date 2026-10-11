@@ -3,6 +3,7 @@ import type { CostBasis } from '@/types/provider'
 import { getEventBus } from '@/services'
 import { chatApi } from '@/services/chat'
 import type { CrudEvent, DetachedSession } from '@/types'
+import { normalizeActivity } from '@/components/chat/sessionActivity'
 import { readSpawnedBy, spawnedByParentId, spawnedByPlanId, spawnedByRunId, spawnedByToolUseId } from '@/utils/spawnedBy'
 
 /** Info about an active detached run (child session or plan runner task) */
@@ -46,6 +47,20 @@ interface UseDetachedRunsResult {
   refresh: () => void
 }
 
+interface UseDetachedRunsOptions {
+  /**
+   * Any value that changes when the PARENT's own stream says a child may have
+   * finished: an `Agent` call got its answer, or the parent's turn ended (see
+   * `subagentSettleSignal`). Each change schedules one debounced refetch.
+   *
+   * Needed because a native-harness child (`agent_runtime`) sends no CRUD
+   * `updated {is_streaming}` on backend main — only its own session's
+   * `streaming_status` — so a child fetched mid-turn would otherwise stay
+   * "running" until an unrelated `created` or a remount.
+   */
+  settleSignal?: string | number
+}
+
 export function toDetachedRun(s: DetachedSession): DetachedRun {
   const spawnedBy = readSpawnedBy(s.spawned_by)
   return {
@@ -56,7 +71,7 @@ export function toDetachedRun(s: DetachedSession): DetachedRun {
     // working only through `activity` — omitted when it is quiet. There is no
     // `is_streaming` on this response: reading it made every listed child look
     // finished, including one whose turn had just started.
-    isStreaming: s.activity?.streaming ?? false,
+    isStreaming: normalizeActivity(s.activity).streaming,
     costUsd: s.total_cost_usd,
     costBasis: s.cost_basis,
     providerId: s.provider_id,
@@ -68,15 +83,23 @@ export function toDetachedRun(s: DetachedSession): DetachedRun {
   }
 }
 
+/** Every field of a run, listed so that adding one to `DetachedRun` fails to compile here until it is compared. */
+const RUN_FIELDS = [
+  'sessionId', 'title', 'model', 'isStreaming', 'costUsd', 'costBasis', 'providerId',
+  'startedAt', 'planId', 'runId', 'taskId', 'toolUseId',
+] as const satisfies readonly (keyof DetachedRun)[]
+type MissingRunField = Exclude<keyof DetachedRun, (typeof RUN_FIELDS)[number]>
+// Compile-time check: every `DetachedRun` key is in RUN_FIELDS.
+const RUN_FIELDS_COMPLETE: MissingRunField extends never ? true : never = true
+void RUN_FIELDS_COMPLETE
+
+function sameRun(a: DetachedRun, b: DetachedRun): boolean {
+  return RUN_FIELDS.every((k) => a[k] === b[k])
+}
+
 /** Same runs, field for field: a refetch that changed nothing keeps the old array (and its identity). */
 function sameRuns(a: readonly DetachedRun[], b: readonly DetachedRun[]): boolean {
-  if (a.length !== b.length) return false
-  return a.every((run, i) => {
-    const other = b[i] as unknown as Record<string, unknown>
-    const keys = new Set([...Object.keys(run), ...Object.keys(other)])
-    for (const k of keys) if ((run as unknown as Record<string, unknown>)[k] !== other[k]) return false
-    return true
-  })
+  return a.length === b.length && a.every((run, i) => sameRun(run, b[i]))
 }
 
 /** How long a burst of unrelated `created` events may coalesce into one fetch. */
@@ -90,7 +113,8 @@ const CREATED_FETCH_DEBOUNCE_MS = 250
  *
  * Returns the list of detached runs with streaming status.
  */
-export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult {
+export function useDetachedRuns(sessionId: string | null, options: UseDetachedRunsOptions = {}): UseDetachedRunsResult {
+  const { settleSignal } = options
   const [runs, setRuns] = useState<DetachedRun[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const sessionIdRef = useRef(sessionId)
@@ -116,16 +140,18 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
   // not keep showing the PREVIOUS session's children under the new one.
   const runsSessionIdRef = useRef<string | null>(null)
 
-  // `is_streaming` updates received while the latest fetch is IN FLIGHT, by
-  // session id. The server read its live map somewhere between sending and
-  // answering, so an update that lands after the request left is at least as
-  // new as the answer — and the `updated` handler cannot apply it to a child
-  // the list does not hold yet (a sub-agent whose turn ends within the fetch
-  // would otherwise keep its spinner until the next refetch). Reset on every
-  // send; null while no fetch is in flight, so nothing accumulates between
-  // fetches. Updates that land BEFORE the send are older than the answer,
-  // whose `activity` already covers them — no need to keep those.
-  const inFlightStreamingRef = useRef<Map<string, boolean> | null>(null)
+  // Children seen to FINISH (`updated {is_streaming: false}`) while the latest
+  // fetch is IN FLIGHT. The CRUD channel and the HTTP answer are not ordered
+  // with respect to each other, so an event that lands during the fetch may be
+  // older OR newer than the answer. Only a `false` is kept: applied late it is
+  // never wrong for long (a child that restarts sends a new `true`), whereas a
+  // late `true` would show a finished child as running with nothing to clear
+  // it. A `true` landing during the fetch drops any `false` buffered for that
+  // child, so the answer decides. The `updated` handler cannot apply these
+  // itself to a child the list does not hold yet (a sub-agent whose turn ends
+  // within the fetch would keep its spinner). Reset on every send; null while
+  // no fetch is in flight, so nothing accumulates between fetches.
+  const finishedInFlightRef = useRef<Set<string> | null>(null)
 
   const fetchChildren = useCallback(async () => {
     if (!sessionIdRef.current) {
@@ -135,18 +161,17 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
     }
     const sessionAtRequest = sessionIdRef.current
     const requestId = ++requestIdRef.current
-    inFlightStreamingRef.current = new Map()
+    finishedInFlightRef.current = new Set()
     setIsLoading(true)
     try {
       const children = await chatApi.getSessionChildren(sessionAtRequest)
       // Stale-response guard (see requestIdRef above). Also refuses to write
       // if `sessionId` moved on under us while the request was in flight.
       if (requestId === requestIdRef.current && sessionIdRef.current === sessionAtRequest) {
-        const late = inFlightStreamingRef.current
+        const finished = finishedInFlightRef.current
         const next = children.map((c) => {
           const run = toDetachedRun(c)
-          const live = late?.get(run.sessionId)
-          return live === undefined ? run : { ...run, isStreaming: live }
+          return run.isStreaming && finished?.has(run.sessionId) ? { ...run, isStreaming: false } : run
         })
         // Keep the previous array when nothing changed: every `created` in the
         // deployment ends in one of these fetches, and a fresh-but-equal array
@@ -174,7 +199,7 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
       }
     } finally {
       if (requestId === requestIdRef.current) {
-        inFlightStreamingRef.current = null
+        finishedInFlightRef.current = null
         setIsLoading(false)
       }
     }
@@ -211,16 +236,22 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
         event.payload &&
         typeof event.payload.is_streaming === 'boolean'
       ) {
-        inFlightStreamingRef.current?.set(event.entity_id, event.payload.is_streaming)
+        const isStreaming = event.payload.is_streaming
+        const finished = finishedInFlightRef.current
+        if (finished) {
+          if (isStreaming) finished.delete(event.entity_id)
+          else finished.add(event.entity_id)
+        }
+        const costUsd = typeof event.payload.total_cost_usd === 'number' ? event.payload.total_cost_usd : undefined
         setRuns(prev => {
           const idx = prev.findIndex(r => r.sessionId === event.entity_id)
           if (idx === -1) return prev
+          const run = prev[idx]
+          const nextRun = { ...run, isStreaming, ...(costUsd !== undefined ? { costUsd } : {}) }
+          // A repeated or cost-only-unchanged update keeps the array (no re-render).
+          if (sameRun(run, nextRun)) return prev
           const updated = [...prev]
-          updated[idx] = { ...updated[idx], isStreaming: event.payload.is_streaming as boolean }
-          // Update cost if provided
-          if (typeof event.payload.total_cost_usd === 'number') {
-            updated[idx] = { ...updated[idx], costUsd: event.payload.total_cost_usd as number }
-          }
+          updated[idx] = nextRun
           return updated
         })
       }
@@ -252,6 +283,17 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
       }
     }
   }, [sessionId, scheduleFetch])
+
+  // The parent's stream said a child may have finished: ask again, debounced.
+  // The baseline is reset on a session change (that change fetches already),
+  // so only a change WITHIN a session schedules a refetch.
+  const settleRef = useRef({ sessionId, settleSignal })
+  useEffect(() => {
+    const prev = settleRef.current
+    settleRef.current = { sessionId, settleSignal }
+    if (!sessionId || prev.sessionId !== sessionId || prev.settleSignal === settleSignal) return
+    scheduleFetch()
+  }, [sessionId, settleSignal, scheduleFetch])
 
   const hasActiveRuns = runs.some(r => r.isStreaming)
 

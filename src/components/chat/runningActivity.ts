@@ -214,3 +214,25 @@ export function countByKind(items: ReadonlyArray<RunningItem>): Array<{ kind: Ru
     (entry) => entry.count > 0,
   )
 }
+
+/**
+ * Changes whenever the parent's own stream says one of its sub-agents may have
+ * finished: a `Task` / `Agent` call got its result (a native sub-agent's child
+ * conversation has answered and been closed by then), or the turn stopped or
+ * started streaming. `useDetachedRuns` refetches the children on each change —
+ * on backend main a native child sends no CRUD `updated` when it ends, so this
+ * is the only signal that its "running" state is over.
+ */
+export function subagentSettleSignal(messages: ReadonlyArray<ChatMessage>, isStreaming: boolean): string {
+  const subagentCalls = new Set<string>()
+  const results = new Set<string>()
+  for (const message of messages) {
+    for (const block of message.blocks) {
+      if (block.type === 'tool_use' && SUBAGENT_TOOL.test(toolName(block))) subagentCalls.add(toolCallId(block))
+      else if (block.type === 'tool_result') results.add(toolCallId(block))
+    }
+  }
+  let answered = 0
+  for (const id of subagentCalls) if (results.has(id)) answered++
+  return `${answered}:${isStreaming ? 'streaming' : 'idle'}`
+}

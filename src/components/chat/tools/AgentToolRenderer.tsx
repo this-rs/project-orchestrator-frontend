@@ -16,8 +16,8 @@
  * `useDetachedRuns` → `ChatSessionProvider`.
  *
  * Degrades on purpose: with no child resolved (older backend, child not listed
- * yet, or a transcript rendered outside the chat panel) the card says so
- * instead of offering a dead link.
+ * yet) the card never offers a dead link. Whether it SAYS a child is coming
+ * depends on who hosts sub-agents — see below.
  *
  * Claude Code's own sub-agent tool is ALSO named `Agent` (older CLIs: `Task`),
  * with the same `prompt` / `subagent_type` input, so a Claude Code call that

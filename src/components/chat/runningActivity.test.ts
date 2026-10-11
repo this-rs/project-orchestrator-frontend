@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import type { BackgroundTaskInfo, ChatMessage, ContentBlock } from '@/types'
-import { collectRunning, countByKind } from './runningActivity'
+import { collectRunning, countByKind, subagentSettleSignal } from './runningActivity'
 
 const NOW = Date.parse('2026-10-03T12:00:00Z')
 const at = (secondsAgo: number) => new Date(NOW - secondsAgo * 1000).toISOString()
@@ -218,5 +218,22 @@ describe('collectRunning — what the activity bar lists', () => {
       { kind: 'shell', count: 1 },
       { kind: 'monitor', count: 1 },
     ])
+  })
+})
+
+describe('subagentSettleSignal', () => {
+  it('changes when an Agent call gets its result, not on other tools\' results', () => {
+    const call = toolUse('agent_1', 'Agent', { prompt: 'audit' })
+    const bash = toolUse('bash_1', 'Bash', { command: 'ls' })
+    const pending = [user(), assistant(call, bash)]
+    const before = subagentSettleSignal(pending, true)
+
+    expect(subagentSettleSignal([...pending, assistant(toolResult('bash_1'))], true)).toBe(before)
+    expect(subagentSettleSignal([...pending, assistant(toolResult('agent_1'))], true)).not.toBe(before)
+  })
+
+  it('changes when the turn stops streaming', () => {
+    const messages = [user(), assistant(toolUse('agent_1', 'Agent'))]
+    expect(subagentSettleSignal(messages, false)).not.toBe(subagentSettleSignal(messages, true))
   })
 })

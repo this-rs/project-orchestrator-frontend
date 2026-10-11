@@ -41,7 +41,7 @@ import { ComposerDock } from './ComposerDock'
 import { ChatTimelinePanel } from './ChatTimelinePanel'
 import { useResetTimelineOnPhone } from './useResetTimelineOnPhone'
 import { CHAT_COLUMN_WIDTH, CHAT_SIDEBAR_WIDTH, timelineRoom } from './timelineRoom'
-import { collectRunning } from './runningActivity'
+import { collectRunning, subagentSettleSignal } from './runningActivity'
 import type { RunActions } from './ActivityBar'
 import { DetachedRunsPanel } from './DetachedRunsPanel'
 import { SessionList } from './SessionList'
@@ -158,7 +158,14 @@ export function ChatPanel() {
   const dismissSessionOpenError = useCallback(() => setSessionOpenError(null), [setSessionOpenError])
   // Session + panel mode live in the URL, so a reload reopens the chat as it was.
   useChatUrlSync({ sessionId: chat.sessionId, mode, setMode, loadSession: chat.loadSession })
-  const detachedRuns = useDetachedRuns(chat.sessionId)
+  // Refetch the children when this session's stream says a sub-agent may have
+  // ended (its `Agent` result arrived, or the turn ended): a native child sends
+  // no CRUD update of its own when it finishes.
+  const settleSignal = useMemo(
+    () => subagentSettleSignal(chat.messages, chat.isStreaming),
+    [chat.messages, chat.isStreaming],
+  )
+  const detachedRuns = useDetachedRuns(chat.sessionId, { settleSignal })
   // One derivation of "what is running here", rendered above the composer (ActivityBar).
   const trackedBackgroundTasks = useAtomValue(chatBackgroundTasksAtom)
   const backgroundTasks = capabilities.background_tasks ? trackedBackgroundTasks : NO_BACKGROUND_TASKS
