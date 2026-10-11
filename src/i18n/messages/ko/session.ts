@@ -112,6 +112,17 @@ export default {
     peak: "병렬 최대: {n}",
     parallel: "병렬",
     idle: "{d} 유휴",
+    view: { label: "타임라인 보기", tracks: "트랙", tree: "트리" },
+    tracks: {
+      label: "대화의 트랙",
+      rows: "트랙: {n}",
+      column: "트랙",
+      family: { turns: "턴", tools: "도구 호출", agents: "하위 에이전트", waits: "응답 대기 중", signals: "이벤트" },
+      of: "{agent}의 호출",
+      row: "{name} · {n}",
+      help: "확대: Ctrl/⌘ + 휠 또는 W/S · 이동: 드래그 또는 A/D · 화살표로 막대 이동, Enter로 열기, Z로 막대에 맞추기",
+      helpTouch: "핀치로 확대, 옆으로 드래그하여 이동, 막대를 탭하여 세부 정보 보기",
+    },
     trace: {
       label: "대화 트레이스",
       spans: "스팬: {n}",

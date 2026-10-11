@@ -112,6 +112,17 @@ export default {
     peak: "Pico en paralelo: {n}",
     parallel: "En paralelo",
     idle: "{d} de inactividad",
+    view: { label: "Vista de la cronología", tracks: "Pistas", tree: "Árbol" },
+    tracks: {
+      label: "Pistas de la conversación",
+      rows: "Pistas: {n}",
+      column: "Pista",
+      family: { turns: "Turnos", tools: "Llamadas a herramientas", agents: "Subagentes", waits: "Esperando tu respuesta", signals: "Eventos" },
+      of: "Llamadas de {agent}",
+      row: "{name} · {n}",
+      help: "Zoom: Ctrl/⌘ + rueda o W/S · Desplazar: arrastrar o A/D · Las flechas recorren las barras, Intro abre una, Z la encuadra",
+      helpTouch: "Pellizca para ampliar, arrastra lateralmente para desplazar, toca una barra para ver su detalle",
+    },
     trace: {
       label: "Traza de la conversación",
       spans: "Tramos: {n}",

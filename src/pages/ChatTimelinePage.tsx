@@ -13,10 +13,12 @@ import { useCallback, useMemo } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { MessageSquare } from 'lucide-react'
 import { useWorkspaceSlug } from '@/hooks'
-import { TraceView, EventChain, buildConversationTimeline, chainOf, resolveTarget, type TimelineItem } from '@/components/timeline'
+import { TraceView, TracksView, EventChain, buildConversationTimeline, chainOf, resolveTarget, type TimelineItem } from '@/components/timeline'
+import { TimelineViewTabs } from '@/components/chat/TimelineViewTabs'
 import { workspacePath } from '@/utils/paths'
 import { useTimelineContext } from '@/hooks/useTimelineContext'
 import { useTimelineLabels } from '@/hooks/useTimelineLabels'
+import { useTimelineView } from '@/hooks/useTimelineView'
 import { useConversationTrace } from '@/hooks/useConversationTrace'
 import { PageHeader } from '@/components/ui'
 import { useT } from '@/i18n'
@@ -28,6 +30,8 @@ export default function ChatTimelinePage() {
   const navigate = useNavigate()
   const { t } = useT()
   const labels = useTimelineLabels()
+  const [view, setView] = useTimelineView()
+  const View = view === 'tracks' ? TracksView : TraceView
   const fallbackTitle = t('session.timeline.fallbackTitle', { id: sessionId.slice(0, 8) })
 
   const trace = useConversationTrace(sessionId || null)
@@ -65,7 +69,10 @@ export default function ChatTimelinePage() {
       />
 
       <div className="rounded-lg border border-white/10 bg-slate-900/60 p-2">
-        <TraceView
+        <div className="flex justify-end px-1 pb-2">
+          <TimelineViewTabs value={view} onChange={setView} />
+        </div>
+        <View
           lanes={timeline.lanes}
           selectedId={selected?.id ?? null}
           onSelect={select}

@@ -112,6 +112,17 @@ export default {
     peak: "並列のピーク：{n}",
     parallel: "並列",
     idle: "{d} の待機",
+    view: { label: "タイムラインの表示", tracks: "トラック", tree: "ツリー" },
+    tracks: {
+      label: "会話のトラック",
+      rows: "トラック: {n}",
+      column: "トラック",
+      family: { turns: "ターン", tools: "ツール呼び出し", agents: "サブエージェント", waits: "あなたの応答待ち", signals: "イベント" },
+      of: "{agent} の呼び出し",
+      row: "{name} · {n}",
+      help: "ズーム: Ctrl/⌘ + ホイールまたは W/S · 移動: ドラッグまたは A/D · 矢印でバーを移動、Enter で開く、Z でそのバーに合わせる",
+      helpTouch: "ピンチでズーム、横にドラッグで移動、バーをタップして詳細を表示",
+    },
     trace: {
       label: "会話のトレース",
       spans: "スパン：{n}",

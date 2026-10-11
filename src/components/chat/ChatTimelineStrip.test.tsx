@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { ChatMessage } from '@/types'
@@ -27,6 +27,9 @@ const goTo = (name: RegExp) => {
   fireEvent.click(screen.getByRole('treeitem', { name }))
   fireEvent.click(within(screen.getByTestId('trace-detail')).getByRole('button', { name: 'Show in the conversation' }))
 }
+
+// These tests walk the span tree; the strip opens as tracks unless the reader chose otherwise.
+beforeEach(() => localStorage.setItem('po.timeline.view', 'tree'))
 
 describe('<ChatTimelineStrip>', () => {
   it('shows the work lane and the conversation with its provider · model', () => {

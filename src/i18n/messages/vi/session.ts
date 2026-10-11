@@ -112,6 +112,17 @@ export default {
     peak: "Đỉnh song song: {n}",
     parallel: "Song song",
     idle: "Nghỉ {d}",
+    view: { label: "Chế độ xem dòng thời gian", tracks: "Rãnh", tree: "Cây" },
+    tracks: {
+      label: "Các rãnh của cuộc trò chuyện",
+      rows: "Rãnh: {n}",
+      column: "Rãnh",
+      family: { turns: "Lượt", tools: "Lời gọi công cụ", agents: "Tác tử con", waits: "Đang chờ bạn", signals: "Sự kiện" },
+      of: "Lời gọi của {agent}",
+      row: "{name} · {n}",
+      help: "Thu phóng: Ctrl/⌘ + con lăn hoặc W/S · Cuộn: kéo hoặc A/D · Phím mũi tên đi qua các thanh, Enter mở một thanh, Z căn khung vào nó",
+      helpTouch: "Chụm để thu phóng, kéo ngang để cuộn, chạm vào một thanh để xem chi tiết",
+    },
     trace: {
       label: "Dấu vết của cuộc trò chuyện",
       spans: "Khoảng: {n}",

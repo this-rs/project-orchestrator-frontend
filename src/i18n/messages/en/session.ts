@@ -110,6 +110,27 @@ export default {
     peak: "Peak in parallel: {n}",
     parallel: "In parallel",
     idle: "{d} idle",
+    view: {
+      label: "Timeline view",
+      tracks: "Tracks",
+      tree: "Tree",
+    },
+    tracks: {
+      label: "Tracks of the conversation",
+      rows: "Tracks: {n}",
+      column: "Track",
+      family: {
+        turns: "Turns",
+        tools: "Tool calls",
+        agents: "Sub-agents",
+        waits: "Waiting for you",
+        signals: "Events",
+      },
+      of: "Calls of {agent}",
+      row: "{name} · {n}",
+      help: "Zoom: Ctrl/⌘ + wheel or W/S · Pan: drag or A/D · Arrows walk the bars, Enter opens one, Z zooms on it",
+      helpTouch: "Pinch to zoom, drag sideways to pan, tap a bar for its details",
+    },
     trace: {
       label: "Trace of the conversation",
       spans: "Spans: {n}",

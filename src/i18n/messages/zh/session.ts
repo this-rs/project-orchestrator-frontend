@@ -112,6 +112,17 @@ export default {
     peak: "并行峰值：{n}",
     parallel: "并行",
     idle: "空闲 {d}",
+    view: { label: "时间线视图", tracks: "轨道", tree: "树形" },
+    tracks: {
+      label: "对话的轨道",
+      rows: "轨道：{n}",
+      column: "轨道",
+      family: { turns: "轮次", tools: "工具调用", agents: "子代理", waits: "等待您", signals: "事件" },
+      of: "{agent} 的调用",
+      row: "{name} · {n}",
+      help: "缩放：Ctrl/⌘ + 滚轮或 W/S · 平移：拖动或 A/D · 方向键在条之间移动，Enter 打开，Z 聚焦该条",
+      helpTouch: "双指缩放，横向拖动平移，点击条查看详情",
+    },
     trace: {
       label: "对话追踪",
       spans: "跨度：{n}",

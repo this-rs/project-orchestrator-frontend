@@ -112,6 +112,17 @@ export default {
     peak: "Spitze parallel: {n}",
     parallel: "Parallel",
     idle: "{d} Pause",
+    view: { label: "Ansicht der Zeitleiste", tracks: "Spuren", tree: "Baum" },
+    tracks: {
+      label: "Spuren des Gesprächs",
+      rows: "Spuren: {n}",
+      column: "Spur",
+      family: { turns: "Runden", tools: "Werkzeugaufrufe", agents: "Unteragenten", waits: "Wartet auf dich", signals: "Ereignisse" },
+      of: "Aufrufe von {agent}",
+      row: "{name} · {n}",
+      help: "Zoom: Strg/⌘ + Mausrad oder W/S · Verschieben: ziehen oder A/D · Pfeile gehen über die Balken, Eingabe öffnet einen, Z rahmt ihn ein",
+      helpTouch: "Zum Zoomen zusammenziehen, seitlich ziehen zum Verschieben, einen Balken antippen für seine Details",
+    },
     trace: {
       label: "Trace der Unterhaltung",
       spans: "Abschnitte: {n}",

@@ -17,7 +17,7 @@
  * Reusable and controlled: it knows nothing about chat or routes. Give it
  * lanes (see `buildConversationTimeline` / `buildTimeline`).
  */
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
 import { AlertTriangle, ChartNoAxesGantt, ChevronDown, ChevronRight, Maximize2, Radio, RotateCw, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button, EmptyState, StatusIcon, StatusDot } from '@/components/ui'
 import { focusRing, focusRingInset } from '@/components/ui/classes'
@@ -25,6 +25,8 @@ import { TONE_CLASSES } from '@/components/ui/statusMeta'
 import { buildAxis, toX, type Axis } from './axis'
 import { concurrencyOf } from './gantt'
 import type { TimelineItem, TimelineLane } from './model'
+import { DRAG_SLOP_PX, SIDE_PX, SKELETON_DELAY_MS, WIDE_PX, fill, isTyping, useDelayed, useNow, useWidth } from './shared'
+import { BottomSheet, ToolButton } from './sharedUi'
 import { DEFAULT_TIMELINE_LABELS, STATUS_TONE, describeContext, formatItemDuration, runNote, type TimelineLabels } from './status'
 import { TraceDetail } from './TraceDetail'
 import { TraceMinimap } from './TraceMinimap'
@@ -36,21 +38,12 @@ import {
   panView, pinchView, ticksFor, timeAt, viewPct, zoomView, type View,
 } from './viewport'
 
-/** Below this width (of the component, not the screen) the trace is one column and the detail a bottom sheet. */
-const WIDE_PX = 640
-/** From this width the detail sits beside the trace. */
-const SIDE_PX = 1100
+export { SKELETON_DELAY_MS }
+
 const ROW_PX = { compact: 28, comfortable: 32, phone: 52 } as const
 const INDENT_PX = 14
 const OVERSCAN = 8
-/** A drag shorter than this is a click. */
-const DRAG_SLOP_PX = 4
 const TREE_COLUMN = 'minmax(11rem, 36%)'
-/**
- * A first load shorter than this shows no skeleton at all: a fast answer goes straight from
- * nothing to the trace, without a placeholder blinking in between.
- */
-export const SKELETON_DELAY_MS = 180
 /** Rows the skeleton draws at most: the real count is not known yet, a short stand-in grows less. */
 const SKELETON_ROWS = 6
 
@@ -75,53 +68,6 @@ export interface TraceViewProps {
   showFit?: boolean
   className?: string
 }
-
-/** Width of an element, 0 where it cannot be measured (tests). */
-function useWidth(ref: React.RefObject<HTMLElement | null>): number {
-  const [width, setWidth] = useState(0)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver((entries) => {
-      const w = Math.round(entries[0]?.contentRect.width ?? 0)
-      setWidth((prev) => (prev === w ? prev : w))
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [ref])
-  return width
-}
-
-/** True once `active` has stayed true for `ms`; false again as soon as it turns false. */
-function useDelayed(active: boolean, ms: number): boolean {
-  const [elapsed, setElapsed] = useState(false)
-  useEffect(() => {
-    if (!active) return
-    const id = window.setTimeout(() => setElapsed(true), ms)
-    return () => {
-      window.clearTimeout(id)
-      setElapsed(false)
-    }
-  }, [active, ms])
-  return active && elapsed
-}
-
-/** A clock that ticks while something runs, and not at all otherwise. */
-function useNow(active: boolean, everyMs = 500): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!active) return
-    const id = window.setInterval(() => setNow(Date.now()), everyMs)
-    return () => window.clearInterval(id)
-  }, [active, everyMs])
-  return now
-}
-
-const fill = (template: string, vars: Record<string, string | number>) =>
-  Object.entries(vars).reduce((s, [k, v]) => s.replace(`{${k}}`, String(v)), template)
-
-const isTyping = (el: EventTarget | null) =>
-  el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
 
 interface RowProps {
   node: TraceNode
@@ -275,23 +221,6 @@ const Row = memo(function Row({ node, top, height, view, axis, wide, selected, f
     </div>
   )
 }, sameRow)
-
-function ToolButton({ label, onClick, pressed, wide, children }: { label: string; onClick: () => void; pressed?: boolean; wide: boolean; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      aria-pressed={pressed}
-      className={`inline-flex shrink-0 items-center justify-center rounded-md transition-colors ${wide ? 'size-8' : 'size-11'} ${
-        pressed ? 'bg-indigo-400/20 text-indigo-200' : 'text-gray-300 hover:bg-white/[0.06] hover:text-gray-100'
-      } ${focusRing}`}
-    >
-      {children}
-    </button>
-  )
-}
 
 export function TraceView({
   lanes, selectedId, onSelect, onOpen, labels = DEFAULT_TIMELINE_LABELS, density = 'compact', maxRowsHeight = 480,
@@ -821,34 +750,6 @@ export function TraceView({
         </section>
       )}
       {detailPanel && !wide && <BottomSheet label={L.detail.title} onClose={closeDetail}>{detailPanel}</BottomSheet>}
-    </div>
-  )
-}
-
-/** The detail on a phone: a sheet over the lower part of the screen; Escape or the close button dismisses it. */
-function BottomSheet({ label, onClose, children }: { label: string; onClose: () => void; children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    ref.current?.focus()
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
-  const style: CSSProperties = { paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }
-  return (
-    <div
-      ref={ref}
-      role="dialog"
-      aria-label={label}
-      tabIndex={-1}
-      data-testid="trace-sheet"
-      className="fixed inset-x-0 bottom-0 z-50 max-h-[70dvh] overflow-y-auto rounded-t-2xl border-t border-white/15 bg-slate-900 px-4 pt-2 shadow-2xl outline-none"
-      style={style}
-    >
-      <div aria-hidden="true" className="mx-auto mb-2 h-1 w-10 rounded bg-white/25" />
-      {children}
     </div>
   )
 }
