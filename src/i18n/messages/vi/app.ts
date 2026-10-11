@@ -54,7 +54,7 @@ export default {
     relayedOut: 'Cuộc trò chuyện này tiếp tục trên {to}: phiên này đã đóng.',
     relayedAuto: 'Do PO chuyển.',
     openContinuation: 'Mở phần tiếp theo',
-    sessionClosed: { closed: 'Máy chủ đã đóng phiên. Hãy bắt đầu cuộc trò chuyện mới để tiếp tục.', idle: 'Phiên đã đóng sau thời gian dài không hoạt động. Hãy bắt đầu cuộc trò chuyện mới để tiếp tục.', error: 'Phiên đã đóng sau một lỗi. Hãy bắt đầu cuộc trò chuyện mới để tiếp tục.' },
+    sessionClosed: { closed: 'Phiên đã kết thúc.', idle: 'Phiên đã kết thúc (không hoạt động).', error: 'Phiên đã kết thúc (lỗi).' },
     compactionRecovered: 'Đã khôi phục ngữ cảnh sau khi nén (~{tokens} token được nạp lại, {ms} ms).',
     compactionRecoveryFailed: 'Không thể khôi phục ngữ cảnh sau khi nén ({ms} ms): hãy nêu lại mục tiêu nếu câu trả lời bị lệch.',
     followed: 'Cuộc trò chuyện này đã được chuyển từ {from} sang {to} ở nơi khác: thẻ này giờ theo phiên mới.',

@@ -54,7 +54,7 @@ export default {
     relayedOut: '此对话在 {to} 上继续: 此会话已关闭。',
     relayedAuto: '由 PO 移动。',
     openContinuation: '打开后续对话',
-    sessionClosed: { closed: '服务器已关闭会话。请开始新对话以继续。', idle: '会话因长时间空闲已关闭。请开始新对话以继续。', error: '会话因错误已关闭。请开始新对话以继续。' },
+    sessionClosed: { closed: '会话已结束。', idle: '会话已结束（空闲）。', error: '会话已结束（错误）。' },
     compactionRecovered: '压缩后已恢复上下文 (~{tokens} 个令牌重新注入, {ms} ms)。',
     compactionRecoveryFailed: '压缩后无法恢复上下文 ({ms} ms): 如果回答偏离, 请重新说明目标。',
     followed: '此对话已在别处从 {from} 移至 {to}: 此标签页现在跟随新会话。',

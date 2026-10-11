@@ -60,8 +60,8 @@ export function SessionEventBlock({ block }: { block: ContentBlock }) {
     const reason = String(m.reason ?? 'closed')
     const key = reason === 'idle' ? 'app.chat.sessionClosed.idle' : reason === 'error' ? 'app.chat.sessionClosed.error' : 'app.chat.sessionClosed.closed'
     return (
-      <div role="status" data-testid="session-closed" data-reason={reason} className="my-2 flex items-start gap-2 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-gray-300">
-        <PowerOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden="true" />
+      <div role="status" data-testid="session-closed" data-reason={reason} className="my-1 flex items-start gap-2 py-1 text-[11px] text-gray-500">
+        <PowerOff className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
         <p className="min-w-0 flex-1">{t(key)}</p>
       </div>
     )

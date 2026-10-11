@@ -54,7 +54,7 @@ export default {
     relayedOut: '이 대화는 {to}에서 계속됩니다: 이 세션은 종료되었습니다.',
     relayedAuto: 'PO가 옮겼습니다.',
     openContinuation: '이어지는 대화 열기',
-    sessionClosed: { closed: '서버가 세션을 종료했습니다. 계속하려면 새 대화를 시작하세요.', idle: '오랫동안 활동이 없어 세션이 종료되었습니다. 계속하려면 새 대화를 시작하세요.', error: '오류로 인해 세션이 종료되었습니다. 계속하려면 새 대화를 시작하세요.' },
+    sessionClosed: { closed: '세션 종료.', idle: '오랫동안 활동이 없어 세션 종료.', error: '오류로 인해 세션 종료.' },
     compactionRecovered: '압축 후 컨텍스트를 복원했습니다 (~{tokens} 토큰 재주입, {ms} ms).',
     compactionRecoveryFailed: '압축 후 컨텍스트를 복원하지 못했습니다 ({ms} ms): 답변이 벗어나면 목표를 다시 알려 주세요.',
     followed: '이 대화가 다른 곳에서 {from}에서 {to}(으)로 옮겨졌습니다: 이 탭은 이제 새 세션을 따라갑니다.',

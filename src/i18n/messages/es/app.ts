@@ -54,7 +54,7 @@ export default {
     relayedOut: 'Esta conversación continúa en {to}: esta sesión está cerrada.',
     relayedAuto: 'Movida por PO.',
     openContinuation: 'Abrir la continuación',
-    sessionClosed: { closed: 'Sesión cerrada por el servidor. Inicia una nueva conversación para continuar.', idle: 'Sesión cerrada tras una larga inactividad. Inicia una nueva conversación para continuar.', error: 'Sesión cerrada tras un error. Inicia una nueva conversación para continuar.' },
+    sessionClosed: { closed: 'Sesión terminada.', idle: 'Sesión terminada (inactividad).', error: 'Sesión terminada (error).' },
     compactionRecovered: 'Contexto restaurado tras la compactación (~{tokens} tokens reinyectados, {ms} ms).',
     compactionRecoveryFailed: 'No se pudo restaurar el contexto tras la compactación ({ms} ms): reformula el objetivo si las respuestas se desvían.',
     followed: 'Esta conversación se movió de {from} a {to} desde otro lugar: esta pestaña sigue ahora la nueva sesión.',

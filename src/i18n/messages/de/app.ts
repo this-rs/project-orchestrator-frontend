@@ -54,7 +54,7 @@ export default {
     relayedOut: 'Diese Unterhaltung geht auf {to} weiter: Diese Sitzung ist geschlossen.',
     relayedAuto: 'Von PO verschoben.',
     openContinuation: 'Fortsetzung öffnen',
-    sessionClosed: { closed: 'Sitzung vom Server geschlossen. Starten Sie eine neue Unterhaltung, um fortzufahren.', idle: 'Sitzung nach langer Inaktivität geschlossen. Starten Sie eine neue Unterhaltung, um fortzufahren.', error: 'Sitzung nach einem Fehler geschlossen. Starten Sie eine neue Unterhaltung, um fortzufahren.' },
+    sessionClosed: { closed: 'Sitzung beendet.', idle: 'Sitzung beendet (Inaktivität).', error: 'Sitzung beendet (Fehler).' },
     compactionRecovered: 'Kontext nach der Komprimierung wiederhergestellt (~{tokens} Tokens erneut eingespielt, {ms} ms).',
     compactionRecoveryFailed: 'Der Kontext konnte nach der Komprimierung nicht wiederhergestellt werden ({ms} ms): Formulieren Sie das Ziel neu, falls die Antworten abschweifen.',
     followed: 'Diese Unterhaltung wurde anderswo von {from} nach {to} verschoben: Dieser Tab folgt jetzt der neuen Sitzung.',

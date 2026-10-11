@@ -52,7 +52,7 @@ export default {
     relayedOut: 'This conversation continues on {to}: this session is closed.',
     relayedAuto: 'Moved by PO.',
     openContinuation: 'Open the continuation',
-    sessionClosed: { closed: 'Session closed by the server. Start a new conversation to continue.', idle: 'Session closed after a long idle time. Start a new conversation to continue.', error: 'Session closed after an error. Start a new conversation to continue.' },
+    sessionClosed: { closed: 'Session ended.', idle: 'Session ended (idle).', error: 'Session ended (error).' },
     compactionRecovered: 'Context restored after compaction (~{tokens} tokens re-injected, {ms} ms).',
     compactionRecoveryFailed: 'The context could not be restored after compaction ({ms} ms): restate the goal if the answers drift.',
     followed: 'This conversation was moved from {from} to {to} elsewhere: this tab now follows the new session.',
