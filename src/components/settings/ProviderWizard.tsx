@@ -27,7 +27,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useAtomValue } from 'jotai'
 import { Check } from 'lucide-react'
-import { authModeAtom, chatSelectedProjectAtom, currentUserAtom, selectedProjectSlugAtom } from '@/atoms'
+import { authModeAtom, authModeConfirmedAtom, chatSelectedProjectAtom, currentUserAtom, selectedProjectSlugAtom } from '@/atoms'
 import { Button, Facts, Switch, surface } from '@/components/ui'
 import { presetByKey, presetLabel } from '@/constants/providerPresets'
 import {
@@ -200,6 +200,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const currentProjectSlug = chatProjectSlug ?? pageProjectSlug
   const currentUser = useAtomValue(currentUserAtom)
   const appAuthMode = useAtomValue(authModeAtom)
+  const authModeConfirmed = useAtomValue(authModeConfirmedAtom)
 
   const [step, setStep] = useState(0)
   const [identity, setIdentity] = useState<IdentityState>(() => initialIdentity('deepseek', t))
@@ -407,8 +408,8 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
     !!pilotInstance && pilotInstance.health.status !== 'unhealthy' && pilotInstance.health.status !== 'auth_required'
   /** Proposed as pilot only once it answered the test AND called a tool: otherwise every new chat would fail. */
   const testPassed = test?.ok === true && test.probe?.tools !== false
-  /** The pilot role is server-wide: only the administrator (or the one user of a server without sign-in) gets it switched on for them. */
-  const decidesForAll = currentUser?.is_root === true || appAuthMode === 'none'
+  /** The pilot role is server-wide: only the administrator (or the one user of a server without sign-in, as the server SAID, not the fallback of a failed /auth/providers) gets it switched on for them. */
+  const decidesForAll = currentUser?.is_root === true || (appAuthMode === 'none' && authModeConfirmed)
   const pilotWanted = makePilot ?? (roles !== null && !pilotUsable && testPassed && decidesForAll)
   const pilotModel = (savedDefault ?? identity.model.trim()) || undefined
 

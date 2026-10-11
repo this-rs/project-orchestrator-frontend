@@ -56,7 +56,7 @@ vi.mock('@/services/projects', () => ({
   projectsApi: { list: vi.fn().mockResolvedValue({ items: [{ slug: 'acme', name: 'Acme' }] }) },
 }))
 
-import { currentUserAtom } from '@/atoms'
+import { authModeAtom, authModeConfirmedAtom, currentUserAtom } from '@/atoms'
 import { ApiError } from '@/services/api'
 import { ProviderWizard } from './ProviderWizard'
 import { CLAUDE, DEEPSEEK, mountSettings, response } from './settingsTestKit'
@@ -1057,14 +1057,22 @@ describe('ProviderWizard — the pilot role, review of #360', () => {
   const CLAUDE_NO_CLI = { ...CLAUDE, health: { status: 'unhealthy' as const, version: null } }
   const pilotSwitch = () => screen.getByRole('switch', { name: /Use this provider for new chats/ })
 
-  function mountAs(user: { is_root: boolean } | null, providers = [CLAUDE_NO_CLI, DEEPSEEK]) {
+  function mountAs(
+    user: { is_root: boolean } | null,
+    providers = [CLAUDE_NO_CLI, DEEPSEEK],
+    auth: { mode: 'none' | 'required'; confirmed: boolean } = { mode: 'required', confirmed: true }
+  ) {
     list.mockReset().mockResolvedValue(response(providers))
     return mountSettings(
       <ProviderWizard existingIds={providers.map((p) => p.id)} onClose={onClose} onFinished={onFinished} />,
       {
         providers,
         list,
-        prepare: (store) => store.set(currentUserAtom, user ? { id: 'u1', email: 'a@b.c', name: 'A', ...user } : null),
+        prepare: (store) => {
+          store.set(currentUserAtom, user ? { id: 'u1', email: 'a@b.c', name: 'A', ...user } : null)
+          store.set(authModeAtom, auth.mode)
+          store.set(authModeConfirmedAtom, auth.confirmed)
+        },
       }
     )
   }
@@ -1105,6 +1113,19 @@ describe('ProviderWizard — the pilot role, review of #360', () => {
     fireEvent.click(button('Finish'))
     await waitFor(() => expect(onFinished).toHaveBeenCalledWith('ollama'))
     expect(setRoles).not.toHaveBeenCalled()
+  })
+
+  it('a server that SAID it has no sign-in: the one user decides, the switch is on', async () => {
+    mountAs(null, undefined, { mode: 'none', confirmed: true })
+    await toSummary()
+    expect(pilotSwitch().getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('auth "none" only as the fallback of a failed /auth/providers: not trusted, the switch is off for a non-root user', async () => {
+    mountAs({ is_root: false }, undefined, { mode: 'none', confirmed: false })
+    await toSummary()
+    expect(pilotSwitch().getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByTestId('wizard-pilot-shared')).toBeTruthy()
   })
 
   it('a pilot waiting for a sign-in (auth_required) cannot answer: the new provider is proposed', async () => {
