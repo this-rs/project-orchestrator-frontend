@@ -38,6 +38,15 @@ export default {
   compaction: {
     label: "संदर्भ संक्षिप्त हो रहा है"
   },
+  spawn: {
+    runner: "रनर",
+    conversation: "उपजी",
+    delegation: "सौंपी गई",
+    pipeline: "पाइपलाइन",
+    gate: "गेट",
+    trigger: "ट्रिगर",
+    subagentOf: "किसी अन्य बातचीत का उप-एजेंट"
+  },
   welcome: {
     title: "Project Orchestrator",
     subtitle: "आप क्या करना चाहेंगे?",

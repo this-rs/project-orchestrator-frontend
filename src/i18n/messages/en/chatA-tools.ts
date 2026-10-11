@@ -1,4 +1,17 @@
 export default {
+  /** The `Agent` tool of the native harness: a task handed to a sub-agent. */
+  agent: {
+    asked: 'Asked of the sub-agent',
+    kind: 'Kind of agent',
+    answer: 'Its answer',
+    failed: 'The sub-agent failed',
+    open: 'Open the sub-conversation',
+    openTitle: 'Open the conversation this sub-agent ran in',
+    running: 'The sub-agent is still working…',
+    noChild: 'The sub-conversation is not listed yet',
+    noChildTitle:
+      'The child conversation is found by the id of this tool call. It appears as soon as the server lists it.',
+  },
   bash: {
     emptyCommand: '(empty command)',
     showLess: 'show less',

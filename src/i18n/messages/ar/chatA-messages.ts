@@ -38,6 +38,15 @@ export default {
   compaction: {
     label: "جارٍ ضغط السياق"
   },
+  spawn: {
+    runner: "منفّذ",
+    conversation: "متفرّعة",
+    delegation: "مُفوَّضة",
+    pipeline: "خط إنتاج",
+    gate: "بوابة",
+    trigger: "مُشغِّل",
+    subagentOf: "وكيل فرعي لمحادثة أخرى"
+  },
   welcome: {
     title: "Project Orchestrator",
     subtitle: "ماذا تريد أن تفعل؟",

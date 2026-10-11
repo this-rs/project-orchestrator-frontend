@@ -77,7 +77,7 @@ const SESSIONS: ChatSession[] = [
     id: 's-runner',
     title: 'Runner task',
     project_slug: 'backend',
-    spawned_by: { type: 'runner', run_id: 'run', plan_id: 'p1' },
+    spawned_by: { type: 'runner', run_id: 'run', task_id: 't1' },
     linked_plans: [
       { id: 'p1', title: 'Plan one', source: 'runner' },
       { id: 'p2', title: 'Plan two', source: 'runner' },

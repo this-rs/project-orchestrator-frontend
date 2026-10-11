@@ -3,6 +3,7 @@ import type { CostBasis } from '@/types/provider'
 import { getEventBus } from '@/services'
 import { chatApi } from '@/services/chat'
 import type { CrudEvent, DetachedSession } from '@/types'
+import { readSpawnedBy, spawnedByParentId, spawnedByPlanId, spawnedByRunId, spawnedByToolUseId } from '@/utils/spawnedBy'
 
 /** Info about an active detached run (child session or plan runner task) */
 export interface DetachedRun {
@@ -16,10 +17,22 @@ export interface DetachedRun {
   /** Provider instance of the child. Absent = Claude Code. */
   providerId?: string | null
   startedAt: string
-  /** If spawned by a runner, the plan ID */
+  /**
+   * The plan this child works on, when its origin names one. Only a
+   * `delegation` carries a `plan_id`: a runner/pipeline/gate child names its
+   * `task_id` and its `run_id`. Reading `plan_id` off a `runner` origin, as this
+   * hook used to, left `planId` undefined on every single child.
+   */
   planId?: string
-  /** If spawned by a runner, the run ID */
+  /** The run this child belongs to (runner, pipeline, gate, triggered run). */
   runId?: string
+  /** The task this child was opened for, when its origin names one. */
+  taskId?: string
+  /**
+   * The parent's `Agent` tool-call id, for a child opened by a native-harness
+   * sub-agent call. The sub-agent card joins on this.
+   */
+  toolUseId?: string
 }
 
 interface UseDetachedRunsResult {
@@ -33,7 +46,8 @@ interface UseDetachedRunsResult {
   refresh: () => void
 }
 
-function toDetachedRun(s: DetachedSession): DetachedRun {
+export function toDetachedRun(s: DetachedSession): DetachedRun {
+  const spawnedBy = readSpawnedBy(s.spawned_by)
   return {
     sessionId: s.id,
     title: s.title || `Run ${s.id.slice(0, 8)}`,
@@ -43,8 +57,10 @@ function toDetachedRun(s: DetachedSession): DetachedRun {
     costBasis: s.cost_basis,
     providerId: s.provider_id,
     startedAt: s.created_at,
-    planId: s.spawned_by?.type === 'runner' ? s.spawned_by.plan_id : undefined,
-    runId: s.spawned_by?.type === 'runner' ? s.spawned_by.run_id : undefined,
+    planId: spawnedByPlanId(spawnedBy),
+    runId: spawnedByRunId(spawnedBy),
+    taskId: spawnedBy && 'task_id' in spawnedBy ? spawnedBy.task_id : undefined,
+    toolUseId: spawnedByToolUseId(spawnedBy),
   }
 }
 
@@ -113,15 +129,17 @@ export function useDetachedRuns(sessionId: string | null): UseDetachedRunsResult
         })
       }
 
-      // New child session created — re-fetch to get the full data
+      // New session created — re-fetch to get the full data.
+      //
+      // The payload carries `spawned_by` only on a backend that sends it (a
+      // sibling PR adds the field). When it IS there we re-fetch only for our
+      // own children; when it is NOT, the event says nothing about the parent
+      // and the only honest answer is to ask the children endpoint — which
+      // answers with ours alone. Skipping the fetch here is what used to make
+      // a sub-agent's conversation invisible until the panel was remounted.
       if (event.action === 'created') {
-        // Check if the payload indicates this is a child of our session
-        const payload = event.payload
-        if (
-          payload?.spawned_by &&
-          typeof payload.spawned_by === 'object' &&
-          (payload.spawned_by as Record<string, unknown>).parent_session_id === sessionId
-        ) {
+        const spawnedBy = readSpawnedBy(event.payload?.spawned_by)
+        if (!spawnedBy || spawnedByParentId(spawnedBy) === sessionId) {
           fetchChildren()
         }
       }
@@ -163,8 +181,9 @@ export function useActiveRunTracker(): Map<string, ActiveRunInfo> {
       const payload = event.payload
       if (!payload?.spawned_by) return
 
-      const spawnedBy = payload.spawned_by as Record<string, unknown>
-      const parentId = spawnedBy.parent_session_id as string | undefined
+      // No API call here: without a readable parent in the payload there is
+      // nothing to count against, so the row keeps the count it has.
+      const parentId = spawnedByParentId(readSpawnedBy(payload.spawned_by))
       if (!parentId) return
 
       if (event.action === 'created') {

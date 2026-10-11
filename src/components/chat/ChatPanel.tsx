@@ -176,6 +176,18 @@ export function ChatPanel() {
   // ones. Showing a live run in both (and in a banner, and in a header pill) was three surfaces
   // for one fact.
   const finishedRuns = useMemo(() => detachedRuns.runs.filter((r) => !r.isStreaming), [detachedRuns.runs])
+  // What the transcript needs of the children: a sub-agent card finds its own
+  // child conversation by the id of its tool call (`spawned_by.tool_use_id`).
+  const childSessions = useMemo(
+    () =>
+      detachedRuns.runs.map((r) => ({
+        sessionId: r.sessionId,
+        title: r.title,
+        isStreaming: r.isStreaming,
+        toolUseId: r.toolUseId,
+      })),
+    [detachedRuns.runs],
+  )
   const panelRef = useRef<HTMLDivElement>(null)
   const setScrollToTurn = useSetAtom(chatScrollToTurnAtom)
   const permissionConfig = useAtomValue(chatPermissionConfigAtom)
@@ -567,7 +579,7 @@ export function ChatPanel() {
   // On desktop: sidebar is a permanent 288px column
   if (isFullscreen) {
     return (
-      <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive}>
+      <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={childSessions} openSession={handleViewRun}>
       <ChatCapabilitiesProvider capabilities={capabilities}>
       <div
         ref={panelRef}
@@ -794,6 +806,7 @@ export function ChatPanel() {
               rootSessionId={rootSessionId}
               onNavigate={handleTreeNavigate}
               isStreaming={chat.isStreaming}
+              spawnedBy={spawnedBy}
             />
           )}
 
@@ -902,7 +915,7 @@ export function ChatPanel() {
 
   // --- PANEL LAYOUT (non-fullscreen): toggle-based session list ---
   return (
-    <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive}>
+    <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={childSessions} openSession={handleViewRun}>
     <ChatCapabilitiesProvider capabilities={capabilities}>
     <div
       ref={panelRef}
@@ -1032,6 +1045,7 @@ export function ChatPanel() {
           rootSessionId={rootSessionId}
           onNavigate={handleTreeNavigate}
           isStreaming={chat.isStreaming}
+          spawnedBy={spawnedBy}
         />
       )}
 

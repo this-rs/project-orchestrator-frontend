@@ -38,6 +38,15 @@ export default {
   compaction: {
     label: "컨텍스트 압축 중"
   },
+  spawn: {
+    runner: "러너",
+    conversation: "파생",
+    delegation: "위임",
+    pipeline: "파이프라인",
+    gate: "게이트",
+    trigger: "트리거",
+    subagentOf: "다른 대화의 서브에이전트"
+  },
   welcome: {
     title: "Project Orchestrator",
     subtitle: "무엇을 하시겠어요?",

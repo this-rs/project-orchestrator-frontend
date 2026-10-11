@@ -22,6 +22,20 @@ export function getTodoWriteSummary(toolInput: Record<string, unknown>): string 
   return `${completed}/${todos.length} — ${label}`
 }
 
+/**
+ * Agent (native harness): the `description` the model wrote (3–5 words, and
+ * required by the tool's schema), narrowed by the `subagent_type` when it named
+ * one. No `description` — a model may always send a partial input — falls back
+ * to the head of the prompt, so the header never reads as an empty call.
+ */
+export function getAgentSummary(toolInput: Record<string, unknown>): string {
+  const str = (key: string) => (typeof toolInput[key] === 'string' ? (toolInput[key] as string).trim() : '')
+  const kind = str('subagent_type')
+  const what = str('description') || truncate(str('prompt'), 60)
+  if (!what) return kind ? `Agent(${kind})` : 'Agent'
+  return kind ? `${what} — ${kind}` : what
+}
+
 /** Truncate a string to maxLen characters, adding ellipsis if needed */
 function truncate(str: string, maxLen: number): string {
   if (str.length <= maxLen) return str

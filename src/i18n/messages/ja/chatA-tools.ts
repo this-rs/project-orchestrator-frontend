@@ -1,6 +1,17 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  agent: {
+    asked: "サブエージェントへの依頼",
+    kind: "エージェントの種類",
+    answer: "その回答",
+    failed: "サブエージェントが失敗しました",
+    open: "サブ会話を開く",
+    openTitle: "このサブエージェントが動いた会話を開く",
+    running: "サブエージェントはまだ作業中です…",
+    noChild: "サブ会話はまだ一覧にありません",
+    noChildTitle: "子会話はこのツール呼び出しの識別子で見つけます。サーバーが一覧に載せ次第、表示されます。"
+  },
   bash: {
     emptyCommand: "（空のコマンド）",
     showLess: "表示を減らす",

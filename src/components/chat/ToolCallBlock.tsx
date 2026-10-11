@@ -252,6 +252,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
           <ToolContent
             toolName={toolName}
             toolInput={toolInput}
+            toolCallId={(block.metadata?.tool_call_id as string | undefined) ?? block.id}
             providerKind={toolContext.providerKind}
             canonical={toolContext.canonical}
             resultContent={resultBlock?.content}

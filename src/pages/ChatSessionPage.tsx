@@ -8,7 +8,7 @@
  * ChatMessageBubble component as the main chat.
  */
 
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useT } from '@/i18n'
 import { AddToChatButton, useReferenceSource } from '@/refs/source'
 import { useParams, Link, useNavigate } from 'react-router-dom'
@@ -17,6 +17,7 @@ import { useConversationWs } from '@/hooks/runner'
 import { useDetachedRuns, useWorkspaceSlug } from '@/hooks'
 import { useStickToBottom } from '@/hooks/useStickToBottom'
 import { ChatMessageBubble } from '@/components/chat/ChatMessageBubble'
+import { ChatSessionProvider } from '@/components/chat/ChatSessionContext'
 import { AgenticModePill } from '@/components/chat/AgenticModePill'
 import { AgenticModeBanner } from '@/components/chat/AgenticModeBanner'
 import { WsStatusIndicator } from '@/components/runner/WsStatusIndicator'
@@ -42,6 +43,18 @@ export default function ChatSessionPage() {
   const handleViewRun = useCallback((childSessionId: string) => {
     navigate(workspacePath(wsSlug, `/chat/${childSessionId}`))
   }, [navigate, wsSlug])
+  // What the transcript needs of the children: a sub-agent card joins on the
+  // child's `spawned_by.tool_use_id`.
+  const childSessions = useMemo(
+    () =>
+      detachedRuns.runs.map((r) => ({
+        sessionId: r.sessionId,
+        title: r.title,
+        isStreaming: r.isStreaming,
+        toolUseId: r.toolUseId,
+      })),
+    [detachedRuns.runs],
+  )
   const handleStopRun = useCallback((childSessionId: string) => {
     // Best-effort interrupt — the UI updates via WebSocket events. Still
     // report failures: a silent catch here is what kept a dead endpoint
@@ -115,15 +128,23 @@ export default function ChatSessionPage() {
             {t('chatA-page.noMessages')}
           </div>
         )}
-        {messages.map((msg) => (
-          <ChatMessageBubble
-            key={msg.id}
-            message={msg}
-            isStreaming={false}
-            onRespondPermission={noopPermission}
-            onRespondInput={noop}
-          />
-        ))}
+        {/*
+          The children of this session, so a sub-agent's card can open the
+          conversation it ran in (here: another full-page view). `sessionId` is
+          deliberately null — this page is read-only, and a session id would
+          hand the transcript the per-tool Stop chip it must not have.
+        */}
+        <ChatSessionProvider sessionId={null} childSessions={childSessions} openSession={handleViewRun}>
+          {messages.map((msg) => (
+            <ChatMessageBubble
+              key={msg.id}
+              message={msg}
+              isStreaming={false}
+              onRespondPermission={noopPermission}
+              onRespondInput={noop}
+            />
+          ))}
+        </ChatSessionProvider>
       </div>
 
       {/* Scroll to bottom FAB */}

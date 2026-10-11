@@ -5,6 +5,8 @@
  * `new Date()`) so tests are deterministic.
  */
 import type { ChatSession, SpawnedBy } from '@/types'
+import type { MessageKey } from '@/i18n'
+import { tr } from '@/i18n/lazy'
 import { toToolPolicyMode } from '@/types/provider'
 import {
   MODE_DOT_COLORS,
@@ -160,18 +162,29 @@ export function permissionModeMeta(
   return { label: native ?? SESSION_LIST_MODE_LABELS[modeLabelSet(isClaudeCode)][policy], dot: MODE_DOT_COLORS[policy] }
 }
 
-const SPAWN_LABELS: Record<string, { label: string; text: string }> = {
-  runner: { label: 'runner', text: 'text-blue-400' },
-  conversation: { label: 'spawned', text: 'text-violet-400' },
-  delegation: { label: 'delegated', text: 'text-amber-400' },
-  pipeline: { label: 'pipeline', text: 'text-blue-400' },
-  gate: { label: 'gate', text: 'text-amber-400' },
-  trigger: { label: 'trigger', text: 'text-teal-400' },
-}
+/**
+ * Where a spawned session came from: the i18n key of its one-word tag and the
+ * colour it is drawn in. The texts used to be English literals shown in all
+ * thirteen languages; they are read through `tr` at call time, like every other
+ * table of labels outside a component (`src/i18n/lazy.ts`).
+ */
+const SPAWN_LABELS = {
+  runner: { key: 'chatA-messages.spawn.runner', text: 'text-blue-400' },
+  conversation: { key: 'chatA-messages.spawn.conversation', text: 'text-violet-400' },
+  delegation: { key: 'chatA-messages.spawn.delegation', text: 'text-amber-400' },
+  pipeline: { key: 'chatA-messages.spawn.pipeline', text: 'text-blue-400' },
+  gate: { key: 'chatA-messages.spawn.gate', text: 'text-amber-400' },
+  trigger: { key: 'chatA-messages.spawn.trigger', text: 'text-teal-400' },
+} as const satisfies Record<SpawnedBy['type'], { key: MessageKey; text: string }>
 
-/** Short label + text colour describing where a detached session came from. */
+/**
+ * Short label + text colour describing where a spawned session came from, in
+ * the language on screen. An origin nobody knows reads as a sub-conversation,
+ * as it always has.
+ */
 export function spawnLabel(spawnedBy: SpawnedBy | { type: string }): { label: string; text: string } {
-  return SPAWN_LABELS[spawnedBy.type] ?? SPAWN_LABELS.conversation
+  const entry = SPAWN_LABELS[spawnedBy.type as SpawnedBy['type']] ?? SPAWN_LABELS.conversation
+  return { label: tr(entry.key), text: entry.text }
 }
 
 /** Scope shown on the metadata line: the workspace wins over the project (same rule as before). */

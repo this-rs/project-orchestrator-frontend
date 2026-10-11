@@ -38,6 +38,15 @@ export default {
   compaction: {
     label: "正在压缩上下文"
   },
+  spawn: {
+    runner: "执行器",
+    conversation: "派生",
+    delegation: "委派",
+    pipeline: "流水线",
+    gate: "质量门",
+    trigger: "触发器",
+    subagentOf: "另一个对话的子代理"
+  },
   welcome: {
     title: "Project Orchestrator",
     subtitle: "你想做什么？",
