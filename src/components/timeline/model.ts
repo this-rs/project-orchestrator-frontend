@@ -324,6 +324,23 @@ export function buildTimeline(input: TimelineInput): Timeline {
   }
   /** Where an item ran: the provider and model in force right now. */
   const ran = () => ({ ...(provider && { provider }), ...(model && { model }) })
+  /**
+   * The key of an error or a marker. The assembler numbers blocks at random, so the same event read
+   * twice (the transcript, then the history) would get two keys and its row would be rebuilt. Both
+   * reducers date these blocks with the server's time: whole seconds (what the history stores),
+   * numbered on a tie. The session is part of it: a relay is an event of BOTH sessions, and the
+   * trace keeps only one item per key.
+   */
+  const stamped = new Map<string, number>()
+  const stableId = (block: ContentBlock) => {
+    const iso = block.metadata?.created_at
+    const ms = typeof iso === 'string' ? Date.parse(iso) : NaN
+    if (!Number.isFinite(ms)) return block.id
+    const base = `${block.type}:${sessionId}@${Math.floor(ms / 1000)}`
+    const n = stamped.get(base) ?? 0
+    stamped.set(base, n + 1)
+    return n === 0 ? base : `${base}#${n}`
+  }
 
   messages.forEach((msg, mi) => {
     const msgTime = msg.timestamp.getTime()
@@ -433,7 +450,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
         permissions.push({ item: permission, callId: aboutCall })
       } else if (block.type === 'error' || block.type === 'result_error') {
         push({
-          id: block.id,
+          id: stableId(block),
           kind: 'error',
           status: 'error',
           label: clip(block.content) || 'Error',
@@ -449,7 +466,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
         const reason = str(block.metadata?.reason)
         model = next
         push({
-          id: block.id,
+          id: stableId(block),
           kind: 'marker',
           status: 'done',
           label: `Model → ${shortModel(next)}`,
@@ -462,7 +479,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
       } else if (block.type === 'conversation_relayed') {
         const to = str(block.metadata?.to_provider)
         push({
-          id: block.id,
+          id: stableId(block),
           kind: 'marker',
           status: 'done',
           label: clip(block.content) || `→ ${to ?? ''}`,
@@ -474,7 +491,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
         })
       } else if (block.type === 'compact_boundary') {
         push({
-          id: block.id,
+          id: stableId(block),
           kind: 'marker',
           status: 'done',
           label: 'Context compacted',

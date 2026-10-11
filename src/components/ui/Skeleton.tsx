@@ -6,11 +6,11 @@ interface SkeletonProps {
   height?: string
 }
 
-/** Base skeleton block — a pulsing placeholder */
+/** Base skeleton block — a pulsing placeholder (still under `prefers-reduced-motion`). */
 export function Skeleton({ className = '', width, height }: SkeletonProps) {
   return (
     <div
-      className={`animate-pulse rounded bg-white/[0.06] ${className}`}
+      className={`motion-safe:animate-pulse rounded bg-white/[0.06] ${className}`}
       style={{ width, height }}
     />
   )

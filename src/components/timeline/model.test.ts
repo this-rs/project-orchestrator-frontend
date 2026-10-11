@@ -297,6 +297,23 @@ describe('the span of a turn', () => {
   it('marks the moment the conversation moved to another provider', () => {
     const relayed: ContentBlock = { id: 'rel', type: 'conversation_relayed', content: 'Moved to native', metadata: { to_session_id: 'next', to_provider: 'native', created_at: iso(5) } }
     const { items } = buildTimeline({ messages: [user('m1', 'go', 0), assistant('m2', [relayed], 5)], sessionId: 's' })
-    expect(items.find((i) => i.id === 'rel')).toMatchObject({ kind: 'marker', sessionId: 'next', label: 'Moved to native' })
+    expect(items.find((i) => i.kind === 'marker')).toMatchObject({ kind: 'marker', sessionId: 'next', label: 'Moved to native' })
+  })
+
+  it('keys an error or a marker by its server time, so the same event read twice keeps its row', () => {
+    const read = (blockId: string) => buildTimeline({
+      messages: [user('m1', 'go', 0), assistant('m2', [
+        { id: blockId + 'a', type: 'error', content: 'boom', metadata: { created_at: iso(3) } },
+        { id: blockId + 'b', type: 'error', content: 'boom again', metadata: { created_at: iso(3) } },
+        { id: blockId + 'c', type: 'compact_boundary', content: '', metadata: {} },
+      ], 3)],
+      sessionId: 's',
+    }).items.filter((i) => i.kind !== 'request').map((i) => i.id)
+    const transcript = read('x-')
+    const history = read('y-')
+    // Two errors in the same instant still get two keys; without a time the block id is all there is.
+    expect(transcript.slice(0, 2)).toEqual(history.slice(0, 2))
+    expect(new Set(transcript).size).toBe(3)
+    expect(transcript[2]).toBe('x-c')
   })
 })

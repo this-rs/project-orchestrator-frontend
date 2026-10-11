@@ -604,6 +604,8 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
     const createdAt = evt.created_at
       ? new Date(typeof evt.created_at === 'number' ? evt.created_at * 1000 : evt.created_at)
       : new Date()
+    /** The server time of the event (ISO), on the blocks the trace keys by it; absent when the server sent none. */
+    const stamp = evt.created_at ? createdAt.toISOString() : undefined
 
     switch (type) {
       case 'user_message': {
@@ -868,7 +870,7 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
           id: nextBlockId(),
           type: 'error',
           content: evt.message ?? tr('app.chat.unknownError'),
-          metadata: withParent(undefined, parent),
+          metadata: withCreatedAt(withParent(undefined, parent), stamp),
         })
         break
       }
@@ -882,7 +884,7 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
           id: nextBlockId(),
           type: 'error',
           content: sessionErrorText(evt),
-          ...(typed.code ? { metadata: typed } : {}),
+          ...(typed.code || stamp ? { metadata: withCreatedAt(typed.code ? typed : undefined, stamp) } : {}),
         })
         break
       }
@@ -891,7 +893,7 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
       case 'session_closed':
       case 'compaction_recovery': {
         const block = sessionEventBlock(evt)
-        if (block) lastAssistant(createdAt).blocks.push({ id: nextBlockId(), ...block })
+        if (block) lastAssistant(createdAt).blocks.push({ id: nextBlockId(), ...block, metadata: withCreatedAt(block.metadata, stamp) })
         break
       }
 
@@ -902,6 +904,7 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
           id: nextBlockId(),
           type: 'error',
           content: toolsCancelledText(evt),
+          ...(stamp ? { metadata: withCreatedAt(undefined, stamp) } : {}),
         })
         break
       }
@@ -915,7 +918,7 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
           id: nextBlockId(),
           type: 'model_changed',
           content: `Model changed to ${changedModel}`,
-          metadata: changedReason ? { model: changedModel, reason: changedReason } : { model: changedModel },
+          metadata: withCreatedAt(changedReason ? { model: changedModel, reason: changedReason } : { model: changedModel }, stamp),
         })
         break
       }
@@ -931,7 +934,7 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
           id: nextBlockId(),
           type: 'compact_boundary',
           content: label,
-          metadata: { trigger, pre_tokens: preTokens },
+          metadata: withCreatedAt({ trigger, pre_tokens: preTokens }, stamp),
         })
         break
       }
@@ -990,7 +993,7 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
             id: nextBlockId(),
             type: 'result_error',
             content: rResultText ?? tr('app.chat.executionError'),
-            metadata: { result_text: rResultText },
+            metadata: withCreatedAt({ result_text: rResultText }, stamp),
           })
           lastEventWasMaxTurns = false
         } else {
