@@ -162,4 +162,8 @@ export default {
     pending: 'Moving…',
     refused: { forbidden: 'Only a signed-in person can move a conversation to another provider.', not_found: 'This conversation no longer exists.', empty_message: 'Write the message to send on the new provider.', same_provider: 'The conversation is already on this provider.', failed: 'The conversation could not be moved. Nothing changed: try again.' },
   },
+  capabilities: {
+    banner: { poolLacksImages: "No model PO can route this conversation to accepts images", imagesPoolUnbuilt: "This model does not accept images, and PO's routing pool is not probed yet (not probed does not mean no model accepts them)" },
+    composer: { poolLacksImages: "No model PO can route this conversation to accepts images. Not attached: {names}.", imagesPoolUnbuilt: "This model does not accept images, and PO's routing pool is not probed yet. Not attached: {names}." },
+  },
 } as const

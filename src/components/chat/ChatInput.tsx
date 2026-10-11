@@ -39,7 +39,8 @@ import { countRefTokens, reconcileRefs, refKey, removeRefFromText } from '@/refs
 import { MAX_REFS_PER_MESSAGE, type ChatReference, type RefKind } from '@/refs/types'
 import type { RefSearchItem } from '@/refs/refsApi'
 import { findRefTokens, refToken } from '@/utils/messageRefs'
-import { useT } from '@/i18n'
+import { useT, type MessageKey } from '@/i18n'
+import type { ImagesCause } from '@/atoms/providers'
 import { Button } from '@/components/ui'
 import { panelGlass } from '@/components/ui/panelGlass'
 import {
@@ -122,6 +123,15 @@ interface ChatInputProps {
 const NO_QUEUE: QueuedMessage[] = []
 
 const NO_REFUSED_IMAGES: string[] = []
+
+// Why an image was turned away, by cause (`chatSessionImagesCauseAtom`): the model's own limit, the
+// engine's, or — when PO routes (F-R4) — no candidate of its pool reads images, or its pool is not probed yet.
+const IMAGES_REFUSED_KEYS: Readonly<Record<ImagesCause, MessageKey>> = {
+  model: 'session.images.model',
+  harness: 'session.images.harness',
+  routing: 'routing.capabilities.composer.poolLacksImages',
+  routing_unprobed: 'routing.capabilities.composer.imagesPoolUnbuilt',
+}
 
 /** A stable "nothing runs", so an absent prop does not re-render the bar. */
 const NO_ACTIVITY: ReadonlyArray<RunningItem> = []
@@ -883,7 +893,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           data-testid="images-refused"
           className={`rounded-lg border border-amber-500/30 ${panelGlass.warning} px-2.5 py-1.5 text-[11px] text-amber-200`}
         >
-          {t(imagesCause === 'harness' ? 'session.images.harness' : 'session.images.model', { names: refusedImages.join(', ') })}
+          {t(IMAGES_REFUSED_KEYS[imagesCause ?? 'model'], { names: refusedImages.join(', ') })}
         </p>
       )}
       {trustDowngraded && !sessionId && (

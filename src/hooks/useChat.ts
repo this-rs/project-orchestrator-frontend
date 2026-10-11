@@ -54,6 +54,7 @@ import {
 } from '@/utils/chatAssembly'
 import { cancelNoticeMetadata, chipOutcomeOfNotice, nextCancelStamp } from '@/utils/cancelFailure'
 import { tr } from '@/i18n/lazy'
+import { useEffectiveCapabilities } from './useEffectiveCapabilities'
 import { toProviderRef, toToolPolicy, type PermissionScope, type ToolPolicyMode } from '@/types/provider'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
 
@@ -277,6 +278,8 @@ export function useChat() {
   // chatSessionPermissionOverrideAtom DIRECTLY (its own useAtom setter), so the
   // refs stay stale for new-conversation selections. See sendMessage below.
   const store = useStore()
+  // What the next turn can really carry, given the routing candidates (F-R4).
+  useEffectiveCapabilities()
   // Compaction belongs to ONE session: it shows only while that session is the one on screen.
   const isCompacting = compactingSessionId !== null && compactingSessionId === sessionId
   const setIsCompacting = useCallback(

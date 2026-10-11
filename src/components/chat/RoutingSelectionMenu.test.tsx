@@ -23,6 +23,7 @@ import {
   chatSelectedProviderAtom,
   chatSessionModelAtom,
   chatSessionCapabilitiesSnapshotAtom,
+  chatSessionEffectiveCapabilitiesAtom,
   chatSessionIdAtom,
   chatSessionProviderAtom,
   chatSessionRoutingAtom,
@@ -263,6 +264,24 @@ describe('RoutingSelectionMenu', () => {
     expect(routingApi.putProject).not.toHaveBeenCalled()
     expect(store.get(chatDraftAutoAtom)).toBeNull()
     expect(store.get(chatDraftSelectionAtom)).toEqual([])
+  })
+
+  it('an existing chat: what the next turn can carry comes from the routing answer itself (F-R4)', async () => {
+    const images = { value: true, source: 'routing_pool' as const, cause: 'pool_has_it' as const, via: [{ provider: 'local-llama', model: 'phi' }] }
+    changeConversationRouting.mockImplementation((_id: string, change: RoutingChange) => Promise.resolve({ ...serverAnswer(change), effective_capabilities: { images } }))
+    const store = mount('primary', {
+      sessionId: 's1',
+      prepare: (s) => {
+        s.set(chatSessionProviderAtom, { id: 'local-llama' })
+        s.set(chatSessionModelAtom, 'qwen')
+        s.set(chatSessionCapabilitiesSnapshotAtom, { set_model_live: true, images: false })
+        s.set(chatSessionRoutingAtom, { routed_by: 'request', route_reason: null, routing_mode: 'primary' })
+      },
+    })
+    expect(store.get(chatSessionEffectiveCapabilitiesAtom)).toBeNull()
+    openMenu()
+    fireEvent.click(screen.getByRole('switch'))
+    await waitFor(() => expect(store.get(chatSessionEffectiveCapabilitiesAtom)).toEqual({ images }))
   })
 
   it('an existing chat: one tick = strict, several = mixed, sent to the route; no mass gestures, other providers offer a move', async () => {

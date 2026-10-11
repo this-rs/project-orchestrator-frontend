@@ -19,6 +19,7 @@ import {
   chatRoutingSlugAtom,
   chatSelectedProviderAtom,
   chatSessionCapabilitiesAtom,
+  chatSessionEffectiveCapabilitiesStateAtom,
   chatSessionModelAtom,
   chatSessionProviderAtom,
   chatSessionRoutingAtom,
@@ -209,6 +210,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
   const [sessionModel, setSessionModel] = useAtom(chatSessionModelAtom)
   const setForced = useSetAtom(chatForcedTargetAtom)
   const [sessionRouting, setSessionRouting] = useAtom(chatSessionRoutingAtom)
+  const setEffectiveCapabilities = useSetAtom(chatSessionEffectiveCapabilitiesStateAtom)
   const sessionMode = useAtomValue(chatRoutingModeAtom)
   const targetId = useAtomValue(chatTargetProviderIdAtom)
   const sessionProvider = useAtomValue(chatSessionProviderAtom)
@@ -276,6 +278,8 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
       .then((session) => {
         setSessionRouting(sessionRoutingOf(session) ?? { routed_by: null, route_reason: null, routing_mode: change.auto ? 'full' : null, chosen: true })
         if (session.model) setSessionModel(session.model)
+        // What the next turn can carry follows the new routing (F-R4): the server says it now.
+        setEffectiveCapabilities({ sessionId: sid, capabilities: session.effective_capabilities ?? null })
         setTookControlIn(tookControl ? sid : null)
       })
       .catch((err) => setRefusal({ sessionId: sid, reason: conversationRoutingRefusal(err) }))
