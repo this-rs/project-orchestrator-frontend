@@ -25,7 +25,9 @@ function readLastDuration(): number {
     const v = sessionStorage.getItem(DURATION_STORAGE_KEY)
     if (v) {
       const n = Number(v)
-      if (DURATION_CHOICES.some((d) => d.minutes === n)) return n
+      // Only a short choice is remembered: a 4 h or 12 h unlock is chosen each time, never
+      // the silent default of a secrets vault (review of #354, nit 5).
+      if (n <= DEFAULT_MINUTES && DURATION_CHOICES.some((d) => d.minutes === n)) return n
     }
   } catch { /* private mode, blocked storage */ }
   return DEFAULT_MINUTES
@@ -47,7 +49,6 @@ interface VaultUnlockProps {
 export function VaultUnlock({ onUnlocked, doneText, onBusyChange }: VaultUnlockProps) {
   const { t } = useT()
   const inputId = useId()
-  const durationId = useId()
   const [passphrase, setPassphrase] = useState('')
   const [minutes, setMinutes] = useState(readLastDuration)
   const [busy, setBusy] = useState(false)
@@ -128,7 +129,6 @@ export function VaultUnlock({ onUnlocked, doneText, onBusyChange }: VaultUnlockP
         {/* Duration selector — reuses the same choices as VaultPage / SecretRequestTray */}
         <div className="relative shrink-0">
           <select
-            id={durationId}
             value={minutes}
             onChange={(e) => setMinutes(Number(e.target.value))}
             disabled={busy}

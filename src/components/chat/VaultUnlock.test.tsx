@@ -20,12 +20,12 @@ import { VaultUnlock } from './VaultUnlock'
 
 function mount(props: Partial<Parameters<typeof VaultUnlock>[0]> = {}) {
   const onUnlocked = vi.fn()
-  render(
+  const { unmount } = render(
     <MemoryRouter>
       <VaultUnlock onUnlocked={onUnlocked} {...props} />
     </MemoryRouter>,
   )
-  return { onUnlocked }
+  return { onUnlocked, unmount }
 }
 
 beforeEach(() => {
@@ -69,7 +69,7 @@ describe('VaultUnlock', () => {
     await waitFor(() => expect(unlock).toHaveBeenCalledWith('my-secret', 240))
   })
 
-  it('remembers the last chosen duration in sessionStorage', async () => {
+  it('remembers a short chosen duration in sessionStorage', async () => {
     unlock.mockResolvedValue(undefined)
     const { unmount } = render(
       <MemoryRouter>
@@ -77,22 +77,41 @@ describe('VaultUnlock', () => {
       </MemoryRouter>,
     )
 
-    // Select 12h and unlock
-    fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '720' } })
+    // Select 15 min and unlock
+    fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '15' } })
     fireEvent.change(screen.getByPlaceholderText(/passphrase/i), { target: { value: 'pass' } })
     fireEvent.submit(screen.getByPlaceholderText(/passphrase/i).closest('form')!)
     await waitFor(() => expect(unlock).toHaveBeenCalled())
 
     unmount()
 
-    // Mount again — should remember 12h
+    // Mount again — should remember 15 min
     render(
       <MemoryRouter>
         <VaultUnlock onUnlocked={vi.fn()} />
       </MemoryRouter>,
     )
     const select = screen.getByLabelText(/duration/i) as HTMLSelectElement
-    expect(select.value).toBe('720')
+    expect(select.value).toBe('15')
+  })
+
+  it('never remembers a duration longer than 1 h: back to the 60 min default', async () => {
+    unlock.mockResolvedValue(undefined)
+    const { unmount } = mount()
+    fireEvent.change(screen.getByLabelText(/duration/i), { target: { value: '720' } })
+    fireEvent.change(screen.getByPlaceholderText(/passphrase/i), { target: { value: 'pass' } })
+    fireEvent.submit(screen.getByPlaceholderText(/passphrase/i).closest('form')!)
+    await waitFor(() => expect(unlock).toHaveBeenCalledWith('pass', 720))
+    unmount()
+
+    mount()
+    expect((screen.getByLabelText(/duration/i) as HTMLSelectElement).value).toBe('60')
+  })
+
+  it('a tampered stored duration falls back to 60 min', () => {
+    sessionStorage.setItem('po-vault-unlock-minutes', '9999')
+    mount()
+    expect((screen.getByLabelText(/duration/i) as HTMLSelectElement).value).toBe('60')
   })
 
   it('calls onUnlocked after a successful unlock', async () => {
@@ -120,7 +139,7 @@ describe('VaultUnlock', () => {
     expect(screen.getByRole('button', { name: /unlock/i })).toBeDisabled()
   })
 
-  it('shows a success status with a settings link after unlock', async () => {
+  it('shows a success status after unlock', async () => {
     unlock.mockResolvedValue(undefined)
     mount()
 

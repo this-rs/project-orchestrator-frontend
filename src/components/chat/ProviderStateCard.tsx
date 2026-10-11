@@ -120,6 +120,7 @@ type Recheck = { state: 'idle' } | { state: 'checking' } | { state: 'done'; text
 function RecheckButton({ providerId }: { providerId?: string }) {
   const refresh = useRefreshProviders()
   const [recheck, setRecheck] = useState<Recheck>({ state: 'idle' })
+  const actionClass = useActionClass()
   const run = useCallback(async () => {
     setRecheck({ state: 'checking' })
     try {
@@ -139,7 +140,7 @@ function RecheckButton({ providerId }: { providerId?: string }) {
   }, [providerId, refresh])
   return (
     <>
-      <button type="button" onClick={run} disabled={recheck.state === 'checking'} className={useActionClass()}>
+      <button type="button" onClick={run} disabled={recheck.state === 'checking'} className={actionClass}>
         {recheck.state === 'checking' ? (
           <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
         ) : (
@@ -184,6 +185,7 @@ export function ProviderStateCard({
   const offersFallbacks =
     error.code === 'credentials_locked' && !!onRetry && !!onRetryWith && (error.fallbacks?.length ?? 0) > 0
   const tone: ProviderCardTone = toneProp ?? (offersFallbacks ? 'warning' : 'error')
+  const actionClass = tone === 'warning' ? ACTION_CLASS_WARNING : ACTION_CLASS_ERROR
   const setModeOverride = useSetAtom(chatSessionPermissionOverrideAtom)
   const sandboxRefusal = isSandboxRefusal(error)
   const [modeSwitched, setModeSwitched] = useState(false)
@@ -255,7 +257,7 @@ export function ProviderStateCard({
     case 'engine_unavailable':
     case 'instance_not_found':
       action = onNewConversation ? (
-        <button type="button" onClick={onNewConversation} className={tone === 'warning' ? ACTION_CLASS_WARNING : ACTION_CLASS_ERROR}>
+        <button type="button" onClick={onNewConversation} className={actionClass}>
           Start a new conversation
         </button>
       ) : null
@@ -269,7 +271,7 @@ export function ProviderStateCard({
         ) : (
           <button
             type="button"
-            className={tone === 'warning' ? ACTION_CLASS_WARNING : ACTION_CLASS_ERROR}
+            className={actionClass}
             onClick={() => {
               // The next opening uses `ask`, a mode every provider accepts.
               setModeOverride(TRUST_FALLBACK_MODE)
@@ -332,7 +334,7 @@ export function ProviderStateCard({
               {action}
               {canRetry &&
                 (onRetry ? (
-                  <button type="button" onClick={onRetry} className={isWarning ? ACTION_CLASS_WARNING : ACTION_CLASS_ERROR}>
+                  <button type="button" onClick={onRetry} className={actionClass}>
                     <RefreshCw className="h-3 w-3" aria-hidden="true" />
                     Retry
                   </button>
