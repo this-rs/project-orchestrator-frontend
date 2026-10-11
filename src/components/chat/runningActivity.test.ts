@@ -202,6 +202,21 @@ describe('collectRunning — what the activity bar lists', () => {
     expect(items.map((i) => i.kind)).toEqual(['run', 'monitor'])
   })
 
+  it('a streaming read-only mirror (P18c) is listed as a run that cannot be stopped', () => {
+    const items = collectRunning({
+      messages: [],
+      backgroundTasks: [],
+      isStreaming: false,
+      now: NOW,
+      detachedRuns: [
+        { sessionId: 'm1', title: 'Explore', isStreaming: true, startedAt: at(1), mirrorOf: 'claude_code' },
+        { sessionId: 'r1', title: 'Plan run', isStreaming: true, startedAt: at(1) },
+      ],
+    })
+    expect(items.find((i) => i.id === 'm1')?.readOnly).toBe(true)
+    expect(items.find((i) => i.id === 'r1')?.readOnly).toBeUndefined()
+  })
+
   it('orders workflows, then agents, then shells, then monitors; oldest first inside a kind', () => {
     const wf = toolUse('w1', 'Workflow', {}, workflowTick([{ state: 'running' }]))
     const agentNew = toolUse('a2', 'Task', { description: 'new' }, { created_at: at(10) })

@@ -637,7 +637,7 @@ export function ChatPanel() {
   // On desktop: sidebar is a permanent 288px column
   if (isFullscreen) {
     return (
-      <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun}>
+      <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null}>
       <ChatCapabilitiesProvider capabilities={capabilities}>
       <div
         ref={panelRef}
@@ -975,7 +975,7 @@ export function ChatPanel() {
 
   // --- PANEL LAYOUT (non-fullscreen): toggle-based session list ---
   return (
-    <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun}>
+    <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null}>
     <ChatCapabilitiesProvider capabilities={capabilities}>
     <div
       ref={panelRef}

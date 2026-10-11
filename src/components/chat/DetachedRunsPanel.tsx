@@ -149,7 +149,8 @@ function RunRow({
           >
             <Eye className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
-          {run.isStreaming && (
+          {/* A mirror (P18c) cannot be stopped from here: its sub-agent runs in the parent's CLI. */}
+          {run.isStreaming && !run.mirrorOf && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onStopRun(run.sessionId) }}

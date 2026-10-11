@@ -136,7 +136,7 @@ function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
             <ExternalLink className="w-3 h-3" />
           </button>
         )}
-        {runActions && item.sessionId && (
+        {runActions && item.sessionId && !item.readOnly && (
           <button
             type="button"
             onClick={() => runActions.stop(item.sessionId!)}

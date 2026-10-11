@@ -46,6 +46,8 @@ export interface RunningItem {
   sessionId?: string
   /** A detached run started by the plan runner: the plan whose dashboard shows it. */
   planId?: string
+  /** A read-only mirror (P18c): it can be opened, never stopped from here. */
+  readOnly?: boolean
 }
 
 /** The part of a detached run the bar needs (see `useDetachedRuns`). */
@@ -55,6 +57,8 @@ export interface RunningRun {
   isStreaming: boolean
   startedAt: string
   planId?: string
+  /** Set for the read-only mirror of a Claude Code sub-agent (`mirror_of`). */
+  mirrorOf?: string | null
 }
 
 export interface RunningInput {
@@ -158,6 +162,7 @@ export function collectRunning(input: RunningInput): RunningItem[] {
       startedAt: run.startedAt,
       sessionId: run.sessionId,
       planId: run.planId,
+      ...(run.mirrorOf ? { readOnly: true } : {}),
     })
   }
 

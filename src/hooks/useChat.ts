@@ -2692,6 +2692,10 @@ export function useChat() {
 
     // Fetch session metadata (cwd, project, permission mode) for display in header
     chatApi.getSession(sid).then((session) => {
+      // A late answer for a session already left (M opened, then N before M's
+      // record came back) must not dress N in M's meta — a `mirror_of` would
+      // leave N read-only. The atom is the current session, set synchronously above.
+      if (store.get(chatSessionIdAtom) !== sid) return
       // Provider of the session record. Absent (session created before
       // providers existed) = Claude Code with the full profile.
       const provider = toProviderRef(
@@ -2707,6 +2711,8 @@ export function useChat() {
       // Restore the session's model
       setSessionModel(session.model ?? null)
     }).catch(() => {
+      // Same guard: a late failure for a session already left clears nothing.
+      if (store.get(chatSessionIdAtom) !== sid) return
       // Non-critical — header just won't show cwd
       setSessionMeta(null)
     })
