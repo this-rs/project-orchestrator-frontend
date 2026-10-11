@@ -180,7 +180,7 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
           {
             label: t('code.healthTab.avgCoupling'),
             hidden: !coupling,
-            value: coupling?.avg_clustering_coefficient.toFixed(3),
+            value: (coupling?.avg_clustering_coefficient ?? 0).toFixed(3),
             sub: coupling?.most_coupled_file ? t('code.healthTab.mostCoupled', { file: stripBase(coupling.most_coupled_file, basePath) }) : undefined,
           },
           {
@@ -195,10 +195,10 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
         <StatTiles
           items={[
             { label: t('code.healthTab.activeSynapses'), value: neural.active_synapses },
-            { label: t('code.healthTab.avgEnergy'), value: `${(neural.avg_energy * 100).toFixed(0)}%` },
+            { label: t('code.healthTab.avgEnergy'), value: `${((neural.avg_energy ?? 0) * 100).toFixed(0)}%` },
             {
               label: t('code.healthTab.weakSynapses'),
-              value: `${(neural.weak_synapses_ratio * 100).toFixed(0)}%`,
+              value: `${((neural.weak_synapses_ratio ?? 0) * 100).toFixed(0)}%`,
               tone: neural.weak_synapses_ratio > 0.5 ? 'warning' : undefined,
             },
             { label: t('code.healthTab.deadNotes'), value: neural.dead_notes_count, tone: neural.dead_notes_count > 10 ? 'danger' : undefined },
@@ -284,7 +284,7 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
                       key="churn"
                       size="inline"
                       value={maxChurn > 0 ? h.churn_score / maxChurn : 0}
-                      display={t('code.healthTab.churn', { value: h.churn_score.toFixed(2) })}
+                      display={t('code.healthTab.churn', { value: (h.churn_score ?? 0).toFixed(2) })}
                       tone={churnTone(maxChurn > 0 ? h.churn_score / maxChurn : 0)}
                     />,
                     h.co_change_count > 0 ? count('coChange', h.co_change_count) : null,
@@ -321,7 +321,7 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
                       key="density"
                       size="inline"
                       value={g.knowledge_density}
-                      display={t('code.healthTab.covered', { percent: (g.knowledge_density * 100).toFixed(0) })}
+                      display={t('code.healthTab.covered', { percent: ((g.knowledge_density ?? 0) * 100).toFixed(0) })}
                       tone={densityTone(g.knowledge_density)}
                     />,
                     count('note', g.note_count),
@@ -366,15 +366,15 @@ export function CodeHealthTab({ projectSlug, onOpenFile }: CodeHealthTabProps) {
                     ariaLabel={t('code.common.historyOf', { path: r.path })}
                     onClick={() => onOpenFile(r.path)}
                     leading={<StatusDot tone={tone} label={t('code.healthTab.riskLevel', { level: levelLabel(r.risk_level) })} />}
-                    trailing={r.risk_score.toFixed(3)}
+                    trailing={(r.risk_score ?? 0).toFixed(3)}
                     meta={[
                       <span key="l" className={TONE_CLASSES[tone].text}>
                         {levelLabel(r.risk_level)}
                       </span>,
-                      t('code.healthTab.pagerank', { value: r.factors.pagerank.toFixed(4) }),
-                      t('code.healthTab.churn', { value: r.factors.churn.toFixed(3) }),
-                      t('code.healthTab.knowledgeGap', { value: r.factors.knowledge_gap.toFixed(3) }),
-                      t('code.healthTab.betweenness', { value: r.factors.betweenness.toFixed(4) }),
+                      t('code.healthTab.pagerank', { value: (r.factors?.pagerank ?? 0).toFixed(4) }),
+                      t('code.healthTab.churn', { value: (r.factors?.churn ?? 0).toFixed(3) }),
+                      t('code.healthTab.knowledgeGap', { value: (r.factors?.knowledge_gap ?? 0).toFixed(3) }),
+                      t('code.healthTab.betweenness', { value: (r.factors?.betweenness ?? 0).toFixed(4) }),
                     ]}
                   />
                 )

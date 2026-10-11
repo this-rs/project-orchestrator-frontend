@@ -153,7 +153,7 @@ export function CodeProcessesTab({ projectSlug, onOpenFile }: CodeProcessesTabPr
                     title={<span className="font-mono">{shortName(ep.id)}</span>}
                     ariaLabel={ep.id}
                     description={ep.id !== shortName(ep.id) ? <span className="font-mono break-all">{ep.id}</span> : undefined}
-                    trailing={<span title={t('code.processes.entryScore')}>{ep.score.toFixed(2)}</span>}
+                    trailing={<span title={t('code.processes.entryScore')}>{(ep.score ?? 0).toFixed(2)}</span>}
                   />
                 ))}
               </ListGroup>
