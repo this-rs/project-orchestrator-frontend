@@ -15,7 +15,6 @@ import type { ConversationRoutingMode } from './routing'
  */
 export type PermissionMode = LegacyPermissionMode | ToolPolicyMode
 
-/** Runtime permission configuration (matches backend PermissionConfig struct) */
 /**
  * One of the caller's lasting approvals (`always`, P11b), as `GET /api/chat/permission-rules` lists
  * it. A rule covers the IDENTICAL call only, on one project, and is kept by the backend (never by the
@@ -28,8 +27,12 @@ export interface LastingPermissionRule {
   /** The engine it holds on: the Claude Code CLI or the native engine. */
   engine: 'claude_code' | 'native' | string
   tool: string
-  /** What it covers, as the decisions say it (`Bash: cat README.md`). */
+  /** What it covers, as the decisions say it (`Bash: cat README.md`, every compared field shown). */
   rule: string
+  /** The project's root directory (canonical) it is bound to: it applies only to a conversation running there. */
+  root: string
+  /** The call asked to run outside the sandbox (never kept by the backend; shown should a rule say so). */
+  sandbox_disabled: boolean
   created_at: string
   session_id?: string | null
   /** False when the backend's comparator no longer grants it (it then covers nothing). */
@@ -42,6 +45,7 @@ export interface LastingPermissionRules {
   rules: LastingPermissionRule[]
 }
 
+/** Runtime permission configuration (matches backend PermissionConfig struct) */
 export interface PermissionConfig {
   /** Permission mode: controls how tool permissions are handled */
   mode: PermissionMode
@@ -527,7 +531,7 @@ export type ChatEvent =
   | ({ type: 'tool_use_input_resolved'; id: string; input: Record<string, unknown> } & Nested)
   | { type: 'tool_cancelled'; id: string; parent_tool_use_id?: string }
   | ({ type: 'tool_timing' } & ToolTiming & Nested)
-  | ({ type: 'permission_request'; id: string; tool: string; input: Record<string, unknown>; tool_use_id?: string } & ToolProviderHints & Nested)
+  | ({ type: 'permission_request'; id: string; tool: string; input: Record<string, unknown>; tool_use_id?: string; /** True when this very call may be answered `always` (P11b). */ always?: boolean } & ToolProviderHints & Nested)
   /** `scope`: how long an approval lasts, when it outlives the call (absent: this call only, or a refusal); `rule`: what a session approval covers. */
   | { type: 'permission_decision'; id: string; allow: boolean; scope?: 'session' | 'always'; rule?: string }
   | ({
@@ -671,7 +675,7 @@ export const CHAT_EVENT_FIELDS = {
     incomplete: 'optional',
     parent_tool_use_id: 'optional',
   },
-  permission_request: { id: 'required', tool: 'required', input: 'required', tool_use_id: 'optional', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
+  permission_request: { id: 'required', tool: 'required', input: 'required', tool_use_id: 'optional', always: 'optional', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
   permission_decision: { id: 'required', allow: 'required', scope: 'optional', rule: 'optional' },
   ask_user_question: { questions: 'required', tool_call_id: 'optional', id: 'optional', input: 'optional', synthetic: 'optional', parent_tool_use_id: 'optional' },
   result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional', stop_reason: 'optional', error: 'optional' },

@@ -129,7 +129,7 @@ describe('permission_scopes', () => {
         </ChatCapabilitiesProvider>
       </Provider>
     )
-    const { rerender } = render(view(permissionBlock))
+    const { rerender } = render(view(withMeta({ always_eligible: true })))
     const always = screen.getByRole('button', { name: 'Always' })
     expect(always.getAttribute('title')).toMatch(/this exact call/)
     const preview = screen.getByTestId('permission-always-scope')
@@ -140,9 +140,36 @@ describe('permission_scopes', () => {
     expect(onRespond).toHaveBeenCalledWith('c1', true, 'always')
     // Not shown as allowed before the backend says so.
     expect(screen.queryByText('Always allowed')).toBeNull()
-    rerender(view(withMeta({ decided: true, decision: 'allowed', decision_scope: 'always', decision_rule: 'Bash: ls' })))
+    rerender(view(withMeta({ always_eligible: true, decided: true, decision: 'allowed', decision_scope: 'always', decision_rule: 'Bash: ls' })))
     expect(screen.getByText('Always allowed')).toBeTruthy()
     expect(screen.getByText('Bash: ls')).toBeTruthy()
+  })
+
+  it('always is not offered on a call the backend says it would refuse (a file tool, a chained command...)', () => {
+    const offering = caps({ permission_scopes: ['once', 'session', 'always'] })
+    const write: ContentBlock = {
+      ...permissionBlock,
+      metadata: { tool_call_id: 'c2', tool_name: 'Write', tool_input: { file_path: '/p/x', content: 'y' } },
+    }
+    mount(<PermissionRequestBlock block={write} onRespond={() => true} />, offering)
+    expect(screen.queryByRole('button', { name: 'Always' })).toBeNull()
+    expect(screen.queryByTestId('permission-always-scope')).toBeNull()
+    expect(screen.getByRole('button', { name: 'For this session' })).toBeTruthy()
+  })
+
+  it('the preview shows every field the backend compares: a sandbox-disabled call never reads like a sandboxed one', () => {
+    const block: ContentBlock = {
+      ...permissionBlock,
+      metadata: {
+        tool_call_id: 'c3',
+        tool_name: 'Bash',
+        tool_input: { command: 'ls', description: 'list', timeout: 5000, dangerouslyDisableSandbox: true },
+      },
+    }
+    mount(<PermissionRequestBlock block={block} onRespond={() => true} />, caps({ permission_scopes: ['once', 'session'] }))
+    expect(screen.getByTestId('permission-session-scope').textContent).toContain(
+      'Bash: ls [dangerouslyDisableSandbox=true, timeout=5000]',
+    )
   })
 
   it('always refused (permission_scope_unsupported): said, not offered again; once and session stay', () => {
@@ -158,9 +185,9 @@ describe('permission_scopes', () => {
         </ChatCapabilitiesProvider>
       </Provider>
     )
-    const { rerender } = render(view(permissionBlock))
+    const { rerender } = render(view(withMeta({ always_eligible: true })))
     fireEvent.click(screen.getByRole('button', { name: 'Always' }))
-    rerender(view(withMeta({ scope_refused: { scope: 'always', at: 1 } })))
+    rerender(view(withMeta({ always_eligible: true, scope_refused: { scope: 'always', at: 1 } })))
     expect(screen.getByRole('alert').textContent).toMatch(/cannot be allowed for good/)
     expect(screen.queryByRole('button', { name: 'Always' })).toBeNull()
     expect(screen.queryByTestId('permission-always-scope')).toBeNull()

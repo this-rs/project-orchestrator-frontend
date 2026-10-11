@@ -22,6 +22,8 @@ const rule = (id: string, text: string, extra: Record<string, unknown> = {}) => 
   rule: text,
   created_at: '2026-10-11T00:00:00Z',
   session_id: 's1',
+  root: '/src/proj',
+  sandbox_disabled: false,
   holds: true,
   ...extra,
 })
@@ -32,13 +34,17 @@ describe('LastingPermissionRules', () => {
   it('lists each rule with its project and the exact call it covers', async () => {
     api.listPermissionRules.mockResolvedValue({
       enabled: true,
-      rules: [rule('r1', 'Bash: cat README.md'), rule('r2', 'mcp__nexus__Bash: ls', { holds: false })],
+      rules: [rule('r1', 'Bash: cat README.md'), rule('r2', 'mcp__nexus__Bash: ls', { holds: false, engine: 'native', sandbox_disabled: true })],
     })
     render(<LastingPermissionRules />)
     expect(await screen.findByText('Bash: cat README.md')).toBeTruthy()
     expect(screen.getAllByText('proj')).toHaveLength(2)
     // A rule the backend no longer grants is shown as such.
     expect(screen.getByText('No longer applies')).toBeTruthy()
+    // The engine it holds on, the root it is bound to.
+    expect(screen.getAllByTestId('lasting-rule-engine').map((e) => e.textContent)).toEqual(['Claude Code', 'native engine'])
+    expect(screen.getByText('outside the sandbox')).toBeTruthy()
+    expect(screen.getAllByText('proj')[0].getAttribute('title')).toBe('/src/proj')
   })
 
   it('revokes a rule: the API is called and the rule leaves the list', async () => {

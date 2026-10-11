@@ -1148,10 +1148,15 @@ export function toolHintMetadata(evt: unknown): { tool_category?: string; tool_c
  * engine gives it), kept as `metadata.tool_use_id`: the control id of a
  * permission is not the call's id. Shared by BOTH reducers.
  */
-export function permissionCallOf(evt: unknown): { tool_use_id?: string } {
+export function permissionCallOf(evt: unknown): { tool_use_id?: string; always_eligible?: true } {
   if (typeof evt !== 'object' || evt === null) return {}
+  const out: { tool_use_id?: string; always_eligible?: true } = {}
   const id = (evt as { tool_use_id?: unknown }).tool_use_id
-  return typeof id === 'string' && id !== '' ? { tool_use_id: id } : {}
+  if (typeof id === 'string' && id !== '') out.tool_use_id = id
+  // The backend says, per request, whether THIS call may be approved for good (P11b): file
+  // tools, a sandbox-disabled or chained command, Codex/ACP... never are.
+  if ((evt as { always?: unknown }).always === true) out.always_eligible = true
+  return out
 }
 
 // ============================================================================

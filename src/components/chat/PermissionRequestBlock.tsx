@@ -159,7 +159,16 @@ function canonicalJson(value: unknown): string {
  * a command is not part of what the backend compares.
  */
 function sessionGrantPreview(toolName: string, input: Record<string, unknown> | undefined): string {
-  if (input && typeof input.command === 'string') return `${toolName}: ${input.command.trim()}`
+  if (input && typeof input.command === 'string') {
+    // Every field the backend compares, sorted, as its rule reads (`Bash: ls [timeout=5000]`):
+    // a sandbox-disabled call never reads like a sandboxed one.
+    const extras = Object.keys(input)
+      .filter((k) => k !== 'command' && k !== 'description')
+      .sort()
+      .map((k) => `${k}=${canonicalJson(input[k])}`)
+    const line = `${toolName}: ${input.command.trim()}`
+    return extras.length ? `${line} [${extras.join(', ')}]` : line
+  }
   return `${toolName} ${canonicalJson(input)}`
 }
 
@@ -282,7 +291,10 @@ export function PermissionRequestBlock({
   // The same for `always`: the backend approves for good only an exact read, or one read-only
   // command without redirection or chaining; a refused call is not offered `always` twice.
   const alwaysRefused = refused && scopeRefused?.scope === 'always'
-  const showAlways = offersAlways && !alwaysRefused
+  // Offered only on a call the backend said it may approve for good (`always_eligible`,
+  // per request): never on a file tool, a chained or sandbox-disabled command, Codex/ACP.
+  const alwaysEligible = block.metadata?.always_eligible === true
+  const showAlways = offersAlways && alwaysEligible && !alwaysRefused
   // What "for the session" covers, shown BEFORE the click: this exact call, as the backend
   // describes its grant (`Bash: git status`).
   const sessionRule = sessionGrantPreview(toolName, toolInput)

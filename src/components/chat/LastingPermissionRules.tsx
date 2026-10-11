@@ -70,8 +70,18 @@ export function LastingPermissionRules() {
               key={rule.id}
               className="flex items-center gap-2 rounded border border-white/[0.06] bg-white/[0.02] px-2 py-1.5 min-w-0"
             >
-              <span className="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-gray-400">
+              <span
+                className="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-gray-400"
+                title={rule.root}
+              >
                 {rule.project}
+              </span>
+              <span className="shrink-0 text-[10px] text-gray-500" data-testid="lasting-rule-engine">
+                {rule.engine === 'native'
+                  ? t('chatA-tools.lastingRules.engineNative')
+                  : rule.engine === 'claude_code'
+                    ? t('chatA-tools.lastingRules.engineClaudeCode')
+                    : rule.engine}
               </span>
               <code
                 className={`font-mono text-[11px] truncate flex-1 min-w-0 ${rule.holds ? 'text-gray-300' : 'text-gray-500 line-through'}`}
@@ -79,6 +89,9 @@ export function LastingPermissionRules() {
               >
                 {rule.rule}
               </code>
+              {rule.sandbox_disabled && (
+                <span className="shrink-0 text-[10px] text-red-400/80">{t('chatA-tools.lastingRules.sandboxDisabled')}</span>
+              )}
               {!rule.holds && (
                 <span className="shrink-0 text-[10px] text-amber-400/80">{t('chatA-tools.lastingRules.notHeld')}</span>
               )}
