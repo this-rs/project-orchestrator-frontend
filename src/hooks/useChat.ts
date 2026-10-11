@@ -2191,7 +2191,9 @@ export function useChat() {
         store.set(chatDraftSelectionAtom, [])
         // The conversation keeps the mode it was opened with (its own, or the settings' of that
         // moment), before its record says so: it never follows the settings afterwards.
-        store.set(chatSessionRoutingAtom, { routed_by: null, route_reason: null, routing_mode: mode })
+        // `chosen`: the menu chose this conversation's routing (R-S1: its own `auto` stage).
+        const chosen = chosenMode ? { chosen: true } : {}
+        store.set(chatSessionRoutingAtom, { routed_by: null, route_reason: null, routing_mode: mode, ...chosen })
         if (mode !== 'primary') {
           // How PO routed it (`routed_by`, `route_reason`): read from the record, best effort.
           void Promise.resolve()
@@ -2200,7 +2202,7 @@ export function useChat() {
               if (store.get(chatSessionIdAtom) !== response.session_id) return
               const record = sessionRoutingOf(session)
               // A server that does not echo the mode yet: keep the one this chat was opened with.
-              store.set(chatSessionRoutingAtom, record && !record.routing_mode ? { ...record, routing_mode: mode } : (record ?? { routed_by: null, route_reason: null, routing_mode: mode }))
+              store.set(chatSessionRoutingAtom, record && !record.routing_mode ? { ...record, routing_mode: mode, ...chosen } : (record ?? { routed_by: null, route_reason: null, routing_mode: mode, ...chosen }))
             })
             .catch(() => {})
         }

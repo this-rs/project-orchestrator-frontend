@@ -31,6 +31,7 @@ import {
   providersAtom,
   providersLoadStateAtom,
   routingSettingsAtom,
+  sessionRoutingOf,
 } from '@/atoms'
 import type { ProvidersResponse } from '@/types/provider'
 import type { ProviderRoutingMode, RoutingSettingsResponse } from '@/types/routing'
@@ -360,11 +361,11 @@ describe('RoutingSelectionMenu', () => {
     expect(screen.queryByRole('status')).toBeNull()
   })
 
-  it('Auto before the auto learning stage: the panel says PO observes and does not switch models yet', () => {
-    mount('primary', {
+  it('Auto from the SETTINGS before the auto learning stage: the panel says PO observes and does not switch models yet', () => {
+    mount('full', {
       sessionId: 's1',
       prepare: (s) => {
-        s.set(routingSettingsAtom(''), { state: 'ready', settings: { ...settings('primary'), stage: 'shadow' } })
+        s.set(routingSettingsAtom(''), { state: 'ready', settings: { ...settings('full'), stage: 'shadow' } })
         s.set(chatSessionModelAtom, 'qwen')
         s.set(chatSessionRoutingAtom, { routed_by: 'auto', route_reason: 'cheap', routing_mode: 'full' })
       },
@@ -376,10 +377,55 @@ describe('RoutingSelectionMenu', () => {
     expect(panel).not.toContain('PO chose')
   })
 
-  it('a new conversation on Auto before the auto stage says it too', () => {
+  it('a new conversation on Auto by default (the settings) before the auto stage says it too', () => {
     mount('full', { prepare: (s) => s.set(routingSettingsAtom(''), { state: 'ready', settings: { ...settings('full'), stage: 'advisory' } }) })
     openMenu()
     expect(screen.getByTestId('routing-stage-note').textContent).toContain('does not switch models yet')
+  })
+
+  // R-S1: Auto chosen by the user on THIS conversation is its own `auto` stage, whatever the settings' stage.
+  it('a conversation the user put in Auto never says shadow: its record names the mode, PO chose', () => {
+    mount('primary', {
+      sessionId: 's1',
+      prepare: (s) => {
+        s.set(routingSettingsAtom(''), { state: 'ready', settings: { ...settings('primary'), stage: 'shadow' } })
+        s.set(chatSessionModelAtom, 'qwen')
+        s.set(chatSessionRoutingAtom, sessionRoutingOf({ routed_by: 'auto', route_reason: 'cheap', routing_mode: 'full' }))
+      },
+    })
+    openMenu()
+    const panel = screen.getByTestId('routing-auto-panel').textContent!
+    expect(panel).toContain('PO chose: Qwen')
+    expect(panel).not.toContain('does not switch models yet')
+    expect(panel).not.toContain('Shadow')
+  })
+
+  it('switching an open conversation to Auto on a shadow setting: the panel says PO chose, not shadow', async () => {
+    const store = mount('primary', {
+      sessionId: 's1',
+      prepare: (s) => {
+        s.set(routingSettingsAtom(''), { state: 'ready', settings: { ...settings('primary'), stage: 'shadow' } })
+        s.set(chatSessionProviderAtom, { id: 'local-llama' })
+        s.set(chatSessionModelAtom, 'qwen')
+        s.set(providersAtom, { ...PROVIDERS, providers: [PROVIDERS.providers[0], { ...PROVIDERS.providers[1], models: [{ id: 'qwen' }, { id: 'phi' }, { id: 'mistral' }] }] })
+        s.set(chatSessionCapabilitiesSnapshotAtom, { set_model_live: true })
+        s.set(chatSessionRoutingAtom, { routed_by: 'request', route_reason: null, routing_mode: 'primary' })
+      },
+    })
+    openMenu()
+    fireEvent.click(screen.getByRole('switch'))
+    await waitFor(() => expect(store.get(chatRoutingModeAtom)).toBe('full'))
+    const panel = screen.getByTestId('routing-auto-panel').textContent!
+    expect(panel).toContain('PO chose: qwen')
+    expect(panel).not.toContain('does not switch models yet')
+  })
+
+  it('a new conversation the user switches to Auto on a shadow setting has no stage note', () => {
+    mount('primary', { prepare: (s) => s.set(routingSettingsAtom(''), { state: 'ready', settings: { ...settings('primary'), stage: 'shadow' } }) })
+    openMenu()
+    fireEvent.click(screen.getByRole('switch'))
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
+    expect(screen.queryByTestId('routing-stage-note')).toBeNull()
   })
 
   it('the vault is unlocked from this menu too: a locked vault shows the passphrase field', async () => {
