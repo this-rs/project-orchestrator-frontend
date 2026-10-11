@@ -115,7 +115,7 @@ export default {
     endpoint_redirects_not_allowed: 'Der Endpunkt hat mit einer Weiterleitung geantwortet, der der Server nicht folgt (ein Schlüssel könnte an einen anderen Host gehen). Verwenden Sie die endgültige URL als Basis-URL.',
     credential_test_requires_saved_instance: 'Ein Test mit Schlüssel läuft nur auf einer bereits gespeicherten Instanz mit demselben Endpunkt und Schlüsselverweis. Speichern Sie zuerst die Instanz und testen Sie dann erneut.',
     engine_unavailable: 'Diese Unterhaltung wurde auf der Agent-Engine geöffnet, und der Server betreibt sie nicht mehr, daher kann sie nicht fortgesetzt werden. Starten Sie eine neue Unterhaltung oder bitten Sie die Betreiber des Servers, die Agent-Engine wieder einzuschalten (CHAT_PROVIDER_PATH).',
-    invalid_routing_mode: 'Der Routing-Modus muss primary, mixed oder full sein.',
+    invalid_routing_mode: 'Der Routing-Modus muss primary, executors_only oder full sein.',
     invalid_learning_stage: 'Die Lernstufe muss shadow, advisory oder auto sein.',
     invalid_routing_weight: 'Ein Routing-Gewicht oder die Explorationsrate liegt außerhalb des erlaubten Bereichs. Die Exploration muss zwischen 0 und 1 liegen; Gewichte dürfen nicht negativ sein.',
   },

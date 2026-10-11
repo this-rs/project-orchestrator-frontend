@@ -56,6 +56,7 @@ import { cancelNoticeMetadata, chipOutcomeOfNotice, nextCancelStamp } from '@/ut
 import { tr } from '@/i18n/lazy'
 import { useEffectiveCapabilities } from './useEffectiveCapabilities'
 import { toProviderRef, toToolPolicy, type PermissionScope, type ToolPolicyMode } from '@/types/provider'
+import { conversationModeOfSettings } from '@/types/routing'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
 
 /** Number of messages to load per page via REST */
@@ -2220,11 +2221,14 @@ export function useChat() {
         await store.set(loadRoutingSettingsAtom, { slug })
         // The conversation's own choice (the menu) wins over the settings.
         const chosenMode = store.get(chatDraftRoutingModeAtom)
-        const mode = chosenMode ?? store.get(routingSettingsAtom(slug)).settings?.mode ?? 'primary'
-        // In `mixed` (the pilot) and `full`, PO / the server resolves provider
-        // AND model: nothing is sent unless the user forced a target through
-        // the "Advanced" path.
-        // A draft that picked models names them (strict: one, mixed: the pilot and the pool).
+        // The settings' mode, for a conversation that chose nothing: `executors_only` leaves its pilot
+        // alone (`primary` for it), `full` routes it (decision R-S4: `mixed` is the menu's word only).
+        const settingsMode = store.get(routingSettingsAtom(slug)).settings?.mode
+        const mode = chosenMode ?? (settingsMode ? conversationModeOfSettings(settingsMode) : 'primary')
+        // In `full`, PO / the server resolves provider AND model: nothing is sent unless the user
+        // forced a target through the "Advanced" path.
+        // A draft that picked models names them (strict: one; mixed: the pool, plus the pilot the
+        // server only falls back to when no decision among the pool applies).
         // With the router, an untouched draft names nothing (the menu shows none either);
         // without it the picker is the only way, as before.
         const routerPresent = !!store.get(routingSettingsAtom(slug)).settings
