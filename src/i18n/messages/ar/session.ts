@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  lockedVault: {
+    resent: "تم فتح الخزنة: تتم إعادة إرسال رسالتك.",
+    fallbacksLabel: "أو المتابعة دون الخزنة:",
+    useModel: "استخدام {model} ({provider})",
+  },
   vaultUnlock: {
     locked: "الخزنة مقفلة",
     placeholder: "عبارة مرور الخزنة",

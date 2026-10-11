@@ -21,7 +21,8 @@ import { useT } from '@/i18n'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { chatSessionEngineAtom, chatSessionPermissionOverrideAtom } from '@/atoms'
 import { TRUST_FALLBACK_MODE } from '@/constants/toolPolicy'
-import type { ProviderErrorInfo } from '@/types/provider'
+import type { ProviderErrorInfo, ProviderFallback } from '@/types/provider'
+import { VaultUnlock } from './VaultUnlock'
 
 interface ProviderStateCardProps {
   /** The typed failure, or the `no_provider` state (`NO_PROVIDER_ERROR`). */
@@ -30,6 +31,10 @@ interface ProviderStateCardProps {
   projectSlug?: string | null
   /** Try the same thing again. Without it, a retryable error says how to retry instead of offering a dead button. */
   onRetry?: () => void
+  /** Send the same message again on this model (`credentials_locked` with `fallbacks`). */
+  onRetryWith?: (fallback: ProviderFallback) => void
+  /** Send the same message again once the vault is unlocked in the card (`credentials_locked`); defaults to `onRetry`. */
+  onUnlocked?: () => void
   /** Start a new conversation (`instance_not_found`). */
   onNewConversation?: () => void
   onDismiss?: () => void
@@ -142,6 +147,8 @@ export function ProviderStateCard({
   error,
   projectSlug,
   onRetry,
+  onRetryWith,
+  onUnlocked,
   onNewConversation,
   onDismiss,
   className = '',
@@ -186,7 +193,15 @@ export function ProviderStateCard({
       action = <RecheckButton providerId={error.provider_id} />
       break
     case 'credentials_locked':
-      action = <SettingsLink to={VAULT_PATH}>Unlock the vault</SettingsLink>
+      // Where the message can be sent again: unlock right here, then it goes out;
+      // or, when the server offered some (Auto refused), continue on a model that
+      // needs no vault. A named instance's locked key gets the same unlock-and-send,
+      // without models to offer.
+      action = onRetry ? (
+        <LockedVaultActions fallbacks={error.fallbacks ?? []} onUnlocked={onUnlocked ?? onRetry} onPick={onRetryWith} />
+      ) : (
+        <SettingsLink to={VAULT_PATH}>Unlock the vault</SettingsLink>
+      )
       break
     case 'unauthorized':
       action = <SettingsLink to={providerInstancePath(error.provider_id)}>Open the instance settings</SettingsLink>
@@ -290,6 +305,47 @@ export function ProviderStateCard({
           <X className="h-3 w-3" aria-hidden="true" />
           Dismiss
         </button>
+      )}
+    </div>
+  )
+}
+
+/** Unlock the vault where the message failed (it is then sent again), or pick a model that needs none. */
+function LockedVaultActions({
+  fallbacks,
+  onUnlocked,
+  onPick,
+}: {
+  fallbacks: ProviderFallback[]
+  onUnlocked: () => void
+  onPick?: (fallback: ProviderFallback) => void
+}) {
+  const { t } = useT()
+  const offered = onPick ? fallbacks : []
+  // While an unlock runs, its success sends the message: a model picked meanwhile
+  // would send it a second time (review of #335, finding 1).
+  const [unlocking, setUnlocking] = useState(false)
+  return (
+    <div className="w-full space-y-2" data-testid="locked-vault-actions">
+      <VaultUnlock onUnlocked={onUnlocked} onBusyChange={setUnlocking} doneText={t('session.lockedVault.resent')} />
+      {offered.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[11px] text-red-100/90">{t('session.lockedVault.fallbacksLabel')}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {offered.map((f) => (
+              <button
+                key={`${f.provider_id}/${f.model}`}
+                type="button"
+                onClick={() => onPick?.(f)}
+                disabled={unlocking}
+                className={ACTION_CLASS}
+                data-testid="locked-vault-fallback"
+              >
+                {t('session.lockedVault.useModel', { model: f.model, provider: f.provider_id })}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   )

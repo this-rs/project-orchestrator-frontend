@@ -1,4 +1,9 @@
 export default {
+  lockedVault: {
+    resent: "Vault unlocked: your message is being sent again.",
+    fallbacksLabel: "Or continue without the vault:",
+    useModel: "Use {model} ({provider})",
+  },
   vaultUnlock: {
     locked: "Vault locked",
     placeholder: "Vault passphrase",

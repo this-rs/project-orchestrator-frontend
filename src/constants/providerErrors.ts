@@ -165,9 +165,16 @@ export function providerErrorExplanation(
       return error.capability
         ? tr('providerErrors.explain.unsupported_capability', { capability: error.capability })
         : tr('providerErrors.explain.unsupported')
+    case 'credentials_locked':
+      // Auto was refused (the server lists its fallbacks, maybe none), not one provider.
+      if (error.fallbacks) {
+        return error.fallbacks.length
+          ? tr('providerErrors.explain.credentialsLockedAutoFallbacks')
+          : tr('providerErrors.explain.credentialsLockedAuto')
+      }
+      return tr('providerErrors.explain.credentials_locked')
     case 'no_provider':
     case 'auth_required':
-    case 'credentials_locked':
     case 'unauthorized':
     case 'endpoint_unreachable':
     case 'instance_not_found':

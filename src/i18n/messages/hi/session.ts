@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  lockedVault: {
+    resent: "वॉल्ट अनलॉक हुआ: आपका संदेश फिर से भेजा जा रहा है।",
+    fallbacksLabel: "या वॉल्ट के बिना जारी रखें:",
+    useModel: "{model} का उपयोग करें ({provider})",
+  },
   vaultUnlock: {
     locked: "वॉल्ट लॉक है",
     placeholder: "वॉल्ट का पासफ़्रेज़",

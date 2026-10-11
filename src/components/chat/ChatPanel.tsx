@@ -5,7 +5,8 @@ import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
 import { useT } from '@/i18n'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom } from '@/atoms'
+import type { ProviderFallback } from '@/types/provider'
 import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
@@ -324,12 +325,57 @@ export function ChatPanel() {
     return () => setComposerBlocked(null)
   }, [composerBlocked, setComposerBlocked])
 
+  /**
+   * The failure this render shows is still the one on screen. A retry can be called
+   * late — an unlock that resolves after the card was dismissed, after the message
+   * went out on a fallback model, after another failure replaced it — and must then
+   * do nothing: it would send the old message again, maybe into another conversation
+   * (review of #335, finding 1).
+   */
+  const stillShown = useCallback(
+    () => sessionOpenError !== null && store.get(chatSessionOpenErrorAtom) === sessionOpenError,
+    [sessionOpenError, store],
+  )
+
   /** Send again what could not open a conversation — the composer's text if it was edited since. */
-  const retrySessionOpen = useCallback(() => {
-    if (!sessionOpenError) return
+  const retrySessionOpen = useCallback((): boolean => {
+    if (!sessionOpenError || !stillShown()) return false
     const draft = store.get(chatDraftInputAtom).trim()
     handleSend(draft || sessionOpenError.text, sessionOpenError.attachments.length > 0 ? sessionOpenError.attachments : undefined)
-  }, [sessionOpenError, store, handleSend])
+    return true
+  }, [sessionOpenError, stillShown, store, handleSend])
+
+  // The card that offered the resend goes away with it (the send clears the failure):
+  // the focus returns to the composer instead of falling to the page, and the unlock is
+  // said in a region that stays (review of #335, finding 4).
+  const [resentNotice, setResentNotice] = useState('')
+  useEffect(() => {
+    if (sessionOpenError) setResentNotice('')
+  }, [sessionOpenError])
+  const focusComposer = useCallback(() => {
+    requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('textarea[data-chat-composer]')?.focus())
+  }, [])
+
+  /** The vault was unlocked in the card: the message goes out again. */
+  const retryAfterUnlock = useCallback(() => {
+    if (!retrySessionOpen()) return
+    setResentNotice(t('session.lockedVault.resent'))
+    focusComposer()
+  }, [retrySessionOpen, t, focusComposer])
+
+  /** Same, on a model that needs no vault: the draft becomes strict on it, as if ticked in the menu. */
+  const retrySessionOpenWith = useCallback(
+    (fallback: ProviderFallback) => {
+      if (!stillShown()) return
+      store.set(chatDraftAutoAtom, false)
+      store.set(chatDraftSelectionAtom, [{ provider: fallback.provider_id, model: fallback.model }])
+      store.set(chatSelectedProviderAtom, fallback.provider_id)
+      store.set(chatSessionModelAtom, fallback.model)
+      store.set(chatForcedTargetAtom, true)
+      if (retrySessionOpen()) focusComposer()
+    },
+    [stillShown, store, retrySessionOpen, focusComposer],
+  )
 
   const handleContinue = useCallback(() => {
     chat.sendContinue()
@@ -454,11 +500,16 @@ export function ChatPanel() {
   const composerNotices = (
     <>
       <FollowNotice sessionId={chat.sessionId} />
+      <p role="status" aria-live="polite" className="sr-only" data-testid="session-open-resent">
+        {resentNotice}
+      </p>
       {sessionOpenError && (
         <SessionOpenError
           error={sessionOpenError}
           onDismiss={dismissSessionOpenError}
           onRetry={retrySessionOpen}
+          onRetryWith={retrySessionOpenWith}
+          onUnlocked={retryAfterUnlock}
           projectSlug={selectedProject?.slug}
         />
       )}

@@ -126,6 +126,18 @@ describe('normalizeProvidersResponse — backend wire', () => {
 })
 
 describe('readProviderError — backend error body', () => {
+  it('reads the fallbacks of an Auto refused on a locked vault, empty included, and drops malformed entries', () => {
+    const body = {
+      error: 'The credential store is locked. Unlock it and try again.',
+      code: 'credentials_locked',
+      retryable: false,
+      fallbacks: [{ provider_id: 'ollama', model: 'qwen3' }, { provider_id: 7 }, 'x'],
+    }
+    expect(readProviderError(body, 423)?.fallbacks).toEqual([{ provider_id: 'ollama', model: 'qwen3' }])
+    expect(readProviderError({ ...body, fallbacks: [] })?.fallbacks).toEqual([])
+    expect(readProviderError({ ...body, fallbacks: undefined })?.fallbacks).toBeUndefined()
+  })
+
   it('reads `action` as the command to run and the gateway codes', () => {
     const err = readProviderError({ error: 'Sign in to Claude first', code: 'auth_required', provider_id: 'claude-code', action: 'claude login', retryable: false }, 424)
     expect(err).toMatchObject({ code: 'auth_required', login_hint: 'claude login', provider_id: 'claude-code', retryable: false, status: 424 })

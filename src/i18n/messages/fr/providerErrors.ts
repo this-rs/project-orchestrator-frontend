@@ -79,6 +79,8 @@ export default {
     no_provider: 'Aucune instance de provider n\'est en bonne santé et autorisée pour ce projet : impossible de démarrer une conversation. Ajoutez-en une ou réparez-en une dans les réglages des providers.',
     auth_required: 'Ce provider demande que vous vous connectiez. Lancez la commande ci-dessous dans un terminal, puis revérifiez. Project Orchestrator ne se connecte pas à votre place.',
     credentials_locked: 'L\'identifiant de ce provider est dans le coffre, et le coffre est verrouillé. Déverrouillez-le pour continuer. Il n\'y a pas de repli sur un autre provider.',
+    credentialsLockedAuto: "Auto routerait vers des providers dont la clé est dans le coffre, et le coffre est verrouillé. Déverrouillez-le pour envoyer votre message.",
+    credentialsLockedAutoFallbacks: "Auto routerait vers des providers dont la clé est dans le coffre, et le coffre est verrouillé. Déverrouillez-le pour envoyer votre message, ou continuez sur un modèle qui n'en a pas besoin.",
     unauthorized: 'Le provider a refusé l\'identifiant de cette instance. Vérifiez la clé qu\'elle référence dans les réglages de l\'instance.',
     endpoint_unreachable: 'L\'endpoint de ce provider n\'a pas répondu.',
     instance_not_found: 'L\'instance de provider sur laquelle cette conversation tournait a été supprimée. Elle ne peut pas être reprise : ouvrez une nouvelle conversation.',

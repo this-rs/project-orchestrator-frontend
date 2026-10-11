@@ -79,6 +79,8 @@ export default {
     no_provider: 'Không có phiên bản nhà cung cấp nào vừa ổn định vừa được phép cho dự án này, nên không thể bắt đầu cuộc trò chuyện. Hãy thêm hoặc sửa một phiên bản trong cài đặt nhà cung cấp.',
     auth_required: 'Nhà cung cấp này cần bạn đăng nhập. Hãy chạy lệnh bên dưới trong terminal, rồi kiểm tra lại. Project Orchestrator không đăng nhập thay bạn.',
     credentials_locked: 'Thông tin xác thực của nhà cung cấp này nằm trong kho, mà kho đang khóa. Hãy mở khóa để tiếp tục. Sẽ không chuyển sang nhà cung cấp khác.',
+    credentialsLockedAuto: "Auto sẽ định tuyến tới các nhà cung cấp có khóa nằm trong kho, mà kho đang khóa. Hãy mở khóa để gửi tin nhắn của bạn.",
+    credentialsLockedAutoFallbacks: "Auto sẽ định tuyến tới các nhà cung cấp có khóa nằm trong kho, mà kho đang khóa. Hãy mở khóa để gửi tin nhắn, hoặc tiếp tục với một mô hình không cần kho.",
     unauthorized: 'Nhà cung cấp đã từ chối thông tin xác thực của phiên bản này. Hãy kiểm tra khóa mà nó tham chiếu trong cài đặt phiên bản.',
     endpoint_unreachable: 'Endpoint của nhà cung cấp này không phản hồi.',
     instance_not_found: 'Phiên bản nhà cung cấp mà cuộc trò chuyện này đã chạy đã bị xóa. Không thể tiếp tục: hãy bắt đầu cuộc trò chuyện mới.',

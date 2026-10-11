@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  lockedVault: {
+    resent: "Đã mở khóa kho: tin nhắn của bạn đang được gửi lại.",
+    fallbacksLabel: "Hoặc tiếp tục không dùng kho:",
+    useModel: "Dùng {model} ({provider})",
+  },
   vaultUnlock: {
     locked: "Kho đang khóa",
     placeholder: "Mật khẩu của kho",

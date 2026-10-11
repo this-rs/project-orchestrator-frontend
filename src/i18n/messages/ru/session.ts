@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  lockedVault: {
+    resent: "Хранилище разблокировано: сообщение отправляется снова.",
+    fallbacksLabel: "Или продолжить без хранилища:",
+    useModel: "Использовать {model} ({provider})",
+  },
   vaultUnlock: {
     locked: "Хранилище заблокировано",
     placeholder: "Парольная фраза хранилища",

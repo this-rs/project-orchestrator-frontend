@@ -77,6 +77,8 @@ export default {
     no_provider: 'No provider instance is healthy and allowed for this project, so a conversation cannot be started. Add or repair one in the provider settings.',
     auth_required: 'This provider needs you to sign in. Run the command below in a terminal, then re-check. Project Orchestrator does not sign in for you.',
     credentials_locked: 'The credential of this provider is in the vault, and the vault is locked. Unlock it to continue. There is no fallback to another provider.',
+    credentialsLockedAuto: "Auto would route to providers whose key is in the vault, and the vault is locked. Unlock it to send your message.",
+    credentialsLockedAutoFallbacks: "Auto would route to providers whose key is in the vault, and the vault is locked. Unlock it to send your message, or continue on a model that needs no vault.",
     unauthorized: 'The provider refused the credential of this instance. Check the key it refers to in the instance settings.',
     endpoint_unreachable: 'The endpoint of this provider did not answer.',
     instance_not_found: 'The provider instance this conversation ran on has been deleted. It cannot be resumed: start a new conversation.',

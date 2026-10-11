@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  lockedVault: {
+    resent: "Сховище розблоковано: повідомлення надсилається знову.",
+    fallbacksLabel: "Або продовжити без сховища:",
+    useModel: "Використати {model} ({provider})",
+  },
   vaultUnlock: {
     locked: "Сховище заблоковано",
     placeholder: "Парольна фраза сховища",

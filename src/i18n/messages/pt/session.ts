@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  lockedVault: {
+    resent: "Cofre desbloqueado: sua mensagem está sendo enviada novamente.",
+    fallbacksLabel: "Ou continuar sem o cofre:",
+    useModel: "Usar {model} ({provider})",
+  },
   vaultUnlock: {
     locked: "Cofre bloqueado",
     placeholder: "Senha de acesso do cofre",

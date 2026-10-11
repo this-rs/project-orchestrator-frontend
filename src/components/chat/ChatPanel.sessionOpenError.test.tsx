@@ -18,6 +18,13 @@ import {
   type ChatSessionOpenError,
 } from '@/atoms'
 import type { Project } from '@/types'
+import {
+  chatDraftAutoAtom,
+  chatDraftSelectionAtom,
+  chatForcedTargetAtom,
+  chatSelectedProviderAtom,
+  chatSessionModelAtom,
+} from '@/atoms'
 
 const chatStub = {
   sessionId: null as string | null,
@@ -48,6 +55,7 @@ const chatStub = {
 }
 
 const listProviders = vi.fn()
+const unlockVault = vi.fn()
 
 vi.mock('@/hooks', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/hooks')>()),
@@ -63,6 +71,10 @@ vi.mock('@/services/providers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/services/providers')>()),
   providersApi: { list: (...a: unknown[]) => listProviders(...a) },
 }))
+vi.mock('@/services/vault', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/vault')>()),
+  vaultApi: { unlock: (...a: unknown[]) => unlockVault(...a) },
+}))
 vi.mock('@/components/discussions/AttachSessionButton', () => ({ AttachSessionButton: () => null }))
 vi.mock('@/components/discussions/DiscussionTreeView', () => ({ DiscussionTreeView: () => null }))
 vi.mock('./ChatMessages', () => ({ ChatMessages: () => <div data-testid="messages" /> }))
@@ -71,7 +83,10 @@ vi.mock('./ComposerDock', () => ({
 }))
 vi.mock('./ChatInput', () => ({
   ChatInput: ({ onSend }: { onSend: (text: string, ids?: string[]) => void }) => (
-    <button data-testid="input" onClick={() => onSend('hello', ['doc-1'])}>send</button>
+    <>
+      <button data-testid="input" onClick={() => onSend('hello', ['doc-1'])}>send</button>
+      <textarea data-chat-composer="true" aria-label="composer" />
+    </>
   ),
 }))
 vi.mock('./CompactionBanner', () => ({ CompactionBanner: () => null }))
@@ -174,5 +189,153 @@ describe('ChatPanel — a conversation that could not be opened', () => {
       process.off('unhandledRejection', unhandled)
       logged.mockRestore()
     }
+  })
+})
+
+describe('ChatPanel — Auto refused on a locked vault', () => {
+  it('a fallback model makes the draft strict on it and sends the message again', async () => {
+    const store = renderPanel('open', (s) => {
+      s.set(chatDraftAutoAtom, true)
+      s.set(chatSessionOpenErrorAtom, {
+        info: {
+          code: 'credentials_locked',
+          message: 'The credential store is locked. Unlock it and try again.',
+          fallbacks: [{ provider_id: 'ollama', model: 'qwen3' }],
+          status: 423,
+        },
+        message: 'The credential store is locked. Unlock it and try again.',
+        text: 'Plan the release',
+        attachments: [],
+      })
+    })
+    const alert = await screen.findByRole('alert')
+    fireEvent.click(within(alert).getByTestId('locked-vault-fallback'))
+    expect(store.get(chatDraftAutoAtom)).toBe(false)
+    expect(store.get(chatDraftSelectionAtom)).toEqual([{ provider: 'ollama', model: 'qwen3' }])
+    expect(store.get(chatSelectedProviderAtom)).toBe('ollama')
+    expect(store.get(chatSessionModelAtom)).toBe('qwen3')
+    expect(store.get(chatForcedTargetAtom)).toBe(true)
+    expect(chatStub.sendMessage).toHaveBeenCalledTimes(1)
+    expect(chatStub.sendMessage.mock.calls[0][0]).toBe('Plan the release')
+  })
+})
+
+/** Auto refused on the locked vault, with what Auto could use instead. */
+function lockedAuto(fallbacks?: { provider_id: string; model: string }[]): ChatSessionOpenError {
+  return {
+    info: {
+      code: 'credentials_locked',
+      message: 'The credential store is locked. Unlock it and try again.',
+      ...(fallbacks ? { fallbacks } : { provider_id: 'openai' }),
+      status: 423,
+    },
+    message: 'The credential store is locked. Unlock it and try again.',
+    text: 'Plan the release',
+    attachments: [],
+  }
+}
+
+/** The unlock the card starts, held until the test lets it answer. */
+function heldUnlock() {
+  let answer!: () => void
+  unlockVault.mockImplementation(() => new Promise<void>((resolve) => (answer = resolve)))
+  return {
+    finish: async () => {
+      await act(async () => {
+        answer()
+      })
+    },
+  }
+}
+
+function startUnlock(alert: HTMLElement) {
+  const input = within(alert).getByPlaceholderText('Vault passphrase')
+  fireEvent.change(input, { target: { value: 'correct horse' } })
+  fireEvent.submit(input.closest('form')!)
+}
+
+describe('ChatPanel — the unlock started in the card (review of #335)', () => {
+  /** As the real `sendMessage` does: a send clears the failure, so the card goes away. */
+  function sendClears(store: ReturnType<typeof createStore>) {
+    chatStub.sendMessage.mockImplementation(async () => {
+      store.set(chatSessionOpenErrorAtom, null)
+    })
+  }
+
+  it('a fallback cannot be picked while the unlock runs: the message goes out once', async () => {
+    const store = renderPanel('open', (s) => {
+      s.set(chatDraftAutoAtom, true)
+      s.set(chatSessionOpenErrorAtom, lockedAuto([{ provider_id: 'ollama', model: 'qwen3' }]))
+    })
+    sendClears(store)
+    const unlock = heldUnlock()
+    const alert = await screen.findByRole('alert')
+    startUnlock(alert)
+    const fallback = within(alert).getByTestId('locked-vault-fallback')
+    expect(fallback).toHaveProperty('disabled', true)
+    fireEvent.click(fallback)
+    await unlock.finish()
+    expect(chatStub.sendMessage).toHaveBeenCalledTimes(1)
+    expect(chatStub.sendMessage.mock.calls[0][0]).toBe('Plan the release')
+    // Sent by the unlock, on Auto: the draft was not made strict on the fallback.
+    expect(store.get(chatForcedTargetAtom)).toBe(false)
+  })
+
+  it('an unlock that ends after the card was dismissed sends nothing', async () => {
+    const store = renderPanel('open', (s) => s.set(chatSessionOpenErrorAtom, lockedAuto([])))
+    sendClears(store)
+    const unlock = heldUnlock()
+    const alert = await screen.findByRole('alert')
+    startUnlock(alert)
+    fireEvent.click(within(alert).getByRole('button', { name: 'Dismiss' }))
+    await unlock.finish()
+    expect(chatStub.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('an unlock that ends after another failure replaced the one it was for sends nothing', async () => {
+    const store = renderPanel('open', (s) => s.set(chatSessionOpenErrorAtom, lockedAuto([])))
+    sendClears(store)
+    const unlock = heldUnlock()
+    const alert = await screen.findByRole('alert')
+    startUnlock(alert)
+    // Same card, same form (still mounted), but no longer the same failure.
+    act(() => store.set(chatSessionOpenErrorAtom, { ...lockedAuto([]), text: 'Another message' }))
+    await unlock.finish()
+    expect(chatStub.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('after the unlock the message goes out, the focus is on the composer and the unlock is said', async () => {
+    const store = renderPanel('open', (s) => s.set(chatSessionOpenErrorAtom, lockedAuto([])))
+    sendClears(store)
+    const unlock = heldUnlock()
+    startUnlock(await screen.findByRole('alert'))
+    await unlock.finish()
+    expect(chatStub.sendMessage).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByTestId('session-open-resent').textContent).toBe('Vault unlocked: your message is being sent again.')
+    await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('composer')))
+  })
+
+  it('a fallback picked returns the focus to the composer', async () => {
+    const store = renderPanel('open', (s) =>
+      s.set(chatSessionOpenErrorAtom, lockedAuto([{ provider_id: 'ollama', model: 'qwen3' }])),
+    )
+    sendClears(store)
+    fireEvent.click(within(await screen.findByRole('alert')).getByTestId('locked-vault-fallback'))
+    expect(chatStub.sendMessage).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('composer')))
+  })
+
+  /** Review of #335, finding 3: a NAMED instance's locked key (no `fallbacks`) gets the unlock too, without models. */
+  it('a named instance whose key is locked: unlock in place and send again, no model offered', async () => {
+    const store = renderPanel('open', (s) => s.set(chatSessionOpenErrorAtom, lockedAuto()))
+    sendClears(store)
+    const unlock = heldUnlock()
+    const alert = await screen.findByRole('alert')
+    expect(within(alert).queryByTestId('locked-vault-fallback')).toBeNull()
+    startUnlock(alert)
+    await unlock.finish()
+    expect(chatStub.sendMessage).toHaveBeenCalledTimes(1)
+    expect(chatStub.sendMessage.mock.calls[0][0]).toBe('Plan the release')
   })
 })

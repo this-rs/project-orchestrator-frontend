@@ -79,6 +79,8 @@ export default {
     no_provider: '没有健康且允许用于此项目的提供方实例，因此无法开始对话。请在提供方设置中添加或修复一个。',
     auth_required: '此提供方需要你登录。请在终端中运行下面的命令，然后重新检查。Project Orchestrator 不会替你登录。',
     credentials_locked: '此提供方的凭据在保险库中，而保险库已锁定。请解锁后继续。不会回退到其他提供方。',
+    credentialsLockedAuto: "Auto 会路由到密钥存放在保险库中的提供方，而保险库已锁定。请解锁后发送您的消息。",
+    credentialsLockedAutoFallbacks: "Auto 会路由到密钥存放在保险库中的提供方，而保险库已锁定。请解锁后发送您的消息，或改用不需要保险库的模型继续。",
     unauthorized: '提供方拒绝了此实例的凭据。请在实例设置中检查它所引用的密钥。',
     endpoint_unreachable: '此提供方的端点没有响应。',
     instance_not_found: '此对话所用的提供方实例已被删除。无法恢复：请新建对话。',
