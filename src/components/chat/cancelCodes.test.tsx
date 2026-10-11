@@ -17,6 +17,7 @@ vi.mock('@/services', () => ({ chatApi: { cancelTools: (...a: unknown[]) => canc
 
 import { chatLastCancelFailureAtom, chatSessionIdAtom } from '@/atoms'
 import { ApiError } from '@/services/api'
+import { nextCancelStamp } from '@/utils/cancelFailure'
 import { toolCancelUnsupportedText } from '@/constants/capabilities'
 import { ChatSessionProvider } from './ChatSessionContext'
 import { ChatMessageBubble } from './ChatMessageBubble'
@@ -111,7 +112,8 @@ describe('ToolCallBlock — Stop after a refused cancel', () => {
 describe('ToolCallBlock — Stop sent over the socket', () => {
   const overSocket = () => true
   const announce = (store: ReturnType<typeof createStore>, reason: string, sessionId = 's1') =>
-    act(() => store.set(chatLastCancelFailureAtom, { sessionId, reason, at: Date.now() }))
+    // Stamped as `useChat` stamps a notice when it arrives.
+    act(() => store.set(chatLastCancelFailureAtom, { sessionId, reason, at: nextCancelStamp() }))
 
   it('owner_unreachable announced after the click: "already stopped", never re-enabled', async () => {
     const { store } = mount(<ToolCallBlock block={running} />, overSocket)
@@ -152,6 +154,29 @@ describe('ToolCallBlock — Stop sent over the socket', () => {
     announce(store, 'owner_timeout', 'other-session')
     expect(screen.getByText('stopping…')).toBeTruthy()
     expect(screen.queryByText('already stopped')).toBeNull()
+  })
+
+  it('a notice that came in the same millisecond as the click but before it is not its answer (review of #336)', () => {
+    const { store } = mount(<ToolCallBlock block={running} />, overSocket)
+    // Fake timers: the clock does not move between the notice and the click.
+    announce(store, 'owner_unreachable')
+    fireEvent.click(stopChip()!)
+    expect(screen.getByText('stopping…')).toBeTruthy()
+    expect(screen.queryByText('already stopped')).toBeNull()
+  })
+
+  it('a wall clock set back between the click and the notice does not hide the notice (review of #336)', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(10_000_000)
+    try {
+      const { store } = mount(<ToolCallBlock block={running} />, overSocket)
+      fireEvent.click(stopChip()!)
+      // NTP or the user sets the clock back an hour, then the notice arrives.
+      now.mockReturnValue(10_000_000 - 3_600_000)
+      announce(store, 'owner_unreachable')
+      expect(screen.getByText('already stopped').getAttribute('data-stop-outcome')).toBe('already_stopped')
+    } finally {
+      now.mockRestore()
+    }
   })
 
   it('a chip that was not clicked ignores it', () => {
