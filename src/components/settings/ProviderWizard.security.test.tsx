@@ -26,6 +26,7 @@ vi.mock('@/services/env', async (orig) => ({
   getApiBase: () => '/api',
 }))
 
+import { currentUserAtom } from '@/atoms'
 import { forgetUnlockProof, vaultApi } from '@/services/vault'
 import { ProviderWizard } from './ProviderWizard'
 import { CLAUDE, mountSettings } from './settingsTestKit'
@@ -41,6 +42,10 @@ interface Call {
 let calls: Call[] = []
 let vaultOpen = true
 let createStatus = 201
+/** Health of the built-in Claude Code in the list: `cli_not_found` = no CLI on the server. */
+let claudeState = 'ok'
+/** Whether the provider test passes with a tool call (the pilot role is only proposed then). */
+let testPasses = false
 
 const json = (status: number, body: unknown) =>
   new Response(body === null ? null : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -68,14 +73,16 @@ function route(method: string, path: string): Response {
   }
   if (method === 'POST' && path === '/api/chat/providers/test') {
     return json(200, {
-      ok: false,
-      health: { state: 'ok', code: 'model_no_tools' },
+      ok: testPasses,
+      health: testPasses ? { state: 'ok' } : { state: 'ok', code: 'model_no_tools' },
       models: [{ id: 'deepseek-flash' }, { id: 'deepseek-v4-pro' }],
-      probe: { tools: false, context_window: 1048576 },
+      probe: { tools: testPasses, context_window: 1048576 },
     })
   }
   if (method === 'PUT' && path.startsWith('/api/chat/providers/')) return json(200, { id: 'ds' })
-  if (method === 'GET' && path === '/api/chat/providers') return json(200, { providers: [{ id: 'claude-code', kind: 'claude_code', health: { state: 'ok' } }] })
+  if (method === 'GET' && path === '/api/chat/roles') return json(200, {})
+  if (method === 'PUT' && path === '/api/chat/roles') return json(200, {})
+  if (method === 'GET' && path === '/api/chat/providers') return json(200, { providers: [{ id: 'claude-code', kind: 'claude_code', health: { state: claudeState } }] })
   if (method === 'GET' && path === '/api/projects') return json(200, { items: [] })
   return json(404, { error: 'unexpected route' })
 }
@@ -84,6 +91,8 @@ beforeEach(async () => {
   calls = []
   vaultOpen = true
   createStatus = 201
+  claudeState = 'ok'
+  testPasses = false
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init: RequestInit = {}) => {
@@ -261,5 +270,36 @@ describe('the SSH key of a remote Claude Code', () => {
     })
     for (const c of calls) expect(c.body).not.toContain('BEGIN')
     expect(document.body.innerHTML).not.toContain('b3BlbnNzaC1rZXktdjEAAAAA')
+  })
+})
+
+describe('the API key of the wizard, up to the pilot role (M3)', () => {
+  it('no CLI on the server: Finish sets the pilot role, and the key is still only in the vault request, never in a URL', async () => {
+    claudeState = 'cli_not_found'
+    testPasses = true
+    await vaultApi.unlock('the passphrase', 60)
+    const onFinished = vi.fn()
+    mountSettings(<ProviderWizard existingIds={['claude-code']} onClose={vi.fn()} onFinished={onFinished} />, {
+      providers: [{ ...CLAUDE, health: { status: 'unhealthy' } }],
+      prepare: (store) => store.set(currentUserAtom, { id: 'root', email: 'root@example.com', name: 'Root', is_root: true }),
+    })
+    fireEvent.change(screen.getByLabelText('Identifier'), { target: { value: 'ds' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByTestId('wizard-vault-open')
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: SECRET } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and test' }))
+    await screen.findByTestId('wizard-test-result')
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Skip this step' }))
+    const sw = screen.getByRole('switch', { name: /Use this provider for new chats/ })
+    await waitFor(() => expect(sw.getAttribute('aria-checked')).toBe('true'))
+    fireEvent.click(screen.getByRole('button', { name: 'Finish' }))
+    await waitFor(() => expect(onFinished).toHaveBeenCalledWith('ds'))
+
+    const put = calls.find((c) => c.method === 'PUT' && c.path === '/api/chat/roles')!
+    expect(JSON.parse(put.body)).toMatchObject({ pilot: { provider: 'ds' } })
+    expect(calls.filter(carries).map((c) => `${c.method} ${c.path}`)).toEqual(['PUT /api/vault/secrets/ds'])
+    for (const c of calls) expect(c.path).not.toContain(SECRET)
+    expect(document.body.innerHTML).not.toContain(SECRET)
   })
 })

@@ -25,8 +25,10 @@
  * grant → test.
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useAtomValue } from 'jotai'
 import { Check } from 'lucide-react'
-import { Button, Facts, surface } from '@/components/ui'
+import { authModeAtom, authModeConfirmedAtom, chatSelectedProjectAtom, currentUserAtom, selectedProjectSlugAtom } from '@/atoms'
+import { Button, Facts, Switch, surface } from '@/components/ui'
 import { presetByKey, presetLabel } from '@/constants/providerPresets'
 import {
   COST_LABEL_KEYS,
@@ -61,7 +63,7 @@ import { useT } from '@/i18n'
 import { normalizeProviderHealth, providersApi } from '@/services/providers'
 import { hasUnlockProof, vaultApi, type VaultOverview } from '@/services/vault'
 import type { CredentialRef, ProviderPreset } from '@/types/provider'
-import type { ProviderDraft, ProviderTestResult } from '@/types/providerSettings'
+import type { ProviderDraft, ProviderTestResult, RoleAssignments } from '@/types/providerSettings'
 import { ConfirmPanel } from './ConfirmPanel'
 import {
   EMPTY_REMOTE,
@@ -190,8 +192,15 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const tr = useT()
   const { t } = tr
   const uid = useId().replace(/:/g, '')
-  const { providers, refresh } = useProviders()
+  const { providers, default: serverDefault, refresh } = useProviders()
   const projects = useProjectOptions()
+  /** The project the user is working in: the step "Project" proposes it first. */
+  const chatProjectSlug = useAtomValue(chatSelectedProjectAtom)?.slug
+  const pageProjectSlug = useAtomValue(selectedProjectSlugAtom)
+  const currentProjectSlug = chatProjectSlug ?? pageProjectSlug
+  const currentUser = useAtomValue(currentUserAtom)
+  const appAuthMode = useAtomValue(authModeAtom)
+  const authModeConfirmed = useAtomValue(authModeConfirmedAtom)
 
   const [step, setStep] = useState(0)
   const [identity, setIdentity] = useState<IdentityState>(() => initialIdentity('deepseek', t))
@@ -230,6 +239,38 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
 
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [rollbackError, setRollbackError] = useState<string | null>(null)
+
+  /** Global roles as stored (`null` while unknown: never written back half-read). */
+  const [roles, setRoles] = useState<RoleAssignments | null>(null)
+  /** "Use for new chats": `null` = follow the suggestion (on when no pilot can answer). */
+  const [makePilot, setMakePilot] = useState<boolean | null>(null)
+  const [finishing, setFinishing] = useState(false)
+  const [finishError, setFinishError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    providersApi
+      .roles()
+      .then((r) => {
+        if (!cancelled) setRoles(r ?? {})
+      })
+      .catch(() => {
+        // No roles route or not readable: the switch stays off by default and is only an offer.
+        if (!cancelled) setRoles(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Propose the project the user is in (or the only one) on the "Project" step.
+  useEffect(() => {
+    if (projectSlug || !projects || projects.length === 0) return
+    const current = currentProjectSlug && projects.find((p) => p.slug === currentProjectSlug)
+    const proposed = current ? current.slug : projects.length === 1 ? projects[0].slug : ''
+    if (proposed) setProjectSlug(proposed)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only once the list arrives, never over a choice
+  }, [projects])
 
   const preset = presetByKey(identity.presetKey)
   const process = isProcessKind(preset.kind)
@@ -354,6 +395,23 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
         : isRemote
           ? remoteOrigin(remote.host, remote.sshUser, remote.sshPort)
           : originOf(identity.baseUrl.trim()))
+
+  /**
+   * Who answers a new chat today: the `pilot` role, else the server default.
+   * Not usable when absent, unknown to the list, unhealthy (Claude Code
+   * without its CLI is `cli_not_found` → unhealthy) or waiting for a sign-in:
+   * a new chat would fail.
+   */
+  const pilotId = roles?.pilot?.provider ?? serverDefault?.provider ?? null
+  const pilotInstance = pilotId ? providers.find((p) => p.id === pilotId) : undefined
+  const pilotUsable =
+    !!pilotInstance && pilotInstance.health.status !== 'unhealthy' && pilotInstance.health.status !== 'auth_required'
+  /** Proposed as pilot only once it answered the test AND called a tool: otherwise every new chat would fail. */
+  const testPassed = test?.ok === true && test.probe?.tools !== false
+  /** The pilot role is server-wide: only the administrator (or the one user of a server without sign-in, as the server SAID, not the fallback of a failed /auth/providers) gets it switched on for them. */
+  const decidesForAll = currentUser?.is_root === true || (appAuthMode === 'none' && authModeConfirmed)
+  const pilotWanted = makePilot ?? (roles !== null && !pilotUsable && testPassed && decidesForAll)
+  const pilotModel = (savedDefault ?? identity.model.trim()) || undefined
 
   // ---- Edits ---------------------------------------------------------------
 
@@ -573,10 +631,37 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
     return null
   })()
 
+  /**
+   * "Finish": when asked, the new instance takes the `pilot` role (the other
+   * roles are kept as stored), so that a new chat goes to it rather than to an
+   * engine that cannot answer. A failure keeps the wizard open and says why.
+   */
+  const finish = async () => {
+    const id = created.instance ?? instanceId
+    if (pilotWanted && roles !== null && roles.pilot?.provider !== id) {
+      setFinishing(true)
+      setFinishError(null)
+      try {
+        // Re-read just before writing: the PUT replaces every role, and another tab may have changed one since.
+        const fresh = (await providersApi.roles()) ?? {}
+        if (fresh.pilot?.provider !== id) {
+          await providersApi.setRoles({ ...fresh, pilot: { provider: id, ...(pilotModel ? { model: pilotModel } : {}) } })
+        }
+        void refresh()
+      } catch (err) {
+        setFinishError(t('providerWizard.pilot.failed', { message: wizardErrorMessage(err, t) }))
+        return
+      } finally {
+        setFinishing(false)
+      }
+    }
+    onFinished(id)
+  }
+
   const next = () => {
-    if (blocker) return
+    if (blocker || finishing) return
     if (step === 1) return startChain()
-    if (step === 4) return onFinished(created.instance ?? instanceId)
+    if (step === 4) return void finish()
     setStep((s) => s + 1)
   }
 
@@ -868,6 +953,42 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
               ]}
             />
           </div>
+          {!consented && (
+            <p data-testid="wizard-no-consent" className="text-xs text-amber-300">
+              {t('providerWizard.pilot.noConsent')}
+            </p>
+          )}
+          <div className={`${surface} space-y-2 p-3`}>
+            <Switch
+              checked={pilotWanted}
+              onChange={(v) => setMakePilot(v)}
+              disabled={roles === null || finishing}
+              ariaDescribedBy={`${uid}-pilot-help`}
+              label={<span className="text-sm font-medium text-gray-200">{t('providerWizard.pilot.label')}</span>}
+            />
+            <p id={`${uid}-pilot-help`} data-testid="wizard-pilot-help" className="text-xs text-gray-400">
+              {roles === null
+                ? t('providerWizard.pilot.unknown')
+                : pilotUsable
+                  ? t('providerWizard.pilot.optional', { current: pilotInstance?.label ?? pilotId ?? '' })
+                  : t('providerWizard.pilot.needed')}
+            </p>
+            {roles !== null && !testPassed && (
+              <p data-testid="wizard-pilot-untested" className="text-xs text-amber-300">
+                {t('providerWizard.pilot.testNotPassed')}
+              </p>
+            )}
+            {roles !== null && !decidesForAll && (
+              <p data-testid="wizard-pilot-shared" className="text-xs text-amber-300">
+                {t('providerWizard.pilot.notAdmin')}
+              </p>
+            )}
+          </div>
+          {finishError && (
+            <p role="alert" data-testid="wizard-finish-error" className="text-xs text-red-400">
+              {finishError}
+            </p>
+          )}
         </div>
       )}
 
@@ -912,7 +1033,7 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
             size="sm"
             variant="primary"
             onClick={next}
-            disabled={!!blocker}
+            disabled={!!blocker || finishing}
             aria-describedby={blocker ? `${uid}-blocker` : undefined}
           >
             {nextLabel}

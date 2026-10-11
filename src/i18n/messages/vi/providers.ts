@@ -75,5 +75,13 @@ export default {
     otherDescription: 'Bỏ qua lúc này: thêm một công cụ trong Cài đặt → Nhà cung cấp sau khi thiết lập.',
     noEngineNote: 'Chưa thiết lập công cụ nào ở đây. Không bắt buộc có Claude Code CLI: hãy thêm nhà cung cấp trong Cài đặt → Nhà cung cấp khi ứng dụng đã chạy.',
     launchSummary: 'Cần cấu hình trong Cài đặt → Nhà cung cấp',
+    cliAbsentNote: "Claude Code chưa được cài trên máy tính này. Nó là tùy chọn: chọn nó ở trên nếu bạn muốn dùng, ứng dụng có thể cài giúp bạn.",
+    cliOptionalTitle: "Claude Code chưa được cài",
+    cliOptionalBody: "Nó là tùy chọn. Cài ngay (ứng dụng chạy trình cài đặt chính thức; việc đăng nhập Claude chỉ làm một lần, trong terminal, nếu Claude Code yêu cầu), cài sau, hoặc chọn một nhà cung cấp khác ở trên.",
+    authRequiredTitle: "Nhà cung cấp khác cần một tài khoản đăng nhập",
+    authRequiredBody: "Không có đăng nhập, máy chủ chỉ chạy Claude Code và từ chối mọi nhà cung cấp khác, vì mỗi phiên trò chuyện với nó phải thuộc về một người dùng đã đăng nhập. Hãy quay lại bước Xác thực và chọn mật khẩu hoặc OIDC.",
+    authRequiredAction: "Thiết lập tài khoản đăng nhập",
+    authNoneNote: "Không có đăng nhập, trò chuyện chỉ dùng được Claude Code. Mọi nhà cung cấp khác (tương thích OpenAI, Ollama, DeepSeek…) cần tài khoản đăng nhập, nếu không máy chủ sẽ từ chối.",
+    embeddingLater: "Bạn có thể tiếp tục mà không có nó. Khi đó máy chủ sẽ tải mô hình ở lần khởi động đầu, trước khi phản hồi, nên lần khởi động đầu có thể mất vài phút; nếu tải thất bại, tìm kiếm theo nghĩa vẫn tắt. Hãy tải nó tại đây trước để tránh phải chờ.",
   },
 } satisfies Translation<'providers'>

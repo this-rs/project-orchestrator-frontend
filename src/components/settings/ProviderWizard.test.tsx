@@ -14,6 +14,8 @@ const remove = vi.fn()
 const allow = vi.fn()
 const list = vi.fn()
 const sshHostKey = vi.fn()
+const roles = vi.fn()
+const setRoles = vi.fn()
 vi.mock('@/services/providers', async (orig) => ({
   ...(await orig<typeof import('@/services/providers')>()),
   providersApi: {
@@ -24,6 +26,8 @@ vi.mock('@/services/providers', async (orig) => ({
     update: (...a: unknown[]) => update(...a),
     list: (...a: unknown[]) => list(...a),
     sshHostKey: (...a: unknown[]) => sshHostKey(...a),
+    roles: () => roles(),
+    setRoles: (...a: unknown[]) => setRoles(...a),
     status: vi.fn(),
   },
 }))
@@ -52,6 +56,7 @@ vi.mock('@/services/projects', () => ({
   projectsApi: { list: vi.fn().mockResolvedValue({ items: [{ slug: 'acme', name: 'Acme' }] }) },
 }))
 
+import { authModeAtom, authModeConfirmedAtom, currentUserAtom } from '@/atoms'
 import { ApiError } from '@/services/api'
 import { ProviderWizard } from './ProviderWizard'
 import { CLAUDE, DEEPSEEK, mountSettings, response } from './settingsTestKit'
@@ -113,6 +118,8 @@ beforeEach(() => {
     sshHostKey,
   ])
     m.mockReset()
+  roles.mockReset().mockResolvedValue({})
+  setRoles.mockReset().mockImplementation(async (r: unknown) => r)
   proof = true
   overview.mockReset().mockResolvedValue(OPEN_VAULT)
   create.mockResolvedValue({})
@@ -932,5 +939,211 @@ describe('ProviderWizard — Claude Code distant (SSH)', () => {
     await waitFor(() => expect(screen.getAllByRole('alert').length).toBeGreaterThan(0))
     expect(screen.queryByTestId('remote-fingerprint')).toBeNull()
     expect(button('Next').hasAttribute('disabled')).toBe(true)
+  })
+})
+
+describe('ProviderWizard — the first chat works (B2/B3 from the interface)', () => {
+  /** Claude Code without its CLI: the list says `cli_not_found`, read as unhealthy. */
+  const CLAUDE_NO_CLI = { ...CLAUDE, health: { status: 'unhealthy' as const, version: null } }
+
+  /** The administrator by default: the pilot role is server-wide. */
+  function mountWith(providers = [CLAUDE_NO_CLI, DEEPSEEK], user: { is_root: boolean } | null = { is_root: true }) {
+    list.mockReset().mockResolvedValue(response(providers))
+    return mountSettings(
+      <ProviderWizard existingIds={providers.map((p) => p.id)} onClose={onClose} onFinished={onFinished} />,
+      {
+        providers,
+        list,
+        prepare: (store) => store.set(currentUserAtom, user ? { id: 'u1', email: 'a@b.c', name: 'A', ...user } : null),
+      }
+    )
+  }
+
+  async function toSummary() {
+    fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Save and test'))
+    await screen.findByTestId('wizard-test-result')
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Skip this step'))
+    await screen.findByTestId('wizard-summary')
+  }
+
+  it('Claude Code unusable and no pilot: Finish gives the new instance the pilot role, other roles kept', async () => {
+    roles.mockResolvedValue({ executor: { provider: 'deepseek' } })
+    mountWith()
+    await toSummary()
+    const sw = screen.getByRole('switch', { name: /Use this provider for new chats/ })
+    await waitFor(() => expect(sw.getAttribute('aria-checked')).toBe('true'))
+    expect(screen.getByTestId('wizard-pilot-help').textContent).toMatch(/no engine can answer a new chat/i)
+    fireEvent.click(button('Finish'))
+    await waitFor(() => expect(onFinished).toHaveBeenCalledWith('ollama'))
+    expect(setRoles).toHaveBeenCalledTimes(1)
+    const sent = setRoles.mock.calls[0][0] as Record<string, { provider: string }>
+    expect(sent.pilot.provider).toBe('ollama')
+    expect(sent.executor).toEqual({ provider: 'deepseek' })
+    expect(setRoles.mock.invocationCallOrder[0]).toBeLessThan(onFinished.mock.invocationCallOrder[0])
+  })
+
+  it('a pilot that can answer: the switch is only an offer, Finish leaves the roles alone', async () => {
+    mountWith([CLAUDE, DEEPSEEK])
+    await toSummary()
+    await waitFor(() => expect(roles).toHaveBeenCalled())
+    const sw = screen.getByRole('switch', { name: /Use this provider for new chats/ })
+    expect(sw.getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByTestId('wizard-pilot-help').textContent).toContain('Claude Code')
+    fireEvent.click(button('Finish'))
+    expect(onFinished).toHaveBeenCalledWith('ollama')
+    expect(setRoles).not.toHaveBeenCalled()
+  })
+
+  it('the user can decline the pilot role even when it is recommended', async () => {
+    mountWith()
+    await toSummary()
+    const sw = screen.getByRole('switch', { name: /Use this provider for new chats/ })
+    await waitFor(() => expect(sw.getAttribute('aria-checked')).toBe('true'))
+    fireEvent.click(sw)
+    fireEvent.click(button('Finish'))
+    expect(onFinished).toHaveBeenCalledWith('ollama')
+    expect(setRoles).not.toHaveBeenCalled()
+  })
+
+  it('a refused role change keeps the wizard open and says why', async () => {
+    setRoles.mockRejectedValue(new ApiError(403, 'provider settings can only be changed by a signed-in user'))
+    mountWith()
+    await toSummary()
+    await waitFor(() =>
+      expect(screen.getByRole('switch', { name: /Use this provider for new chats/ }).getAttribute('aria-checked')).toBe('true')
+    )
+    fireEvent.click(button('Finish'))
+    expect((await screen.findByTestId('wizard-finish-error')).textContent).toMatch(/Could not make this provider the default/)
+    expect(onFinished).not.toHaveBeenCalled()
+  })
+
+  it('roles that cannot be read: nothing is written, the switch is off and says where to set it', async () => {
+    roles.mockRejectedValue(new ApiError(404, 'not found'))
+    mountWith()
+    await toSummary()
+    await waitFor(() => expect(screen.getByTestId('wizard-pilot-help').textContent).toMatch(/could not be read/))
+    fireEvent.click(button('Finish'))
+    expect(onFinished).toHaveBeenCalledWith('ollama')
+    expect(setRoles).not.toHaveBeenCalled()
+  })
+
+  it('B3: the project step proposes the project in use, and the summary warns when none is allowed', async () => {
+    mountWith()
+    fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Save and test'))
+    await screen.findByTestId('wizard-test-result')
+    fireEvent.click(button('Next'))
+    // The only project is proposed: one click on "Allow" is enough.
+    const allowBtn = await screen.findByRole('button', { name: 'Allow http://localhost:11434' })
+    fireEvent.click(allowBtn)
+    await screen.findByTestId('wizard-consented')
+    expect(allow).toHaveBeenCalledWith('acme', 'ollama', 'http://localhost:11434')
+    fireEvent.click(button('Next'))
+    expect(screen.queryByTestId('wizard-no-consent')).toBeNull()
+  })
+
+  it('B3: skipping consent is said on the summary', async () => {
+    mountWith()
+    await toSummary()
+    expect(screen.getByTestId('wizard-no-consent').textContent).toMatch(/refused until that project allows it/)
+  })
+})
+
+describe('ProviderWizard — the pilot role, review of #360', () => {
+  const CLAUDE_NO_CLI = { ...CLAUDE, health: { status: 'unhealthy' as const, version: null } }
+  const pilotSwitch = () => screen.getByRole('switch', { name: /Use this provider for new chats/ })
+
+  function mountAs(
+    user: { is_root: boolean } | null,
+    providers = [CLAUDE_NO_CLI, DEEPSEEK],
+    auth: { mode: 'none' | 'required'; confirmed: boolean } = { mode: 'required', confirmed: true }
+  ) {
+    list.mockReset().mockResolvedValue(response(providers))
+    return mountSettings(
+      <ProviderWizard existingIds={providers.map((p) => p.id)} onClose={onClose} onFinished={onFinished} />,
+      {
+        providers,
+        list,
+        prepare: (store) => {
+          store.set(currentUserAtom, user ? { id: 'u1', email: 'a@b.c', name: 'A', ...user } : null)
+          store.set(authModeAtom, auth.mode)
+          store.set(authModeConfirmedAtom, auth.confirmed)
+        },
+      }
+    )
+  }
+
+  async function toSummary() {
+    fireEvent.click(screen.getByRole('radio', { name: /Ollama/ }))
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Save and test'))
+    await screen.findByTestId('wizard-test-result')
+    fireEvent.click(button('Next'))
+    fireEvent.click(button('Skip this step'))
+    await screen.findByTestId('wizard-summary')
+    await waitFor(() => expect(roles).toHaveBeenCalled())
+    // Let the roles answer land before reading the default of the switch.
+    await act(async () => {})
+  }
+
+  it.each([
+    ['the test failed', { ok: false, health: { state: 'ok' }, models: [{ id: 'qwen3' }], probe: { tools: true } }],
+    ['no tool was called', { ok: true, health: { state: 'ok' }, models: [{ id: 'qwen3' }], probe: { tools: false } }],
+  ])('not proposed as pilot when %s, and says why', async (_, result) => {
+    test.mockResolvedValue(result)
+    mountAs({ is_root: true })
+    await toSummary()
+    expect(pilotSwitch().getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByTestId('wizard-pilot-untested').textContent).toMatch(/would make new chats fail/)
+    fireEvent.click(button('Finish'))
+    await waitFor(() => expect(onFinished).toHaveBeenCalledWith('ollama'))
+    expect(setRoles).not.toHaveBeenCalled()
+  })
+
+  it('server-wide: off by default for a user who is not the administrator, and the label says it is for everyone', async () => {
+    mountAs({ is_root: false })
+    await toSummary()
+    expect(pilotSwitch().getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByText('Use this provider for new chats, for everyone on this server')).toBeTruthy()
+    expect(screen.getByTestId('wizard-pilot-shared').textContent).toMatch(/applies to everyone on this server/)
+    fireEvent.click(button('Finish'))
+    await waitFor(() => expect(onFinished).toHaveBeenCalledWith('ollama'))
+    expect(setRoles).not.toHaveBeenCalled()
+  })
+
+  it('a server that SAID it has no sign-in: the one user decides, the switch is on', async () => {
+    mountAs(null, undefined, { mode: 'none', confirmed: true })
+    await toSummary()
+    expect(pilotSwitch().getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('auth "none" only as the fallback of a failed /auth/providers: not trusted, the switch is off for a non-root user', async () => {
+    mountAs({ is_root: false }, undefined, { mode: 'none', confirmed: false })
+    await toSummary()
+    expect(pilotSwitch().getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByTestId('wizard-pilot-shared')).toBeTruthy()
+  })
+
+  it('a pilot waiting for a sign-in (auth_required) cannot answer: the new provider is proposed', async () => {
+    mountAs({ is_root: true }, [{ ...CLAUDE, health: { status: 'auth_required' as const, version: null } }, DEEPSEEK])
+    await toSummary()
+    expect(pilotSwitch().getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('the roles are read again right before the write: a role changed meanwhile is kept', async () => {
+    roles
+      .mockResolvedValueOnce({ executor: { provider: 'deepseek' } })
+      .mockResolvedValueOnce({ executor: { provider: 'local-llama' } })
+    mountAs({ is_root: true })
+    await toSummary()
+    expect(pilotSwitch().getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(button('Finish'))
+    await waitFor(() => expect(onFinished).toHaveBeenCalledWith('ollama'))
+    expect(roles).toHaveBeenCalledTimes(2)
+    expect(setRoles.mock.calls[0][0]).toEqual({ executor: { provider: 'local-llama' }, pilot: expect.objectContaining({ provider: 'ollama' }) })
   })
 })
