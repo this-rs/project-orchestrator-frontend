@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pickModelResolver } from '@/constants/providers'
 import { distinctModels } from '@/utils/routingSelection'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatAutoContinueAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom, chatOneOffProviderPickAtom, usablePickedProvider, dropStalePickAtom, clearOneOffProviderPickAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom, chatOneOffProviderPickAtom, usablePickedProvider, dropStalePickAtom, clearOneOffProviderPickAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -490,8 +490,6 @@ export function useChat() {
     store.set(chatSessionEngineAtom, { engine: runtime?.engine ?? null, degraded: runtime?.degradedFeatures ?? [] })
   }, [store])
 
-  // Auto-continue: atom is now synced from backend events (not local-only)
-  const setAutoContinue = useSetAtom(chatAutoContinueAtom)
   /**
    * Background-tasks snapshot setter — fed by `active_tasks_update`
    * WS events. Plan 5985a7c4 (F2). The atom is also reset to `[]` on
@@ -1317,17 +1315,10 @@ export function useChat() {
           break
         }
 
-        case 'auto_continue_state_changed': {
-          // Backend confirmed the auto-continue toggle — sync local atom
-          const acData = event.replaying
-            ? (event as { data?: Record<string, unknown> }).data ?? event
-            : event
-          const enabled = (acData as { enabled?: boolean }).enabled
-          if (enabled !== undefined) {
-            setAutoContinue(enabled)
-          }
+        case 'auto_continue_state_changed':
+          // Auto-continue is always on in the backend (capped), with no toggle here:
+          // this frame is kept for older frontends and carries nothing to show.
           break
-        }
 
         case 'auto_continue': {
           // Backend is auto-continuing after max_turns — show indicator on last assistant message
@@ -1578,7 +1569,7 @@ export function useChat() {
       return finalize(updated)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
-  }, [setIsStreaming, setPermissionOverride, setSessionModel, setAutoContinue, setIsCompacting, setBackgroundTasks, setSecretRequests, applySessionRuntime, releaseScopedAnswer, stampPermissionBlocks])
+  }, [setIsStreaming, setPermissionOverride, setSessionModel, setIsCompacting, setBackgroundTasks, setSecretRequests, applySessionRuntime, releaseScopedAnswer, stampPermissionBlocks])
 
   // ========================================================================
   // REST resync — after a reconnect that the server cannot replay
@@ -2405,15 +2396,6 @@ export function useChat() {
     setIsStreaming(true)
   }, [sessionId, getWs, setIsStreaming])
 
-  /** Toggle auto-continue on the backend (sends WS message, atom synced from backend event) */
-  const changeAutoContinue = useCallback((enabled: boolean) => {
-    if (!sessionId) return
-    const ws = getWs()
-    ws.sendSetAutoContinue(enabled)
-    // Optimistically update local state (server will confirm via auto_continue_state_changed event)
-    setAutoContinue(enabled)
-  }, [sessionId, getWs, setAutoContinue])
-
   /** Returns true when the answer was handed to the socket, false otherwise. */
   const respondPermission = useCallback((
     toolCallId: string,
@@ -2640,12 +2622,11 @@ export function useChat() {
     setSessionModel(null)
     // A candidate picked for the opening that is being left behind goes with it.
     store.set(clearOneOffProviderPickAtom)
-    setAutoContinue(false)
     applySessionRuntime(null)
     store.set(chatSessionRoutingAtom, null)
     store.set(chatForcedTargetAtom, false)
     store.set(chatSessionOpenErrorAtom, null)
-  }, [store, getWs, setSessionId, setIsStreaming, setIsReplaying, setPermissionOverride, setSessionModel, setAutoContinue, sessionId, applySessionRuntime])
+  }, [store, getWs, setSessionId, setIsStreaming, setIsReplaying, setPermissionOverride, setSessionModel, sessionId, applySessionRuntime])
 
   const changePermissionMode = useCallback((mode: ToolPolicyMode) => {
     if (!sessionId) return
@@ -2771,7 +2752,6 @@ export function useChat() {
     loadNewerMessages,
     changePermissionMode,
     changeModel,
-    changeAutoContinue,
     cancelToolsLive,
   }
 }

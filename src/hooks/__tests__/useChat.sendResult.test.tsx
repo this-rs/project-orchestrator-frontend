@@ -69,9 +69,6 @@ vi.mock('@/services', () => {
     sendSetModel() {
       return true
     }
-    sendSetAutoContinue() {
-      return true
-    }
   }
 
   return {

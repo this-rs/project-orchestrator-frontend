@@ -42,9 +42,6 @@ export default {
     attach: "Anexar um arquivo",
     override: "(substituído)",
     default: "padrão",
-    auto: "Auto",
-    autoOn: "Continuação automática ativada",
-    autoOff: "Continuação automática desativada",
     drop: "Solte para anexar",
     sendNowHint: "{key}+Enter envia agora e interrompe a resposta em andamento"
   },

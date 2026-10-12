@@ -42,9 +42,6 @@ export default {
     attach: "附加文件",
     override: "（覆盖）",
     default: "默认",
-    auto: "自动",
-    autoOn: "已启用自动继续",
-    autoOff: "已禁用自动继续",
     drop: "拖放到此处以附加",
     sendNowHint: "{key}+Enter 立即发送并中断当前回答"
   },
