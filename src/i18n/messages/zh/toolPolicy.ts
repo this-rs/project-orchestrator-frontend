@@ -31,7 +31,7 @@ export default {
       plan_only: { label: "仅规划", description: "只读模式，不写入也不执行命令。" },
     },
     neutral: {
-      trust: { description: "运行所有工具，无需询问。" },
+      trust: { description: "运行所有工具，无需询问。文件工具也可访问项目之外的位置（例如其他代理创建的 worktree），但绝不会访问 ~/.ssh、~/.claude 或保险库。" },
       auto_edits: { description: "文件编辑无需询问；命令仍会询问。" },
       ask: { description: "每次调用工具前都询问。" },
       plan_only: { description: "只读，不写入也不执行命令。" },

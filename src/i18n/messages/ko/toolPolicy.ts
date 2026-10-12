@@ -31,7 +31,7 @@ export default {
       plan_only: { label: '플랜만', description: '읽기 전용 모드. 쓰기나 명령 없음.' },
     },
     neutral: {
-      trust: { description: '묻지 않고 모든 도구를 실행합니다.' },
+      trust: { description: "묻지 않고 모든 도구를 실행합니다. 파일 도구는 프로젝트 밖(다른 에이전트가 만든 worktree 등)에도 접근할 수 있지만, ~/.ssh, ~/.claude, 보관소에는 절대 접근하지 않습니다." },
       auto_edits: { description: '파일 편집은 묻지 않고 실행하고, 명령은 계속 묻습니다.' },
       ask: { description: '모든 도구 호출 전에 묻습니다.' },
       plan_only: { description: '읽기 전용. 쓰기나 명령 없음.' },

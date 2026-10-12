@@ -31,7 +31,7 @@ export default {
       plan_only: { label: 'Nur Plan', description: 'Schreibgeschützter Modus. Keine Schreibzugriffe oder Befehle.' },
     },
     neutral: {
-      trust: { description: 'Jedes Tool ohne Nachfrage ausführen.' },
+      trust: { description: "Jedes Tool ohne Nachfrage ausführen. Die Datei-Tools dürfen auch außerhalb des Projekts arbeiten (ein von einem anderen Agenten angelegter Worktree), nie in ~/.ssh, ~/.claude oder im Tresor." },
       auto_edits: { description: 'Dateiänderungen laufen ohne Nachfrage; bei Befehlen wird weiter nachgefragt.' },
       ask: { description: 'Vor jedem Tool-Aufruf nachfragen.' },
       plan_only: { description: 'Nur lesen. Keine Schreibzugriffe oder Befehle.' },

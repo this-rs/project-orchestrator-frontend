@@ -68,6 +68,16 @@ describe('neutral labels — for every other provider', () => {
     expect(permissionModeMeta('bypassPermissions', { isClaudeCode: false })?.label).toBe("Rock'n roll")
     expect(settingsModeOptions('neutral').map((o) => o.label)).toEqual(["Rock'n roll", 'Auto-approve edits', 'Ask', 'Plan only'])
   })
+
+  // Backend #729 (decision fce98b8a): a native session a person puts in Rock'n roll has its
+  // file scope lifted (a worktree another agent made is reachable), with a deny list that
+  // keeps ~/.ssh, ~/.claude and the vault out. The choice says both.
+  it('says what Rock\'n roll lifts and what it never reaches', () => {
+    const trust = settingsModeOptions('neutral').find((o) => o.mode === 'trust')
+    expect(trust?.description).toBe(
+      'Run every tool without asking. Its file tools can also reach outside the project (a worktree another agent made), never ~/.ssh, ~/.claude or the vault.',
+    )
+  })
 })
 
 describe('reading a mode', () => {

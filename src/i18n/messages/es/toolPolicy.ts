@@ -31,7 +31,7 @@ export default {
       plan_only: { label: 'Solo planificar', description: 'Modo de solo lectura. Sin escrituras ni comandos.' },
     },
     neutral: {
-      trust: { description: 'Ejecuta todas las herramientas sin preguntar.' },
+      trust: { description: "Ejecuta todas las herramientas sin preguntar. Sus herramientas de archivos también pueden salir del proyecto (un worktree creado por otro agente), nunca hacia ~/.ssh, ~/.claude ni la bóveda." },
       auto_edits: { description: 'Las ediciones de archivos se ejecutan sin preguntar; los comandos siguen preguntando.' },
       ask: { description: 'Pregunta antes de cada llamada a una herramienta.' },
       plan_only: { description: 'Solo lectura. Sin escrituras ni comandos.' },

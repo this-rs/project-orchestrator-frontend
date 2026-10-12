@@ -31,7 +31,7 @@ export default {
       plan_only: { label: "Chỉ lập kế hoạch", description: "Chế độ chỉ đọc. Không ghi tệp hay chạy lệnh." },
     },
     neutral: {
-      trust: { description: "Chạy mọi công cụ mà không hỏi." },
+      trust: { description: "Chạy mọi công cụ mà không hỏi. Công cụ tệp cũng có thể truy cập ngoài dự án (ví dụ worktree do agent khác tạo), nhưng không bao giờ vào ~/.ssh, ~/.claude hay kho bí mật." },
       auto_edits: { description: "Chỉnh sửa tệp chạy không cần hỏi; lệnh vẫn phải hỏi." },
       ask: { description: "Hỏi trước mỗi lần gọi công cụ." },
       plan_only: { description: "Chỉ đọc. Không ghi tệp hay chạy lệnh." },
