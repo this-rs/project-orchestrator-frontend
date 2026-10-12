@@ -53,6 +53,7 @@ export default {
     enrichment: "消息的实体增强尚未接入",
     images: "图片尚未传递给模型",
     tools: "工具尚未传递给模型",
+    subagents: "不显示子代理的活动，且宿主不提供子会话作为替代",
     unknown: "{feature}：尚不可用",
   },
   model: {
@@ -63,6 +64,7 @@ export default {
   },
   unprobed: {
     context_window: "上下文窗口尚未探测：这并不表示模型没有长上下文",
+    compaction: "模型的上下文窗口未知，因此不会自动压缩",
   },
   images: {
     model: "此模型不接受图片。未附加：{names}。",

@@ -1007,7 +1007,7 @@
           "cli_session_id": "cli-session-0001",
           "degraded_features": [
             "hooks",
-            "message_queue"
+            "subagents"
           ],
           "engine": "agent",
           "mcp_servers": [

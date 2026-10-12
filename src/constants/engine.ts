@@ -17,7 +17,10 @@
 // - `model`    — a real limit of the model or provider, as its capabilities
 //   declare it (`images: false`…).
 // - `unprobed` — not measured yet (`context_window: null`). Unknown is not
-//   missing: never read as "no long context".
+//   missing: never read as "no long context". `compaction` listed while the
+//   model declares a compaction signal but no window falls here too (backend
+//   #725): the native harness compacts against the window, so an unknown window
+//   means no automatic compaction — a fact of the model/endpoint, not our gap.
 //
 // A capability that is present yields nothing at all.
 
@@ -154,6 +157,11 @@ export function classifyDegradations(
       found.set(id, 'installation')
       continue
     }
+    if (id === 'compaction' && declared?.compaction_signal === true && !contextWindowKnown(declared)) {
+      // The model signals compaction, but its window is unknown: nothing to compact against.
+      found.set(id, 'unprobed')
+      continue
+    }
     const capability = CAPABILITY_OF[id]
     if (capability) {
       // The model has it, the engine does not carry it: our gap.
@@ -191,6 +199,7 @@ const HARNESS_KEYS: Readonly<Record<string, MessageKey>> = {
   enrichment: 'session.harness.enrichment',
   images: 'session.harness.images',
   tools: 'session.harness.tools',
+  subagents: 'session.harness.subagents',
 }
 
 const INSTALLATION_KEYS: Readonly<Record<string, MessageKey>> = {
@@ -206,6 +215,11 @@ const MODEL_KEYS: Readonly<Record<string, MessageKey>> = {
   [IMAGES_POOL_UNBUILT]: 'routing.capabilities.banner.imagesPoolUnbuilt',
 }
 
+const UNPROBED_KEYS: Readonly<Record<string, MessageKey>> = {
+  context_window: 'session.unprobed.context_window',
+  compaction: 'session.unprobed.compaction',
+}
+
 /** `brand_new_thing` → `brand new thing`: an unknown id stays visible, never hidden. */
 export function humanizeFeature(id: string): string {
   return id.replace(/[_-]+/g, ' ').trim()
@@ -213,7 +227,7 @@ export function humanizeFeature(id: string): string {
 
 /** The sentence of one item, as an i18n key and its variables. */
 export function degradationMessage(item: Degradation): { key: MessageKey; vars?: Record<string, string> } {
-  if (item.cause === 'unprobed') return { key: 'session.unprobed.context_window' }
+  if (item.cause === 'unprobed') return { key: UNPROBED_KEYS[item.id] ?? 'session.unprobed.context_window' }
   const keys = item.cause === 'model' ? MODEL_KEYS : item.cause === 'installation' ? INSTALLATION_KEYS : HARNESS_KEYS
   const known = keys[item.id]
   if (known) return { key: known }

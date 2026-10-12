@@ -53,6 +53,7 @@ export default {
     enrichment: "L’enrichissement des messages par entités n’est pas encore branché",
     images: "Les images ne sont pas encore transmises au modèle",
     tools: "Les outils ne sont pas encore transmis au modèle",
+    subagents: "L’activité des sous-agents n’est pas affichée, et l’hôte ne propose pas de repli par sessions enfants",
     unknown: "{feature} : pas encore disponible",
   },
   model: {
@@ -63,6 +64,7 @@ export default {
   },
   unprobed: {
     context_window: "Fenêtre de contexte pas encore sondée : cela ne veut pas dire que le modèle n’a pas de contexte long",
+    compaction: "La fenêtre de contexte du modèle est inconnue : aucune compaction automatique n’a donc lieu",
   },
   images: {
     model: "Ce modèle n’accepte pas les images. Non joint : {names}.",
