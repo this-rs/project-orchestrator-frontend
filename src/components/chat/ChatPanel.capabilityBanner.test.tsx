@@ -44,7 +44,6 @@ const chatStub = {
   interrupt: vi.fn(),
   changePermissionMode: vi.fn(),
   changeModel: vi.fn(),
-  changeAutoContinue: vi.fn(),
   loadSession: vi.fn(),
   newSession: vi.fn(),
   sendMessage: vi.fn(),

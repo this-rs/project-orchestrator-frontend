@@ -1,5 +1,5 @@
 /**
- * Where the chat shows its timeline (the toggle next to Auto-continue).
+ * Where the chat shows its timeline (the timeline toggle of the composer).
  *
  * - Desktop (≥ md, the breakpoint of the chat itself): a side panel next to the
  *   conversation. Non-modal — the transcript and the composer stay usable.

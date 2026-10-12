@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect, useId } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
-import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatAutoContinueAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom, chatSessionImagesCauseAtom, refsEnabledAtom, chatRefLabelsAtom, chatTimelineOpenAtom } from '@/atoms'
+import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom, chatSessionImagesCauseAtom, refsEnabledAtom, chatRefLabelsAtom, chatTimelineOpenAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import { documentsApi } from '@/services/documents'
 import { ApiError } from '@/services/api'
@@ -104,8 +104,6 @@ interface ChatInputProps {
   onChangeModel?: (model: string) => void
   /** Start a new conversation — offered where a session is locked on its provider. */
   onNewConversation?: () => void
-  /** Callback to toggle auto-continue on an active session (sends WS message to backend) */
-  onChangeAutoContinue?: (enabled: boolean) => void
   /**
    * Why `disabled` is set, when the reason is not obvious from the screen (no
    * provider, a deleted instance, a provider that cannot resume). Shown above
@@ -137,7 +135,7 @@ const IMAGES_REFUSED_KEYS: Readonly<Record<ImagesCause, MessageKey>> = {
 /** A stable "nothing runs", so an absent prop does not re-render the bar. */
 const NO_ACTIVITY: ReadonlyArray<RunningItem> = []
 
-export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, disabledReason, sessionId, onChangePermissionMode, onChangeModel, onNewConversation, onChangeAutoContinue, prefill, activity = NO_ACTIVITY, runActions }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, disabledReason, sessionId, onChangePermissionMode, onChangeModel, onNewConversation, prefill, activity = NO_ACTIVITY, runActions }: ChatInputProps) {
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const isMobile = useIsMobile()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -145,7 +143,6 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const [composerBoxEl, setComposerBoxEl] = useState<HTMLDivElement | null>(null)
   const [modeOverride, setModeOverride] = useAtom(chatSessionPermissionOverrideAtom)
   const [serverConfig, setServerConfig] = useAtom(chatPermissionConfigAtom)
-  const autoContinue = useAtomValue(chatAutoContinueAtom)
   const [timelineOpen, setTimelineOpen] = useAtom(chatTimelineOpenAtom)
   const providerTarget = useAtomValue(chatProviderTargetAtom)
   const sessionPolicy = useAtomValue(chatSessionToolPolicyAtom)
@@ -957,7 +954,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
 
       {/* The composer is ONE box: the text on top, and under it, inside the
           same border, every control that shapes the message — attach, mode,
-          model, background tasks, auto-continue, send. It used to be a toolbar
+          model, background tasks, timeline, send. It used to be a toolbar
           row above plus a bar below; merging them saves a row of height and
           keeps the eye on one place. The border and focus ring live on the
           wrapper (`focus-within`), the textarea itself is transparent. */}
@@ -1219,23 +1216,6 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
             >
               <ChartNoAxesGantt className="size-4" aria-hidden="true" />
             </Button>
-            {/* Auto-continue toggle */}
-            <div className="flex items-center gap-1.5">
-              <span className={`hidden sm:inline text-[10px] ${autoContinue ? 'text-gray-400' : 'text-gray-500'} transition-colors`}>{t('chatA-input.composer.auto')}</span>
-              <button
-                onClick={() => onChangeAutoContinue?.(!autoContinue)}
-                className={`relative w-7 h-3.5 rounded-full transition-colors duration-200 ${
-                  autoContinue ? 'bg-emerald-500/70' : 'bg-gray-600/50'
-                }`}
-                title={autoContinue ? t('chatA-input.composer.autoOn') : t('chatA-input.composer.autoOff')}
-              >
-                <span
-                  className={`absolute top-0.5 left-0.5 w-2.5 h-2.5 rounded-full bg-white transition-transform duration-200 ${
-                    autoContinue ? 'translate-x-3' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
           </div>
 
           {/* One slot for both affordances — see `deriveInputAction`. */}

@@ -42,9 +42,6 @@ export default {
     attach: "Datei anhängen",
     override: "(überschrieben)",
     default: "Standard",
-    auto: "Auto",
-    autoOn: "Automatisches Fortfahren aktiviert",
-    autoOff: "Automatisches Fortfahren deaktiviert",
     drop: "Zum Anhängen ablegen",
     sendNowHint: "{key}+Eingabe sendet sofort und unterbricht die laufende Antwort"
   },

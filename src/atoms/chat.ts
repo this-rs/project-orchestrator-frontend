@@ -47,9 +47,6 @@ export const chatSessionPermissionOverrideAtom = atom<ToolPolicyMode | null>(nul
 /** Active model for the current session (null = not yet known / use default) */
 export const chatSessionModelAtom = atom<string | null>(null)
 
-/** Whether auto-continue is enabled (automatically sends "Continue" after max_turns) */
-export const chatAutoContinueAtom = atom<boolean>(false)
-
 /** Storage key of `chatTimelineOpenAtom` (also read by the reset on phones). */
 export const CHAT_TIMELINE_OPEN_KEY = 'chat-timeline-open'
 /** Whether the chat's timeline panel is open (remembered per browser). */

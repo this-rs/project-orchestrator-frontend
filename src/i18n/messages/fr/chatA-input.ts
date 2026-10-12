@@ -42,9 +42,6 @@ export default {
     attach: "Joindre un fichier",
     override: "(remplacé)",
     default: "par défaut",
-    auto: "Auto",
-    autoOn: "Poursuite automatique activée",
-    autoOff: "Poursuite automatique désactivée",
     drop: "Déposez pour joindre",
     sendNowHint: "{key}+Entrée envoie tout de suite et interrompt la réponse en cours"
   },

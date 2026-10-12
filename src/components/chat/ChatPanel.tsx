@@ -945,7 +945,6 @@ export function ChatPanel() {
                       onChangePermissionMode={chat.changePermissionMode}
                       onChangeModel={chat.changeModel}
                       onNewConversation={handleNewSession}
-                      onChangeAutoContinue={chat.changeAutoContinue}
                       prefill={prefill}
                       activity={activity}
                       runActions={runActions}
@@ -1194,7 +1193,6 @@ export function ChatPanel() {
                 onChangePermissionMode={chat.changePermissionMode}
                 onChangeModel={chat.changeModel}
                 onNewConversation={handleNewSession}
-                onChangeAutoContinue={chat.changeAutoContinue}
                 prefill={prefill}
                 activity={activity}
                 runActions={runActions}
