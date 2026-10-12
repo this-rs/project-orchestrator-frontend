@@ -1,6 +1,7 @@
 {
   "name": "project-orchestrator-frontend",
   "private": true,
+  "license": "MIT AND BUSL-1.1",
   "version": "local",
   "type": "module",
   "scripts": {
@@ -58,6 +59,7 @@
     "jsdom": "^29.0.0",
     "postcss": "^8.5.6",
     "prettier": "^3.8.1",
+    "rollup-plugin-license": "3.7.1",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.7.0",
     "typescript-eslint": "^8.54.0",

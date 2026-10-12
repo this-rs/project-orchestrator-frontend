@@ -397,7 +397,7 @@ function CreditsSection() {
       >
         <span className="min-w-0">
           <span className="block text-sm font-medium text-gray-200">Credits &amp; Licenses</span>
-          <span className="mt-0.5 block text-xs leading-4 text-gray-500">MIT AND BUSL-1.1 &mdash; &copy; 2026 FFS SAS</span>
+          <span className="mt-0.5 block text-xs leading-4 text-gray-500">MIT AND BUSL-1.1 &mdash; &copy; 2026 FFS SASU</span>
         </span>
         <span className="shrink-0 text-xs text-gray-500 group-open/credits:hidden">Show</span>
         <span className="hidden shrink-0 text-xs text-gray-500 group-open/credits:inline">Hide</span>
