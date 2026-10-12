@@ -3,8 +3,8 @@ import type { ContentBlock } from '@/types'
 import { ToolCallBlock } from './ToolCallBlock'
 import { ThinkingBlock } from './ThinkingBlock'
 import { MarkdownText } from './MarkdownText'
-import { useChatCapabilities } from './ChatSessionContext'
-import { ChevronRight } from 'lucide-react'
+import { useChatCapabilities, useChildSessionOf } from './ChatSessionContext'
+import { ArrowUpRight, ChevronRight } from 'lucide-react'
 import { useT } from '@/i18n'
 
 // ============================================================================
@@ -97,6 +97,11 @@ export function AgentGroup({ parentBlock, childBlocks, allBlocks, isStreaming }:
   const colorIdx = hashToColorIndex(toolCallId)
   const color = AGENT_COLORS[colorIdx]
 
+  // The read-only mirror PO keeps of this Claude Code sub-agent (P18c), when the
+  // backend opened one: its `spawned_by.tool_use_id` is this call's id. No mirror
+  // (older backend, not listed yet) = no link, and nothing promised.
+  const { child: mirror, openSession } = useChildSessionOf(toolCallId || undefined)
+
   // Agent type from tool input
   const agentType = (toolInput.subagent_type as string) || (toolInput.type as string) || null
 
@@ -152,6 +157,19 @@ export function AgentGroup({ parentBlock, childBlocks, allBlocks, isStreaming }:
           )}
         </span>
       </button>
+
+      {mirror && openSession && (
+        <button
+          type="button"
+          onClick={() => openSession(mirror.sessionId)}
+          title={t('chatA-tools.agent.openTitle')}
+          data-testid="agent-group-open-child"
+          className="flex items-center gap-1.5 px-3 pb-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+        >
+          <ArrowUpRight className="w-3 h-3 shrink-0" aria-hidden="true" />
+          <span>{t('chatA-tools.agent.open')}</span>
+        </button>
+      )}
 
       {/* Body */}
       {expanded && (

@@ -3,6 +3,7 @@ export default {
   noProviderComposer: 'No provider is available: a message cannot be sent.',
   instanceMissingComposer: 'The provider of this conversation has been deleted: it cannot be resumed. Start a new conversation.',
   retryBySending: 'Send your message again to retry.',
+  mirrorReadOnlyComposer: "Read-only: this conversation mirrors a Claude Code sub-agent, which runs inside its parent's Claude Code session. Write in the parent conversation.",
   delay: { seconds: '{n} s', minutes: '{n} min' },
   titles: {
     no_provider: 'No provider available',
@@ -54,6 +55,7 @@ export default {
     invalid_learning_stage: 'Unknown learning stage',
     invalid_routing_weight: 'Routing weight out of range',
     provider_not_chosen: "Choose a provider",
+    mirror_read_only: "This conversation is read-only",
     endpointRefused: "Endpoint refused",
     endpointNotAllowedNoProject: "Endpoint not allowed outside a project",
   },
@@ -122,6 +124,7 @@ export default {
     invalid_learning_stage: 'The learning stage must be shadow, advisory or auto.',
     invalid_routing_weight: 'A routing weight or the exploration rate is out of its allowed range. Exploration must be between 0 and 1; weights cannot be negative.',
     provider_not_chosen: "Claude Code is not installed on the server and several providers can answer here, so none was picked for you. Choose one for this message, or set the default provider.",
+    mirror_read_only: "It mirrors a Claude Code sub-agent, which runs inside its parent's Claude Code session: a message cannot be sent here. Write in the parent conversation.",
     endpointRefused: "The server refuses to call the endpoint of this instance (its address or URL is not allowed). No consent can change that: fix the base URL in the instance settings.",
     endpointNotAllowedNoProject: "Chats outside a project have not been allowed to send their content {where}. Nothing was sent.",
   },

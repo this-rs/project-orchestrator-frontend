@@ -5,6 +5,7 @@ export default {
   noProviderComposer: '사용 가능한 제공자가 없어 메시지를 보낼 수 없습니다.',
   instanceMissingComposer: '이 대화의 제공자가 삭제되어 재개할 수 없습니다. 새 대화를 시작하세요.',
   retryBySending: '메시지를 다시 보내 재시도하세요.',
+  mirrorReadOnlyComposer: "읽기 전용: 이 대화는 Claude Code 서브에이전트의 미러이며, 서브에이전트는 상위 대화의 Claude Code 세션 안에서 실행됩니다. 상위 대화에 작성하세요.",
   delay: { seconds: '{n}초', minutes: '{n}분' },
   titles: {
     no_provider: '사용 가능한 제공자 없음',
@@ -56,6 +57,7 @@ export default {
     invalid_learning_stage: '알 수 없는 학습 단계',
     invalid_routing_weight: '라우팅 가중치가 범위를 벗어남',
     provider_not_chosen: "공급자 선택",
+    mirror_read_only: "이 대화는 읽기 전용입니다",
     endpointRefused: "엔드포인트 거부됨",
     endpointNotAllowedNoProject: "프로젝트 밖에서는 엔드포인트가 허용되지 않음",
   },
@@ -124,6 +126,7 @@ export default {
     invalid_learning_stage: '학습 단계는 shadow, advisory 또는 auto여야 합니다.',
     invalid_routing_weight: '라우팅 가중치 또는 탐색 비율이 허용 범위를 벗어났습니다. 탐색 비율은 0과 1 사이여야 하며, 가중치는 음수일 수 없습니다.',
     provider_not_chosen: "서버에 Claude Code가 설치되어 있지 않고 여기서 여러 공급자가 응답할 수 있어 자동으로 선택되지 않았습니다. 이 메시지에 사용할 공급자를 선택하거나 기본 공급자를 설정하세요.",
+    mirror_read_only: "Claude Code 서브에이전트의 미러이며, 서브에이전트는 상위 대화의 Claude Code 세션 안에서 실행됩니다. 여기서는 메시지를 보낼 수 없습니다. 상위 대화에 작성하세요.",
     endpointRefused: "서버가 이 인스턴스의 엔드포인트 호출을 거부합니다(주소 또는 URL이 허용되지 않음). 동의로는 바뀌지 않습니다. 인스턴스 설정에서 기본 URL을 수정하세요.",
     endpointNotAllowedNoProject: "프로젝트 밖의 채팅은 내용을 {where} 보낼 수 있도록 허용되지 않았습니다. 아무것도 전송되지 않았습니다.",
   },

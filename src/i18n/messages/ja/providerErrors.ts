@@ -5,6 +5,7 @@ export default {
   noProviderComposer: '利用できるプロバイダーがないため、メッセージを送信できません。',
   instanceMissingComposer: 'この会話のプロバイダーは削除されたため、再開できません。新しい会話を始めてください。',
   retryBySending: 'もう一度メッセージを送信して再試行してください。',
+  mirrorReadOnlyComposer: "読み取り専用：この会話は Claude Code のサブエージェントのミラーです。サブエージェントは親の会話の Claude Code セッション内で実行されます。親の会話に書き込んでください。",
   delay: { seconds: '{n} 秒', minutes: '{n} 分' },
   titles: {
     no_provider: '利用できるプロバイダーがありません',
@@ -56,6 +57,7 @@ export default {
     invalid_learning_stage: '不明な学習段階',
     invalid_routing_weight: 'ルーティングの重みが範囲外です',
     provider_not_chosen: "プロバイダーを選択",
+    mirror_read_only: "この会話は読み取り専用です",
     endpointRefused: "エンドポイントが拒否されました",
     endpointNotAllowedNoProject: "プロジェクト外ではエンドポイントが許可されていません",
   },
@@ -124,6 +126,7 @@ export default {
     invalid_learning_stage: '学習段階は shadow、advisory、auto のいずれかである必要があります。',
     invalid_routing_weight: 'ルーティングの重みまたは探索率が許容範囲外です。探索率は 0 から 1 の間で、重みは負にできません。',
     provider_not_chosen: "サーバーに Claude Code がインストールされておらず、ここでは複数のプロバイダーが応答できるため、自動では選ばれませんでした。このメッセージ用に1つ選ぶか、既定のプロバイダーを設定してください。",
+    mirror_read_only: "Claude Code のサブエージェントのミラーで、サブエージェントは親の会話の Claude Code セッション内で実行されます。ここからメッセージは送信できません。親の会話に書き込んでください。",
     endpointRefused: "サーバーはこのインスタンスのエンドポイントを呼び出しません（アドレスまたは URL が許可されていません）。同意では変わりません。インスタンス設定でベース URL を修正してください。",
     endpointNotAllowedNoProject: "プロジェクト外のチャットは内容を{where}送信することを許可されていません。何も送信されていません。",
   },

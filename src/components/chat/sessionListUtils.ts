@@ -180,9 +180,15 @@ const SPAWN_LABELS = {
 /**
  * Short label + text colour describing where a spawned session came from, in
  * the language on screen. An origin nobody knows reads as a sub-conversation,
- * as it always has.
+ * as it always has. A session that is a mirror (`mirror_of`) reads as the
+ * Claude Code sub-agent it mirrors.
  */
-export function spawnLabel(spawnedBy: SpawnedBy | { type: string }): { label: string; text: string } {
+export function spawnLabel(
+  spawnedBy: SpawnedBy | { type: string },
+  mirrorOf?: string | null,
+): { label: string; text: string } {
+  // The read-only mirror of a Claude Code sub-agent (P18c) says so, whatever its origin's variant.
+  if (mirrorOf) return { label: tr('chatA-messages.spawn.mirrorClaudeCode'), text: SPAWN_LABELS.conversation.text }
   const entry = SPAWN_LABELS[spawnedBy.type as SpawnedBy['type']] ?? SPAWN_LABELS.conversation
   return { label: tr(entry.key), text: entry.text }
 }

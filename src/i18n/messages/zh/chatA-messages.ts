@@ -45,6 +45,7 @@ export default {
     pipeline: "流水线",
     gate: "质量门",
     trigger: "触发器",
+    mirrorClaudeCode: "子代理 (Claude Code)",
     subagentOf: "另一个对话的子代理"
   },
   welcome: {
@@ -130,6 +131,7 @@ export default {
     exitFullscreen: "退出全屏",
     close: "关闭",
     backToParent: "返回上级",
+    mirrorBanner: "Claude Code 子代理的只读镜像",
     actions: "对话操作",
     attach: "关联到计划或任务…",
     hideTree: "隐藏助手树",

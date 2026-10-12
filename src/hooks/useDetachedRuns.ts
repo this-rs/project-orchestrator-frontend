@@ -34,6 +34,12 @@ export interface DetachedRun {
    * sub-agent call. The sub-agent card joins on this.
    */
   toolUseId?: string
+  /**
+   * Set when the child is the read-only mirror of a Claude Code sub-agent
+   * (`mirror_of`, P18c): the sub-agent runs in the parent's CLI, so the run
+   * cannot be stopped from here. Absent = a normal child.
+   */
+  mirrorOf?: string | null
 }
 
 interface UseDetachedRunsResult {
@@ -80,13 +86,14 @@ export function toDetachedRun(s: DetachedSession): DetachedRun {
     runId: spawnedByRunId(spawnedBy),
     taskId: spawnedBy && 'task_id' in spawnedBy ? spawnedBy.task_id : undefined,
     toolUseId: spawnedByToolUseId(spawnedBy),
+    mirrorOf: s.mirror_of || undefined,
   }
 }
 
 /** Every field of a run, listed so that adding one to `DetachedRun` fails to compile here until it is compared. */
 const RUN_FIELDS = [
   'sessionId', 'title', 'model', 'isStreaming', 'costUsd', 'costBasis', 'providerId',
-  'startedAt', 'planId', 'runId', 'taskId', 'toolUseId',
+  'startedAt', 'planId', 'runId', 'taskId', 'toolUseId', 'mirrorOf',
 ] as const satisfies readonly (keyof DetachedRun)[]
 type MissingRunField = Exclude<keyof DetachedRun, (typeof RUN_FIELDS)[number]>
 // Compile-time check: every `DetachedRun` key is in RUN_FIELDS.

@@ -5,6 +5,7 @@ export default {
   noProviderComposer: 'Es ist kein Provider verfügbar: Eine Nachricht kann nicht gesendet werden.',
   instanceMissingComposer: 'Der Provider dieser Unterhaltung wurde gelöscht: Sie kann nicht fortgesetzt werden. Starten Sie eine neue Unterhaltung.',
   retryBySending: 'Senden Sie Ihre Nachricht erneut, um es noch einmal zu versuchen.',
+  mirrorReadOnlyComposer: "Schreibgeschützt: Diese Unterhaltung spiegelt einen Claude-Code-Subagenten, der in der Claude-Code-Sitzung seiner übergeordneten Unterhaltung läuft. Schreiben Sie in der übergeordneten Unterhaltung.",
   delay: { seconds: '{n} s', minutes: '{n} Min.' },
   titles: {
     no_provider: 'Kein Provider verfügbar',
@@ -56,6 +57,7 @@ export default {
     invalid_learning_stage: 'Unbekannte Lernstufe',
     invalid_routing_weight: 'Routing-Gewicht außerhalb des Bereichs',
     provider_not_chosen: "Anbieter wählen",
+    mirror_read_only: "Diese Unterhaltung ist schreibgeschützt",
     endpointRefused: "Endpunkt abgelehnt",
     endpointNotAllowedNoProject: "Endpunkt außerhalb eines Projekts nicht erlaubt",
   },
@@ -124,6 +126,7 @@ export default {
     invalid_learning_stage: 'Die Lernstufe muss shadow, advisory oder auto sein.',
     invalid_routing_weight: 'Ein Routing-Gewicht oder die Explorationsrate liegt außerhalb des erlaubten Bereichs. Die Exploration muss zwischen 0 und 1 liegen; Gewichte dürfen nicht negativ sein.',
     provider_not_chosen: "Claude Code ist auf dem Server nicht installiert und mehrere Anbieter können hier antworten, daher wurde keiner für Sie gewählt. Wählen Sie einen für diese Nachricht oder legen Sie den Standardanbieter fest.",
+    mirror_read_only: "Sie spiegelt einen Claude-Code-Subagenten, der in der Claude-Code-Sitzung seiner übergeordneten Unterhaltung läuft: Hier kann keine Nachricht gesendet werden. Schreiben Sie in der übergeordneten Unterhaltung.",
     endpointRefused: "Der Server ruft den Endpunkt dieser Instanz nicht auf (Adresse oder URL nicht erlaubt). Keine Zustimmung ändert das: Korrigieren Sie die Basis-URL in den Instanzeinstellungen.",
     endpointNotAllowedNoProject: "Chats außerhalb eines Projekts dürfen ihren Inhalt nicht {where} senden. Es wurde nichts gesendet.",
   },

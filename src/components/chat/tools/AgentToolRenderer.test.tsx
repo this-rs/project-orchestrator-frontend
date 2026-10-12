@@ -20,6 +20,9 @@ import type { ReactNode } from 'react'
 import { CLAUDE_CODE_CAPABILITIES, MINIMAL_CAPABILITIES, type ProviderCapabilities } from '@/types/provider'
 import { ChatCapabilitiesProvider, ChatSessionProvider, type ChatChildSession } from '../ChatSessionContext'
 import { AgentToolRenderer } from './AgentToolRenderer'
+import { AgentGroup } from '../AgentGroup'
+import { toDetachedRun } from '@/hooks/useDetachedRuns'
+import type { ContentBlock, DetachedSession } from '@/types'
 import { ToolContent, getToolIcon, getToolSummary, resolveToolRenderer } from './index'
 
 const CALL = 'call_subagent_1'
@@ -220,5 +223,74 @@ describe("Claude Code's own `Agent` call", () => {
     )
     fireEvent.click(screen.getByTestId('agent-open-child'))
     expect(openSession).toHaveBeenCalledWith('child-1')
+  })
+})
+
+describe("a Claude Code sub-agent's read-only mirror (P18c)", () => {
+  // The backend mirrors a Claude Code sub-agent into a child conversation marked
+  // `mirror_of: "claude_code"`, linked by `spawned_by.tool_use_id` = the parent's call id.
+  const CLAUDE_CALL = 'toolu_claude_mirror'
+  const CLAUDE_INPUT = { description: 'Explore the repo', prompt: 'List the chat handlers.', subagent_type: 'Explore' }
+  const MIRROR: DetachedSession = {
+    id: 'mirror-1',
+    title: 'Explore the repo',
+    model: 'claude-sonnet',
+    created_at: '2026-10-12T00:00:00Z',
+    updated_at: '2026-10-12T00:00:00Z',
+    provider_id: 'claude-code',
+    mirror_of: 'claude_code',
+    spawned_by: { type: 'conversation', parent_session_id: 'parent-1', tool_use_id: CLAUDE_CALL },
+  }
+
+  it('the children endpoint\'s mirror joins on the call id like any child', () => {
+    expect(toDetachedRun(MIRROR).toolUseId).toBe(CLAUDE_CALL)
+  })
+
+  it('a Claude Code `Agent` card links its mirror child', () => {
+    const openSession = vi.fn()
+    inSession(
+      <ToolContent toolName="Agent" toolCallId={CLAUDE_CALL} toolInput={CLAUDE_INPUT} resultContent="Found 3 handlers." isLoading={false} />,
+      { openSession, capabilities: CLAUDE_CODE_CAPABILITIES, childSessions: [toDetachedRun(MIRROR)] },
+    )
+    const open = screen.getByTestId('agent-open-child')
+    expect(open).toHaveTextContent('Open the sub-conversation')
+    fireEvent.click(open)
+    expect(openSession).toHaveBeenCalledWith('mirror-1')
+  })
+
+  it('without a mirror (backend without mirrors) it still promises none', () => {
+    inSession(
+      <ToolContent toolName="Agent" toolCallId={CLAUDE_CALL} toolInput={CLAUDE_INPUT} isLoading={false} resultContent="done" />,
+      { openSession: vi.fn(), capabilities: CLAUDE_CODE_CAPABILITIES, childSessions: [] },
+    )
+    expect(screen.queryByTestId('agent-open-child')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('agent-no-child')).not.toBeInTheDocument()
+  })
+
+  describe('the nested AgentGroup of the same call', () => {
+    const parentBlock: ContentBlock = {
+      id: 'b1',
+      type: 'tool_use',
+      content: '',
+      metadata: { tool_name: 'Agent', tool_call_id: CLAUDE_CALL, tool_input: CLAUDE_INPUT },
+    }
+    const group = () => <AgentGroup parentBlock={parentBlock} childBlocks={[]} allBlocks={[parentBlock]} isStreaming />
+
+    it('links the mirror too, the nesting itself unchanged', () => {
+      const openSession = vi.fn()
+      inSession(group(), { openSession, capabilities: CLAUDE_CODE_CAPABILITIES, childSessions: [toDetachedRun(MIRROR)] })
+      expect(screen.getByText('Explore the repo')).toBeInTheDocument()
+      fireEvent.click(screen.getByTestId('agent-group-open-child'))
+      expect(openSession).toHaveBeenCalledWith('mirror-1')
+    })
+
+    it('shows no link when no mirror answers to the call', () => {
+      inSession(group(), {
+        openSession: vi.fn(),
+        capabilities: CLAUDE_CODE_CAPABILITIES,
+        childSessions: [{ sessionId: 'other', title: 'x', isStreaming: false, toolUseId: 'toolu_other' }],
+      })
+      expect(screen.queryByTestId('agent-group-open-child')).not.toBeInTheDocument()
+    })
   })
 })

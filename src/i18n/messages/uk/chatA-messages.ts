@@ -45,6 +45,7 @@ export default {
     pipeline: "конвеєр",
     gate: "перевірка",
     trigger: "тригер",
+    mirrorClaudeCode: "субагент (Claude Code)",
     subagentOf: "Субагент іншої розмови"
   },
   welcome: {
@@ -130,6 +131,7 @@ export default {
     exitFullscreen: "Вийти з повноекранного режиму",
     close: "Закрити",
     backToParent: "Назад до батьківської",
+    mirrorBanner: "Дзеркало субагента Claude Code (лише читання)",
     actions: "Дії з розмовою",
     attach: "Прив’язати до плану чи завдання…",
     hideTree: "Сховати дерево асистентів",

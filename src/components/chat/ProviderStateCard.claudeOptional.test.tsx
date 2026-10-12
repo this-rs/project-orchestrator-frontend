@@ -258,3 +258,13 @@ describe('the title says which refusal it is, outside the chat card too', () => 
     expect(screen.getByRole('alert').textContent).toContain('Endpoint not allowed outside a project')
   })
 })
+
+describe('mirror_read_only (409, P18c)', () => {
+  it('a message sent to a Claude Code sub-agent\'s mirror reads as a read-only conversation, with no retry', () => {
+    const { card } = mount(fromBody(409, { error: 'this session is a read-only mirror', code: 'mirror_read_only' }), { onRetry: vi.fn() })
+    expect(card.getAttribute('data-error-code')).toBe('mirror_read_only')
+    expect(card.textContent).toContain('This conversation is read-only')
+    expect(card.textContent).toContain('Write in the parent conversation')
+    expect(within(card).queryByRole('button', { name: /^retry$/i })).toBeNull()
+  })
+})

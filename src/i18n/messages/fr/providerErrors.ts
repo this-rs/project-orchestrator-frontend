@@ -5,6 +5,7 @@ export default {
   noProviderComposer: 'Aucun provider n\'est disponible : le message ne peut pas être envoyé.',
   instanceMissingComposer: 'Le provider de cette conversation a été supprimé : elle ne peut pas être reprise. Ouvrez une nouvelle conversation.',
   retryBySending: 'Renvoyez votre message pour réessayer.',
+  mirrorReadOnlyComposer: "Lecture seule : cette conversation reflète un sous-agent de Claude Code, qui s’exécute dans la session Claude Code de sa conversation parente. Écrivez dans la conversation parente.",
   delay: { seconds: '{n} s', minutes: '{n} min' },
   titles: {
     no_provider: 'Aucun provider disponible',
@@ -56,6 +57,7 @@ export default {
     invalid_learning_stage: 'Étape d\'apprentissage inconnue',
     invalid_routing_weight: 'Poids de routage hors limites',
     provider_not_chosen: "Choisissez un fournisseur",
+    mirror_read_only: "Cette conversation est en lecture seule",
     endpointRefused: "Point d’accès refusé",
     endpointNotAllowedNoProject: "Point d’accès non autorisé hors projet",
   },
@@ -124,6 +126,7 @@ export default {
     invalid_learning_stage: 'L\'étape d\'apprentissage doit être shadow, advisory ou auto.',
     invalid_routing_weight: 'Un poids de routage ou le taux d\'exploration est hors de sa plage autorisée. L\'exploration doit être comprise entre 0 et 1 ; les poids ne peuvent pas être négatifs.',
     provider_not_chosen: "Claude Code n’est pas installé sur le serveur et plusieurs fournisseurs peuvent répondre ici : aucun n’a été choisi pour vous. Choisissez-en un pour ce message, ou définissez le fournisseur par défaut.",
+    mirror_read_only: "Elle reflète un sous-agent de Claude Code, qui s’exécute dans la session Claude Code de sa conversation parente : aucun message ne peut être envoyé ici. Écrivez dans la conversation parente.",
     endpointRefused: "Le serveur refuse d’appeler le point d’accès de cette instance (son adresse ou son URL n’est pas autorisée). Aucun consentement n’y change rien : corrigez l’URL de base dans les réglages de l’instance.",
     endpointNotAllowedNoProject: "Les conversations hors projet n’ont pas été autorisées à envoyer leur contenu {where}. Rien n’a été envoyé.",
   },

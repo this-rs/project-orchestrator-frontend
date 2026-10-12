@@ -23,12 +23,15 @@
  * with the same `prompt` / `subagent_type` input, so a Claude Code call that
  * is not nested into an `AgentGroup` (background agent, nested call, history
  * without `parent_tool_use_id`) lands on this card too. Claude Code runs its
- * sub-agents in-process: PO never opens a child conversation for them. So the
+ * sub-agents in-process. A backend with P18c mirrors such a sub-agent into a
+ * READ-ONLY child conversation (`mirror_of: "claude_code"`) whose
+ * `spawned_by.tool_use_id` is this call's id, so the join below links it as is;
+ * an older backend opens none. So the
  * "not listed yet" promise is made only when PO is the one hosting sub-agents —
  * the provider declares `subagents: 'none'` (the native harness). Elsewhere the
  * card is a plain sub-agent card: task, kind, answer. A child that DOES answer
  * to this call's id is linked whatever the capabilities say — only a PO-hosted
- * child carries a `tool_use_id`, and a transcript outside the chat panel (the
+ * child or a mirror carries a `tool_use_id`, and a transcript outside the chat panel (the
  * full-page viewer) has no capabilities of its own to ask.
  *
  * A call the backend refused (error result, no child) shows the failure, not a

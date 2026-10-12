@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { memo } from 'react'
+import { memo, type ReactNode } from 'react'
 import { Paperclip } from 'lucide-react'
 import { useT } from '@/i18n'
 import { formatBytes } from './attachmentState'
@@ -29,7 +29,7 @@ import { CostDisplay } from '@/components/ui/CostDisplay'
 import { costOfMessage } from '@/utils/cost'
 import { cancelNoticeKey } from '@/utils/cancelFailure'
 import type { PermissionScope, ProviderErrorInfo, SubagentsSupport } from '@/types/provider'
-import { useChatCapabilities } from './ChatSessionContext'
+import { useChatCapabilities, useChatReadOnlyReason } from './ChatSessionContext'
 
 // ============================================================================
 // Agent grouping types & utilities
@@ -180,6 +180,19 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
   // What the provider of this transcript can do (full Claude profile outside the chat panel).
   const { t } = useT()
   const caps = useChatCapabilities()
+  // A read-only transcript (mirror of a Claude Code sub-agent): its cards are shown inert, and say why.
+  const readOnlyReason = useChatReadOnlyReason()
+  const withReadOnlyReason = (key: string, card: ReactNode) =>
+    readOnlyReason ? (
+      <div key={key}>
+        {card}
+        <p data-testid="readonly-action-reason" className="-mt-1 mb-2 text-[11px] text-gray-500 italic">
+          {readOnlyReason}
+        </p>
+      </div>
+    ) : (
+      card
+    )
   if (message.role === 'user') {
     // No refs on the message (the server never announced refs_v1, or none were sent): the text is drawn as before.
     const placed = message.refs && message.refs.length > 0 ? placeRefs(message.blocks[0]?.content ?? '', message.refs) : null
@@ -302,21 +315,25 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
             }
 
             case 'permission_request':
-              return (
+              return withReadOnlyReason(
+                block.id,
                 <PermissionRequestBlock
                   key={block.id}
                   block={block}
                   onRespond={onRespondPermission}
-                />
+                  disabled={!!readOnlyReason}
+                />,
               )
 
             case 'ask_user_question':
-              return (
+              return withReadOnlyReason(
+                block.id,
                 <AskUserQuestionBlock
                   key={block.id}
                   block={block}
                   onRespond={onRespondInput}
-                />
+                  disabled={!!readOnlyReason}
+                />,
               )
 
             case 'model_changed':
@@ -360,13 +377,15 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
                 (b) => b.type === 'continue_indicator',
               )
               if (alreadyContinued || block.metadata?.dismissed) return null
-              return (
+              return withReadOnlyReason(
+                block.id,
                 <ResultMaxTurnsBlock
                   key={block.id}
                   block={block}
                   onContinue={onContinue ?? (() => {})}
                   isStreaming={isStreaming}
-                />
+                  disabledReason={readOnlyReason}
+                />,
               )
             }
 

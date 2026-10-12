@@ -41,6 +41,12 @@ interface ChatSessionContextValue {
   childSessions?: readonly ChatChildSession[]
   /** Show another conversation in this panel. Absent where the panel cannot navigate. */
   openSession?: (sessionId: string) => void
+  /**
+   * Why nothing can be answered in this transcript, when it is read-only (the
+   * mirror of a Claude Code sub-agent, P18c): permission and question cards and
+   * the max-turns Continue are shown inert with this reason. Absent = writable.
+   */
+  readOnlyReason?: string | null
 }
 
 const ChatSessionContext = createContext<ChatSessionContextValue>({ sessionId: null })
@@ -50,17 +56,19 @@ export function ChatSessionProvider({
   cancelToolsLive,
   childSessions,
   openSession,
+  readOnlyReason,
   children,
 }: {
   sessionId: string | null
   cancelToolsLive?: () => boolean
   childSessions?: readonly ChatChildSession[]
   openSession?: (sessionId: string) => void
+  readOnlyReason?: string | null
   children: ReactNode
 }) {
   const value = useMemo(
-    () => ({ sessionId, cancelToolsLive, childSessions, openSession }),
-    [sessionId, cancelToolsLive, childSessions, openSession],
+    () => ({ sessionId, cancelToolsLive, childSessions, openSession, readOnlyReason }),
+    [sessionId, cancelToolsLive, childSessions, openSession, readOnlyReason],
   )
   return (
     <ChatSessionContext.Provider value={value}>
@@ -79,6 +87,12 @@ export function useChatSessionId(): string | null {
 // eslint-disable-next-line react-refresh/only-export-components
 export function useCancelToolsLive(): (() => boolean) | undefined {
   return useContext(ChatSessionContext).cancelToolsLive
+}
+
+/** Why this transcript cannot be answered (read-only mirror), or `null` when it can. */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useChatReadOnlyReason(): string | null {
+  return useContext(ChatSessionContext).readOnlyReason ?? null
 }
 
 /**

@@ -136,6 +136,9 @@ export const SPAWNED_BY_TYPES = ['runner', 'pipeline', 'gate', 'trigger', 'conve
 
 export type SpawnedByType = SpawnedBy['type']
 
+/** What a session mirrors (`ChatSession.mirror_of`). Known: `claude_code`; any other value is still a mirror. */
+export type SessionMirrorOf = 'claude_code' | (string & {})
+
 // ============================================================================
 // PIPELINE GATE RESULTS
 // ============================================================================
@@ -202,6 +205,8 @@ export interface DetachedSession {
    * (`skip_serializing_if = "Option::is_none"`), so never read without a guard.
    */
   spawned_by?: SpawnedBy | null
+  /** Read-only mirror of a Claude Code sub-agent (see `ChatSession.mirror_of`). Omitted otherwise. */
+  mirror_of?: SessionMirrorOf | null
   /**
    * Live activity, stamped by the server from its in-memory map
    * (`stamp_activity`). Omitted when the child is quiet, so an absent field
@@ -376,6 +381,13 @@ export interface ChatSession {
   add_dirs?: string[]
   /** Origin of this session if detached (null = normal conversation) */
   spawned_by?: SpawnedBy | null
+  /**
+   * What this session is a READ-ONLY MIRROR of (P18c): `claude_code` = a Claude
+   * Code sub-agent, which runs inside its parent's CLI; PO only mirrors its
+   * events into this child, and refuses a message to it (409 `mirror_read_only`).
+   * Omitted for a normal session. Typed open so a later value degrades to "read-only".
+   */
+  mirror_of?: SessionMirrorOf | null
   /** Plans linked to this session (via ASSOCIATED_WITH or AgentExecution) */
   linked_plans?: ChatLinkedPlan[]
   /** Tasks linked to this session */

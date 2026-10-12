@@ -483,6 +483,8 @@ export type ProviderErrorCode =
   | 'engine_unavailable'
   /** 409: nothing names a provider, Claude Code's CLI is absent, several instances can answer (`candidates`). */
   | 'provider_not_chosen'
+  /** 409: a message sent to the read-only mirror of a Claude Code sub-agent (P18c). */
+  | 'mirror_read_only'
   /** 400 of the routing settings routes (`routing_handlers.rs`, see `types/routing.ts`). */
   | RoutingErrorCode
 
@@ -533,6 +535,7 @@ export const PROVIDER_ERROR_CODES: readonly ProviderErrorCode[] = [
   'credential_test_requires_saved_instance',
   'engine_unavailable',
   'provider_not_chosen',
+  'mirror_read_only',
   ...ROUTING_ERROR_CODES,
 ]
 

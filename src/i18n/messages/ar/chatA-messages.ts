@@ -45,6 +45,7 @@ export default {
     pipeline: "خط إنتاج",
     gate: "بوابة",
     trigger: "مُشغِّل",
+    mirrorClaudeCode: "وكيل فرعي (Claude Code)",
     subagentOf: "وكيل فرعي لمحادثة أخرى"
   },
   welcome: {
@@ -130,6 +131,7 @@ export default {
     exitFullscreen: "الخروج من ملء الشاشة",
     close: "إغلاق",
     backToParent: "العودة إلى الأصل",
+    mirrorBanner: "نسخة مطابقة للقراءة فقط لوكيل فرعي في Claude Code",
     actions: "إجراءات المحادثة",
     attach: "ربط بخطة أو مهمة…",
     hideTree: "إخفاء شجرة المساعدين",

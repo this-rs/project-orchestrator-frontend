@@ -5,6 +5,7 @@ export default {
   noProviderComposer: 'Không có nhà cung cấp nào khả dụng: không thể gửi tin nhắn.',
   instanceMissingComposer: 'Nhà cung cấp của cuộc trò chuyện này đã bị xóa: không thể tiếp tục. Hãy bắt đầu cuộc trò chuyện mới.',
   retryBySending: 'Hãy gửi lại tin nhắn để thử lại.',
+  mirrorReadOnlyComposer: "Chỉ đọc: cuộc trò chuyện này là bản phản chiếu của một tác tử con Claude Code, chạy bên trong phiên Claude Code của cuộc trò chuyện cha. Hãy viết trong cuộc trò chuyện cha.",
   delay: { seconds: '{n} giây', minutes: '{n} phút' },
   titles: {
     no_provider: 'Không có nhà cung cấp khả dụng',
@@ -56,6 +57,7 @@ export default {
     invalid_learning_stage: 'Giai đoạn học không xác định',
     invalid_routing_weight: 'Trọng số định tuyến nằm ngoài giới hạn',
     provider_not_chosen: "Chọn nhà cung cấp",
+    mirror_read_only: "Cuộc trò chuyện này chỉ đọc",
     endpointRefused: "Điểm cuối bị từ chối",
     endpointNotAllowedNoProject: "Điểm cuối không được phép ngoài dự án",
   },
@@ -124,6 +126,7 @@ export default {
     invalid_learning_stage: 'Giai đoạn học phải là shadow, advisory hoặc auto.',
     invalid_routing_weight: 'Một trọng số định tuyến hoặc tỷ lệ khám phá nằm ngoài khoảng cho phép. Tỷ lệ khám phá phải từ 0 đến 1; trọng số không được âm.',
     provider_not_chosen: "Claude Code chưa được cài trên máy chủ và nhiều nhà cung cấp có thể trả lời ở đây, nên không có nhà cung cấp nào được chọn thay bạn. Hãy chọn một cho tin nhắn này, hoặc đặt nhà cung cấp mặc định.",
+    mirror_read_only: "Đây là bản phản chiếu của một tác tử con Claude Code, chạy bên trong phiên Claude Code của cuộc trò chuyện cha: không thể gửi tin nhắn ở đây. Hãy viết trong cuộc trò chuyện cha.",
     endpointRefused: "Máy chủ từ chối gọi điểm cuối của phiên bản này (địa chỉ hoặc URL không được phép). Không sự đồng ý nào thay đổi được điều đó: hãy sửa URL gốc trong cài đặt phiên bản.",
     endpointNotAllowedNoProject: "Các cuộc trò chuyện ngoài dự án chưa được phép gửi nội dung {where}. Không có gì được gửi.",
   },
