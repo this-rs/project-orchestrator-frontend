@@ -90,6 +90,20 @@ export function toDetachedRun(s: DetachedSession): DetachedRun {
   }
 }
 
+/** Timestamp of a run's start for ordering; an unparsable date sorts last. */
+function startedAtMs(run: DetachedRun): number {
+  const ms = Date.parse(run.startedAt)
+  return Number.isNaN(ms) ? Number.NEGATIVE_INFINITY : ms
+}
+
+/**
+ * Children newest first — the order the conversation menu and the panel show.
+ * The backend returns them oldest first; ties keep the server order (stable sort).
+ */
+export function newestFirst(runs: readonly DetachedRun[]): DetachedRun[] {
+  return [...runs].sort((a, b) => startedAtMs(b) - startedAtMs(a))
+}
+
 /** Every field of a run, listed so that adding one to `DetachedRun` fails to compile here until it is compared. */
 const RUN_FIELDS = [
   'sessionId', 'title', 'model', 'isStreaming', 'costUsd', 'costBasis', 'providerId',
@@ -176,10 +190,10 @@ export function useDetachedRuns(sessionId: string | null, options: UseDetachedRu
       // if `sessionId` moved on under us while the request was in flight.
       if (requestId === requestIdRef.current && sessionIdRef.current === sessionAtRequest) {
         const finished = finishedInFlightRef.current
-        const next = children.map((c) => {
+        const next = newestFirst(children.map((c) => {
           const run = toDetachedRun(c)
           return run.isStreaming && finished?.has(run.sessionId) ? { ...run, isStreaming: false } : run
-        })
+        }))
         // Keep the previous array when nothing changed: every `created` in the
         // deployment ends in one of these fetches, and a fresh-but-equal array
         // would re-render every consumer of the children list for nothing.
