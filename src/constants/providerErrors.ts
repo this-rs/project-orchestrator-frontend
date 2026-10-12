@@ -88,6 +88,7 @@ export const PROVIDER_ERROR_TITLES: Readonly<Record<ProviderErrorCode, string>> 
   credential_test_requires_saved_instance: 'providerErrors.titles.credential_test_requires_saved_instance',
   engine_unavailable: 'providerErrors.titles.engine_unavailable',
   provider_not_chosen: 'providerErrors.titles.provider_not_chosen',
+  mirror_read_only: 'providerErrors.titles.mirror_read_only',
   invalid_routing_mode: 'providerErrors.titles.invalid_routing_mode',
   invalid_learning_stage: 'providerErrors.titles.invalid_learning_stage',
   invalid_routing_weight: 'providerErrors.titles.invalid_routing_weight',
@@ -230,6 +231,7 @@ export function providerErrorExplanation(
     case 'credential_test_requires_saved_instance':
     case 'engine_unavailable':
     case 'provider_not_chosen':
+    case 'mirror_read_only':
     case 'invalid_routing_mode':
     case 'invalid_learning_stage':
     case 'invalid_routing_weight':
@@ -244,3 +246,5 @@ export const NO_PROVIDER_ERROR: ProviderErrorInfo = { code: 'no_provider', messa
 export const noProviderComposerText = (): string => tr('providerErrors.noProviderComposer')
 export const instanceMissingComposerText = (): string => tr('providerErrors.instanceMissingComposer')
 export const retryBySendingText = (): string => tr('providerErrors.retryBySending')
+/** Shown with the composer of a read-only mirror (`mirror_of`, P18c): its sub-agent runs in the parent's Claude Code. */
+export const mirrorReadOnlyComposerText = (): string => tr('providerErrors.mirrorReadOnlyComposer')

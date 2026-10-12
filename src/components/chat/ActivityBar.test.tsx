@@ -85,6 +85,16 @@ describe('<ActivityBar />', () => {
     expect(screen.queryByRole('button', { name: 'Stop Map the backend' })).toBeNull()
   })
 
+  it('the run of a read-only mirror (P18c) opens, but offers no Stop', () => {
+    const actions: RunActions = { view: vi.fn(), stop: vi.fn(), dashboard: vi.fn() }
+    const mirror: RunningItem = { id: 'r9', kind: 'run', title: 'Explore', sessionId: 'r9', readOnly: true }
+    mount([mirror], actions)
+    expand()
+    fireEvent.click(screen.getByRole('button', { name: 'Open the conversation of Explore' }))
+    expect(actions.view).toHaveBeenCalledWith('r9')
+    expect(screen.queryByRole('button', { name: 'Stop Explore' })).toBeNull()
+  })
+
   it('a run row opens its conversation, its dashboard, and stops it', () => {
     const actions: RunActions = { view: vi.fn(), stop: vi.fn(), dashboard: vi.fn() }
     const planRun: RunningItem = { id: 'r1', kind: 'run', title: 'Plan run', sessionId: 'r1', planId: 'p1' }

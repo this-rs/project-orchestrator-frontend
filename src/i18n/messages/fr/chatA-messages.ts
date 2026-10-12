@@ -45,6 +45,7 @@ export default {
     pipeline: "pipeline",
     gate: "barrière",
     trigger: "déclencheur",
+    mirrorClaudeCode: "sous-agent (Claude Code)",
     subagentOf: "Sous-agent d’une autre conversation"
   },
   welcome: {
@@ -130,6 +131,7 @@ export default {
     exitFullscreen: "Quitter le plein écran",
     close: "Fermer",
     backToParent: "Retour au parent",
+    mirrorBanner: "Miroir en lecture seule d’un sous-agent de Claude Code",
     actions: "Actions de la conversation",
     attach: "Rattacher à un plan ou une tâche…",
     hideTree: "Masquer l’arbre des assistants",

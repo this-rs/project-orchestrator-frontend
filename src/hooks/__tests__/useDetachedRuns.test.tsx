@@ -80,6 +80,14 @@ describe('toDetachedRun', () => {
     expect(run.runId).toBeUndefined()
   })
 
+  it('carries mirror_of (P18c): a Claude Code sub-agent\'s mirror is told apart, a normal child is not', () => {
+    const mirror = toDetachedRun(
+      child({ id: 'm1', mirror_of: 'claude_code', spawned_by: { type: 'conversation', parent_session_id: PARENT, tool_use_id: CALL } }),
+    )
+    expect(mirror).toMatchObject({ mirrorOf: 'claude_code', toolUseId: CALL })
+    expect(toDetachedRun(child({ id: 'c0' })).mirrorOf).toBeUndefined()
+  })
+
   it('reads a runner child as run + task, and a delegation as the plan', () => {
     const runner = toDetachedRun(child({ id: 'c1', spawned_by: { type: 'runner', run_id: 'r1', task_id: 't1' } }))
     expect(runner).toMatchObject({ runId: 'r1', taskId: 't1' })

@@ -39,6 +39,7 @@ export default {
     pipeline: 'pipeline',
     gate: 'gate',
     trigger: 'trigger',
+    mirrorClaudeCode: "sub-agent (Claude Code)",
     subagentOf: 'Sub-agent of another conversation',
   },
   welcome: {
@@ -124,6 +125,7 @@ export default {
     exitFullscreen: 'Exit fullscreen',
     close: 'Close',
     backToParent: 'Back to parent',
+    mirrorBanner: "Read-only mirror of a Claude Code sub-agent",
     actions: 'Conversation actions',
     attach: 'Attach to a plan or task…',
     hideTree: 'Hide the assistant tree',

@@ -45,6 +45,7 @@ export default {
     pipeline: "पाइपलाइन",
     gate: "गेट",
     trigger: "ट्रिगर",
+    mirrorClaudeCode: "उप-एजेंट (Claude Code)",
     subagentOf: "किसी अन्य बातचीत का उप-एजेंट"
   },
   welcome: {
@@ -130,6 +131,7 @@ export default {
     exitFullscreen: "फ़ुलस्क्रीन से बाहर निकलें",
     close: "बंद करें",
     backToParent: "पैरेंट पर वापस जाएँ",
+    mirrorBanner: "Claude Code उप-एजेंट की केवल-पढ़ने वाली प्रतिलिपि",
     actions: "बातचीत की कार्रवाइयाँ",
     attach: "प्लान या टास्क से जोड़ें…",
     hideTree: "असिस्टेंट ट्री छिपाएँ",

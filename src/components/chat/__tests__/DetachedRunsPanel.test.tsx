@@ -53,6 +53,14 @@ describe('DetachedRunsPanel', () => {
     expect(screen.getByText('2 runs completed')).toBeTruthy()
   })
 
+  it('a streaming read-only mirror (P18c) can be viewed, never stopped', () => {
+    const h = renderPanel([makeRun({ isStreaming: true, mirrorOf: 'claude_code' })])
+    fireEvent.click(screen.getByRole('button', { expanded: false }))
+    fireEvent.click(screen.getByLabelText('View run'))
+    expect(h.onViewRun).toHaveBeenCalledWith('s1')
+    expect(screen.queryByLabelText('Stop run')).toBeNull()
+  })
+
   it('views and stops a run from the row actions', () => {
     const h = renderPanel([makeRun({ isStreaming: true })])
     fireEvent.click(screen.getByRole('button', { expanded: false }))

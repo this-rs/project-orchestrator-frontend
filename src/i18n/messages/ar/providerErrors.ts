@@ -5,6 +5,7 @@ export default {
   noProviderComposer: 'لا يتوفر أي مزوّد: لا يمكن إرسال رسالة.',
   instanceMissingComposer: 'حُذف مزوّد هذه المحادثة: لا يمكن استئنافها. ابدأ محادثة جديدة.',
   retryBySending: 'أرسل رسالتك مرة أخرى لإعادة المحاولة.',
+  mirrorReadOnlyComposer: "للقراءة فقط: هذه المحادثة نسخة مطابقة لوكيل فرعي في Claude Code يعمل داخل جلسة Claude Code للمحادثة الأم. اكتب في المحادثة الأم.",
   delay: { seconds: '{n} ث', minutes: '{n} د' },
   titles: {
     no_provider: 'لا يتوفر أي مزوّد',
@@ -56,6 +57,7 @@ export default {
     invalid_learning_stage: 'مرحلة تعلّم غير معروفة',
     invalid_routing_weight: 'وزن التوجيه خارج النطاق',
     provider_not_chosen: "اختر مزوّدًا",
+    mirror_read_only: "هذه المحادثة للقراءة فقط",
     endpointRefused: "تم رفض نقطة النهاية",
     endpointNotAllowedNoProject: "نقطة النهاية غير مسموح بها خارج المشروع",
   },
@@ -124,6 +126,7 @@ export default {
     invalid_learning_stage: 'يجب أن تكون مرحلة التعلّم shadow أو advisory أو auto.',
     invalid_routing_weight: 'وزن التوجيه أو معدل الاستكشاف خارج النطاق المسموح. يجب أن يكون الاستكشاف بين 0 و1، ولا يجوز أن تكون الأوزان سالبة.',
     provider_not_chosen: "Claude Code غير مثبت على الخادم ويمكن لعدة مزوّدين الرد هنا، لذا لم يُختر أي منهم نيابةً عنك. اختر واحدًا لهذه الرسالة، أو عيّن المزوّد الافتراضي.",
+    mirror_read_only: "إنها نسخة مطابقة لوكيل فرعي في Claude Code يعمل داخل جلسة Claude Code للمحادثة الأم: لا يمكن إرسال رسالة هنا. اكتب في المحادثة الأم.",
     endpointRefused: "يرفض الخادم استدعاء نقطة نهاية هذا المثيل (العنوان أو الرابط غير مسموح به). لا تغيّر أي موافقة ذلك: صحّح الرابط الأساسي في إعدادات المثيل.",
     endpointNotAllowedNoProject: "لم يُسمح للمحادثات خارج المشاريع بإرسال محتواها {where}. لم يُرسل شيء.",
   },

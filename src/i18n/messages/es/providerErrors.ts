@@ -5,6 +5,7 @@ export default {
   noProviderComposer: 'No hay ningún proveedor disponible: no se puede enviar un mensaje.',
   instanceMissingComposer: 'El proveedor de esta conversación se eliminó: no se puede retomar. Inicia una nueva conversación.',
   retryBySending: 'Vuelve a enviar tu mensaje para reintentar.',
+  mirrorReadOnlyComposer: "Solo lectura: esta conversación refleja un subagente de Claude Code, que se ejecuta dentro de la sesión de Claude Code de su conversación principal. Escriba en la conversación principal.",
   delay: { seconds: '{n} s', minutes: '{n} min' },
   titles: {
     no_provider: 'Ningún proveedor disponible',
@@ -56,6 +57,7 @@ export default {
     invalid_learning_stage: 'Etapa de aprendizaje desconocida',
     invalid_routing_weight: 'Peso de enrutamiento fuera de rango',
     provider_not_chosen: "Elige un proveedor",
+    mirror_read_only: "Esta conversación es de solo lectura",
     endpointRefused: "Endpoint rechazado",
     endpointNotAllowedNoProject: "Endpoint no permitido fuera de un proyecto",
   },
@@ -124,6 +126,7 @@ export default {
     invalid_learning_stage: 'La etapa de aprendizaje debe ser shadow, advisory o auto.',
     invalid_routing_weight: 'Un peso de enrutamiento o la tasa de exploración está fuera de su rango permitido. La exploración debe estar entre 0 y 1; los pesos no pueden ser negativos.',
     provider_not_chosen: "Claude Code no está instalado en el servidor y varios proveedores pueden responder aquí, así que no se eligió ninguno por ti. Elige uno para este mensaje o define el proveedor predeterminado.",
+    mirror_read_only: "Refleja un subagente de Claude Code, que se ejecuta dentro de la sesión de Claude Code de su conversación principal: aquí no se puede enviar ningún mensaje. Escriba en la conversación principal.",
     endpointRefused: "El servidor se niega a llamar al endpoint de esta instancia (su dirección o URL no está permitida). Ningún consentimiento lo cambia: corrige la URL base en los ajustes de la instancia.",
     endpointNotAllowedNoProject: "Los chats fuera de un proyecto no tienen permiso para enviar su contenido {where}. No se envió nada.",
   },

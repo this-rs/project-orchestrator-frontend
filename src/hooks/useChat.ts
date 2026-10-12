@@ -31,6 +31,7 @@ import {
   workflowEventToTick,
   sessionErrorText,
   sessionErrorMetadata,
+  refusedSendMetadata,
   toolsCancelledText,
   sessionEventBlock,
   readSystemInitRuntime,
@@ -270,6 +271,8 @@ export interface SessionMeta {
   workspaceSlug?: string
   /** Origin of this session if spawned (null = normal conversation) */
   spawnedBy?: import('@/types').SpawnedBy | null
+  /** Set when the session is a read-only mirror (`mirror_of`, P18c): the composer is off. */
+  mirrorOf?: import('@/types').SessionMirrorOf | null
 }
 
 export function useChat() {
@@ -1225,7 +1228,8 @@ export function useChat() {
             id: nextBlockId(),
             type: 'error',
             content: (data as { message?: string }).message ?? tr('app.chat.unknownError'),
-            metadata: withCreatedAt(withParent(cancelNotice ?? undefined, errParent), serverTime),
+            // A typed refusal of the message (`mirror_read_only`) keeps its card.
+            metadata: withCreatedAt(withParent(cancelNotice ?? refusedSendMetadata(data) ?? undefined, errParent), serverTime),
           })
           if (!event.replaying && !cancelNotice) {
             setIsStreaming(false)
@@ -2671,6 +2675,9 @@ export function useChat() {
     setSessionId(sid)
     setIsStreaming(false)
     setMessages([])
+    // The read-only state of the mirror being left must not lock the next
+    // session's composer while its record loads (the rest of the meta may linger).
+    setSessionMeta((meta) => (meta?.mirrorOf ? { ...meta, mirrorOf: null } : meta))
     setIsLoadingHistory(true)
     setIsReplaying(true)
     setHasOlderMessages(false)
@@ -2685,6 +2692,10 @@ export function useChat() {
 
     // Fetch session metadata (cwd, project, permission mode) for display in header
     chatApi.getSession(sid).then((session) => {
+      // A late answer for a session already left (M opened, then N before M's
+      // record came back) must not dress N in M's meta — a `mirror_of` would
+      // leave N read-only. The atom is the current session, set synchronously above.
+      if (store.get(chatSessionIdAtom) !== sid) return
       // Provider of the session record. Absent (session created before
       // providers existed) = Claude Code with the full profile.
       const provider = toProviderRef(
@@ -2694,12 +2705,14 @@ export function useChat() {
         applySessionRuntime({ provider, capabilities: session.capabilities ?? null, toolPolicy: null, engine: session.engine ?? null, degradedFeatures: session.degraded_features ?? [] })
       }
       store.set(chatSessionRoutingAtom, sessionRoutingOf(session))
-      setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug, workspaceSlug: session.workspace_slug, spawnedBy: session.spawned_by ?? null })
+      setSessionMeta({ cwd: session.cwd, projectSlug: session.project_slug, workspaceSlug: session.workspace_slug, spawnedBy: session.spawned_by ?? null, mirrorOf: session.mirror_of || null })
       // Restore the session's permission mode override
       setPermissionOverride(session.permission_mode ? readToolPolicyMode(session.permission_mode) : null)
       // Restore the session's model
       setSessionModel(session.model ?? null)
     }).catch(() => {
+      // Same guard: a late failure for a session already left clears nothing.
+      if (store.get(chatSessionIdAtom) !== sid) return
       // Non-critical — header just won't show cwd
       setSessionMeta(null)
     })

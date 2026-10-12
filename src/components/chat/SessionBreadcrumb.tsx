@@ -33,6 +33,8 @@ interface SessionBreadcrumbProps {
   isStreaming?: boolean
   /** Origin of the current session, when it has one: drawn as a leading chip. */
   spawnedBy?: SpawnedBy | null
+  /** Set when the current session is a read-only mirror (`mirror_of`): the chip names the Claude Code sub-agent. */
+  mirrorOf?: string | null
 }
 
 /**
@@ -61,7 +63,7 @@ function buildPath(tree: SessionTreeNode[], targetId: string): SessionTreeNode[]
   return path
 }
 
-export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStreaming, spawnedBy }: SessionBreadcrumbProps) {
+export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStreaming, spawnedBy, mirrorOf }: SessionBreadcrumbProps) {
   const { tree } = useSessionTree(rootSessionId, isStreaming)
   const instances = useAtomValue(providersAtom)?.providers ?? null
   const { t } = useT()
@@ -73,7 +75,7 @@ export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStre
   // Don't show breadcrumb if we're at the root (path length <= 1)
   if (path.length <= 1) return null
 
-  const spawn = spawnedBy ? spawnLabel(spawnedBy) : null
+  const spawn = spawnedBy ? spawnLabel(spawnedBy, mirrorOf) : null
 
   return (
     <div className="flex items-center gap-1 px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs overflow-x-auto">
@@ -86,7 +88,7 @@ export function SessionBreadcrumb({ sessionId, rootSessionId, onNavigate, isStre
           // `tool_use_id`, so keying on the variant alone would call those
           // sub-agents too. Only a `tool_use_id` means an `Agent` call spawned
           // this session.
-          title={spawnedByToolUseId(spawnedBy) ? t('chatA-messages.spawn.subagentOf') : undefined}
+          title={mirrorOf ? t('chatA-messages.panel.mirrorBanner') : spawnedByToolUseId(spawnedBy) ? t('chatA-messages.spawn.subagentOf') : undefined}
           className={`shrink-0 px-1.5 py-0.5 rounded bg-white/[0.06] font-mono text-[10px] ${spawn.text}`}
         >
           {spawn.label}

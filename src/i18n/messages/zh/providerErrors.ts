@@ -5,6 +5,7 @@ export default {
   noProviderComposer: '没有可用的提供方：无法发送消息。',
   instanceMissingComposer: '此对话的提供方已被删除：无法恢复。请新建对话。',
   retryBySending: '再次发送消息即可重试。',
+  mirrorReadOnlyComposer: "只读：此对话是某个 Claude Code 子代理的镜像，该子代理在其父对话的 Claude Code 会话中运行。请在父对话中输入。",
   delay: { seconds: '{n} 秒', minutes: '{n} 分钟' },
   titles: {
     no_provider: '没有可用的提供方',
@@ -56,6 +57,7 @@ export default {
     invalid_learning_stage: '未知的学习阶段',
     invalid_routing_weight: '路由权重超出范围',
     provider_not_chosen: "选择提供方",
+    mirror_read_only: "此对话为只读",
     endpointRefused: "端点被拒绝",
     endpointNotAllowedNoProject: "项目之外不允许此端点",
   },
@@ -124,6 +126,7 @@ export default {
     invalid_learning_stage: '学习阶段必须是 shadow、advisory 或 auto。',
     invalid_routing_weight: '某个路由权重或探索率超出允许范围。探索率必须在 0 到 1 之间；权重不能为负。',
     provider_not_chosen: "服务器上未安装 Claude Code，且此处有多个提供方可以响应，因此没有替您选择。请为此消息选择一个，或设置默认提供方。",
+    mirror_read_only: "它是某个 Claude Code 子代理的镜像，该子代理在其父对话的 Claude Code 会话中运行：无法在此发送消息。请在父对话中输入。",
     endpointRefused: "服务器拒绝调用此实例的端点（地址或 URL 不被允许）。任何同意都无法改变这一点：请在实例设置中修正基础 URL。",
     endpointNotAllowedNoProject: "项目之外的对话未被允许将其内容发送{where}。未发送任何内容。",
   },

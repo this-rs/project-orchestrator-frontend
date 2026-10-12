@@ -12,11 +12,11 @@ import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
 import { useModalFocus } from '@/hooks/useModalFocus'
 import { describeSessionProvider, providerUnavailableReason } from '@/constants/providers'
-import { instanceMissingComposerText, noProviderComposerText, NO_PROVIDER_ERROR } from '@/constants/providerErrors'
+import { instanceMissingComposerText, mirrorReadOnlyComposerText, noProviderComposerText, NO_PROVIDER_ERROR } from '@/constants/providerErrors'
 import { resumeUnsupportedText } from '@/constants/capabilities'
 import type { BackgroundTaskInfo } from '@/types'
 import { chatApi } from '@/services/chat'
-import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2, TriangleAlert } from 'lucide-react'
+import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2, TriangleAlert, Eye } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
 import { RefsAnnouncer } from './RefsAnnouncer'
 import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget'
@@ -322,8 +322,13 @@ export function ChatPanel() {
   // A provider that cannot resume can only be talked to while its process lives.
   const sessionLive = useSessionLive(chat.sessionId, !isNewConversation && !capabilities.resume, chat.isStreaming)
   const cannotResume = !isNewConversation && !capabilities.resume && sessionLive === false
+  // A read-only mirror of a Claude Code sub-agent (P18c): the sub-agent runs in its
+  // parent's CLI, nothing here can reach it — the server refuses with `mirror_read_only`.
+  const isMirror = !isNewConversation && !!chat.sessionMeta?.mirrorOf
   /** Why the composer is off, when a provider state (not a missing project) is the reason. */
-  const composerBlockedReason = noProvider
+  const composerBlockedReason = isMirror
+    ? mirrorReadOnlyComposerText()
+    : noProvider
     ? noProviderComposerText()
     : instanceMissing
       ? instanceMissingComposerText()
@@ -544,6 +549,19 @@ export function ChatPanel() {
     setShowAgentTree(false)
   }, [chat.sessionId])
 
+  // Said under the breadcrumb of a read-only mirror, in both layouts.
+  const mirrorBanner = isMirror ? (
+    <div
+      role="note"
+      data-testid="mirror-readonly-banner"
+      title={t('providerErrors.explain.mirror_read_only')}
+      className="flex items-center gap-1.5 px-4 py-1.5 bg-white/[0.02] border-b border-white/[0.06] text-xs text-violet-300"
+    >
+      <Eye className="w-3 h-3 shrink-0" aria-hidden="true" />
+      <span>{t('chatA-messages.panel.mirrorBanner')}</span>
+    </div>
+  ) : null
+
   // Everything said above the composer about the provider, shared by both layouts.
   const composerNotices = (
     <>
@@ -619,7 +637,7 @@ export function ChatPanel() {
   // On desktop: sidebar is a permanent 288px column
   if (isFullscreen) {
     return (
-      <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun}>
+      <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null}>
       <ChatCapabilitiesProvider capabilities={capabilities}>
       <div
         ref={panelRef}
@@ -847,8 +865,10 @@ export function ChatPanel() {
               onNavigate={handleTreeNavigate}
               isStreaming={chat.isStreaming}
               spawnedBy={spawnedBy}
+              mirrorOf={chat.sessionMeta?.mirrorOf}
             />
           )}
+          {mirrorBanner}
 
           {/* Reconnecting / Disconnected banner */}
           {!isNewConversation && chat.wsStatus === 'reconnecting' && (
@@ -955,7 +975,7 @@ export function ChatPanel() {
 
   // --- PANEL LAYOUT (non-fullscreen): toggle-based session list ---
   return (
-    <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun}>
+    <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null}>
     <ChatCapabilitiesProvider capabilities={capabilities}>
     <div
       ref={panelRef}
@@ -1086,8 +1106,10 @@ export function ChatPanel() {
           onNavigate={handleTreeNavigate}
           isStreaming={chat.isStreaming}
           spawnedBy={spawnedBy}
+          mirrorOf={chat.sessionMeta?.mirrorOf}
         />
       )}
+      {mirrorBanner}
 
       {/* Reconnecting / Disconnected banner */}
       {!isNewConversation && chat.wsStatus === 'reconnecting' && (

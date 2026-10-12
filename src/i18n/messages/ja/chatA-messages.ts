@@ -45,6 +45,7 @@ export default {
     pipeline: "パイプライン",
     gate: "ゲート",
     trigger: "トリガー",
+    mirrorClaudeCode: "サブエージェント (Claude Code)",
     subagentOf: "別の会話のサブエージェント"
   },
   welcome: {
@@ -130,6 +131,7 @@ export default {
     exitFullscreen: "全画面を終了",
     close: "閉じる",
     backToParent: "親に戻る",
+    mirrorBanner: "Claude Code サブエージェントの読み取り専用ミラー",
     actions: "会話の操作",
     attach: "プランまたはタスクに関連付け…",
     hideTree: "アシスタントツリーを隠す",
