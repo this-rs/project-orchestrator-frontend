@@ -75,6 +75,8 @@ export default {
     title: "セッションを初期化しました",
     tools: "ツール {count} 個",
     mcpServers: "MCP サーバー {count} 個",
+    fileScopeUnscoped: "ファイル範囲の制限なし",
+    fileScopeUnscopedHint: "ファイルツールはプロジェクトの外（他のエージェントの worktree）にもアクセスします。~/.ssh、~/.claude、保管庫にはアクセスできません。",
   },
   tools: {
     toggle: "このセッションで提供されるツールを表示",

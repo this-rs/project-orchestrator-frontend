@@ -75,6 +75,8 @@ export default {
     title: "세션이 초기화되었습니다",
     tools: "도구 {count}개",
     mcpServers: "MCP 서버 {count}개",
+    fileScopeUnscoped: "파일 범위 해제됨",
+    fileScopeUnscopedHint: "파일 도구가 프로젝트 밖(다른 에이전트의 worktree)에도 접근합니다. ~/.ssh, ~/.claude, 보관소에는 접근할 수 없습니다.",
   },
   tools: {
     toggle: "이 세션에서 제공되는 도구 보기",

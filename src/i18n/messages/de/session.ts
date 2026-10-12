@@ -75,6 +75,8 @@ export default {
     title: "Sitzung initialisiert",
     tools: "Tools: {count}",
     mcpServers: "MCP-Server: {count}",
+    fileScopeUnscoped: "Dateibereich aufgehoben",
+    fileScopeUnscopedHint: "Datei-Tools arbeiten auch außerhalb des Projekts (Worktrees anderer Agenten). ~/.ssh, ~/.claude und der Tresor bleiben unerreichbar.",
   },
   tools: {
     toggle: "Die in dieser Sitzung angebotenen Tools anzeigen",

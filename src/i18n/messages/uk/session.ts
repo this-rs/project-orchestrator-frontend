@@ -75,6 +75,8 @@ export default {
     title: "Сесію ініціалізовано",
     tools: "Інструментів: {count}",
     mcpServers: "MCP-серверів: {count}",
+    fileScopeUnscoped: "Файлову область знято",
+    fileScopeUnscopedHint: "Файлові інструменти виходять за межі проєкту (worktree інших агентів). ~/.ssh, ~/.claude і сховище лишаються недоступними.",
   },
   tools: {
     toggle: "Показати інструменти, доступні в цій сесії",

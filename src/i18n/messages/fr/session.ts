@@ -75,6 +75,8 @@ export default {
     title: "Session initialisée",
     tools: "Outils : {count}",
     mcpServers: "Serveurs MCP : {count}",
+    fileScopeUnscoped: "Périmètre de fichiers levé",
+    fileScopeUnscopedHint: "Les outils de fichiers sortent du projet (worktrees d'autres agents). ~/.ssh, ~/.claude et le coffre restent hors de portée.",
   },
   tools: {
     toggle: "Afficher les outils offerts dans cette session",

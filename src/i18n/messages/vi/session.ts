@@ -75,6 +75,8 @@ export default {
     title: "Phiên đã khởi tạo",
     tools: "{count} công cụ",
     mcpServers: "{count} máy chủ MCP",
+    fileScopeUnscoped: "Đã mở phạm vi tệp",
+    fileScopeUnscopedHint: "Công cụ tệp truy cập cả ngoài dự án (worktree của agent khác). ~/.ssh, ~/.claude và kho bí mật vẫn nằm ngoài tầm với.",
   },
   tools: {
     toggle: "Hiển thị các công cụ được cung cấp trong phiên này",

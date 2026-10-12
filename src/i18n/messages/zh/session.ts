@@ -75,6 +75,8 @@ export default {
     title: "会话已初始化",
     tools: "{count} 个工具",
     mcpServers: "{count} 个 MCP 服务器",
+    fileScopeUnscoped: "文件范围已解除",
+    fileScopeUnscopedHint: "文件工具可访问项目之外（其他代理的 worktree）。~/.ssh、~/.claude 和保险库仍无法访问。",
   },
   tools: {
     toggle: "显示此会话提供的工具",

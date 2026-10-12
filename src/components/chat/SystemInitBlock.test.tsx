@@ -97,3 +97,20 @@ describe('SystemInitBlock — permission mode badge', () => {
     expect(badge()).toBeNull()
   })
 })
+
+// Backend #729 (decision fce98b8a): a native session a person put in Rock'n roll runs its file
+// tools with their scope lifted; the session's start says so, and what stays out of reach.
+describe('SystemInitBlock — file scope', () => {
+  it('a lifted file scope is shown, with what stays out of reach', () => {
+    render(<SystemInitBlock block={block({ model: 'm', permission_mode: 'bypassPermissions', file_scope: 'unscoped' })} />)
+    const scope = screen.getByTestId('init-file-scope')
+    expect(scope.textContent).toContain('File scope lifted')
+    expect(scope.getAttribute('title')).toContain('~/.ssh')
+    expect(scope.textContent).toContain('the vault')
+  })
+
+  it('no lift, no badge', () => {
+    render(<SystemInitBlock block={block({ model: 'm', permission_mode: 'bypassPermissions' })} />)
+    expect(screen.queryByTestId('init-file-scope')).toBeNull()
+  })
+})

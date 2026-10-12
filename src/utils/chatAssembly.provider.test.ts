@@ -110,3 +110,22 @@ describe('system_init: tools really offered and allow patterns on the block', ()
     expect(systemInitToolMetadata({ type: 'system_init' })).toEqual({})
   })
 })
+
+// Backend #729 (decision fce98b8a): the capabilities of a session whose file tools run with
+// their scope lifted carry `file_scope: "unscoped"`; the history block keeps it.
+describe('system_init file scope', () => {
+  const capabilities = (NATIVE_SYSTEM_INIT as { capabilities?: Record<string, unknown> }).capabilities ?? {}
+
+  it('a lifted file scope reaches the block', () => {
+    const lifted = { ...NATIVE_SYSTEM_INIT, capabilities: { ...capabilities, file_scope: 'unscoped' }, created_at: 1_700_000_000 }
+    expect(initBlock([lifted])?.metadata?.file_scope).toBe('unscoped')
+  })
+
+  it('no lift (or an unknown value): nothing on the block', () => {
+    for (const value of [undefined, 'scoped', 42]) {
+      const init = { ...NATIVE_SYSTEM_INIT, capabilities: { ...capabilities, file_scope: value }, created_at: 1_700_000_000 }
+      expect(initBlock([init])?.metadata?.file_scope).toBeUndefined()
+    }
+    expect(initBlock([{ ...LEGACY_SYSTEM_INIT, created_at: 1_700_000_000 }])?.metadata?.file_scope).toBeUndefined()
+  })
+})

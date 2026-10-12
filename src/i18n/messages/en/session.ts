@@ -73,6 +73,8 @@ export default {
     title: 'Session initialized',
     tools: 'Tools: {count}',
     mcpServers: 'MCP servers: {count}',
+    fileScopeUnscoped: "File scope lifted",
+    fileScopeUnscopedHint: "File tools reach outside the project (worktrees of other agents). ~/.ssh, ~/.claude and the vault stay out of reach.",
   },
   tools: {
     toggle: 'Show the tools offered in this session',

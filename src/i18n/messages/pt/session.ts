@@ -75,6 +75,8 @@ export default {
     title: "Sessão iniciada",
     tools: "Ferramentas: {count}",
     mcpServers: "Servidores MCP: {count}",
+    fileScopeUnscoped: "Escopo de arquivos liberado",
+    fileScopeUnscopedHint: "As ferramentas de arquivos saem do projeto (worktrees de outros agentes). ~/.ssh, ~/.claude e o cofre ficam fora de alcance.",
   },
   tools: {
     toggle: "Mostrar as ferramentas oferecidas nesta sessão",
