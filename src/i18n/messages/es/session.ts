@@ -53,6 +53,7 @@ export default {
     enrichment: "El enriquecimiento de mensajes con entidades aún no está conectado",
     images: "Las imágenes aún no se pasan al modelo",
     tools: "Las herramientas aún no se pasan al modelo",
+    subagents: "La actividad de los subagentes no se muestra y el anfitrión no ofrece sesiones hijas como alternativa",
     unknown: "{feature}: aún no disponible",
   },
   model: {
@@ -63,6 +64,7 @@ export default {
   },
   unprobed: {
     context_window: "Ventana de contexto aún sin sondear: esto no significa que el modelo carezca de un contexto largo",
+    compaction: "La ventana de contexto del modelo es desconocida, así que no hay compactación automática",
   },
   images: {
     model: "Este modelo no acepta imágenes. No adjuntado: {names}.",

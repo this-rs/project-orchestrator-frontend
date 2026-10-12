@@ -53,6 +53,7 @@ export default {
     enrichment: "메시지의 엔터티 보강은 아직 연결되지 않았습니다",
     images: "이미지는 아직 모델에 전달되지 않습니다",
     tools: "도구는 아직 모델에 전달되지 않습니다",
+    subagents: "서브에이전트 활동이 표시되지 않으며, 호스트는 하위 세션 대체 수단을 제공하지 않습니다",
     unknown: "{feature}: 아직 사용할 수 없음",
   },
   model: {
@@ -63,6 +64,7 @@ export default {
   },
   unprobed: {
     context_window: "컨텍스트 창이 아직 측정되지 않았습니다. 모델에 긴 컨텍스트가 없다는 뜻은 아닙니다",
+    compaction: "모델의 컨텍스트 창 크기를 알 수 없어 자동 압축이 이루어지지 않습니다",
   },
   images: {
     model: "이 모델은 이미지를 받지 않습니다. 첨부되지 않음: {names}.",

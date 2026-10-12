@@ -53,6 +53,7 @@ export default {
     enrichment: "Die Anreicherung von Nachrichten mit Entitäten ist noch nicht angebunden",
     images: "Bilder werden noch nicht an das Modell übergeben",
     tools: "Tools werden noch nicht an das Modell übergeben",
+    subagents: "Die Aktivität von Sub-Agenten wird nicht angezeigt, und der Host bietet keinen Ersatz durch Kind-Sitzungen",
     unknown: "{feature}: noch nicht verfügbar",
   },
   model: {
@@ -63,6 +64,7 @@ export default {
   },
   unprobed: {
     context_window: "Kontextfenster noch nicht geprüft: Das heißt nicht, dass dem Modell ein langer Kontext fehlt",
+    compaction: "Das Kontextfenster des Modells ist unbekannt, daher findet keine automatische Verdichtung statt",
   },
   images: {
     model: "Dieses Modell akzeptiert keine Bilder. Nicht angehängt: {names}.",

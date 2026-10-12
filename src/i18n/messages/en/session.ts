@@ -51,6 +51,7 @@ export default {
     enrichment: 'Entity enrichment of messages is not wired yet',
     images: 'Images are not passed to the model yet',
     tools: 'Tools are not passed to the model yet',
+    subagents: "Sub-agent activity is not shown, and the host offers no child-session fallback",
     unknown: '{feature}: not available yet',
   },
   model: {
@@ -61,6 +62,7 @@ export default {
   },
   unprobed: {
     context_window: 'Context window not probed yet: this does not mean the model lacks a long context',
+    compaction: "The model's context window is unknown, so no automatic compaction happens",
   },
   images: {
     model: 'This model does not accept images. Not attached: {names}.',

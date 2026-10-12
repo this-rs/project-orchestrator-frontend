@@ -124,6 +124,51 @@ describe('EngineBanner', () => {
   })
 })
 
+/** An ACP agent (backend #725): no sub-agents of its own, and child sessions run for the native harness only. */
+const ACP_CAPS = { images: true, tools: true, resume: true, per_session_mcp: true, context_window: { value: 200000, source: 'reported' } }
+/** A native session on an endpoint that reports no window (backend #725, `fake_openai`). */
+const NATIVE_NO_WINDOW_CAPS = { images: true, tools: true, resume: true, per_session_mcp: true, compaction_signal: true, context_window: null }
+
+describe('EngineBanner — degraded features of backend #725', () => {
+  it('subagents has its own sentence: activity not shown, no child-session fallback', () => {
+    render(<EngineBanner degraded={['subagents']} declared={ACP_CAPS} />)
+    const harness = screen.getByTestId('engine-banner-harness')
+    const items = within(harness).getAllByRole('listitem')
+    expect(items).toHaveLength(1)
+    expect(items[0].getAttribute('data-feature')).toBe('subagents')
+    expect(items[0].textContent).toBe('Sub-agent activity is not shown, and the host offers no child-session fallback')
+    expect(screen.getByTestId('engine-banner').textContent).not.toMatch(/subagents: not available yet|has no sub-agents/)
+  })
+
+  it('compaction with an unknown context window is a model/endpoint fact, not an engine gap', () => {
+    expect(classifyDegradations(['compaction'], NATIVE_NO_WINDOW_CAPS)).toEqual([
+      { id: 'compaction', cause: 'unprobed' },
+      { id: 'context_window', cause: 'unprobed' },
+    ])
+    render(<EngineBanner degraded={['compaction']} declared={NATIVE_NO_WINDOW_CAPS} />)
+    expect(screen.queryByTestId('engine-banner-harness')).toBeNull()
+    const unprobed = screen.getByTestId('engine-banner-unprobed')
+    const compaction = within(unprobed)
+      .getAllByRole('listitem')
+      .find((li) => li.getAttribute('data-feature') === 'compaction')
+    expect(compaction?.textContent).toBe("The model's context window is unknown, so no automatic compaction happens")
+    expect(screen.getByTestId('engine-banner').textContent).not.toMatch(/not done for you yet/)
+  })
+
+  it('compaction with a known window and a compaction signal stays an engine gap', () => {
+    expect(
+      classifyDegradations(['compaction'], { ...NATIVE_NO_WINDOW_CAPS, context_window: { value: 128000, source: 'probed' } }),
+    ).toEqual([{ id: 'compaction', cause: 'harness' }])
+  })
+
+  it('compaction without a compaction signal stays the provider’s limit, whatever the window', () => {
+    expect(classifyDegradations(['compaction'], { ...NATIVE_NO_WINDOW_CAPS, compaction_signal: false })).toContainEqual({
+      id: 'compaction',
+      cause: 'model',
+    })
+  })
+})
+
 describe('EngineBanner — collapse control', () => {
   it('offers "Collapse into an icon" only when it can be collapsed', () => {
     const { unmount } = render(<EngineBanner degraded={['nats']} declared={null} />)

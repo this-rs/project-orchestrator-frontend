@@ -53,6 +53,7 @@ export default {
     enrichment: "Việc làm giàu tin nhắn bằng thực thể chưa được kết nối",
     images: "Hình ảnh chưa được chuyển cho mô hình",
     tools: "Công cụ chưa được chuyển cho mô hình",
+    subagents: "Hoạt động của tác tử con không được hiển thị, và máy chủ không cung cấp phiên con thay thế",
     unknown: "{feature}: chưa khả dụng",
   },
   model: {
@@ -63,6 +64,7 @@ export default {
   },
   unprobed: {
     context_window: "Cửa sổ ngữ cảnh chưa được dò: điều này không có nghĩa là mô hình thiếu ngữ cảnh dài",
+    compaction: "Cửa sổ ngữ cảnh của mô hình không xác định, nên không có nén tự động",
   },
   images: {
     model: "Mô hình này không nhận hình ảnh. Không đính kèm: {names}.",
