@@ -100,3 +100,41 @@ export function normalizeRoutingDecisions(raw: unknown): RoutingDecision[] {
     return !!o && typeof o.id === 'string' && typeof o.provider_id === 'string'
   })
 }
+
+/** One (provider, model) the person's Auto may choose (`provider` = instance id, `model` = real model id). */
+export interface AutoModelEntry {
+  provider: string
+  model: string
+}
+
+/** What `GET`/`PUT /api/chat/auto-models` answer: the person's own list. */
+export interface AutoModels {
+  /** The listed models, in the order saved; empty when unset. */
+  models: AutoModelEntry[]
+  /** No list set: Auto chooses among every available model. */
+  all_available: boolean
+}
+
+/**
+ * "Models Auto may use" (AUTO-L): the SIGNED-IN person's own list, stored per person
+ * server-side (never a global setting). An agent's token gets a 403 on both routes.
+ * An empty list removes it: Auto uses every available model again.
+ */
+export const autoModelsApi = {
+  get: () => api.get<unknown>('/chat/auto-models').then(normalizeAutoModels),
+  put: (models: readonly AutoModelEntry[]) =>
+    api.put<unknown>('/chat/auto-models', { models: models.map(({ provider, model }) => ({ provider, model })) }).then(normalizeAutoModels),
+}
+
+/** An answer read defensively: entries without both halves are dropped; none = every model. */
+export function normalizeAutoModels(raw: unknown): AutoModels {
+  const r = obj(raw)
+  const list = Array.isArray(r?.models) ? r.models : []
+  const models = list.flatMap((e) => {
+    const o = obj(e)
+    return o && typeof o.provider === 'string' && typeof o.model === 'string' && o.provider && o.model
+      ? [{ provider: o.provider, model: o.model }]
+      : []
+  })
+  return { models, all_available: models.length === 0 }
+}
