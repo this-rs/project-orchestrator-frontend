@@ -1,4 +1,4 @@
-/** The toggle next to Auto-continue shows or hides the timeline strip, and remembers it. */
+/** The timeline toggle of the composer shows or hides the timeline strip, and remembers it. */
 import { describe, it, expect, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'

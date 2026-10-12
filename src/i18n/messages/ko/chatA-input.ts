@@ -42,9 +42,6 @@ export default {
     attach: "파일 첨부",
     override: "(재정의)",
     default: "기본값",
-    auto: "자동",
-    autoOn: "자동 계속 사용 중",
-    autoOff: "자동 계속 사용 안 함",
     drop: "놓아서 첨부",
     sendNowHint: "{key}+Enter: 지금 보내고 진행 중인 답변을 중단합니다"
   },

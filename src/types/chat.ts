@@ -1166,6 +1166,7 @@ export type WsChatClientMessage =
   | { type: 'input_response'; id?: string; content: string }
   | { type: 'set_permission_mode'; mode: string }
   | { type: 'set_model'; model: string }
+  /** In the contract for older clients only: auto-continue is always on (capped) and the backend ignores it. Never sent. */
   | { type: 'set_auto_continue'; enabled: boolean }
 
 /** Every client message type — exhaustive by construction (`satisfies`). */
