@@ -7,6 +7,7 @@ import { providersLoadStateAtom } from '@/atoms'
 import { useProviders } from '@/hooks/useProviders'
 import { useT, type MessageKey } from '@/i18n'
 import { providerInstancePath } from '@/constants/providerErrors'
+import { AutoModelsSettings } from './AutoModelsSettings'
 import { ModelPolicy } from './ModelPolicy'
 import { NetworkTools } from './NetworkTools'
 import { ProjectConsent } from './ProjectConsent'
@@ -20,6 +21,7 @@ const SECTIONS = [
   { id: 'consent', title: 'providerAdmin.settings.sectionConsent' },
   { id: 'network-tools', title: 'networkTools.sectionTitle' },
   { id: 'routing', title: 'routing.settings.title' },
+  { id: 'auto-models', title: 'routing.autoModels.title' },
   { id: 'advanced', title: 'providerAdmin.settings.sectionAdvanced' },
 ] as const satisfies readonly { id: string; title: MessageKey }[]
 
@@ -111,6 +113,9 @@ export function ProviderSettings() {
       </Section>
       <Section id="routing" title={t('routing.settings.title')}>
         <RoutingSettings />
+      </Section>
+      <Section id="auto-models" title={t('routing.autoModels.title')}>
+        <AutoModelsSettings />
       </Section>
       <Section
         id="advanced"
