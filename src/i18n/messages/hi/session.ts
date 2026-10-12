@@ -75,6 +75,8 @@ export default {
     title: "सत्र आरंभ हुआ",
     tools: "{count} टूल",
     mcpServers: "{count} MCP सर्वर",
+    fileScopeUnscoped: "फ़ाइल दायरा हटाया गया",
+    fileScopeUnscopedHint: "इस सत्र की शुरुआत से लेकर Rock'n roll छोड़ने तक, इसके फ़ाइल टूल प्रोजेक्ट के बाहर भी पहुँचते हैं (दूसरे एजेंटों के worktree)। ~/.ssh, ~/.claude और वॉल्ट जैसे रहस्य पहुँच से बाहर रहते हैं।",
   },
   tools: {
     toggle: "इस सत्र में उपलब्ध टूल दिखाएँ",

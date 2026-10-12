@@ -1287,8 +1287,24 @@ export function systemInitToolMetadata(evt: unknown): { tools?: string[]; tool_a
 }
 
 /** Provider fields stored on a `system_init` block (absent for a legacy session). */
-export function systemInitProviderMetadata(evt: unknown): { provider?: string; provider_kind?: string; provider_label?: string } {
+/**
+ * `file_scope: 'unscoped'` when the session's capabilities say its file tools run with their scope
+ * lifted (backend #729, decision fce98b8a: a native session a person put in Rock'n roll). Absent
+ * otherwise: the scope is the session's directories.
+ */
+export function systemInitFileScope(evt: unknown): { file_scope?: 'unscoped' } {
+  const capabilities = (evt as { capabilities?: { file_scope?: unknown } } | null)?.capabilities
+  return capabilities?.file_scope === 'unscoped' ? { file_scope: 'unscoped' } : {}
+}
+
+export function systemInitProviderMetadata(evt: unknown): {
+  provider?: string
+  provider_kind?: string
+  provider_label?: string
+  file_scope?: 'unscoped'
+} {
+  const scope = systemInitFileScope(evt)
   const ref = readSystemInitRuntime(evt).provider
-  if (!ref) return {}
-  return { provider: ref.id, provider_kind: ref.kind, provider_label: ref.label }
+  if (!ref) return scope
+  return { provider: ref.id, provider_kind: ref.kind, provider_label: ref.label, ...scope }
 }

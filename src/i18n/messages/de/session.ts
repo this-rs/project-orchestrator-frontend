@@ -75,6 +75,8 @@ export default {
     title: "Sitzung initialisiert",
     tools: "Tools: {count}",
     mcpServers: "MCP-Server: {count}",
+    fileScopeUnscoped: "Dateibereich aufgehoben",
+    fileScopeUnscopedHint: "Vom Start dieser Sitzung an, bis sie Rock'n roll verlässt, arbeiten ihre Datei-Tools auch außerhalb des Projekts (Worktrees anderer Agenten). Geheimnisse wie ~/.ssh, ~/.claude und der Tresor bleiben unerreichbar.",
   },
   tools: {
     toggle: "Die in dieser Sitzung angebotenen Tools anzeigen",

@@ -73,6 +73,8 @@ export default {
     title: 'Session initialized',
     tools: 'Tools: {count}',
     mcpServers: 'MCP servers: {count}',
+    fileScopeUnscoped: "File scope lifted",
+    fileScopeUnscopedHint: "From the start of this session until it leaves Rock'n roll, its file tools reach outside the project (worktrees of other agents). Secrets such as ~/.ssh, ~/.claude and the vault stay out of reach.",
   },
   tools: {
     toggle: 'Show the tools offered in this session',

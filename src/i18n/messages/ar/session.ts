@@ -75,6 +75,8 @@ export default {
     title: "تمت تهيئة الجلسة",
     tools: "الأدوات: {count}",
     mcpServers: "خوادم MCP: {count}",
+    fileScopeUnscoped: "تم رفع نطاق الملفات",
+    fileScopeUnscopedHint: "منذ بدء هذه الجلسة وحتى تغادر وضع Rock'n roll، تصل أدوات ملفاتها إلى خارج المشروع (worktree لوكلاء آخرين). تبقى الأسرار مثل ~/.ssh و~/.claude والخزنة بعيدة عن متناولها.",
   },
   tools: {
     toggle: "عرض الأدوات المتاحة في هذه الجلسة",

@@ -75,6 +75,8 @@ export default {
     title: "Session initialisée",
     tools: "Outils : {count}",
     mcpServers: "Serveurs MCP : {count}",
+    fileScopeUnscoped: "Périmètre de fichiers levé",
+    fileScopeUnscopedHint: "Depuis le début de cette session et jusqu'à ce qu'elle quitte Rock'n roll, ses outils de fichiers sortent du projet (worktrees d'autres agents). Les secrets comme ~/.ssh, ~/.claude et le coffre restent hors de portée.",
   },
   tools: {
     toggle: "Afficher les outils offerts dans cette session",

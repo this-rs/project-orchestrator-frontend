@@ -31,7 +31,7 @@ export default {
       plan_only: { label: "プランのみ", description: "読み取り専用モードです。書き込みもコマンドも実行しません。" },
     },
     neutral: {
-      trust: { description: "確認せずにすべてのツールを実行します。" },
+      trust: { description: "確認せずにすべてのツールを実行します。ご自身のネイティブハーネスのセッションをこのモードで開くか切り替えると、そのファイルツールはプロジェクトの外（別のエージェントが作成した worktree など）にもアクセスできますが、~/.ssh、~/.claude、保管庫などの秘密情報には決してアクセスしません。" },
       auto_edits: { description: "ファイルの編集は確認なしで実行し、コマンドは引き続き確認します。" },
       ask: { description: "ツールを呼び出すたびに確認します。" },
       plan_only: { description: "読み取り専用です。書き込みもコマンドも実行しません。" },

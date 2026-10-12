@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react'
-import { Ban, Check, ChevronDown, ChevronRight, Settings } from 'lucide-react'
+import { Ban, Check, ChevronDown, ChevronRight, FolderOpen, Settings } from 'lucide-react'
 import type { ContentBlock } from '@/types'
 import { useT } from '@/i18n'
 import { permissionModeMeta } from './sessionListUtils'
@@ -31,6 +31,9 @@ export function SystemInitBlock({ block }: SystemInitBlockProps) {
       block.metadata?.provider_kind as ProviderKind | undefined,
     ),
   })
+  // Backend #729: the file tools of a native session a person put in Rock'n roll reach outside
+  // the project (its deny list apart). Said where the session starts, with what stays out.
+  const scopeLifted = block.metadata?.file_scope === 'unscoped'
   // The inventory needs the names: an older block only kept the count.
   const canExpand = tools.length > 0
 
@@ -82,6 +85,18 @@ export function SystemInitBlock({ block }: SystemInitBlockProps) {
           >
             <span className={`h-1.5 w-1.5 rounded-full ${modeMeta.dot}`} aria-hidden="true" />
             {modeMeta.label}
+          </span>
+        )}
+
+        {scopeLifted && (
+          <span
+            title={t('session.init.fileScopeUnscopedHint')}
+            data-testid="init-file-scope"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-600/20 text-emerald-300 text-[10px] rounded"
+          >
+            <FolderOpen className="h-3 w-3" aria-hidden="true" />
+            {t('session.init.fileScopeUnscoped')}
+            <span className="sr-only">: {t('session.init.fileScopeUnscopedHint')}</span>
           </span>
         )}
       </div>

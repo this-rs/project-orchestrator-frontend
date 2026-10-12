@@ -29,7 +29,7 @@ export default {
       plan_only: { label: 'Plan Only', description: 'Read-only mode. No writes or commands.' },
     },
     neutral: {
-      trust: { description: 'Run every tool without asking.' },
+      trust: { description: "Run every tool without asking. When you open or switch your own native-harness session to it, its file tools can also reach outside the project (a worktree another agent made), never secrets such as ~/.ssh, ~/.claude or the vault." },
       auto_edits: { description: 'File edits run without asking; commands still ask.' },
       ask: { description: 'Ask before every tool call.' },
       plan_only: { description: 'Read-only. No writes or commands.' },

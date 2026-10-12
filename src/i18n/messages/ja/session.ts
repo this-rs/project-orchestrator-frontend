@@ -75,6 +75,8 @@ export default {
     title: "セッションを初期化しました",
     tools: "ツール {count} 個",
     mcpServers: "MCP サーバー {count} 個",
+    fileScopeUnscoped: "ファイル範囲の制限なし",
+    fileScopeUnscopedHint: "このセッションの開始から Rock'n roll を離れるまで、ファイルツールはプロジェクトの外（他のエージェントの worktree）にもアクセスします。~/.ssh、~/.claude、保管庫などの秘密情報にはアクセスできません。",
   },
   tools: {
     toggle: "このセッションで提供されるツールを表示",
