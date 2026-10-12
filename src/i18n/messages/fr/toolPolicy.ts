@@ -31,7 +31,7 @@ export default {
       plan_only: { label: 'Plan seulement', description: 'Lecture seule. Ni écriture ni commande.' },
     },
     neutral: {
-      trust: { description: "Exécute chaque outil sans demander. Ses outils de fichiers peuvent aussi sortir du projet (un worktree créé par un autre agent), jamais vers ~/.ssh, ~/.claude ni le coffre." },
+      trust: { description: "Exécute chaque outil sans demander. Quand vous ouvrez ou passez votre propre session du harnais natif dans ce mode, ses outils de fichiers peuvent aussi sortir du projet (un worktree créé par un autre agent), jamais vers des secrets comme ~/.ssh, ~/.claude ou le coffre." },
       auto_edits: { description: 'Les modifications de fichiers s\'exécutent sans demander ; les commandes demandent toujours.' },
       ask: { description: 'Demande avant chaque appel d\'outil.' },
       plan_only: { description: 'Lecture seule. Ni écriture ni commande.' },

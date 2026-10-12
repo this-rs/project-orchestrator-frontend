@@ -106,7 +106,8 @@ describe('SystemInitBlock — file scope', () => {
     const scope = screen.getByTestId('init-file-scope')
     expect(scope.textContent).toContain('File scope lifted')
     expect(scope.getAttribute('title')).toContain('~/.ssh')
-    expect(scope.textContent).toContain('the vault')
+    expect(scope.textContent).toContain('until it leaves Rock\'n roll')
+    expect(scope.textContent).toContain('Secrets such as ~/.ssh, ~/.claude and the vault')
   })
 
   it('no lift, no badge', () => {

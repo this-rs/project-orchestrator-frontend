@@ -31,7 +31,7 @@ export default {
       plan_only: { label: 'Somente planejar', description: 'Modo somente leitura. Sem gravações nem comandos.' },
     },
     neutral: {
-      trust: { description: "Executa todas as ferramentas sem perguntar. As ferramentas de arquivos também podem sair do projeto (um worktree criado por outro agente), nunca para ~/.ssh, ~/.claude ou o cofre." },
+      trust: { description: "Executa todas as ferramentas sem perguntar. Quando você abre ou muda a sua própria sessão do harness nativo para este modo, as ferramentas de arquivos também podem sair do projeto (um worktree criado por outro agente), nunca para segredos como ~/.ssh, ~/.claude ou o cofre." },
       auto_edits: { description: 'As edições de arquivos rodam sem perguntar; os comandos ainda pedem confirmação.' },
       ask: { description: 'Pergunta antes de cada chamada de ferramenta.' },
       plan_only: { description: 'Somente leitura. Sem gravações nem comandos.' },

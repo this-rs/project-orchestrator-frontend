@@ -76,7 +76,7 @@ export default {
     tools: "الأدوات: {count}",
     mcpServers: "خوادم MCP: {count}",
     fileScopeUnscoped: "تم رفع نطاق الملفات",
-    fileScopeUnscopedHint: "تصل أدوات الملفات إلى خارج المشروع (worktree لوكلاء آخرين). يبقى ~/.ssh و~/.claude والخزنة بعيدًا عن متناولها.",
+    fileScopeUnscopedHint: "منذ بدء هذه الجلسة وحتى تغادر وضع Rock'n roll، تصل أدوات ملفاتها إلى خارج المشروع (worktree لوكلاء آخرين). تبقى الأسرار مثل ~/.ssh و~/.claude والخزنة بعيدة عن متناولها.",
   },
   tools: {
     toggle: "عرض الأدوات المتاحة في هذه الجلسة",

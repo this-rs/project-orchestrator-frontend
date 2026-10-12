@@ -76,7 +76,7 @@ export default {
     tools: "Ferramentas: {count}",
     mcpServers: "Servidores MCP: {count}",
     fileScopeUnscoped: "Escopo de arquivos liberado",
-    fileScopeUnscopedHint: "As ferramentas de arquivos saem do projeto (worktrees de outros agentes). ~/.ssh, ~/.claude e o cofre ficam fora de alcance.",
+    fileScopeUnscopedHint: "Do início desta sessão até ela sair de Rock'n roll, as ferramentas de arquivos saem do projeto (worktrees de outros agentes). Segredos como ~/.ssh, ~/.claude e o cofre ficam fora de alcance.",
   },
   tools: {
     toggle: "Mostrar as ferramentas oferecidas nesta sessão",

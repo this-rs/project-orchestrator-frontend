@@ -72,11 +72,19 @@ describe('neutral labels — for every other provider', () => {
   // Backend #729 (decision fce98b8a): a native session a person puts in Rock'n roll has its
   // file scope lifted (a worktree another agent made is reachable), with a deny list that
   // keeps ~/.ssh, ~/.claude and the vault out. The choice says both.
-  it('says what Rock\'n roll lifts and what it never reaches', () => {
+  // The lift happens only for YOUR OWN native-harness session (never a Codex, ACP or
+  // OpenAI-compatible one, never the server-wide default): the sentence says when.
+  it('says when Rock\'n roll lifts the file scope and what it never reaches', () => {
     const trust = settingsModeOptions('neutral').find((o) => o.mode === 'trust')
     expect(trust?.description).toBe(
-      'Run every tool without asking. Its file tools can also reach outside the project (a worktree another agent made), never ~/.ssh, ~/.claude or the vault.',
+      'Run every tool without asking. When you open or switch your own native-harness session to it, its file tools can also reach outside the project (a worktree another agent made), never secrets such as ~/.ssh, ~/.claude or the vault.',
     )
+  })
+
+  it('a Claude Code session, which never has its file scope lifted, is not told it is', () => {
+    const trust = settingsModeOptions('claude').find((o) => o.mode === 'trust')
+    expect(trust?.description).toBe('Auto-approve all tools. No prompts.')
+    expect(trust?.description).not.toMatch(/worktree|outside the project/)
   })
 })
 

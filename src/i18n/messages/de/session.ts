@@ -76,7 +76,7 @@ export default {
     tools: "Tools: {count}",
     mcpServers: "MCP-Server: {count}",
     fileScopeUnscoped: "Dateibereich aufgehoben",
-    fileScopeUnscopedHint: "Datei-Tools arbeiten auch außerhalb des Projekts (Worktrees anderer Agenten). ~/.ssh, ~/.claude und der Tresor bleiben unerreichbar.",
+    fileScopeUnscopedHint: "Vom Start dieser Sitzung an, bis sie Rock'n roll verlässt, arbeiten ihre Datei-Tools auch außerhalb des Projekts (Worktrees anderer Agenten). Geheimnisse wie ~/.ssh, ~/.claude und der Tresor bleiben unerreichbar.",
   },
   tools: {
     toggle: "Die in dieser Sitzung angebotenen Tools anzeigen",
