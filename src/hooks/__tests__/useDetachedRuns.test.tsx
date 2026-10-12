@@ -30,7 +30,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import { getEventBus } from '@/services'
 import { chatApi } from '@/services/chat'
 import type { CrudEvent, DetachedSession } from '@/types'
-import { useDetachedRuns, toDetachedRun } from '../useDetachedRuns'
+import { useDetachedRuns, toDetachedRun, newestFirst } from '../useDetachedRuns'
 
 const PARENT = 'parent-1'
 const CALL = 'call_subagent_1'
@@ -520,5 +520,30 @@ describe('useDetachedRuns fetch robustness', () => {
     await act(async () => {})
 
     expect(result.current.runs).toEqual([])
+  })
+})
+
+describe('children order: newest first', () => {
+  it('the hook lists the most recently started child first, whatever order the server sends', async () => {
+    getSessionChildren.mockResolvedValue([
+      child({ id: 'old', title: 'Old', created_at: '2026-10-11T08:00:00Z' }),
+      child({ id: 'new', title: 'New', created_at: '2026-10-11T12:00:00Z' }),
+      child({ id: 'mid', title: 'Mid', created_at: '2026-10-11T10:00:00Z' }),
+    ])
+    const { result } = renderHook(() => useDetachedRuns(PARENT))
+    await waitFor(() => expect(result.current.runs).toHaveLength(3))
+    expect(result.current.runs.map((r) => r.sessionId)).toEqual(['new', 'mid', 'old'])
+  })
+
+  it('newestFirst keeps the server order on ties and puts an unparsable date last', () => {
+    const runs = [
+      toDetachedRun(child({ id: 'bad', created_at: 'not a date' })),
+      toDetachedRun(child({ id: 'a', created_at: '2026-10-11T10:00:00Z' })),
+      toDetachedRun(child({ id: 'b', created_at: '2026-10-11T10:00:00Z' })),
+      toDetachedRun(child({ id: 'c', created_at: '2026-10-11T11:00:00Z' })),
+    ]
+    expect(newestFirst(runs).map((r) => r.sessionId)).toEqual(['c', 'a', 'b', 'bad'])
+    // The input is not mutated.
+    expect(runs.map((r) => r.sessionId)).toEqual(['bad', 'a', 'b', 'c'])
   })
 })
