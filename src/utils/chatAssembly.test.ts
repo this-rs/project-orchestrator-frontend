@@ -369,3 +369,46 @@ describe('historyEventsToMessages — structured workflow payload (readable acti
     })
   })
 })
+
+// ---------------------------------------------------------------------------
+// ERR-1 — a failed turn shows the provider's error cause, not the generic text
+// ---------------------------------------------------------------------------
+
+describe('historyEventsToMessages — result_error carries the provider error cause (ERR-1)', () => {
+  const errorBlocks = (messages: ReturnType<typeof historyEventsToMessages>) =>
+    messages.flatMap((m) => m.blocks).filter((b) => b.type === 'result_error')
+
+  const failedTurn = (extra: Record<string, unknown>) => [
+    { type: 'user_message', content: 'explain', created_at: 1_700_000_000 },
+    {
+      type: 'result',
+      subtype: 'error_during_execution',
+      is_error: true,
+      duration_ms: 1200,
+      created_at: 1_700_000_005,
+      ...extra,
+    },
+  ]
+
+  it('shows the provider error_message and keeps error_code/error_message in metadata', () => {
+    const [block] = errorBlocks(
+      historyEventsToMessages(
+        failedTurn({ error_message: 'The provider did not answer in time.', error_code: 'timeout' }),
+      ),
+    )
+    expect(block).toBeDefined()
+    expect(block.content).toBe('The provider did not answer in time.')
+    expect(block.metadata?.error_code).toBe('timeout')
+    expect(block.metadata?.error_message).toBe('The provider did not answer in time.')
+    // No result_text was sent: it stays undefined rather than becoming an empty string.
+    expect(block.metadata?.result_text).toBeUndefined()
+  })
+
+  it('still falls back to the generic execution error when neither result_text nor error_message is present', () => {
+    const [block] = errorBlocks(historyEventsToMessages(failedTurn({})))
+    expect(block).toBeDefined()
+    expect(block.content).toBe('An execution error occurred')
+    expect(block.metadata?.error_code).toBeUndefined()
+    expect(block.metadata?.error_message).toBeUndefined()
+  })
+})

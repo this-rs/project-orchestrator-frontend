@@ -601,6 +601,10 @@ export type ChatEvent =
       stop_reason?: string
       /** Classified failure behind `is_error` (nexus contract v2 `done.error`): a ProviderError with its `kind`. */
       error?: { kind: string; [field: string]: unknown }
+      /** Stable machine code of the provider error (`open_failure` code), when the turn failed. */
+      error_code?: string
+      /** Readable, redacted provider error message, when the turn failed. */
+      error_message?: string
     }
   | ({
       type: 'error'
@@ -718,7 +722,7 @@ export const CHAT_EVENT_FIELDS = {
   permission_request: { id: 'required', tool: 'required', input: 'required', tool_use_id: 'optional', always: 'optional', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
   permission_decision: { id: 'required', allow: 'required', scope: 'optional', rule: 'optional' },
   ask_user_question: { questions: 'required', tool_call_id: 'optional', id: 'optional', input: 'optional', synthetic: 'optional', parent_tool_use_id: 'optional' },
-  result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional', stop_reason: 'optional', error: 'optional' },
+  result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional', stop_reason: 'optional', error: 'optional', error_code: 'optional', error_message: 'optional' },
   error: { message: 'required', code: 'optional', index: 'optional', reason: 'optional', parent_tool_use_id: 'optional', request_id: 'optional' },
   streaming_status: { is_streaming: 'required' },
   permission_mode_changed: { mode: 'required', tool_policy: 'optional', policy_mode: 'optional' },

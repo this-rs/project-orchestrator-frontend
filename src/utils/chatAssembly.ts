@@ -987,6 +987,8 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
         const rSubtype = (evt.subtype as string) ?? 'success'
         const rNumTurns = evt.num_turns as number | undefined
         const rResultText = evt.result_text as string | undefined
+        const rErrorCode = evt.error_code as string | undefined
+        const rErrorMessage = evt.error_message as string | undefined
 
         // Store turn metrics on the assistant message
         const rMsg = lastAssistant(createdAt)
@@ -1007,8 +1009,11 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
           rMsg.blocks.push({
             id: nextBlockId(),
             type: 'result_error',
-            content: rResultText ?? tr('app.chat.executionError'),
-            metadata: withCreatedAt({ result_text: rResultText }, stamp),
+            content: rErrorMessage ?? rResultText ?? tr('app.chat.executionError'),
+            metadata: withCreatedAt(
+              { result_text: rResultText, error_code: rErrorCode, error_message: rErrorMessage },
+              stamp,
+            ),
           })
           lastEventWasMaxTurns = false
         } else {
