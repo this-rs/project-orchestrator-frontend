@@ -1466,6 +1466,8 @@ export function useChat() {
           const rSubtype = (rData as { subtype?: string }).subtype ?? 'success'
           const rNumTurns = (rData as { num_turns?: number }).num_turns
           const rResultText = (rData as { result_text?: string }).result_text
+          const rErrorCode = (rData as { error_code?: string }).error_code
+          const rErrorMessage = (rData as { error_message?: string }).error_message
 
           // Store turn metrics on the assistant message
           const rDuration = (rData as { duration_ms?: number }).duration_ms
@@ -1489,8 +1491,11 @@ export function useChat() {
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'result_error',
-              content: rResultText ?? tr('app.chat.executionError'),
-              metadata: withCreatedAt({ result_text: rResultText }, serverTime),
+              content: rErrorMessage ?? rResultText ?? tr('app.chat.executionError'),
+              metadata: withCreatedAt(
+                { result_text: rResultText, error_code: rErrorCode, error_message: rErrorMessage },
+                serverTime,
+              ),
             })
           }
 
