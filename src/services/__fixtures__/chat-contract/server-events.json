@@ -682,6 +682,8 @@
           },
           "cost_usd": 0.25,
           "duration_ms": 48210,
+          "error_code": "endpoint_unreachable",
+          "error_message": "The provider endpoint could not be reached.",
           "is_error": false,
           "model": "example-model-large",
           "num_turns": 7,
@@ -718,6 +720,14 @@
         "duration_ms": {
           "required": true,
           "type": "number"
+        },
+        "error_code": {
+          "required": false,
+          "type": "string"
+        },
+        "error_message": {
+          "required": false,
+          "type": "string"
         },
         "is_error": {
           "required": true,
