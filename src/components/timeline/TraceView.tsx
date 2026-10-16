@@ -8,6 +8,9 @@
  *
  * - Zoom: Ctrl/⌘ + wheel, W/S, the buttons, a pinch; double-click a span to
  *   frame it. Pan: drag, A/D, a sideways wheel, the minimap. 0 = show everything.
+ * - Hovering a span (or focusing it) raises a card with what is known of it —
+ *   provider · model, its title, its status, its duration and its bounds — without a click
+ *   (the row keeps its own `title` and `aria-label`: the card is never the only way).
  * - Long silences are cut and labelled with their real length (`axis.ts`).
  * - A running span grows live; the view follows the end until the reader moves it.
  * - Choosing a span opens its detail: beside the trace when there is room,
@@ -31,6 +34,8 @@ import { DEFAULT_TIMELINE_LABELS, STATUS_TONE, describeContext, formatItemDurati
 import { TraceDetail } from './TraceDetail'
 import { TraceMinimap } from './TraceMinimap'
 import { TraceSkeleton } from './TraceSkeleton'
+import { TimelineTooltip } from './TimelineTooltip'
+import { itemElement, useHoverCard } from './hoverCard'
 import { KIND_BAR, KIND_SWATCH, statusBar } from './traceStyle'
 import { ancestorsOf, buildTraceTree, visibleRows, type TraceNode, type TraceTree } from './trace'
 import {
@@ -399,8 +404,19 @@ export function TraceView({
     return { concurrency, peak, breaks: axis.breaks.map((b) => ({ pct: ((b.at + b.width / 2) / axis.total) * 100, ms: b.ms })) }
   }, [axis, lanes, now])
 
-  // Hover read-out (mouse only).
+  // Hover read-out (mouse only) and the hover card: what the span under the pointer is.
   const [hover, setHover] = useState<number | null>(null)
+  const itemById = useMemo(() => {
+    const m = new Map<string, TimelineItem>()
+    for (const lane of lanes) {
+      if (lane.span) m.set(lane.span.id, lane.span)
+      for (const it of lane.items) m.set(it.id, it)
+    }
+    return m
+  }, [lanes])
+  const { card, show: showCard, hide: hideCard } = useHoverCard(labels, useCallback((id: string) => itemById.get(id), [itemById]))
+  /** The card of a span: placed under the pointer, or under the row that takes the focus. */
+  const cardAt = useCallback((el: Element | null, x: number, y: number) => showCard(el, x, y), [showCard])
 
   // Zoom with Ctrl/⌘ + wheel, pan with a sideways wheel (or Shift + wheel). A plain wheel scrolls the rows.
   const gestureRef = useRef<HTMLDivElement>(null)
@@ -451,6 +467,12 @@ export function TraceView({
     if (e.pointerType === 'mouse') {
       const f = fractionAt(e.clientX)
       setHover(f >= 0 && f <= 1 ? f : null)
+      // The span under the pointer says what it is, without a click.
+      const el = itemElement(e.target)
+      if (el) {
+        const box = e.currentTarget.getBoundingClientRect()
+        cardAt(el, e.clientX - box.left + 12, e.clientY - box.top + 18)
+      } else hideCard()
     }
     const g = gesture.current
     if (!g || !axis || !pointers.current.has(e.pointerId)) return
@@ -710,7 +732,25 @@ export function TraceView({
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
-            onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(null)}
+            onPointerLeave={(e) => {
+              if (e.pointerType !== 'mouse') return
+              setHover(null)
+              hideCard()
+            }}
+            // The card is also the visible counterpart of the focused row's accessible name,
+            // so what the pointer reaches the keyboard reaches too (never the only way: the
+            // row keeps its `title` and its `aria-label`).
+            onFocus={(e) => {
+              const el = itemElement(e.target)
+              if (!el) {
+                hideCard()
+                return
+              }
+              const box = e.currentTarget.getBoundingClientRect()
+              const rect = el.getBoundingClientRect()
+              cardAt(el, rect.left - box.left, rect.bottom - box.top + 4)
+            }}
+            onBlur={hideCard}
             onClickCapture={onClickCapture}
           >
             {/* Ruler */}
@@ -807,6 +847,7 @@ export function TraceView({
                 })}
               </div>
             </div>
+            {card && <TimelineTooltip card={card} />}
           </div>
         </div>
 

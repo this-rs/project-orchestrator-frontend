@@ -312,4 +312,48 @@ describe('<TraceView>', () => {
     fireEvent.pointerMove(track, { pointerId: 1, pointerType: 'mouse', clientX: 0 })
     expect(screen.getByTestId('trace-hover-time').textContent).toMatch(/\d{2}:\d{2}:\d{2}/)
   })
+
+  it('zooms by a continuous factor with the wheel, and leaves a plain wheel to the rows', () => {
+    render(<TraceView lanes={turn()} />)
+    const tree = screen.getByRole('tree')
+    const windowPct = () => parseFloat(screen.getByTestId('trace-minimap-window').style.width)
+    expect(windowPct()).toBeCloseTo(100, 1)
+    // A plain wheel is not touched: the rows scroll, and a touch screen never sends one.
+    expect(fireEvent.wheel(tree, { deltaY: 120 })).toBe(true)
+    expect(windowPct()).toBeCloseTo(100, 1)
+    // Ctrl/⌘ + wheel zooms by a FACTOR: three notches, three different windows.
+    expect(fireEvent.wheel(tree, { deltaY: -200, ctrlKey: true })).toBe(false)
+    const a = windowPct()
+    fireEvent.wheel(tree, { deltaY: -100, ctrlKey: true })
+    const b = windowPct()
+    fireEvent.wheel(tree, { deltaY: -300, ctrlKey: true })
+    const c = windowPct()
+    expect(a).toBeLessThan(100)
+    expect(b).toBeLessThan(a)
+    expect(c).toBeLessThan(b)
+    expect(a / b).toBeCloseTo(Math.exp(100 * 0.002), 2)
+  })
+
+  it('tells what a span is on hover, without a click', () => {
+    const onSelect = vi.fn()
+    render(<TraceView lanes={turn()} onSelect={onSelect} />)
+    expect(screen.queryByTestId('timeline-tooltip')).toBeNull()
+    const grep = row(/Grep · x/)
+    fireEvent.pointerMove(grep.querySelector('[data-track]')!, { pointerId: 1, pointerType: 'mouse', clientX: 300, clientY: 120 })
+    const tip = screen.getByTestId('timeline-tooltip')
+    expect(tip.getAttribute('role')).toBe('tooltip')
+    expect(within(tip).getByText('Grep · x')).toBeTruthy()
+    expect(tip.textContent).toContain('claude-code')
+    expect(tip.textContent).toContain('sonnet-4-5')
+    expect(tip.textContent).toContain('1.0 s')
+    expect(within(tip).getByText('Start')).toBeTruthy()
+    expect(within(tip).getByText('End')).toBeTruthy()
+    expect(tip.textContent).toMatch(/\d{2}:\d{2}:\d{2}/)
+    // No click was needed, and the row keeps its own name and native title.
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(grep.getAttribute('title')).toContain('Grep · x')
+    // Off the spans (the ruler), the card goes away.
+    fireEvent.pointerMove(screen.getByRole('img', { name: /Time since the first event/ }), { pointerId: 1, pointerType: 'mouse', clientX: 10, clientY: 2 })
+    expect(screen.queryByTestId('timeline-tooltip')).toBeNull()
+  })
 })

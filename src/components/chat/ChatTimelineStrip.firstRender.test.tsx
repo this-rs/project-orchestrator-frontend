@@ -52,6 +52,12 @@ type View = 'tracks' | 'tree'
 const itemsOf = (view: View): HTMLElement[] =>
   view === 'tree' ? screen.queryAllByRole('treeitem') : Array.from(document.querySelectorAll<HTMLElement>('button[data-timeline-item]'))
 const SELECTED = { tree: 'aria-selected', tracks: 'aria-pressed' } as const
+/** The chat's zones (one per session) start folded: a reader unfolds them from their header. */
+const unfoldZones = () => {
+  for (const fold of screen.queryAllByTestId('track-zone-fold')) {
+    if (fold.getAttribute('aria-expanded') === 'false') fireEvent.click(fold)
+  }
+}
 
 afterEach(() => {
   api.pending.length = 0
@@ -70,6 +76,7 @@ describe.each(['tracks', 'tree'] as const)('<ChatTimelineStrip> first display (%
     const events = history('a', 5)
     api.histories.set('s', events)
     render(<MemoryRouter><ChatTimelineStrip sessionId="s" messages={transcriptOf(events, 2)} isStreaming={false} workspaceSlug="ws" /></MemoryRouter>)
+    unfoldZones()
 
     const shown = turnRow('a turn 4')
     expect(shown).not.toBeNull()
@@ -94,6 +101,7 @@ describe.each(['tracks', 'tree'] as const)('<ChatTimelineStrip> first display (%
     // The transcript: the last turn was sent live from this tab, its echo carries no server id.
     const transcript = transcriptOf(events, 2).map((m) => (m.role === 'user' && m.blocks[0]?.content === 'a turn 2' ? { ...m, id: 'm-7-client' } : m))
     render(<MemoryRouter><ChatTimelineStrip sessionId="s" messages={transcript} isStreaming={false} workspaceSlug="ws" /></MemoryRouter>)
+    unfoldZones()
     const sent = turnRow('a turn 2') as HTMLElement
     fireEvent.click(sent)
     expect(sent.getAttribute(SELECTED[view])).toBe('true')
@@ -123,12 +131,14 @@ describe.each(['tracks', 'tree'] as const)('<ChatTimelineStrip> first display (%
       </MemoryRouter>
     )
     const { rerender } = render(view('s1', first))
+    unfoldZones()
     await settle()
     await answer()
     expect(turnRow('a turn 0')).not.toBeNull()
 
     commits.length = 0
     rerender(view('s2', second))
+    unfoldZones()
     expect(commits.length).toBeGreaterThan(0)
     expect(commits.every((stale) => !stale)).toBe(true)
     expect(turnRow('a turn')).toBeNull()

@@ -10,6 +10,11 @@
  *
  * - Zoom: Ctrl/⌘ + wheel, W/S, the buttons, a pinch; double-click a bar to
  *   frame it. Pan: drag, A/D, a sideways wheel, the minimap. 0 = show everything.
+ * - Hovering a bar (or focusing it) raises a card with what is known of it —
+ *   provider · model, its title, its status, its duration and its bounds — without a click.
+ * - A zone (one per session) folds and unfolds from its own header. `zones="expanded"`
+ *   (default) draws every row at once; `zones="collapsed"` starts them folded (the chat's
+ *   short panel). A row the reader picks or tabs onto is never left in a folded zone.
  * - A running bar grows live; the view follows the end until the reader moves it.
  * - Keyboard: the bars are buttons; ← → walk a row, ↑ ↓ change row (to the bar
  *   closest in time), Home/End the ends of a row, Enter opens the detail, Z frames.
@@ -19,7 +24,7 @@
  * Reusable and controlled, like `TraceView`: it knows nothing about chat or routes.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
-import { AlertTriangle, AudioLines, Maximize2, Radio, RotateCw, ZoomIn, ZoomOut } from 'lucide-react'
+import { AlertTriangle, AudioLines, ChevronRight, Maximize2, Radio, RotateCw, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button, EmptyState, StatusDot } from '@/components/ui'
 import { focusRing, focusRingInset } from '@/components/ui/classes'
 import { buildAxis, toX, type Axis } from './axis'
@@ -32,6 +37,8 @@ import type { TraceNode } from './trace'
 import { TraceDetail } from './TraceDetail'
 import { TraceMinimap } from './TraceMinimap'
 import { TraceSkeleton } from './TraceSkeleton'
+import { TimelineTooltip } from './TimelineTooltip'
+import { itemElement, useHoverCard } from './hoverCard'
 import { KIND_BAR, KIND_SWATCH, statusBar } from './traceStyle'
 import { buildTracks, findOnTracks, type Track, type TrackFamily, type TrackItem, type TrackLayout } from './tracks'
 import {
@@ -69,8 +76,18 @@ export interface TracksViewProps {
       `zoomed` — as `TraceView`'s `fit` (the chat's narrow panel: no resting "fit" beside its
       open-page link, but a visible way back after a zoom or a pan). */
   fit?: 'always' | 'zoomed'
+  /**
+   * How the zones (one per session: a group and the rows it holds) start. `expanded` (default)
+   * draws every row at once, the way the full-page timeline has room for; `collapsed` folds each
+   * zone to its header, for the chat's short panel. Either way the header folds and unfolds its
+   * own zone, one by one, and a row the reader picks or tabs onto is never left hidden.
+   */
+  zones?: 'expanded' | 'collapsed'
   className?: string
 }
+
+/** The key of the zone (group row) a track belongs to. */
+const groupKeyOf = (laneId: string) => `group:${laneId}`
 
 /**
  * What a row is called: its family, the sub-agent it belongs to, its number when
@@ -162,7 +179,7 @@ const Bar = memo(function Bar({ it, view, axis, trackW, selected, focused, label
 
 export function TracksView({
   lanes, selectedId, onSelect, onOpen, labels = DEFAULT_TIMELINE_LABELS, density = 'compact', maxRowsHeight = 480,
-  loading = null, failed = false, onRetry, detail = 'side', fit = 'always', className = '',
+  loading = null, failed = false, onRetry, detail = 'side', fit = 'always', zones = 'expanded', className = '',
 }: TracksViewProps) {
   const L = labels.trace
   const T = labels.tracks
@@ -180,11 +197,23 @@ export function TracksView({
   const total = axis?.total ?? 1
   const laneOf = useMemo(() => new Map(lanes.map((l) => [l.id, l])), [lanes])
 
-  // The rows on screen: a header per group (the session), then its tracks.
+  // The rows on screen: a header per zone (the session), then its tracks — and only the tracks
+  // of the zones that are open (the chat's short panel starts with them folded, one by one).
   type Row = { kind: 'group'; lane: TimelineLane; key: string } | { kind: 'track'; track: Track; key: string }
+  const defaultZoneOpen = zones === 'expanded'
+  /** What the reader folded or unfolded themselves; anything untouched follows `zones`. */
+  const [zoneToggled, setZoneToggled] = useState<Record<string, boolean>>({})
+  const toggleZone = useCallback((key: string) => {
+    setZoneToggled((prev) => ({ ...prev, [key]: !(prev[key] ?? defaultZoneOpen) }))
+  }, [defaultZoneOpen])
   const rows: Row[] = useMemo(
-    () => layout.groups.flatMap((g) => [{ kind: 'group' as const, lane: g.lane, key: `group:${g.lane.id}` }, ...g.tracks.map((track) => ({ kind: 'track' as const, track, key: track.key }))]),
-    [layout],
+    () => layout.groups.flatMap((g) => {
+      const key = groupKeyOf(g.lane.id)
+      const header = { kind: 'group' as const, lane: g.lane, key }
+      if (!(zoneToggled[key] ?? defaultZoneOpen)) return [header]
+      return [header, ...g.tracks.map((track) => ({ kind: 'track' as const, track, key: track.key }))]
+    }),
+    [layout, zoneToggled, defaultZoneOpen],
   )
 
   // The view: null = everything. Following = the right edge stays on the end while something runs.
@@ -208,8 +237,17 @@ export function TracksView({
   }, [selectedId])
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const focusPending = useRef(false)
-  const firstBar = layout.tracks[0]?.items[0]?.item.id ?? null
-  const focusTarget = focusedId && findOnTracks(layout, focusedId) ? focusedId : selected && findOnTracks(layout, selected) ? selected : firstBar
+  /** A bar the keyboard can reach: one that is actually drawn (its zone is open). */
+  const onScreen = (id: string) => {
+    const hit = findOnTracks(layout, id)
+    return !!hit && (zoneToggled[groupKeyOf(hit.track.laneId)] ?? defaultZoneOpen)
+  }
+  const renderedTracks = useMemo(
+    () => layout.tracks.filter((t) => zoneToggled[groupKeyOf(t.laneId)] ?? defaultZoneOpen),
+    [layout, zoneToggled, defaultZoneOpen],
+  )
+  const firstBar = renderedTracks[0]?.items[0]?.item.id ?? null
+  const focusTarget = focusedId && onScreen(focusedId) ? focusedId : selected && onScreen(selected) ? selected : firstBar
 
   const scroller = useRef<HTMLDivElement>(null)
   const bodyH = Math.max(rowH, Math.min(rows.length * rowH, maxRowsHeight))
@@ -222,13 +260,21 @@ export function TracksView({
     else if (top + rowH > el.scrollTop + el.clientHeight) el.scrollTop = top + rowH - el.clientHeight
   }, [rows, rowH])
 
-  // A selection from outside (a link): bring its row into view.
+  // A selection from outside (a link): its zone opens if it was folded, and its row comes into view.
+  // It is never left hidden — but folding a zone by hand does not yank the view back to it.
+  const lastScrolled = useRef<string | null>(null)
   useEffect(() => {
-    if (!selected) return
+    if (!selected || lastScrolled.current === selected) return
     const hit = findOnTracks(layout, selected)
-    if (hit) scrollToRow(hit.track.key)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected])
+    if (!hit) return
+    const key = groupKeyOf(hit.track.laneId)
+    if (!(zoneToggled[key] ?? defaultZoneOpen)) {
+      setZoneToggled((prev) => ({ ...prev, [key]: true }))
+      return
+    }
+    lastScrolled.current = selected
+    scrollToRow(hit.track.key)
+  }, [selected, layout, zoneToggled, defaultZoneOpen, scrollToRow])
 
   // Keyboard focus follows `focusedId` once the bar is rendered.
   useEffect(() => {
@@ -272,6 +318,8 @@ export function TracksView({
     const back = selected
     setSelected(null)
     onSelect?.(null)
+    // Picking the same bar again later scrolls back to it.
+    lastScrolled.current = null
     if (back) {
       setFocusedId(back)
       focusPending.current = true
@@ -295,8 +343,18 @@ export function TracksView({
     return { concurrency, peak, breaks: axis.breaks.map((b) => ({ pct: ((b.at + b.width / 2) / axis.total) * 100, ms: b.ms })) }
   }, [axis, lanes, now])
 
-  // Hover read-out (mouse only).
+  // Hover read-out (mouse only) and the hover card: what the bar under the pointer is.
   const [hover, setHover] = useState<number | null>(null)
+  const itemById = useMemo(() => {
+    const m = new Map<string, TimelineItem>()
+    for (const lane of lanes) {
+      if (lane.span) m.set(lane.span.id, lane.span)
+      for (const it of lane.items) m.set(it.id, it)
+    }
+    return m
+  }, [lanes])
+  const { card, show: showCard, hide: hideCard } = useHoverCard(labels, useCallback((id: string) => itemById.get(id), [itemById]))
+  const cardAt = useCallback((el: Element | null, x: number, y: number) => showCard(el, x, y), [showCard])
 
   // Zoom with Ctrl/⌘ + wheel, pan with a sideways wheel (or Shift + wheel). A plain wheel scrolls the rows.
   const gestureRef = useRef<HTMLDivElement>(null)
@@ -338,6 +396,12 @@ export function TracksView({
     if (e.pointerType === 'mouse') {
       const f = fractionAt(e.clientX)
       setHover(f >= 0 && f <= 1 ? f : null)
+      // The bar under the pointer says what it is, without a click.
+      const el = itemElement(e.target)
+      if (el) {
+        const box = e.currentTarget.getBoundingClientRect()
+        cardAt(el, e.clientX - box.left + 12, e.clientY - box.top + 18)
+      } else hideCard()
     }
     const g = gesture.current
     if (!g || !axis || !pointers.current.has(e.pointerId)) return
@@ -395,7 +459,12 @@ export function TracksView({
     setFocusedId(id)
     focusPending.current = true
     const hit = findOnTracks(layout, id)
-    if (hit) scrollToRow(hit.track.key)
+    if (hit) {
+      // A bar the keyboard walks onto is never left in a folded zone.
+      const key = groupKeyOf(hit.track.laneId)
+      if (!(zoneToggled[key] ?? defaultZoneOpen)) setZoneToggled((prev) => ({ ...prev, [key]: true }))
+      scrollToRow(hit.track.key)
+    }
     reveal(id)
   }
   const onRowsKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -550,7 +619,24 @@ export function TracksView({
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
-            onPointerLeave={(e) => e.pointerType === 'mouse' && setHover(null)}
+            onPointerLeave={(e) => {
+              if (e.pointerType !== 'mouse') return
+              setHover(null)
+              hideCard()
+            }}
+            // The card is also the visible counterpart of the focused bar's accessible name
+            // (the bar keeps its `title` and its `aria-label`: the card is never the only way).
+            onFocus={(e) => {
+              const el = itemElement(e.target)
+              if (!el) {
+                hideCard()
+                return
+              }
+              const box = e.currentTarget.getBoundingClientRect()
+              const rect = el.getBoundingClientRect()
+              cardAt(el, rect.left - box.left, rect.bottom - box.top + 4)
+            }}
+            onBlur={hideCard}
             onClickCapture={onClickCapture}
           >
             {/* Ruler */}
@@ -605,7 +691,16 @@ export function TracksView({
                 </div>
                 {rows.map((row, i) => (
                   row.kind === 'group' ? (
-                    <GroupRow key={row.key} lane={row.lane} top={i * rowH} height={rowH} labels={labels} gridCols={gridCols} />
+                    <GroupRow
+                      key={row.key}
+                      lane={row.lane}
+                      top={i * rowH}
+                      height={rowH}
+                      labels={labels}
+                      gridCols={gridCols}
+                      open={zoneToggled[row.key] ?? defaultZoneOpen}
+                      onToggle={() => toggleZone(row.key)}
+                    />
                   ) : (
                     <TrackRow
                       key={row.key}
@@ -627,6 +722,7 @@ export function TracksView({
                 ))}
               </div>
             </div>
+            {card && <TimelineTooltip card={card} />}
           </div>
         </div>
 
@@ -646,16 +742,31 @@ export function TracksView({
   )
 }
 
-/** The header of a group: the session, how it relates to the one opened, where it ran. */
-function GroupRow({ lane, top, height, labels, gridCols }: { lane: TimelineLane; top: number; height: number; labels: TimelineLabels; gridCols: React.CSSProperties }) {
+/**
+ * The header of a zone (one session): the session, how it relates to the one opened, where it ran —
+ * and the fold of the rows it holds. A plain button, so Enter and Space work without a handler.
+ */
+function GroupRow({ lane, top, height, labels, gridCols, open, onToggle }: { lane: TimelineLane; top: number; height: number; labels: TimelineLabels; gridCols: React.CSSProperties; open: boolean; onToggle: () => void }) {
   const L = labels.trace
   const relation = lane.relation === 'child' ? L.child : lane.relation === 'relay' ? L.relay : ''
   const context = [relation, describeContext(lane.context)].filter(Boolean).join(' · ')
+  const fold = open ? L.collapse : L.expand
   return (
-    <div role="listitem" data-track-group={lane.id} className="absolute inset-x-0 border-t border-white/[0.08] bg-white/[0.03]" style={{ top, height }}>
+    <div role="listitem" data-track-group={lane.id} data-open={open} className="absolute inset-x-0 border-t border-white/[0.08] bg-white/[0.03]" style={{ top, height }}>
       <div className="grid h-full items-center gap-x-2 pe-2" style={gridCols}>
-        <span className="min-w-0 truncate ps-2 font-medium text-gray-100" title={lane.title}>{lane.title}</span>
-        {context ? <span className="min-w-0 truncate text-[10px] text-gray-400" title={context}>{context}</span> : <span />}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          aria-label={`${fold} · ${lane.title}`}
+          title={lane.title}
+          data-testid="track-zone-fold"
+          className={`flex h-full min-w-0 items-center gap-1.5 ps-2 text-start ${focusRing}`}
+        >
+          <ChevronRight className={`size-3.5 shrink-0 text-gray-400 transition-transform ${open ? 'rotate-90' : ''} rtl:-scale-x-100`} aria-hidden="true" />
+          <span className="min-w-0 truncate font-medium text-gray-100" title={lane.title}>{lane.title}</span>
+        </button>
+        {context ? <span className="block min-w-0 truncate text-[10px] text-gray-400" title={context}>{context}</span> : <span />}
       </div>
     </div>
   )

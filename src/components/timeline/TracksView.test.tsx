@@ -22,6 +22,12 @@ const piece = () => [lane([
   span('oops', 9500, 9500, { kind: 'error', status: 'error', label: 'Boom', parentId: 'req' }),
 ])]
 
+/** Two sessions, so the zones (one per session) can be folded one by one. */
+const twoZones = (): TimelineLane[] => [
+  lane([span('req', 0, 4000, { kind: 'request', label: 'list the files' }), span('grep', 500, 1500, { label: 'Grep · x', parentId: 'req' })]),
+  lane([span('kid', 1000, 3000, { label: 'Read · k' })], { id: 'kid', title: 'Delegated work', relation: 'child', parentLaneId: 'l' }),
+]
+
 const bar = (name: RegExp) => screen.getByRole('button', { name })
 const rowsOf = () => screen.getAllByRole('listitem')
 
@@ -206,5 +212,93 @@ describe('<TracksView>', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(onRetry).toHaveBeenCalled()
     expect(screen.getByRole('alert').textContent).toContain('Part of the history')
+  })
+
+  it('zooms by a continuous factor with the wheel, and leaves a plain wheel to the rows', () => {
+    render(<TracksView lanes={piece()} />)
+    const rows = screen.getByRole('list', { name: 'Tracks of the conversation' })
+    const windowPct = () => parseFloat(screen.getByTestId('trace-minimap-window').style.width)
+    expect(windowPct()).toBeCloseTo(100, 1)
+    // A plain wheel is not consumed: nothing to preventDefault for a touch or trackpad scroll.
+    expect(fireEvent.wheel(rows, { deltaY: 120 })).toBe(true)
+    expect(windowPct()).toBeCloseTo(100, 1)
+    // Ctrl/⌘ + wheel zooms by a FACTOR: three notches, three different windows (never two states).
+    expect(fireEvent.wheel(rows, { deltaY: -200, ctrlKey: true })).toBe(false)
+    const a = windowPct()
+    fireEvent.wheel(rows, { deltaY: -100, ctrlKey: true })
+    const b = windowPct()
+    fireEvent.wheel(rows, { deltaY: -300, ctrlKey: true })
+    const c = windowPct()
+    expect(a).toBeLessThan(100)
+    expect(b).toBeLessThan(a)
+    expect(c).toBeLessThan(b)
+    // The step follows the wheel's own delta, not a fixed one.
+    expect(a / b).toBeCloseTo(Math.exp(100 * 0.002), 2)
+    // Pan, same zoom: a sideways wheel, then a drag on the bars.
+    const centre = () => Number(screen.getByTestId('trace-minimap').getAttribute('aria-valuenow'))
+    const before = centre()
+    fireEvent.wheel(rows, { deltaX: 200 })
+    expect(centre()).toBeGreaterThan(before)
+    const panned = centre()
+    // Zoomed in, the bars of this row are out of the window: the row's track is still there to grab.
+    const track = screen.getByRole('list', { name: 'Tracks of the conversation' }).querySelector('[data-track]') as HTMLElement
+    fireEvent.pointerDown(track, { pointerId: 1, pointerType: 'mouse', button: 0, clientX: 300 })
+    fireEvent.pointerMove(track, { pointerId: 1, pointerType: 'mouse', clientX: 100 })
+    fireEvent.pointerUp(track, { pointerId: 1, pointerType: 'mouse', clientX: 100 })
+    expect(centre()).toBeGreaterThan(panned)
+  })
+
+  it('tells what a bar is on hover, without a click', () => {
+    const onSelect = vi.fn()
+    render(<TracksView lanes={piece()} onSelect={onSelect} />)
+    expect(screen.queryByTestId('timeline-tooltip')).toBeNull()
+    fireEvent.pointerMove(bar(/Grep · x/), { pointerId: 1, pointerType: 'mouse', clientX: 200, clientY: 40 })
+    const tip = screen.getByTestId('timeline-tooltip')
+    expect(tip.getAttribute('role')).toBe('tooltip')
+    expect(within(tip).getByText('Grep · x')).toBeTruthy()
+    expect(tip.textContent).toContain('claude-code')
+    expect(tip.textContent).toContain('sonnet-4-5')
+    expect(tip.textContent).toContain('1.0 s')
+    expect(within(tip).getByText('Start')).toBeTruthy()
+    expect(within(tip).getByText('End')).toBeTruthy()
+    expect(tip.textContent).toMatch(/\d{2}:\d{2}:\d{2}/)
+    expect(onSelect).not.toHaveBeenCalled()
+    // The bar keeps its own name and its native title: the card is never the only way.
+    expect(bar(/Grep · x/).getAttribute('aria-label')).toContain('Grep · x')
+    expect(bar(/Grep · x/).getAttribute('title')).toContain('claude-sonnet-4-5')
+    // Off the bars (the ruler), the card goes away.
+    fireEvent.pointerMove(screen.getByRole('img', { name: /Time since the first event/ }), { pointerId: 1, pointerType: 'mouse', clientX: 10, clientY: 2 })
+    expect(screen.queryByTestId('timeline-tooltip')).toBeNull()
+  })
+
+  it('keeps the zones folded when asked, and unfolds them one by one', () => {
+    render(<TracksView lanes={twoZones()} zones="collapsed" />)
+    const names = () => rowsOf().map((r) => r.getAttribute('data-track') ?? `group:${r.getAttribute('data-track-group')}`)
+    // Two headers, and nothing of what they hold.
+    expect(names()).toEqual(['group:l', 'group:kid'])
+    const folds = () => screen.getAllByTestId('track-zone-fold')
+    expect(folds().map((f) => f.getAttribute('aria-expanded'))).toEqual(['false', 'false'])
+    expect(folds()[0]!.getAttribute('aria-label')).toBe('Expand · Conversation')
+    fireEvent.click(folds()[0]!)
+    // Only this zone unfolds; the other keeps its rows to itself.
+    expect(names()).toEqual(['group:l', 'l/turns/0', 'l/tools/0', 'group:kid'])
+    expect(folds()[0]!.getAttribute('aria-label')).toBe('Collapse · Conversation')
+    expect(screen.queryByRole('button', { name: /Read · k/ })).toBeNull()
+    // A second click folds it back.
+    fireEvent.click(folds()[0]!)
+    expect(names()).toEqual(['group:l', 'group:kid'])
+  })
+
+  it('never leaves a row the reader picked hidden in a folded zone', () => {
+    const { rerender } = render(<TracksView lanes={twoZones()} zones="collapsed" />)
+    expect(screen.queryByRole('button', { name: /Read · k/ })).toBeNull()
+    rerender(<TracksView lanes={twoZones()} zones="collapsed" selectedId="kid" />)
+    expect(bar(/Read · k/).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('leaves the zones open by default, the way the full-page timeline draws them', () => {
+    render(<TracksView lanes={twoZones()} />)
+    expect(screen.getAllByTestId('track-zone-fold').map((f) => f.getAttribute('aria-expanded'))).toEqual(['true', 'true'])
+    expect(bar(/Read · k/)).toBeTruthy()
   })
 })

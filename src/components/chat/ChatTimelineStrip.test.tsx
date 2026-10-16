@@ -24,8 +24,19 @@ const strip = () => render(
   <MemoryRouter><ChatTimelineStrip sessionId="s" messages={msgs} isStreaming={false} workspaceSlug="ws" /></MemoryRouter>,
 )
 type View = 'tracks' | 'tree'
-/** An event: a row of the span tree, a bar on the tracks. */
-const pick = (view: View, name: RegExp) => (view === 'tree' ? screen.getByRole('treeitem', { name }) : within(screen.getByRole('list', { name: 'Tracks of the conversation' })).getByRole('button', { name }))
+/** The chat's zones (one per session) start folded: unfolding is the reader's first click. */
+const unfoldZones = () => {
+  for (const fold of screen.getAllByTestId('track-zone-fold')) {
+    if (fold.getAttribute('aria-expanded') === 'false') fireEvent.click(fold)
+  }
+}
+/** An event: a row of the span tree, a bar on the tracks (its zone unfolded first). */
+const pick = (view: View, name: RegExp) => {
+  if (view === 'tree') return screen.getByRole('treeitem', { name })
+  const list = screen.getByRole('list', { name: 'Tracks of the conversation' })
+  if (!within(list).queryByRole('button', { name })) unfoldZones()
+  return within(list).getByRole('button', { name })
+}
 const goTo = (name: RegExp, view: View = 'tree') => {
   fireEvent.click(pick(view, name))
   fireEvent.click(within(screen.getByTestId('trace-detail')).getByRole('button', { name: 'Show in the conversation' }))
@@ -98,5 +109,40 @@ describe('<ChatTimelineStrip> in the tree view', () => {
     fireEvent.click(screen.getByRole('treeitem', { name: /Delegated work/ }))
     fireEvent.click(within(screen.getByTestId('trace-detail')).getByRole('button', { name: 'Open this session' }))
     expect(navigate).toHaveBeenLastCalledWith('/workspace/ws/chat/kid')
+  })
+})
+
+// The panel is a 20rem column: its zones (one per session) open folded, one header each.
+describe('<ChatTimelineStrip> zones', () => {
+  useView('tracks')
+  // The history a test above loaded (a child session) is not this one's.
+  beforeEach(() => {
+    trace.value = { ...trace.value, sessions: [], loading: null, failed: false }
+  })
+
+  it('opens with its zones folded, and unfolds the one whose header is clicked', () => {
+    strip()
+    const list = within(screen.getByRole('list', { name: 'Tracks of the conversation' }))
+    expect(list.queryByRole('button', { name: /Bash · ls/ })).toBeNull()
+    const fold = screen.getByTestId('track-zone-fold')
+    expect(fold.getAttribute('aria-expanded')).toBe('false')
+    expect(fold.getAttribute('aria-label')).toBe('Expand · Chat')
+    fireEvent.click(fold)
+    expect(fold.getAttribute('aria-expanded')).toBe('true')
+    expect(fold.getAttribute('aria-label')).toBe('Collapse · Chat')
+    expect(list.getByRole('button', { name: /Bash · ls/ })).toBeTruthy()
+    fireEvent.click(fold)
+    expect(list.queryByRole('button', { name: /Bash · ls/ })).toBeNull()
+  })
+
+  it('leaves the span tree alone: its rows are there without unfolding anything', () => {
+    localStorage.setItem('po.timeline.view', 'tree')
+    try {
+      strip()
+      expect(screen.getByRole('treeitem', { name: /Bash · ls/ })).toBeTruthy()
+      expect(screen.queryAllByTestId('track-zone-fold')).toHaveLength(0)
+    } finally {
+      localStorage.removeItem('po.timeline.view')
+    }
   })
 })
