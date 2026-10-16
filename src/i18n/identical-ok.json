@@ -486,6 +486,7 @@
     "hi:chatA-activity.banner.cpu", "hi:chatA-messages.welcome.title",
     "ar:chatA-messages.welcome.title",
     "fr:chatA-messages.spawn.pipeline", "pt:chatA-messages.spawn.pipeline",
-    "networkTools.engines.kind.brave", "de:networkTools.browser.title"
+    "networkTools.engines.kind.brave", "de:networkTools.browser.title",
+    "providerAdmin.limits.preview", "providerAdmin.limits.previewScope"
   ]
 }

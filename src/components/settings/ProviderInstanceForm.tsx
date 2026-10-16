@@ -28,7 +28,10 @@ import {
 import type { ProviderPatch, ProviderTestResult } from '@/types/providerSettings'
 import { REMOTE_KIND, validateVaultKeyName } from '@/constants/remoteClaudeCode'
 import { useT } from '@/i18n'
+import { validateLimits, type RateLimit, type RateLimitReport } from '@/types/rateLimit'
 import { ConfirmPanel } from './ConfirmPanel'
+import { RateLimitEditor } from './RateLimitEditor'
+import { RateLimitStatus } from './RateLimitStatus'
 import { RemoteHostFields, remoteErrors, type RemoteField, type RemoteState } from './RemoteHostFields'
 import { FieldNote, FormField } from './FormField'
 import { ModelField } from './ModelField'
@@ -184,6 +187,30 @@ function EditForm({
   const [saving, setSaving] = useState(false)
   const [confirmSave, setConfirmSave] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // RL1/RL8: the limits, as the stored instance carried them. Nothing is sent
+  // until the human touches them (`limitsTouched`), so opening and saving an
+  // instance that has no limit changes strictly nothing.
+  const [limits, setLimits] = useState<RateLimit[]>(stored?.rate_limit ?? [])
+  const [limitsTouched, setLimitsTouched] = useState(false)
+  const [limitReport, setLimitReport] = useState<RateLimitReport | null>(null)
+
+  // RL7: the live state of the limits (unknown while no counter exists). A
+  // backend without the route answers 404, and a harness that does not carry the
+  // method simply shows nothing: the section is optional, never in the way.
+  useEffect(() => {
+    let live = true
+    void Promise.resolve()
+      .then(() => providersApi.limits(instance.id))
+      .then((r) => {
+        if (live) setLimitReport(r)
+      })
+      .catch(() => {
+        if (live) setLimitReport(null)
+      })
+    return () => {
+      live = false
+    }
+  }, [instance.id])
 
   // Names of the secrets already in the vault (never values). Locked, empty or
   // unavailable → the name is typed instead.
@@ -219,7 +246,7 @@ function EditForm({
     }
     return e
   }, [baseUrl, credKind, credName, process, urlUnknown, isRemote, t])
-  const valid = Object.keys(errors).length === 0 && Object.keys(remoteErrs).length === 0
+  const valid = Object.keys(errors).length === 0 && Object.keys(remoteErrs).length === 0 && !validateLimits(limits, t)
 
   const patch = (): ProviderPatch => {
     const p: ProviderPatch = {
@@ -243,6 +270,9 @@ function EditForm({
       // The pinned key is only sent when a human just confirmed a new one.
       if (!remote.hostKeyKept) p.host_key = remote.hostKey.trim()
     }
+    // RL1: only a touched list is sent — `[]` clears every limit, and an
+    // untouched form leaves whatever the server holds exactly where it is.
+    if (limitsTouched) p.rate_limit = limits
     return p
   }
 
@@ -314,6 +344,7 @@ function EditForm({
     setSaveError(null)
     try {
       await providersApi.update(instance.id, patch())
+      setLimitsTouched(false)
       await onSaved()
     } catch (err) {
       setSaveError(wizardErrorMessage(err, t))
@@ -532,6 +563,19 @@ function EditForm({
           {t('providerAdmin.form.addKeyInVault')}
         </Link>
       </p>
+
+      <RateLimitStatus report={limitReport} />
+      <RateLimitEditor
+        value={limits}
+        onChange={(next) => {
+          setLimits(next)
+          setLimitsTouched(true)
+          edited()
+        }}
+        credentialRef={credentialRef}
+        models={(catalog.models ?? []).map((m) => m.id)}
+        uid={`${uid}-rl`}
+      />
 
       {test?.result && (
         <div role="status" data-testid="provider-test-result" className="text-sm text-gray-300">
