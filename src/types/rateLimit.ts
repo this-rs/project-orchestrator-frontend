@@ -268,10 +268,23 @@ export function windowsFor(kind: RateLimitKind): readonly RateLimitWindow[] {
   return ['day', 'week', 'month']
 }
 
-/** "HH:MM" in the reader's own time zone, or null when there is no instant. */
+/**
+ * "HH:MM" in the reader's own time zone, or null when there is no instant.
+ *
+ * The SHAPE is fixed — always a 24-hour clock, two digits each, `:` between —
+ * because it is dropped into a sentence the screen promises verbatim ("Limit
+ * reached until HH:MM"). `toLocaleTimeString` is the wrong tool for that: it
+ * follows the RUNTIME locale, so the same instant renders "12:34" on a French
+ * machine and "12:34 PM" on an English one (and, in a locale with another
+ * numeral system, not even Arabic digits). The reader's ZONE is what must be
+ * honoured, not the machine's locale, so the clock is built from the local
+ * fields directly.
+ */
 export function formatClock(iso: string | null): string | null {
   if (!iso) return null
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return null
-  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const hours = String(d.getHours()).padStart(2, '0')
+  const minutes = String(d.getMinutes()).padStart(2, '0')
+  return `${hours}:${minutes}`
 }

@@ -13,6 +13,7 @@ import { createTranslator } from '@/i18n/translate'
 import { bundleOf, loadLocale } from '@/i18n/store'
 import {
   describeLimit,
+  formatClock,
   isCalendarWindow,
   knownTimezone,
   toRateLimit,
@@ -182,5 +183,30 @@ describe('the plain-language preview', () => {
     expect(describeLimit({ kind: 'requests', window: 'minute', calendar: null, max: 40, scope: 'instance' }, fr)).toBe(
       '40 requêtes par minute (Cette instance)',
     )
+  })
+})
+
+describe('the clock of a live state', () => {
+  // The screen promises "Limit reached until HH:MM" — a shape, not a locale
+  // rendering. formatClock used to call toLocaleTimeString(undefined, …), whose
+  // output follows the RUNTIME locale: "14:34" on a French machine, "02:34 PM"
+  // on an English one. Green locally, red in CI — the exact trap this pins.
+  it('always writes a fixed HH:MM, never a locale rendering', () => {
+    const iso = '2026-10-08T12:34:00Z'
+    const shown = formatClock(iso)
+    expect(shown).toMatch(/^\d{2}:\d{2}$/)
+    expect(shown).not.toMatch(/[A-Za-z\s]/)
+  })
+
+  it('still reads the instant in the reader’s own zone', () => {
+    const iso = '2026-10-08T12:34:00Z'
+    const d = new Date(iso)
+    const expected = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    expect(formatClock(iso)).toBe(expected)
+  })
+
+  it('renders nothing when there is no instant', () => {
+    expect(formatClock(null)).toBeNull()
+    expect(formatClock('not-a-date')).toBeNull()
   })
 })
