@@ -24,6 +24,7 @@ import {
   type ResolvedDefault,
 } from '@/types/provider'
 import { toLearningStage, toProviderRoutingMode, toRoutingScope, type RoutingSummary } from '@/types/routing'
+import { toRateLimitReport, toRateLimits, type RateLimit } from '@/types/rateLimit'
 
 /**
  * Provider instances — which agent harnesses this server can open a session on.
@@ -72,6 +73,18 @@ export const providersApi = {
   update: (id: ProviderId, patch: ProviderPatch) =>
     api.put<unknown>(`/chat/providers/${encodeURIComponent(id)}`, patch),
   remove: (id: ProviderId) => api.delete<void>(`/chat/providers/${encodeURIComponent(id)}`),
+
+  /**
+   * The current state of an instance's limits (RL7): usage, remaining, reset time
+   * and status per limit. No counter exists yet server-side, so every entry comes
+   * back `unknown` with null numbers — the shape is what this route settles.
+   * An unreadable body yields `null` (never an invented limit).
+   */
+  limits: (id: ProviderId) =>
+    api
+      .get<unknown>(`/chat/providers/${encodeURIComponent(id)}/limits`)
+      .then(toRateLimitReport)
+      .catch(() => null),
 
   /** What a project agreed to send to which endpoint. */
   consents: (projectSlug: string) =>
@@ -263,6 +276,8 @@ export interface StoredInstance {
   remote_cwd: string | null
   allow_trust: boolean
   host_key_fingerprint: string | null
+  /** The configured limits (RL1). Empty = no limit: the instance behaves as before. */
+  rate_limit: RateLimit[]
 }
 
 export function normalizeStoredInstance(raw: unknown, id: ProviderId): StoredInstance {
@@ -284,6 +299,7 @@ export function normalizeStoredInstance(raw: unknown, id: ProviderId): StoredIns
     remote_cwd: str(r.remote_cwd) ?? null,
     allow_trust: r.allow_trust === true,
     host_key_fingerprint: str(r.host_key_fingerprint) ?? null,
+    rate_limit: toRateLimits(r.rate_limit),
   }
 }
 
