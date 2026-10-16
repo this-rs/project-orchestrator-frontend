@@ -28,6 +28,7 @@ import { ChatHeaderTitle } from './ChatHeaderTitle'
 import { Button, StatusDot } from '@/components/ui'
 import { glassButton, glassFlat, iconButton } from '@/components/ui/classes'
 import { PolicyOnlyBanner } from './PolicyOnlyBanner'
+import { ProviderOutageBanner } from './ProviderOutageBanner'
 import { RemoteNoToolsBanner } from './RemoteNoToolsBanner'
 import { EngineBanner } from './EngineBanner'
 import { CapabilityGapsButton, CapabilityGapsPopover } from './CapabilityGapsButton'
@@ -565,6 +566,8 @@ export function ChatPanel() {
   // Everything said above the composer about the provider, shared by both layouts.
   const composerNotices = (
     <>
+      {/* An instance that is OUT right now sits first: it explains why the turn is not moving. */}
+      <ProviderOutageBanner messages={chat.messages} />
       <FollowNotice sessionId={chat.sessionId} />
       <p role="status" aria-live="polite" className="sr-only" data-testid="session-open-resent">
         {resentNotice}

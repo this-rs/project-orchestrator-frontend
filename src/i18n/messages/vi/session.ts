@@ -164,10 +164,12 @@ export default {
         plan: "Kế hoạch",
         task: "Nhiệm vụ",
         step: "Bước",
+        outage: "Nhà cung cấp gián đoạn",
       },
       detail: {
         title: "Chi tiết khoảng",
         close: "Đóng",
+        cause: "Nguyên nhân",
         total: "Tổng thời gian",
         self: "Thời gian riêng",
         start: "Bắt đầu",

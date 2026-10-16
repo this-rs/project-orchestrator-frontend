@@ -172,10 +172,12 @@ export default {
         plan: "Plan",
         task: "Task",
         step: "Step",
+        outage: "Provider outage",
       },
       detail: {
         title: "Span details",
         close: "Close",
+        cause: "Cause",
         total: "Total time",
         self: "Self time",
         start: "Start",

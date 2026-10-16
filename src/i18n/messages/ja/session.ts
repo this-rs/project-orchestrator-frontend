@@ -164,10 +164,12 @@ export default {
         plan: "プラン",
         task: "タスク",
         step: "ステップ",
+        outage: "プロバイダーの障害",
       },
       detail: {
         title: "スパンの詳細",
         close: "閉じる",
+        cause: "原因",
         total: "合計時間",
         self: "自己時間",
         start: "開始",

@@ -21,6 +21,7 @@ export const KIND_SWATCH: Record<TimelineKind, string> = {
   plan: 'bg-emerald-400',
   task: 'bg-emerald-400',
   step: 'bg-emerald-300',
+  outage: 'bg-rose-400',
 }
 
 /** A turn is an envelope of what it caused: lighter, so its children read on top. */

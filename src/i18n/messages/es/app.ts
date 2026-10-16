@@ -60,6 +60,13 @@ export default {
     followed: 'Esta conversación se movió de {from} a {to} desde otro lugar: esta pestaña sigue ahora la nueva sesión.',
     followedAuto: 'PO movió esta conversación de {from} a {to}: esta pestaña sigue ahora la nueva sesión.',
     dismissNotice: 'Ocultar',
+    providerOutage: {
+      down: '{provider} no está disponible — reintento automático.',
+      up: '{provider} ha vuelto.',
+      banner: 'El turno queda en espera: se reanuda solo en cuanto el proveedor vuelva a responder.',
+      failures: '{n} fallos consecutivos',
+      alsoDown: '{n} más sin servicio',
+    },
   },
   export: { user: 'Usuario', assistant: 'Asistente' },
   architecture: {

@@ -76,10 +76,12 @@ export function useTimelineLabels(): TimelineLabels {
           plan: t('session.timeline.trace.kind.plan'),
           task: t('session.timeline.trace.kind.task'),
           step: t('session.timeline.trace.kind.step'),
+          outage: t('session.timeline.trace.kind.outage'),
         },
         detail: {
           title: t('session.timeline.trace.detail.title'),
           close: t('session.timeline.trace.detail.close'),
+          cause: t('session.timeline.trace.detail.cause'),
           total: t('session.timeline.trace.detail.total'),
           self: t('session.timeline.trace.detail.self'),
           start: t('session.timeline.trace.detail.start'),

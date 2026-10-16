@@ -60,6 +60,13 @@ export default {
     followed: 'نُقلت هذه المحادثة من {from} إلى {to} من مكان آخر: يتابع هذا التبويب الآن الجلسة الجديدة.',
     followedAuto: 'نقل PO هذه المحادثة من {from} إلى {to}: يتابع هذا التبويب الآن الجلسة الجديدة.',
     dismissNotice: 'إخفاء',
+    providerOutage: {
+      down: '{provider} خارج الخدمة — إعادة محاولة تلقائية.',
+      up: '{provider} عاد إلى العمل.',
+      banner: 'الدور معلّق: يستأنف من تلقاء نفسه بمجرد أن يستجيب المزوّد من جديد.',
+      failures: '{n} إخفاقات متتالية',
+      alsoDown: '{n} آخرون معطّلون',
+    },
   },
   export: { user: 'المستخدم', assistant: 'المساعد' },
   architecture: {

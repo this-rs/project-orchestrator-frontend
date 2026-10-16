@@ -42,6 +42,8 @@ export function hoverInfo(item: TimelineItem, labels: TimelineLabels): HoverInfo
   ]
   if (item.provider) lines.push({ label: L.provider, value: item.provider })
   if (item.model) lines.push({ label: L.model, value: shortModel(item.model) })
+  // The masked cause of an interruption: the provider alone would not say why it stopped.
+  if (item.cause) lines.push({ label: L.cause, value: item.cause })
   if (duration) lines.push({ label: L.total, value: duration })
   // The bounds: when it started, when it ended (an open span has no end yet).
   lines.push({ label: L.start, value: formatClock(item.startedAt) })

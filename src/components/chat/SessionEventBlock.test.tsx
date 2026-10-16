@@ -26,6 +26,7 @@ const PROVIDERS = {
   providers: [
     { id: 'claude-code', kind: 'claude_code', label: 'Claude Code', health: { status: 'healthy' }, models: [] },
     { id: 'local', kind: 'openai_compatible', label: 'Local llama', health: { status: 'healthy' }, models: [] },
+    { id: 'deepseek-prod', kind: 'openai_compatible', label: 'DeepSeek', health: { status: 'healthy' }, models: [] },
   ],
   default: { provider: 'claude-code', routed_by: 'default' },
 } as unknown as ProvidersResponse
@@ -91,6 +92,29 @@ describe('compaction_recovery', () => {
   it('says the context was re-injected, with its size', () => {
     mount(<SessionEventBlock block={blockOf({ type: 'compaction_recovery', hint_tokens: 1800, build_latency_ms: 42, recovery_success: true })} />, 's1')
     expect(screen.getByTestId('compaction-recovery').textContent).toContain('Context restored after compaction (~1,800 tokens re-injected, 42 ms).')
+  })
+})
+
+describe('provider_outage', () => {
+  const DOWN = { type: 'provider_outage', phase: 'down', provider_id: 'deepseek-prod', failures: 3, started_at: '2026-10-16T14:05:29Z', cause: 'connection refused' }
+  const UP = { type: 'provider_outage', phase: 'up', provider_id: 'deepseek-prod', failures: 0, started_at: '2026-10-16T14:05:29Z', cause: 'connection refused', duration_ms: 4200 }
+
+  it('states the interruption by the provider NAME, with the masked cause', () => {
+    mount(<SessionEventBlock block={blockOf(DOWN)} />, 's1')
+    const note = screen.getByTestId('provider-outage')
+    expect(note.getAttribute('data-phase')).toBe('down')
+    expect(note.getAttribute('role')).toBe('status')
+    expect(note.textContent).toContain('DeepSeek')
+    expect(note.textContent).toContain('out of service')
+    expect(note.textContent).toContain('connection refused')
+  })
+
+  it('states the recovery, with how long the interruption lasted', () => {
+    mount(<SessionEventBlock block={blockOf(UP)} />, 's1')
+    const note = screen.getByTestId('provider-outage')
+    expect(note.getAttribute('data-phase')).toBe('up')
+    expect(note.textContent).toContain('DeepSeek is back.')
+    expect(note.textContent).toContain('4.2 s')
   })
 })
 

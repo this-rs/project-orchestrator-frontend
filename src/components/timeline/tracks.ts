@@ -96,6 +96,7 @@ function familyOf(kind: TimelineItem['kind']): TrackFamily | null {
     case 'routing':
     case 'marker':
     case 'error':
+    case 'outage':
       return 'signals'
     default:
       // plan, task, step: work, not activity on a time axis.

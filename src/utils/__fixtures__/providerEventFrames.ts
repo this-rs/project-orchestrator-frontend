@@ -69,6 +69,29 @@ export const ALIASED_QUESTION_TOOL_USE = {
   input: { questions: SYNTHETIC_QUESTION.questions },
 } as const
 
+/**
+ * A provider instance declared out of service, and the recovery that closes the
+ * same interval (`started_at` is shared: the pair is ONE interruption).
+ */
+export const PROVIDER_OUTAGE_DOWN = {
+  type: 'provider_outage',
+  phase: 'down',
+  provider_id: 'deepseek-prod',
+  failures: 3,
+  started_at: '2026-10-16T14:05:29Z',
+  cause: 'connection refused',
+} as const
+
+export const PROVIDER_OUTAGE_UP = {
+  type: 'provider_outage',
+  phase: 'up',
+  provider_id: 'deepseek-prod',
+  failures: 0,
+  started_at: '2026-10-16T14:05:29Z',
+  cause: 'connection refused',
+  duration_ms: 4200,
+} as const
+
 /** A Claude turn result as it has always been: a bare reported `cost_usd`. */
 export const CLAUDE_RESULT = {
   type: 'result',

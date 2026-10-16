@@ -164,10 +164,12 @@ export default {
         plan: "计划",
         task: "任务",
         step: "步骤",
+        outage: "提供方中断",
       },
       detail: {
         title: "跨度详情",
         close: "关闭",
+        cause: "原因",
         total: "总时间",
         self: "自身时间",
         start: "开始",

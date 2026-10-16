@@ -60,6 +60,13 @@ export default {
     followed: '이 대화가 다른 곳에서 {from}에서 {to}(으)로 옮겨졌습니다: 이 탭은 이제 새 세션을 따라갑니다.',
     followedAuto: 'PO가 이 대화를 {from}에서 {to}(으)로 옮겼습니다: 이 탭은 이제 새 세션을 따라갑니다.',
     dismissNotice: '숨기기',
+    providerOutage: {
+      down: '{provider} 서비스가 중단되었습니다 — 자동으로 재시도합니다.',
+      up: '{provider} 복구되었습니다.',
+      banner: '턴이 보류되었습니다. 프로바이더가 다시 응답하면 스스로 재개됩니다.',
+      failures: '연속 실패 {n}회',
+      alsoDown: '그 외 {n}개 중단',
+    },
   },
   export: { user: '사용자', assistant: '어시스턴트' },
   architecture: {

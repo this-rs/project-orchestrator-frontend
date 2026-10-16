@@ -60,6 +60,13 @@ export default {
     followed: 'この会話は別の場所で {from} から {to} に移されました: このタブは新しいセッションを表示しています。',
     followedAuto: 'PO がこの会話を {from} から {to} に移しました: このタブは新しいセッションを表示しています。',
     dismissNotice: '閉じる',
+    providerOutage: {
+      down: '{provider} が停止しています — 自動で再試行します。',
+      up: '{provider} が復旧しました。',
+      banner: 'ターンは保留中です。プロバイダーが応答し次第、自動的に再開します。',
+      failures: '連続 {n} 回の失敗',
+      alsoDown: '他に {n} 件停止中',
+    },
   },
   export: { user: 'ユーザー', assistant: 'アシスタント' },
   architecture: {

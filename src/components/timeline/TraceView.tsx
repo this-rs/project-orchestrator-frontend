@@ -26,7 +26,7 @@ import { Button, EmptyState, StatusIcon, StatusDot } from '@/components/ui'
 import { focusRing, focusRingInset } from '@/components/ui/classes'
 import { TONE_CLASSES } from '@/components/ui/statusMeta'
 import { buildAxis, toX, type Axis } from './axis'
-import { concurrencyOf } from './gantt'
+import { concurrencyOf, endOf } from './gantt'
 import type { TimelineItem, TimelineLane } from './model'
 import { DRAG_SLOP_PX, SIDE_PX, SKELETON_DELAY_MS, WIDE_PX, fill, isTyping, useDelayed, useNow, useWidth } from './shared'
 import { BottomSheet, ToolButton } from './sharedUi'
@@ -397,6 +397,23 @@ export function TraceView({
   }
   const { step, ticks } = useMemo(() => (axis ? ticksFor(axis, view, trackW) : { step: 1000, ticks: [] }), [axis, view, trackW])
   const breaks = useMemo(() => (axis ? breaksIn(axis, view) : []), [axis, view])
+  /**
+   * The provider interruptions, as vertical bands over the whole trace: an outage
+   * is not a call, it is a stretch of time in which NOTHING could run. Drawn behind
+   * the bars, like the cut silences, from the items of kind `outage` (one per
+   * down→up interval: see `model.ts` and `outage.ts`).
+   */
+  const outageBands = useMemo(() => {
+    if (!axis) return []
+    return lanes
+      .flatMap((l) => l.items)
+      .filter((i) => i.kind === 'outage' && i.startedAt > 0)
+      .map((i) => {
+        const left = (toX(axis, i.startedAt) / axis.total) * 100
+        const right = (toX(axis, endOf(i, now)) / axis.total) * 100
+        return { id: i.id, label: i.label, provider: i.provider, leftPct: left, widthPct: Math.max(right - left, 0.6) }
+      })
+  }, [axis, lanes, now])
   const overview = useMemo(() => {
     if (!axis) return { concurrency: [], breaks: [], peak: 0 }
     const items = lanes.flatMap((l) => l.items)
@@ -818,6 +835,16 @@ export function TraceView({
                   <span className="relative block h-full overflow-hidden">
                     {ticks.map((t) => <span key={t.t} className="absolute inset-y-0 w-0 border-s border-white/[0.06]" style={{ left: `${t.pct}%` }} />)}
                     {breaks.map((b) => <span key={b.at} className="absolute inset-y-0 border-x border-dashed border-amber-200/30 bg-amber-200/[0.04]" style={{ left: `${b.leftPct}%`, width: `${Math.max(b.widthPct, 0.5)}%` }} />)}
+                    {outageBands.map((b) => (
+                      <span
+                        key={b.id}
+                        data-testid="trace-outage-band"
+                        data-provider={b.provider ?? ''}
+                        title={b.label}
+                        className="absolute inset-y-0 border-x border-rose-400/40 bg-rose-500/[0.09]"
+                        style={{ left: `${b.leftPct}%`, width: `${b.widthPct}%` }}
+                      />
+                    ))}
                     {hover != null && <span className="absolute inset-y-0 w-0 border-s border-indigo-300/60" style={{ left: `${hover * 100}%` }} />}
                   </span>
                 </div>

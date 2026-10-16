@@ -1,7 +1,8 @@
 import { useAtomValue, useSetAtom } from 'jotai'
-import { ArrowRightLeft, History, PowerOff } from 'lucide-react'
+import { ArrowRightLeft, CloudOff, History, PowerOff, Radio } from 'lucide-react'
 import { chatFollowRequestAtom, providersAtom } from '@/atoms'
 import { useT } from '@/i18n'
+import { formatItemDuration } from '@/components/timeline'
 import type { ContentBlock } from '@/types'
 import { providerDisplayName } from '@/types/provider'
 import { useChatSessionId } from './ChatSessionContext'
@@ -63,6 +64,32 @@ export function SessionEventBlock({ block }: { block: ContentBlock }) {
       <div role="status" data-testid="session-closed" data-reason={reason} className="my-1 flex items-start gap-2 py-1 text-[11px] text-gray-500">
         <PowerOff className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
         <p className="min-w-0 flex-1">{t(key)}</p>
+      </div>
+    )
+  }
+
+  if (block.type === 'provider_outage') {
+    // A provider INSTANCE left service (`down`) or came back (`up`): the pair is one
+    // interruption (the chat banner shows the open one, the timeline draws the interval).
+    const down = m.phase !== 'up'
+    const provider = label(String(m.provider_id ?? ''))
+    const cause = typeof m.cause === 'string' && m.cause ? m.cause : null
+    const duration = down ? null : formatItemDuration(typeof m.duration_ms === 'number' ? m.duration_ms : undefined)
+    return (
+      <div
+        role="status"
+        data-testid="provider-outage"
+        data-phase={down ? 'down' : 'up'}
+        className={`my-2 flex items-start gap-2 rounded-md border px-3 py-2 text-xs ${down ? 'border-rose-400/25 bg-rose-500/[0.07] text-rose-100' : 'border-white/[0.08] bg-white/[0.02] text-gray-300'}`}
+      >
+        {down
+          ? <CloudOff className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-300" aria-hidden="true" />
+          : <Radio className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden="true" />}
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <p>{down ? t('app.chat.providerOutage.down', { provider }) : t('app.chat.providerOutage.up', { provider })}</p>
+          {duration && <p className="text-gray-400">{duration}</p>}
+          {cause && <p className="break-words text-gray-400">{cause}</p>}
+        </div>
       </div>
     )
   }

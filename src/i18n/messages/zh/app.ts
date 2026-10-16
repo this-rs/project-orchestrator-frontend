@@ -60,6 +60,13 @@ export default {
     followed: '此对话已在别处从 {from} 移至 {to}: 此标签页现在跟随新会话。',
     followedAuto: 'PO 已将此对话从 {from} 移至 {to}: 此标签页现在跟随新会话。',
     dismissNotice: '隐藏',
+    providerOutage: {
+      down: '{provider} 已停止服务 — 自动重试。',
+      up: '{provider} 已恢复。',
+      banner: '本轮已挂起：一旦提供方恢复响应，便会自行继续。',
+      failures: '连续 {n} 次失败',
+      alsoDown: '另有 {n} 个中断',
+    },
   },
   export: { user: '用户', assistant: '助手' },
   architecture: {

@@ -14,6 +14,8 @@ import {
   NATIVE_QUESTION,
   PRICED_RESULT,
   SYNTHETIC_QUESTION,
+  PROVIDER_OUTAGE_DOWN,
+  PROVIDER_OUTAGE_UP,
   TYPED_SESSION_ERROR,
   UNKNOWN_COST_RESULT,
   UNTYPED_SESSION_ERROR,
@@ -39,6 +41,24 @@ describe('historyEventsToMessages — session_error with a typed code', () => {
     const [error] = blocks([{ ...UNTYPED_SESSION_ERROR }]).filter((b) => b.type === 'error')
     expect(error.metadata).toBeUndefined()
     expect(error.content).toBe('The Claude CLI process exited unexpectedly (subprocess_died)')
+  })
+})
+
+describe('historyEventsToMessages — a provider outage', () => {
+  it('states the interruption and the recovery on their own blocks, carrying the interval', () => {
+    const [down, up] = blocks([{ ...PROVIDER_OUTAGE_DOWN }, { ...PROVIDER_OUTAGE_UP }])
+    expect(down.type).toBe('provider_outage')
+    expect(down.metadata).toMatchObject({
+      phase: 'down',
+      provider_id: 'deepseek-prod',
+      failures: 3,
+      started_at: '2026-10-16T14:05:29Z',
+      cause: 'connection refused',
+    })
+    // The words are there for the export and for a reader without the card.
+    expect(down.content).toContain('out of service')
+    expect(up.metadata).toMatchObject({ phase: 'up', duration_ms: 4200 })
+    expect(up.content).toContain('is back')
   })
 })
 

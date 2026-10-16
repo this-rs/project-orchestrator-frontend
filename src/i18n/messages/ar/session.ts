@@ -164,10 +164,12 @@ export default {
         plan: "خطة",
         task: "مهمة",
         step: "خطوة",
+        outage: "انقطاع المزوّد",
       },
       detail: {
         title: "تفاصيل المقطع",
         close: "إغلاق",
+        cause: "السبب",
         total: "الوقت الكلي",
         self: "الوقت الذاتي",
         start: "البداية",
