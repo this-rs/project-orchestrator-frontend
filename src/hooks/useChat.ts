@@ -1377,7 +1377,8 @@ export function useChat() {
 
         case 'conversation_relayed':
         case 'session_closed':
-        case 'compaction_recovery': {
+        case 'compaction_recovery':
+        case 'provider_outage': {
           // Same block as the history reducer (chatAssembly.sessionEventBlock).
           const payload = event.replaying ? (event as { data?: Record<string, unknown> }).data ?? event : event
           const block = sessionEventBlock({ ...payload, type: event.type })

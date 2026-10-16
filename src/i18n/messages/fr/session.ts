@@ -174,10 +174,12 @@ export default {
         plan: "Plan",
         task: "Tâche",
         step: "Étape",
+        outage: "Panne fournisseur",
       },
       detail: {
         title: "Détail du span",
         close: "Fermer",
+        cause: "Cause",
         total: "Durée totale",
         self: "Temps propre",
         start: "Début",

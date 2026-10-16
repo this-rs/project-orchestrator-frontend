@@ -506,8 +506,9 @@ export function refusedSendMetadata(evt: unknown): { code: string; provider_erro
 /**
  * The block of a session-level event the transcript states on its own line:
  * `conversation_relayed` (the conversation moved to another provider),
- * `session_closed` (the server closed the session) and `compaction_recovery`
- * (the context re-injected after a compaction). `null` for any other event.
+ * `session_closed` (the server closed the session), `compaction_recovery`
+ * (the context re-injected after a compaction) and `provider_outage` (a
+ * provider instance left service, or came back). `null` for any other event.
  * Shared by BOTH reducers; `content` is the plain sentence (export, screen
  * readers), the component renders from `metadata` in the viewer's language.
  */
@@ -536,6 +537,28 @@ export function sessionEventBlock(evt: unknown): Omit<ContentBlock, 'id'> | null
     case 'session_closed': {
       const reason = str(e.reason) || 'closed'
       return { type: 'session_closed', content: sessionClosedText(reason), metadata: { reason } }
+    }
+    case 'provider_outage': {
+      // A provider INSTANCE left service (`down`) or came back (`up`). The two share
+      // `started_at`: the pair is one interruption (see components/timeline/outage.ts).
+      const phase = e.phase === 'up' ? 'up' : 'down'
+      const metadata: Record<string, unknown> = {
+        phase,
+        provider_id: str(e.provider_id),
+        failures: num(e.failures),
+      }
+      const cause = str(e.cause)
+      const startedAt = str(e.started_at)
+      if (cause) metadata.cause = cause
+      if (startedAt) metadata.started_at = startedAt
+      if (typeof e.duration_ms === 'number' && Number.isFinite(e.duration_ms)) metadata.duration_ms = e.duration_ms
+      return {
+        type: 'provider_outage',
+        content: phase === 'up'
+          ? tr('app.chat.providerOutage.up', { provider: str(e.provider_id) })
+          : tr('app.chat.providerOutage.down', { provider: str(e.provider_id) }),
+        metadata,
+      }
     }
     case 'compaction_recovery': {
       const metadata = {
@@ -916,7 +939,8 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
 
       case 'conversation_relayed':
       case 'session_closed':
-      case 'compaction_recovery': {
+      case 'compaction_recovery':
+      case 'provider_outage': {
         const block = sessionEventBlock(evt)
         if (block) lastAssistant(createdAt).blocks.push({ id: nextBlockId(), ...block, metadata: withCreatedAt(block.metadata, stamp) })
         break

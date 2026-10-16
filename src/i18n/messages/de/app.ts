@@ -60,6 +60,13 @@ export default {
     followed: 'Diese Unterhaltung wurde anderswo von {from} nach {to} verschoben: Dieser Tab folgt jetzt der neuen Sitzung.',
     followedAuto: 'PO hat diese Unterhaltung von {from} nach {to} verschoben: Dieser Tab folgt jetzt der neuen Sitzung.',
     dismissNotice: 'Ausblenden',
+    providerOutage: {
+      down: '{provider} ist ausgefallen — automatischer Neuversuch.',
+      up: '{provider} ist zurück.',
+      banner: 'Der Zug wird angehalten: er läuft von selbst weiter, sobald der Anbieter wieder antwortet.',
+      failures: '{n} aufeinanderfolgende Fehler',
+      alsoDown: '{n} weitere ausgefallen',
+    },
   },
   export: { user: 'Benutzer', assistant: 'Assistent' },
   architecture: {

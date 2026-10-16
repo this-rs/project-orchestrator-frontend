@@ -58,6 +58,13 @@ export default {
     followed: 'This conversation was moved from {from} to {to} elsewhere: this tab now follows the new session.',
     followedAuto: 'PO moved this conversation from {from} to {to}: this tab now follows the new session.',
     dismissNotice: 'Dismiss',
+    providerOutage: {
+      down: '{provider} is out of service — automatic retry.',
+      up: '{provider} is back.',
+      banner: 'The turn is held: it resumes on its own as soon as the provider answers again.',
+      failures: '{n} consecutive failures',
+      alsoDown: '{n} others out',
+    },
   },
   export: { user: 'User', assistant: 'Assistant' },
   architecture: {

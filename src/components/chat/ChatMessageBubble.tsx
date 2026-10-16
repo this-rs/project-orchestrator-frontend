@@ -348,6 +348,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
             case 'conversation_relayed':
             case 'session_closed':
             case 'compaction_recovery':
+            case 'provider_outage':
               return <SessionEventBlock key={block.id} block={block} />
 
             case 'compact_boundary':

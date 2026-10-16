@@ -164,10 +164,12 @@ export default {
         plan: "Plano",
         task: "Tarefa",
         step: "Etapa",
+        outage: "Indisponibilidade do fornecedor",
       },
       detail: {
         title: "Detalhe do trecho",
         close: "Fechar",
+        cause: "Causa",
         total: "Tempo total",
         self: "Tempo próprio",
         start: "Início",

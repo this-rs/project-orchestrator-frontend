@@ -60,6 +60,13 @@ export default {
     followed: 'यह बातचीत कहीं और से {from} से {to} पर ले जाई गई: यह टैब अब नए सत्र का अनुसरण करता है।',
     followedAuto: 'PO ने यह बातचीत {from} से {to} पर ले जाई: यह टैब अब नए सत्र का अनुसरण करता है।',
     dismissNotice: 'छिपाएँ',
+    providerOutage: {
+      down: '{provider} सेवा में नहीं है — स्वतः पुनः प्रयास।',
+      up: '{provider} वापस आ गया।',
+      banner: 'यह चरण रोका गया है: प्रदाता के फिर से उत्तर देते ही यह स्वयं आगे बढ़ेगा।',
+      failures: '{n} लगातार विफलताएँ',
+      alsoDown: 'अन्य {n} भी बंद',
+    },
   },
   export: { user: 'उपयोगकर्ता', assistant: 'सहायक' },
   architecture: {

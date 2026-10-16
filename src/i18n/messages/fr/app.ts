@@ -60,6 +60,13 @@ export default {
     followed: 'Cette conversation a été déplacée de {from} vers {to} ailleurs : cet onglet suit maintenant la nouvelle session.',
     followedAuto: 'PO a déplacé cette conversation de {from} vers {to} : cet onglet suit maintenant la nouvelle session.',
     dismissNotice: 'Masquer',
+    providerOutage: {
+      down: '{provider} est en panne — reprise automatique.',
+      up: '{provider} est revenu.',
+      banner: 'Le tour est mis en attente : il reprend de lui-même dès que le fournisseur répond de nouveau.',
+      failures: '{n} échecs consécutifs',
+      alsoDown: '{n} autres en panne',
+    },
   },
   export: { user: 'Utilisateur', assistant: 'Assistant' },
   architecture: {

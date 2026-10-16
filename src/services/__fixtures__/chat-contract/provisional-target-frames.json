@@ -355,6 +355,23 @@
       "error_message": "overloaded"
     },
     {
+      "type": "provider_outage",
+      "phase": "down",
+      "provider_id": "deepseek-prod",
+      "failures": 3,
+      "started_at": "2026-10-16T14:05:29Z",
+      "cause": "connection refused"
+    },
+    {
+      "type": "provider_outage",
+      "phase": "up",
+      "provider_id": "deepseek-prod",
+      "failures": 0,
+      "started_at": "2026-10-16T14:05:29Z",
+      "cause": "connection refused",
+      "duration_ms": 4200
+    },
+    {
       "type": "background_output",
       "source": "Monitor",
       "content": "line",

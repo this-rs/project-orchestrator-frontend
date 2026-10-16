@@ -695,6 +695,29 @@ export type ChatEvent =
   | { type: 'auto_continue_state_changed'; session_id: string; enabled: boolean }
   | { type: 'system_hint'; content: string }
   | { type: 'retrying'; attempt: number; max_attempts: number; delay_ms: number; error_message: string }
+  /**
+   * A provider INSTANCE left service (`down`) or came back (`up`): the observable
+   * side of the outage detector. One event per transition, persisted and attributed
+   * to the instance — not to the session that happened to observe it.
+   *
+   * `started_at` is the SAME instant on the `down` and on its `up`: the pair IS the
+   * interruption, and the timeline draws it as one zone (start → end). A `down` with
+   * no `up` yet is an outage still open.
+   */
+  | {
+      type: 'provider_outage'
+      /** `down`: declared out of service; `up`: it answered again (where the interval closes). */
+      phase: 'down' | 'up'
+      provider_id: string
+      /** Consecutive failures when it was declared down (`0` on `up`). */
+      failures: number
+      /** When the outage began, ISO — equal on the `down` and on its `up`. */
+      started_at: string
+      /** Short masked cause: on `down`, carried on `up`. Never a URL, a path or a credential. */
+      cause?: string
+      /** How long it lasted, in ms (`up` only). */
+      duration_ms?: number
+    }
   | { type: 'background_output'; source: string; content: string; received_at: string; correlation_id?: string }
   | { type: 'workflow'; subtype: string; data: Record<string, unknown> }
   | { type: 'session_error'; reason: string; message: string; received_at: string; code?: string }
@@ -778,6 +801,7 @@ export const CHAT_EVENT_FIELDS = {
   auto_continue_state_changed: { session_id: 'required', enabled: 'required' },
   system_hint: { content: 'required' },
   retrying: { attempt: 'required', max_attempts: 'required', delay_ms: 'required', error_message: 'required' },
+  provider_outage: { phase: 'required', provider_id: 'required', failures: 'required', started_at: 'required', cause: 'optional', duration_ms: 'optional' },
   background_output: { source: 'required', content: 'required', received_at: 'required', correlation_id: 'optional' },
   workflow: { subtype: 'required', data: 'required' },
   session_error: { reason: 'required', message: 'required', received_at: 'required', code: 'optional' },
@@ -1008,7 +1032,7 @@ export interface MessageSearchResult {
 
 export interface ContentBlock {
   id: string
-  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init' | 'system_hint' | 'continue_indicator' | 'retry_indicator' | 'viz' | 'background_activity' | 'conversation_relayed' | 'session_closed' | 'compaction_recovery'
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result' | 'permission_request' | 'ask_user_question' | 'error' | 'compact_boundary' | 'model_changed' | 'result_max_turns' | 'result_error' | 'system_init' | 'system_hint' | 'continue_indicator' | 'retry_indicator' | 'viz' | 'background_activity' | 'conversation_relayed' | 'session_closed' | 'compaction_recovery' | 'provider_outage'
   content: string
   metadata?: Record<string, unknown>
 }

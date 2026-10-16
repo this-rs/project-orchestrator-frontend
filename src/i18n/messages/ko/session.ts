@@ -164,10 +164,12 @@ export default {
         plan: "계획",
         task: "작업",
         step: "단계",
+        outage: "프로바이더 중단",
       },
       detail: {
         title: "스팬 세부 정보",
         close: "닫기",
+        cause: "원인",
         total: "전체 시간",
         self: "자체 시간",
         start: "시작",

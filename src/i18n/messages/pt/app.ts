@@ -60,6 +60,13 @@ export default {
     followed: 'Esta conversa foi movida de {from} para {to} em outro lugar: esta aba agora segue a nova sessão.',
     followedAuto: 'O PO moveu esta conversa de {from} para {to}: esta aba agora segue a nova sessão.',
     dismissNotice: 'Ocultar',
+    providerOutage: {
+      down: '{provider} está indisponível — nova tentativa automática.',
+      up: '{provider} está de volta.',
+      banner: 'O turno fica em espera: retoma sozinho assim que o fornecedor voltar a responder.',
+      failures: '{n} falhas consecutivas',
+      alsoDown: '{n} outros indisponíveis',
+    },
   },
   export: { user: 'Usuário', assistant: 'Assistente' },
   architecture: {

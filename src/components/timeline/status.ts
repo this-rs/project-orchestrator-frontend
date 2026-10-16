@@ -84,6 +84,8 @@ export interface TraceLabels {
   kind: Record<TimelineKind, string>
   detail: {
     title: string
+    /** The masked cause of a provider outage (kind `outage`). */
+    cause: string
     close: string
     total: string
     self: string
@@ -136,11 +138,12 @@ export const DEFAULT_TRACE_LABELS: TraceLabels = {
   relay: 'Relayed thread',
   kind: {
     request: 'Turn', tool: 'Tool call', agent: 'Sub-agent', permission: 'Permission', error: 'Error', marker: 'Event',
-    run: 'Session', routing: 'Routing', plan: 'Plan', task: 'Task', step: 'Step',
+    run: 'Session', routing: 'Routing', plan: 'Plan', task: 'Task', step: 'Step', outage: 'Provider outage',
   },
   detail: {
     title: 'Span details',
     close: 'Close',
+    cause: 'Cause',
     total: 'Total time',
     self: 'Self time',
     start: 'Start',

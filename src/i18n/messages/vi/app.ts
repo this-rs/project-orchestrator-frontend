@@ -60,6 +60,13 @@ export default {
     followed: 'Cuộc trò chuyện này đã được chuyển từ {from} sang {to} ở nơi khác: thẻ này giờ theo phiên mới.',
     followedAuto: 'PO đã chuyển cuộc trò chuyện này từ {from} sang {to}: thẻ này giờ theo phiên mới.',
     dismissNotice: 'Ẩn',
+    providerOutage: {
+      down: '{provider} đang ngừng hoạt động — tự động thử lại.',
+      up: '{provider} đã trở lại.',
+      banner: 'Lượt đang tạm giữ: nó tự tiếp tục ngay khi nhà cung cấp phản hồi trở lại.',
+      failures: '{n} lỗi liên tiếp',
+      alsoDown: '{n} nhà khác đang ngừng',
+    },
   },
   export: { user: 'Người dùng', assistant: 'Trợ lý' },
   architecture: {

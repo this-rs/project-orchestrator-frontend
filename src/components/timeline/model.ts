@@ -13,10 +13,11 @@
  */
 import type { ChatMessage, ContentBlock } from '@/types'
 import type { RoutingDecision } from '@/types/routing'
+import { pairOutages, readOutageEvent, type OutageEvent } from './outage'
 
 /** `unknown`: a call that never got a result and is not being streamed (a background task, an interrupted call). */
 export type TimelineStatus = 'running' | 'done' | 'error' | 'blocked' | 'cancelled' | 'pending' | 'unknown'
-export type TimelineKind = 'request' | 'tool' | 'agent' | 'permission' | 'error' | 'marker' | 'run' | 'routing' | 'plan' | 'task' | 'step'
+export type TimelineKind = 'request' | 'tool' | 'agent' | 'permission' | 'error' | 'marker' | 'run' | 'routing' | 'plan' | 'task' | 'step' | 'outage'
 
 export interface TimelineItem {
   /** Stable across renders: the tool call id, or the message/block id. */
@@ -44,6 +45,8 @@ export interface TimelineItem {
   model?: string
   /** The routing decision behind this item (on a request and on its `routing` item). */
   routing?: RoutingDecision
+  /** Short masked cause of a provider outage (kind `outage`): the hover card states it. */
+  cause?: string
   input?: unknown
   output?: string
   /**
@@ -300,6 +303,11 @@ export function buildTimeline(input: TimelineInput): Timeline {
   const byId = new Map<string, TimelineItem>()
   /** `tool_timing` of each call (on its tool_use block), when the backend sent one. */
   const timings = new Map<string, unknown>()
+  /**
+   * The `provider_outage` transitions read, paired into intervals after the walk
+   * (`pairOutages`): one ZONE per outage, never one row per event.
+   */
+  const outageEvents: OutageEvent[] = []
   /** Calls that ask the user a question: the engine never sees them start, by design. */
   const questionCalls = new Set<string>()
   /** Permission items and the call each one is about, to place them once every timing is known. */
@@ -514,6 +522,9 @@ export function buildTimeline(input: TimelineInput): Timeline {
           requestId,
           ...ran(),
         })
+      } else if (block.type === 'provider_outage') {
+        const event = readOutageEvent(block, blockTime(block, msgTime))
+        if (event) outageEvents.push(event)
       }
     }
     // The result of a turn says how long it took.
@@ -559,6 +570,24 @@ export function buildTimeline(input: TimelineInput): Timeline {
     }
     const call = item.parentId ? byId.get(item.parentId) : undefined
     if (call && call.id === callId && asked != null && item.startedAt < call.startedAt) item.parentId = call.parentId ?? call.requestId
+  }
+
+  // Provider interruptions: ONE zone per outage (down → up), not one row per event.
+  // An interval still open (no `up` read yet) stays `running`: its zone grows to `now`.
+  for (const span of pairOutages(outageEvents)) {
+    push({
+      id: `outage:${span.key}`,
+      kind: 'outage',
+      status: span.open ? 'running' : 'error',
+      label: clip(span.text) || span.providerId,
+      startedAt: span.startedAt,
+      ...(span.endedAt != null ? { endedAt: span.endedAt } : {}),
+      ...(span.durationMs != null ? { durationMs: span.durationMs } : {}),
+      laneId: sessionId,
+      provider: span.providerId,
+      ...(span.cause ? { cause: span.cause } : {}),
+      input: span.text,
+    })
   }
 
   // A turn the stream left without a result (an older page, an interrupted turn) still ends at its last event.

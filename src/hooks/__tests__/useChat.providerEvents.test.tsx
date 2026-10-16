@@ -19,6 +19,8 @@ import {
   FREE_RESULT,
   NATIVE_QUESTION,
   PRICED_RESULT,
+  PROVIDER_OUTAGE_DOWN,
+  PROVIDER_OUTAGE_UP,
   SYNTHETIC_QUESTION,
   TYPED_SESSION_ERROR,
   UNKNOWN_COST_RESULT,
@@ -137,6 +139,17 @@ describe('useChat — session_error with a typed code', () => {
     const [error] = blocks().filter((b) => b.type === 'error')
     expect(error.metadata).toBeUndefined()
     expect(shape([error])).toEqual(fromHistory([{ ...UNTYPED_SESSION_ERROR }]))
+  })
+})
+
+describe('useChat — a provider outage', () => {
+  it('builds the same two blocks as the history reducer, down then up', async () => {
+    const { emit, blocks } = await setup()
+    emit({ ...PROVIDER_OUTAGE_DOWN })
+    emit({ ...PROVIDER_OUTAGE_UP })
+    const outages = blocks().filter((b) => b.type === 'provider_outage')
+    expect(outages).toHaveLength(2)
+    expect(shape(outages)).toEqual(fromHistory([{ ...PROVIDER_OUTAGE_DOWN }, { ...PROVIDER_OUTAGE_UP }]))
   })
 })
 

@@ -164,10 +164,12 @@ export default {
         plan: "योजना",
         task: "कार्य",
         step: "क़दम",
+        outage: "प्रदाता बाधा",
       },
       detail: {
         title: "स्पैन का विवरण",
         close: "बंद करें",
+        cause: "कारण",
         total: "कुल समय",
         self: "अपना समय",
         start: "शुरुआत",
