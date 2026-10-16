@@ -66,3 +66,34 @@ describe('historyEventsToMessages — references', () => {
     expect(historyEventsToMessages([{ type: 'refs_resolved', refs: resolved.event.refs }])).toEqual([])
   })
 })
+
+describe('historyEventsToMessages — the citations of the answer', () => {
+  const ghost = { kind: 'plan', id: '9f1e0a10-0000-4000-8000-00000000dead', status: 'not_found' }
+  const read = { kind: 'task', id: '3adeffc9-c8b0-4e2f-a674-55bfcb293433', status: 'ok', label: 'Tâche alpha' }
+
+  it('binds cites_resolved to the LAST assistant message, keeping the status of each citation', () => {
+    const msgs = historyEventsToMessages([
+      { type: 'user_message', content: 'bonjour' },
+      { type: 'assistant_text', content: `voir #plan:${ghost.id}` },
+      { type: 'cites_resolved', refs: [ghost, read] },
+    ])
+    const answer = msgs[msgs.length - 1]
+    expect(answer.role).toBe('assistant')
+    expect(answer.cited?.map((r) => [r.kind, r.resolution])).toEqual([
+      ['plan', 'not_found'],
+      ['task', 'ok'],
+    ])
+    expect(answer.cited?.[0].label).toBeUndefined()
+    expect(answer.cited?.[1].label).toBe('Tâche alpha')
+  })
+
+  it('reads the payload nested under data (the replay shape) and drops an event with no answer before it', () => {
+    const nested = historyEventsToMessages([
+      { type: 'assistant_text', content: 'ok' },
+      { type: 'cites_resolved', data: { refs: [ghost] } },
+    ])
+    expect(nested[nested.length - 1].cited?.[0].resolution).toBe('not_found')
+    expect(historyEventsToMessages([{ type: 'cites_resolved', refs: [ghost] }])).toEqual([])
+    expect(historyEventsToMessages([{ type: 'assistant_text', content: 'ok' }, { type: 'cites_resolved', refs: [] }])[0].cited).toBeUndefined()
+  })
+})

@@ -294,6 +294,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
                   <MarkdownText
                     citeRefs
                     content={block.content}
+                    knownRefs={message.cited}
                     isStreaming={isStreaming && index === grouped.length - 1}
                   />
                 </div>

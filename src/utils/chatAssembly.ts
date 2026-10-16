@@ -7,7 +7,7 @@
 
 import { splitAttachments } from './messageAttachments'
 import { splitRefs } from './messageRefs'
-import { bindResolvedRefs, parseResolvedRefs, refsFromBlock } from '@/refs/refState'
+import { bindCitedRefs, bindResolvedRefs, parseResolvedRefs, refsFromBlock } from '@/refs/refState'
 import { applyResultCost } from './cost'
 import { isUserStoppedTurn } from './turnEnd'
 import { cancelNoticeMetadata } from './cancelFailure'
@@ -675,6 +675,16 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
       case 'refs_resolved': {
         const resolved = parseResolvedRefs(evt.refs ?? evt.data?.refs)
         const bound = bindResolvedRefs(messages, resolved)
+        if (bound.index >= 0) messages[bound.index] = bound.messages[bound.index]
+        break
+      }
+
+      // What the citations of the answer above resolved to. Bound to the LAST
+      // assistant message: the agent wrote those tokens, and the event follows
+      // the text that carries them. One that matches nothing is dropped.
+      case 'cites_resolved': {
+        const resolved = parseResolvedRefs(evt.refs ?? evt.data?.refs)
+        const bound = bindCitedRefs(messages, resolved)
         if (bound.index >= 0) messages[bound.index] = bound.messages[bound.index]
         break
       }

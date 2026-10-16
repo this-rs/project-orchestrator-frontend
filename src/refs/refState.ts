@@ -150,6 +150,35 @@ export function bindResolvedRefs<M extends { role: string; refs?: readonly ChatR
   return { messages: next, index }
 }
 
+/**
+ * Bind a `cites_resolved` event to the answer it belongs to.
+ *
+ * The other direction from `bindResolvedRefs`: a citation is written by the
+ * agent, so the event describes the LAST assistant message, the one whose text
+ * carries the tokens. It arrives after that text (the server reads the whole
+ * answer), so the binding needs nothing else — no id rides on the wire.
+ *
+ * Nothing to bind (no assistant message on screen yet): the SAME array comes
+ * back and nothing is applied, rather than guessing.
+ */
+export function bindCitedRefs<M extends { role: string; cited?: readonly ChatReference[] }>(
+  messages: readonly M[],
+  resolved: readonly ResolvedRef[],
+): { messages: readonly M[]; index: number } {
+  if (resolved.length === 0) return { messages, index: -1 }
+  let index = -1
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'assistant') {
+      index = i
+      break
+    }
+  }
+  if (index < 0) return { messages, index }
+  const next = [...messages]
+  next[index] = { ...messages[index], cited: applyResolved(messages[index].cited, resolved) }
+  return { messages: next, index }
+}
+
 /** Short, stable name of a reference without a label ("Task 3adeffc9"). */
 export const fallbackName = (ref: EntityRef): string => `${refKindDef(ref.kind).name} ${ref.id.slice(0, 8)}`
 

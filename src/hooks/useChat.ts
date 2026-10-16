@@ -1,6 +1,6 @@
 import { splitAttachments } from '@/utils/messageAttachments'
 import { splitRefs } from '@/utils/messageRefs'
-import { applyResolved, bindResolvedRefs, parseResolvedRefs, refsFromBlock, resolutionAnnouncement } from '@/refs/refState'
+import { applyResolved, bindCitedRefs, bindResolvedRefs, parseResolvedRefs, refsFromBlock, resolutionAnnouncement } from '@/refs/refState'
 import { useRefKindsSync } from '@/refs/useActiveKinds'
 import { cachedRefsCapability, ensureRefsCapability, refsCapabilityScope } from '@/refs/refsCapability'
 import { clearRefSearchCache } from '@/refs/useRefSearch'
@@ -657,6 +657,21 @@ export function useChat() {
       setMessages((current) => bindResolvedRefs(current, resolved).messages as ChatMessage[])
       // Speak only for a turn happening now, never for a replayed history.
       if (!event.replaying) store.set(refsAnnouncementAtom, resolutionAnnouncement(applyResolved(undefined, resolved)) ?? '')
+      return
+    }
+
+    // The server says how it read the citations the AGENT wrote in its answer
+    // (`cites_resolved`): the tokens the answer carries, with the status of each.
+    // It carries no id either, so it binds to the LAST assistant message — the
+    // one whose text holds them. An entry it could not read turns the chip into
+    // plain text; nothing is announced, the citation is already on screen.
+    if (event.type === 'cites_resolved') {
+      const raw = event.replaying
+        ? ((event as { data?: { refs?: unknown } }).data?.refs ?? (event as { refs?: unknown }).refs)
+        : (event as { refs?: unknown }).refs
+      const resolved = parseResolvedRefs(raw)
+      if (resolved.length === 0) return
+      setMessages((current) => bindCitedRefs(current, resolved).messages as ChatMessage[])
       return
     }
 

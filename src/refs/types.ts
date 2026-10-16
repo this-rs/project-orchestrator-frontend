@@ -54,6 +54,18 @@ export interface RefsResolvedEvent {
 }
 
 /**
+ * How the server read the citations of the AGENT's own answer
+ * (`cites_resolved`). Same entries as `refs_resolved`, and the same rule: an
+ * entry the server could not read carries no label and no scope. A different
+ * event because it describes the other direction — `refs_resolved` belongs to
+ * the user's message above, this one to the answer before it.
+ */
+export interface CitesResolvedEvent {
+  type: 'cites_resolved'
+  refs: ResolvedRef[]
+}
+
+/**
  * A reference as the UI holds it: the pair that travels, plus what the UI
  * learned about it (a label from the search result, then the server's
  * resolution). Only `kind` and `id` ever go back on the wire.
