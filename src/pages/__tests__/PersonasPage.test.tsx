@@ -132,14 +132,28 @@ describe('PersonasPage', () => {
     renderPage()
     const row = (await screen.findByRole('link', { name: 'API expert' })).closest('li')!
     fireEvent.click(within(row).getByRole('button', { name: /Status: Active/ }))
-    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Dormant' }))
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Dormant' }))
     await waitFor(() => expect(update).toHaveBeenCalledWith('pe1', { status: 'dormant' }))
-    expect(toast.success).toHaveBeenCalledWith('Status changed to Dormant')
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Status changed to Dormant'))
+
+    // Changing the status moves the persona out of the Active group into a brand-new Dormant group:
+    // that regroup re-mounts its row, and the ⋯ menu inside it. Wait for the regroup to have landed
+    // before opening the menu: a click fired inside that window lands on the row React is already
+    // replacing, the menu never opens, and the `menuitem` below is never rendered (this is how the
+    // test went red on a loaded CI runner and green on the rerun of the very same commit).
+    await screen.findByRole('region', { name: /Dormant/ })
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for API expert' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Delete' }))
     expect(remove).not.toHaveBeenCalled()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Delete' }).at(-1)!)
+    // The confirmation dialog replaces the menu: wait for a Delete button to exist, then take the
+    // last one (the dialog's; the menu's own, while still mounted, sits above it in document order).
+    const confirmDelete = await waitFor(() => {
+      const buttons = screen.getAllByRole('button', { name: 'Delete' })
+      expect(buttons.length).toBeGreaterThan(0)
+      return buttons
+    })
+    fireEvent.click(confirmDelete.at(-1)!)
     await waitFor(() => expect(remove).toHaveBeenCalledWith('pe1'))
     await waitFor(() => expect(screen.queryByRole('link', { name: 'API expert' })).toBeNull())
   })
