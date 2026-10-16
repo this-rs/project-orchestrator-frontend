@@ -101,6 +101,6 @@ export default {
     nowAllowed: "ブラウザを許可しました。",
     nowDenied: "ブラウザを拒否しました。",
     allowedBy: "{by} が {when} に許可",
-    note: "ブラウザは、その実行ファイルがサーバーにインストールされてから（今後対応）セッションに接続されます。今許可しておくと、その時点で有効になります。",
+    note: "ブラウザは、サーバーが提供し、このプロジェクトが許可した時点でセッションに接続されます。",
   },
 } satisfies Translation<'networkTools'>

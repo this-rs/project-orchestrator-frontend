@@ -99,6 +99,6 @@ export default {
     nowAllowed: "Browser allowed.",
     nowDenied: "Browser denied.",
     allowedBy: "Allowed by {by}, {when}",
-    note: "The browser is attached to sessions only once its executable is installed on the server (coming later). Allowing it now takes effect then.",
+    note: "The browser is attached to a session as soon as the server provides it and this project allows it.",
   },
 } as const

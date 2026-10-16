@@ -101,6 +101,6 @@ export default {
     nowAllowed: "Browser erlaubt.",
     nowDenied: "Browser verweigert.",
     allowedBy: "Erlaubt von {by}, {when}",
-    note: "Der Browser wird den Sitzungen erst angehängt, wenn sein Programm auf dem Server installiert ist (folgt später). Ihn jetzt zu erlauben, wirkt sich dann aus.",
+    note: "Der Browser wird einer Sitzung angehängt, sobald der Server ihn bereitstellt und dieses Projekt ihn erlaubt.",
   },
 } satisfies Translation<'networkTools'>

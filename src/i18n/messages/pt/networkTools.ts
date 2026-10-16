@@ -101,6 +101,6 @@ export default {
     nowAllowed: "Navegador permitido.",
     nowDenied: "Navegador recusado.",
     allowedBy: "Permitido por {by}, {when}",
-    note: "O navegador só é ligado às sessões quando o seu executável estiver instalado no servidor (em breve). Permiti-lo agora terá efeito nessa altura.",
+    note: "O navegador é ligado a uma sessão assim que o servidor o fornece e este projeto o permite.",
   },
 } satisfies Translation<'networkTools'>
