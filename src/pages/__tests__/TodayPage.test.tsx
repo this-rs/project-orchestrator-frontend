@@ -474,6 +474,12 @@ describe('TodayPage: a dead free session with a pending request', () => {
     get.mockResolvedValue({ ...base, waiting: [], unattached: [dead] })
     renderPage('/today')
     const stuck = await screen.findByRole('region', { name: BAND_TEXT.stuck.title })
+    // The section exists from the FIRST render, before the fetch settles — it is
+    // then `data-state="loading"` and carries a skeleton, not the rows. Reading
+    // its button synchronously raced the data: green on a fast machine, red on a
+    // loaded CI runner (run 38939599592). Wait for the band to be ready first;
+    // the claim below is unchanged, only the wait is made real.
+    await waitFor(() => expect(stuck.getAttribute('data-state')).toBe('ready'))
     expect(within(stuck).getByRole('button', { name: ROW_TEXT.resumeSession })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Allow' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Deny' })).toBeNull()

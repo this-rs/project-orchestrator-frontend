@@ -8,6 +8,7 @@
 // a reference (`vault:<name>`, `env:<VAR>`, `none`).
 
 import type { CostBasis, CredentialRef, ProviderHealth, ProviderId, ProviderPreset } from './provider'
+import type { RateLimit } from './rateLimit'
 
 /**
  * Body of `POST /chat/providers/test` and `POST /chat/providers`. References only.
@@ -34,6 +35,12 @@ export interface ProviderDraft {
   remote_cwd?: string
   /** Allows the "Rock'n roll" mode on this machine. Default false. */
   allow_trust?: boolean
+  /**
+   * OPTIONAL limits of the instance (RL1). Absent from a body = the stored list
+   * is left untouched; `[]` clears every limit. Never a secret: a credential is
+   * named by its reference.
+   */
+  rate_limit?: RateLimit[]
 }
 
 /** Body of `POST /chat/providers/ssh-host-key`. */
