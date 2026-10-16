@@ -463,6 +463,29 @@
           "status": "not_found"
         }
       ]
+    },
+    {
+      "type": "cites_resolved",
+      "refs": [
+        {
+          "id": "3adeffc9-c8b0-4e2f-a674-55bfcb293433",
+          "kind": "task",
+          "label": "PR 1 — backend",
+          "status": "ok"
+        },
+        {
+          "id": "9f1e0a10-0000-4000-8000-00000000dead",
+          "kind": "plan",
+          "status": "not_found"
+        }
+      ]
+    },
+    {
+      "type": "provider_switched",
+      "session_id": "5b0c7c1e-2f4a-4d6b-9a3e-1c2d3e4f5a6b",
+      "from_provider": "claude-code",
+      "to_provider": "local",
+      "model": "example-model-large"
     }
   ],
   "control_frames": [

@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import block from '@/refs/__fixtures__/po_refs_block.json'
+import citedTokens from '@/refs/__fixtures__/cited_tokens.json'
 import tokens from '@/refs/__fixtures__/tokens.json'
 import entityRef from '@/refs/__fixtures__/entity_ref.json'
 import { findRefTokens, refToken, splitRefs } from './messageRefs'
@@ -97,4 +98,25 @@ describe('findRefTokens — golden token vectors', () => {
       expect(findRefTokens(text), text).toEqual([])
     }
   })
+})
+
+/**
+ * The same golden vectors the backend reads (`refs::cite::cited_refs`):
+ * `src/refs/__fixtures__/cited_tokens.json` is a byte-for-byte copy of
+ * `backend/tests/fixtures/refs/cited_tokens.json`. The two readers must agree
+ * on every vector, or the interface would draw a chip the server never saw.
+ */
+describe('findRefTokens — the shared citation vectors (agent → user)', () => {
+  for (const c of citedTokens.cited) {
+    it(`reads ${c.why}`, () => {
+      const found = findRefTokens(c.text)
+      expect(found.map((t) => ({ kind: t.kind, id: t.id }))).toEqual(c.tokens)
+    })
+  }
+
+  for (const c of citedTokens.not_cited) {
+    it(`refuses ${c.why}`, () => {
+      expect(findRefTokens(c.text)).toEqual([])
+    })
+  }
 })

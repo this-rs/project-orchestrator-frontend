@@ -1,5 +1,5 @@
 import type { MessageAttachment } from '@/utils/messageAttachments'
-import type { ChatReference, EntityRef, RefsResolvedEvent } from '@/refs/types'
+import type { ChatReference, CitesResolvedEvent, EntityRef, RefsResolvedEvent } from '@/refs/types'
 import type { CostBasis, LegacyPermissionMode, ProviderCapabilities, ProviderId, ProviderKind, RoutedBy, ToolCategory, ToolPolicy, ToolPolicyMode } from './provider'
 import type { ConversationRoutingMode } from './routing'
 // ============================================================================
@@ -643,8 +643,30 @@ export type ChatEvent =
       /** Shared memory conversation. Typed, not used by the interface yet. */
       conversation_id?: string
     }
+  /**
+   * The session's provider was re-targeted IN PLACE (same thread): the provider
+   * and the model changed, `session_id` did not. The opposite of
+   * `conversation_relayed`, which sends the client to another session.
+   */
+  | {
+      type: 'provider_switched'
+      session_id: string
+      from_provider: string
+      to_provider: string
+      model: string
+      /** Earlier entries carried over by the in-place relay. Absent when there was nothing to carry. */
+      relayed_entries?: number
+      /** Oldest entries left out to fit the target's context window. */
+      omitted_entries?: number
+    }
   /** How the server read the references of the user message above (contract C5). */
   | RefsResolvedEvent
+  /**
+   * How the server read the citations the AGENT wrote in the answer before it.
+   * A citation it could not read (`not_found`) is drawn as plain text: the
+   * interface never links to an entity nobody resolved.
+   */
+  | CitesResolvedEvent
   | { type: 'compaction_recovery'; hint_tokens: number; build_latency_ms: number; recovery_success: boolean }
   | { type: 'compact_boundary'; trigger: string; pre_tokens?: number }
   | {
@@ -740,6 +762,15 @@ export const CHAT_EVENT_FIELDS = {
     conversation_id: 'optional',
   },
   refs_resolved: { refs: 'required' },
+  cites_resolved: { refs: 'required' },
+  provider_switched: {
+    session_id: 'required',
+    from_provider: 'required',
+    to_provider: 'required',
+    model: 'required',
+    relayed_entries: 'optional',
+    omitted_entries: 'optional',
+  },
   compaction_recovery: { hint_tokens: 'required', build_latency_ms: 'required', recovery_success: 'required' },
   compact_boundary: { trigger: 'required', pre_tokens: 'optional' },
   system_init: { cli_session_id: 'optional', model: 'optional', tools: 'optional', mcp_servers: 'optional', permission_mode: 'optional', provider: 'optional', capabilities: 'optional', tool_policy: 'optional', policy_mode: 'optional', engine: 'optional', degraded_features: 'optional' },
@@ -1034,6 +1065,13 @@ export interface ChatMessage {
   attachments?: MessageAttachment[]
   /** References of a user message: chips in the bubble, statuses from `refs_resolved`. */
   refs?: ChatReference[]
+  /**
+   * References the AGENT cites in its own answer, with the statuses the server
+   * announced (`cites_resolved`). Same role as `refs` for a user message, for
+   * the other direction: a citation the server could not read (`not_found`, or
+   * an entity of another project) is drawn as plain text instead of a chip.
+   */
+  cited?: ChatReference[]
   timestamp: Date
   /**
    * A user message this browser showed before the server had it (optimistic): its

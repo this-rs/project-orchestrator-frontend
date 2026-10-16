@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import tokens from '@/refs/__fixtures__/tokens.json'
 import { ChatMessageBubble } from './ChatMessageBubble'
 import type { ChatMessage } from '@/types'
@@ -57,14 +59,67 @@ describe('ChatMessageBubble — entities cited by the agent', () => {
   })
 
   it('draws a cited #plan:uuid as a chip in an assistant text block', async () => {
-    const { MemoryRouter, Route, Routes } = await import('react-router-dom')
-    render(
-      <MemoryRouter initialEntries={['/workspace/acme/today']}>
-        <Routes>
-          <Route path="/workspace/:slug/*" element={<ChatMessageBubble message={agent(`voir ${a.token}`)} />} />
-        </Routes>
-      </MemoryRouter>,
-    )
+    render(inWorkspace(<ChatMessageBubble message={agent(`voir ${a.token}`)} />))
     expect(screen.getByRole('link').getAttribute('href')).toBe(`/workspace/acme/plans/${a.ref.id}`)
+  })
+})
+
+/** An id that is well-formed and names nothing: the shape a hallucinated citation has. */
+const GHOST = { kind: 'plan', id: '9f1e0a10-0000-4000-8000-00000000dead' }
+
+const inWorkspace = (node: ReactNode) => (
+  <MemoryRouter initialEntries={['/workspace/acme/today']}>
+    <Routes>
+      <Route path="/workspace/:slug/*" element={node} />
+    </Routes>
+  </MemoryRouter>
+)
+
+const agent = (content: string, cited?: ChatReference[]): ChatMessage => ({
+  id: 'a1',
+  role: 'assistant',
+  blocks: [{ id: 'b1', type: 'text', content }],
+  timestamp: new Date(),
+  ...(cited ? { cited } : {}),
+})
+
+describe('ChatMessageBubble — a citation the server says it cannot read', () => {
+  it('draws plain text, and no link at all, for a citation that names nothing', () => {
+    const token = `#plan:${GHOST.id}`
+    const { container } = render(
+      inWorkspace(
+        <ChatMessageBubble message={agent(`voir ${token}`, [{ ...GHOST, resolution: 'not_found' }])} />,
+      ),
+    )
+    // The token is still the text it was: the person reads what the agent wrote.
+    expect(container.textContent).toContain(token)
+    // …but nothing claims an entity: no chip, and above all no link to a page
+    // that does not exist.
+    expect(screen.queryByTestId('cited-ref')).toBeNull()
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('never tells a denied citation from a missing one: both read as plain text', () => {
+    const token = `#plan:${GHOST.id}`
+    const { container } = render(
+      inWorkspace(
+        <ChatMessageBubble message={agent(`voir ${token}`, [{ ...GHOST, resolution: 'forbidden' }])} />,
+      ),
+    )
+    expect(container.textContent).toContain(token)
+    expect(screen.queryByRole('link')).toBeNull()
+  })
+
+  it('still draws the chip, and the link, for a citation the server resolved', () => {
+    const { container } = render(
+      inWorkspace(
+        <ChatMessageBubble
+          message={agent(`voir ${a.token}`, [{ ...(a.ref as ChatReference), label: 'Plan A', resolution: 'ok' }])}
+        />,
+      ),
+    )
+    expect(screen.getByTestId('cited-ref')).toBeTruthy()
+    expect(screen.getByRole('link').getAttribute('href')).toBe(`/workspace/acme/plans/${a.ref.id}`)
+    expect(container.textContent).toContain('Plan A')
   })
 })

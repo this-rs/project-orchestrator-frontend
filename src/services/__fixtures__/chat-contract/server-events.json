@@ -248,6 +248,53 @@
         }
       }
     },
+    "cites_resolved": {
+      "examples": {
+        "full": {
+          "refs": [
+            {
+              "entity_status": "in_progress",
+              "id": "3adeffc9-c8b0-4e2f-a674-55bfcb293433",
+              "kind": "task",
+              "label": "PR 1 — backend",
+              "project": {
+                "id": "00333b5f-2d0a-4467-9c98-155e55d2b7e5",
+                "name": "Project Orchestrator",
+                "slug": "project-orchestrator"
+              },
+              "status": "ok",
+              "subtitle": "in_progress"
+            },
+            {
+              "id": "9f1e0a10-0000-4000-8000-00000000dead",
+              "kind": "plan",
+              "status": "not_found"
+            }
+          ],
+          "type": "cites_resolved"
+        },
+        "minimal": {
+          "refs": [
+            {
+              "id": "9f1e0a10-0000-4000-8000-00000000dead",
+              "kind": "plan",
+              "status": "not_found"
+            }
+          ],
+          "type": "cites_resolved"
+        }
+      },
+      "fields": {
+        "refs": {
+          "required": true,
+          "type": "array"
+        },
+        "type": {
+          "required": true,
+          "type": "string"
+        }
+      }
+    },
     "compact_boundary": {
       "examples": {
         "full": {
@@ -624,6 +671,56 @@
         },
         "tool_use_id": {
           "required": false,
+          "type": "string"
+        },
+        "type": {
+          "required": true,
+          "type": "string"
+        }
+      }
+    },
+    "provider_switched": {
+      "examples": {
+        "full": {
+          "from_provider": "claude-code",
+          "model": "example-model-large",
+          "omitted_entries": 3,
+          "relayed_entries": 12,
+          "session_id": "5b0c7c1e-2f4a-4d6b-9a3e-1c2d3e4f5a6b",
+          "to_provider": "local",
+          "type": "provider_switched"
+        },
+        "minimal": {
+          "from_provider": "claude-code",
+          "model": "example-model-large",
+          "session_id": "5b0c7c1e-2f4a-4d6b-9a3e-1c2d3e4f5a6b",
+          "to_provider": "local",
+          "type": "provider_switched"
+        }
+      },
+      "fields": {
+        "from_provider": {
+          "required": true,
+          "type": "string"
+        },
+        "model": {
+          "required": true,
+          "type": "string"
+        },
+        "omitted_entries": {
+          "required": false,
+          "type": "number"
+        },
+        "relayed_entries": {
+          "required": false,
+          "type": "number"
+        },
+        "session_id": {
+          "required": true,
+          "type": "string"
+        },
+        "to_provider": {
+          "required": true,
           "type": "string"
         },
         "type": {
