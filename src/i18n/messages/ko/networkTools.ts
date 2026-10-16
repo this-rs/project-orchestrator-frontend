@@ -101,6 +101,6 @@ export default {
     nowAllowed: "브라우저를 허용했습니다.",
     nowDenied: "브라우저를 거부했습니다.",
     allowedBy: "{by}님이 {when}에 허용",
-    note: "브라우저는 실행 파일이 서버에 설치된 뒤에야(추후 제공) 세션에 연결됩니다. 지금 허용하면 그때 적용됩니다.",
+    note: "브라우저는 서버가 제공하고 이 프로젝트가 허용하면 세션에 연결됩니다.",
   },
 } satisfies Translation<'networkTools'>

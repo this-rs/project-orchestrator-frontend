@@ -308,12 +308,12 @@ describe('NetworkTools — search engines', () => {
 })
 
 describe('NetworkTools — browser', () => {
-  it('the browser switch is a role=switch with aria-checked, PUTs { allowed } and says the browser is attached once installed', async () => {
+  it('the browser switch is a role=switch with aria-checked, PUTs { allowed } and says when the browser is attached', async () => {
     mount()
     const toggle = await screen.findByRole('switch', { name: 'Allow the browser for Acme' })
     expect(toggle.getAttribute('aria-checked')).toBe('false')
     expect(document.getElementById(toggle.getAttribute('aria-describedby')!)?.textContent).toContain(
-      'only once its executable is installed on the server',
+      'as soon as the server provides it',
     )
     overview.mockResolvedValue(state({ browser: { allowed: true, authorized_by: 'me', authorized_at: '2026-10-10T10:00:00Z' } }))
     fireEvent.click(toggle)

@@ -101,6 +101,6 @@ export default {
     nowAllowed: "已允许浏览器。",
     nowDenied: "已拒绝浏览器。",
     allowedBy: "由 {by} 于 {when} 允许",
-    note: "只有在服务器上安装了浏览器的可执行文件后（即将推出），浏览器才会接入会话。现在允许将在那时生效。",
+    note: "服务器提供浏览器且此项目允许后，浏览器即接入会话。",
   },
 } satisfies Translation<'networkTools'>

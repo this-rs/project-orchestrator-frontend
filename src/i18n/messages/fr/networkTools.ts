@@ -101,6 +101,6 @@ export default {
     nowAllowed: "Navigateur autorisé.",
     nowDenied: "Navigateur refusé.",
     allowedBy: "Autorisé par {by}, {when}",
-    note: "Le navigateur n'est attaché aux sessions qu'une fois son exécutable installé sur le serveur (à venir). L'autoriser maintenant prendra effet à ce moment-là.",
+    note: "Le navigateur est attaché à une session dès que le serveur le fournit et que ce projet l'autorise.",
   },
 } satisfies Translation<'networkTools'>

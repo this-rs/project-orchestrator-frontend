@@ -101,6 +101,6 @@ export default {
     nowAllowed: "Đã cho phép trình duyệt.",
     nowDenied: "Đã từ chối trình duyệt.",
     allowedBy: "Được {by} cho phép, {when}",
-    note: "Trình duyệt chỉ được gắn vào các phiên khi tệp thực thi của nó đã được cài trên máy chủ (sắp có). Cho phép ngay bây giờ sẽ có hiệu lực vào lúc đó.",
+    note: "Trình duyệt được gắn vào phiên ngay khi máy chủ cung cấp nó và dự án này cho phép.",
   },
 } satisfies Translation<'networkTools'>
