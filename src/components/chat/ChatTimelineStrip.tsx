@@ -65,23 +65,26 @@ export const ChatTimelineStrip = memo(function ChatTimelineStrip({ sessionId, me
   }, [navigate, sessionId, workspaceSlug, onShown])
 
   const [view, setView] = useTimelineView()
-  const View = view === 'tracks' ? TracksView : TraceView
+  // The panel is a 20rem column: its zones (one per session) start folded — a header each, unfolded
+  // one by one — instead of unfolding every row at once into one long block of bars. The full-page
+  // timeline (`ChatTimelinePage`) has the room and keeps them open by default.
+  const shared = {
+    lanes: timeline.lanes,
+    onOpen: handleOpen,
+    labels,
+    maxRowsHeight,
+    detail: 'below',
+    fit: 'zoomed',
+    loading: sessionId ? trace.loading : null,
+    failed: trace.failed,
+    onRetry: trace.retry,
+  } as const
   return (
     <div className="min-w-0" data-testid="chat-timeline-strip">
       <div className="flex justify-end pb-1">
         <TimelineViewTabs value={view} onChange={setView} />
       </div>
-      <View
-        lanes={timeline.lanes}
-        onOpen={handleOpen}
-        labels={labels}
-        maxRowsHeight={maxRowsHeight}
-        detail="below"
-        fit="zoomed"
-        loading={sessionId ? trace.loading : null}
-        failed={trace.failed}
-        onRetry={trace.retry}
-      />
+      {view === 'tracks' ? <TracksView {...shared} zones="collapsed" /> : <TraceView {...shared} />}
     </div>
   )
 })

@@ -89,9 +89,17 @@ const chooseView = (view: (typeof VIEWS)[number]) => {
   if (view === 'tracks') localStorage.removeItem('po.timeline.view')
   else localStorage.setItem('po.timeline.view', view)
 }
-/** An event: a row of the span tree, a bar on the tracks. */
-const pick = (view: (typeof VIEWS)[number], name: RegExp) =>
-  view === 'tree' ? screen.getByRole('treeitem', { name }) : within(screen.getByRole('list', { name: 'Tracks of the conversation' })).getByRole('button', { name })
+/** An event: a row of the span tree, a bar on the tracks. The chat's zones start folded. */
+const pick = (view: (typeof VIEWS)[number], name: RegExp) => {
+  if (view === 'tree') return screen.getByRole('treeitem', { name })
+  const list = within(screen.getByRole('list', { name: 'Tracks of the conversation' }))
+  if (!list.queryByRole('button', { name })) {
+    for (const fold of screen.getAllByTestId('track-zone-fold')) {
+      if (fold.getAttribute('aria-expanded') === 'false') fireEvent.click(fold)
+    }
+  }
+  return list.getByRole('button', { name })
+}
 
 describe('<ChatTimelinePanel>', () => {
   afterEach(() => {
@@ -209,6 +217,17 @@ describe('<ChatTimelinePanel>', () => {
       fireEvent.click(close)
       expect(screen.queryByTestId('chat-timeline-panel')).toBeNull()
       expect(document.activeElement).toBe(toggle)
+    })
+
+    it('opens with the zones of the tracks folded: a header per session, its rows one click away', () => {
+      chooseView('tracks')
+      render(<Harness />)
+      openWithToggle()
+      const list = within(screen.getByRole('list', { name: 'Tracks of the conversation' }))
+      expect(screen.getByTestId('track-zone-fold').getAttribute('aria-expanded')).toBe('false')
+      expect(list.queryByRole('button', { name: /Bash · ls/ })).toBeNull()
+      fireEvent.click(screen.getByTestId('track-zone-fold'))
+      expect(list.getByRole('button', { name: /Bash · ls/ })).toBeTruthy()
     })
   })
 
