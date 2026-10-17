@@ -41,6 +41,7 @@ import {
   toolHintMetadata,
   isQuestionToolUse,
   questionMetadata,
+  stampQuestionOrigin,
   answerSyntheticQuestion,
   attachToolTiming,
   EarlyToolTimings,
@@ -1212,7 +1213,11 @@ export function useChat() {
           const auqParent = getParentToolUseId(event)
           if (questions && questions.length > 0) {
             // Dedup: skip if a block with the same tool_call_id already exists
-            // (created via the tool_use stream path)
+            // (created via the tool_use stream path). That block cannot know
+            // whether the provider has a native question — this event is the only
+            // one that says it — so the flag is stamped on it here; without it a
+            // synthetic question is answered on the wrong channel
+            // (`input_response` instead of a user turn).
             const isDupe = toolCallId && lastMsg.blocks.some(
               (b) => b.type === 'ask_user_question' && b.metadata?.tool_call_id === toolCallId,
             )
@@ -1224,6 +1229,8 @@ export function useChat() {
                 // Its server time when the frame has one (as the history does).
                 metadata: withCreatedAt(withParent(questionMetadata(data, toolCallId, questions), auqParent), serverTime),
               })
+            } else {
+              stampQuestionOrigin(lastMsg.blocks, toolCallId, data)
             }
           }
           break

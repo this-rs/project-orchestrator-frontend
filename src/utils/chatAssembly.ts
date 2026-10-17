@@ -895,7 +895,9 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
         const toolCallId = (evt as { tool_call_id?: string }).tool_call_id ?? ''
         const parent = getParentToolUseId(evt)
         if (questions && questions.length > 0) {
-          // Dedup: skip if a block with the same tool_call_id already exists
+          // Dedup: skip if a block with the same tool_call_id already exists.
+          // It was made from the `tool_use` of the same call, which cannot say
+          // whether the question is synthetic: the flag is stamped on it here.
           const isDupe = toolCallId && msg.blocks.some(
             (b) => b.type === 'ask_user_question' && b.metadata?.tool_call_id === toolCallId,
           )
@@ -906,6 +908,8 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
               content: questions.map((q: { question: string }) => q.question).join('\n'),
               metadata: withCreatedAt(withParent(questionMetadata(evt, toolCallId, questions), parent), evt.created_at ? createdAt.toISOString() : undefined),
             })
+          } else {
+            stampQuestionOrigin(msg.blocks, toolCallId, evt)
           }
         }
         break
@@ -1132,6 +1136,13 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
   // to pre-fill the persisted response for read-only display in history.
   for (const msg of messages) {
     for (const block of msg.blocks) {
+      // A SYNTHETIC question is never answered by a `tool_result`: its call
+      // returns the provider's receipt right away (nexus `QUESTION_ASKED`: "The
+      // question was shown to the user. Their answer will arrive as the next user
+      // message") and the answer is the next user turn, stamped by
+      // `answerSyntheticQuestion`. Reading that receipt as the answer showed every
+      // native-harness question as already answered, with the receipt as its text.
+      if (block.type === 'ask_user_question' && block.metadata?.synthetic === true) continue
       if (block.type === 'ask_user_question' && block.metadata?.tool_call_id && !block.metadata.submitted) {
         const toolCallId = block.metadata.tool_call_id as string
         // Find the tool_result with the same tool_call_id
@@ -1238,6 +1249,37 @@ export function isQuestionToolUse(evt: unknown): boolean {
 export function questionMetadata(evt: unknown, toolCallId: string, questions: unknown): Record<string, unknown> {
   const synthetic = typeof evt === 'object' && evt !== null && (evt as Record<string, unknown>).synthetic === true
   return { tool_call_id: toolCallId, questions, ...(synthetic ? { synthetic: true } : {}) }
+}
+
+/** Does this `ask_user_question` event say the provider has no native question? */
+function isSyntheticQuestion(evt: unknown): boolean {
+  return typeof evt === 'object' && evt !== null && (evt as Record<string, unknown>).synthetic === true
+}
+
+/**
+ * Stamp the `synthetic` flag on the question block a reducer ALREADY created
+ * from the `tool_use` of the same call.
+ *
+ * The `tool_use` comes first in the stream (measured on the native harness: 1 ms
+ * before the control event) and a `tool_use` cannot say whether the provider has
+ * a native question — only the `ask_user_question` event carries `synthetic`
+ * (decision A45: the answer then goes back as a USER TURN). Both reducers dedup
+ * that event against the block already there, which used to throw the flag away:
+ * the answer then left as an `input_response` nobody waits for, and the
+ * provider's RECEIPT (`QUESTION_ASKED`, "The question was shown to the user…")
+ * was read as the user's own answer.
+ *
+ * Mutates the blocks array it is given — the one the caller just built.
+ * Returns false when there is nothing to stamp.
+ */
+export function stampQuestionOrigin(blocks: ContentBlock[], toolCallId: string, evt: unknown): boolean {
+  if (!toolCallId || !isSyntheticQuestion(evt)) return false
+  const bi = blocks.findIndex((b) => b.type === 'ask_user_question' && b.metadata?.tool_call_id === toolCallId)
+  if (bi === -1) return false
+  if (blocks[bi].metadata?.synthetic !== true) {
+    blocks[bi] = { ...blocks[bi], metadata: { ...blocks[bi].metadata, synthetic: true } }
+  }
+  return true
 }
 
 /**
