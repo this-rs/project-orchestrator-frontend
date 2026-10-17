@@ -243,6 +243,31 @@ describe('useChat — questions to the user', () => {
     expect(live[0].content).toBe(history[0].content)
     expect(live[0].metadata?.tool_call_id).toBe(history[0].metadata?.tool_call_id)
   })
+
+  it('the question `tool_use` arrives FIRST on the stream (measured order): the synthetic flag survives it', async () => {
+    // On the native harness the `tool_use` of the question precedes the control
+    // event by ~1 ms, so the block is made from the `tool_use` — which cannot say
+    // the question is synthetic — and the event is deduped against it. Losing the
+    // flag sent the answer as an `input_response` on a provider that waits for a
+    // USER TURN: the agent received nothing and the question looked answered.
+    const { emit, result, ws, blocks } = await setup()
+    emit({
+      ...NATIVE_SYSTEM_INIT,
+      capabilities: { ...NATIVE_SYSTEM_INIT.capabilities, native_question: true },
+    })
+    emit({ ...CLAUDE_QUESTION_TOOL_USE, id: SYNTHETIC_QUESTION.tool_call_id, canonical: 'AskUserQuestion' })
+    emit({ ...SYNTHETIC_QUESTION })
+
+    const questions = blocks().filter((b) => b.type === 'ask_user_question')
+    expect(questions).toHaveLength(1) // one question, not two
+    expect(questions[0].metadata?.synthetic).toBe(true)
+
+    act(() => {
+      result.current.respondInput(SYNTHETIC_QUESTION.tool_call_id, 'Postgres')
+    })
+    expect(ws().sendUserMessage).toHaveBeenCalledWith('Postgres')
+    expect(ws().sendInputResponse).not.toHaveBeenCalled()
+  })
 })
 
 describe('useChat — cost of a turn', () => {
