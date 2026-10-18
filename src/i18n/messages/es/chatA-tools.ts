@@ -183,6 +183,10 @@ export default {
     allowAlways: "Siempre",
     alwaysHint: "No se vuelve a preguntar por esta llamada exacta en tus conversaciones de este proyecto que se ejecutan en su directorio, en esta máquina; se vuelve a preguntar si la conversación cambió de directorio",
     alwaysCovers: "Si se concede, «Siempre» solo cubre:",
+    destinationHint: 'Un destino de red: lo que cubre la autorización lo fija el orquestador y se indica en cuanto respondas',
+    destinationCovers: 'Esta llamada alcanza:',
+    destinationAlwaysHint: 'Puede registrarse como consentimiento de red de este proyecto, listado y revocable en Ajustes → Herramientas de red',
+    destinationAlwaysCovers: '«Siempre» puede registrarse como consentimiento de red de este proyecto (Ajustes → Herramientas de red).',
     alwaysRefused: "Esta llamada no se puede permitir para siempre (solo una lectura exacta, o un comando de solo lectura sin redirección ni encadenamiento). Responde una vez o para la sesión.",
     allowedAlways: "Siempre permitido"
   },

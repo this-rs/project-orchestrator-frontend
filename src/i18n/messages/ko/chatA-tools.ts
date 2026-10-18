@@ -183,6 +183,10 @@ export default {
     allowAlways: "항상",
     alwaysHint: "이 머신에서 이 프로젝트의 디렉터리에서 실행되는 대화에서는 이 정확한 호출에 대해 다시 묻지 않습니다. 대화가 디렉터리를 바꾼 경우 다시 묻습니다",
     alwaysCovers: "허용하면 「항상」은 다음만 포함합니다:",
+    destinationHint: '네트워크 대상입니다. 허용 범위는 오케스트레이터가 정하며 답변하면 알려줍니다',
+    destinationCovers: '이 호출이 접근하는 곳:',
+    destinationAlwaysHint: '이 프로젝트의 네트워크 동의로 기록될 수 있습니다. 설정 → 네트워크 도구에서 확인하고 철회할 수 있습니다',
+    destinationAlwaysCovers: '"항상"은 이 프로젝트의 네트워크 동의로 기록될 수 있습니다(설정 → 네트워크 도구).',
     alwaysRefused: "이 호출은 영구적으로 허용할 수 없습니다(정확한 읽기, 또는 리디렉션이나 연결이 없는 읽기 전용 명령 하나만 가능). 한 번 또는 세션 동안으로 답하세요.",
     allowedAlways: "항상 허용됨"
   },

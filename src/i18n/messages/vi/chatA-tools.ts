@@ -183,6 +183,10 @@ export default {
     allowAlways: "Luôn luôn",
     alwaysHint: "Không hỏi lại cho đúng lệnh gọi này trong các cuộc trò chuyện của dự án này chạy trong thư mục của nó, trên máy này; sẽ hỏi lại nếu cuộc trò chuyện đã đổi thư mục",
     alwaysCovers: "Nếu được cấp, «Luôn luôn» chỉ bao gồm:",
+    destinationHint: 'Một đích đến mạng: phạm vi cấp quyền do bộ điều phối quyết định và được nêu ngay khi bạn trả lời',
+    destinationCovers: 'Lệnh gọi này đến:',
+    destinationAlwaysHint: 'Có thể được ghi lại thành đồng thuận mạng của dự án này, được liệt kê và có thể thu hồi trong Cài đặt → Công cụ mạng',
+    destinationAlwaysCovers: '“Luôn luôn” có thể được ghi lại thành đồng thuận mạng của dự án này (Cài đặt → Công cụ mạng).',
     alwaysRefused: "Không thể cho phép vĩnh viễn lệnh gọi này (chỉ một lần đọc chính xác, hoặc một lệnh chỉ đọc không chuyển hướng hay nối lệnh). Hãy trả lời một lần hoặc cho phiên.",
     allowedAlways: "Luôn được cho phép"
   },
