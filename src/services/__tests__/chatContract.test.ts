@@ -86,10 +86,10 @@ describe('chat contract — field level', () => {
     expect(checkContract(target!)).toEqual([])
   })
 
-  it('counts 39 event variants and 9 client messages', () => {
-    expect(Object.keys(CHAT_EVENT_FIELDS)).toHaveLength(39)
+  it('counts 40 event variants and 9 client messages', () => {
+    expect(Object.keys(CHAT_EVENT_FIELDS)).toHaveLength(40)
     expect(Object.keys(WS_CLIENT_MESSAGE_TYPES)).toHaveLength(9)
-    expect(new Set(contract.events.map((e) => e.type)).size).toBe(39)
+    expect(new Set(contract.events.map((e) => e.type)).size).toBe(40)
   })
 
   it('no longer treats partial_text and viz_block as events, and knows compaction_recovery and cancel_tools', () => {

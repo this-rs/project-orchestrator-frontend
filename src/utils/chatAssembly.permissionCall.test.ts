@@ -16,4 +16,12 @@ describe('permissionCallOf', () => {
     expect(permissionCallOf({ always: 'yes' })).toEqual({})
     expect(permissionCallOf(null)).toEqual({})
   })
+
+  it('carries the consent PO asserted, and drops a malformed one', () => {
+    const consent = { subject: 'https://docs.rs', destinations: ['http://docs.rs', 'https://docs.rs'] }
+    expect(permissionCallOf({ always: true, consent })).toEqual({ always_eligible: true, consent })
+    expect(permissionCallOf({ consent: { subject: 'https://docs.rs' } })).toEqual({})
+    expect(permissionCallOf({ consent: { subject: 1, destinations: [] } })).toEqual({})
+    expect(permissionCallOf({ consent: { subject: 'https://docs.rs', destinations: [2] } })).toEqual({})
+  })
 })

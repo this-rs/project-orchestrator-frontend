@@ -6,6 +6,7 @@ import { policyOnlyRequestText } from '@/constants/capabilities'
 import { useChatCapabilities } from './ChatSessionContext'
 import { useBlockProviderKind } from './useBlockProviderKind'
 import { commandText, getToolCategory } from './tools'
+import { permissionConsentOf } from '@/utils/permissionConsent'
 import { Terminal, Eye, FileEdit, Zap, Globe, AlertTriangle, Check, X, ChevronRight } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -269,7 +270,13 @@ export function PermissionRequestBlock({
     canonical: block.metadata?.tool_canonical as string | undefined,
   })
   const styles = CATEGORY_STYLES[category]
-  const { summary, detail, language } = formatToolSummary(toolName, toolInput, category)
+  const formatted = formatToolSummary(toolName, toolInput, category)
+  const { detail, language } = formatted
+  // A question about a network DESTINATION, as PO asserts it (CONSENT-WIRE): the request is
+  // then asked AS an origin question, named by `consent.subject` verbatim — never by the
+  // call's url, which may say `http://` where PO keys the consent on `https://`.
+  const consent = permissionConsentOf(block.metadata?.consent)
+  const summary = consent ? consent.subject : formatted.summary
 
   // Response state — a persisted decision starts as already responded
   const initialDecision = persistedDecision
@@ -333,7 +340,8 @@ export function PermissionRequestBlock({
   // call", which is false whenever the question is about an origin: `session` is then kept by
   // the harness against the origin, and `always` is written to the project's network consents.
   // The truth is stated by PO once the answer is in (`permission_decision.rule`, rendered above).
-  const destination = destinationOf(category, toolInput)
+  // With an asserted subject, the origin question below says it all: no guess from the call.
+  const destination = consent ? null : destinationOf(category, toolInput)
 
   // Sync with persisted decision arriving via broadcast after initial render
   if (persistedDecision && !responded) {
@@ -453,9 +461,18 @@ export function PermissionRequestBlock({
         {/* Header line: icon + label + summary + waiting dot */}
         <div className="flex items-center gap-2 mb-1.5">
           <CategoryIcon category={category} className={`w-3.5 h-3.5 shrink-0 ${styles.icon}`} />
-          <span className={`text-[11px] font-medium ${styles.text}`}>
-            {styles.label}: {summary}
-          </span>
+          {consent ? (
+            <h4 id={`permission-origin-${toolCallId}`} className={`text-[11px] font-medium ${styles.text} min-w-0`}>
+              {t('chatA-tools.permission.originQuestion')}{' '}
+              <code data-testid="permission-origin-subject" className="font-mono break-all">
+                {consent.subject}
+              </code>
+            </h4>
+          ) : (
+            <span className={`text-[11px] font-medium ${styles.text}`}>
+              {styles.label}: {summary}
+            </span>
+          )}
           <span className="ml-auto text-[10px] text-amber-400/60 flex items-center gap-1">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
           </span>
@@ -490,11 +507,16 @@ export function PermissionRequestBlock({
         )}
 
         {/* Actions: allow once, for the session (when the session offers it), deny */}
-        <div role="group" aria-label={t('chatA-tools.permission.actions')} className="flex flex-wrap items-center gap-2">
+        <div
+          role="group"
+          aria-label={consent ? undefined : t('chatA-tools.permission.actions')}
+          aria-labelledby={consent ? `permission-origin-${toolCallId}` : undefined}
+          className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => handleRespond(true, 'once')}
             disabled={disabled || awaitingScope}
+            aria-describedby={consent ? `permission-once-${toolCallId}` : undefined}
             className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 transition-colors disabled:opacity-50 flex items-center gap-1"
           >
             <Check className="w-3 h-3" aria-hidden="true" />
@@ -507,9 +529,11 @@ export function PermissionRequestBlock({
               onClick={() => handleRespond(true, 'session')}
               disabled={disabled || awaitingScope}
               title={
-                destination
-                  ? t('chatA-tools.permission.destinationHint')
-                  : t('chatA-tools.permission.sessionHint')
+                consent
+                  ? t('chatA-tools.permission.originSessionHint')
+                  : destination
+                    ? t('chatA-tools.permission.destinationHint')
+                    : t('chatA-tools.permission.sessionHint')
               }
               aria-describedby={`permission-scope-${toolCallId}`}
               className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-600/10 text-emerald-300 hover:bg-emerald-600/20 transition-colors disabled:opacity-50"
@@ -524,9 +548,11 @@ export function PermissionRequestBlock({
               onClick={() => handleRespond(true, 'always')}
               disabled={disabled || awaitingScope}
               title={
-                destination
-                  ? t('chatA-tools.permission.destinationAlwaysHint')
-                  : t('chatA-tools.permission.alwaysHint')
+                consent
+                  ? t('chatA-tools.permission.originAlwaysHint')
+                  : destination
+                    ? t('chatA-tools.permission.destinationAlwaysHint')
+                    : t('chatA-tools.permission.alwaysHint')
               }
               aria-describedby={`permission-always-${toolCallId}`}
               className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-600/10 text-emerald-300 hover:bg-emerald-600/20 transition-colors disabled:opacity-50"
@@ -544,7 +570,38 @@ export function PermissionRequestBlock({
             {t('chatA-tools.permission.deny')}
           </button>
         </div>
-        {showSession && !destination && (
+        {/* An origin question (CONSENT-WIRE): what each answer covers, for an ORIGIN. `session`
+            is kept by the harness against the origin; `always` is written by PO to the one
+            store the Settings page reads, for every destination PO lists — through the normal
+            permission answer, never through the settings route. */}
+        {consent && (
+          <ul
+            data-testid="permission-origin-scopes"
+            aria-label={t('chatA-tools.permission.originScopes')}
+            className="mt-1.5 space-y-0.5 text-[10px] text-gray-500"
+          >
+            <li id={`permission-once-${toolCallId}`}>{t('chatA-tools.permission.originOnce')}</li>
+            {showSession && (
+              <li id={`permission-scope-${toolCallId}`} data-testid="permission-origin-session">
+                {t('chatA-tools.permission.originSession')}
+              </li>
+            )}
+            {showAlways && (
+              <li id={`permission-always-${toolCallId}`} data-testid="permission-origin-always">
+                {t('chatA-tools.permission.originAlways')}
+                <ul className="my-0.5 ps-3 list-disc">
+                  {consent.destinations.map((origin) => (
+                    <li key={origin}>
+                      <code className="font-mono text-gray-400 break-all">{origin}</code>
+                    </li>
+                  ))}
+                </ul>
+                {t('chatA-tools.permission.originAlwaysRevocable')}
+              </li>
+            )}
+          </ul>
+        )}
+        {!consent && showSession && !destination && (
           <p
             id={`permission-scope-${toolCallId}`}
             data-testid="permission-session-scope"
@@ -556,7 +613,7 @@ export function PermissionRequestBlock({
             </code>
           </p>
         )}
-        {showAlways && !destination && (
+        {!consent && showAlways && !destination && (
           <p
             id={`permission-always-${toolCallId}`}
             data-testid="permission-always-scope"

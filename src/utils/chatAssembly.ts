@@ -11,10 +11,12 @@ import { bindCitedRefs, bindResolvedRefs, parseResolvedRefs, refsFromBlock } fro
 import { applyResultCost } from './cost'
 import { isUserStoppedTurn } from './turnEnd'
 import { cancelNoticeMetadata } from './cancelFailure'
+import { permissionConsentOf } from './permissionConsent'
 import type {
   BackgroundActivityMetadata,
   BackgroundOutputEntry,
   ChatMessage,
+  PermissionConsent,
   ContentBlock,
 } from '@/types'
 import { tr } from '@/i18n/lazy'
@@ -1212,14 +1214,19 @@ export function toolHintMetadata(evt: unknown): { tool_category?: string; tool_c
  * engine gives it), kept as `metadata.tool_use_id`: the control id of a
  * permission is not the call's id. Shared by BOTH reducers.
  */
-export function permissionCallOf(evt: unknown): { tool_use_id?: string; always_eligible?: true } {
+export function permissionCallOf(evt: unknown): { tool_use_id?: string; always_eligible?: true; consent?: PermissionConsent } {
   if (typeof evt !== 'object' || evt === null) return {}
-  const out: { tool_use_id?: string; always_eligible?: true } = {}
+  const out: { tool_use_id?: string; always_eligible?: true; consent?: PermissionConsent } = {}
   const id = (evt as { tool_use_id?: unknown }).tool_use_id
   if (typeof id === 'string' && id !== '') out.tool_use_id = id
   // The backend says, per request, whether THIS call may be approved for good (P11b): file
   // tools, a sandbox-disabled or chained command, Codex/ACP... never are.
   if ((evt as { always?: unknown }).always === true) out.always_eligible = true
+  // A question about a network DESTINATION (CONSENT-WIRE): its subject and the origins an
+  // `always` answer records, as PO asserts them. Kept only when well formed — never rebuilt
+  // from the input, which is the model's text.
+  const consent = permissionConsentOf((evt as { consent?: unknown }).consent)
+  if (consent) out.consent = consent
   return out
 }
 
