@@ -101,6 +101,9 @@ export default {
     nowAllowed: "Navegador permitido.",
     nowDenied: "Navegador recusado.",
     allowedBy: "Permitido por {by}, {when}",
-    note: "O navegador é ligado a uma sessão assim que o servidor o fornece e este projeto o permite.",
+    provided: "Esta instalação fornece o navegador",
+    notProvided: "Esta instalação não fornece o navegador",
+    noteProvided: "O navegador é fornecido por esta instalação (configuração do servidor); a autorização acima é o consentimento deste projeto e é ela que o liga às suas sessões.",
+    noteMissing: "Esta instalação não fornece o navegador (compilação sem a funcionalidade, ou executável não configurado); autorizá-lo registra o consentimento deste projeto e terá efeito assim que a instalação o fornecer.",
   },
 } satisfies Translation<'networkTools'>

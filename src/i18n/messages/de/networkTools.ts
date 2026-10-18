@@ -101,6 +101,9 @@ export default {
     nowAllowed: "Browser erlaubt.",
     nowDenied: "Browser verweigert.",
     allowedBy: "Erlaubt von {by}, {when}",
-    note: "Der Browser wird einer Sitzung angehängt, sobald der Server ihn bereitstellt und dieses Projekt ihn erlaubt.",
+    provided: "Diese Installation stellt den Browser bereit",
+    notProvided: "Diese Installation stellt den Browser nicht bereit",
+    noteProvided: "Der Browser wird von dieser Installation bereitgestellt (Serverkonfiguration); die Erlaubnis oben ist die Zustimmung dieses Projekts und hängt den Browser an seine Sitzungen an.",
+    noteMissing: "Diese Installation stellt den Browser nicht bereit (Build ohne die Funktion oder keine konfigurierte ausführbare Datei); die Erlaubnis wird als Zustimmung dieses Projekts gespeichert und wirkt, sobald die Installation einen Browser bereitstellt.",
   },
 } satisfies Translation<'networkTools'>

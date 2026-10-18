@@ -69,7 +69,7 @@ const SEARX: SearchEngine = {
 const state = (over: Partial<NetworkToolsOverview> = {}): NetworkToolsOverview => ({
   project: 'acme',
   origins: [{ origin: 'https://docs.rs', consented_by: 'alice', consented_at: '2026-10-01T10:00:00Z' }],
-  browser: { allowed: false },
+  browser: { allowed: false, available: true },
   search_engines: [BRAVE, SEARX],
   ...over,
 })
@@ -86,7 +86,9 @@ beforeEach(() => {
     Promise.resolve({ origin: new URL(origin).origin, consented_by: 'me', consented_at: '2026-10-10T10:00:00Z' }),
   )
   revokeOrigin.mockReset().mockResolvedValue(undefined)
-  setBrowser.mockReset().mockImplementation((_slug: string, allowed: boolean) => Promise.resolve({ allowed, authorized_by: 'me' }))
+  setBrowser
+    .mockReset()
+    .mockImplementation((_slug: string, allowed: boolean) => Promise.resolve({ allowed, available: true, authorized_by: 'me' }))
   searchEngines.mockReset().mockResolvedValue([BRAVE, SEARX])
   createSearchEngine.mockReset().mockImplementation((draft: SearchEngine) => Promise.resolve({ ...BRAVE, ...draft }))
   deleteSearchEngine.mockReset().mockResolvedValue(undefined)
@@ -312,13 +314,42 @@ describe('NetworkTools — browser', () => {
     mount()
     const toggle = await screen.findByRole('switch', { name: 'Allow the browser for Acme' })
     expect(toggle.getAttribute('aria-checked')).toBe('false')
-    expect(document.getElementById(toggle.getAttribute('aria-describedby')!)?.textContent).toContain(
-      'as soon as the server provides it',
+    overview.mockResolvedValue(
+      state({ browser: { allowed: true, available: true, authorized_by: 'me', authorized_at: '2026-10-10T10:00:00Z' } }),
     )
-    overview.mockResolvedValue(state({ browser: { allowed: true, authorized_by: 'me', authorized_at: '2026-10-10T10:00:00Z' } }))
     fireEvent.click(toggle)
     await waitFor(() => expect(setBrowser).toHaveBeenCalledWith('acme', true))
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Allow the browser for Acme' }).getAttribute('aria-checked')).toBe('true'))
+    expect(screen.getByTestId('network-tools-status-browser').textContent).toBe('Browser allowed.')
+  })
+
+  it('says the browser is provided by THIS installation, and the switch still records the consent', async () => {
+    mount()
+    const body = await screen.findByTestId('network-browser-body')
+    expect(body.getAttribute('data-browser-available')).toBe('true')
+    expect(body.textContent).toContain('This installation provides the browser')
+    const note = document.getElementById(
+      screen.getByRole('switch', { name: 'Allow the browser for Acme' }).getAttribute('aria-describedby')!,
+    )
+    expect(note?.textContent).toContain('The browser is provided by this installation')
+  })
+
+  it('says this installation does NOT provide the browser, and that allowing it takes effect when it does', async () => {
+    overview.mockResolvedValue(state({ browser: { allowed: false, available: false } }))
+    setBrowser.mockImplementation((_slug: string, allowed: boolean) =>
+      Promise.resolve({ allowed, available: false, authorized_by: 'me' }),
+    )
+    mount()
+    const body = await screen.findByTestId('network-browser-body')
+    expect(body.getAttribute('data-browser-available')).toBe('false')
+    expect(body.textContent).toContain('This installation does not provide the browser')
+    const toggle = screen.getByRole('switch', { name: 'Allow the browser for Acme' })
+    const note = document.getElementById(toggle.getAttribute('aria-describedby')!)
+    expect(note?.textContent).toContain('takes effect as soon as the installation provides one')
+    expect(note?.textContent).not.toContain('is provided by this installation')
+    // The consent is the OTHER floor: it is recorded all the same.
+    fireEvent.click(toggle)
+    await waitFor(() => expect(setBrowser).toHaveBeenCalledWith('acme', true))
     expect(screen.getByTestId('network-tools-status-browser').textContent).toBe('Browser allowed.')
   })
 })

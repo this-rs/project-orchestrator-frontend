@@ -101,6 +101,9 @@ export default {
     nowAllowed: "Navigateur autorisé.",
     nowDenied: "Navigateur refusé.",
     allowedBy: "Autorisé par {by}, {when}",
-    note: "Le navigateur est attaché à une session dès que le serveur le fournit et que ce projet l'autorise.",
+    provided: "Cette installation fournit le navigateur",
+    notProvided: "Cette installation ne fournit pas le navigateur",
+    noteProvided: "Le navigateur est fourni par cette installation (configuration du serveur) ; l'autorisation ci-dessus est le consentement de ce projet, et c'est elle qui l'attache à ses sessions.",
+    noteMissing: "Cette installation ne fournit pas le navigateur (build sans la fonctionnalité, ou exécutable non configuré) ; l'autoriser enregistre le consentement de ce projet et prendra effet dès qu'elle le fournira.",
   },
 } satisfies Translation<'networkTools'>

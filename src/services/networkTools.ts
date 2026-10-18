@@ -23,6 +23,10 @@ export const networkToolsApi = {
     api.delete<void>(
       `/projects/${encodeURIComponent(projectSlug)}/network-tools/origins${buildQuery({ origin })}`,
     ),
+  /**
+   * Allows or denies the browser FOR THIS PROJECT. The answer also carries `available`, which
+   * this project does not decide: whether the installation provides a browser at all (N23c).
+   */
   setBrowser: (projectSlug: string, allowed: boolean) =>
     api.put<BrowserSetting>(`/projects/${encodeURIComponent(projectSlug)}/network-tools/browser`, { allowed }),
 
