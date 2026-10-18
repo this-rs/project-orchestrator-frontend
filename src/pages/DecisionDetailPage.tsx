@@ -3,6 +3,8 @@
  * alternatives considered, the code it constrains, its supersession timeline
  * and lifecycle actions. Route: /workspace/:slug/decisions/:decisionId
  */
+import { AnchoredConversations } from '@/components/anchors/AnchoredConversations'
+import { useUiContext } from '@/hooks/useUiContext'
 import { createElement, useState, useEffect, useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowRightLeft, CheckCircle2, Copy, Pencil, Plus, Scale, Trash2, Unlink } from 'lucide-react'
@@ -155,6 +157,8 @@ export function DecisionDetailPage() {
     affectsForm.reset()
     affectsDialog.open({ title: 'Add affected entity', submitLabel: 'Add' })
   }
+
+  useUiContext('decision', decision?.id, decision ? decisionTitle(decision.description) : null)
 
   // ── Loading / Error ─────────────────────────────────────────────────
 
@@ -372,6 +376,8 @@ export function DecisionDetailPage() {
           </EntityList>
         )}
       </Section>
+
+      <AnchoredConversations targetType="decision" targetId={decision.id} />
 
       {/* ── Details ─────────────────────────────────────────────────── */}
       <Section title="Details">

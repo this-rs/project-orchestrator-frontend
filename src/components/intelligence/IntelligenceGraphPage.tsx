@@ -25,6 +25,7 @@ import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
 import { Branding } from '@/components/ui'
 import type { IntelligenceLayer } from '@/types/intelligence'
 import { useT, type MessageKey } from '@/i18n'
+import { claimModK } from '@/components/anchors/askHereShortcut'
 
 // ── Entity legend data ──────────────────────────────────────────────────────
 const ENTITY_LEGEND: { layer: IntelligenceLayer; types: { key: string; label: MessageKey }[] }[] = [
@@ -127,7 +128,12 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    // This screen owns Cmd+K while mounted: « Demander ici » leaves it alone.
+    const release = claimModK()
+    return () => {
+      release()
+      window.removeEventListener('keydown', handleKeyDown)
+    }
   }, [setSearchOpen])
 
   // Determine overlay states — use allNodes (raw API data) instead of layouted nodes

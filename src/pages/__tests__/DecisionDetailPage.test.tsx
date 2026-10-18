@@ -22,6 +22,8 @@ const { api, toast, navigate } = vi.hoisted(() => ({
   navigate: vi.fn(),
 }))
 
+// The anchored-conversations panel reads its own routes and the events bus: tested in its own file.
+vi.mock('@/components/anchors/AnchoredConversations', () => ({ AnchoredConversations: () => <div data-testid="anchored-conversations" /> }))
 vi.mock('@/services', () => ({ decisionsApi: api }))
 vi.mock('@/hooks', async () => {
   const { useFormDialog } = await import('@/hooks/useFormDialog')

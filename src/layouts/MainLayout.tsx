@@ -9,6 +9,7 @@ import { sidebarCollapsedAtom, breadcrumbTitleAtom, chatPanelModeAtom, chatPanel
 import { ToastContainer, Branding, HaloPointer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { ReferenceSourceHost } from '@/refs/source/ReferenceSourceHost'
+import { AskHerePalette } from '@/components/anchors/AskHerePalette'
 import { UserMenu } from '@/components/auth/UserMenu'
 import { LanguageSelect } from '@/components/LanguageSelect'
 import { TodayLogoLink } from '@/components/TodayLogoLink'
@@ -509,6 +510,8 @@ export function MainLayout() {
 
       {/* The chat needs a workspace: with none yet (first launch), there is no chat */}
       {chatSlug && <ChatPanel />}
+      {/* « Demander ici » (Cmd+K): a question anchored on the page on screen. */}
+      {chatSlug && <AskHerePalette />}
       <ToastContainer />
       <ReferenceSourceHost />
       {/* Mounted once: the glass edge of every `.btn` follows a fine pointer (no-op on touch / reduced motion). */}
