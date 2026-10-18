@@ -248,6 +248,8 @@ export interface SessionWithLinks {
     project_slug?: string
     workspace_slug?: string
     cwd: string
+    /** Always sent by these endpoints (the stored node): `project` or `neutral`. */
+    execution_place?: ExecutionPlace
     title?: string
     model: string
     created_at: string
@@ -332,6 +334,10 @@ export interface EffectiveCapabilities {
   images: EffectiveCapability
 }
 
+/** Where a chat session runs (`execution_place` of the API). Absent on the wire = `project`. */
+export const EXECUTION_PLACES = ['project', 'neutral'] as const
+export type ExecutionPlace = (typeof EXECUTION_PLACES)[number]
+
 export interface ChatSession {
   id: string
   cli_session_id?: string
@@ -339,6 +345,11 @@ export interface ChatSession {
   /** Workspace slug if session spans a workspace */
   workspace_slug?: string
   cwd: string
+  /**
+   * Where the session runs. `neutral`: an empty folder the server made because no `cwd` was given
+   * (the `cwd` above is then that folder, never a project). Absent = `project` (left off the wire).
+   */
+  execution_place?: ExecutionPlace
   title?: string
   model: string
   created_at: string
@@ -452,7 +463,7 @@ export interface CreateSessionResponse {
    * `neutral` when the host made an empty working directory (no `cwd` sent); absent = `project`.
    * Typed, deliberately ignored: this interface always sends a `cwd`.
    */
-  execution_place?: 'project' | 'neutral'
+  execution_place?: ExecutionPlace
   /** Things the caller should know about how the session opened. Typed, not shown yet. */
   notices?: string[]
 }

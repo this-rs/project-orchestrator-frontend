@@ -1,6 +1,10 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  place: {
+    neutral: "Neutraler Ort",
+    neutralHint: "Läuft in einem leeren Ordner, den der Server angelegt hat, außerhalb jedes Projekts. Dort geschriebene Dateien werden beim Schließen der Unterhaltung gelöscht.",
+  },
   lockedVault: {
     resent: "Tresor entsperrt: Ihre Nachricht wird erneut gesendet.",
     fallbacksLabel: "Oder ohne Tresor fortfahren:",

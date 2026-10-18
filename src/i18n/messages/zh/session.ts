@@ -1,6 +1,10 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  place: {
+    neutral: "中立位置",
+    neutralHint: "在服务器创建的空文件夹中运行，不属于任何项目。写入其中的文件会在对话关闭时删除。",
+  },
   lockedVault: {
     resent: "保险库已解锁：正在重新发送您的消息。",
     fallbacksLabel: "或不使用保险库继续：",

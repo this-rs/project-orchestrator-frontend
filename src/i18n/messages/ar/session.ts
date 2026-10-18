@@ -1,6 +1,10 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  place: {
+    neutral: "مكان محايد",
+    neutralHint: "تعمل في مجلد فارغ أنشأه الخادم، خارج أي مشروع. تُحذف الملفات المكتوبة فيه عند إغلاق المحادثة.",
+  },
   lockedVault: {
     resent: "تم فتح الخزنة: تتم إعادة إرسال رسالتك.",
     fallbacksLabel: "أو المتابعة دون الخزنة:",

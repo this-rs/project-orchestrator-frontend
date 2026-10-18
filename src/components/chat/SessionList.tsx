@@ -5,6 +5,8 @@ import { chatSessionRefreshAtom, providersAtom, showSpawnedSessionsAtom } from '
 import { isClaudeCodeProvider, type ProviderInstance } from '@/types/provider'
 import { describeSessionProvider, shouldShowProviderBadge } from '@/constants/providers'
 import { ProviderBadge } from './ProviderBadge'
+import { NeutralPlaceLabel } from './NeutralPlaceLabel'
+import { isNeutralPlace } from '@/utils/executionPlace'
 import { CostDisplay } from '@/components/ui/CostDisplay'
 import { costReport, formatUsd2 } from '@/utils/cost'
 import { chatApi, getEventBus, workspacesApi } from '@/services'
@@ -162,18 +164,20 @@ function CountChip({ kind, count }: { kind: LinkedKind; count: number }) {
 }
 
 /**
- * Context line: working directory + linked plans/RFCs/tasks.
+ * Context line: working directory (or the neutral place, never shown as a folder) + linked plans/RFCs/tasks.
  * Few entities → inline links. Many → per-kind counters + "more" toggle
  * revealing the full, grouped list.
  */
 function ContextLine({
-  plans, rfcs, tasks, wsSlug, cwd,
+  plans, rfcs, tasks, wsSlug, cwd, neutral = false,
 }: {
   plans?: ChatLinkedPlan[]
   rfcs?: ChatLinkedRfc[]
   tasks?: ChatLinkedTask[]
   wsSlug: string | null
   cwd?: string | null
+  /** The session runs in the server's neutral folder: its `cwd` is not a project. */
+  neutral?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -183,9 +187,11 @@ function ContextLine({
   const taskList = wsSlug ? tasks ?? [] : []
   const total = planList.length + rfcList.length + taskList.length
 
-  if (!cwd && total === 0) return null
+  if (!cwd && !neutral && total === 0) return null
 
-  const cwdEl = cwd ? (
+  const cwdEl = neutral ? (
+    <NeutralPlaceLabel className="text-gray-600" />
+  ) : cwd ? (
     <span className="inline-flex items-center gap-1 min-w-0 shrink text-gray-600" title={cwd}>
       <Folder className="w-3 h-3 shrink-0" aria-hidden="true" />
       <span className="truncate">{shortenPath(cwd)}</span>
@@ -548,6 +554,7 @@ export const SessionRow = memo(function SessionRow({
             tasks={session.linked_tasks}
             wsSlug={wsSlug}
             cwd={session.cwd}
+            neutral={isNeutralPlace(session)}
           />
 
           {/* Child sessions (detached runs) */}

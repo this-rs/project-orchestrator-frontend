@@ -24,6 +24,8 @@ import {
 import type { Constraint, Decision, DecisionStatus, SessionWithLinks, Step, StepStatus } from '@/types'
 import { workspacePath } from '@/utils/paths'
 import { useT } from '@/i18n'
+import { NeutralPlaceLabel } from '@/components/chat/NeutralPlaceLabel'
+import { isNeutralPlace } from '@/utils/executionPlace'
 import { decisionTitle } from '@/components/knowledge/noteMeta'
 
 /**
@@ -273,7 +275,9 @@ export function SessionRow({ item, onOpen, showTasks }: SessionRowProps) {
             {session.model}
           </span>
         ) : null,
-        session.cwd ? (
+        isNeutralPlace(session) ? (
+          <NeutralPlaceLabel key="cwd" className="max-w-[12rem]" />
+        ) : session.cwd ? (
           <span key="cwd" className="truncate max-w-[12rem] font-mono" title={session.cwd}>
             {shortCwd(session.cwd)}
           </span>

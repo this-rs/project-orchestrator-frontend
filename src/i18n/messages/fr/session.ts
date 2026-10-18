@@ -1,6 +1,10 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  place: {
+    neutral: "Lieu neutre",
+    neutralHint: "S’exécute dans un dossier vide créé par le serveur, hors de tout projet. Les fichiers qui y sont écrits sont supprimés à la fermeture de la conversation.",
+  },
   lockedVault: {
     resent: "Coffre déverrouillé : votre message est renvoyé.",
     fallbacksLabel: "Ou continuer sans le coffre :",
