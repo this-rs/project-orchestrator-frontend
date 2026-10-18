@@ -42,6 +42,7 @@ export default {
   },
   installation: {
     nexus_tools: "未找到 nexus-tools 可执行文件：请将其安装在 Project Orchestrator 后端旁边，或在 NEXUS_TOOLS_PATH 中设置其位置。之后原生会话即可使用 Bash、Read、Edit 和 WebFetch。",
+    resume_after_restart: "服务器重启后此对话不会恢复：原生对话目录位于某个 git 仓库内（通常是受版本控制的主目录），因此它保存在内存中，而不写入可能被提交公开的位置。请将服务器的数据目录移出该仓库。",
   },
   harness: {
     hooks: "钩子（技能、工具后重定向）尚未运行",

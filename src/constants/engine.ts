@@ -45,9 +45,11 @@ export const HARNESS_FEATURES: readonly string[] = ['message_queue', 'auto_conti
 /**
  * Features missing because of the server installation, not of the engine or the
  * model (backend #637: `nexus_tools` is declared only when the executable is
- * really missing or not runnable).
+ * really missing or not runnable). `resume_after_restart`: the transcript
+ * directory lies inside a git work tree (a versioned HOME), so the conversation is kept in
+ * memory and does not resume after a server restart (backend CTX6 follow-up).
  */
-export const INSTALLATION_FEATURES: readonly string[] = ['nexus_tools']
+export const INSTALLATION_FEATURES: readonly string[] = ['nexus_tools', 'resume_after_restart']
 
 /**
  * Degraded ids that the backend derives from a capability of the session. When
@@ -204,6 +206,7 @@ const HARNESS_KEYS: Readonly<Record<string, MessageKey>> = {
 
 const INSTALLATION_KEYS: Readonly<Record<string, MessageKey>> = {
   nexus_tools: 'session.installation.nexus_tools',
+  resume_after_restart: 'session.installation.resume_after_restart',
 }
 
 const MODEL_KEYS: Readonly<Record<string, MessageKey>> = {

@@ -40,6 +40,7 @@ export default {
   },
   installation: {
     nexus_tools: "The nexus-tools executable was not found: install it next to the Project Orchestrator backend, or set NEXUS_TOOLS_PATH to its location. Native sessions then get Bash, Read, Edit and WebFetch.",
+    resume_after_restart: "This conversation does not resume after a server restart: the directory of native conversations lies inside a git repository (often a versioned home folder), so it is kept in memory rather than written where a commit could publish it. Move the server's data directory out of that repository.",
   },
   harness: {
     hooks: 'Hooks (skills, post-tool redirects) do not run yet',

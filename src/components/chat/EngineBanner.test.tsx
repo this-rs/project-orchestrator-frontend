@@ -122,6 +122,20 @@ describe('EngineBanner', () => {
     expect(harness.textContent).not.toMatch(/nexus/i)
     expect(screen.getByTestId('engine-banner').textContent).not.toMatch(/nexus tools: not available yet/)
   })
+
+  it('resume_after_restart: an installation fact (transcripts inside a git work tree), with what to change', () => {
+    expect(classifyDegradations(['resume_after_restart'], { tools: true, resume: true })).toEqual([
+      { id: 'resume_after_restart', cause: 'installation' },
+    ])
+    render(<EngineBanner degraded={['resume_after_restart']} declared={{ tools: true, resume: true }} />)
+    const installation = screen.getByTestId('engine-banner-installation')
+    const items = within(installation).getAllByRole('listitem')
+    expect(items).toHaveLength(1)
+    expect(items[0].getAttribute('data-feature')).toBe('resume_after_restart')
+    expect(items[0].textContent).toMatch(/does not resume after a server restart/)
+    expect(items[0].textContent).toMatch(/git repository/)
+    expect(screen.queryByTestId('engine-banner-harness')).toBeNull()
+  })
 })
 
 /** An ACP agent (backend #725): no sub-agents of its own, and child sessions run for the native harness only. */

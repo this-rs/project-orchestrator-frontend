@@ -42,6 +42,7 @@ export default {
   },
   installation: {
     nexus_tools: "O executável nexus-tools não foi encontrado: instale-o ao lado do backend do Project Orchestrator ou defina NEXUS_TOOLS_PATH com a sua localização. As sessões nativas passam então a ter Bash, Read, Edit e WebFetch.",
+    resume_after_restart: "Esta conversa não será retomada após reiniciar o servidor: a pasta das conversas nativas está dentro de um repositório git (muitas vezes uma pasta pessoal versionada), por isso fica em memória em vez de ser gravada onde um commit poderia publicá-la. Mova a pasta de dados do servidor para fora desse repositório.",
   },
   harness: {
     hooks: "Os hooks (skills, redirecionamentos após ferramenta) ainda não são executados",

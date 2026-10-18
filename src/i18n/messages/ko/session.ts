@@ -42,6 +42,7 @@ export default {
   },
   installation: {
     nexus_tools: "nexus-tools 실행 파일을 찾을 수 없습니다. Project Orchestrator 백엔드 옆에 설치하거나 NEXUS_TOOLS_PATH에 그 위치를 지정하세요. 그러면 네이티브 세션에서 Bash, Read, Edit, WebFetch를 사용할 수 있습니다.",
+    resume_after_restart: "이 대화는 서버를 다시 시작한 뒤 이어지지 않습니다. 네이티브 대화 폴더가 git 저장소 안(흔히 버전 관리되는 홈 폴더)에 있어, 커밋으로 공개될 수 있는 곳에 쓰지 않고 메모리에만 보관합니다. 서버의 데이터 폴더를 그 저장소 밖으로 옮기세요.",
   },
   harness: {
     hooks: "훅(스킬, 도구 후 리디렉션)이 아직 실행되지 않습니다",
