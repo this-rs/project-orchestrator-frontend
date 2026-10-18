@@ -518,6 +518,30 @@ export interface TurnUsage {
   reasoning_tokens?: number
 }
 
+/** One turn of `GET /api/chat/sessions/{id}/usage` (backend `chat::cost::TurnUsage`). Absent = not reported, never 0. */
+export interface SessionTurnUsage extends TurnUsage {
+  seq: number
+  model?: string | null
+  /** `cache_read / (input + cache_read)`, when both are known. */
+  cache_hit_ratio?: number | null
+}
+
+/** `GET /api/chat/sessions/{id}/usage` (backend `chat::cost::SessionUsage`). */
+export interface SessionUsage {
+  /** Turns that ended (a `result` event). */
+  turns: number
+  /** Of those, the turns whose provider reported a usage. */
+  turns_with_usage: number
+  input_tokens?: number | null
+  output_tokens?: number | null
+  cache_read_tokens?: number | null
+  cache_creation_tokens?: number | null
+  reasoning_tokens?: number | null
+  /** Over the whole conversation: `cache_read / (input + cache_read)`. */
+  cache_hit_ratio?: number | null
+  by_turn: SessionTurnUsage[]
+}
+
 /** Fields the provider adapter stamps on a tool call so the UI never guesses from the name. */
 interface ToolProviderHints {
   /** `command | read | edit | search | web | mcp | agent | other`. */

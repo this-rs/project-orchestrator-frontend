@@ -133,6 +133,42 @@ export function formatTokens(tokens: CostTokens | undefined): string | null {
   return parts.length > 0 ? parts.join(' · ') : null
 }
 
+/**
+ * Share of the input served from the prompt cache: `cache_read / (input + cache_read)`,
+ * the backend's own formula (`chat::cost`). `undefined` unless BOTH counts are known —
+ * a ratio over a guessed denominator would be a claim nobody made.
+ */
+export function cacheHitRatio(tokens: CostTokens | undefined): number | undefined {
+  if (tokens?.input === undefined || tokens.cache_read === undefined) return undefined
+  const total = tokens.input + tokens.cache_read
+  return total > 0 ? tokens.cache_read / total : undefined
+}
+
+/** `87%` — whole percent, `<1%` for a non-zero share that rounds to zero. */
+export function formatRatio(ratio: number): string {
+  if (ratio > 0 && ratio < 0.005) return '<1%'
+  return `${Math.round(ratio * 100)}%`
+}
+
+/**
+ * The prompt-cache part of a turn: `8.4k cached (87%)`, then what was WRITTEN to the cache —
+ * its count, or "cache write unknown" when the provider did not report it (an
+ * OpenAI-compatible endpoint never does). A missing write is never shown as 0.
+ * `null` when the turn reported no cache read at all.
+ */
+export function formatCache(tokens: CostTokens | undefined): string | null {
+  if (tokens?.cache_read === undefined) return null
+  const { t } = activeTranslator()
+  const ratio = cacheHitRatio(tokens)
+  const read = ratio === undefined
+    ? t('ui.cost.cacheRead', { n: formatTokenCount(tokens.cache_read) })
+    : t('ui.cost.cacheReadRatio', { n: formatTokenCount(tokens.cache_read), ratio: formatRatio(ratio) })
+  const write = tokens.cache_creation === undefined
+    ? t('ui.cost.cacheWriteUnknown')
+    : t('ui.cost.cacheWrite', { n: formatTokenCount(tokens.cache_creation) })
+  return `${read} · ${write}`
+}
+
 export const costEstimatedBadge = (): string => activeTranslator().t('ui.cost.estimated')
 export const costFreeText = (): string => activeTranslator().t('ui.cost.free')
 export const costSubscriptionText = (): string => activeTranslator().t('ui.cost.subscription')

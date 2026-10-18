@@ -107,6 +107,13 @@ export default {
   cost: {
     tokensIn: "入力 {n}",
     tokensOut: "出力 {n}",
+    cacheRead: "キャッシュ {n}",
+    cacheReadRatio: "キャッシュ {n}（{ratio}）",
+    cacheWrite: "キャッシュ書き込み {n}",
+    cacheWriteUnknown: "キャッシュ書き込み不明",
+    sessionCache: "会話: 入力の {ratio} がキャッシュから",
+    sessionCacheNone: "会話: キャッシュ読み取りの報告なし",
+    sessionCacheTitle: "使用量を報告した {turns} ターン中 {with} ターンのプロンプトキャッシュ",
     estimated: "推定",
     free: "ローカル",
     subscription: "サブスクリプション",

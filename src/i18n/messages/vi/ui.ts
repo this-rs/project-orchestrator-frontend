@@ -107,6 +107,13 @@ export default {
   cost: {
     tokensIn: "{n} vào",
     tokensOut: "{n} ra",
+    cacheRead: "{n} từ bộ nhớ đệm",
+    cacheReadRatio: "{n} từ bộ nhớ đệm ({ratio})",
+    cacheWrite: "{n} ghi vào bộ nhớ đệm",
+    cacheWriteUnknown: "không rõ lượng ghi bộ nhớ đệm",
+    sessionCache: "Hội thoại: {ratio} đầu vào từ bộ nhớ đệm",
+    sessionCacheNone: "Hội thoại: không có lượt đọc bộ nhớ đệm nào được báo cáo",
+    sessionCacheTitle: "Bộ nhớ đệm prompt trên {with} trong {turns} lượt có báo cáo mức dùng",
     estimated: "ước tính",
     free: "cục bộ",
     subscription: "gói đăng ký",

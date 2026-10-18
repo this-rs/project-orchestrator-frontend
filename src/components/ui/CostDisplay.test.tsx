@@ -57,3 +57,24 @@ describe('CostDisplay', () => {
     expect(container.textContent).toBe('·$2.00')
   })
 })
+
+describe('CostDisplay — prompt cache (CTX0-FE)', () => {
+  const tokens = { input: 1000, output: 50, cache_read: 9000 }
+
+  it('a turn line shows the cache read, its share, and an unknown write as unknown', () => {
+    render(<CostDisplay cost={{ usd: 0.01, basis: 'priced', tokens }} showCache />)
+    const cache = screen.getByTestId('cost-cache')
+    expect(cache.textContent).toContain('9k cached (90%)')
+    expect(cache.textContent).toContain('cache write unknown')
+  })
+
+  it('off by default: lists and dashboards keep their one figure', () => {
+    render(<CostDisplay cost={{ usd: 0.01, basis: 'priced', tokens }} />)
+    expect(screen.queryByTestId('cost-cache')).toBeNull()
+  })
+
+  it('no cache part when the turn reported no cache read', () => {
+    render(<CostDisplay cost={{ usd: 0.01, basis: 'reported', tokens: { input: 10, output: 5 } }} showCache />)
+    expect(screen.queryByTestId('cost-cache')).toBeNull()
+  })
+})

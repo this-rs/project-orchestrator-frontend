@@ -105,6 +105,13 @@ export default {
   cost: {
     tokensIn: '{n} in',
     tokensOut: '{n} out',
+    cacheRead: '{n} cached',
+    cacheReadRatio: '{n} cached ({ratio})',
+    cacheWrite: '{n} written to cache',
+    cacheWriteUnknown: 'cache write unknown',
+    sessionCache: 'Conversation: {ratio} of input from the cache',
+    sessionCacheNone: 'Conversation: no cache read reported',
+    sessionCacheTitle: 'Prompt cache over the {with} of {turns} turns that reported usage',
     estimated: 'est.',
     free: 'local',
     subscription: 'subscription',

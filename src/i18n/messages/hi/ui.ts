@@ -107,6 +107,13 @@ export default {
   cost: {
     tokensIn: "{n} इनपुट",
     tokensOut: "{n} आउटपुट",
+    cacheRead: "{n} कैश से",
+    cacheReadRatio: "{n} कैश से ({ratio})",
+    cacheWrite: "{n} कैश में लिखे गए",
+    cacheWriteUnknown: "कैश में लेखन अज्ञात",
+    sessionCache: "बातचीत: इनपुट का {ratio} कैश से",
+    sessionCacheNone: "बातचीत: कोई कैश पठन दर्ज नहीं",
+    sessionCacheTitle: "उपयोग बताने वाले {turns} में से {with} मोड़ों पर प्रॉम्प्ट कैश",
     estimated: "अनु.",
     free: "लोकल",
     subscription: "सदस्यता",

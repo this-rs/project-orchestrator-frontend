@@ -26,6 +26,7 @@ import type {
   SessionWithLinks,
   SwitchProviderRequest,
   SwitchProviderResponse,
+  SessionUsage,
 } from '@/types'
 import type { ProviderErrorInfo } from '@/types/provider'
 import { toProviderError } from './providers'
@@ -125,6 +126,14 @@ export const chatApi = {
    */
   refreshModelCatalog: () =>
     api.post<{ started: boolean; refreshing: boolean }>('/chat/models/refresh', {}),
+
+  /**
+   * Token usage of a conversation, read by the backend from its stored `result`
+   * events (`GET /api/chat/sessions/{id}/usage`): totals, the prompt-cache hit
+   * ratio, and turn by turn. A count the provider never reported is absent, not 0.
+   */
+  getSessionUsage: (sessionId: string) =>
+    api.get<SessionUsage>(`/chat/sessions/${sessionId}/usage`),
 
   /** Get child sessions (detached) of a parent session, with streaming status */
   getSessionChildren: (sessionId: string) =>

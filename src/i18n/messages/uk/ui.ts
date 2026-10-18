@@ -107,6 +107,13 @@ export default {
   cost: {
     tokensIn: 'вхід: {n}',
     tokensOut: 'вихід: {n}',
+    cacheRead: 'з кешу: {n}',
+    cacheReadRatio: 'з кешу: {n} ({ratio})',
+    cacheWrite: 'записано в кеш: {n}',
+    cacheWriteUnknown: 'запис у кеш невідомий',
+    sessionCache: 'Розмова: {ratio} введення з кешу',
+    sessionCacheNone: 'Розмова: читання з кешу не повідомлялося',
+    sessionCacheTitle: 'Кеш промпту за {with} з {turns} ходів із зазначеним використанням',
     estimated: 'оцінка',
     free: 'локально',
     subscription: 'підписка',

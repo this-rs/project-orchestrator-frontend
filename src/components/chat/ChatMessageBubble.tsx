@@ -497,7 +497,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
               </>
             )}
             {/* Amount, "est.", "local", "subscription" or tokens — by basis. Never "$0" for an unknown cost. */}
-            <CostDisplay cost={costOfMessage(message)} before={<span>·</span>} />
+            <CostDisplay cost={costOfMessage(message)} before={<span>·</span>} showCache />
           </div>
         )}
       </div>

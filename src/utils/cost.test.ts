@@ -5,6 +5,9 @@
  */
 import { describe, it, expect } from 'vitest'
 import {
+  cacheHitRatio,
+  formatCache,
+  formatRatio,
   costFromResult,
   costOfMessage,
   costReport,
@@ -158,5 +161,40 @@ describe('sumCosts / formatCostSum', () => {
     expect(formatCostSum(sumCosts([{ usd: null, basis: 'unknown' }, null]))).toBeNull()
     expect(sumCosts([{ usd: null, basis: 'unknown' }, null]).unknown).toBe(2)
     expect(formatCostSum(sumCosts([]))).toBeNull()
+  })
+})
+
+describe('prompt cache of a turn (CTX0-FE)', () => {
+  it('ratio = cache_read / (input + cache_read), the backend formula', () => {
+    expect(cacheHitRatio({ input: 100, cache_read: 900 })).toBeCloseTo(0.9)
+    expect(formatRatio(0.9)).toBe('90%')
+    expect(formatRatio(0.001)).toBe('<1%')
+  })
+
+  it('no ratio unless both counts are known', () => {
+    expect(cacheHitRatio({ cache_read: 900 })).toBeUndefined()
+    expect(cacheHitRatio({ input: 100 })).toBeUndefined()
+    expect(cacheHitRatio(undefined)).toBeUndefined()
+  })
+
+  it('a turn with cache reads shows them with their share', () => {
+    expect(formatCache({ input: 1000, cache_read: 9000, cache_creation: 200 })).toBe(
+      '9k cached (90%) · 200 written to cache',
+    )
+  })
+
+  it('an unreported cache write is "unknown", never 0', () => {
+    const text = formatCache({ input: 1000, cache_read: 9000 })
+    expect(text).toContain('cache write unknown')
+    expect(text).not.toMatch(/\b0 written/)
+  })
+
+  it('a reported zero write stays a zero (it was said)', () => {
+    expect(formatCache({ input: 10, cache_read: 0, cache_creation: 0 })).toBe('0 cached (0%) · 0 written to cache')
+  })
+
+  it('nothing when the turn reported no cache read', () => {
+    expect(formatCache({ input: 1000, output: 20 })).toBeNull()
+    expect(formatCache(undefined)).toBeNull()
   })
 })
