@@ -36,6 +36,9 @@ jobs:
       - name: Lint (blocking on errors)
         run: npm run lint
 
+      - name: Claude-only mode literals stay in the mapping table (blocking)
+        run: node scripts/check-mode-literals.mjs
+
       - name: Typecheck + build
         run: npm run build
 
