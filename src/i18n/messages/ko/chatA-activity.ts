@@ -180,5 +180,24 @@ export default {
     completedOne: "완료된 실행 {count}개",
     completedMany: "완료된 실행 {count}개",
     done: "{count}개 완료"
+  },
+  work: {
+    kind: {
+      plan: "플랜",
+      task: "작업"
+    },
+    steps: "단계 {done}/{total}",
+    openPlan: "플랜 {title} 열기",
+    openTask: "작업 {title} 열기",
+    plans: {
+      one: "플랜 {count}개",
+      many: "플랜 {count}개"
+    },
+    tasks: {
+      one: "작업 {count}개",
+      many: "작업 {count}개"
+    },
+    barAria: "진행 중: {summary}",
+    barAriaCurrent: "진행 중: {summary} — 현재 작업: {title}"
   }
 } satisfies Translation<'chatA-activity'>

@@ -180,5 +180,24 @@ export default {
     completedOne: "{count} exécution terminée",
     completedMany: "{count} exécutions terminées",
     done: "{count} terminé(es)"
+  },
+  work: {
+    kind: {
+      plan: "plan",
+      task: "tâche"
+    },
+    steps: "étape {done}/{total}",
+    openPlan: "Ouvrir le plan {title}",
+    openTask: "Ouvrir la tâche {title}",
+    plans: {
+      one: "{count} plan",
+      many: "{count} plans"
+    },
+    tasks: {
+      one: "{count} tâche",
+      many: "{count} tâches"
+    },
+    barAria: "En cours : {summary}",
+    barAriaCurrent: "En cours : {summary} — tâche courante : {title}"
   }
 } satisfies Translation<'chatA-activity'>

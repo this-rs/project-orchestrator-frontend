@@ -180,5 +180,24 @@ export default {
     completedOne: "{count} lượt chạy đã hoàn tất",
     completedMany: "{count} lượt chạy đã hoàn tất",
     done: "{count} xong"
+  },
+  work: {
+    kind: {
+      plan: "kế hoạch",
+      task: "tác vụ"
+    },
+    steps: "bước {done}/{total}",
+    openPlan: "Mở kế hoạch {title}",
+    openTask: "Mở tác vụ {title}",
+    plans: {
+      one: "{count} kế hoạch",
+      many: "{count} kế hoạch"
+    },
+    tasks: {
+      one: "{count} tác vụ",
+      many: "{count} tác vụ"
+    },
+    barAria: "Đang thực hiện: {summary}",
+    barAriaCurrent: "Đang thực hiện: {summary} — tác vụ hiện tại: {title}"
   }
 } satisfies Translation<'chatA-activity'>

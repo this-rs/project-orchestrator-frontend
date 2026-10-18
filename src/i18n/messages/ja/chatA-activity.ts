@@ -180,5 +180,24 @@ export default {
     completedOne: "{count} 件の実行が完了",
     completedMany: "{count} 件の実行が完了",
     done: "{count} 件完了"
+  },
+  work: {
+    kind: {
+      plan: "プラン",
+      task: "タスク"
+    },
+    steps: "ステップ {done}/{total}",
+    openPlan: "プラン {title} を開く",
+    openTask: "タスク {title} を開く",
+    plans: {
+      one: "プラン {count} 件",
+      many: "プラン {count} 件"
+    },
+    tasks: {
+      one: "タスク {count} 件",
+      many: "タスク {count} 件"
+    },
+    barAria: "進行中: {summary}",
+    barAriaCurrent: "進行中: {summary} — 現在のタスク: {title}"
   }
 } satisfies Translation<'chatA-activity'>

@@ -153,4 +153,14 @@ export default {
     completedMany: '{count} runs completed',
     done: '{count} done',
   },
+  work: {
+    kind: { plan: 'plan', task: 'task' },
+    steps: 'step {done}/{total}',
+    openPlan: 'Open the plan {title}',
+    openTask: 'Open the task {title}',
+    plans: { one: '{count} plan', many: '{count} plans' },
+    tasks: { one: '{count} task', many: '{count} tasks' },
+    barAria: 'In progress: {summary}',
+    barAriaCurrent: 'In progress: {summary} — current task: {title}',
+  },
 }

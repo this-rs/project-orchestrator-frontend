@@ -10,6 +10,7 @@ import type { ProviderFallback, ProviderId } from '@/types/provider'
 import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
+import { useTimelineContext } from '@/hooks/useTimelineContext'
 import { useModalFocus } from '@/hooks/useModalFocus'
 import { describeSessionProvider, providerUnavailableReason } from '@/constants/providers'
 import { instanceMissingComposerText, mirrorReadOnlyComposerText, noProviderComposerText, NO_PROVIDER_ERROR } from '@/constants/providerErrors'
@@ -187,6 +188,9 @@ export function ChatPanel() {
   // A run that streams is in the activity bar; the panel above the transcript keeps the finished
   // ones. Showing a live run in both (and in a banner, and in a header pill) was three surfaces
   // for one fact.
+  // The plans / tasks the conversation is linked to, for the work bar of the tray: re-read when a
+  // turn starts or ends (a turn is where a task changes status), never on every token.
+  const timelineContext = useTimelineContext(chat.sessionId, chat.isStreaming, { decisions: false })
   const finishedRuns = useMemo(() => detachedRuns.runs.filter((r) => !r.isStreaming), [detachedRuns.runs])
   const panelRef = useRef<HTMLDivElement>(null)
   const setScrollToTurn = useSetAtom(chatScrollToTurnAtom)
@@ -951,6 +955,8 @@ export function ChatPanel() {
                       prefill={prefill}
                       activity={activity}
                       runActions={runActions}
+                      work={timelineContext.work}
+                      workspaceSlug={activeWsSlug}
                     />
                   </ComposerDock>
                 </div>
@@ -1199,6 +1205,8 @@ export function ChatPanel() {
                 prefill={prefill}
                 activity={activity}
                 runActions={runActions}
+                work={timelineContext.work}
+                workspaceSlug={activeWsSlug}
               />
             </ComposerDock>
           </div>
