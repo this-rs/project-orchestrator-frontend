@@ -183,6 +183,10 @@ export default {
     allowAlways: "Sempre",
     alwaysHint: "Não é perguntado novamente para esta chamada exata nas suas conversas deste projeto que rodam no diretório dele, nesta máquina; perguntado de novo se a conversa mudou de diretório",
     alwaysCovers: "Se concedida, «Sempre» cobre apenas:",
+    destinationHint: 'Um destino de rede: o que a autorização cobre é definido pelo orquestrador e indicado assim que você responder',
+    destinationCovers: 'Esta chamada alcança:',
+    destinationAlwaysHint: 'Pode ser registrado como consentimento de rede deste projeto, listado e revogável em Configurações → Ferramentas de rede',
+    destinationAlwaysCovers: '“Sempre” pode ser registrado como consentimento de rede deste projeto (Configurações → Ferramentas de rede).',
     alwaysRefused: "Esta chamada não pode ser permitida para sempre (apenas uma leitura exata, ou um comando somente leitura sem redirecionamento nem encadeamento). Responda uma vez ou para a sessão.",
     allowedAlways: "Sempre permitido"
   },

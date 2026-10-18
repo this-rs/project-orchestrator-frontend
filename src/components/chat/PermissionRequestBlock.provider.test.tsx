@@ -63,7 +63,8 @@ describe('PermissionRequestBlock — category from the provider', () => {
     ['Grep', { pattern: 'TODO' }, 'Read: TODO'],
     ['Read', { file_path: '/repo/src/a.ts' }, 'Read: a.ts'],
     ['Write', { file_path: '/repo/src/b.ts' }, 'Edit: b.ts'],
-    ['WebFetch', { url: 'https://example.com/x' }, 'Web: example.com'],
+    // The ORIGIN, scheme included (N23b): `http://` and `https://` are two consents.
+    ['WebFetch', { url: 'https://example.com/x' }, 'Web: https://example.com'],
     ['mcp__project-orchestrator__create_note', { content: 'x' }, 'MCP: create note'],
     ['Task', { prompt: 'x' }, 'Tool: Task'],
   ])('a Claude `%s` request keeps its label', (tool, input, text) => {

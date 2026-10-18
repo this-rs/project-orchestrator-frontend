@@ -183,6 +183,10 @@ export default {
     allowAlways: "Toujours",
     alwaysHint: "Plus demandé pour cet appel exact dans vos conversations de ce projet qui s'exécutent dans son dossier, sur cette machine ; redemandé si la conversation a changé de dossier",
     alwaysCovers: "Si elle est accordée, « Toujours » ne couvre que :",
+    destinationHint: "Une destination réseau : ce que l'autorisation couvre est fixé par l'orchestrateur, et énoncé dès que vous répondez",
+    destinationCovers: 'Cet appel atteint :',
+    destinationAlwaysHint: 'Peut être enregistré comme consentement réseau de ce projet, listé et révocable dans Réglages → Outils réseau',
+    destinationAlwaysCovers: '« Toujours » peut être enregistré comme consentement réseau de ce projet (Réglages → Outils réseau).',
     alwaysRefused: "Cet appel ne peut pas être autorisé pour toujours (seuls une lecture exacte, ou une commande en lecture seule sans redirection ni enchaînement, le peuvent). Répondez une fois ou pour la session.",
     allowedAlways: "Toujours autorisé"
   },

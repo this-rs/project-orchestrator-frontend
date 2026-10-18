@@ -183,6 +183,10 @@ export default {
     allowAlways: "Immer",
     alwaysHint: "Für genau diesen Aufruf nicht mehr gefragt, in Ihren Unterhaltungen zu diesem Projekt, die in seinem Verzeichnis laufen, auf diesem Rechner; erneut gefragt, wenn die Unterhaltung das Verzeichnis gewechselt hat",
     alwaysCovers: "Wenn erteilt, deckt „Immer“ nur ab:",
+    destinationHint: 'Ein Netzwerkziel: Was die Freigabe umfasst, bestimmt der Orchestrator und nennt es, sobald Sie antworten',
+    destinationCovers: 'Dieser Aufruf erreicht:',
+    destinationAlwaysHint: 'Kann als Netzwerk-Einwilligung dieses Projekts gespeichert werden, aufgeführt und widerrufbar unter Einstellungen → Netzwerk-Tools',
+    destinationAlwaysCovers: '„Immer“ kann als Netzwerk-Einwilligung dieses Projekts gespeichert werden (Einstellungen → Netzwerk-Tools).',
     alwaysRefused: "Dieser Aufruf kann nicht dauerhaft erlaubt werden (nur ein exakter Lesezugriff oder ein schreibgeschützter Befehl ohne Umleitung oder Verkettung). Antworten Sie einmalig oder für die Sitzung.",
     allowedAlways: "Immer erlaubt"
   },

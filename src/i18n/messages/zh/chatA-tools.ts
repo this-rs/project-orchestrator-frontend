@@ -183,6 +183,10 @@ export default {
     allowAlways: "始终允许",
     alwaysHint: "在本机上，此项目在其目录中运行的对话里，不再为这个完全相同的调用询问；如果对话已切换目录，则会再次询问",
     alwaysCovers: "如获允许，「始终允许」仅涵盖：",
+    destinationHint: '这是一个网络目标：授权的范围由编排器决定，并在你回答后告知',
+    destinationCovers: '此调用将访问：',
+    destinationAlwaysHint: '可能被记录为本项目的网络同意，可在设置 → 网络工具中查看和撤销',
+    destinationAlwaysCovers: '“始终”可能被记录为本项目的网络同意（设置 → 网络工具）。',
     alwaysRefused: "此调用无法永久允许（只有完全相同的读取，或一条不含重定向和串联的只读命令可以）。请选择允许一次或本次会话。",
     allowedAlways: "已始终允许"
   },

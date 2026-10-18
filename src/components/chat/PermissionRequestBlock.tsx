@@ -127,7 +127,10 @@ function formatToolSummary(
     case 'web': {
       const url = (input.url as string) || ''
       try {
-        return { summary: url ? new URL(url).hostname : toolName, detail: url, language: 'text' }
+        // The ORIGIN, scheme included, never the bare hostname: `http://x` and `https://x`
+        // are two different destinations and two different consents, so an interface that
+        // drops the scheme hides the very thing the answer is about (N23b).
+        return { summary: url ? new URL(url).origin : toolName, detail: url, language: 'text' }
       } catch {
         return { summary: toolName, detail: url, language: 'text' }
       }
@@ -150,6 +153,31 @@ function canonicalJson(value: unknown): string {
           )
         : v
   return JSON.stringify(sorted(value ?? {}))
+}
+
+/**
+ * The destination a web call reaches, as the call itself names it (`scheme://host[:port]`),
+ * or `null` when the call names no destination.
+ *
+ * Shown, never asserted as the subject of a consent: PO computes that subject itself
+ * (`chat::provider::nexus_tools::consent_subject`, which also upgrades `http://` to the
+ * `https://` endpoint nexus-tools really connects to), and says what the answer covered in
+ * `permission_decision.rule`. This interface therefore reports the destination of the CALL
+ * and leaves the scope of the answer to PO — a second derivation here would let the screen
+ * name one origin while PO records another.
+ */
+function destinationOf(
+  category: ToolCategory,
+  input: Record<string, unknown> | undefined,
+): string | null {
+  if (category !== 'web') return null
+  const url = input?.url
+  if (typeof url !== 'string' || !url) return null
+  try {
+    return new URL(url).origin
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -298,6 +326,14 @@ export function PermissionRequestBlock({
   // What "for the session" covers, shown BEFORE the click: this exact call, as the backend
   // describes its grant (`Bash: git status`).
   const sessionRule = sessionGrantPreview(toolName, toolInput)
+  // A call that names a network destination (N23b). PO may be asking about the DESTINATION
+  // rather than about this call — a gate on an origin the project has not consented to raises
+  // the very same `permission_request` (nexus `PermissionAsk` carries no subject on the wire),
+  // so this interface cannot tell the two apart. It therefore stops claiming "only this exact
+  // call", which is false whenever the question is about an origin: `session` is then kept by
+  // the harness against the origin, and `always` is written to the project's network consents.
+  // The truth is stated by PO once the answer is in (`permission_decision.rule`, rendered above).
+  const destination = destinationOf(category, toolInput)
 
   // Sync with persisted decision arriving via broadcast after initial render
   if (persistedDecision && !responded) {
@@ -470,7 +506,11 @@ export function PermissionRequestBlock({
               data-scope="session"
               onClick={() => handleRespond(true, 'session')}
               disabled={disabled || awaitingScope}
-              title={t('chatA-tools.permission.sessionHint')}
+              title={
+                destination
+                  ? t('chatA-tools.permission.destinationHint')
+                  : t('chatA-tools.permission.sessionHint')
+              }
               aria-describedby={`permission-scope-${toolCallId}`}
               className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-600/10 text-emerald-300 hover:bg-emerald-600/20 transition-colors disabled:opacity-50"
             >
@@ -483,7 +523,11 @@ export function PermissionRequestBlock({
               data-scope="always"
               onClick={() => handleRespond(true, 'always')}
               disabled={disabled || awaitingScope}
-              title={t('chatA-tools.permission.alwaysHint')}
+              title={
+                destination
+                  ? t('chatA-tools.permission.destinationAlwaysHint')
+                  : t('chatA-tools.permission.alwaysHint')
+              }
               aria-describedby={`permission-always-${toolCallId}`}
               className="px-2.5 py-1 text-[11px] font-medium rounded bg-emerald-600/10 text-emerald-300 hover:bg-emerald-600/20 transition-colors disabled:opacity-50"
             >
@@ -500,7 +544,7 @@ export function PermissionRequestBlock({
             {t('chatA-tools.permission.deny')}
           </button>
         </div>
-        {showSession && (
+        {showSession && !destination && (
           <p
             id={`permission-scope-${toolCallId}`}
             data-testid="permission-session-scope"
@@ -512,7 +556,7 @@ export function PermissionRequestBlock({
             </code>
           </p>
         )}
-        {showAlways && (
+        {showAlways && !destination && (
           <p
             id={`permission-always-${toolCallId}`}
             data-testid="permission-always-scope"
@@ -522,6 +566,31 @@ export function PermissionRequestBlock({
             <code className="font-mono text-gray-400 truncate" title={sessionRule}>
               {sessionRule}
             </code>
+          </p>
+        )}
+        {/* A network destination: what the answer covers is PO's to state, not this
+            interface's to guess (N23b). The destination of the call is named, the scope is
+            not claimed, and `always` says where it would be recorded — the one store the
+            Settings page reads. */}
+        {destination && (showSession || showAlways) && (
+          <p
+            id={`permission-scope-${toolCallId}`}
+            data-testid="permission-destination-scope"
+            className="mt-1.5 flex items-baseline gap-1 text-[10px] text-gray-500 min-w-0"
+          >
+            <span className="shrink-0">{t('chatA-tools.permission.destinationCovers')}</span>
+            <code className="font-mono text-gray-400 truncate" title={destination}>
+              {destination}
+            </code>
+          </p>
+        )}
+        {destination && showAlways && (
+          <p
+            id={`permission-always-${toolCallId}`}
+            data-testid="permission-destination-always"
+            className="mt-1 text-[10px] text-gray-500"
+          >
+            {t('chatA-tools.permission.destinationAlwaysCovers')}
           </p>
         )}
         {awaitingScope && (
