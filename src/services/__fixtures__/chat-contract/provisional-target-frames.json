@@ -91,6 +91,21 @@
       "canonical": "Edit"
     },
     {
+      "type": "permission_request",
+      "id": "perm_3",
+      "tool": "mcp__nexus__WebFetch",
+      "input": {
+        "url": "http://docs.rs/x"
+      },
+      "category": "web",
+      "canonical": "WebFetch",
+      "always": true,
+      "consent": {
+        "subject": "https://docs.rs",
+        "destinations": ["http://docs.rs", "https://docs.rs"]
+      }
+    },
+    {
       "type": "permission_decision",
       "id": "perm_1",
       "allow": true
@@ -441,6 +456,12 @@
       "type": "secret_request_resolved",
       "id": "sr_1",
       "outcome": "provided"
+    },
+    {
+      "type": "team_message",
+      "from_session_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "from_name": "agent-alpha",
+      "content": "task complete — ready for review"
     },
     {
       "type": "session_closed",

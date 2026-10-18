@@ -585,6 +585,14 @@ export interface ToolTiming {
  * NOT here: `partial_text` & co. (transport control frames — `ChatControlFrame`)
  * and `viz_block` (never emitted as an event by the backend — `ChatLocalEvent`).
  */
+/** The destination a `permission_request` is about, as PO asserts it (CONSENT-WIRE). */
+export interface PermissionConsent {
+  /** The origin the question is about, scheme included (`https://docs.rs`). */
+  subject: string
+  /** Every origin an `always` answer records as the project's network consent. */
+  destinations: string[]
+}
+
 export type ChatEvent =
   | { type: 'user_message'; content: string }
   | ({ type: 'assistant_text'; content: string } & Nested)
@@ -595,7 +603,23 @@ export type ChatEvent =
   | ({ type: 'tool_use_input_resolved'; id: string; input: Record<string, unknown> } & Nested)
   | { type: 'tool_cancelled'; id: string; parent_tool_use_id?: string }
   | ({ type: 'tool_timing' } & ToolTiming & Nested)
-  | ({ type: 'permission_request'; id: string; tool: string; input: Record<string, unknown>; tool_use_id?: string; /** True when this very call may be answered `always` (P11b). */ always?: boolean } & ToolProviderHints & Nested)
+  | ({
+      type: 'permission_request'
+      id: string
+      tool: string
+      input: Record<string, unknown>
+      tool_use_id?: string
+      /** True when this request may be answered `always` (P11b; for a destination: the session can keep a lasting consent on this project). */
+      always?: boolean
+      /**
+       * Present when the request is about a network DESTINATION (CONSENT-WIRE):
+       * `subject` is the origin PO asserts from the call (session approvals are
+       * keyed on it), `destinations` every origin an `always` answer records as
+       * the project's network consent. Asserted by PO, never derived from `input`.
+       * Absent on an ordinary tool permission.
+       */
+      consent?: PermissionConsent
+    } & ToolProviderHints & Nested)
   /** `scope`: how long an approval lasts, when it outlives the call (absent: this call only, or a refusal); `rule`: what a session approval covers. */
   | { type: 'permission_decision'; id: string; allow: boolean; scope?: 'session' | 'always'; rule?: string }
   | ({
@@ -751,6 +775,8 @@ export type ChatEvent =
   | { type: 'pending_queue'; messages: import('@/components/chat/messageQueue').ServerQueueEntry[] }
   | { type: 'secret_request'; id: string; name: string; reason: string; exists: boolean }
   | { type: 'secret_request_resolved'; id: string; outcome: string }
+  /** A message relayed from a peer session of the same team (TEAM-1). `from_session_id` is asserted by the backend. Typed for the contract; not drawn yet. */
+  | { type: 'team_message'; from_session_id: string; from_name: string; content: string }
 
 export type ChatEventType = ChatEvent['type']
 
@@ -788,7 +814,7 @@ export const CHAT_EVENT_FIELDS = {
     incomplete: 'optional',
     parent_tool_use_id: 'optional',
   },
-  permission_request: { id: 'required', tool: 'required', input: 'required', tool_use_id: 'optional', always: 'optional', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
+  permission_request: { id: 'required', tool: 'required', input: 'required', tool_use_id: 'optional', always: 'optional', consent: 'optional', category: 'optional', canonical: 'optional', parent_tool_use_id: 'optional' },
   permission_decision: { id: 'required', allow: 'required', scope: 'optional', rule: 'optional' },
   ask_user_question: { questions: 'required', tool_call_id: 'optional', id: 'optional', input: 'optional', synthetic: 'optional', parent_tool_use_id: 'optional' },
   result: { session_id: 'required', duration_ms: 'required', cost_usd: 'optional', subtype: 'optional', is_error: 'optional', num_turns: 'optional', result_text: 'optional', cost: 'optional', usage: 'optional', model: 'optional', stop_reason: 'optional', error: 'optional', error_code: 'optional', error_message: 'optional' },
@@ -834,6 +860,7 @@ export const CHAT_EVENT_FIELDS = {
   pending_queue: { messages: 'required' },
   secret_request: { id: 'required', name: 'required', reason: 'required', exists: 'required' },
   secret_request_resolved: { id: 'required', outcome: 'required' },
+  team_message: { from_session_id: 'required', from_name: 'required', content: 'required' },
 } as const satisfies EventFieldTables
 
 /**
