@@ -1,6 +1,6 @@
-import { useEffect, useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button, Switch, ToneText, focusRing, hitArea } from '@/components/ui'
 import { VaultUnlock } from '@/components/chat/VaultUnlock'
 import { VAULT_PATH } from '@/constants/providerErrors'
@@ -146,6 +146,7 @@ export function NetworkTools() {
     engineKind: useId(),
     secret: useId(),
     baseUrl: useId(),
+    orderHelp: useId(),
     browserNote: useId(),
   }
 
@@ -284,6 +285,59 @@ export function NetworkTools() {
     })
   }
 
+  // ---- Search engine order ---------------------------------------------------
+
+  /**
+   * The engines a person orders: the declared ones, in the order the server lists them (the order
+   * WebSearch queries them in). The built-in engine is not among them: it is used only when no
+   * other engine is attached, never next to one.
+   */
+  const orderable = (engines ?? []).filter((e) => !e.builtin)
+  const engineList = useRef<HTMLUListElement>(null)
+  /** The move button to give focus back to once the row has moved (a moved node loses focus). */
+  const focusAfterMove = useRef<{ id: string; dir: 'up' | 'down' } | null>(null)
+
+  useEffect(() => {
+    const wanted = focusAfterMove.current
+    if (!wanted || !engineList.current) return
+    focusAfterMove.current = null
+    const button = (dir: 'up' | 'down') =>
+      engineList.current?.querySelector<HTMLButtonElement>(`[data-move="${dir}"][data-engine-id="${wanted.id}"]`)
+    const same = button(wanted.dir)
+    // At the top (or bottom) the same button is disabled: the other one keeps the focus in the row.
+    const target = same && !same.disabled ? same : button(wanted.dir === 'up' ? 'down' : 'up')
+    target?.focus()
+  }, [engines])
+
+  const moveEngine = (id: string, dir: 'up' | 'down') => {
+    // One move at a time: the next one starts from the order the server answered.
+    if (busy?.startsWith('order-')) return
+    const order = orderable.map((e) => e.id)
+    const from = order.indexOf(id)
+    const to = dir === 'up' ? from - 1 : from + 1
+    if (from < 0 || to < 0 || to >= order.length) return
+    ;[order[from], order[to]] = [order[to], order[from]]
+    focusAfterMove.current = { id, dir }
+    // The row moves at once under the keyboard; the reload after the call shows the server's order.
+    setEngines((prev) =>
+      prev
+        ? [
+            ...order.map((i) => prev.find((e) => e.id === i)).filter((e): e is SearchEngine => !!e),
+            ...prev.filter((e) => e.builtin),
+          ]
+        : prev,
+    )
+    void act('engines', `order-${id}`, () =>
+      Promise.resolve()
+        .then(() => networkToolsApi.setSearchEngineOrder(order))
+        .then((saved) =>
+          t('networkTools.engines.reordered', {
+            order: (Array.isArray(saved) ? saved.map((e) => e.id) : order).join(', '),
+          }),
+        ),
+    )
+  }
+
   const allowEngineOrigin = (engine: SearchEngine) =>
     act('engines', `consent-${engine.id}`, async () => {
       const saved = await networkToolsApi.allowOrigin(slug, engine.origin!)
@@ -393,21 +447,36 @@ export function NetworkTools() {
     enginesBody = (
       <>
         {engines && engines.length === 0 && <p className="text-sm text-gray-400">{t('networkTools.engines.empty')}</p>}
+        {orderable.length > 1 && (
+          <p id={ids.orderHelp} className="text-xs text-gray-400" data-testid="search-engine-order-help">
+            {t('networkTools.engines.orderHelp')}
+          </p>
+        )}
         {engines && engines.length > 0 && (
-          <ul className="-mx-4 divide-y divide-white/[0.05]" aria-label={t('networkTools.engines.listAria')}>
+          <ul ref={engineList} className="-mx-4 divide-y divide-white/[0.05]" aria-label={t('networkTools.engines.listAria')}>
             {engines.map((engine) => {
               const name = secretNameOf(engine.credential_ref)
+              const rank = orderable.findIndex((e) => e.id === engine.id)
               return (
                 <li
                   key={engine.id}
                   data-testid={`search-engine-${engine.id}`}
                   data-key-granted={engine.key_granted}
                   data-origin-consented={engine.origin_consented ?? undefined}
+                  data-rank={rank >= 0 ? rank + 1 : undefined}
                   className="px-4 py-3"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-[1_1_16rem] space-y-1">
                       <p className="text-sm font-medium text-gray-100">
+                        {orderable.length > 1 && rank >= 0 && (
+                          <>
+                            <span className="mr-1.5 font-mono text-gray-500" aria-hidden="true">
+                              {rank + 1}.
+                            </span>
+                            <span className="sr-only">{t('networkTools.engines.rankAria', { rank: rank + 1, total: orderable.length })} </span>
+                          </>
+                        )}
                         {engine.id}{' '}
                         <span className="font-normal text-gray-500">· {t(`networkTools.engines.kind.${engine.engine}`)}</span>
                         {engine.builtin && (
@@ -435,6 +504,38 @@ export function NetworkTools() {
                       </div>
                     </div>
                     <div className="flex flex-wrap justify-end gap-2">
+                      {orderable.length > 1 && rank >= 0 && (
+                        <div className="flex gap-1" role="group" aria-describedby={ids.orderHelp}>
+                          <Button
+                            size="sm"
+                            icon
+                            variant="secondary"
+                            data-move="up"
+                            data-engine-id={engine.id}
+                            data-testid={`search-engine-up-${engine.id}`}
+                            disabled={rank === 0}
+                            onClick={() => moveEngine(engine.id, 'up')}
+                            aria-label={t('networkTools.engines.moveUpAria', { id: engine.id })}
+                            title={t('networkTools.engines.moveUpAria', { id: engine.id })}
+                          >
+                            <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            icon
+                            variant="secondary"
+                            data-move="down"
+                            data-engine-id={engine.id}
+                            data-testid={`search-engine-down-${engine.id}`}
+                            disabled={rank === orderable.length - 1}
+                            onClick={() => moveEngine(engine.id, 'down')}
+                            aria-label={t('networkTools.engines.moveDownAria', { id: engine.id })}
+                            title={t('networkTools.engines.moveDownAria', { id: engine.id })}
+                          >
+                            <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        </div>
+                      )}
                       {name && !engine.key_granted && (
                         <Button
                           size="sm"
