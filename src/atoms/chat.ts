@@ -159,6 +159,12 @@ export const chatAllProjectsModeAtom = atom<boolean>(true)
 /** Whether the active workspace has at least one project (set by ProjectSelect after loading) */
 export const chatWorkspaceHasProjectsAtom = atom<boolean>(false)
 
+/** The project list of the workspace has answered once (set by ProjectSelect): until then a new chat waits. */
+export const chatProjectsLoadedAtom = atom<boolean>(false)
+
+/** The person chose « No project »: new conversations open in the neutral place (no `cwd`). */
+export const chatNeutralPlaceAtom = atom<boolean>(false)
+
 /** Whether spawned (child) sessions are visible in the session list */
 export const showSpawnedSessionsAtom = atomWithStorage<boolean>('show-spawned-sessions', true)
 

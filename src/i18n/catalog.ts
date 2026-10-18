@@ -58,6 +58,7 @@ import type providers from './messages/en/providers.ts'
 import type providerErrors from './messages/en/providerErrors.ts'
 import type intelConfig from './messages/en/intelConfig.ts'
 import type networkTools from './messages/en/networkTools.ts'
+import type anchors from './messages/en/anchors.ts'
 
 interface EnglishMessages {
   auth: typeof auth
@@ -114,6 +115,7 @@ interface EnglishMessages {
   providerErrors: typeof providerErrors
   intelConfig: typeof intelConfig
   networkTools: typeof networkTools
+  anchors: typeof anchors
 }
 
 export type Ns = keyof EnglishMessages
@@ -122,7 +124,7 @@ export const NAMESPACES = [
   'ui', 'forms', 'composer', 'shell', 'nomenclature', 'glossary', 'toolPolicy', 'activity', 'fgModel', 'setupOidc', 'app', 'providers', 'providerErrors', 'intelConfig',
   'commits', 'deployments', 'kanban', 'milestones', 'pipeline', 'planDetail', 'plans', 'taskDetail', 'tasks', 'waves',
   'intelPage', 'intelDashboard', 'intelGraph', 'intelLearning', 'intelTimeline',
-  'auth', 'workspaceSelector', 'settingsPage', 'settingsShared', 'vault', 'sharing', 'admin', 'mcpFederation', 'providerWizard', 'providerAdmin', 'networkTools',
+  'auth', 'workspaceSelector', 'settingsPage', 'settingsShared', 'vault', 'sharing', 'admin', 'mcpFederation', 'providerWizard', 'providerAdmin', 'networkTools', 'anchors',
   'chatA-activity', 'chatA-input', 'chatA-messages', 'chatA-page', 'chatA-tools',
 ] as const satisfies readonly Ns[]
 

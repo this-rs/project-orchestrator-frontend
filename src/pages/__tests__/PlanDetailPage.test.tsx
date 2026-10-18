@@ -19,6 +19,8 @@ const taskUpdate = vi.fn()
 const unlinkFromProject = vi.fn()
 const runnerStatus = { isRunning: false, snapshot: null as unknown }
 
+// The anchored-conversations panel reads its own routes and the events bus: tested in its own file.
+vi.mock('@/components/anchors/AnchoredConversations', () => ({ AnchoredConversations: () => <div data-testid="anchored-conversations" /> }))
 vi.mock('@/services', () => ({
   plansApi: {
     get: (...a: unknown[]) => planGet(...a),

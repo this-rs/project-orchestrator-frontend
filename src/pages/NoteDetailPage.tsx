@@ -4,6 +4,8 @@
  * words), the other notes reaching the same code, its history and every
  * lifecycle action. Route: /workspace/:slug/notes/:noteId
  */
+import { AnchoredConversations } from '@/components/anchors/AnchoredConversations'
+import { useUiContext } from '@/hooks/useUiContext'
 import { createElement, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
@@ -360,6 +362,8 @@ export function NoteDetailPage() {
     }
   }, [note?.id, currentAnchorKey]) // eslint-disable-line react-hooks/exhaustive-deps -- refetch only when the note or the anchor changes
 
+  useUiContext('note', note?.id, note ? noteTitle(note.content) : null)
+
   // ── Render ────────────────────────────────────────────────────────────
 
   if (loading) return <DetailSkeleton />
@@ -702,6 +706,8 @@ export function NoteDetailPage() {
           </EntityList>
         </Section>
       )}
+
+      <AnchoredConversations targetType="note" targetId={note.id} />
 
       {/* ── Details ─────────────────────────────────────────────────── */}
       <Section title="Details">

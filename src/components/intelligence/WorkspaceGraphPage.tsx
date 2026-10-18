@@ -23,6 +23,7 @@ import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
 import { Branding } from '@/components/ui'
 import type { IntelligenceLayer } from '@/types/intelligence'
 import { useT, type MessageKey } from '@/i18n'
+import { claimModK } from '@/components/anchors/askHereShortcut'
 
 // ── Entity legend ──────────────────────────────────────────────────────────
 const ENTITY_LEGEND: { layer: IntelligenceLayer; types: { key: string; label: MessageKey }[] }[] = [
@@ -121,7 +122,12 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    // This screen owns Cmd+K while mounted: « Demander ici » leaves it alone.
+    const release = claimModK()
+    return () => {
+      release()
+      window.removeEventListener('keydown', handleKeyDown)
+    }
   }, [setSearchOpen])
 
   const hasData = allNodes.length > 0

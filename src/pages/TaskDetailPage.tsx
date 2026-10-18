@@ -1,3 +1,5 @@
+import { AnchoredConversations } from '@/components/anchors/AnchoredConversations'
+import { useUiContext } from '@/hooks/useUiContext'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
@@ -347,6 +349,8 @@ export function TaskDetailPage() {
   const openAddStep = () => stepFormDialog.open({ title: t('taskDetail.dialog.addStep') })
   const openAddDecision = () => decisionFormDialog.open({ title: t('taskDetail.dialog.addDecision'), size: 'lg' })
 
+  useUiContext('task', task?.id, task?.title || task?.description?.slice(0, 80))
+
   if (error) return <ErrorState title={t('taskDetail.loadFailedTitle')} description={t('taskDetail.loadFailed')} onRetry={fetchData} />
   if (loading || !task) return <DetailSkeleton />
 
@@ -619,6 +623,8 @@ export function TaskDetailPage() {
       </Section>
 
       {/* ── Details ── */}
+      <AnchoredConversations targetType="task" targetId={task.id} />
+
       <Section title={t('taskDetail.details.title')}>
         <Facts
           items={[

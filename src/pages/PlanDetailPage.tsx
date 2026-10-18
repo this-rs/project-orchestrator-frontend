@@ -1,3 +1,5 @@
+import { AnchoredConversations } from '@/components/anchors/AnchoredConversations'
+import { useUiContext } from '@/hooks/useUiContext'
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { useSetAtom, useAtomValue } from 'jotai'
@@ -411,6 +413,8 @@ export function PlanDetailPage() {
         toast.success(t('planDetail.toast.projectLinked'))
       },
     })
+
+  useUiContext('plan', plan?.id, plan?.title)
 
   if (error) return <ErrorState title={t('planDetail.loadFailedTitle')} description={t('planDetail.loadFailed')} onRetry={fetchData} />
   if (loading || !plan) return <DetailSkeleton />
@@ -828,6 +832,8 @@ export function PlanDetailPage() {
       </TabLayout>
 
       {/* ── Details (long properties, DESIGN.md § 7) ── */}
+      <AnchoredConversations targetType="plan" targetId={plan.id} />
+
       <Section title={t('planDetail.details.title')}>
         <Facts
           items={[

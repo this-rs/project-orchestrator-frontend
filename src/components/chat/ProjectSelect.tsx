@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { chatSuggestedProjectIdAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, projectRefreshAtom } from '@/atoms'
+import { chatSuggestedProjectIdAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatProjectsLoadedAtom, chatNeutralPlaceAtom, projectRefreshAtom } from '@/atoms'
+import { useT } from '@/i18n'
 import { Select } from '@/components/ui'
 import { workspacesApi } from '@/services'
 import { useWorkspaceSlug, useWorkspace } from '@/hooks'
@@ -20,6 +21,9 @@ export function ProjectSelect() {
   const activeWsSlug = useWorkspaceSlug()
   const activeWorkspace = useWorkspace()
   const setHasProjects = useSetAtom(chatWorkspaceHasProjectsAtom)
+  const setProjectsLoaded = useSetAtom(chatProjectsLoadedAtom)
+  const [neutral, setNeutral] = useAtom(chatNeutralPlaceAtom)
+  const { t } = useT()
   const projectRefresh = useAtomValue(projectRefreshAtom)
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -30,6 +34,7 @@ export function ProjectSelect() {
     if (!activeWsSlug) {
       setProjects([])
       setHasProjects(false)
+      setProjectsLoaded(true)
       setLoading(false)
       return
     }
@@ -39,6 +44,7 @@ export function ProjectSelect() {
       const items = Array.isArray(data) ? data : []
       setProjects(items)
       setHasProjects(items.length > 0)
+      setProjectsLoaded(true)
 
       // Check if current selectedProject belongs to this workspace
       const currentStillValid = selectedProject && items.some((p) => p.id === selectedProject.id)
@@ -59,7 +65,11 @@ export function ProjectSelect() {
         setSelectedProject(null)
       }
       setLoading(false)
-    }).catch(() => setLoading(false))
+    }).catch(() => {
+      // An unreadable list: a new chat can still open, in the neutral place (said on screen).
+      setProjectsLoaded(true)
+      setLoading(false)
+    })
   }, [activeWsSlug, projectRefresh]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // No projects → ChatPanel handles the empty state placeholder
@@ -83,10 +93,13 @@ export function ProjectSelect() {
       <Select
         options={[
           { value: '__all__', label: 'All workspace' },
+          { value: '__none__', label: t('anchors.neutral.option') },
           ...projects.map((p) => ({ value: p.id, label: p.name })),
         ]}
-        value={allProjectsMode ? '__all__' : (selectedProject?.id || '')}
+        value={neutral ? '__none__' : allProjectsMode ? '__all__' : (selectedProject?.id || '')}
         onChange={(val) => {
+          setNeutral(val === '__none__')
+          if (val === '__none__') return
           if (val === '__all__') {
             setAllProjectsMode(true)
             // Keep selectedProject as first project for cwd fallback
@@ -100,7 +113,7 @@ export function ProjectSelect() {
           }
         }}
       />
-      {!allProjectsMode && selectedProject?.root_path && (
+      {!neutral && !allProjectsMode && selectedProject?.root_path && (
         <div className="text-[10px] text-gray-600 mt-1 truncate font-mono">
           {shortenPath(selectedProject.root_path)}
         </div>

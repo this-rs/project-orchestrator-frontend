@@ -21,6 +21,8 @@ const deleteStep = vi.fn()
 const removeDependency = vi.fn()
 const planGet = vi.fn()
 
+// The anchored-conversations panel reads its own routes and the events bus: tested in its own file.
+vi.mock('@/components/anchors/AnchoredConversations', () => ({ AnchoredConversations: () => <div data-testid="anchored-conversations" /> }))
 vi.mock('@/services', () => ({
   tasksApi: {
     get: (...a: unknown[]) => get(...a),

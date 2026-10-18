@@ -5,7 +5,7 @@ import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
 import { useT } from '@/i18n'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom, providersAtom, chatOneOffProviderPickAtom, clearOneOffProviderPickAtom, dropStalePickAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatProjectsLoadedAtom, chatNeutralPlaceAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom, providersAtom, chatOneOffProviderPickAtom, clearOneOffProviderPickAtom, dropStalePickAtom } from '@/atoms'
 import type { ProviderFallback, ProviderId } from '@/types/provider'
 import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
@@ -22,12 +22,17 @@ import { ChatMessages } from './ChatMessages'
 import { RefsAnnouncer } from './RefsAnnouncer'
 import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget'
 import { chatComposerBlockedAtom } from '@/refs/source/addToChat'
+import { askHereRequestAtom } from '@/atoms/anchors'
+import { toastMessagesAtom } from '@/atoms/ui'
+import type { AddAnchorInput } from '@/services/anchors'
+import { SessionAnchorsBar } from '@/components/anchors/SessionAnchorsBar'
+import { placeAnchors } from '@/components/anchors/placeAnchors'
 import type { ChatReference } from '@/refs/types'
 import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionContext'
 import { ProviderStateCard } from './ProviderStateCard'
 import { ChatHeaderTitle } from './ChatHeaderTitle'
 import { Button, StatusDot } from '@/components/ui'
-import { glassButton, glassFlat, iconButton } from '@/components/ui/classes'
+import { focusRing, glassFlat, iconButton } from '@/components/ui/classes'
 import { PolicyOnlyBanner } from './PolicyOnlyBanner'
 import { ProviderOutageBanner } from './ProviderOutageBanner'
 import { RemoteNoToolsBanner } from './RemoteNoToolsBanner'
@@ -36,6 +41,7 @@ import { CapabilityGapsButton, CapabilityGapsPopover } from './CapabilityGapsBut
 import { useCapabilityBannerCollapse } from './capabilityBannerCollapse'
 import { engineGaps } from '@/constants/engine'
 import { ChatInput, type PrefillPayload } from './ChatInput'
+import { NeutralPlaceLabel } from './NeutralPlaceLabel'
 import { SecretRequestTray } from './SecretRequestTray'
 import { SessionOpenError } from './SessionOpenError'
 import { FollowNotice } from './FollowNotice'
@@ -97,6 +103,8 @@ export function ChatPanel() {
   const selectedProject = useAtomValue(chatSelectedProjectAtom)
   const allProjectsMode = useAtomValue(chatAllProjectsModeAtom)
   const workspaceHasProjects = useAtomValue(chatWorkspaceHasProjectsAtom)
+  const projectsLoaded = useAtomValue(chatProjectsLoadedAtom)
+  const neutralChosen = useAtomValue(chatNeutralPlaceAtom)
   const activeWsSlug = useWorkspaceSlug()
   const [isDragging, setIsDragging] = useState(false)
   const [sessionTitle, setSessionTitle] = useState<string | null>(null)
@@ -276,9 +284,14 @@ export function ChatPanel() {
     }
   }, [isDragging, setPanelWidth])
 
-  // Whether the user has selected a valid context for new conversations
-  // Requires at least one project in the workspace — allProjectsMode alone isn't enough
-  const hasContext = workspaceHasProjects && (!!selectedProject || (allProjectsMode && !!activeWsSlug))
+  // The project a new conversation opens in, when there is one: a project picked (or the
+  // whole workspace) in a workspace that has projects.
+  const projectContext = workspaceHasProjects && !neutralChosen && (!!selectedProject || (allProjectsMode && !!activeWsSlug))
+  // Otherwise it opens in a neutral place (no `cwd`: the server makes an empty folder,
+  // read-only by default) — once the project list has answered, or when the person chose it.
+  // A conversation no longer needs a project: its context comes from its anchors.
+  const neutralPlace = !projectContext && (neutralChosen || projectsLoaded)
+  const hasContext = projectContext || neutralPlace
 
   // `attachmentIds` are document ids the server has already issued — ChatInput
   // holds the send until every upload has resolved (see `attachmentState.ts`).
@@ -296,7 +309,7 @@ export function ChatPanel() {
       send(text, undefined, attachmentIds, refs)
       return
     }
-    if (selectedProject) {
+    if (projectContext && selectedProject) {
       // When allProjectsMode → send workspaceSlug (adds all project dirs)
       // When single project → send only projectSlug (no extra dirs)
       send(text, {
@@ -304,8 +317,12 @@ export function ChatPanel() {
         workspaceSlug: allProjectsMode ? (activeWsSlug || undefined) : undefined,
         projectSlug: allProjectsMode ? undefined : selectedProject.slug,
       }, attachmentIds, refs)
+    } else if (neutralPlace) {
+      // No project: no `cwd`, no project — the server opens it in its neutral place.
+      send(text, { cwd: '' }, attachmentIds, refs)
     }
-  }, [isNewConversation, hasContext, selectedProject, allProjectsMode, activeWsSlug, chat.sendMessage])
+  }, [isNewConversation, hasContext, projectContext, neutralPlace, selectedProject, allProjectsMode, activeWsSlug, chat.sendMessage])
+
 
   // ── Provider state of the composer ────────────────────────────────────
   // Nothing below applies to a backend without provider routes
@@ -345,7 +362,7 @@ export function ChatPanel() {
   // The whole panel takes a reference dropped from anywhere in the app; the composer inside takes it first.
   const panelDrop = useRefDropTarget()
   const setComposerBlocked = useSetAtom(chatComposerBlockedAtom)
-  const composerBlocked = composerDisabled ? (composerBlockedReason ?? "choose a project first") : null
+  const composerBlocked = composerDisabled ? (composerBlockedReason ?? "the project list is still loading") : null
   useEffect(() => {
     setComposerBlocked(composerBlocked)
     return () => setComposerBlocked(null)
@@ -479,6 +496,42 @@ export function ChatPanel() {
     setSessionTitle(null)
     setShowSessions(false)
   }, [chat.newSession])
+
+  // ── « Demander ici » ──────────────────────────────────────────────────
+  // The palette hands over a question (and the anchors the person confirmed): it is
+  // asked in a NEW conversation, then the anchors are placed on it once it exists.
+  const [askRequest, setAskRequest] = useAtom(askHereRequestAtom)
+  const pendingAnchorsRef = useRef<AddAnchorInput[] | null>(null)
+  const addToast = useSetAtom(toastMessagesAtom)
+  useEffect(() => {
+    if (!askRequest) return
+    // First leave the conversation on screen; this effect runs again once it is new.
+    if (chat.sessionId || chat.isSending) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- consuming a one-shot request from the palette (an external event)
+      if (chat.sessionId) handleNewSession()
+      return
+    }
+    setAskRequest(null)
+    if (!hasContext || composerBlockedReason !== null) {
+      // The composer cannot send now: the question waits in it, nothing is lost.
+      store.set(chatDraftInputAtom, askRequest.text)
+      return
+    }
+    pendingAnchorsRef.current = askRequest.anchors.length > 0 ? askRequest.anchors : null
+    handleSend(askRequest.text, undefined, askRequest.refs.length > 0 ? askRequest.refs : undefined)
+  }, [askRequest, chat.sessionId, chat.isSending, hasContext, composerBlockedReason, handleSend, handleNewSession, setAskRequest, store])
+  useEffect(() => {
+    const sessionId = chat.sessionId
+    const pending = pendingAnchorsRef.current
+    if (!sessionId || !pending) return
+    pendingAnchorsRef.current = null
+    void placeAnchors(sessionId, pending).then((ok) => {
+      if (ok) return
+      const id = `anchors-${Date.now()}`
+      addToast((prev) => [...prev, { id, type: 'warning', message: t('anchors.ask.anchorsFailed') }])
+      setTimeout(() => addToast((prev) => prev.filter((m) => m.id !== id)), 5000)
+    })
+  }, [chat.sessionId, addToast, t])
 
   const handleCopyChat = useCallback(async () => {
     const markdown = messagesToMarkdown(chat.messages, {
@@ -893,12 +946,12 @@ export function ChatPanel() {
 
           {/* ProjectSelect always mounted for new convos — manages chatWorkspaceHasProjectsAtom via effects */}
           {isNewConversation && <ProjectSelect />}
+          {isNewConversation && neutralPlace && <NeutralPlaceNotice wsSlug={activeWsSlug} hasProjects={workspaceHasProjects} />}
+          {!isNewConversation && <SessionAnchorsBar sessionId={chat.sessionId} />}
 
           {/* Settings panel overlay */}
           {showSettings ? (
             <PermissionSettingsPanel onClose={() => setShowSettings(false)} />
-          ) : isNewConversation && !hasContext ? (
-            <NoProjectsPlaceholder wsSlug={activeWsSlug} />
           ) : (
             <div className="flex flex-1 min-h-0">
               {/* Main conversation column */}
@@ -1135,6 +1188,8 @@ export function ChatPanel() {
 
       {/* ProjectSelect always mounted for new convos — manages chatWorkspaceHasProjectsAtom via effects */}
       {isNewConversation && !showSettings && !showSessions && <ProjectSelect />}
+      {isNewConversation && !showSettings && !showSessions && neutralPlace && <NeutralPlaceNotice wsSlug={activeWsSlug} hasProjects={workspaceHasProjects} />}
+      {!isNewConversation && !showSettings && !showSessions && <SessionAnchorsBar sessionId={chat.sessionId} />}
 
       {/* Content */}
       {showSettings ? (
@@ -1149,8 +1204,6 @@ export function ChatPanel() {
         <div className="flex-1 overflow-y-auto p-3">
           <DiscussionTreeView sessionId={rootSessionId} onNavigate={handleTreeNavigate} />
         </div>
-      ) : isNewConversation && !hasContext ? (
-        <NoProjectsPlaceholder wsSlug={activeWsSlug} />
       ) : (
         <>
           {/* Detached runs panel — panel/sidebar layout (collapsible historical view) */}
@@ -1223,32 +1276,23 @@ export function ChatPanel() {
 }
 
 /** Full-area placeholder shown when the workspace has no projects */
-function NoProjectsPlaceholder({ wsSlug }: { wsSlug: string | null }) {
+/**
+ * A new conversation without a project (none in the workspace, or « No project » picked):
+ * it opens in the server's neutral place, read-only, its context coming from its anchors.
+ */
+function NeutralPlaceNotice({ wsSlug, hasProjects }: { wsSlug: string | null; hasProjects: boolean }) {
   const { t } = useT()
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-      {/* Folder illustration — matches EmptyState style */}
-      <svg width={72} height={72} viewBox="0 0 80 80" fill="none" aria-hidden="true" className="mb-5">
-        <path d="M16 24h16l4-6h28a3 3 0 013 3v38a3 3 0 01-3 3H16a3 3 0 01-3-3V27a3 3 0 013-3z" stroke="currentColor" className="text-gray-700" strokeWidth="1.5" />
-        <line x1="13" y1="32" x2="67" y2="32" stroke="currentColor" className="text-gray-700" strokeWidth="1" />
-        <rect x="24" y="40" width="16" height="2" rx="1" className="fill-gray-700" />
-        <rect x="24" y="46" width="12" height="2" rx="1" className="fill-gray-700/50" />
-        <circle cx="58" cy="52" r="10" className="fill-indigo-500/10" />
-        <path d="M55 52h6M58 49v6" stroke="currentColor" className="text-indigo-400" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-
-      <h3 className="text-base font-medium text-gray-200 mb-1.5">{t('chatA-messages.panel.noProjectsTitle')}</h3>
-      <p className="text-sm text-gray-500 max-w-[240px] mb-5">
-        {t('chatA-messages.panel.noProjectsBody')}
-      </p>
-
-      {wsSlug && (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-white/[0.06] px-4 py-2 text-xs text-gray-400" data-testid="neutral-place-notice">
+      <NeutralPlaceLabel className="text-gray-300" />
+      <span className="min-w-0 flex-1">{t('anchors.neutral.notice')}</span>
+      {wsSlug && !hasProjects && (
         <Link
           to={workspacePath(wsSlug, '/projects')}
-          className={`${glassButton.primary} min-h-9 gap-2 px-4 py-2 text-sm`}
+          className={`inline-flex min-h-11 md:min-h-7 items-center gap-1.5 rounded text-indigo-300 hover:text-indigo-200 ${focusRing}`}
         >
-          <FolderPlus className="w-4 h-4" aria-hidden="true" />
-          {t('chatA-messages.panel.addProject')}
+          <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
+          {t('anchors.neutral.addProject')}
         </Link>
       )}
     </div>
