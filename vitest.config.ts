@@ -32,10 +32,6 @@ export default defineConfig({
         'src/main.tsx',
         'src/vite-env.d.ts',
       ],
-      // Only files exercised by the test suite are reported; the patch gate
-      // therefore enforces coverage on changed lines in already-tested
-      // modules without forcing tests onto every untested file on first touch.
-      all: false,
     },
   },
 })
