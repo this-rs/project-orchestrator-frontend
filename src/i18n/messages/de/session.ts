@@ -42,6 +42,7 @@ export default {
   },
   installation: {
     nexus_tools: "Die ausführbare Datei nexus-tools wurde nicht gefunden: Installieren Sie sie neben dem Project-Orchestrator-Backend oder setzen Sie NEXUS_TOOLS_PATH auf ihren Pfad. Native Sitzungen erhalten dann Bash, Read, Edit und WebFetch.",
+    resume_after_restart: "Diese Unterhaltung wird nach einem Serverneustart nicht fortgesetzt: Das Verzeichnis der nativen Unterhaltungen liegt in einem Git-Repository (oft ein versioniertes Home-Verzeichnis), daher wird sie im Speicher gehalten statt dort geschrieben, wo ein Commit sie veröffentlichen könnte. Verschieben Sie das Datenverzeichnis des Servers aus diesem Repository.",
   },
   harness: {
     hooks: "Hooks (Skills, Umleitungen nach Tools) laufen noch nicht",

@@ -42,6 +42,7 @@ export default {
   },
   installation: {
     nexus_tools: "nexus-tools 実行ファイルが見つかりません。Project Orchestrator バックエンドと同じ場所にインストールするか、NEXUS_TOOLS_PATH にその場所を設定してください。そうすればネイティブセッションで Bash、Read、Edit、WebFetch が使えます。",
+    resume_after_restart: "この会話はサーバー再起動後に再開されません。ネイティブ会話のフォルダが git リポジトリ内（多くはバージョン管理されたホームフォルダ）にあるため、コミットで公開されかねない場所に書き込まず、メモリ上に保持しています。サーバーのデータフォルダをそのリポジトリの外へ移動してください。",
   },
   harness: {
     hooks: "フック（スキル、ツール後のリダイレクト）はまだ実行されません",

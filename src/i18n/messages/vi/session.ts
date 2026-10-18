@@ -42,6 +42,7 @@ export default {
   },
   installation: {
     nexus_tools: "Không tìm thấy tệp thực thi nexus-tools: hãy cài nó cạnh backend của Project Orchestrator, hoặc đặt NEXUS_TOOLS_PATH trỏ tới vị trí của nó. Khi đó các phiên native sẽ có Bash, Read, Edit và WebFetch.",
+    resume_after_restart: "Cuộc hội thoại này sẽ không tiếp tục sau khi khởi động lại máy chủ: thư mục hội thoại gốc nằm trong một kho git (thường là thư mục cá nhân được quản lý phiên bản), nên nó được giữ trong bộ nhớ thay vì ghi vào nơi một commit có thể công khai nó. Hãy chuyển thư mục dữ liệu của máy chủ ra khỏi kho đó.",
   },
   harness: {
     hooks: "Hook (kỹ năng, chuyển hướng sau công cụ) chưa chạy",
