@@ -1,6 +1,10 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  place: {
+    neutral: "Local neutro",
+    neutralHint: "É executada em uma pasta vazia criada pelo servidor, fora de qualquer projeto. Os arquivos gravados nela são removidos quando a conversa é fechada.",
+  },
   lockedVault: {
     resent: "Cofre desbloqueado: sua mensagem está sendo enviada novamente.",
     fallbacksLabel: "Ou continuar sem o cofre:",

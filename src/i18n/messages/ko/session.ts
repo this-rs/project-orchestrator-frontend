@@ -1,6 +1,10 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  place: {
+    neutral: "중립 위치",
+    neutralHint: "서버가 만든 빈 폴더에서 어떤 프로젝트에도 속하지 않고 실행됩니다. 그곳에 쓴 파일은 대화를 닫으면 삭제됩니다.",
+  },
   lockedVault: {
     resent: "보관함 잠금 해제됨: 메시지를 다시 보내는 중입니다.",
     fallbacksLabel: "또는 보관함 없이 계속:",

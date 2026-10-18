@@ -23,7 +23,7 @@ import {
   type BackendContractFiles,
   type ContractFile,
 } from '../chatContract'
-import { CHAT_EVENT_FIELDS, WS_CLIENT_MESSAGE_TYPES } from '@/types/chat'
+import { CHAT_EVENT_FIELDS, EXECUTION_PLACES, WS_CLIENT_MESSAGE_TYPES } from '@/types/chat'
 import { CAPABILITY_KEYS, normalizeCapabilities, MINIMAL_CAPABILITIES } from '@/types/provider'
 import { CONVERSATION_ROUTING_MODES, ROUTING_MODES } from '@/types/routing'
 import { historyEventsToMessages, readSystemInitRuntime } from '@/utils/chatAssembly'
@@ -247,6 +247,13 @@ describe('provider-additions routing enums', () => {
     const providers = (additions.rest as Record<string, unknown> | undefined)?.['GET /api/chat/providers'] as { response?: { routing?: { mode?: string } } } | undefined
     expect(providers?.response?.routing?.mode?.split(' | ')).toEqual([...ROUTING_MODES])
     expect(ROUTING_MODES).not.toContain('mixed')
+  })
+
+  it('knows every execution_place of the vendored contract (T1-bis), and flags a new one', () => {
+    expect(additions.rest?.ChatSession?.execution_place).toMatchObject({ enum: [...EXECUTION_PLACES] })
+    expect(additions.rest?.CreateSessionResponse?.execution_place).toMatchObject({ enum: [...EXECUTION_PLACES] })
+    const bad = { rest: { ChatSession: { execution_place: { enum: ['project', 'neutral', 'worktree'] } } } } as ProviderAdditionsFile
+    expect(checkProviderAdditions(bad)).toEqual(['`ChatSession.execution_place` may be `worktree` on the wire but the frontend does not know that value'])
   })
 
   it('flags a routed_by value the frontend does not know', () => {

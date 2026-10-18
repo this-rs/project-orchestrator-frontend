@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { chatApi } from '@/services/chat'
 import type { SessionInfo, SessionTreeNode, SessionWithLinks } from '@/types/chat'
 import { buildLinkedForest, type LinkedForest, type LinkedSession } from './linkedForest'
+import { isNeutralPlace } from '@/utils/executionPlace'
 
 export type LinkedEntity = { type: 'plan' | 'task' | 'run'; id: string }
 
@@ -11,7 +12,9 @@ function fromWithLinks(items: SessionWithLinks[], showTasks: boolean): LinkedSes
     if (showTasks && links.linked_tasks.length > 0) parts.push(links.linked_tasks.map((t) => t.title).join(' · '))
     if (links.linked_rfcs.length > 0) parts.push(links.linked_rfcs.map((r) => r.title).join(' · '))
     if (session.preview) parts.push(session.preview)
-    const where = [session.model, session.cwd?.replace(/^\/(?:Users|home)\/[^/]+\//, '~/')].filter(Boolean).join(' · ')
+    // The neutral folder of the server is not a place worth naming (T1-bis): only the model then.
+    const cwd = isNeutralPlace(session) ? undefined : session.cwd
+    const where = [session.model, cwd?.replace(/^\/(?:Users|home)\/[^/]+\//, '~/')].filter(Boolean).join(' · ')
     if (where) parts.push(where)
     return {
       id: session.id,

@@ -1,6 +1,10 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  place: {
+    neutral: "Lugar neutro",
+    neutralHint: "Se ejecuta en una carpeta vacía creada por el servidor, fuera de cualquier proyecto. Los archivos escritos allí se eliminan al cerrar la conversación.",
+  },
   lockedVault: {
     resent: "Bóveda desbloqueada: tu mensaje se está enviando de nuevo.",
     fallbacksLabel: "O continuar sin la bóveda:",

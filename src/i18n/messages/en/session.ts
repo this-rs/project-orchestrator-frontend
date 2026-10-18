@@ -1,4 +1,8 @@
 export default {
+  place: {
+    neutral: "Neutral place",
+    neutralHint: "Runs in an empty folder made by the server, outside any project. Files written there are removed when the conversation closes.",
+  },
   lockedVault: {
     resent: "Vault unlocked: your message is being sent again.",
     fallbacksLabel: "Or continue without the vault:",

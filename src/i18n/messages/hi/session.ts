@@ -1,6 +1,10 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  place: {
+    neutral: "तटस्थ स्थान",
+    neutralHint: "सर्वर द्वारा बनाए गए एक खाली फ़ोल्डर में चलती है, किसी भी प्रोजेक्ट से बाहर। वहाँ लिखी गई फ़ाइलें बातचीत बंद होने पर हटा दी जाती हैं।",
+  },
   lockedVault: {
     resent: "वॉल्ट अनलॉक हुआ: आपका संदेश फिर से भेजा जा रहा है।",
     fallbacksLabel: "या वॉल्ट के बिना जारी रखें:",

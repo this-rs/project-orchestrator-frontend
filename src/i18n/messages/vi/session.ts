@@ -1,6 +1,10 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  place: {
+    neutral: "Vị trí trung lập",
+    neutralHint: "Chạy trong một thư mục trống do máy chủ tạo, ngoài mọi dự án. Các tệp được ghi vào đó sẽ bị xóa khi đóng cuộc trò chuyện.",
+  },
   lockedVault: {
     resent: "Đã mở khóa kho: tin nhắn của bạn đang được gửi lại.",
     fallbacksLabel: "Hoặc tiếp tục không dùng kho:",

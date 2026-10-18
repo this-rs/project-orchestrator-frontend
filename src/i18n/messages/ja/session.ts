@@ -1,6 +1,10 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  place: {
+    neutral: "中立の場所",
+    neutralHint: "サーバーが作成した空のフォルダーで、どのプロジェクトにも属さずに実行されます。そこに書き込まれたファイルは会話を閉じると削除されます。",
+  },
   lockedVault: {
     resent: "保管庫のロックを解除しました：メッセージを再送信しています。",
     fallbacksLabel: "または保管庫なしで続ける：",

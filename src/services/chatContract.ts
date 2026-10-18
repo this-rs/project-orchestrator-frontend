@@ -12,6 +12,7 @@
 import {
   CHAT_CONTROL_FRAME_TYPES,
   CHAT_EVENT_FIELDS,
+  EXECUTION_PLACES,
   WS_CLIENT_MESSAGE_TYPES,
   type ChatEventType,
 } from '@/types/chat'
@@ -170,6 +171,7 @@ export interface AdditionsField {
 export interface ProviderAdditionsFile {
   rest?: {
     ChatSession?: Record<string, AdditionsField | unknown>
+    CreateSessionResponse?: Record<string, AdditionsField | unknown>
     CreateSessionRequest?: Record<string, AdditionsField | unknown>
   }
   /** Gone from the backend file since the routing settings became documented routes (`rest.routing`); read when present. */
@@ -204,6 +206,10 @@ export function checkProviderAdditions(file: ProviderAdditionsFile): string[] {
   check('ChatSession.routing_mode', enumOf(session, 'routing_mode'), CONVERSATION_ROUTING_MODES)
   const create = file.rest?.CreateSessionRequest as Record<string, unknown> | undefined
   check('CreateSessionRequest.routing_mode', enumOf(create, 'routing_mode'), CONVERSATION_ROUTING_MODES)
+  // A place the interface does not know would be rendered as a project folder.
+  check('ChatSession.execution_place', enumOf(session, 'execution_place'), EXECUTION_PLACES)
+  const created = file.rest?.CreateSessionResponse as Record<string, unknown> | undefined
+  check('CreateSessionResponse.execution_place', enumOf(created, 'execution_place'), EXECUTION_PLACES)
   check('RoutingSettings.mode', enumOf(settings, 'mode'), ROUTING_MODES)
   check('RoutingSettings.stage', enumOf(settings, 'stage'), LEARNING_STAGES)
   return problems
