@@ -99,6 +99,9 @@ export default {
     nowAllowed: "Browser allowed.",
     nowDenied: "Browser denied.",
     allowedBy: "Allowed by {by}, {when}",
-    note: "The browser is attached to a session as soon as the server provides it and this project allows it.",
+    provided: "This installation provides the browser",
+    notProvided: "This installation does not provide the browser",
+    noteProvided: "The browser is provided by this installation (the server's configuration); the authorisation above is this project's consent, and it is what attaches the browser to its sessions.",
+    noteMissing: "This installation does not provide the browser (a build without the feature, or no executable configured); allowing it records this project's consent and takes effect as soon as the installation provides one.",
   },
 } as const

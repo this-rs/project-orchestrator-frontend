@@ -13,8 +13,18 @@ export interface ToolOriginConsent {
   consented_at: string
 }
 
+/**
+ * The browser of a project, on its TWO floors (N23c), which the panel must not confuse:
+ *
+ * * `allowed` — this PROJECT's consent, the only one this page writes.
+ * * `available` — whether THIS INSTALLATION provides a browser at all (its build and the
+ *   operator's configuration), which no request changes. The server resolves it exactly as it
+ *   does when it opens a session. A project may consent either way: with `available: false` the
+ *   consent is recorded and takes effect the day the installation provides a browser.
+ */
 export interface BrowserSetting {
   allowed: boolean
+  available: boolean
   authorized_by?: string | null
   authorized_at?: string | null
 }

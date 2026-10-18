@@ -86,6 +86,11 @@ function NetworkToolsErrorCard({ error }: { error: NetworkToolsError }) {
  * Network tools of native agent sessions, per project: the origins WebFetch may
  * reach, the search engines (global) with their key grant and origin consent,
  * and whether the browser is allowed.
+ *
+ * The browser panel says the truth of THIS installation (N23c): `browser.available` comes from
+ * the server, which resolves it exactly as it does when it opens a session. The page keeps the
+ * two floors apart — what the installation PROVIDES (its build and the operator's configuration,
+ * which this page cannot change) and what this PROJECT consents to (the switch below).
  */
 export function NetworkTools() {
   const tr = useT()
@@ -562,7 +567,12 @@ export function NetworkTools() {
     browserBody = <Loading>{t('networkTools.loading')}</Loading>
   } else if (browser) {
     browserBody = (
-      <div className="space-y-2">
+      <div className="space-y-2" data-testid="network-browser-body" data-browser-available={browser.available}>
+        <ToneText
+          tone={browser.available ? 'success' : 'muted'}
+          label={t(browser.available ? 'networkTools.browser.provided' : 'networkTools.browser.notProvided')}
+          className="text-xs"
+        />
         <Switch
           label={t('networkTools.browser.label', { project: projectName })}
           checked={browser.allowed}
@@ -582,7 +592,7 @@ export function NetworkTools() {
           </p>
         )}
         <p id={ids.browserNote} className="text-xs text-gray-500">
-          {t('networkTools.browser.note')}
+          {t(browser.available ? 'networkTools.browser.noteProvided' : 'networkTools.browser.noteMissing')}
         </p>
       </div>
     )

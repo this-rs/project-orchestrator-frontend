@@ -101,6 +101,9 @@ export default {
     nowAllowed: "Đã cho phép trình duyệt.",
     nowDenied: "Đã từ chối trình duyệt.",
     allowedBy: "Được {by} cho phép, {when}",
-    note: "Trình duyệt được gắn vào phiên ngay khi máy chủ cung cấp nó và dự án này cho phép.",
+    provided: "Bản cài đặt này cung cấp trình duyệt",
+    notProvided: "Bản cài đặt này không cung cấp trình duyệt",
+    noteProvided: "Trình duyệt do bản cài đặt này cung cấp (cấu hình của máy chủ); quyền ở trên là sự đồng ý của dự án này, và chính nó gắn trình duyệt vào các phiên của dự án.",
+    noteMissing: "Bản cài đặt này không cung cấp trình duyệt (bản dựng thiếu tính năng, hoặc chưa cấu hình tệp thực thi); việc cho phép sẽ ghi lại sự đồng ý của dự án và có hiệu lực ngay khi bản cài đặt cung cấp trình duyệt.",
   },
 } satisfies Translation<'networkTools'>

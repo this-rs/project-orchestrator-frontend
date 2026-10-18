@@ -101,6 +101,9 @@ export default {
     nowAllowed: "已允许浏览器。",
     nowDenied: "已拒绝浏览器。",
     allowedBy: "由 {by} 于 {when} 允许",
-    note: "服务器提供浏览器且此项目允许后，浏览器即接入会话。",
+    provided: "此安装提供浏览器",
+    notProvided: "此安装不提供浏览器",
+    noteProvided: "浏览器由此安装提供（服务器配置）；上方的授权是本项目的同意，正是它把浏览器接入本项目的会话。",
+    noteMissing: "此安装不提供浏览器（构建未包含该功能，或未配置可执行文件）；授权会记录本项目的同意，并在此安装提供浏览器后立即生效。",
   },
 } satisfies Translation<'networkTools'>
