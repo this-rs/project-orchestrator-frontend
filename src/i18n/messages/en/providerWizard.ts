@@ -187,6 +187,10 @@ export default {
     grantHelp: "During this time, the server may read this key to send it to this provider, and to it alone. Afterwards, renew the grant from the vault.",
     refSaved: "Reference saved in the instance:",
   },
+  vaultFirst: {
+    title: "First, the vault",
+    text: "A provider key is typed once and goes straight into the vault: only its name (vault:<name>) is kept with the provider. Create or unlock the vault now; a local model without a key does not need it.",
+  },
   vaultState: {
     unreachable: "The vault is unreachable: {error}",
     reading: "Reading the vault state…",

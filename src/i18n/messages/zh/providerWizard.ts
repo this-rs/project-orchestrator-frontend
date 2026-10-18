@@ -189,6 +189,10 @@ export default {
     grantHelp: "在此期间，服务器可以读取此密钥并仅将其发送给此提供方。之后请在保险库中续期。",
     refSaved: "实例中保存的引用：",
   },
+  vaultFirst: {
+    title: "先设置保险库",
+    text: "提供方的密钥只输入一次，直接存入保险库：提供方只保存它的名称（vault:<名称>）。现在创建或解锁保险库；没有密钥的本地模型不需要它。",
+  },
   vaultState: {
     unreachable: "无法访问保险库：{error}",
     reading: "正在读取保险库状态…",

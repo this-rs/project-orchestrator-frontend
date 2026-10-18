@@ -189,6 +189,10 @@ export default {
     grantHelp: "In dieser Zeit darf der Server diesen Schlüssel lesen, um ihn an diesen Anbieter zu senden, und nur an ihn. Danach erneuern Sie die Gewährung im Tresor.",
     refSaved: "In der Instanz gespeicherte Referenz:",
   },
+  vaultFirst: {
+    title: "Zuerst der Tresor",
+    text: "Ein Provider-Schlüssel wird einmal eingegeben und geht direkt in den Tresor: Beim Provider wird nur sein Name (vault:<name>) gespeichert. Erstellen oder entsperren Sie den Tresor jetzt; ein lokales Modell ohne Schlüssel braucht ihn nicht.",
+  },
   vaultState: {
     unreachable: "Der Tresor ist nicht erreichbar: {error}",
     reading: "Tresorstatus wird gelesen…",

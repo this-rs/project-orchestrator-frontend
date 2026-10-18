@@ -12,7 +12,7 @@
  * Run with: npx vitest run src/components/settings/ProviderWizard.security.test.tsx
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 
 vi.mock('@/services/authManager', () => ({
   getValidToken: () => Promise.resolve('human-token'),
@@ -35,12 +35,16 @@ const SECRET = 'sk-live-THE-SECRET-4f9a2c'
 
 interface Call {
   method: string
+  /** The full URL as fetched (path AND query). */
+  url: string
   path: string
   body: string
   headers: Record<string, string>
 }
 let calls: Call[] = []
 let vaultOpen = true
+/** Whether the vault exists (false = first run: nothing created yet). */
+let vaultInitialized = true
 let createStatus = 201
 /** Health of the built-in Claude Code in the list: `cli_not_found` = no CLI on the server. */
 let claudeState = 'ok'
@@ -53,7 +57,7 @@ const json = (status: number, body: unknown) =>
 function route(method: string, path: string): Response {
   if (method === 'GET' && path === '/api/vault') {
     return json(200, {
-      initialized: true,
+      initialized: vaultInitialized,
       unlocked_until: vaultOpen ? '2999-01-01T00:00:00Z' : null,
       secret_count: 1,
       unavailable: null,
@@ -62,7 +66,15 @@ function route(method: string, path: string): Response {
       requests: [],
     })
   }
-  if (method === 'POST' && path === '/api/vault/unlock') return json(200, { unlocked_until: '2999-01-01T00:00:00Z', unlock_proof: 'proof-of-this-tab' })
+  if (method === 'POST' && path === '/api/vault/unlock') {
+    vaultOpen = true
+    return json(200, { unlocked_until: '2999-01-01T00:00:00Z', unlock_proof: 'proof-of-this-tab' })
+  }
+  if (method === 'POST' && path === '/api/vault/init') {
+    vaultInitialized = true
+    vaultOpen = true
+    return json(200, { unlocked_until: '2999-01-01T00:00:00Z', unlock_proof: 'proof-from-init' })
+  }
   if (path.startsWith('/api/vault/secrets/')) return new Response(null, { status: 204 })
   if (method === 'POST' && path === '/api/vault/grants') return json(201, { id: 'grant-1', secrets: {}, scope: {}, created_at: '', expires_at: '' })
   if (method === 'POST' && path === '/api/chat/providers/ssh-host-key') {
@@ -90,6 +102,7 @@ function route(method: string, path: string): Response {
 beforeEach(async () => {
   calls = []
   vaultOpen = true
+  vaultInitialized = true
   createStatus = 201
   claudeState = 'ok'
   testPasses = false
@@ -100,6 +113,7 @@ beforeEach(async () => {
       const method = (init.method ?? 'GET').toUpperCase()
       calls.push({
         method,
+        url: String(url),
         path: u.pathname,
         body: typeof init.body === 'string' ? init.body : '',
         headers: (init.headers ?? {}) as Record<string, string>,
@@ -301,5 +315,89 @@ describe('the API key of the wizard, up to the pilot role (M3)', () => {
     expect(calls.filter(carries).map((c) => `${c.method} ${c.path}`)).toEqual(['PUT /api/vault/secrets/ds'])
     for (const c of calls) expect(c.path).not.toContain(SECRET)
     expect(document.body.innerHTML).not.toContain(SECRET)
+  })
+})
+
+/**
+ * V1 — the vault comes first. On a first run (no vault yet) or with a vault locked
+ * for this tab, step 1 of the wizard offers to create or unlock it BEFORE the
+ * provider is described. The passphrase only ever travels in the BODY of
+ * `POST /api/vault/init|unlock`: never in a URL, a header, another request,
+ * browser storage or the page; the key typed afterwards still goes only to the vault,
+ * with the proof issued by that very call.
+ */
+describe('the vault, first (V1)', () => {
+  const PASSPHRASE = 'fake-passphrase-NOT-REAL-91'
+  const carriesPass = (c: Call) =>
+    c.url.includes(PASSPHRASE) || c.body.includes(PASSPHRASE) || Object.values(c.headers).some((v) => String(v).includes(PASSPHRASE))
+  const dump = (s: Storage) => Array.from({ length: s.length }, (_, i) => `${s.key(i)}=${s.getItem(s.key(i)!)}`).join('\n')
+
+  function expectNowhereButTheBody(path: string) {
+    const withPass = calls.filter(carriesPass)
+    expect(withPass.map((c) => `${c.method} ${c.path}`)).toEqual([`POST ${path}`])
+    expect(withPass[0].url).not.toContain(PASSPHRASE)
+    expect(Object.values(withPass[0].headers).join(' ')).not.toContain(PASSPHRASE)
+    expect(JSON.parse(withPass[0].body)).toMatchObject({ passphrase: PASSPHRASE })
+    expect(dump(localStorage)).not.toContain(PASSPHRASE)
+    expect(dump(sessionStorage)).not.toContain(PASSPHRASE)
+    expect(window.location.href).not.toContain(PASSPHRASE)
+    expect(document.body.innerHTML).not.toContain(PASSPHRASE)
+  }
+
+  it('no vault yet: step 1 offers to create it before the provider form; the passphrase is only in the body of POST /api/vault/init; the key then goes only to the vault, with the proof of that call', async () => {
+    vaultInitialized = false
+    vaultOpen = false
+    mountSettings(<ProviderWizard existingIds={['claude-code']} onClose={vi.fn()} onFinished={vi.fn()} />, { providers: [CLAUDE] })
+    const card = await screen.findByTestId('wizard-vault-first')
+    within(card).getByTestId('wizard-vault-create')
+    // Before the provider form: the card comes first in the page.
+    const identifier = screen.getByLabelText('Identifier')
+    expect(card.compareDocumentPosition(identifier) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.change(within(card).getByLabelText('Passphrase'), { target: { value: PASSPHRASE } })
+    fireEvent.change(within(card).getByLabelText('Confirm passphrase'), { target: { value: PASSPHRASE } })
+    fireEvent.click(within(card).getByRole('button', { name: 'Create vault' }))
+    // The card stays, and says the vault is open.
+    await within(card).findByTestId('wizard-vault-open')
+    expectNowhereButTheBody('/api/vault/init')
+
+    fireEvent.change(identifier, { target: { value: 'ds' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByTestId('wizard-vault-open')
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: SECRET } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save and test' }))
+    await screen.findByTestId('wizard-test-result')
+
+    const withSecret = calls.filter(carries)
+    expect(withSecret.map((c) => `${c.method} ${c.path}`)).toEqual(['PUT /api/vault/secrets/ds'])
+    expect(withSecret[0].headers['x-vault-proof']).toBe('proof-from-init')
+    for (const c of calls) expect(c.url).not.toContain(SECRET)
+    const create = calls.find((c) => c.method === 'POST' && c.path === '/api/chat/providers')!
+    expect(JSON.parse(create.body)).toMatchObject({ credential_ref: 'vault:ds' })
+    // Neither the passphrase nor the key went anywhere else afterwards.
+    expect(calls.filter(carriesPass).map((c) => c.path)).toEqual(['/api/vault/init'])
+    expect(document.body.innerHTML).not.toContain(SECRET)
+    expect(dump(localStorage) + dump(sessionStorage)).not.toContain(SECRET)
+  })
+
+  it('a locked vault: step 1 offers to unlock it in place; the passphrase is only in the body of POST /api/vault/unlock', async () => {
+    vaultOpen = false
+    mountSettings(<ProviderWizard existingIds={['claude-code']} onClose={vi.fn()} onFinished={vi.fn()} />, { providers: [CLAUDE] })
+    const card = await screen.findByTestId('wizard-vault-first')
+    within(card).getByTestId('wizard-vault-locked')
+    fireEvent.change(within(card).getByLabelText('Vault passphrase'), { target: { value: PASSPHRASE } })
+    fireEvent.click(within(card).getByRole('button', { name: 'Unlock' }))
+    await within(card).findByTestId('wizard-vault-open')
+    expectNowhereButTheBody('/api/vault/unlock')
+    // Nothing was written while the vault was being opened.
+    expect(calls.filter((c) => c.method !== 'GET').map((c) => c.path)).toEqual(['/api/vault/unlock'])
+  })
+
+  it('a vault already open for this tab: no vault card on step 1', async () => {
+    await vaultApi.unlock('the passphrase', 60)
+    mountSettings(<ProviderWizard existingIds={['claude-code']} onClose={vi.fn()} onFinished={vi.fn()} />, { providers: [CLAUDE] })
+    await waitFor(() => expect(calls.some((c) => c.method === 'GET' && c.path === '/api/vault')).toBe(true))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByTestId('wizard-vault-first')).toBeNull()
   })
 })

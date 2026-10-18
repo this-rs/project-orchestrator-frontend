@@ -11,6 +11,7 @@ export default {
     loginHint: "يتطلب هذا المزوّد تسجيل الدخول. شغّل الأمر أدناه على الخادم ثم انقر على اختبار. لا يسجّل Project Orchestrator الدخول نيابةً عنك.",
     retryByTesting: "انقر على اختبار لإعادة المحاولة.",
     unlockVault: "فتح قفل الخزنة",
+    unlockedRechecked: "تم فتح قفل الخزنة: يجري التحقق من المزوّد مرة أخرى.",
   },
   errorTitle: {
     auth_required: "تسجيل الدخول مطلوب",

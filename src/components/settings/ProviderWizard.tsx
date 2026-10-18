@@ -2,6 +2,8 @@
  * "Add a provider" — a guided wizard in five numbered steps:
  *
  *   1. Model       — a preset pre-fills id, label, base URL, model, cost and the kind of key;
+ *                    above it, when the vault does not exist yet or is locked for this tab,
+ *                    the vault comes first: create it or unlock it here (`VaultFirst`);
  *   2. Key         — a new key (typed here, stored straight into the vault), a key already in
  *                    the vault, an `env:` variable of the server, or none;
  *   3. Connection  — the chain: store the key → create the instance → grant the key to it → test;
@@ -80,6 +82,7 @@ import {
   ProjectStep,
   StepIntro,
   TaskList,
+  VaultFirst,
   Verdict,
   type IdentityField,
   type IdentityState,
@@ -297,6 +300,12 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
   const usesVault = keyState.mode === 'new' || keyState.mode === 'existing'
   // The unlock proof lives in memory in services/vault (never storage): re-read at each render.
   const canWriteVault = !!vault?.initialized && !!vault.unlocked_until && hasUnlockProof()
+  // The vault comes first: a vault to create or to unlock is offered on step 1, before
+  // the provider is described. Once shown, the card stays (it turns into "unlocked").
+  const vaultNeedsAction =
+    !!vaultError || (!!vault && (!!vault.unavailable || !vault.initialized || !canWriteVault))
+  const [vaultFirst, setVaultFirst] = useState(false)
+  if (vaultNeedsAction && !vaultFirst) setVaultFirst(true) // sticky: adjusted during render, no effect
   const secretName = keyState.secretName.trim()
   const vaultName = keyState.mode === 'new' ? secretName : keyState.existingName
   const credentialRef: CredentialRef =
@@ -753,6 +762,10 @@ export function ProviderWizard({ existingIds, onClose, onFinished }: ProviderWiz
           })}
         </ol>
       </header>
+
+      {step === 0 && vaultFirst && (
+        <VaultFirst vault={vault} vaultError={vaultError} canWrite={canWriteVault} onChange={() => void refreshVault()} />
+      )}
 
       {step === 0 && (
         <PresetStep

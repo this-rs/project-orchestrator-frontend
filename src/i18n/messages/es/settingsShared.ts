@@ -11,6 +11,7 @@ export default {
     loginHint: "Este proveedor requiere iniciar sesión. Ejecuta el comando siguiente en el servidor y luego haz clic en Probar. Project Orchestrator no inicia sesión por ti.",
     retryByTesting: "Haz clic en Probar para reintentar.",
     unlockVault: "Desbloquear la bóveda",
+    unlockedRechecked: "Bóveda desbloqueada: el proveedor se vuelve a comprobar.",
   },
   errorTitle: {
     auth_required: "Inicio de sesión requerido",

@@ -189,6 +189,10 @@ export default {
     grantHelp: "Trong thời gian này, máy chủ có thể đọc khóa để gửi cho nhà cung cấp này và chỉ riêng nó. Sau đó, hãy gia hạn quyền từ kho khóa.",
     refSaved: "Tham chiếu lưu trong phiên bản:",
   },
+  vaultFirst: {
+    title: "Trước tiên: kho khóa",
+    text: "Khóa của nhà cung cấp chỉ được nhập một lần và đi thẳng vào kho khóa: nhà cung cấp chỉ giữ tên của nó (vault:<tên>). Hãy tạo hoặc mở khóa kho khóa ngay bây giờ; mô hình cục bộ không có khóa thì không cần.",
+  },
   vaultState: {
     unreachable: "Không truy cập được kho khóa: {error}",
     reading: "Đang đọc trạng thái kho khóa…",

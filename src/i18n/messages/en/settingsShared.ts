@@ -9,6 +9,7 @@ export default {
     loginHint: "This provider requires a sign-in. Run the command below on the server, then click Test. Project Orchestrator does not sign in for you.",
     retryByTesting: "Click Test to retry.",
     unlockVault: "Unlock the vault",
+    unlockedRechecked: "Vault unlocked: the provider is being checked again.",
   },
   errorTitle: {
     auth_required: "Sign-in required",

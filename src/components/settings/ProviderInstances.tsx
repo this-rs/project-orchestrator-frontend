@@ -171,6 +171,7 @@ function InstanceCard({
           error={error}
           className="mt-3"
           testId={`instance-error-${instance.id}`}
+          onUnlocked={() => void recheck()}
         />
       )}
       {checkError && (

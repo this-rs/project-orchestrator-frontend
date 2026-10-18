@@ -189,6 +189,10 @@ export default {
     grantHelp: "Durante esse tempo, o servidor pode ler esta chave para enviá-la a este provedor, e somente a ele. Depois, renove a concessão pelo cofre.",
     refSaved: "Referência salva na instância:",
   },
+  vaultFirst: {
+    title: "Primeiro, o cofre",
+    text: "A chave de um provedor é digitada uma única vez e vai direto para o cofre: com o provedor fica apenas o nome dela (vault:<nome>). Crie ou desbloqueie o cofre agora; um modelo local sem chave não precisa dele.",
+  },
   vaultState: {
     unreachable: "O cofre está inacessível: {error}",
     reading: "Lendo o estado do cofre…",

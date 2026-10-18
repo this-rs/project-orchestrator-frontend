@@ -11,6 +11,7 @@ export default {
     loginHint: "इस प्रदाता को साइन-इन चाहिए। नीचे की कमांड सर्वर पर चलाएँ, फिर परखें दबाएँ। Project Orchestrator आपकी जगह साइन इन नहीं करता।",
     retryByTesting: "फिर कोशिश करने के लिए परखें दबाएँ।",
     unlockVault: "वॉल्ट अनलॉक करें",
+    unlockedRechecked: "वॉल्ट अनलॉक हो गया: प्रदाता की फिर से जाँच की जा रही है।",
   },
   errorTitle: {
     auth_required: "साइन-इन आवश्यक",

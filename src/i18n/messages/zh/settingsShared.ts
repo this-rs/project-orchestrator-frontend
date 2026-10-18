@@ -11,6 +11,7 @@ export default {
     loginHint: "此提供方需要登录。请在服务器上运行下面的命令，然后点击“测试”。Project Orchestrator 不会替您登录。",
     retryByTesting: "点击“测试”重试。",
     unlockVault: "解锁保险库",
+    unlockedRechecked: "保险库已解锁：正在重新检查提供方。",
   },
   errorTitle: {
     auth_required: "需要登录",

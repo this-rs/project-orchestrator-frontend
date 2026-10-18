@@ -189,6 +189,10 @@ export default {
     grantHelp: "Durante este tiempo, el servidor puede leer esta clave para enviarla a este proveedor, y solo a él. Después, renueva el permiso desde la bóveda.",
     refSaved: "Referencia guardada en la instancia:",
   },
+  vaultFirst: {
+    title: "Primero, la bóveda",
+    text: "La clave de un proveedor se escribe una sola vez y va directamente a la bóveda: con el proveedor solo se guarda su nombre (vault:<nombre>). Cree o desbloquee la bóveda ahora; un modelo local sin clave no la necesita.",
+  },
   vaultState: {
     unreachable: "La bóveda es inaccesible: {error}",
     reading: "Leyendo el estado de la bóveda…",

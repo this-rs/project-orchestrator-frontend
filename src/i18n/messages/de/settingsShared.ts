@@ -11,6 +11,7 @@ export default {
     loginHint: "Dieser Anbieter verlangt eine Anmeldung. Führen Sie den folgenden Befehl auf dem Server aus und klicken Sie dann auf Testen. Project Orchestrator meldet sich nicht für Sie an.",
     retryByTesting: "Klicken Sie auf Testen, um es erneut zu versuchen.",
     unlockVault: "Tresor entsperren",
+    unlockedRechecked: "Tresor entsperrt: der Provider wird erneut geprüft.",
   },
   errorTitle: {
     auth_required: "Anmeldung erforderlich",
