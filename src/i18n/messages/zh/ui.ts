@@ -107,6 +107,13 @@ export default {
   cost: {
     tokensIn: "输入 {n}",
     tokensOut: "输出 {n}",
+    cacheRead: "缓存 {n}",
+    cacheReadRatio: "缓存 {n}（{ratio}）",
+    cacheWrite: "写入缓存 {n}",
+    cacheWriteUnknown: "缓存写入未知",
+    sessionCache: "对话：{ratio} 的输入来自缓存",
+    sessionCacheNone: "对话：未报告缓存读取",
+    sessionCacheTitle: "在报告用量的 {turns} 轮中的 {with} 轮的提示缓存",
     estimated: "估算",
     free: "本地",
     subscription: "订阅",

@@ -18,6 +18,7 @@ import { TraceView, TracksView, adoptTranscriptIds, buildConversationTimeline, b
 import { useTimelineContext } from '@/hooks/useTimelineContext'
 import { useTimelineView } from '@/hooks/useTimelineView'
 import { TimelineViewTabs } from './TimelineViewTabs'
+import { SessionUsageSummary } from './SessionUsageSummary'
 
 interface ChatTimelineStripProps {
   sessionId: string | null
@@ -81,7 +82,8 @@ export const ChatTimelineStrip = memo(function ChatTimelineStrip({ sessionId, me
   } as const
   return (
     <div className="min-w-0" data-testid="chat-timeline-strip">
-      <div className="flex justify-end pb-1">
+      <div className="flex items-center justify-end gap-2 pb-1">
+        <SessionUsageSummary sessionId={sessionId} isStreaming={isStreaming} />
         <TimelineViewTabs value={view} onChange={setView} />
       </div>
       {view === 'tracks' ? <TracksView {...shared} zones="collapsed" /> : <TraceView {...shared} />}

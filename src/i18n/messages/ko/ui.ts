@@ -107,6 +107,13 @@ export default {
   cost: {
     tokensIn: '입력 {n}',
     tokensOut: '출력 {n}',
+    cacheRead: '캐시 {n}',
+    cacheReadRatio: '캐시 {n} ({ratio})',
+    cacheWrite: '캐시 쓰기 {n}',
+    cacheWriteUnknown: '캐시 쓰기 알 수 없음',
+    sessionCache: '대화: 입력의 {ratio}가 캐시에서 제공됨',
+    sessionCacheNone: '대화: 보고된 캐시 읽기 없음',
+    sessionCacheTitle: '사용량을 보고한 {turns}개 턴 중 {with}개 턴의 프롬프트 캐시',
     estimated: '추정',
     free: '로컬',
     subscription: '구독',

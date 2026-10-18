@@ -107,6 +107,13 @@ export default {
   cost: {
     tokensIn: '{n} de entrada',
     tokensOut: '{n} de saída',
+    cacheRead: '{n} em cache',
+    cacheReadRatio: '{n} em cache ({ratio})',
+    cacheWrite: '{n} gravados em cache',
+    cacheWriteUnknown: 'gravação em cache desconhecida',
+    sessionCache: 'Conversa: {ratio} da entrada vinda do cache',
+    sessionCacheNone: 'Conversa: nenhuma leitura de cache informada',
+    sessionCacheTitle: 'Cache de prompt nos {with} de {turns} turnos que informaram uso',
     estimated: 'estim.',
     free: 'local',
     subscription: 'assinatura',

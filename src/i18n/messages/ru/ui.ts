@@ -107,6 +107,13 @@ export default {
   cost: {
     tokensIn: 'вход: {n}',
     tokensOut: 'выход: {n}',
+    cacheRead: 'из кэша: {n}',
+    cacheReadRatio: 'из кэша: {n} ({ratio})',
+    cacheWrite: 'записано в кэш: {n}',
+    cacheWriteUnknown: 'запись в кэш неизвестна',
+    sessionCache: 'Беседа: {ratio} ввода из кэша',
+    sessionCacheNone: 'Беседа: чтение из кэша не сообщалось',
+    sessionCacheTitle: 'Кэш промпта по {with} из {turns} ходов с указанным расходом',
     estimated: 'оценка',
     free: 'локально',
     subscription: 'подписка',

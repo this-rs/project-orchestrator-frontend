@@ -107,6 +107,13 @@ export default {
   cost: {
     tokensIn: '{n} en entrée',
     tokensOut: '{n} en sortie',
+    cacheRead: '{n} en cache',
+    cacheReadRatio: '{n} en cache ({ratio})',
+    cacheWrite: '{n} écrits en cache',
+    cacheWriteUnknown: 'écriture en cache inconnue',
+    sessionCache: 'Conversation : {ratio} de l’entrée servie par le cache',
+    sessionCacheNone: 'Conversation : aucune lecture de cache signalée',
+    sessionCacheTitle: 'Cache de prompt sur les {with} tours sur {turns} qui ont signalé leur usage',
     estimated: 'est.',
     free: 'local',
     subscription: 'abonnement',

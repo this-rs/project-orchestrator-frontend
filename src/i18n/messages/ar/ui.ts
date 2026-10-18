@@ -107,6 +107,13 @@ export default {
   cost: {
     tokensIn: "{n} مُدخل",
     tokensOut: "{n} مُخرج",
+    cacheRead: "{n} من الذاكرة المؤقتة",
+    cacheReadRatio: "{n} من الذاكرة المؤقتة ({ratio})",
+    cacheWrite: "{n} كُتبت في الذاكرة المؤقتة",
+    cacheWriteUnknown: "الكتابة في الذاكرة المؤقتة غير معروفة",
+    sessionCache: "المحادثة: {ratio} من المدخلات من الذاكرة المؤقتة",
+    sessionCacheNone: "المحادثة: لم يُبلَّغ عن قراءة من الذاكرة المؤقتة",
+    sessionCacheTitle: "ذاكرة الموجه المؤقتة عبر {with} من {turns} أدوار أبلغت عن الاستخدام",
     estimated: "تقديري",
     free: "محلي",
     subscription: "اشتراك",

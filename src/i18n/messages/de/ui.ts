@@ -107,6 +107,13 @@ export default {
   cost: {
     tokensIn: '{n} ein',
     tokensOut: '{n} aus',
+    cacheRead: '{n} aus dem Cache',
+    cacheReadRatio: '{n} aus dem Cache ({ratio})',
+    cacheWrite: '{n} in den Cache geschrieben',
+    cacheWriteUnknown: 'Cache-Schreibvorgang unbekannt',
+    sessionCache: 'Unterhaltung: {ratio} der Eingabe aus dem Cache',
+    sessionCacheNone: 'Unterhaltung: kein Cache-Lesezugriff gemeldet',
+    sessionCacheTitle: 'Prompt-Cache über die {with} von {turns} Runden mit gemeldeter Nutzung',
     estimated: 'gesch.',
     free: 'lokal',
     subscription: 'Abonnement',
