@@ -39,3 +39,6 @@ coverage/
 
 # Visual QA bench output (npm run qa:shots)
 qa-out/
+
+# tsc -b incremental cache, rewritten on every build
+*.tsbuildinfo
