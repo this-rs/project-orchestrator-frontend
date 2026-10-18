@@ -301,6 +301,37 @@ function VaultState({
   )
 }
 
+/**
+ * The vault, offered BEFORE the provider is described (step 1): a key typed later
+ * goes straight into it, and only its name (`vault:<name>`) is kept on the instance.
+ * Same create / unlock flow as the vault page: the passphrase goes to
+ * `/vault/init` or `/vault/unlock` and nowhere else.
+ */
+export function VaultFirst({
+  vault,
+  vaultError,
+  canWrite,
+  onChange,
+}: {
+  vault: VaultOverview | null
+  vaultError: string | null
+  canWrite: boolean
+  onChange: () => void
+}) {
+  const { t } = useT()
+  return (
+    <section
+      data-testid="wizard-vault-first"
+      aria-label={t('providerWizard.vaultFirst.title')}
+      className="space-y-2 rounded-lg border border-amber-400/20 bg-amber-400/[0.04] p-3"
+    >
+      <h4 className="text-xs font-semibold text-gray-100">{t('providerWizard.vaultFirst.title')}</h4>
+      <p className="text-xs text-gray-400">{t('providerWizard.vaultFirst.text')}</p>
+      <VaultState vault={vault} vaultError={vaultError} canWrite={canWrite} onChange={onChange} />
+    </section>
+  )
+}
+
 export function KeyStep({
   uid,
   preset,

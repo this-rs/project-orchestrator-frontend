@@ -615,7 +615,7 @@ function EditForm({
           {testBlocked}
         </p>
       )}
-      {cardError && <SettingsErrorCard error={cardError} testId="provider-test-error" />}
+      {cardError && <SettingsErrorCard error={cardError} testId="provider-test-error" onUnlocked={() => void runTest()} />}
       {test?.message && !cardError && (
         <p role="alert" className="text-xs text-red-400">
           {test.message}

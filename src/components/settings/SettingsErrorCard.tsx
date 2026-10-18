@@ -1,7 +1,8 @@
 /**
  * A provider failure on the SETTINGS page, in its context: the
  * page retries with "Test" (not by sending a message), a login is a command
- * to run on the server, a locked vault links to the vault.
+ * to run on the server, a locked vault is unlocked in place (then the check
+ * runs again) — or, without `onUnlocked`, links to the vault.
  *
  * The chat keeps `ProviderStateCard` (its own wording and actions).
  */
@@ -14,6 +15,7 @@ import { useT } from '@/i18n'
 import type { MessageKey } from '@/i18n'
 import { providerErrorFr } from '@/constants/providerWizard'
 import type { ProviderErrorInfo } from '@/types/provider'
+import { VaultUnlock } from '@/components/chat/VaultUnlock'
 
 const RETRYABLE = new Set([
   'endpoint_unreachable',
@@ -57,10 +59,13 @@ export function SettingsErrorCard({
   error,
   className = '',
   testId,
+  onUnlocked,
 }: {
   error: ProviderErrorInfo
   className?: string
   testId?: string
+  /** `credentials_locked`: unlock the vault in place, then this runs (the check again). Without it, a link to the vault. */
+  onUnlocked?: () => void
 }) {
   const { t } = useT()
   const titleKey = `settingsShared.errorTitle.${error.code}` as MessageKey
@@ -88,7 +93,12 @@ export function SettingsErrorCard({
         {error.code === 'auth_required' && error.login_hint && (
           <Command command={error.login_hint} />
         )}
-        {error.code === 'credentials_locked' && (
+        {error.code === 'credentials_locked' && onUnlocked && (
+          <div className="mt-2" data-testid="settings-vault-unlock">
+            <VaultUnlock onUnlocked={onUnlocked} doneText={t('settingsShared.errorCard.unlockedRechecked')} />
+          </div>
+        )}
+        {error.code === 'credentials_locked' && !onUnlocked && (
           <Link
             to={VAULT_PATH}
             className="mt-1 inline-block text-indigo-300 underline hover:text-indigo-200"

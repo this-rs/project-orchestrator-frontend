@@ -11,6 +11,7 @@ export default {
     loginHint: "このプロバイダーはサインインが必要です。サーバーで下のコマンドを実行し、「テスト」をクリックしてください。Project Orchestrator が代わりにサインインすることはありません。",
     retryByTesting: "「テスト」をクリックして再試行してください。",
     unlockVault: "ボールトのロックを解除",
+    unlockedRechecked: "ボールトのロックを解除しました。プロバイダーを再確認しています。",
   },
   errorTitle: {
     auth_required: "サインインが必要",

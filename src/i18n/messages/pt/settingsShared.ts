@@ -11,6 +11,7 @@ export default {
     loginHint: "Este provedor exige login. Execute o comando abaixo no servidor e clique em Testar. O Project Orchestrator não faz login por você.",
     retryByTesting: "Clique em Testar para tentar novamente.",
     unlockVault: "Desbloquear o cofre",
+    unlockedRechecked: "Cofre desbloqueado: o provedor é verificado novamente.",
   },
   errorTitle: {
     auth_required: "Login necessário",

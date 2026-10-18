@@ -11,6 +11,7 @@ export default {
     loginHint: "Ce provider demande une connexion. Lancez la commande ci-dessous sur le serveur, puis cliquez sur Tester. Project Orchestrator ne se connecte pas à votre place.",
     retryByTesting: "Cliquez sur Tester pour réessayer.",
     unlockVault: "Déverrouiller le coffre",
+    unlockedRechecked: "Coffre déverrouillé : le provider est vérifié à nouveau.",
   },
   errorTitle: {
     auth_required: "Connexion requise",

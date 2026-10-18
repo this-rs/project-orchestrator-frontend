@@ -11,6 +11,7 @@ export default {
     loginHint: "Nhà cung cấp này cần đăng nhập. Chạy lệnh bên dưới trên máy chủ rồi bấm Kiểm tra. Project Orchestrator không đăng nhập thay bạn.",
     retryByTesting: "Bấm Kiểm tra để thử lại.",
     unlockVault: "Mở khóa kho khóa",
+    unlockedRechecked: "Đã mở khóa kho khóa: đang kiểm tra lại nhà cung cấp.",
   },
   errorTitle: {
     auth_required: "Cần đăng nhập",

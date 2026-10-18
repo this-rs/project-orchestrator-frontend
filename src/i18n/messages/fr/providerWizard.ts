@@ -189,6 +189,10 @@ export default {
     grantHelp: "Pendant cette durée, le serveur peut lire cette clé pour l’envoyer à ce provider, et à lui seul. Ensuite, renouvelez l’accord depuis le coffre.",
     refSaved: "Référence enregistrée dans l’instance :",
   },
+  vaultFirst: {
+    title: "D'abord, le coffre",
+    text: "Une clé de provider est saisie une seule fois et va directement dans le coffre : seul son nom (vault:<nom>) est gardé avec le provider. Créez ou déverrouillez le coffre maintenant ; un modèle local sans clé n'en a pas besoin.",
+  },
   vaultState: {
     unreachable: "Le coffre est inaccessible : {error}",
     reading: "Lecture de l’état du coffre…",

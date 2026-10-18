@@ -11,6 +11,7 @@ export default {
     loginHint: "이 제공자는 로그인이 필요합니다. 서버에서 아래 명령을 실행한 뒤 테스트를 누르세요. Project Orchestrator가 대신 로그인하지는 않습니다.",
     retryByTesting: "테스트를 눌러 다시 시도하세요.",
     unlockVault: "볼트 잠금 해제",
+    unlockedRechecked: "볼트 잠금이 해제되었습니다. 공급자를 다시 확인하는 중입니다.",
   },
   errorTitle: {
     auth_required: "로그인 필요",
