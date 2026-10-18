@@ -16,6 +16,7 @@ const setBrowser = vi.fn()
 const searchEngines = vi.fn()
 const createSearchEngine = vi.fn()
 const deleteSearchEngine = vi.fn()
+const setSearchEngineOrder = vi.fn()
 vi.mock('@/services/networkTools', async (orig) => ({
   ...(await orig<typeof import('@/services/networkTools')>()),
   networkToolsApi: {
@@ -26,6 +27,7 @@ vi.mock('@/services/networkTools', async (orig) => ({
     searchEngines: (...a: unknown[]) => searchEngines(...a),
     createSearchEngine: (...a: unknown[]) => createSearchEngine(...a),
     deleteSearchEngine: (...a: unknown[]) => deleteSearchEngine(...a),
+    setSearchEngineOrder: (...a: unknown[]) => setSearchEngineOrder(...a),
   },
 }))
 let proof = false
@@ -92,6 +94,9 @@ beforeEach(() => {
   searchEngines.mockReset().mockResolvedValue([BRAVE, SEARX])
   createSearchEngine.mockReset().mockImplementation((draft: SearchEngine) => Promise.resolve({ ...BRAVE, ...draft }))
   deleteSearchEngine.mockReset().mockResolvedValue(undefined)
+  setSearchEngineOrder
+    .mockReset()
+    .mockImplementation((order: string[]) => Promise.resolve(order.map((id) => [BRAVE, SEARX].find((e) => e.id === id))))
   createGrant.mockReset().mockResolvedValue({ id: 'g1' })
 })
 
@@ -309,6 +314,77 @@ describe('NetworkTools — search engines', () => {
   })
 })
 
+describe('NetworkTools — search engine order', () => {
+  const ranks = () =>
+    screen.getAllByTestId(/^search-engine-(brave|searx|obscura)$/).map((li) => li.getAttribute('data-testid'))
+
+  it('shows the engines in the order the server lists them, numbered, and says WebSearch queries them in that order', async () => {
+    overview.mockResolvedValue(state({ search_engines: [SEARX, BRAVE] }))
+    mount()
+    await screen.findByTestId('search-engine-searx')
+    expect(ranks()).toEqual(['search-engine-searx', 'search-engine-brave'])
+    expect(screen.getByTestId('search-engine-searx').getAttribute('data-rank')).toBe('1')
+    expect(screen.getByTestId('search-engine-searx').textContent).toContain('Position 1 of 2')
+    expect(screen.getByTestId('search-engine-order-help').textContent).toContain('WebSearch queries the engines in this order')
+    // The ends: the first cannot go up, the last cannot go down.
+    expect((screen.getByRole('button', { name: 'Move searx up' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Move brave down' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('moving an engine down PUTs the whole new order, moves the row at once, keeps the focus on the row and announces the saved order', async () => {
+    mount()
+    await screen.findByTestId('search-engine-brave')
+    const down = screen.getByRole('button', { name: 'Move brave down' })
+    down.focus()
+    fireEvent.click(down)
+    expect(ranks()).toEqual(['search-engine-searx', 'search-engine-brave'])
+    await waitFor(() => expect(setSearchEngineOrder).toHaveBeenCalledWith(['searx', 'brave']))
+    expect(await screen.findByText('Order saved: searx, brave.')).toBeTruthy()
+    // brave is last now: its down button is disabled, so the focus stays on its up button.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Move brave up' }))
+  })
+
+  it('the move buttons are reachable by keyboard (real buttons, named by engine) and the built-in engine has none', async () => {
+    overview.mockResolvedValue(state({ search_engines: [BRAVE, SEARX, KEYLESS] }))
+    mount()
+    await screen.findByTestId('search-engine-obscura')
+    for (const name of ['Move brave down', 'Move searx up']) {
+      const button = screen.getByRole('button', { name })
+      expect(button.tagName).toBe('BUTTON')
+      expect((button as HTMLButtonElement).disabled).toBe(false)
+    }
+    const builtin = within(screen.getByTestId('search-engine-obscura'))
+    expect(builtin.queryByRole('button', { name: /^Move / })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Move searx up' }))
+    // The built-in engine is never part of the order sent.
+    await waitFor(() => expect(setSearchEngineOrder).toHaveBeenCalledWith(['searx', 'brave']))
+  })
+
+  it('a single engine has nothing to order: no move buttons, no order help', async () => {
+    overview.mockResolvedValue(state({ search_engines: [BRAVE] }))
+    mount()
+    await screen.findByTestId('search-engine-brave')
+    expect(screen.queryByRole('button', { name: /^Move / })).toBeNull()
+    expect(screen.queryByTestId('search-engine-order-help')).toBeNull()
+  })
+
+  it('a refused order (403 agent, or a server without the route) shows the error card and the list returns to the server order', async () => {
+    setSearchEngineOrder.mockRejectedValue(apiError(405))
+    mount()
+    await screen.findByTestId('search-engine-brave')
+    fireEvent.click(screen.getByRole('button', { name: 'Move brave down' }))
+    const card = await screen.findByTestId('network-tools-error')
+    expect(card.getAttribute('data-error-code')).toBe('request_failed')
+    await waitFor(() => expect(ranks()).toEqual(['search-engine-brave', 'search-engine-searx']))
+    setSearchEngineOrder.mockRejectedValue(apiError(400, 'invalid_search_engine_order'))
+    fireEvent.click(screen.getByRole('button', { name: 'Move brave down' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('network-tools-error').getAttribute('data-error-code')).toBe('invalid_search_engine_order'),
+    )
+    expect(screen.getByTestId('network-tools-error').textContent).not.toContain('INPUT-ECHO')
+  })
+})
+
 describe('NetworkTools — browser', () => {
   it('the browser switch is a role=switch with aria-checked, PUTs { allowed } and says when the browser is attached', async () => {
     mount()
@@ -437,6 +513,8 @@ describe('networkToolsApi — wire', () => {
     expect(put).toHaveBeenCalledWith('/projects/acme/network-tools/origins', { origin: 'https://docs.rs' })
     await real.networkToolsApi.setBrowser('acme', false)
     expect(put).toHaveBeenCalledWith('/projects/acme/network-tools/browser', { allowed: false })
+    await real.networkToolsApi.setSearchEngineOrder(['searx', 'brave'])
+    expect(put).toHaveBeenCalledWith('/chat/search-engines', { order: ['searx', 'brave'] })
     del.mockRestore()
     put.mockRestore()
   })

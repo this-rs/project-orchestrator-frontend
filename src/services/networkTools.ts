@@ -34,6 +34,12 @@ export const networkToolsApi = {
     api.get<SearchEngine[]>(`/chat/search-engines${buildQuery({ project: projectSlug })}`),
   createSearchEngine: (draft: SearchEngineDraft) => api.post<SearchEngine>('/chat/search-engines', draft),
   deleteSearchEngine: (id: string) => api.delete<void>(`/chat/search-engines/${encodeURIComponent(id)}`),
+  /**
+   * The order WebSearch queries the engines in (first tried first): the server answers the engines
+   * in their new order, the one a native session's nexus-tools receives. An engine left out comes
+   * after the named ones. A server without this route answers 405 (read as `request_failed`).
+   */
+  setSearchEngineOrder: (order: string[]) => api.put<SearchEngine[]>('/chat/search-engines', { order }),
 }
 
 /** Stable error codes of the network-tools routes (each has a translated message). */
@@ -51,6 +57,7 @@ export const NETWORK_TOOLS_ERROR_CODES = [
   'credential_ref_required',
   'search_engine_exists',
   'search_engine_not_found',
+  'invalid_search_engine_order',
   // Client-side readings, not server codes:
   'forbidden',
   'vault_locked',
