@@ -354,6 +354,77 @@ describe('NetworkTools — browser', () => {
   })
 })
 
+const KEYLESS: SearchEngine = {
+  id: 'obscura',
+  engine: 'obscura',
+  base_url: null,
+  credential_ref: 'none',
+  origin: 'https://html.duckduckgo.com',
+  grant_id: 'tool:obscura',
+  key_granted: true,
+  origin_consented: false,
+  builtin: true,
+}
+
+describe('NetworkTools — the keyless HTML engine (obscura)', () => {
+  it('the built-in engine is listed as provided by the installation, off for the project, and cannot be deleted', async () => {
+    overview.mockResolvedValue(state({ search_engines: [BRAVE, KEYLESS] }))
+    mount()
+    const row = within(await screen.findByTestId('search-engine-obscura'))
+    const text = screen.getByTestId('search-engine-obscura').textContent
+    expect(text).toContain('DuckDuckGo, read by the built-in browser (no key)')
+    expect(text).toContain('provided by this installation')
+    expect(text).toContain('Origin not allowed for Acme')
+    expect(row.queryByRole('button', { name: /Delete/ })).toBeNull()
+  })
+
+  it('turning it on for a project first shows the terms-of-use warning; only the confirmation PUTs its origin', async () => {
+    overview.mockResolvedValue(state({ search_engines: [KEYLESS] }))
+    mount()
+    const row = within(await screen.findByTestId('search-engine-obscura'))
+    fireEvent.click(row.getByRole('button', { name: 'Allow the origin of obscura for Acme' }))
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog.textContent).toContain('Turn on the keyless engine obscura for Acme?')
+    expect(dialog.textContent).toContain("the engine's terms of use may not allow automated queries")
+    expect(dialog.textContent).toContain('https://html.duckduckgo.com')
+    expect(allowOrigin).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(allowOrigin).not.toHaveBeenCalled()
+    fireEvent.click(row.getByRole('button', { name: 'Allow the origin of obscura for Acme' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'I have read the terms, turn it on' }))
+    await waitFor(() => expect(allowOrigin).toHaveBeenCalledWith('acme', 'https://html.duckduckgo.com'))
+  })
+
+  it('declaring it shows the warning, takes no key nor address, and sends credential_ref none without base_url', async () => {
+    mount()
+    await screen.findByTestId('search-engine-brave')
+    const form = screen.getByRole('form', { name: 'Add a search engine' })
+    expect(within(form).queryByTestId('keyless-engine-warning')).toBeNull()
+    fireEvent.change(within(form).getByLabelText('Engine'), { target: { value: 'obscura' } })
+    const warning = within(form).getByTestId('keyless-engine-warning')
+    expect(warning.textContent).toContain("Read the engine's terms of use first")
+    expect(warning.textContent).toContain('It stays off for every project')
+    expect(within(form).queryByLabelText('Name of the secret in the vault')).toBeNull()
+    expect(within(form).queryByLabelText('Address of the SearXNG instance')).toBeNull()
+    fireEvent.change(within(form).getByLabelText('Identifier'), { target: { value: 'ddg' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Add the engine' }))
+    await waitFor(() => expect(createSearchEngine).toHaveBeenCalledWith({ id: 'ddg', engine: 'obscura', credential_ref: 'none' }))
+  })
+})
+
+describe('NetworkTools — no stealth mode', () => {
+  it('no control of the page offers the stealth mode of the browser', async () => {
+    mount()
+    await screen.findByTestId('network-browser-body')
+    const page = screen.getByTestId('network-tools')
+    expect(page.textContent ?? '').not.toMatch(/stealth|furtif/i)
+    for (const control of within(page).queryAllByRole('switch')) {
+      expect(control.getAttribute('aria-label') ?? control.textContent ?? '').not.toMatch(/stealth/i)
+    }
+  })
+})
+
 describe('networkToolsApi — wire', () => {
   it('revokeOrigin DELETEs with the origin URL-encoded in the query; allowOrigin and setBrowser PUT their bodies', async () => {
     const real = await vi.importActual<typeof import('@/services/networkTools')>('@/services/networkTools')

@@ -56,6 +56,7 @@ export default {
     kind: {
       brave: "Brave Search",
       searxng: "SearXNG（キー不要）",
+      obscura: "DuckDuckGo（内蔵ブラウザで読み取り、キー不要）",
     },
     noOrigin: "オリジン不明",
     keyGranted: "キー {name} は許可済み",
@@ -93,6 +94,12 @@ export default {
     baseUrlInvalid: "https://（または http://）で始まるインスタンスの完全なアドレスを入力してください。",
     add: "エンジンを追加",
     added: "検索エンジン {id} を追加しました。",
+    builtin: "このインストールが提供",
+    keylessWarningTitle: "まず検索エンジンの利用規約をお読みください",
+    keylessWarningBody: "このエンジンは API ではなく、人向けに作られた結果ページ {origin} を読み取ります。いつ動かなくなってもおかしくなく、エンジンの利用規約が自動クエリを認めていない可能性があります。有効にする前に確認してください。",
+    keylessOffByDefault: "誰かがそのプロジェクトでオリジンを許可するまで、どのプロジェクトでも無効のままです。",
+    keylessConsentTitle: "{project} でキー不要のエンジン {id} を有効にしますか？",
+    keylessConsentConfirm: "規約を読みました。有効にする",
   },
   browser: {
     title: "ブラウザ",

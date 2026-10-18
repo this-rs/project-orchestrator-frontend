@@ -82,6 +82,28 @@ function NetworkToolsErrorCard({ error }: { error: NetworkToolsError }) {
   )
 }
 
+/** Where the keyless engine reads its results (nexus-tools `DDG_HTML_ENDPOINT`). */
+const KEYLESS_ORIGIN = 'https://html.duckduckgo.com'
+
+/**
+ * The warning of the keyless engine: it reads a results page made for people,
+ * which the engine's terms of use may not allow. Shown when it is declared and
+ * again, to be confirmed, before a project turns it on (it is off until then).
+ */
+function KeylessWarning({ origin, declaring = false }: { origin: string; declaring?: boolean }) {
+  const { t } = useT()
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-3 py-2 text-xs text-amber-100">
+      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" aria-hidden="true" />
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="font-medium">{t('networkTools.engines.keylessWarningTitle')}</p>
+        <p className="text-amber-100/80">{t('networkTools.engines.keylessWarningBody', { origin })}</p>
+        {declaring && <p className="text-amber-100/80">{t('networkTools.engines.keylessOffByDefault')}</p>}
+      </div>
+    </div>
+  )
+}
+
 /**
  * Network tools of native agent sessions, per project: the origins WebFetch may
  * reach, the search engines (global) with their key grant and origin consent,
@@ -101,6 +123,8 @@ export function NetworkTools() {
   const projectName = projects?.find((p) => p.slug === slug)?.name ?? slug
 
   const [origins, setOrigins] = useState<ToolOriginConsent[] | null>(null)
+  /** The keyless engine whose origin is about to be allowed: its terms warning is read first. */
+  const [consenting, setConsenting] = useState<string | null>(null)
   const [browser, setBrowser] = useState<BrowserSetting | null>(null)
   const [engines, setEngines] = useState<SearchEngine[] | null>(null)
   const [loadError, setLoadError] = useState<NetworkToolsError | null>(null)
@@ -168,6 +192,7 @@ export function NetworkTools() {
     setRevoking(null)
     setDeleting(null)
     setGranting(null)
+    setConsenting(null)
     setReloadTick((n) => n + 1)
     return ok
   }
@@ -227,7 +252,9 @@ export function NetworkTools() {
       const saved = await networkToolsApi.createSearchEngine(
         engineKind === 'brave'
           ? { id, engine: 'brave', credential_ref: `vault:${name}` }
-          : { id, engine: 'searxng', base_url: url, credential_ref: 'none' },
+          : engineKind === 'searxng'
+            ? { id, engine: 'searxng', base_url: url, credential_ref: 'none' }
+            : { id, engine: 'obscura', credential_ref: 'none' },
       )
       return t('networkTools.engines.added', { id: saved.id })
     })
@@ -256,6 +283,12 @@ export function NetworkTools() {
       return t('networkTools.engines.granted', { id: engine.id })
     })
   }
+
+  const allowEngineOrigin = (engine: SearchEngine) =>
+    act('engines', `consent-${engine.id}`, async () => {
+      const saved = await networkToolsApi.allowOrigin(slug, engine.origin!)
+      return t('networkTools.origins.added', { origin: saved.origin })
+    })
 
   // ---- Render ----------------------------------------------------------------
 
@@ -377,6 +410,9 @@ export function NetworkTools() {
                       <p className="text-sm font-medium text-gray-100">
                         {engine.id}{' '}
                         <span className="font-normal text-gray-500">· {t(`networkTools.engines.kind.${engine.engine}`)}</span>
+                        {engine.builtin && (
+                          <span className="font-normal text-gray-500"> · {t('networkTools.engines.builtin')}</span>
+                        )}
                       </p>
                       <p className="break-all font-mono text-xs text-gray-400">
                         {engine.origin ?? t('networkTools.engines.noOrigin')}
@@ -416,25 +452,38 @@ export function NetworkTools() {
                           loading={busy === `consent-${engine.id}`}
                           aria-label={t('networkTools.engines.consentAria', { id: engine.id, project: projectName })}
                           onClick={() =>
-                            void act('engines', `consent-${engine.id}`, async () => {
-                              const saved = await networkToolsApi.allowOrigin(slug, engine.origin!)
-                              return t('networkTools.origins.added', { origin: saved.origin })
-                            })
+                            // The keyless engine reads a page made for people: its terms warning
+                            // is shown, and confirmed, before the project turns it on.
+                            engine.engine === 'obscura'
+                              ? setConsenting(engine.id)
+                              : void allowEngineOrigin(engine)
                           }
                         >
                           {t('networkTools.engines.consent')}
                         </Button>
                       )}
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setDeleting(engine.id)}
-                        aria-label={t('networkTools.engines.deleteAria', { id: engine.id })}
-                      >
-                        {t('networkTools.engines.delete')}
-                      </Button>
+                      {!engine.builtin && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => setDeleting(engine.id)}
+                          aria-label={t('networkTools.engines.deleteAria', { id: engine.id })}
+                        >
+                          {t('networkTools.engines.delete')}
+                        </Button>
+                      )}
                     </div>
                   </div>
+                  {consenting === engine.id && slug && engine.origin && (
+                    <ConfirmPanel
+                      title={t('networkTools.engines.keylessConsentTitle', { id: engine.id, project: projectName })}
+                      confirmLabel={t('networkTools.engines.keylessConsentConfirm')}
+                      onConfirm={() => allowEngineOrigin(engine).then(() => undefined)}
+                      onCancel={() => setConsenting(null)}
+                    >
+                      <KeylessWarning origin={engine.origin} />
+                    </ConfirmPanel>
+                  )}
                   {granting === engine.id && name && (
                     <ConfirmPanel
                       title={t('networkTools.engines.grantTitle', { name, id: engine.id })}
@@ -497,9 +546,14 @@ export function NetworkTools() {
               <NativeSelect id={ids.engineKind} value={engineKind} onChange={(e) => setEngineKind(e.target.value as SearchEngineKind)}>
                 <option value="brave">{t('networkTools.engines.kind.brave')}</option>
                 <option value="searxng">{t('networkTools.engines.kind.searxng')}</option>
+                <option value="obscura">{t('networkTools.engines.kind.obscura')}</option>
               </NativeSelect>
             </FormField>
-            {engineKind === 'brave' ? (
+            {engineKind === 'obscura' ? (
+              <div className="sm:col-span-2" data-testid="keyless-engine-warning">
+                <KeylessWarning origin={KEYLESS_ORIGIN} declaring />
+              </div>
+            ) : engineKind === 'brave' ? (
               <FormField
                 id={ids.secret}
                 className="sm:col-span-2"

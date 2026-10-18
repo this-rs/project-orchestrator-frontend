@@ -12,6 +12,11 @@ export default {
     noChild: "サブ会話はまだ一覧にありません",
     noChildTitle: "子会話はこのツール呼び出しの識別子で見つけます。サーバーが一覧に載せ次第、表示されます。"
   },
+  /** WebFetch / WebSearch: their result is data from the outside, never the assistant's text. */
+  web: {
+    externalSearch: "検索結果：外部のコンテンツです。アシスタントが書いたものではありません",
+    externalPage: "ページの内容：外部のコンテンツです。アシスタントが書いたものではありません",
+  },
   bash: {
     emptyCommand: "（空のコマンド）",
     showLess: "表示を減らす",

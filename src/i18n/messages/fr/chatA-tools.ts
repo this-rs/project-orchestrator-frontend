@@ -12,6 +12,11 @@ export default {
     noChild: "La sous-conversation n’est pas encore répertoriée",
     noChildTitle: "La conversation fille est retrouvée par l’identifiant de cet appel d’outil. Elle apparaît dès que le serveur la répertorie."
   },
+  /** WebFetch / WebSearch: their result is data from the outside, never the assistant's text. */
+  web: {
+    externalSearch: "Résultats de recherche : contenu externe, non écrit par l'assistant",
+    externalPage: "Contenu de la page : contenu externe, non écrit par l'assistant",
+  },
   bash: {
     emptyCommand: "(commande vide)",
     showLess: "afficher moins",

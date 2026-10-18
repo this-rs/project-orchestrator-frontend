@@ -54,6 +54,7 @@ export default {
     kind: {
       brave: "Brave Search",
       searxng: "SearXNG (no key)",
+      obscura: "DuckDuckGo, read by the built-in browser (no key)",
     },
     noOrigin: "Origin unknown",
     keyGranted: "Key {name} granted",
@@ -91,6 +92,12 @@ export default {
     baseUrlInvalid: "Enter the full address of the instance, starting with https:// (or http://).",
     add: "Add the engine",
     added: "Search engine {id} added.",
+    builtin: "provided by this installation",
+    keylessWarningTitle: "Read the engine's terms of use first",
+    keylessWarningBody: "This engine reads the results page {origin}, made for people, not an API: it can break at any time, and the engine's terms of use may not allow automated queries. Check them before turning it on.",
+    keylessOffByDefault: "It stays off for every project until someone allows its origin for that project.",
+    keylessConsentTitle: "Turn on the keyless engine {id} for {project}?",
+    keylessConsentConfirm: "I have read the terms, turn it on",
   },
   browser: {
     title: "Browser",

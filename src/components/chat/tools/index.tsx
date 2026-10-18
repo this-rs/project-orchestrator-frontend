@@ -126,6 +126,38 @@ const STATIC_TOOL_ALIASES: Record<string, Record<string, string>> = {
   },
 }
 
+/**
+ * The tools `nexus-tools` serves (the class A of the N17 parity matrix,
+ * nexus docs/agent-tools-parity.md and docs/agent-contract.md « Noms
+ * canoniques »). Each one is served as `mcp__nexus__<name>` AND under the name
+ * Claude Code gives it: both are ONE tool, rendered from one entry of the
+ * tables below, never two.
+ */
+export const NEXUS_CANONICAL_TOOLS = [
+  'Read', 'Write', 'Edit', 'NotebookEdit', 'Glob', 'Grep',
+  'Bash', 'Monitor', 'TaskStop', 'WebFetch', 'WebSearch',
+] as const
+
+/** Prefix of the tools of the `nexus` MCP server, the only one whose names are canonical. */
+export const NEXUS_MCP_PREFIX = 'mcp__nexus__'
+
+const NEXUS_CANONICAL_SET: ReadonlySet<string> = new Set(NEXUS_CANONICAL_TOOLS)
+
+/**
+ * The canonical name of a tool call: the alias the event carries, else the
+ * Claude Code name of a `mcp__nexus__<name>` tool, else `null`. A tool of
+ * ANOTHER server that happens to be called `Read` inherits nothing (the
+ * canonical name is given to the `nexus` server only).
+ */
+export function canonicalToolName(toolName: string, canonical?: string | null): string | null {
+  if (canonical) return canonical
+  if (toolName.startsWith(NEXUS_MCP_PREFIX)) {
+    const name = toolName.slice(NEXUS_MCP_PREFIX.length)
+    if (NEXUS_CANONICAL_SET.has(name)) return name
+  }
+  return null
+}
+
 function kindOf(providerKind: ProviderKind | null | undefined): string {
   return providerKind || CLAUDE_CODE_KIND
 }
@@ -209,14 +241,17 @@ export function resolveToolRenderer({ providerKind, toolName, canonical, toolInp
   }
 
   const borrowed: Array<[string | null | undefined, 'canonical' | 'alias']> = [
-    [canonical, 'canonical'],
+    [canonicalToolName(toolName, canonical), 'canonical'],
     [own(STATIC_TOOL_ALIASES[kind], toolName), 'alias'],
   ]
   for (const [key, via] of borrowed) {
     const Renderer = key && key !== '__mcp__' ? own(TOOL_REGISTRY, key) : undefined
     if (!key || !Renderer) continue
     const adapted = toCanonicalInput(key, input)
-    if (adapted) return { Renderer, key, via, toolInput: adapted, toolName }
+    // `mcp__nexus__Read` IS `Read`: its renderer reads the canonical name, so
+    // the two calls render alike (WebToolRenderer tells WebSearch by its name).
+    const name = toolName === `${NEXUS_MCP_PREFIX}${key}` ? key : toolName
+    if (adapted) return { Renderer, key, via, toolInput: adapted, toolName: name }
   }
 
   // Every MCP tool has the canonical alias `mcp__<server>__<tool>`, whatever
@@ -226,7 +261,10 @@ export function resolveToolRenderer({ providerKind, toolName, canonical, toolInp
     return { Renderer: TOOL_REGISTRY['__mcp__'], key: '__mcp__', via: 'mcp', toolInput: input, toolName: mcpName }
   }
 
-  return { Renderer: DefaultToolRenderer, key: null, via: 'default', toolInput: input, toolName }
+  // A nexus tool without a renderer of its own (`NotebookEdit`, `Monitor`…)
+  // still reads as its canonical name.
+  const nexusName = canonicalToolName(toolName)
+  return { Renderer: DefaultToolRenderer, key: null, via: 'default', toolInput: input, toolName: nexusName ?? toolName }
 }
 
 // ---------------------------------------------------------------------------
@@ -248,12 +286,39 @@ const CLAUDE_TOOL_CATEGORIES: Record<string, ToolCategory> = {
   notebookedit: 'edit',
   webfetch: 'web',
   websearch: 'web',
+  monitor: 'command',
+  taskstop: 'command',
+}
+
+/**
+ * The browser tools (`browser_*` of the `browser` server, N23) that only
+ * inspect the page already loaded — the harness offers them without asking
+ * (nexus `providers/native/browser.rs`, `profile`). Every other `browser_*`
+ * tool moves to a page or acts on one: a web call that needs an approval, and
+ * so is an unknown one (a tool nobody classified is not assumed harmless).
+ */
+const BROWSER_READ_TOOLS: ReadonlySet<string> = new Set([
+  'browser_snapshot', 'browser_markdown', 'browser_links', 'browser_extract',
+  'browser_interactive_elements', 'browser_detect_forms', 'browser_get_attribute',
+  'browser_count', 'browser_search', 'browser_network_requests',
+  'browser_console_messages', 'browser_screenshot', 'browser_pdf', 'browser_wait_for',
+  'browser_wait_for_text', 'browser_get_cookies', 'browser_storage_state', 'browser_tab_list',
+])
+
+const BROWSER_MCP_PREFIX = 'mcp__browser__'
+
+function browserCategory(toolName: string): ToolCategory | undefined {
+  if (!toolName.startsWith(BROWSER_MCP_PREFIX)) return undefined
+  const tool = toolName.slice(BROWSER_MCP_PREFIX.length)
+  if (!tool.startsWith('browser_')) return undefined
+  return BROWSER_READ_TOOLS.has(tool) ? 'read' : 'web'
 }
 
 /**
  * Category of a tool call: the one the adapter supplied when there is one
  * (never second-guessed from the name), else the category of its canonical
- * alias, else the Claude table by name, else MCP by prefix, else `other`.
+ * alias (`mcp__nexus__Read` → `Read`), else the Claude table by name, else the
+ * browser's tools, else MCP by prefix, else `other`.
  */
 export function getToolCategory(
   toolName: string,
@@ -261,10 +326,12 @@ export function getToolCategory(
 ): ToolCategory {
   const supplied = toToolCategory(hints.category)
   if (supplied) return supplied
-  const alias = hints.canonical ?? own(STATIC_TOOL_ALIASES[kindOf(hints.providerKind)], toolName)
+  const alias = canonicalToolName(toolName, hints.canonical) ?? own(STATIC_TOOL_ALIASES[kindOf(hints.providerKind)], toolName)
   const lower = toolName.toLowerCase()
   const known = own(CLAUDE_TOOL_CATEGORIES, alias?.toLowerCase()) ?? own(CLAUDE_TOOL_CATEGORIES, lower)
   if (known) return known
+  const browser = browserCategory(toolName)
+  if (browser) return browser
   if (lower.startsWith('mcp__') || lower.startsWith('mcp_')) return 'mcp'
   return 'other'
 }

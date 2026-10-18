@@ -12,6 +12,11 @@ export default {
     noChild: "المحادثة الفرعية غير مدرجة بعد",
     noChildTitle: "يُستدل على المحادثة الابنة بمعرّف نداء الأداة هذا. وتظهر بمجرد أن يدرجها الخادم."
   },
+  /** WebFetch / WebSearch: their result is data from the outside, never the assistant's text. */
+  web: {
+    externalSearch: "نتائج البحث: محتوى خارجي، لم يكتبه المساعد",
+    externalPage: "محتوى الصفحة: محتوى خارجي، لم يكتبه المساعد",
+  },
   bash: {
     emptyCommand: "(أمر فارغ)",
     showLess: "عرض أقل",

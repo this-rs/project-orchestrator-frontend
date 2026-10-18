@@ -12,6 +12,11 @@ export default {
     noChildTitle:
       'The child conversation is found by the id of this tool call. It appears as soon as the server lists it.',
   },
+  /** WebFetch / WebSearch: their result is data from the outside, never the assistant's text. */
+  web: {
+    externalSearch: 'Search results: external content, not written by the assistant',
+    externalPage: 'Page content: external content, not written by the assistant',
+  },
   bash: {
     emptyCommand: '(empty command)',
     showLess: 'show less',

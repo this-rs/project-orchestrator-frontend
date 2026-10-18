@@ -12,6 +12,11 @@ export default {
     noChild: "A subconversa ainda não está listada",
     noChildTitle: "A conversa filha é encontrada pelo identificador desta chamada de ferramenta. Aparece assim que o servidor a listar."
   },
+  /** WebFetch / WebSearch: their result is data from the outside, never the assistant's text. */
+  web: {
+    externalSearch: "Resultados de pesquisa: conteúdo externo, não escrito pelo assistente",
+    externalPage: "Conteúdo da página: conteúdo externo, não escrito pelo assistente",
+  },
   bash: {
     emptyCommand: "(comando vazio)",
     showLess: "mostrar menos",

@@ -12,6 +12,11 @@ export default {
     noChild: "하위 대화가 아직 목록에 없습니다",
     noChildTitle: "하위 대화는 이 도구 호출의 식별자로 찾습니다. 서버가 목록에 올리면 바로 나타납니다."
   },
+  /** WebFetch / WebSearch: their result is data from the outside, never the assistant's text. */
+  web: {
+    externalSearch: "검색 결과: 외부 콘텐츠이며, 어시스턴트가 쓴 것이 아닙니다",
+    externalPage: "페이지 내용: 외부 콘텐츠이며, 어시스턴트가 쓴 것이 아닙니다",
+  },
   bash: {
     emptyCommand: "(빈 명령)",
     showLess: "접기",
