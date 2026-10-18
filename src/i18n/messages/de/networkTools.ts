@@ -56,6 +56,7 @@ export default {
     kind: {
       brave: "Brave Search",
       searxng: "SearXNG (ohne Schlüssel)",
+      obscura: "DuckDuckGo, gelesen vom eingebauten Browser (ohne Schlüssel)",
     },
     noOrigin: "Ursprung unbekannt",
     keyGranted: "Schlüssel {name} freigegeben",
@@ -93,6 +94,12 @@ export default {
     baseUrlInvalid: "Geben Sie die vollständige Adresse der Instanz ein, beginnend mit https:// (oder http://).",
     add: "Suchmaschine hinzufügen",
     added: "Suchmaschine {id} hinzugefügt.",
+    builtin: "von dieser Installation bereitgestellt",
+    keylessWarningTitle: "Lesen Sie zuerst die Nutzungsbedingungen der Suchmaschine",
+    keylessWarningBody: "Diese Suchmaschine liest die Ergebnisseite {origin}, die für Menschen gemacht ist, keine API: Sie kann jederzeit ausfallen, und die Nutzungsbedingungen der Suchmaschine erlauben automatisierte Anfragen womöglich nicht. Prüfen Sie sie, bevor Sie sie einschalten.",
+    keylessOffByDefault: "Sie bleibt für jedes Projekt ausgeschaltet, bis jemand ihren Ursprung für dieses Projekt erlaubt.",
+    keylessConsentTitle: "Die Suchmaschine ohne Schlüssel {id} für {project} einschalten?",
+    keylessConsentConfirm: "Ich habe die Bedingungen gelesen, einschalten",
   },
   browser: {
     title: "Browser",

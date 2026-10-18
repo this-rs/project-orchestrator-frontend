@@ -56,6 +56,7 @@ export default {
     kind: {
       brave: "Brave Search",
       searxng: "SearXNG（无需密钥）",
+      obscura: "DuckDuckGo（由内置浏览器读取，无需密钥）",
     },
     noOrigin: "源未知",
     keyGranted: "密钥 {name} 已授权",
@@ -93,6 +94,12 @@ export default {
     baseUrlInvalid: "请输入实例的完整地址，以 https://（或 http://）开头。",
     add: "添加引擎",
     added: "已添加搜索引擎 {id}。",
+    builtin: "由此安装提供",
+    keylessWarningTitle: "请先阅读搜索引擎的使用条款",
+    keylessWarningBody: "此引擎读取的是为人设计的结果页面 {origin}，而不是 API：它随时可能失效，且引擎的使用条款可能不允许自动查询。启用前请先确认。",
+    keylessOffByDefault: "在有人为某个项目允许其来源之前，它在每个项目中都保持关闭。",
+    keylessConsentTitle: "为 {project} 启用无需密钥的引擎 {id}？",
+    keylessConsentConfirm: "我已阅读条款，启用",
   },
   browser: {
     title: "浏览器",

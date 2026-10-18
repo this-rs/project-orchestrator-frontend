@@ -56,6 +56,7 @@ export default {
     kind: {
       brave: "Brave Search",
       searxng: "SearXNG (không cần khóa)",
+      obscura: "DuckDuckGo, đọc bằng trình duyệt tích hợp (không cần khóa)",
     },
     noOrigin: "Không rõ nguồn gốc",
     keyGranted: "Khóa {name} đã được cấp",
@@ -93,6 +94,12 @@ export default {
     baseUrlInvalid: "Hãy nhập địa chỉ đầy đủ của phiên bản, bắt đầu bằng https:// (hoặc http://).",
     add: "Thêm công cụ",
     added: "Đã thêm công cụ tìm kiếm {id}.",
+    builtin: "do bản cài đặt này cung cấp",
+    keylessWarningTitle: "Hãy đọc điều khoản sử dụng của công cụ trước",
+    keylessWarningBody: "Công cụ này đọc trang kết quả {origin}, được làm cho con người, không phải API: nó có thể ngừng hoạt động bất cứ lúc nào, và điều khoản sử dụng của công cụ có thể không cho phép truy vấn tự động. Hãy kiểm tra trước khi bật.",
+    keylessOffByDefault: "Nó vẫn tắt cho mọi dự án cho đến khi có người cho phép nguồn gốc của nó cho dự án đó.",
+    keylessConsentTitle: "Bật công cụ không cần khóa {id} cho {project}?",
+    keylessConsentConfirm: "Tôi đã đọc điều khoản, bật",
   },
   browser: {
     title: "Trình duyệt",

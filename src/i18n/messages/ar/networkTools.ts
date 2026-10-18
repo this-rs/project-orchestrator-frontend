@@ -56,6 +56,7 @@ export default {
     kind: {
       brave: "Brave Search",
       searxng: "SearXNG (بلا مفتاح)",
+      obscura: "DuckDuckGo، يقرؤه المتصفح المدمج (بلا مفتاح)",
     },
     noOrigin: "الأصل غير معروف",
     keyGranted: "المفتاح {name} ممنوح",
@@ -93,6 +94,12 @@ export default {
     baseUrlInvalid: "أدخل العنوان الكامل للمثيل، بدءًا بـ https://‎ (أو http://‎).",
     add: "إضافة المحرك",
     added: "أُضيف محرك البحث {id}.",
+    builtin: "توفّره هذه التثبيتة",
+    keylessWarningTitle: "اقرأ أولًا شروط استخدام محرك البحث",
+    keylessWarningBody: "يقرأ هذا المحرك صفحة النتائج {origin} المصممة للأشخاص، لا واجهة برمجية: قد تتعطل في أي وقت، وقد لا تسمح شروط استخدام المحرك بالاستعلامات الآلية. راجعها قبل تفعيله.",
+    keylessOffByDefault: "يبقى معطّلًا في كل مشروع إلى أن يسمح أحد بأصله لذلك المشروع.",
+    keylessConsentTitle: "تفعيل المحرك بلا مفتاح {id} للمشروع {project}؟",
+    keylessConsentConfirm: "قرأت الشروط، فعّله",
   },
   browser: {
     title: "المتصفح",

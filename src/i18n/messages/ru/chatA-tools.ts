@@ -12,6 +12,11 @@ export default {
     noChild: "Дочерняя беседа пока не в списке",
     noChildTitle: "Дочерняя беседа находится по идентификатору этого вызова инструмента. Она появится, как только сервер её покажет."
   },
+  /** WebFetch / WebSearch: their result is data from the outside, never the assistant's text. */
+  web: {
+    externalSearch: "Результаты поиска: внешнее содержимое, написанное не ассистентом",
+    externalPage: "Содержимое страницы: внешнее содержимое, написанное не ассистентом",
+  },
   bash: {
     emptyCommand: "(пустая команда)",
     showLess: "показать меньше",

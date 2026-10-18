@@ -29,7 +29,12 @@ export interface BrowserSetting {
   authorized_at?: string | null
 }
 
-export type SearchEngineKind = 'brave' | 'searxng'
+/**
+ * `obscura`: the keyless engine — DuckDuckGo's HTML results page, read by the headless browser
+ * of nexus-tools (origin `https://html.duckduckgo.com`). No key, no URL: its executable is
+ * configured on the server.
+ */
+export type SearchEngineKind = 'brave' | 'searxng' | 'obscura'
 
 export interface SearchEngine {
   id: string
@@ -44,6 +49,8 @@ export interface SearchEngine {
   key_granted: boolean
   /** Only when the list was asked for a project. */
   origin_consented?: boolean
+  /** The engine the server provides on its own (its nexus-tools embeds Obscura): not stored, not deletable. */
+  builtin?: boolean
 }
 
 export interface NetworkToolsOverview {

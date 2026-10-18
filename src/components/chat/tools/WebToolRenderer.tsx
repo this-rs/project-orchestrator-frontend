@@ -3,11 +3,16 @@
  *
  * WebFetch: blue FETCH badge + hostname + URL + prompt, with basic markdown rendering for result
  * WebSearch: green SEARCH badge + query + domain badges, with structured parsed results
+ *
+ * Either result is marked as external content (data from a page or an engine), so it never
+ * reads as text the assistant wrote.
  */
 
 import { useState, type ReactNode } from 'react'
 import type { ToolRendererProps } from './types'
+import { Globe } from 'lucide-react'
 import { ExternalLink } from '@/components/ui/ExternalLink'
+import { useT } from '@/i18n'
 
 /** Max lines for result preview before offering "show more" */
 const MAX_RESULT_LINES = 40
@@ -245,6 +250,7 @@ function parseSearchResults(text: string): { query: string | null; links: Search
 // ---------------------------------------------------------------------------
 
 export function WebToolRenderer({ toolName, toolInput, resultContent, isError, isLoading }: ToolRendererProps) {
+  const { t } = useT()
   const isWebSearch = toolName === 'WebSearch'
   const [expanded, setExpanded] = useState(false)
 
@@ -315,7 +321,15 @@ export function WebToolRenderer({ toolName, toolInput, resultContent, isError, i
 
       {/* ── Result content ── */}
       {hasResult && !isError && (
-        <div className="border-t border-white/[0.04] bg-black/20 text-gray-500 font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto">
+        <div
+          data-external-content="true"
+          className="border-t border-white/[0.04] bg-black/20 text-gray-500 font-mono text-xs overflow-x-auto max-h-96 overflow-y-auto"
+        >
+          {/* What a page or an engine returned is DATA from the outside, never text the assistant wrote. */}
+          <p className="flex items-center gap-1.5 px-3 pt-1.5 font-sans text-[11px] text-gray-500">
+            <Globe aria-hidden="true" className="h-3 w-3 shrink-0" />
+            {t(isWebSearch ? 'chatA-tools.web.externalSearch' : 'chatA-tools.web.externalPage')}
+          </p>
           <div className="px-3 py-1.5">
             {isWebSearch && parsedSearch ? (
               /* Structured search results */

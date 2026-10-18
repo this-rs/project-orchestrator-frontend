@@ -12,6 +12,11 @@ export default {
     noChild: "Die untergeordnete Unterhaltung ist noch nicht aufgeführt",
     noChildTitle: "Die untergeordnete Unterhaltung wird über die Kennung dieses Werkzeugaufrufs gefunden. Sie erscheint, sobald der Server sie auflistet."
   },
+  /** WebFetch / WebSearch: their result is data from the outside, never the assistant's text. */
+  web: {
+    externalSearch: "Suchergebnisse: externer Inhalt, nicht vom Assistenten geschrieben",
+    externalPage: "Seiteninhalt: externer Inhalt, nicht vom Assistenten geschrieben",
+  },
   bash: {
     emptyCommand: "(leerer Befehl)",
     showLess: "weniger anzeigen",

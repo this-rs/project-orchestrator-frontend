@@ -56,6 +56,7 @@ export default {
     kind: {
       brave: "Brave Search",
       searxng: "SearXNG (sans clé)",
+      obscura: "DuckDuckGo, lu par le navigateur intégré (sans clé)",
     },
     noOrigin: "Origine inconnue",
     keyGranted: "Clé {name} accordée",
@@ -93,6 +94,12 @@ export default {
     baseUrlInvalid: "Saisissez l'adresse complète de l'instance, commençant par https:// (ou http://).",
     add: "Ajouter le moteur",
     added: "Moteur de recherche {id} ajouté.",
+    builtin: "fourni par cette installation",
+    keylessWarningTitle: "Lisez d'abord les conditions d'utilisation du moteur",
+    keylessWarningBody: "Ce moteur lit la page de résultats {origin}, faite pour des personnes, pas une API : elle peut cesser de fonctionner à tout moment, et les conditions d'utilisation du moteur peuvent interdire les requêtes automatisées. Vérifiez-les avant de l'activer.",
+    keylessOffByDefault: "Il reste désactivé pour chaque projet tant que personne n'autorise son origine pour ce projet.",
+    keylessConsentTitle: "Activer le moteur sans clé {id} pour {project} ?",
+    keylessConsentConfirm: "J'ai lu les conditions, l'activer",
   },
   browser: {
     title: "Navigateur",

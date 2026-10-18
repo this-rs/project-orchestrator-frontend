@@ -12,6 +12,11 @@ export default {
     noChild: "子对话尚未列出",
     noChildTitle: "子对话按此工具调用的标识符查找。服务器列出后它就会出现。"
   },
+  /** WebFetch / WebSearch: their result is data from the outside, never the assistant's text. */
+  web: {
+    externalSearch: "搜索结果：外部内容，并非助手所写",
+    externalPage: "页面内容：外部内容，并非助手所写",
+  },
   bash: {
     emptyCommand: "（空命令）",
     showLess: "显示更少",

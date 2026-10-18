@@ -56,6 +56,7 @@ export default {
     kind: {
       brave: "Brave Search",
       searxng: "SearXNG(키 불필요)",
+      obscura: "DuckDuckGo, 내장 브라우저로 읽음(키 불필요)",
     },
     noOrigin: "출처 알 수 없음",
     keyGranted: "키 {name} 승인됨",
@@ -93,6 +94,12 @@ export default {
     baseUrlInvalid: "https://(또는 http://)로 시작하는 인스턴스의 전체 주소를 입력하세요.",
     add: "엔진 추가",
     added: "검색 엔진 {id}을(를) 추가했습니다.",
+    builtin: "이 설치에서 제공",
+    keylessWarningTitle: "먼저 검색 엔진의 이용 약관을 읽으세요",
+    keylessWarningBody: "이 엔진은 API가 아니라 사람을 위해 만든 결과 페이지 {origin}을(를) 읽습니다. 언제든 작동을 멈출 수 있으며, 엔진의 이용 약관이 자동화된 쿼리를 허용하지 않을 수 있습니다. 켜기 전에 확인하세요.",
+    keylessOffByDefault: "누군가 해당 프로젝트에 대해 출처를 허용할 때까지 모든 프로젝트에서 꺼져 있습니다.",
+    keylessConsentTitle: "{project}에 키가 없는 엔진 {id}을(를) 켜시겠습니까?",
+    keylessConsentConfirm: "약관을 읽었습니다. 켜기",
   },
   browser: {
     title: "브라우저",

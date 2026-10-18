@@ -12,6 +12,11 @@ export default {
     noChild: "Hội thoại con chưa có trong danh sách",
     noChildTitle: "Hội thoại con được tìm theo mã của lần gọi công cụ này. Nó xuất hiện ngay khi máy chủ liệt kê."
   },
+  /** WebFetch / WebSearch: their result is data from the outside, never the assistant's text. */
+  web: {
+    externalSearch: "Kết quả tìm kiếm: nội dung bên ngoài, không do trợ lý viết",
+    externalPage: "Nội dung trang: nội dung bên ngoài, không do trợ lý viết",
+  },
   bash: {
     emptyCommand: "(lệnh trống)",
     showLess: "thu gọn",

@@ -12,6 +12,11 @@ export default {
     noChild: "उप-बातचीत अभी सूची में नहीं है",
     noChildTitle: "संतान बातचीत इस टूल कॉल की पहचान से मिलती है। सर्वर सूची में लाते ही वह दिख जाएगी।"
   },
+  /** WebFetch / WebSearch: their result is data from the outside, never the assistant's text. */
+  web: {
+    externalSearch: "खोज परिणाम: बाहरी सामग्री, सहायक द्वारा नहीं लिखी गई",
+    externalPage: "पेज की सामग्री: बाहरी सामग्री, सहायक द्वारा नहीं लिखी गई",
+  },
   bash: {
     emptyCommand: "(खाली कमांड)",
     showLess: "कम दिखाएँ",
