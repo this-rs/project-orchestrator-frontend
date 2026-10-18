@@ -180,5 +180,24 @@ export default {
     completedOne: "{count} रन पूरा हुआ",
     completedMany: "{count} रन पूरे हुए",
     done: "{count} पूर्ण"
+  },
+  work: {
+    kind: {
+      plan: "योजना",
+      task: "कार्य"
+    },
+    steps: "चरण {done}/{total}",
+    openPlan: "योजना {title} खोलें",
+    openTask: "कार्य {title} खोलें",
+    plans: {
+      one: "{count} योजना",
+      many: "{count} योजनाएँ"
+    },
+    tasks: {
+      one: "{count} कार्य",
+      many: "{count} कार्य"
+    },
+    barAria: "प्रगति में: {summary}",
+    barAriaCurrent: "प्रगति में: {summary} — वर्तमान कार्य: {title}"
   }
 } satisfies Translation<'chatA-activity'>

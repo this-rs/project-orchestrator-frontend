@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useCallback, useEffect, useId } from 'react'
+import { memo, useState, useRef, useCallback, useEffect, useId, useMemo } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
 import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom, chatSessionImagesCauseAtom, refsEnabledAtom, chatRefLabelsAtom, chatTimelineOpenAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
@@ -20,6 +20,9 @@ import {
 } from '@/constants/toolPolicy'
 import { ChevronDown, Loader2, Paperclip, Square, ArrowRight, ChartNoAxesGantt } from 'lucide-react'
 import { ActivityBar, type RunActions } from './ActivityBar'
+import { WorkBar } from './WorkBar'
+import { deriveWorkInProgress } from './workInProgress'
+import type { TimelineWork } from '@/components/timeline'
 import type { RunningItem } from './runningActivity'
 import { RoutingSelectionMenu } from './RoutingSelectionMenu'
 import type { ProviderModelMenu } from './ProviderModelPicker'
@@ -116,6 +119,10 @@ interface ChatInputProps {
   activity?: ReadonlyArray<RunningItem>
   /** Open / stop / dashboard for the detached runs listed in `activity`. */
   runActions?: RunActions
+  /** The plans / tasks / steps the conversation is linked to (`useTimelineContext`); the open ones are shown under `activity`. */
+  work?: TimelineWork
+  /** Where the plan and task pages of `work` live. */
+  workspaceSlug?: string | null
 }
 
 /** A stable empty queue, so a conversation without one does not re-run the effects that read it. */
@@ -135,9 +142,10 @@ const IMAGES_REFUSED_KEYS: Readonly<Record<ImagesCause, MessageKey>> = {
 /** A stable "nothing runs", so an absent prop does not re-render the bar. */
 const NO_ACTIVITY: ReadonlyArray<RunningItem> = []
 
-export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, disabledReason, sessionId, onChangePermissionMode, onChangeModel, onNewConversation, prefill, activity = NO_ACTIVITY, runActions }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, disabledReason, sessionId, onChangePermissionMode, onChangeModel, onNewConversation, prefill, activity = NO_ACTIVITY, runActions, work, workspaceSlug }: ChatInputProps) {
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const isMobile = useIsMobile()
+  const hasWork = useMemo(() => deriveWorkInProgress(work) != null, [work])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   // The composer box: the mobile reference sheet rests on it (state, so the sheet re-renders once it exists).
   const [composerBoxEl, setComposerBoxEl] = useState<HTMLDivElement | null>(null)
@@ -886,10 +894,10 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           </span>
         </div>
       )}
-      {/* The tray: what is running, then what is waiting to be sent — ONE card
+      {/* The tray: what is running, what the conversation works on, then what is waiting to be sent — ONE card
           above the composer, each half optional. Two stacked cards would draw
           two outlines for one idea ("things in flight around this message"). */}
-      {(activity.length > 0 || queue.length > 0) && (
+      {(activity.length > 0 || hasWork || queue.length > 0) && (
         <div
           // Glass, same recipe as the composer box below it (translucent fill + blur): the
           // transcript scrolls under the dock, and a near-transparent fill left the tray's
@@ -898,6 +906,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           data-testid="composer-tray"
         >
           <ActivityBar items={activity} runActions={runActions} />
+          <WorkBar work={work} workspaceSlug={workspaceSlug} />
           <MessageQueueBar
             bare
             queue={queue}

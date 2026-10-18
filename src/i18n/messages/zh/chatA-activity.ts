@@ -180,5 +180,24 @@ export default {
     completedOne: "{count} 个运行已完成",
     completedMany: "{count} 个运行已完成",
     done: "{count} 个完成"
+  },
+  work: {
+    kind: {
+      plan: "计划",
+      task: "任务"
+    },
+    steps: "步骤 {done}/{total}",
+    openPlan: "打开计划 {title}",
+    openTask: "打开任务 {title}",
+    plans: {
+      one: "{count} 个计划",
+      many: "{count} 个计划"
+    },
+    tasks: {
+      one: "{count} 个任务",
+      many: "{count} 个任务"
+    },
+    barAria: "进行中：{summary}",
+    barAriaCurrent: "进行中：{summary} — 当前任务：{title}"
   }
 } satisfies Translation<'chatA-activity'>

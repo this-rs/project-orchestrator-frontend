@@ -180,5 +180,24 @@ export default {
     completedOne: "Завершено запусків: {count}",
     completedMany: "Завершено запусків: {count}",
     done: "Готово: {count}"
+  },
+  work: {
+    kind: {
+      plan: "план",
+      task: "завдання"
+    },
+    steps: "крок {done}/{total}",
+    openPlan: "Відкрити план {title}",
+    openTask: "Відкрити завдання {title}",
+    plans: {
+      one: "планів: {count}",
+      many: "планів: {count}"
+    },
+    tasks: {
+      one: "завдань: {count}",
+      many: "завдань: {count}"
+    },
+    barAria: "У роботі: {summary}",
+    barAriaCurrent: "У роботі: {summary} — поточне завдання: {title}"
   }
 } satisfies Translation<'chatA-activity'>

@@ -12,6 +12,7 @@ import { Provider, createStore } from 'jotai'
 import { chatMessageQueuesAtom } from '@/atoms/chat'
 import { ChatInput } from './ChatInput'
 import type { RunningItem } from './runningActivity'
+import type { TimelineWork } from '@/components/timeline'
 
 vi.mock('@/hooks', () => ({ useIsMobile: () => false }))
 vi.mock('@/services/chat', () => ({
@@ -26,11 +27,11 @@ const running: RunningItem[] = [
 
 let store = createStore()
 
-function mount({ activity, isStreaming = false }: { activity?: RunningItem[]; isStreaming?: boolean }) {
+function mount({ activity, isStreaming = false, work }: { activity?: RunningItem[]; isStreaming?: boolean; work?: TimelineWork }) {
   store = createStore()
   return render(
     <Provider store={store}>
-      <ChatInput onSend={() => {}} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={() => {}} isStreaming={isStreaming} sessionId="session-1" activity={activity} />
+      <ChatInput onSend={() => {}} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={() => {}} isStreaming={isStreaming} sessionId="session-1" activity={activity} work={work} workspaceSlug="ws" />
     </Provider>,
   )
 }
@@ -110,6 +111,24 @@ describe('ChatInput — activity and queue tray', () => {
     const tray = screen.getByTestId('composer-tray')
     expect(tray.compareDocumentPosition(screen.getByRole('textbox')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(tray.className).not.toMatch(/\babsolute\b|\bfixed\b/)
+  })
+
+  it('with open work: the work bar sits in the same card, under the activity bar', () => {
+    const work: TimelineWork = { plans: [], tasks: [{ id: 't1', title: 'Write the bar', status: 'in_progress', steps: [] }] }
+    mount({ activity: running, work })
+    const tray = screen.getByTestId('composer-tray')
+    const bar = within(tray).getByTestId('activity-bar')
+    const workBar = within(tray).getByTestId('work-bar')
+    expect(bar.compareDocumentPosition(workBar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(workBar).toHaveTextContent('Write the bar')
+  })
+
+  it('with open work alone: the tray holds the work bar; closed work draws no tray', () => {
+    const { unmount } = mount({ work: { plans: [], tasks: [{ id: 't1', title: 'Write the bar', status: 'in_progress', steps: [] }] } })
+    expect(within(screen.getByTestId('composer-tray')).getByTestId('work-bar')).toBeInTheDocument()
+    unmount()
+    mount({ work: { plans: [], tasks: [{ id: 't1', title: 'Done', status: 'completed', steps: [] }] } })
+    expect(screen.queryByTestId('composer-tray')).toBeNull()
   })
 
   it('no longer shows the Monitor/Bash pill in the composer toolbar', () => {
