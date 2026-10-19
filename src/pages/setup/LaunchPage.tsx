@@ -22,6 +22,11 @@ const TEXT = {
   savedNext: 'Next: ',
   savedNextLink: 'create the vault and add a chat provider',
   savedNextTail: ' once the app has restarted: provider keys are typed into the vault, never into this configuration.',
+  savedMore: 'Once the app has restarted you can also set up the ',
+  savedMoreVault: 'vault',
+  savedMoreMid: ' and add more ',
+  savedMoreProviders: 'providers',
+  savedMoreTail: ' (provider keys go into the vault, never into this configuration).',
   failedTitle: 'Configuration failed',
   restarting: 'Restarting the app...',
   generating: 'Saving the configuration...',
@@ -193,13 +198,25 @@ export function LaunchPage() {
         <StatusBanner tone="success" title={TEXT.savedTitle} role="status">
           {configPath && <p className="break-all font-mono text-xs leading-4 text-gray-500">{configPath}</p>}
           <p>{TEXT.savedRestart}</p>
-          {config.chatProvider === 'none' && (
+          {config.chatProvider === 'none' ? (
             <p>
               {TEXT.savedNext}
               <Link to="/providers" className={inlineLink}>
                 {TEXT.savedNextLink}
               </Link>
               {TEXT.savedNextTail}
+            </p>
+          ) : (
+            <p>
+              {TEXT.savedMore}
+              <Link to="/vault" className={inlineLink}>
+                {TEXT.savedMoreVault}
+              </Link>
+              {TEXT.savedMoreMid}
+              <Link to="/providers" className={inlineLink}>
+                {TEXT.savedMoreProviders}
+              </Link>
+              {TEXT.savedMoreTail}
             </p>
           )}
         </StatusBanner>
