@@ -201,7 +201,7 @@ export function LaunchPage() {
           {config.chatProvider === 'none' ? (
             <p>
               {TEXT.savedNext}
-              <Link to="/providers" className={inlineLink}>
+              <Link to="/settings" className={inlineLink}>
                 {TEXT.savedNextLink}
               </Link>
               {TEXT.savedNextTail}
@@ -209,11 +209,11 @@ export function LaunchPage() {
           ) : (
             <p>
               {TEXT.savedMore}
-              <Link to="/vault" className={inlineLink}>
+              <Link to="/settings" className={inlineLink}>
                 {TEXT.savedMoreVault}
               </Link>
               {TEXT.savedMoreMid}
-              <Link to="/providers" className={inlineLink}>
+              <Link to="/settings" className={inlineLink}>
                 {TEXT.savedMoreProviders}
               </Link>
               {TEXT.savedMoreTail}

@@ -236,7 +236,7 @@ describe('setup wizard: launch summary and generated config', () => {
     cli(true)
   })
 
-  it('summarises a non-Claude choice and links to /providers after generation', async () => {
+  it('summarises a non-Claude choice and links to /settings after generation', async () => {
     renderWith(<LaunchPage />, { chatProvider: 'none', chatModel: 'x' }, 3)
     expect(screen.getByText('Chat provider')).toBeTruthy()
     expect(screen.getByText(/To configure in Settings/)).toBeTruthy()
@@ -244,7 +244,7 @@ describe('setup wizard: launch summary and generated config', () => {
     expect(screen.queryByText('Auto-update CLI')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /generate config/i }))
     const link = await screen.findByRole('link', { name: /create the vault and add a chat provider/i })
-    expect(link.getAttribute('href')).toBe('/providers')
+    expect(link.getAttribute('href')).toBe('/settings')
     const [, args] = invokeMock.mock.calls.find((c) => c[0] === 'generate_config')!
     expect(args.config.chatProvider).toBe('none')
     expect(args.config.chatModel).toBe('')
