@@ -168,6 +168,16 @@ export default {
       observation: "спостереження",
       assertion: "твердження",
       decision: "рішення"
+    },
+    iso: {
+      loading: "Завантаження 3D-сцени…",
+      composing: "3D-сцена складається…",
+      refused: "Цю 3D-сцену відхилено — що виправити:",
+      moreProblems: "… і ще {count}",
+      rebuild: "Перебудувати",
+      notJson: "Ця 3D-сцена — некоректний JSON ({detail}). Її текст:",
+      notObject: "Ця 3D-сцена має бути об'єктом JSON. Її текст:",
+      tooLarge: "Ця 3D-сцена завелика (не більше {max} символів). Її текст:"
     }
   },
   permission: {

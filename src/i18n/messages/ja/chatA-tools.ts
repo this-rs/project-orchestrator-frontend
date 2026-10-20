@@ -168,6 +168,16 @@ export default {
       observation: "観察",
       assertion: "アサーション",
       decision: "決定"
+    },
+    iso: {
+      loading: "3D シーンを読み込み中…",
+      composing: "3D シーンを作成中…",
+      refused: "この 3D シーンは拒否されました — 修正点:",
+      moreProblems: "… ほか {count} 件",
+      rebuild: "再構築",
+      notJson: "この 3D シーンは有効な JSON ではありません（{detail}）。テキスト:",
+      notObject: "この 3D シーンは JSON オブジェクトである必要があります。テキスト:",
+      tooLarge: "この 3D シーンは大きすぎます（最大 {max} 文字）。テキスト:"
     }
   },
   permission: {

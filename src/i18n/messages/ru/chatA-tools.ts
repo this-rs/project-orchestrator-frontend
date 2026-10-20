@@ -168,6 +168,16 @@ export default {
       observation: "наблюдение",
       assertion: "утверждение",
       decision: "решение"
+    },
+    iso: {
+      loading: "Загрузка 3D-сцены…",
+      composing: "3D-сцена составляется…",
+      refused: "Эта 3D-сцена отклонена — что исправить:",
+      moreProblems: "… и ещё {count}",
+      rebuild: "Пересобрать",
+      notJson: "Эта 3D-сцена — некорректный JSON ({detail}). Её текст:",
+      notObject: "Эта 3D-сцена должна быть объектом JSON. Её текст:",
+      tooLarge: "Эта 3D-сцена слишком большая (не более {max} символов). Её текст:"
     }
   },
   permission: {

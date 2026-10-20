@@ -168,6 +168,16 @@ export default {
       observation: "अवलोकन",
       assertion: "दावा",
       decision: "निर्णय"
+    },
+    iso: {
+      loading: "3D दृश्य लोड हो रहा है…",
+      composing: "3D दृश्य लिखा जा रहा है…",
+      refused: "यह 3D दृश्य अस्वीकार किया गया — क्या सुधारें:",
+      moreProblems: "… और {count}",
+      rebuild: "फिर से बनाएँ",
+      notJson: "यह 3D दृश्य मान्य JSON नहीं है ({detail})। इसका पाठ:",
+      notObject: "यह 3D दृश्य एक JSON ऑब्जेक्ट होना चाहिए। इसका पाठ:",
+      tooLarge: "यह 3D दृश्य बहुत बड़ा है (अधिकतम {max} वर्ण)। इसका पाठ:"
     }
   },
   permission: {

@@ -168,6 +168,16 @@ export default {
       observation: "quan sát",
       assertion: "khẳng định",
       decision: "quyết định"
+    },
+    iso: {
+      loading: "Đang tải cảnh 3D…",
+      composing: "Đang soạn cảnh 3D…",
+      refused: "Cảnh 3D này bị từ chối — cần sửa:",
+      moreProblems: "… và {count} mục khác",
+      rebuild: "Dựng lại",
+      notJson: "Cảnh 3D này không phải JSON hợp lệ ({detail}). Nội dung:",
+      notObject: "Cảnh 3D này phải là một đối tượng JSON. Nội dung:",
+      tooLarge: "Cảnh 3D này quá lớn (tối đa {max} ký tự). Nội dung:"
     }
   },
   permission: {

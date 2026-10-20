@@ -168,6 +168,16 @@ export default {
       observation: "observación",
       assertion: "aserción",
       decision: "decisión"
+    },
+    iso: {
+      loading: "Cargando la escena 3D…",
+      composing: "Redactando la escena 3D…",
+      refused: "Esta escena 3D fue rechazada — qué corregir:",
+      moreProblems: "… y {count} más",
+      rebuild: "Reconstruir",
+      notJson: "Esta escena 3D no es JSON válido ({detail}). Su texto:",
+      notObject: "Esta escena 3D debe ser un objeto JSON. Su texto:",
+      tooLarge: "Esta escena 3D es demasiado grande (como máximo {max} caracteres). Su texto:"
     }
   },
   permission: {
