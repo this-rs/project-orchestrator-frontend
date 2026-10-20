@@ -20,7 +20,7 @@ const inWorkspace = (ui: ReactNode) =>
 
 describe('MarkdownText — entities cited by the agent', () => {
   it('turns a valid #plan:uuid into a link that opens the plan', () => {
-    inWorkspace(<MarkdownText citeRefs content={`Voir ${plan.token} pour le détail.`} />)
+    inWorkspace(<MarkdownText citeRefs knownRefs={[{ ...plan.ref, resolution: 'ok' } as never]} content={`Voir ${plan.token} pour le détail.`} />)
     const link = screen.getByRole('link')
     expect(link.getAttribute('href')).toBe(`/workspace/acme/plans/${plan.ref.id}`)
     expect(link.getAttribute('data-kind')).toBe('plan')
@@ -30,7 +30,8 @@ describe('MarkdownText — entities cited by the agent', () => {
 
   it('opens each kind where the application shows it', () => {
     const text = tokens.valid.map((v) => v.token).join(' ; ')
-    inWorkspace(<MarkdownText citeRefs content={text} />)
+    const known = tokens.valid.map((v) => ({ ...v.ref, resolution: 'ok' }) as never)
+    inWorkspace(<MarkdownText citeRefs knownRefs={known} content={text} />)
     const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href'))
     expect(hrefs).toEqual([
       `/workspace/acme/plans/${tokens.valid[0].ref.id}`,
@@ -42,12 +43,12 @@ describe('MarkdownText — entities cited by the agent', () => {
   })
 
   it('shows the resolved label when it is known', () => {
-    inWorkspace(<MarkdownText citeRefs knownRefs={[{ ...rfc.ref, label: 'Références v3' } as never]} content={`cf. ${rfc.token}`} />)
+    inWorkspace(<MarkdownText citeRefs knownRefs={[{ ...rfc.ref, label: 'Références v3', resolution: 'ok' } as never]} content={`cf. ${rfc.token}`} />)
     expect(screen.getByRole('link').textContent).toContain('Références v3')
   })
 
   it('names the kind for a screen reader, and is a 24px target that keeps the line height', () => {
-    inWorkspace(<MarkdownText citeRefs content={plan.token} />)
+    inWorkspace(<MarkdownText citeRefs knownRefs={[{ ...plan.ref, resolution: 'ok' } as never]} content={plan.token} />)
     const link = screen.getByRole('link')
     expect(link.textContent).toMatch(/^Plan: /)
     expect(link.className).toContain(REF_CHIP_HIT)
@@ -96,5 +97,36 @@ describe('MarkdownText — entities cited by the agent', () => {
   it('renders without a router too (plain anchor)', () => {
     render(<MarkdownText citeRefs content={plan.token} />)
     expect(screen.queryByRole('link')).toBeNull() // no workspace: text
+  })
+})
+
+describe('MarkdownText — a citation is a link only once the server confirmed it', () => {
+  it('keeps an id nobody announced as plain text (still streaming, or a server that does not announce)', () => {
+    const { container } = inWorkspace(<MarkdownText citeRefs content={`Voir ${plan.token}`} />)
+    expect(screen.queryByRole('link')).toBeNull()
+    expect(container.textContent).toContain(plan.token)
+  })
+
+  it('keeps an announced-but-pending id as plain text', () => {
+    const { container } = inWorkspace(<MarkdownText citeRefs knownRefs={[{ ...plan.ref } as never]} content={`Voir ${plan.token}`} />)
+    expect(screen.queryByRole('link')).toBeNull()
+    expect(container.textContent).toContain(plan.token)
+  })
+
+  it('links an id the server resolved (ok or truncated)', () => {
+    inWorkspace(
+      <MarkdownText
+        citeRefs
+        knownRefs={[{ ...plan.ref, resolution: 'ok' } as never, { ...rfc.ref, resolution: 'truncated' } as never]}
+        content={`${plan.token} ${rfc.token}`}
+      />,
+    )
+    expect(screen.getAllByRole('link')).toHaveLength(2)
+  })
+
+  it('never links an id the server could not read', () => {
+    inWorkspace(<MarkdownText citeRefs knownRefs={[{ ...plan.ref, resolution: 'not_found' } as never]} content={plan.token} />)
+    expect(screen.queryByRole('link')).toBeNull()
+    expect(screen.getByTestId('cited-ref-unreadable')).toBeTruthy()
   })
 })

@@ -51,16 +51,22 @@ describe('ChatMessageBubble — references', () => {
 })
 
 describe('ChatMessageBubble — entities cited by the agent', () => {
-  const agent = (content: string): ChatMessage => ({
+  const agent = (content: string, cited?: ChatReference[]): ChatMessage => ({
     id: 'a1',
     role: 'assistant',
     blocks: [{ id: 'b1', type: 'text', content }],
     timestamp: new Date(),
+    ...(cited ? { cited } : {}),
   })
 
-  it('draws a cited #plan:uuid as a chip in an assistant text block', async () => {
-    render(inWorkspace(<ChatMessageBubble message={agent(`voir ${a.token}`)} />))
+  it('draws a cited #plan:uuid as a chip in an assistant text block once the server resolved it', async () => {
+    render(inWorkspace(<ChatMessageBubble message={agent(`voir ${a.token}`, [{ ...(a.ref as ChatReference), resolution: 'ok' }])} />))
     expect(screen.getByRole('link').getAttribute('href')).toBe(`/workspace/acme/plans/${a.ref.id}`)
+  })
+
+  it('draws no link for a citation the server has not announced (a turn still streaming)', async () => {
+    render(inWorkspace(<ChatMessageBubble message={agent(`voir ${a.token}`)} />))
+    expect(screen.queryByRole('link')).toBeNull()
   })
 })
 

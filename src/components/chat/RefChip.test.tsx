@@ -18,7 +18,7 @@ const cite = () =>
   render(
     <MemoryRouter initialEntries={['/workspace/acme/today']}>
       <Routes>
-        <Route path="/workspace/:slug/*" element={<MarkdownText citeRefs content={`Voir ${plan.token} pour le détail.`} />} />
+        <Route path="/workspace/:slug/*" element={<MarkdownText citeRefs knownRefs={[{ ...plan.ref, resolution: 'ok' } as never]} content={`Voir ${plan.token} pour le détail.`} />} />
       </Routes>
     </MemoryRouter>,
   )
