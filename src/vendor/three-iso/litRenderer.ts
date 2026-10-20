@@ -1,0 +1,636 @@
+// GENERATED from website@8ff26ee08f7be0342973cc35bcffb837b7fc5e0f:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
+// @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
+/**
+ * Rendu WebGL 2 des machines isométriques : la MÊME géométrie que le SVG prérendu (`machine.build`), mais éclairée
+ * comme un objet réel au lieu d'être peinte en quatre tons.
+ *
+ * - Tampon de profondeur : plus d'ordre du peintre, donc plus de pièces qui passent devant ou derrière au mauvais
+ *   endroit ; les faces cachées sont gardées (`withHiddenFaces`) pour que les solides soient entiers.
+ * - Éclairage continu en espace linéaire : lumière principale chaude (la direction `LIGHT` du SVG), ciel froid et
+ *   rebond du sol en hémisphère, reflet spéculaire discret, liseré de contre-jour ; mappage de tons ACES puis gamma.
+ * - Ombres portées douces : carte d'ombre orthographique depuis la lumière, filtrage 3 × 3 matériel (PCF).
+ * - Sol invisible de la couleur du fond, qui ne montre que les ombres (les pièces sont posées, pas flottantes).
+ * - Lampes : faces émissives non éclairées, plus un halo additif à leur centre.
+ * - Anticrénelage multi-échantillons du contexte.
+ *
+ * Aucune dépendance : quelques Ko, chargés à part comme l'ancien canvas 2D.
+ */
+import { LIGHT, ISO_BG, withHiddenFaces, type Face, type Vec3 } from './iso'
+import { EMIT_GAIN, LIGHTS, METAL } from './shading'
+import { WIDE_ASPECT, type MachineDef } from './machine'
+import { triangulate } from './triangulate'
+import { contentBox, fitWindow } from './fit'
+import { assemble } from './buildIn'
+
+const C30 = Math.cos(Math.PI / 6)
+const FLOATS = 15 // position 3, normale 3, couleur 3, alpha, émission, métal, arêtes 3
+const SHADOW_SIZE = 2048
+
+const hexRgb = (hex: string): Vec3 => {
+  const n = parseInt(hex.slice(1), 16)
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
+}
+const lin = (c: number) => Math.pow(c, 2.2)
+const linCache = new Map<string, Vec3>()
+function linear(hex: string): Vec3 {
+  let v = linCache.get(hex)
+  if (!v) {
+    const [r, g, b] = hexRgb(hex)
+    v = [lin(r), lin(g), lin(b)]
+    linCache.set(hex, v)
+  }
+  return v
+}
+
+
+
+const MAIN_VS = `#version 300 es
+in vec3 aPos; in vec3 aNor; in vec3 aCol; in vec3 aMat; in vec3 aEdge;
+uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform mat4 uLight; uniform vec4 uWin;
+out vec3 vN; out vec3 vCol; out vec3 vMat; out vec3 vL; out vec3 vEdge;
+void main() {
+  vec2 q = vec2((aPos.x - aPos.y) * ${C30.toFixed(7)}, (aPos.x + aPos.y) * 0.5 - aPos.z);
+  vec2 v = uOrigin + q * uU;
+  float s = aPos.x + aPos.y + aPos.z;
+  float z = 1.0 - 2.0 * (s - uDepth.x) / (uDepth.y - uDepth.x);
+  gl_Position = vec4((v.x - uWin.x) / uWin.z * 2.0 - 1.0, 1.0 - (v.y - uWin.y) / uWin.w * 2.0, z * 0.98, 1.0);
+  vN = aNor; vCol = aCol; vMat = aMat; vEdge = aEdge;
+  // Décalage le long de la normale : pas d'acné d'ombre sur les grandes faces rasantes.
+  vL = (uLight * vec4(aPos + aNor * 0.06, 1.0)).xyz * 0.5 + 0.5;
+}`
+
+const MAIN_FS = `#version 300 es
+precision highp float;
+precision highp sampler2DShadow;
+in vec3 vN; in vec3 vCol; in vec3 vMat; in vec3 vL; in vec3 vEdge;
+uniform sampler2DShadow uShadow; uniform vec3 uLightDir; uniform vec3 uBg; uniform float uTexel; uniform float uTransparent;
+uniform vec3 uKey; uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uRim;
+out vec4 o;
+float shadow() {
+  if (vL.x < 0.0 || vL.x > 1.0 || vL.y < 0.0 || vL.y > 1.0) return 1.0;
+  float s = 0.0;
+  for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++)
+    s += texture(uShadow, vec3(vL.xy + vec2(float(i), float(j)) * uTexel * 1.5, vL.z - 0.002));
+  return s / 9.0;
+}
+vec3 aces(vec3 x) { return clamp(x * (2.51 * x + 0.03) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+void main() {
+  float sh = shadow();
+  if (vMat.y > 1.5) { // sol : le fond, assombri sous les ombres
+    // Fond transparent (illustration posée sur sa section) : le sol n'est qu'un capteur d'ombre, noir prémultiplié.
+    if (uTransparent > 0.5) o = vec4(0.0, 0.0, 0.0, (1.0 - sh) * 0.45);
+    else o = vec4(uBg * mix(0.72, 1.0, sh), 1.0);
+    return;
+  }
+  vec3 V = normalize(vec3(1.0));
+  vec3 N = normalize(vN);
+  if (dot(N, V) < 0.0) N = -N;
+  vec3 c;
+  if (vMat.y > 0.5) {
+    c = vCol * ${EMIT_GAIN.toFixed(2)};
+  } else {
+    float metal = vMat.z;
+    float ndl = max(dot(N, uLightDir), 0.0);
+    vec3 hemi = mix(uGround, uSky, N.z * 0.5 + 0.5);
+    vec3 H = normalize(uLightDir + V);
+    float nh = max(dot(N, H), 0.0);
+    // Peinture : reflet large et faible ; métal : reflet serré, fort, teinté de sa couleur.
+    vec3 spec = mix(vec3(pow(nh, 36.0) * 0.12), vCol * pow(nh, 90.0) * 2.4 + vCol * pow(nh, 12.0) * 0.35, metal);
+    float rim = pow(1.0 - max(dot(N, V), 0.0), 4.0);
+    c = vCol * (uKey * ndl * sh * (1.0 - 0.35 * metal) + hemi) + uKey * spec * sh + uRim * rim;
+    // Arête chanfreinée : un liseré de 1 px qui attrape la lumière (côté éclairé) ou s'assombrit (côté ombre).
+    vec3 w = fwidth(vEdge);
+    vec3 e = vEdge / max(w, vec3(1e-5));
+    float edge = 1.0 - smoothstep(0.4, 1.4, min(min(e.x, e.y), e.z));
+    float lit = clamp(ndl * sh * 1.6, 0.0, 1.0);
+    c = mix(c, c * mix(0.55, 1.9, lit) + uKey * 0.035 * lit, edge * 0.85);
+  }
+  o = vec4(pow(aces(c), vec3(1.0 / 2.2)), vMat.x);
+}`
+
+const SHADOW_VS = `#version 300 es
+in vec3 aPos; uniform mat4 uLight;
+void main() { gl_Position = uLight * vec4(aPos, 1.0); }`
+const SHADOW_FS = `#version 300 es
+precision mediump float; out vec4 o; void main() { o = vec4(1.0); }`
+
+const GLOW_VS = `#version 300 es
+in vec3 aPos; in vec3 aCol; in float aSize;
+uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform float uPx; uniform vec4 uWin;
+out vec3 vCol;
+void main() {
+  vec2 q = vec2((aPos.x - aPos.y) * ${C30.toFixed(7)}, (aPos.x + aPos.y) * 0.5 - aPos.z);
+  vec2 v = uOrigin + q * uU;
+  float s = aPos.x + aPos.y + aPos.z;
+  float z = 1.0 - 2.0 * (s - uDepth.x) / (uDepth.y - uDepth.x);
+  gl_Position = vec4((v.x - uWin.x) / uWin.z * 2.0 - 1.0, 1.0 - (v.y - uWin.y) / uWin.w * 2.0, z * 0.98 - 0.002, 1.0);
+  gl_PointSize = aSize * uPx;
+  vCol = aCol;
+}`
+const GLOW_FS = `#version 300 es
+precision mediump float; in vec3 vCol; out vec4 o;
+void main() {
+  float d = length(gl_PointCoord - 0.5) * 2.0;
+  float a = exp(-d * d * 5.0) * (1.0 - d);
+  if (a <= 0.0) discard;
+  vec3 c = pow(vCol, vec3(1.0 / 2.2)) * a * 0.55;
+  // Alpha = intensité : sur un canvas transparent (prémultiplié), le halo éclaire sans poser d'aplat noir.
+  o = vec4(c, max(c.r, max(c.g, c.b)));
+}`
+
+const LINE_VS = `#version 300 es
+in vec3 aPos; in vec4 aCol;
+uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform vec4 uWin;
+out vec4 vCol;
+void main() {
+  vec2 q = vec2((aPos.x - aPos.y) * ${C30.toFixed(7)}, (aPos.x + aPos.y) * 0.5 - aPos.z);
+  vec2 v = uOrigin + q * uU;
+  float s = aPos.x + aPos.y + aPos.z;
+  float z = 1.0 - 2.0 * (s - uDepth.x) / (uDepth.y - uDepth.x);
+  gl_Position = vec4((v.x - uWin.x) / uWin.z * 2.0 - 1.0, 1.0 - (v.y - uWin.y) / uWin.w * 2.0, z * 0.98 - 0.001, 1.0);
+  vCol = aCol;
+}`
+const LINE_FS = `#version 300 es
+precision mediump float; in vec4 vCol; out vec4 o;
+void main() { o = vec4(pow(vCol.rgb, vec3(1.0 / 2.2)) * vCol.a, vCol.a); }`
+
+function compile(gl: WebGL2RenderingContext, vs: string, fs: string): WebGLProgram {
+  const p = gl.createProgram()!
+  for (const [type, src] of [
+    [gl.VERTEX_SHADER, vs],
+    [gl.FRAGMENT_SHADER, fs],
+  ] as const) {
+    const s = gl.createShader(type)!
+    gl.shaderSource(s, src)
+    gl.compileShader(s)
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) ?? 'shader')
+    gl.attachShader(p, s)
+  }
+  gl.linkProgram(p)
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) ?? 'link')
+  return p
+}
+
+
+export class IsoRenderer {
+  private readonly gl: WebGL2RenderingContext
+  private readonly main: WebGLProgram
+  private readonly shadowProg: WebGLProgram
+  private readonly glowProg: WebGLProgram
+  private readonly lineProg: WebGLProgram
+  private readonly lbo: WebGLBuffer
+  private lines = new Float32Array(0)
+  private readonly vbo: WebGLBuffer
+  private readonly gbo: WebGLBuffer
+  private readonly shadowTex: WebGLTexture
+  private readonly shadowFbo: WebGLFramebuffer
+  private data = new Float32Array(0)
+  private glow = new Float32Array(0)
+  private count = 0
+
+  constructor(
+    private readonly canvas: HTMLCanvasElement,
+    private machine: MachineDef,
+    /** Fond transparent (illustration posée sur le fond de sa section) : ni fond ni sol, la scène flotte. */
+    private readonly transparent = false,
+  ) {
+    const gl = canvas.getContext('webgl2', { antialias: true, alpha: transparent, premultipliedAlpha: transparent, powerPreference: 'low-power' })
+    if (!gl) throw new Error('webgl2')
+    this.gl = gl
+    this.main = compile(gl, MAIN_VS, MAIN_FS)
+    this.shadowProg = compile(gl, SHADOW_VS, SHADOW_FS)
+    this.glowProg = compile(gl, GLOW_VS, GLOW_FS)
+    this.lineProg = compile(gl, LINE_VS, LINE_FS)
+    this.lbo = gl.createBuffer()!
+    this.vbo = gl.createBuffer()!
+    this.gbo = gl.createBuffer()!
+    this.shadowTex = gl.createTexture()!
+    gl.bindTexture(gl.TEXTURE_2D, this.shadowTex)
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, SHADOW_SIZE, SHADOW_SIZE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL)
+    this.shadowFbo = gl.createFramebuffer()!
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFbo)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.shadowTex, 0)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  }
+
+  /** Géométrie de l'instant u : triangles (opaques puis translucides), halos, bornes de profondeur et de lumière. */
+  private fill(u: number, built = 1, focus: number | null = null) {
+    const all: Face[] = withHiddenFaces(() => this.machine.build(u, 2, focus))
+    // Apparition : la machine se construit couche par couche (buildIn.ts) ; 1 = complète.
+    const faces = built < 1 ? assemble(this.machine, all, built) : all
+    let tris = 2 // sol
+    for (const f of faces) tris += f.pts.length - 2
+    if (this.data.length < tris * 3 * FLOATS) this.data = new Float32Array(tris * 3 * FLOATS * 1.25)
+    const d = this.data
+    let n = 0
+    let sMin = Infinity
+    let sMax = -Infinity
+    let xMin = Infinity
+    let xMax = -Infinity
+    let yMin = Infinity
+    let yMax = -Infinity
+    const glow: number[] = []
+    const lamps = new Map<number, { x: number; y: number; z: number; n: number; lo: number[]; hi: number[]; c: Vec3; a: number }>()
+    const push = (p: Vec3, nx: number, ny: number, nz: number, c: Vec3, a: number, e: number, mt: number, b0: number, b1: number, b2: number) => {
+      d[n++] = p[0]
+      d[n++] = p[1]
+      d[n++] = p[2]
+      d[n++] = nx
+      d[n++] = ny
+      d[n++] = nz
+      d[n++] = c[0]
+      d[n++] = c[1]
+      d[n++] = c[2]
+      d[n++] = a
+      d[n++] = e
+      d[n++] = mt
+      d[n++] = b0
+      d[n++] = b1
+      d[n++] = b2
+    }
+    // Fil de fer : les arêtes (non douces) des faces en plan, en segments colorés ; ces faces n'ont pas de matière.
+    const lines: number[] = []
+    for (const f of faces) {
+      if (f.wire === undefined) continue
+      const c = linear(f.col)
+      const p = f.pts
+      for (let k = 0; k < p.length; k++) {
+        if ((f.soft ?? 0) & (1 << k)) continue
+        const a = p[k]!
+        const b = p[(k + 1) % p.length]!
+        const sa = a[0] + a[1] + a[2]
+        if (sa < sMin) sMin = sa
+        if (sa > sMax) sMax = sa
+        lines.push(a[0], a[1], a[2], c[0], c[1], c[2], f.wire, b[0], b[1], b[2], c[0], c[1], c[2], f.wire)
+      }
+    }
+    this.lines = new Float32Array(lines)
+    const order = [...faces].filter((f) => f.wire === undefined).sort((a, b) => (a.alpha < 1 ? 1 : 0) - (b.alpha < 1 ? 1 : 0))
+    let opaque = 0
+    for (const f of order) {
+      const pts = f.pts
+      let nx = 0
+      let ny = 0
+      let nz = 0
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i]!
+        const b = pts[(i + 1) % pts.length]!
+        nx += (a[1] - b[1]) * (a[2] + b[2])
+        ny += (a[2] - b[2]) * (a[0] + b[0])
+        nz += (a[0] - b[0]) * (a[1] + b[1])
+        const s = a[0] + a[1] + a[2]
+        if (s < sMin) sMin = s
+        if (s > sMax) sMax = s
+        if (a[0] < xMin) xMin = a[0]
+        if (a[0] > xMax) xMax = a[0]
+        if (a[1] < yMin) yMin = a[1]
+        if (a[1] > yMax) yMax = a[1]
+      }
+      const l = Math.hypot(nx, ny, nz) || 1
+      nx /= l
+      ny /= l
+      nz /= l
+      const c = linear(f.emit ?? f.col)
+      const e = f.emit ? 1 : 0
+      const mt = !f.emit && METAL.has(f.col) ? 1 : 0
+      const N = f.nrm
+      const soft = f.soft ?? 0
+      // Triangles de la face ; coordonnées barycentriques : la composante k s'annule sur l'arête opposée au sommet k.
+      // Une arête qui n'est pas un bord du polygone (diagonale) ou un bord doux reçoit +1 : jamais de liseré.
+      const tri = triangulate(pts, nx, ny, nz)
+      const np = pts.length
+      const isEdge = (a: number, b: number) => {
+        const k = (a + 1) % np === b ? a : (b + 1) % np === a ? b : -1
+        return k >= 0 && !(soft & (1 << k))
+      }
+      for (let t = 0; t < tri.length; t += 3) {
+        const A = tri[t]!
+        const Bv = tri[t + 1]!
+        const Cv = tri[t + 2]!
+        const opp0 = isEdge(Bv, Cv) ? 0 : 1
+        const opp1 = isEdge(Cv, A) ? 0 : 1
+        const opp2 = isEdge(A, Bv) ? 0 : 1
+        const vs = [A, Bv, Cv]
+        for (let k = 0; k < 3; k++) {
+          const v = vs[k]!
+          const nn = N ? N[v]! : null
+          push(pts[v]!, nn ? nn[0] : nx, nn ? nn[1] : ny, nn ? nn[2] : nz, c, f.alpha, e, mt, (k === 0 ? 1 : 0) + opp0, (k === 1 ? 1 : 0) + opp1, (k === 2 ? 1 : 0) + opp2)
+        }
+      }
+      if (f.alpha >= 1) opaque += tri.length
+      if (f.emit) {
+        // Halos regroupés par pièce (une lampe = un halo, pas un par facette).
+        let L = lamps.get(f.part)
+        if (!L) {
+          L = { x: 0, y: 0, z: 0, n: 0, lo: [Infinity, Infinity, Infinity], hi: [-Infinity, -Infinity, -Infinity], c, a: f.alpha }
+          lamps.set(f.part, L)
+        }
+        for (const p of pts) {
+          L.x += p[0]
+          L.y += p[1]
+          L.z += p[2]
+          L.n++
+          for (let j = 0; j < 3; j++) {
+            if (p[j]! < L.lo[j]!) L.lo[j] = p[j]!
+            if (p[j]! > L.hi[j]!) L.hi[j] = p[j]!
+          }
+        }
+      }
+    }
+    for (const L of lamps.values()) {
+      const ext = Math.max(L.hi[0]! - L.lo[0]!, L.hi[1]! - L.lo[1]!, L.hi[2]! - L.lo[2]!)
+      // Un liseré qui fait le tour de la scène n'est pas une lampe : pas de halo au milieu du texte.
+      if (ext > 9) continue
+      const k = L.a * 0.9 + 0.1
+      glow.push(L.x / L.n, L.y / L.n, L.z / L.n, L.c[0] * k, L.c[1] * k, L.c[2] * k, Math.min(150, 26 + ext * this.machine.U * 1.6))
+    }
+    // Sol : un grand carré à z = 0 sous la machine, de la couleur du fond.
+    const m = 60
+    const g: Vec3[] = [
+      [xMin - m, yMin - m, -0.01],
+      [xMax + m, yMin - m, -0.01],
+      [xMax + m, yMax + m, -0.01],
+      [xMin - m, yMax + m, -0.01],
+    ]
+    const bg: Vec3 = [0, 0, 0]
+    for (const i of [0, 1, 2, 0, 2, 3]) push(g[i]!, 0, 0, 1, bg, 1, 2, 0, 1, 1, 1)
+    const ground = 6
+    for (const p of g) {
+      const s = p[0] + p[1] + p[2]
+      if (s < sMin) sMin = s
+      if (s > sMax) sMax = s
+    }
+    this.glow = new Float32Array(glow)
+    this.count = n / FLOATS
+    return { count: n / FLOATS, opaque, ground, sMin, sMax, bounds: [xMin, xMax, yMin, yMax] as const }
+  }
+
+  /** Matrice monde → espace de la lumière (orthographique, ajustée aux bornes de la scène). */
+  private lightMatrix(): Float32Array {
+    const d = this.data
+    const L = LIGHT
+    // Repère de la lumière : f regarde dans le sens de la lumière, r et up complètent.
+    const f: Vec3 = [-L[0], -L[1], -L[2]]
+    let r: Vec3 = [f[1] * 1 - f[2] * 0, f[2] * 0 - f[0] * 1, 0]
+    const rl = Math.hypot(r[0], r[1], r[2]) || 1
+    r = [r[0] / rl, r[1] / rl, r[2] / rl]
+    const up: Vec3 = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]]
+    let a0 = Infinity
+    let a1 = -Infinity
+    let b0 = Infinity
+    let b1 = -Infinity
+    let c0 = Infinity
+    let c1 = -Infinity
+    for (let i = 0; i < this.count * FLOATS; i += FLOATS) {
+      if (d[i + 10]! > 1.5) continue // le sol ne compte pas dans le cadrage de l'ombre
+      const x = d[i]!
+      const y = d[i + 1]!
+      const z = d[i + 2]!
+      const a = x * r[0] + y * r[1] + z * r[2]
+      const b = x * up[0] + y * up[1] + z * up[2]
+      const c = x * f[0] + y * f[1] + z * f[2]
+      if (a < a0) a0 = a
+      if (a > a1) a1 = a
+      if (b < b0) b0 = b
+      if (b > b1) b1 = b
+      if (c < c0) c0 = c
+      if (c > c1) c1 = c
+    }
+    const pad = 2
+    a0 -= pad
+    a1 += pad
+    b0 -= pad
+    b1 += pad
+    c0 -= pad
+    c1 += 30 // le sol, loin derrière, reçoit l'ombre
+    const sa = 2 / (a1 - a0)
+    const sb = 2 / (b1 - b0)
+    const sc = 2 / (c1 - c0)
+    // Colonnes (convention WebGL) : clip = M · (x, y, z, 1).
+    return new Float32Array([
+      r[0] * sa, up[0] * sb, f[0] * sc, 0,
+      r[1] * sa, up[1] * sb, f[1] * sc, 0,
+      r[2] * sa, up[2] * sb, f[2] * sc, 0,
+      -(a0 + a1) / 2 * sa, -(b0 + b1) / 2 * sb, -(c0 + c1) / 2 * sc, 1,
+    ])
+  }
+
+  /** Trace l'instant u (fraction du cycle) sur tout le canvas (viewBox 1200 × 700). */
+  draw(u: number, built = 1, focus: number | null = null): void {
+    const { gl, canvas, machine } = this
+    this.adapt()
+    const geo = this.fill(u, built, focus)
+    // Fenêtre du viewBox montrée : la machine entière, centrée (même cadrage que le SVG prérendu).
+    const win = fitWindow(contentBox(machine), canvas.width, canvas.height)
+    const light = this.lightMatrix()
+    const stride = FLOATS * 4
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo)
+    gl.bufferData(gl.ARRAY_BUFFER, this.data.subarray(0, geo.count * FLOATS), gl.STREAM_DRAW)
+
+    const attrib = (prog: WebGLProgram, name: string, size: number, off: number) => {
+      const loc = gl.getAttribLocation(prog, name)
+      if (loc < 0) return
+      gl.enableVertexAttribArray(loc)
+      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, stride, off * 4)
+    }
+
+    // 1. Carte d'ombre (pièces opaques seulement, sol exclu : il est dessiné en dernier dans le tampon).
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFbo)
+    gl.viewport(0, 0, SHADOW_SIZE, SHADOW_SIZE)
+    gl.enable(gl.DEPTH_TEST)
+    gl.depthFunc(gl.LEQUAL)
+    gl.depthMask(true)
+    gl.clear(gl.DEPTH_BUFFER_BIT)
+    gl.enable(gl.POLYGON_OFFSET_FILL)
+    gl.polygonOffset(3, 8)
+    gl.useProgram(this.shadowProg)
+    gl.uniformMatrix4fv(gl.getUniformLocation(this.shadowProg, 'uLight'), false, light)
+    attrib(this.shadowProg, 'aPos', 3, 0)
+    gl.drawArrays(gl.TRIANGLES, 0, geo.opaque)
+    gl.disable(gl.POLYGON_OFFSET_FILL)
+
+    // 2. Image.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+    gl.viewport(0, 0, canvas.width, canvas.height)
+    const bg = hexRgb(ISO_BG)
+    if (this.transparent) gl.clearColor(0, 0, 0, 0)
+    else gl.clearColor(bg[0], bg[1], bg[2], 1)
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+    const p = this.main
+    gl.useProgram(p)
+    const U = (n: string) => gl.getUniformLocation(p, n)
+    gl.uniform2f(U('uOrigin'), machine.origin[0], machine.origin[1])
+    gl.uniform1f(U('uU'), machine.U)
+    gl.uniform4f(U('uWin'), win.x, win.y, win.w, win.h)
+    gl.uniform2f(U('uDepth'), geo.sMin - 1, geo.sMax + 1)
+    gl.uniformMatrix4fv(U('uLight'), false, light)
+    gl.uniform3f(U('uLightDir'), LIGHT[0], LIGHT[1], LIGHT[2])
+    gl.uniform3f(U('uBg'), bg[0], bg[1], bg[2])
+    gl.uniform1f(U('uTransparent'), this.transparent ? 1 : 0)
+    gl.uniform1f(U('uTexel'), 1 / SHADOW_SIZE)
+    gl.uniform3fv(U('uKey'), LIGHTS.key)
+    gl.uniform3fv(U('uSky'), LIGHTS.sky)
+    gl.uniform3fv(U('uGround'), LIGHTS.ground)
+    gl.uniform3fv(U('uRim'), LIGHTS.rim)
+    gl.activeTexture(gl.TEXTURE0)
+    gl.bindTexture(gl.TEXTURE_2D, this.shadowTex)
+    gl.uniform1i(U('uShadow'), 0)
+    attrib(p, 'aPos', 3, 0)
+    attrib(p, 'aNor', 3, 3)
+    attrib(p, 'aCol', 3, 6)
+    attrib(p, 'aMat', 3, 9)
+    attrib(p, 'aEdge', 3, 12)
+    gl.disable(gl.BLEND)
+    gl.drawArrays(gl.TRIANGLES, 0, geo.opaque)
+    if (this.transparent) {
+      // Capteur d'ombre : seulement l'ombre, posée sur le fond de la section (composition prémultipliée).
+      gl.enable(gl.BLEND)
+      gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+      gl.depthMask(false)
+      gl.drawArrays(gl.TRIANGLES, geo.count - geo.ground, geo.ground)
+      gl.depthMask(true)
+      gl.disable(gl.BLEND)
+    } else gl.drawArrays(gl.TRIANGLES, geo.count - geo.ground, geo.ground)
+    // Translucides : après, mélangés, sans écrire la profondeur (alpha composé pour un canvas transparent aussi).
+    const translucent = geo.count - geo.ground - geo.opaque
+    if (translucent > 0) {
+      gl.enable(gl.BLEND)
+      gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+      gl.depthMask(false)
+      gl.drawArrays(gl.TRIANGLES, geo.opaque, translucent)
+      gl.depthMask(true)
+    }
+
+    // 3. Fil de fer (le plan avant la matière).
+    if (this.lines.length) {
+      const q = this.lineProg
+      gl.useProgram(q)
+      const L = (n: string) => gl.getUniformLocation(q, n)
+      gl.uniform2f(L('uOrigin'), machine.origin[0], machine.origin[1])
+      gl.uniform1f(L('uU'), machine.U)
+      gl.uniform2f(L('uDepth'), geo.sMin - 1, geo.sMax + 1)
+      gl.uniform4f(L('uWin'), win.x, win.y, win.w, win.h)
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.lbo)
+      gl.bufferData(gl.ARRAY_BUFFER, this.lines, gl.STREAM_DRAW)
+      for (const [name, size, off] of [
+        ['aPos', 3, 0],
+        ['aCol', 4, 3],
+      ] as const) {
+        const loc = gl.getAttribLocation(q, name)
+        if (loc < 0) continue
+        gl.enableVertexAttribArray(loc)
+        gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 7 * 4, off * 4)
+      }
+      gl.enable(gl.BLEND)
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+      gl.depthMask(false)
+      gl.drawArrays(gl.LINES, 0, this.lines.length / 7)
+      gl.depthMask(true)
+      gl.disable(gl.BLEND)
+    }
+
+    // 4. Halos des lampes : additifs.
+    if (this.glow.length) {
+      const q = this.glowProg
+      gl.useProgram(q)
+      const G = (n: string) => gl.getUniformLocation(q, n)
+      gl.uniform2f(G('uOrigin'), machine.origin[0], machine.origin[1])
+      gl.uniform1f(G('uU'), machine.U)
+      gl.uniform2f(G('uDepth'), geo.sMin - 1, geo.sMax + 1)
+      gl.uniform1f(G('uPx'), canvas.width / win.w)
+      gl.uniform4f(G('uWin'), win.x, win.y, win.w, win.h)
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.gbo)
+      gl.bufferData(gl.ARRAY_BUFFER, this.glow, gl.STREAM_DRAW)
+      const gs = 7 * 4
+      for (const [name, size, off] of [
+        ['aPos', 3, 0],
+        ['aCol', 3, 3],
+        ['aSize', 1, 6],
+      ] as const) {
+        const loc = gl.getAttribLocation(q, name)
+        if (loc < 0) continue
+        gl.enableVertexAttribArray(loc)
+        gl.vertexAttribPointer(loc, size, gl.FLOAT, false, gs, off * 4)
+      }
+      gl.enable(gl.BLEND)
+      gl.blendFunc(gl.ONE, gl.ONE)
+      gl.depthMask(false)
+      // Le centre d'une lampe est souvent dans son propre socle : le halo, doux, passe par-dessus.
+      gl.disable(gl.DEPTH_TEST)
+      gl.drawArrays(gl.POINTS, 0, this.glow.length / 7)
+      gl.enable(gl.DEPTH_TEST)
+      gl.depthMask(true)
+      gl.disable(gl.BLEND)
+    }
+  }
+
+  /**
+   * Les points d'interaction de la machine dessinée, en pixels CSS du canvas (`cssW` × `cssH`) : centre et rayon de
+   * chaque poste, pour poser des boutons dessus (survol, toucher). Vide si la machine n'en déclare pas.
+   */
+  hotspots(cssW: number, cssH: number): { x: number; y: number; r: number }[] {
+    const hs = this.machine.hotspots
+    if (!hs) return []
+    const win = fitWindow(contentBox(this.machine), this.canvas.width, this.canvas.height)
+    const kx = cssW / win.w
+    const ky = cssH / win.h
+    const C = Math.cos(Math.PI / 6)
+    const m = this.machine
+    return hs.at.map((p) => {
+      const vx = m.origin[0] + (p[0] - p[1]) * C * m.U
+      const vy = m.origin[1] + ((p[0] + p[1]) * 0.5 - p[2]) * m.U
+      return { x: (vx - win.x) * kx, y: (vy - win.y) * ky, r: hs.radius * m.U * C * kx }
+    })
+  }
+
+  private readonly variants = new Map<string, MachineDef>()
+  private root: MachineDef | null = null
+  private wideRoot: MachineDef | undefined
+
+  /**
+   * Cadre plus large que la machine : on prend sa variante étirée en largeur (par pas de 5 %, au plus × 1,7), pour
+   * remplir la largeur au lieu de laisser deux bandes vides. Les objets ne sont pas déformés.
+   */
+  private adapt(): void {
+    if (!this.root) this.root = this.machine
+    const aspect = this.canvas.width / Math.max(1, this.canvas.height)
+    // Cadre très large et bas : la disposition de repli (ailes), qui laisse au texte toute la hauteur.
+    const base = aspect >= WIDE_ASPECT && this.root.wide ? (this.wideRoot ??= this.root.wide()) : this.root
+    if (!base.stretch) {
+      this.machine = base
+      return
+    }
+    const b = contentBox(base)
+    // Étirer dès que le cadre est plus large de 15 % (le SVG prérendu n'est jamais montré en même temps : pas de saut).
+    const want = aspect / (b.w / b.h)
+    const sx = want > 1.15 ? Math.min(1.7, Math.round(want * 20) / 20) : 1
+    const key = `${base.id}@${sx}`
+    let m = this.variants.get(key)
+    if (!m) {
+      m = base.stretch(sx)
+      this.variants.set(key, m)
+    }
+    this.machine = m
+  }
+
+  dispose(): void {
+    const gl = this.gl
+    // Rendre le contexte tout de suite : une page peut monter et démonter plusieurs scènes au fil du défilement.
+    gl.getExtension('WEBGL_lose_context')?.loseContext()
+    gl.deleteBuffer(this.vbo)
+    gl.deleteBuffer(this.gbo)
+    gl.deleteTexture(this.shadowTex)
+    gl.deleteFramebuffer(this.shadowFbo)
+    gl.deleteProgram(this.main)
+    gl.deleteProgram(this.shadowProg)
+    gl.deleteProgram(this.glowProg)
+    gl.deleteProgram(this.lineProg)
+    gl.deleteBuffer(this.lbo)
+  }
+}

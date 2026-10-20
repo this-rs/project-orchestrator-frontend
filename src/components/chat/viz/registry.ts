@@ -154,6 +154,12 @@ export const VIZ_TYPES = {
   FSM_STATE: 'fsm_state',
   CONTEXT_ROUTING: 'context_routing',
   WAVE_PROGRESS: 'wave_progress',
+
+  // 3D scenes of the shared isometric engine (src/vendor/three-iso, from the site).
+  // Frontend-only: a model emits one as an ```iso-scene fenced block (viz/iso/fence.ts).
+  ISO_SCENE: 'iso_scene',
+  /** One object (a construction tree) — the same component, the data is `{ ast }` or the bare tree. */
+  ISO_OBJECT: 'iso_object',
 } as const;
 
 export type VizType = (typeof VIZ_TYPES)[keyof typeof VIZ_TYPES] | string;

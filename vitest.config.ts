@@ -31,6 +31,8 @@ export default defineConfig({
         'src/**/*.d.ts',
         'src/main.tsx',
         'src/vite-env.d.ts',
+        // Generated from the site (scripts/sync-iso-lib.mjs), tested there.
+        'src/vendor/**',
       ],
     },
   },

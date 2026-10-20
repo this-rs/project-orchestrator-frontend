@@ -14,6 +14,7 @@ import { ProgressBarViz } from './ProgressBarViz'
 import { ContextRadarViz } from './ContextRadarViz'
 import { KnowledgeCardViz } from './KnowledgeCardViz'
 import { ProtocolRunViz } from './ProtocolRunViz'
+import { LazyIsoSceneViz } from './iso/LazyIsoSceneViz'
 
 // ============================================================================
 // Register built-in viz components
@@ -25,6 +26,9 @@ vizRegistry.register(VIZ_TYPES.PROGRESS_BAR, ProgressBarViz, 'Progress Bar')
 vizRegistry.register(VIZ_TYPES.CONTEXT_RADAR, ContextRadarViz, 'Context Radar')
 vizRegistry.register(VIZ_TYPES.KNOWLEDGE_CARD, KnowledgeCardViz, 'Knowledge Card')
 vizRegistry.register(VIZ_TYPES.PROTOCOL_RUN, ProtocolRunViz, 'Protocol Run')
+// Lazy: the 3D engine is its own chunk, fetched when a scene first appears.
+vizRegistry.register(VIZ_TYPES.ISO_SCENE, LazyIsoSceneViz, '3D Scene')
+vizRegistry.register(VIZ_TYPES.ISO_OBJECT, LazyIsoSceneViz, '3D Object')
 
 // ============================================================================
 // Re-exports

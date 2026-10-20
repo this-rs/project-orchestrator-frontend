@@ -168,6 +168,16 @@ export default {
       observation: "observation",
       assertion: "assertion",
       decision: "décision"
+    },
+    iso: {
+      loading: "Chargement de la scène 3D…",
+      composing: "Scène 3D en cours d'écriture…",
+      refused: "Cette scène 3D a été refusée — à corriger :",
+      moreProblems: "… et {count} de plus",
+      rebuild: "Reconstruire",
+      notJson: "Cette scène 3D n'est pas du JSON valide ({detail}). Son texte :",
+      notObject: "Cette scène 3D doit être un objet JSON. Son texte :",
+      tooLarge: "Cette scène 3D est trop grande ({max} caractères au plus). Son texte :"
     }
   },
   permission: {
