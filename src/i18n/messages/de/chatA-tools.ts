@@ -168,6 +168,16 @@ export default {
       observation: "Beobachtung",
       assertion: "Behauptung",
       decision: "Entscheidung"
+    },
+    iso: {
+      loading: "3D-Szene wird geladen…",
+      composing: "3D-Szene wird verfasst…",
+      refused: "Diese 3D-Szene wurde abgelehnt — zu korrigieren:",
+      moreProblems: "… und {count} weitere",
+      rebuild: "Neu aufbauen",
+      notJson: "Diese 3D-Szene ist kein gültiges JSON ({detail}). Ihr Text:",
+      notObject: "Diese 3D-Szene muss ein JSON-Objekt sein. Ihr Text:",
+      tooLarge: "Diese 3D-Szene ist zu groß (höchstens {max} Zeichen). Ihr Text:"
     }
   },
   permission: {

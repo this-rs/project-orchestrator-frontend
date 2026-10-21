@@ -160,6 +160,16 @@ export default {
       assertion: 'assertion',
       decision: 'decision',
     },
+    iso: {
+      loading: 'Loading the 3D scene…',
+      composing: 'Composing the 3D scene…',
+      refused: 'This 3D scene was refused — what to correct:',
+      moreProblems: '… and {count} more',
+      rebuild: 'Rebuild',
+      notJson: 'This 3D scene is not valid JSON ({detail}). Its text:',
+      notObject: 'This 3D scene must be a JSON object. Its text:',
+      tooLarge: 'This 3D scene is too large (at most {max} characters). Its text:',
+    },
   },
   permission: {
     actions: 'Answer this permission request',

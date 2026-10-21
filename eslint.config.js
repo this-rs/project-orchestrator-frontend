@@ -5,7 +5,8 @@ import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
 
 export default tseslint.config(
-  { ignores: ['dist'] },
+  // src/vendor: generated copies (scripts/sync-iso-lib.mjs), linted where they are written.
+  { ignores: ['dist', 'src/vendor'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended, prettier],
     files: ['**/*.{ts,tsx}'],

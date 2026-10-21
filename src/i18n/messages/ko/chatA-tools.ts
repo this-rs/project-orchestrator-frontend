@@ -168,6 +168,16 @@ export default {
       observation: "관찰",
       assertion: "단언",
       decision: "결정"
+    },
+    iso: {
+      loading: "3D 장면 불러오는 중…",
+      composing: "3D 장면 작성 중…",
+      refused: "이 3D 장면이 거부되었습니다 — 수정할 점:",
+      moreProblems: "… 외 {count}개",
+      rebuild: "다시 만들기",
+      notJson: "이 3D 장면은 유효한 JSON이 아닙니다 ({detail}). 텍스트:",
+      notObject: "이 3D 장면은 JSON 객체여야 합니다. 텍스트:",
+      tooLarge: "이 3D 장면이 너무 큽니다 (최대 {max}자). 텍스트:"
     }
   },
   permission: {

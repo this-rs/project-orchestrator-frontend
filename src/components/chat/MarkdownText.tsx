@@ -1,12 +1,17 @@
-import { memo } from 'react'
-import ReactMarkdown from 'react-markdown'
+import { memo, useMemo, type ComponentType } from 'react'
+import ReactMarkdown, { type Options as MarkdownOptions } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
+type PluggableList = NonNullable<MarkdownOptions['rehypePlugins']>
 import { ExternalLink } from '@/components/ui/ExternalLink'
 import type { ChatReference } from '@/refs/types'
 import { CitedRefChip } from './CitedRefChip'
 import { KnownRefsContext } from './citedRef'
 import { remarkCiteRefs } from './citeRefsPlugin'
+import { fenceLang, hastText } from './viz/iso/fence'
+
+/** A component that renders a fenced code block of one language instead of the code (```iso-scene → a 3D scene). */
+export type FenceRenderer = ComponentType<{ source: string; streaming: boolean }>
 
 /**
  * Markdown link component: uses ExternalLink which renders differently
@@ -27,8 +32,25 @@ const citingComponents = {
     <CitedRefChip kind={kind} id={id} raw={raw} />
   ),
 }
+/**
+ * A `pre` override that hands a fenced block of a known language to its renderer; any
+ * other block renders as before.
+ */
+function fencedPre(fences: Readonly<Record<string, FenceRenderer>>, streaming: boolean) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return function Pre({ node, children, ...props }: any) {
+    const code = node?.children?.find((c: { type?: string; tagName?: string }) => c.type === 'element' && c.tagName === 'code')
+    const lang = code ? fenceLang(code.properties?.className) : null
+    const Fence = lang ? fences[lang] : undefined
+    if (Fence) return <Fence source={hastText(code)} streaming={streaming} />
+    return <pre {...props}>{children}</pre>
+  }
+}
+
+const DEFAULT_REHYPE: PluggableList = [rehypeHighlight]
 const PLAIN_PLUGINS = [remarkGfm]
 const CITING_PLUGINS = [remarkGfm, remarkCiteRefs]
+
 
 /**
  * Trailing, still-incomplete line made only of `-` or `=` (up to 3 leading
@@ -75,6 +97,7 @@ export const MarkdownText = memo(function MarkdownText({
   isStreaming = false,
   citeRefs = false,
   knownRefs,
+  fences,
 }: {
   content: string
   isStreaming?: boolean
@@ -86,12 +109,22 @@ export const MarkdownText = memo(function MarkdownText({
   citeRefs?: boolean
   /** Labels already resolved by the server for this conversation. */
   knownRefs?: readonly ChatReference[]
+  /**
+   * Fenced blocks rendered by a component instead of as code, by language
+   * (`{ 'iso-scene': IsoSceneFence }`). Pass a STABLE object (module constant).
+   * Only for the agent's own words, like `citeRefs`.
+   */
+  fences?: Readonly<Record<string, FenceRenderer>>
 }) {
+  const base = citeRefs ? (citingComponents as typeof markdownComponents) : markdownComponents
+  const components = useMemo(() => (fences ? { ...base, pre: fencedPre(fences, isStreaming) } : base), [base, fences, isStreaming])
+  // A fence a component renders is never highlighted (its language is unknown to highlight.js).
+  const rehype = useMemo<PluggableList>(() => (fences ? [[rehypeHighlight, { plainText: Object.keys(fences) }]] : DEFAULT_REHYPE), [fences])
   const md = (
     <ReactMarkdown
       remarkPlugins={citeRefs ? CITING_PLUGINS : PLAIN_PLUGINS}
-      rehypePlugins={[rehypeHighlight]}
-      components={citeRefs ? (citingComponents as typeof markdownComponents) : markdownComponents}
+      rehypePlugins={rehype}
+      components={components}
     >
       {isStreaming ? holdBackAmbiguousTail(content) : content}
     </ReactMarkdown>
