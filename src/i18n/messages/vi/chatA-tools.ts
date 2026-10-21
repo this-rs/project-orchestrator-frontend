@@ -178,6 +178,20 @@ export default {
       notJson: "Cảnh 3D này không phải JSON hợp lệ ({detail}). Nội dung:",
       notObject: "Cảnh 3D này phải là một đối tượng JSON. Nội dung:",
       tooLarge: "Cảnh 3D này quá lớn (tối đa {max} ký tự). Nội dung:"
+    },
+    mermaid: {
+      title: "Sơ đồ",
+      loading: "Đang tải sơ đồ…",
+      composing: "Đang viết sơ đồ…",
+      refused: "Sơ đồ này bị từ chối — Mermaid cho biết:",
+      empty: "Sơ đồ này trống.",
+      tooLarge: "Sơ đồ này quá lớn (tối đa {max} ký tự). Văn bản của nó:"
+    },
+    math: {
+      composing: "Đang viết công thức…",
+      refused: "Công thức này bị từ chối — KaTeX cho biết:",
+      empty: "Công thức này trống.",
+      tooLarge: "Công thức này quá dài (tối đa {max} ký tự). Văn bản của nó:"
     }
   },
   permission: {

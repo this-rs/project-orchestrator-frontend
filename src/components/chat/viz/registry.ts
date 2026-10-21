@@ -160,6 +160,12 @@ export const VIZ_TYPES = {
   ISO_SCENE: 'iso_scene',
   /** One object (a construction tree) — the same component, the data is `{ ast }` or the bare tree. */
   ISO_OBJECT: 'iso_object',
+
+  // Representations of the agent's text (frontend-only, lazy chunks): a ```mermaid block
+  // (viz/mermaid/fence.ts) — data `{ source }` — and a formula, ```math or $$…$$
+  // (viz/math/fence.ts) — data `{ tex, display? }`.
+  MERMAID: 'mermaid',
+  MATH: 'math',
 } as const;
 
 export type VizType = (typeof VIZ_TYPES)[keyof typeof VIZ_TYPES] | string;

@@ -24,6 +24,10 @@ import { BackgroundActivityGroup } from './BackgroundActivityBlock'
 import { VizBlockRenderer } from './viz'
 import { IsoSceneFence } from './viz/iso/IsoSceneFence'
 import { ISO_SCENE_LANG } from './viz/iso/fence'
+import { MermaidFence } from './viz/mermaid/MermaidFence'
+import { MERMAID_LANG } from './viz/mermaid/fence'
+import { MathFence } from './viz/math/MathFence'
+import { MATH_LANG } from './viz/math/fence'
 import { CopyMarkdownButton } from './CopyMarkdownButton'
 import { messageBodyToMarkdown } from '@/utils/chatExport'
 import { ProviderStateCard } from './ProviderStateCard'
@@ -149,8 +153,12 @@ export function groupBlocksByAgent(blocks: ContentBlock[], subagents: SubagentsS
 }
 
 /** Format a Date as "HH:MM" in local time */
-/** Fenced blocks of the agent's text rendered as visualizations (```iso-scene → a 3D scene). */
-const AGENT_FENCES = { [ISO_SCENE_LANG]: IsoSceneFence }
+/**
+ * Fenced blocks of the agent's text rendered as visualizations: ```iso-scene → a 3D scene,
+ * ```mermaid → a diagram, ```math and $$…$$ → a formula. Never for notes, tool output or
+ * sub-agents (they keep plain code blocks).
+ */
+const AGENT_FENCES = { [ISO_SCENE_LANG]: IsoSceneFence, [MERMAID_LANG]: MermaidFence, [MATH_LANG]: MathFence }
 
 function formatTime(date: Date): string {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
