@@ -1,4 +1,4 @@
-// GENERATED from website@8ff26ee08f7be0342973cc35bcffb837b7fc5e0f:src/three/iso/choreography.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/choreography.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Chorégraphie de la construction d'une scène : QUI construit QUOI, QUAND — déclarée par la scène, calculée ici.

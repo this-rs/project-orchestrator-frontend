@@ -1,4 +1,4 @@
-// GENERATED from website@8ff26ee08f7be0342973cc35bcffb837b7fc5e0f:src/three/iso/IsoGL.tsx by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/IsoGL.tsx by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 import { useEffect, useRef } from 'react'
 
@@ -23,6 +23,11 @@ interface IsoGLProps {
   /** Scène interactive : le poste mis en avant (focus.ts) est soulevé et allumé ; `onHotspots` reçoit la position de
    * chaque poste en pixels CSS du canvas, pour y poser des boutons. */
   interactive?: boolean
+  /** Sélecteur de l'élément de texte que les postes ne doivent pas recouvrir (cherché dans le héros parent) : la
+   * disposition est étirée verticalement jusqu'à le dégager. */
+  avoid?: string
+  /** Scène dont on lit le poste mis en avant (par défaut : `machine.id` ; la variante téléphone lit celle de base). */
+  focusId?: string
   onHotspots?: (h: { x: number; y: number; r: number }[]) => void
   /** Appelé après la première image. */
   onFirstFrame?: () => void
@@ -38,7 +43,7 @@ interface IsoGLProps {
  * machine (premier tiers du trajet), la suite du trajet joue un cycle entier ; la scène n'est retracée qu'au défilement.
  * Le canvas apparaît en fondu ; la boucle ne tourne que si le canvas est visible et l'onglet au premier plan.
  */
-export default function IsoGL({ machine, still = false, drive = 'time', className = 'iso-lit iso-fit block', transparent = false, interactive = false, onHotspots, onFirstFrame, onUnsupported }: IsoGLProps) {
+export default function IsoGL({ machine, still = false, drive = 'time', className = 'iso-lit iso-fit block', transparent = false, interactive = false, focusId, avoid, onHotspots, onFirstFrame, onUnsupported }: IsoGLProps) {
   const ref = useRef<HTMLCanvasElement>(null)
   const cb = useRef({ onFirstFrame, onUnsupported, onHotspots })
   useEffect(() => {
@@ -61,8 +66,14 @@ export default function IsoGL({ machine, still = false, drive = 'time', classNam
     let fade = 0
     let start = 0
     let resized = true
+    const avoidEl = avoid ? canvas.closest('.page-hero')?.querySelector(avoid) : null
     const resize = () => {
       resized = true
+      if (avoidEl) {
+        const c = canvas.getBoundingClientRect()
+        const t = avoidEl.getBoundingClientRect()
+        r.avoid({ x0: t.left - c.left, x1: t.right - c.left, y0: t.top - c.top, y1: t.bottom - c.top }, c.width, c.height)
+      }
       const b = canvas.getBoundingClientRect()
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
       canvas.width = Math.max(1, Math.round(b.width * dpr))
@@ -86,8 +97,9 @@ export default function IsoGL({ machine, still = false, drive = 'time', classNam
     const frame = (now: number) => {
       raf = 0
       const [u, built] = at(now)
-      const focus = interactive && built >= 1 ? getIsoFocus(machine.id) : null
+      const focus = interactive && built >= 1 ? getIsoFocus(focusId ?? machine.id) : null
       r.draw(u, built, focus)
+      if (canvas.dataset.machine !== r.current) canvas.dataset.machine = r.current
       if (interactive && (first || resized)) {
         resized = false
         const b = canvas.getBoundingClientRect()
@@ -116,6 +128,7 @@ export default function IsoGL({ machine, still = false, drive = 'time', classNam
       schedule()
     })
     ro.observe(canvas)
+    if (avoidEl) ro.observe(avoidEl)
     const onVis = () => schedule()
     const onScroll = () => schedule()
     // Image figée ou pilotée par le défilement : retracer quand le lecteur met un poste en avant.
@@ -134,7 +147,7 @@ export default function IsoGL({ machine, still = false, drive = 'time', classNam
       window.clearTimeout(fade)
       r.dispose()
     }
-  }, [machine, still, drive, transparent, interactive])
+  }, [machine, still, drive, transparent, interactive, focusId, avoid])
 
   return <canvas ref={ref} width={1200} height={700} className={className} style={{ opacity: 0, transition: still ? undefined : 'opacity .25s ease-out' }} />
 }

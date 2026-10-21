@@ -17,7 +17,7 @@
  *
  * Unlike the site, a station `label` is free text (≤ 60 characters), shown in the
  * legend; the engine receives a neutral key. `tone` defaults to the palette in order,
- * `layout` to one that fits the station count. Everything else is checked by the
+ * `layout` to `compact` (no central hole: nothing to frame in a chat) or `solo` for one station. Everything else is checked by the
  * engine's `defineScene` / `checkAst`: a refusal lists what to correct, it never throws.
  */
 import { AST_LIMITS, CATALOG } from '@/vendor/three-iso/ast'
@@ -58,10 +58,12 @@ function hash(s: string): string {
   return (h >>> 0).toString(36)
 }
 
+/** A chat scene has no text to frame: by default the stations sit in a tight serpentine
+ * (`compact`), framed on the machine with no empty hole in the middle. A layout the model
+ * names explicitly (`arch`, `ring`…) is kept as asked. */
 function defaultLayout(n: number): SceneSpec['layout'] {
   if (n <= 1) return 'solo'
-  if (n === 2) return 'wings'
-  return n <= STATION_RANGE.arch[1] ? 'arch' : 'ring'
+  return n <= STATION_RANGE.compact[1] ? 'compact' : 'ring'
 }
 
 /** The scene spec the engine checks, plus what the chat shows around it. Problems are input-shape problems only. */

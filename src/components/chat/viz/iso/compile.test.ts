@@ -65,8 +65,19 @@ describe('compileIsoScene — a scene the model wrote', () => {
 
   it('picks a layout and tones when the model leaves them out', () => {
     const { spec } = toSceneSpec({ stations: [{ mech: 'drawers' }, { mech: 'consent-gate' }] })
-    expect(spec?.layout).toBe('wings')
+    expect(spec?.layout).toBe('compact')
     expect(spec?.stations.map((s) => s.tone)).toEqual(['green', 'indigo'])
+  })
+
+  it('frames a chat scene without a central hole by default, keeps an explicit layout', () => {
+    const stations = Array.from({ length: 6 }, () => ({ mech: 'drawers' }))
+    const r = compileIsoScene({ stations })
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.machine.anchor).toBeUndefined()
+    const arch = compileIsoScene({ layout: 'arch', stations })
+    expect(arch.ok).toBe(true)
+    if (arch.ok) expect(arch.machine.anchor).toBeDefined()
+    expect(ISO_VOCABULARY.layouts).toContain('compact')
   })
 })
 
