@@ -221,6 +221,43 @@ describe('useChat — queued messages are held by the session', () => {
     expect(queueOf(store).map((m) => m.id)).toEqual(['s2'])
   })
 
+  // Reported 21/10/2026: queue → next → send now, and the row vanished from the
+  // queue without showing up in the conversation — the user could not tell the
+  // message was taken into account.
+  it('shows the message in the conversation as soon as it is sent now, then binds the echo to it', async () => {
+    const { result, store, ws } = await setup()
+    act(() => {
+      ws.callbacks.onEvent({ type: 'pending_queue', messages: [held('s1', 'first'), held('s2', 'urgent')] })
+    })
+
+    act(() => result.current.queueOp({ op: 'prioritize', id: 's2' }))
+    act(() => result.current.queueOp({ op: 'send_now', id: 's2' }))
+    expect(ws.sent).toEqual([
+      ['queue_op', { op: 'prioritize', id: 's2' }],
+      ['queue_op', { op: 'send_now', id: 's2' }],
+    ])
+    expect(queueOf(store).map((m) => m.id)).toEqual(['s1'])
+
+    const users = () => result.current.messages.filter((m) => m.role === 'user')
+    expect(users().map((m) => [m.blocks[0]?.content, m.awaitingEcho])).toEqual([['urgent', true]])
+
+    // The session delivers it: the echo is that bubble, not a second one.
+    act(() => {
+      ws.callbacks.onEvent({ type: 'user_message', content: 'urgent' })
+    })
+    expect(users().map((m) => [m.blocks[0]?.content, !!m.awaitingEcho])).toEqual([['urgent', false]])
+  })
+
+  it('adds no bubble for "send now" when the action could not reach the server', async () => {
+    const { result, ws } = await setup()
+    act(() => {
+      ws.callbacks.onEvent({ type: 'pending_queue', messages: [held('s1', 'still held')] })
+    })
+    FakeWS.sendResult = false
+    act(() => result.current.queueOp({ op: 'send_now', id: 's1' }))
+    expect(result.current.messages.filter((m) => m.role === 'user')).toEqual([])
+  })
+
   it('does not show a message as dropped when the action could not reach the server', async () => {
     // Showing it gone while the session still holds it would get it sent anyway.
     const { result, store, ws } = await setup()

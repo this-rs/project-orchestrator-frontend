@@ -2624,7 +2624,25 @@ export function useChat() {
     }
     if (!getWs().sendQueueOp(action)) return
     store.set(chatMessageQueuesAtom, withQueue(all, key, applyQueueOp(current, action, store.get(refsEnabledAtom))))
-  }, [getWs, store])
+    if (action.op === 'send_now') {
+      // "Send now" takes the row out of the queue: the message is on its way and
+      // cuts the answer short. Without a bubble it would vanish from the screen
+      // until the session delivers it, and the user cannot tell it was taken into
+      // account. It shows at once, like a message sent mid-stream (Cmd/Ctrl+Enter):
+      // a bubble waiting for its echo, which the session's `user_message` then
+      // confirms (`userEchoTarget`) — filling in attachments and references.
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextMessageId(),
+          role: 'user',
+          blocks: [{ id: nextBlockId(), type: 'text', content: target.text }],
+          timestamp: serverClockRef.current.now(),
+          awaitingEcho: true,
+        },
+      ])
+    }
+  }, [getWs, store, setMessages])
 
   const newSession = useCallback(() => {
     // The draft needs no hand-over: it is keyed by conversation
