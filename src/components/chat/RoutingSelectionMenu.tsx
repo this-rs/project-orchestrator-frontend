@@ -288,15 +288,50 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
       .finally(() => setPending(false))
   }
 
+  /**
+   * Move the conversation (`POST .../switch-provider`): on success the tab follows the
+   * new session and the draft that was sent is cleared; a refusal is said (in the dialog
+   * when one was shown) and nothing changes.
+   */
+  const switchTo = (sid: string, pick: RoutingPick, message: string) => {
+    setSwitchPending(true)
+    setSwitchRefusal(null)
+    setSwitching(sid)
+    switchConversationProvider(sid, { provider: pick.provider, model: pick.model, message })
+      .then((move) => {
+        // The message left with the move: the old conversation's draft is spent.
+        if (draft.trim() && message.trim() === draft.trim()) setDraft('')
+        setSwitchTarget(null)
+        follow({ sessionId: move.session_id, fromSessionId: sid, notice: null })
+      })
+      .catch((err) => {
+        setSwitchRefusal(switchProviderRefusal(err))
+        // The dialog may not be up (an auto-switch from a typed draft): reopen it so
+        // the refusal is said and the user can retry or cancel.
+        setSwitchTarget({ sessionId: sid, pick })
+      })
+      .finally(() => {
+        setSwitchPending(false)
+        setSwitching(null)
+      })
+  }
+
   /** Draft: every change goes through here - the draft's atoms, and the single pick the rest of the composer reads. */
   const commit = (nextAuto: boolean, next: RoutingPick[]) => {
     if (hasSession) {
       const added = next.find((p) => !isPicked(selection, p))
-      // A model of another provider: the conversation moves there, once confirmed.
+      // A model of another provider: the conversation moves there. When the user
+      // already typed their next message it is the continuation, so we switch
+      // straight away (no popup); otherwise the dialog asks for it (the route
+      // needs a non-empty message).
       if (added && added.provider !== targetId && sessionId) {
-        setSwitchRefusal(null)
-        setSwitchTarget({ sessionId, pick: added })
         onOpenChange(null)
+        if (draft.trim()) {
+          switchTo(sessionId, added, draft)
+        } else {
+          setSwitchRefusal(null)
+          setSwitchTarget({ sessionId, pick: added })
+        }
         return
       }
       if (liveLocked) return
@@ -332,29 +367,10 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
       on ? selectable.flatMap((p) => modelsOf(p).map((model) => ({ provider: p.id, model }))) : [],
     )
 
-  /**
-   * Move the conversation (`POST .../switch-provider`): on success the tab follows the new
-   * session and the draft that was sent is cleared; a refusal is said in the dialog and
-   * nothing changes.
-   */
   const confirmSwitch = (message: string) => {
     if (!switchTarget || switchPending) return
     const { sessionId: sid, pick } = switchTarget
-    setSwitchPending(true)
-    setSwitchRefusal(null)
-    setSwitching(sid)
-    switchConversationProvider(sid, { provider: pick.provider, model: pick.model, message })
-      .then((move) => {
-        // The message left with the move: the old conversation's draft is spent.
-        if (draft.trim() && message.trim() === draft.trim()) setDraft('')
-        setSwitchTarget(null)
-        follow({ sessionId: move.session_id, fromSessionId: sid, notice: null })
-      })
-      .catch((err) => setSwitchRefusal(switchProviderRefusal(err)))
-      .finally(() => {
-        setSwitchPending(false)
-        setSwitching(null)
-      })
+    switchTo(sid, pick, message)
   }
 
   const nameOf = (provider: string | null, model: string) => {
