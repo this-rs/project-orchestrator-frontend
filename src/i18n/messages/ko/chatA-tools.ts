@@ -177,7 +177,24 @@ export default {
       rebuild: "다시 만들기",
       notJson: "이 3D 장면은 유효한 JSON이 아닙니다 ({detail}). 텍스트:",
       notObject: "이 3D 장면은 JSON 객체여야 합니다. 텍스트:",
-      tooLarge: "이 3D 장면이 너무 큽니다 (최대 {max}자). 텍스트:"
+      tooLarge: "이 3D 장면이 너무 큽니다 (최대 {max}자). 텍스트:",
+      live: {
+        loading: "플랜을 읽는 중…",
+        unknownPlan: "플랜 {id} 없음: 실시간으로 보여줄 것이 없습니다.",
+        unreadable: "플랜 {id}을(를) 읽을 수 없습니다 ({detail}).",
+        empty: "이 플랜에는 아직 작업이 없습니다: 첫 작업부터 장면이 시작됩니다.",
+        more: "+{count}개 더",
+        refused: "장면이 업데이트를 거부했습니다:",
+        label: "실시간 플랜: {title}",
+        status: {
+          pending: "대기",
+          blocked: "차단됨",
+          in_progress: "진행 중",
+          completed: "완료",
+          failed: "실패",
+          interrupted: "중단됨"
+        }
+      }
     },
     mermaid: {
       title: "다이어그램",

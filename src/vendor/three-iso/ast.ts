@@ -1,4 +1,4 @@
-// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * PROTOCOLE DE CONSTRUCTION : des objets et des mécaniques décrits comme des DONNÉES (un arbre JSON), compilés en
@@ -102,7 +102,7 @@ export const CATALOG = new Map<string, IsoNode>()
 export function checkAst(root: IsoNode): string[] {
   const out: string[] = []
   let shapes = 0
-  const num = (where: string, k: string, v: unknown, lo = AST_LIMITS.size[0], hi = AST_LIMITS.size[1]) => {
+  const num = (where: string, k: string, v: unknown, lo: number = AST_LIMITS.size[0], hi: number = AST_LIMITS.size[1]) => {
     if (typeof v !== 'number' || !Number.isFinite(v) || v < lo || v > hi) out.push(`${where} : ${k} = ${String(v)} (attendu de ${lo} à ${hi})`)
   }
   const vec = (where: string, k: string, v: unknown, lo = -20, hi = 20) => {
@@ -129,7 +129,7 @@ export function checkAst(root: IsoNode): string[] {
       if (mo.when !== undefined && mo.when !== 'idle' && mo.when !== 'gesture') out.push(`${where} : when « ${mo.when} » (idle ou gesture)`)
       if (mo.kind === 'path') {
         if (!Array.isArray(mo.points) || mo.points.length < 2 || mo.points.length > AST_LIMITS.path) out.push(`${where} : path demande de 2 à ${AST_LIMITS.path} points`)
-        else mo.points.forEach((p, k) => vec(where, `points[${k}]`, p))
+        else (mo.points as readonly unknown[]).forEach((p, k) => vec(where, `points[${k}]`, p))
       }
     }
     switch (n.kind) {

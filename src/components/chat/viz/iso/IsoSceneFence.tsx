@@ -12,7 +12,7 @@ import type { ContentBlock } from '@/types'
 import { useT } from '@/i18n'
 // The viz module itself (not just its renderer): it registers `iso_scene` before any render.
 import { VizBlockRenderer, VIZ_TYPES } from '..'
-import { parseIsoSceneFence, isoSceneFallback, ISO_SCENE_MAX_CHARS } from './fence'
+import { parseIsoSceneFence, isoSceneFallback, isLiveData, ISO_SCENE_MAX_CHARS } from './fence'
 import { IsoScenePlaceholder } from './LazyIsoSceneViz'
 
 export function IsoSceneFence({ source, streaming = false }: { source: string; streaming?: boolean }) {
@@ -25,7 +25,7 @@ export function IsoSceneFence({ source, streaming = false }: { source: string; s
       id: `iso-fence`,
       type: 'viz',
       content: isoSceneFallback(parsed.data, source),
-      metadata: { viz_type: VIZ_TYPES.ISO_SCENE, viz_data: parsed.data, viz_title: title, viz_max_height: 280 },
+      metadata: { viz_type: VIZ_TYPES.ISO_SCENE, viz_data: parsed.data, viz_title: title, viz_max_height: isLiveData(parsed.data) ? 380 : 280 },
     }
   }, [parsed, source])
 

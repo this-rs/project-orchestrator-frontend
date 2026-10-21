@@ -1,4 +1,4 @@
-// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Fabrique de MACHINES À POSTES : une disposition (`layouts.ts`), une voie tracée le long de ses tracés, une navette
@@ -45,17 +45,17 @@ export interface StationMachineDef {
   /** Disposition par défaut (celle qui s'appelle `id`). */
   layout: LayoutKind
   /** Anneau : angles d'écran imposés (un par poste). */
-  degs?: readonly number[]
+  degs?: readonly number[] | undefined
   /** Poste servi au pas 0 (instant canonique). */
-  home?: number
+  home?: number | undefined
   /** Durée d'un pas (s). */
-  stepS?: number
+  stepS?: number | undefined
   /** Dépendances de construction : `deps[i]` = postes que le poste i attend. */
-  deps?: readonly (readonly number[])[]
+  deps?: readonly (readonly number[])[] | undefined
   /** Enchaînement de la construction (mode, escouades, durée). */
-  build?: BuildSpec
+  build?: BuildSpec | undefined
   /** Taille maximale des postes par disposition (défaut : 3 ; l'anneau et les ailes serrent le texte de plus près). */
-  caps?: Partial<Record<LayoutKind, number>>
+  caps?: Partial<Record<LayoutKind, number>> | undefined
 }
 
 export interface StationState {

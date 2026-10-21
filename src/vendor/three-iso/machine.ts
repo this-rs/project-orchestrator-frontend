@@ -1,4 +1,4 @@
-// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/machine.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/machine.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Une machine de héros : un registre de pièces nommées (groupées, avec un niveau de détail) et une fonction de
@@ -45,22 +45,25 @@ export interface MachineDef {
    * avant par le lecteur (survol, toucher) — soulevé, allumé, il joue son geste en boucle. */
   build(u: number, lod: 1 | 2, focus?: number | null): Face[]
   /** Points d'interaction : le centre de chaque poste (monde) et son rayon (monde), dans l'ordre des postes. */
-  hotspots?: { at: readonly Vec3[]; radius: number }
+  hotspots?: { at: readonly Vec3[]; radius: number } | undefined
   /** Centre de l'espace libre (pixels du viewBox) : le cadrage met ce point au centre de la zone visible, là où se centre
    * le texte du héros. Absent : la boîte de la machine est centrée. */
-  anchor?: readonly [number, number]
+  anchor?: readonly [number, number] | undefined
   /** Calendrier de l'apparition (qui construit quoi, quand) ; absent : ordonnancement parallèle par défaut. */
-  buildPlan?: BuildPlan
+  buildPlan?: BuildPlan | undefined
+  /** Scène vivante (`live.ts`) : le rendu lui confie les faces de l'instant pour les assembler selon l'état réel de
+   * chaque poste (au lieu de l'apparition jouée une fois). `now` en ms. */
+  live?: { assemble(faces: readonly Face[], now: number): Face[] } | undefined
   /** Variante compacte (aucun texte à entourer : chat, bloc de page) : serpentin serré, cadré sur la machine. */
-  compact?(): MachineDef
+  compact?: (() => MachineDef) | undefined
   /** Variante téléphone (portrait) : même scène, disposition `phone` (au-dessus et en dessous du texte). `gap` (≥ 1)
    * écarte les deux blocs pour un texte plus haut (IsoHero le choisit en mesurant le texte de la page). */
-  phone?(gap?: number): MachineDef
+  phone?: ((gap?: number) => MachineDef) | undefined
   /** Variante pour un cadre très large et bas (rapport ≥ WIDE_ASPECT) : une disposition qui laisse au texte toute la
    * hauteur centrale (ailes), au lieu d'un anneau écrasé dont le trou ne contient plus le texte. */
-  wide?(): MachineDef
+  wide?: (() => MachineDef) | undefined
   /** La même machine, sa disposition étirée en largeur de `sx` (≥ 1) : cadre plus large que haut (rendu WebGL). */
-  stretch?(sx: number, sy?: number): MachineDef
+  stretch?: ((sx: number, sy?: number) => MachineDef) | undefined
 }
 
 /** Registre de construction : déclarer les groupes et les pièces une fois, avant `build`. */

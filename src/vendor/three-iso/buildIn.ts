@@ -1,4 +1,4 @@
-// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/buildIn.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/buildIn.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Apparition « en construction » d'une machine : PO la CONÇOIT puis la BÂTIT sous les yeux du lecteur, avec un
@@ -39,11 +39,11 @@ const TRACK = [0.26, 0.4] as const
 const TOOL = 0.92
 const LEAVE = [0.93, 1.0] as const
 /** Couleur du plan (fil de fer) et de la lumière d'impression. */
-const BLUEPRINT = '#7dd3fc'
+export const BLUEPRINT = '#7dd3fc'
 const PRINT = [0xa5, 0xb4, 0xfc]
 
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v)
-function tint(hex: string, k: number): string {
+export const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v)
+export function tint(hex: string, k: number): string {
   const n = parseInt(hex.slice(1), 16)
   const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
   return '#' + c.map((v, i) => Math.round(v + (PRINT[i]! - v) * k).toString(16).padStart(2, '0')).join('')
@@ -166,7 +166,7 @@ const mixV = (a: Vec3, b: Vec3, t: number): Vec3 => [a[0] + (b[0] - a[0]) * t, a
  * Un agent-ouvrier : un corps clair, une visière lumineuse, deux rotors qui tournent, un bras qui descend vers le point
  * de travail et une buse au bout ; au travail, un faisceau court et des étincelles qui jaillissent au point de contact.
  */
-function worker(s: Scene, at: Vec3, work: Vec3 | null, alpha: number, t: number, part: number): void {
+export function worker(s: Scene, at: Vec3, work: Vec3 | null, alpha: number, t: number, part: number): void {
   const F = new Frame(s, at, undefined, WORKER)
   const a = { alpha }
   F.sphere([0, 0, 0], 0.26, { part, col: MAT.porcelain, ...a }, 12, 7)
@@ -204,7 +204,7 @@ function worker(s: Scene, at: Vec3, work: Vec3 | null, alpha: number, t: number,
 }
 
 /** L'orchestrateur : un noyau lumineux dans deux orbites qui tournent ; il pulse quand il répartit le travail. */
-function orchestrator(s: Scene, at: Vec3, p: number, alpha: number, busy: number): void {
+export function orchestrator(s: Scene, at: Vec3, p: number, alpha: number, busy: number): void {
   const F = new Frame(s, at, undefined, 3.4)
   F.sphere([0, 0, 0], 0.55, { part: -50, col: MAT.porcelain, alpha }, 16, 9)
   F.sphere([0, 0, 0], 0.3 + 0.06 * busy, { part: -51, col: LAMP.indigo, emit: LAMP.indigo, alpha }, 10, 6)
@@ -226,7 +226,7 @@ function orchestrator(s: Scene, at: Vec3, p: number, alpha: number, busy: number
 }
 
 /** Des particules d'information qui vont de `a` vers `b` (le plan envoyé, un ordre, un compte rendu). */
-function link(s: Scene, a: Vec3, b: Vec3, p: number, alpha: number, part: number, col: string): void {
+export function link(s: Scene, a: Vec3, b: Vec3, p: number, alpha: number, part: number, col: string): void {
   const F = new Frame(s, [0, 0, 0])
   const lift = 2.5
   const at = (t: number): Vec3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t + lift * Math.sin(t * Math.PI)]

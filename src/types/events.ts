@@ -51,6 +51,9 @@ export interface CrudEvent {
   entity_type: EntityType
   action: CrudAction
   entity_id: string
+  /** The other end of a `linked` / `unlinked` event (e.g. the task a commit was linked to). */
+  related?: { entity_type: EntityType; entity_id: string }
+  /** Absent on the wire when the server has nothing to say (`deleted`): read it as `{}`. */
   payload: Record<string, unknown>
   timestamp: string
   project_id?: string

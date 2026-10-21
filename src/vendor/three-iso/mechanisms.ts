@@ -1,4 +1,4 @@
-// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/mechanisms.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/mechanisms.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Bibliothèque de MÉCANIQUES : de petites machines qui montrent une logique (pas une icône), à poser sur un poste de
@@ -76,7 +76,7 @@ export const MECHANISMS: Readonly<Record<MechId, Mechanism>> = {
         if (open > 0.25)
           for (let j = 0; j < 2; j++) B.slab(0.55 - j * 0.85, -0.6 - open, zz + 0.51, 0.6, 0.4, 0.1 + 0.08 * j, 0.03, o(ids('items')[k * 2 + j]!, k === 0 ? '#2b3a33' : MAT.porcelain))
         B.slab(-1.05, -0.86 - open, zz, 2.1, 0.16, 0.58, 0.05, o(f, MAT.porcelain))
-        B.slab(-0.35, -0.9 - open, zz + 0.2, 0.7, 0.05, 0.18, 0.02, o(ids('tags')[k]!, tagCol[k]!, open > 0.3 ? { emit: tagCol[k] } : {}))
+        B.slab(-0.35, -0.9 - open, zz + 0.2, 0.7, 0.05, 0.18, 0.02, o(ids('tags')[k]!, tagCol[k]!, open > 0.3 ? { emit: tagCol[k]! } : {}))
         B.slab(-0.25, -0.95 - open, zz + 0.42, 0.5, 0.06, 0.07, 0.02, o(ids('handles')[k]!, MAT.steelL))
       })
       // Sur le dessus, la fiche du projet, à la couleur du pilier.
@@ -231,7 +231,7 @@ export const MECHANISMS: Readonly<Record<MechId, Mechanism>> = {
         const at = L3(home, plug, t)
         const hop = Math.sin(t * Math.PI) * 0.8 + (k === pick && !served ? 0.12 * breathe(u, 3) : 0)
         B.slab(at[0] - 0.28, at[1] - 0.16, at[2] + hop, 0.56, 0.32, 0.85, 0.05, o(c, MAT.porcelain))
-        B.slab(at[0] - 0.2, at[1] - 0.19, at[2] + hop + 0.35, 0.4, 0.04, 0.35, 0.02, o(ids('labels')[k]!, labelCol[k]!, t > 0.95 ? { emit: labelCol[k] } : {}))
+        B.slab(at[0] - 0.2, at[1] - 0.19, at[2] + hop + 0.35, 0.4, 0.04, 0.35, 0.02, o(ids('labels')[k]!, labelCol[k]!, t > 0.95 ? { emit: labelCol[k]! } : {}))
       })
       // L'assistant : corps arrondi, tête, visière, prise dans le dos.
       B.puck(0, -0.55, z, 0.62, 1.0, 0.18, o(id('body'), MAT.porcelain), seg(22))

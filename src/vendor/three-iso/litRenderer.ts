@@ -1,4 +1,4 @@
-// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Rendu WebGL 2 des machines isométriques : la MÊME géométrie que le SVG prérendu (`machine.build`), mais éclairée
@@ -15,12 +15,13 @@
  *
  * Aucune dépendance : quelques Ko, chargés à part comme l'ancien canvas 2D.
  */
-import { LIGHT, ISO_BG, withHiddenFaces, type Face, type Vec3 } from './iso'
+import { ease, LIGHT, ISO_BG, withHiddenFaces, type Face, type Vec3 } from './iso'
 import { EMIT_GAIN, LIGHTS, METAL } from './shading'
 import { WIDE_ASPECT, type MachineDef } from './machine'
 import { triangulate } from './triangulate'
-import { contentBox, DESK_FITS, fitAround, fitWindow, type CssRect } from './fit'
+import { contentBox, DESK_FITS, fitAround, fitWindow, type Box, type CssRect } from './fit'
 import { assemble } from './buildIn'
+import { MOVE_MS as GLIDE_MS } from './live'
 
 const C30 = Math.cos(Math.PI / 6)
 const FLOATS = 15 // position 3, normale 3, couleur 3, alpha, émission, métal, arêtes 3
@@ -188,12 +189,15 @@ export class IsoRenderer {
   private glow = new Float32Array(0)
   private count = 0
 
-  constructor(
-    private readonly canvas: HTMLCanvasElement,
-    private machine: MachineDef,
-    /** Fond transparent (illustration posée sur le fond de sa section) : ni fond ni sol, la scène flotte. */
-    private readonly transparent = false,
-  ) {
+  private readonly canvas: HTMLCanvasElement
+  private machine: MachineDef
+  /** Fond transparent (illustration posée sur le fond de sa section) : ni fond ni sol, la scène flotte. */
+  private readonly transparent: boolean
+
+  constructor(canvas: HTMLCanvasElement, machine: MachineDef, transparent = false) {
+    this.canvas = canvas
+    this.machine = machine
+    this.transparent = transparent
     const gl = canvas.getContext('webgl2', { antialias: true, alpha: transparent, premultipliedAlpha: transparent, powerPreference: 'low-power' })
     if (!gl) throw new Error('webgl2')
     this.gl = gl
@@ -223,7 +227,9 @@ export class IsoRenderer {
   private fill(u: number, built = 1, focus: number | null = null) {
     const all: Face[] = withHiddenFaces(() => this.machine.build(u, 2, focus))
     // Apparition : la machine se construit couche par couche (buildIn.ts) ; 1 = complète.
-    const faces = built < 1 ? assemble(this.machine, all, built) : all
+    // Scène vivante : chaque poste suit son statut réel (live.ts) ; sinon, l'apparition jouée une fois.
+    const live = this.machine.live
+    const faces = live ? live.assemble(all, performance.now()) : built < 1 ? assemble(this.machine, all, built) : all
     let tris = 2 // sol
     for (const f of faces) tris += f.pts.length - 2
     if (this.data.length < tris * 3 * FLOATS) this.data = new Float32Array(tris * 3 * FLOATS * 1.25)
@@ -426,8 +432,9 @@ export class IsoRenderer {
     const { gl, canvas, machine } = this
     this.adapt()
     const geo = this.fill(u, built, focus)
-    // Fenêtre du viewBox montrée : la machine entière, centrée (même cadrage que le SVG prérendu).
-    const win = fitWindow(contentBox(machine), canvas.width, canvas.height)
+    // Fenêtre du viewBox montrée : la machine entière, centrée (même cadrage que le SVG prérendu) ; après un changement
+    // de machine d'une scène vivante, le cadrage glisse de l'ancien vers le nouveau.
+    const win = this.window(fitWindow(contentBox(machine), canvas.width, canvas.height))
     const light = this.lightMatrix()
     const stride = FLOATS * 4
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo)
@@ -587,6 +594,38 @@ export class IsoRenderer {
       const vy = m.origin[1] + ((p[0] + p[1]) * 0.5 - p[2]) * m.U
       return { x: (vx - win.x) * kx, y: (vy - win.y) * ky, r: hs.radius * m.U * C * kx }
     })
+  }
+
+  private glide: { from: Box; at: number } | null = null
+  private shown: Box | null = null
+
+  /** Remplacer la machine sans recréer le contexte (scène vivante qui change de forme) : le cadrage glisse. */
+  setMachine(m: MachineDef): void {
+    if (m === this.machine) return
+    if (this.shown) this.glide = { from: this.shown, at: performance.now() }
+    this.machine = m
+    this.root = m
+    this.wideRoot = undefined
+  }
+
+  private window(target: Box): Box {
+    let w = target
+    if (this.glide) {
+      const t = (performance.now() - this.glide.at) / GLIDE_MS
+      if (t >= 1) this.glide = null
+      else {
+        const e = ease(t)
+        const f = this.glide.from
+        w = { x: f.x + (target.x - f.x) * e, y: f.y + (target.y - f.y) * e, w: f.w + (target.w - f.w) * e, h: f.h + (target.h - f.h) * e }
+      }
+    }
+    this.shown = w
+    return w
+  }
+
+  /** Une scène vivante en cours de glissement redemande des images même si rien d'autre ne bouge. */
+  get moving(): boolean {
+    return this.glide !== null
   }
 
   private readonly variants = new Map<string, MachineDef>()

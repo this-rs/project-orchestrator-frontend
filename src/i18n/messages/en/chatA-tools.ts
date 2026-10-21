@@ -169,6 +169,23 @@ export default {
       notJson: 'This 3D scene is not valid JSON ({detail}). Its text:',
       notObject: 'This 3D scene must be a JSON object. Its text:',
       tooLarge: 'This 3D scene is too large (at most {max} characters). Its text:',
+      live: {
+        loading: 'Reading the plan…',
+        unknownPlan: 'No plan {id}: nothing to show live.',
+        unreadable: 'The plan {id} could not be read ({detail}).',
+        empty: 'This plan has no task yet: the scene starts with its first task.',
+        more: '+{count} more',
+        refused: 'The scene refused an update:',
+        label: 'Live plan: {title}',
+        status: {
+          pending: 'pending',
+          blocked: 'blocked',
+          in_progress: 'in progress',
+          completed: 'done',
+          failed: 'failed',
+          interrupted: 'interrupted',
+        },
+      },
     },
     mermaid: {
       title: 'Diagram',

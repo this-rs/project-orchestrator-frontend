@@ -20,6 +20,7 @@ import { toView } from '@/vendor/three-iso/compose'
 import { contentBox } from '@/vendor/three-iso/fit'
 import { litColor } from '@/vendor/three-iso/shading'
 import type { MachineDef } from '@/vendor/three-iso/machine'
+import type { LiveScene } from '@/vendor/three-iso/live'
 import type { VizBlockProps } from '../registry'
 import { compileIsoScene, type LegendEntry } from './compile'
 
@@ -77,7 +78,8 @@ function Legend({ entries }: { entries: readonly LegendEntry[] }) {
   )
 }
 
-function IsoStage({ machine, expanded, label }: { machine: MachineDef; expanded: boolean; label: string }) {
+/** The canvas of a scene. `live`: a live scene (`live.ts`), whose machine follows its patches — nothing to rebuild. */
+export function IsoStage({ machine, expanded, label, live }: { machine: MachineDef; expanded: boolean; label: string; live?: LiveScene }) {
   const { t } = useT()
   const reduced = useReducedMotion()
   const box = useRef<HTMLDivElement>(null)
@@ -101,6 +103,7 @@ function IsoStage({ machine, expanded, label }: { machine: MachineDef; expanded:
           <IsoGL
             key={run}
             machine={machine}
+            {...(live ? { live } : {})}
             still={reduced}
             drive="time"
             transparent
@@ -109,7 +112,7 @@ function IsoStage({ machine, expanded, label }: { machine: MachineDef; expanded:
           />
         )
       )}
-      {!noGl && !reduced && (
+      {!noGl && !reduced && !live && (
         <button
           type="button"
           onClick={() => setRun((r) => r + 1)}

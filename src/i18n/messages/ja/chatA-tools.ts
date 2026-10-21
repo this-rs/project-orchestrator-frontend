@@ -177,7 +177,24 @@ export default {
       rebuild: "再構築",
       notJson: "この 3D シーンは有効な JSON ではありません（{detail}）。テキスト:",
       notObject: "この 3D シーンは JSON オブジェクトである必要があります。テキスト:",
-      tooLarge: "この 3D シーンは大きすぎます（最大 {max} 文字）。テキスト:"
+      tooLarge: "この 3D シーンは大きすぎます（最大 {max} 文字）。テキスト:",
+      live: {
+        loading: "プランを読み込み中…",
+        unknownPlan: "プラン {id} はありません：ライブ表示するものがありません。",
+        unreadable: "プラン {id} を読み込めませんでした（{detail}）。",
+        empty: "このプランにはまだタスクがありません：最初のタスクからシーンが始まります。",
+        more: "ほか {count} 件",
+        refused: "シーンが更新を拒否しました:",
+        label: "ライブプラン: {title}",
+        status: {
+          pending: "保留中",
+          blocked: "ブロック中",
+          in_progress: "進行中",
+          completed: "完了",
+          failed: "失敗",
+          interrupted: "中断"
+        }
+      }
     },
     mermaid: {
       title: "ダイアグラム",

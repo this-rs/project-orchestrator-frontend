@@ -7,8 +7,11 @@ import { lazy, Suspense } from 'react'
 import { Box } from 'lucide-react'
 import { useT } from '@/i18n'
 import type { VizBlockProps } from '../registry'
+import { isLiveData } from './fence'
 
 const IsoSceneViz = lazy(() => import('./IsoSceneViz'))
+// A live scene of a plan (`{"live": {"plan": "<uuid>"}}`): its own lazy chunk, sharing the engine's.
+const LivePlanViz = lazy(() => import('./LivePlanViz'))
 
 export function IsoScenePlaceholder({ label }: { label?: string }) {
   const { t } = useT()
@@ -23,7 +26,7 @@ export function IsoScenePlaceholder({ label }: { label?: string }) {
 export function LazyIsoSceneViz(props: VizBlockProps) {
   return (
     <Suspense fallback={<IsoScenePlaceholder />}>
-      <IsoSceneViz {...props} />
+      {isLiveData(props.data) ? <LivePlanViz {...props} /> : <IsoSceneViz {...props} />}
     </Suspense>
   )
 }
