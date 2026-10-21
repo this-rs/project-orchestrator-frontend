@@ -1,4 +1,4 @@
-// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/scene.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/scene.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * API SÛRE pour décrire une scène isométrique (en-tête ou bloc de page) : `defineScene`.
@@ -32,15 +32,15 @@ export type Tone = keyof typeof LAMP
 
 export interface SceneStation {
   /** Mécanique posée sur le poste : une de la bibliothèque (voir `MECHANISMS`)… */
-  mech?: MechId
+  mech?: MechId | undefined
   /** … ou un arbre de construction (protocole `ast.ts`, objets du catalogue `catalog.ts`). */
-  ast?: IsoNode
+  ast?: IsoNode | undefined
   /** Teinte d'accent. */
   tone: Tone
   /** Clé i18n du libellé du poste. */
   label: string
   /** Construction : postes (indices) qui doivent être construits AVANT celui-ci. */
-  after?: readonly number[]
+  after?: readonly number[] | undefined
 }
 
 export interface SceneSpec {
@@ -50,14 +50,14 @@ export interface SceneSpec {
   layout: LayoutKind
   stations: readonly SceneStation[]
   /** Anneau seulement : angles d'écran des postes (degrés, 0 = droite, 90 = bas). */
-  angles?: readonly number[]
+  angles?: readonly number[] | undefined
   /** Poste servi au premier pas (défaut 0). */
-  home?: number
+  home?: number | undefined
   /** Durée d'un pas du cycle, en secondes (défaut 1,5). */
-  stepSeconds?: number
+  stepSeconds?: number | undefined
   /** Chorégraphie de l'apparition : `mode` (`parallel` | `sequential` | `waves`), `agents` (escouades), `squad`
    * (agents par escouade), `durationMs`. Avec les `after` des postes, elle dit QUI construit QUOI, QUAND. */
-  build?: BuildSpec
+  build?: BuildSpec | undefined
 }
 
 export interface Scene {
@@ -150,6 +150,24 @@ function checkMachine(m: MachineDef, layout: LayoutKind): string[] {
   return out
 }
 
+/** Les contrôles de `defineScene` sans le registre des identifiants (scènes vivantes : la même scène change de forme). */
+export const checkSceneSpec = (spec: SceneSpec): string[] => checkSpec(spec)
+/** Budgets de faces (et composition d'en-tête si la disposition entoure un texte) d'une machine construite. */
+export const checkSceneMachine = (m: MachineDef, layout: LayoutKind): string[] => checkMachine(m, layout)
+/** La définition de machine à postes d'une spécification (arbres compilés, teintes résolues). */
+export function stationDefOf(spec: SceneSpec): StationMachineDef {
+  return {
+    id: spec.id,
+    layout: spec.layout,
+    stations: spec.stations.map((s, i) => ({ mech: s.ast ? astMechanism(`${spec.id}-${i + 1}`, s.ast) : s.mech!, col: LAMP[s.tone], key: s.label })),
+    degs: spec.angles,
+    home: spec.home,
+    stepS: spec.stepSeconds,
+    deps: spec.stations.map((s) => s.after ?? []),
+    build: spec.build,
+  }
+}
+
 /** Décrit, vérifie et construit une scène. Lève `SceneError` (avec la liste des corrections) si elle n'est pas sûre. */
 export function defineScene(spec: SceneSpec): Scene {
   const problems = checkSpec(spec)
@@ -164,16 +182,7 @@ export function defineScene(spec: SceneSpec): Scene {
     else problems.push(`id « ${spec.id} » déjà employé par une autre scène`)
   }
   if (problems.length) throw new SceneError(spec.id, problems)
-  const def: StationMachineDef = {
-    id: spec.id,
-    layout: spec.layout,
-    stations: spec.stations.map((s, i) => ({ mech: s.ast ? astMechanism(`${spec.id}-${i + 1}`, s.ast) : s.mech!, col: LAMP[s.tone], key: s.label })),
-    degs: spec.angles,
-    home: spec.home,
-    stepS: spec.stepSeconds,
-    deps: spec.stations.map((s) => s.after ?? []),
-    build: spec.build,
-  }
+  const def = stationDefOf(spec)
   const build = (layout: LayoutKind) => {
     const m = makeStationMachine(def, layout).machine
     const bad = checkMachine(m, layout)

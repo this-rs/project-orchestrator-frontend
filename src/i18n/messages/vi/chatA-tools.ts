@@ -177,7 +177,24 @@ export default {
       rebuild: "Dựng lại",
       notJson: "Cảnh 3D này không phải JSON hợp lệ ({detail}). Nội dung:",
       notObject: "Cảnh 3D này phải là một đối tượng JSON. Nội dung:",
-      tooLarge: "Cảnh 3D này quá lớn (tối đa {max} ký tự). Nội dung:"
+      tooLarge: "Cảnh 3D này quá lớn (tối đa {max} ký tự). Nội dung:",
+      live: {
+        loading: "Đang đọc kế hoạch…",
+        unknownPlan: "Không có kế hoạch {id}: không có gì để hiển thị trực tiếp.",
+        unreadable: "Không thể đọc kế hoạch {id} ({detail}).",
+        empty: "Kế hoạch này chưa có nhiệm vụ: cảnh bắt đầu với nhiệm vụ đầu tiên.",
+        more: "+{count} khác",
+        refused: "Cảnh đã từ chối một cập nhật:",
+        label: "Kế hoạch trực tiếp: {title}",
+        status: {
+          pending: "chờ",
+          blocked: "bị chặn",
+          in_progress: "đang làm",
+          completed: "xong",
+          failed: "thất bại",
+          interrupted: "bị gián đoạn"
+        }
+      }
     },
     mermaid: {
       title: "Sơ đồ",

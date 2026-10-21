@@ -177,7 +177,24 @@ export default {
       rebuild: "Reconstruire",
       notJson: "Cette scène 3D n'est pas du JSON valide ({detail}). Son texte :",
       notObject: "Cette scène 3D doit être un objet JSON. Son texte :",
-      tooLarge: "Cette scène 3D est trop grande ({max} caractères au plus). Son texte :"
+      tooLarge: "Cette scène 3D est trop grande ({max} caractères au plus). Son texte :",
+      live: {
+        loading: "Lecture du plan…",
+        unknownPlan: "Aucun plan {id} : rien à montrer en direct.",
+        unreadable: "Le plan {id} n'a pas pu être lu ({detail}).",
+        empty: "Ce plan n'a encore aucune tâche : la scène commence avec la première.",
+        more: "+{count} autres",
+        refused: "La scène a refusé une mise à jour :",
+        label: "Plan en direct : {title}",
+        status: {
+          pending: "à faire",
+          blocked: "bloquée",
+          in_progress: "en cours",
+          completed: "terminée",
+          failed: "échouée",
+          interrupted: "interrompue"
+        }
+      }
     },
     mermaid: {
       title: "Diagramme",

@@ -1,8 +1,9 @@
-// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/IsoGL.tsx by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/IsoGL.tsx by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 import { useEffect, useRef } from 'react'
 
 import type { MachineDef } from './machine'
+import type { LiveScene } from './live'
 import { IsoRenderer } from './litRenderer'
 import { BUILD_MS } from './buildIn'
 import { scrollProgress, type IsoDrive } from './drive'
@@ -25,12 +26,15 @@ interface IsoGLProps {
   interactive?: boolean
   /** Sélecteur de l'élément de texte que les postes ne doivent pas recouvrir (cherché dans le héros parent) : la
    * disposition est étirée verticalement jusqu'à le dégager. */
-  avoid?: string
+  avoid?: string | undefined
   /** Scène dont on lit le poste mis en avant (par défaut : `machine.id` ; la variante téléphone lit celle de base). */
   focusId?: string
-  onHotspots?: (h: { x: number; y: number; r: number }[]) => void
+  onHotspots?: ((h: { x: number; y: number; r: number }[]) => void) | undefined
   /** Appelé après la première image. */
   onFirstFrame?: () => void
+  /** Scène vivante (`live.ts`) : la machine suit ses patchs sans recréer le contexte, chaque poste suit son statut, et
+   * l'image est redessinée en continu tant que la scène est visible. `machine` est alors ignoré (sauf repli). */
+  live?: LiveScene | undefined
   /** Pas de WebGL 2 : le parent garde le SVG. */
   onUnsupported?: () => void
 }
@@ -43,16 +47,20 @@ interface IsoGLProps {
  * machine (premier tiers du trajet), la suite du trajet joue un cycle entier ; la scène n'est retracée qu'au défilement.
  * Le canvas apparaît en fondu ; la boucle ne tourne que si le canvas est visible et l'onglet au premier plan.
  */
-export default function IsoGL({ machine, still = false, drive = 'time', className = 'iso-lit iso-fit block', transparent = false, interactive = false, focusId, avoid, onHotspots, onFirstFrame, onUnsupported }: IsoGLProps) {
+export default function IsoGL({ machine: given, live, still = false, drive = 'time', className = 'iso-lit iso-fit block', transparent = false, interactive = false, focusId, avoid, onHotspots, onFirstFrame, onUnsupported }: IsoGLProps) {
   const ref = useRef<HTMLCanvasElement>(null)
   const cb = useRef({ onFirstFrame, onUnsupported, onHotspots })
   useEffect(() => {
     cb.current = { onFirstFrame, onUnsupported, onHotspots }
   }, [onFirstFrame, onUnsupported, onHotspots])
 
+  // Une scène vivante garde son contexte quand sa machine change : l'effet dépend de la scène, pas de la machine.
+  const source: LiveScene | MachineDef = live ?? given
   useEffect(() => {
     const canvas = ref.current
     if (!canvas) return
+    const live = 'apply' in source ? source : null
+    const machine = live ? (live.machine ?? given) : (source as MachineDef)
     let r: IsoRenderer
     try {
       r = new IsoRenderer(canvas, machine, transparent)
@@ -81,6 +89,11 @@ export default function IsoGL({ machine, still = false, drive = 'time', classNam
     }
     const at = (now: number): [number, number] => {
       if (still) return [machine.t0, 1]
+      // Scène vivante : pas d'apparition globale (chaque poste suit son statut), le cycle tourne depuis la 1re image.
+      if (live) {
+        if (!start) start = now
+        return [((((now - start) / 1000) / machine.cycle + machine.t0) % 1 + 1) % 1, 1]
+      }
       if (drive === 'scroll') {
         const s = scrollProgress(canvas)
         const built = Math.min(1, s / 0.38)
@@ -133,6 +146,12 @@ export default function IsoGL({ machine, still = false, drive = 'time', classNam
     const onScroll = () => schedule()
     // Image figée ou pilotée par le défilement : retracer quand le lecteur met un poste en avant.
     const offFocus = interactive ? onIsoFocus(() => schedule()) : () => {}
+    const offLive = live
+      ? live.subscribe(() => {
+          if (live.machine) r.setMachine(live.machine)
+          schedule()
+        })
+      : () => {}
     document.addEventListener('visibilitychange', onVis)
     if (drive === 'scroll' && !still) window.addEventListener('scroll', onScroll, { passive: true })
     resize()
@@ -143,11 +162,14 @@ export default function IsoGL({ machine, still = false, drive = 'time', classNam
       document.removeEventListener('visibilitychange', onVis)
       window.removeEventListener('scroll', onScroll)
       offFocus()
+      offLive()
       if (raf) cancelAnimationFrame(raf)
       window.clearTimeout(fade)
       r.dispose()
     }
-  }, [machine, still, drive, transparent, interactive, focusId, avoid])
+    // `given` ne sert que de repli à la création : il ne recrée pas le contexte d'une scène vivante.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, still, drive, transparent, interactive, focusId, avoid])
 
   return <canvas ref={ref} width={1200} height={700} className={className} style={{ opacity: 0, transition: still ? undefined : 'opacity .25s ease-out' }} />
 }

@@ -177,7 +177,24 @@ export default {
       rebuild: "फिर से बनाएँ",
       notJson: "यह 3D दृश्य मान्य JSON नहीं है ({detail})। इसका पाठ:",
       notObject: "यह 3D दृश्य एक JSON ऑब्जेक्ट होना चाहिए। इसका पाठ:",
-      tooLarge: "यह 3D दृश्य बहुत बड़ा है (अधिकतम {max} वर्ण)। इसका पाठ:"
+      tooLarge: "यह 3D दृश्य बहुत बड़ा है (अधिकतम {max} वर्ण)। इसका पाठ:",
+      live: {
+        loading: "योजना पढ़ी जा रही है…",
+        unknownPlan: "कोई योजना {id} नहीं: लाइव दिखाने को कुछ नहीं।",
+        unreadable: "योजना {id} पढ़ी नहीं जा सकी ({detail})।",
+        empty: "इस योजना में अभी कोई कार्य नहीं है: दृश्य पहले कार्य से शुरू होगा।",
+        more: "+{count} और",
+        refused: "दृश्य ने एक अपडेट अस्वीकार किया:",
+        label: "लाइव योजना: {title}",
+        status: {
+          pending: "लंबित",
+          blocked: "अवरुद्ध",
+          in_progress: "प्रगति में",
+          completed: "पूर्ण",
+          failed: "विफल",
+          interrupted: "बाधित"
+        }
+      }
     },
     mermaid: {
       title: "आरेख",
