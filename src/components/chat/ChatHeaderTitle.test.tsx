@@ -6,6 +6,8 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { Provider, createStore } from 'jotai'
+import { chatSessionRoutingAtom } from '@/atoms'
 import { ChatHeaderTitle } from './ChatHeaderTitle'
 
 const renderHeader = (props: Parameters<typeof ChatHeaderTitle>[0]) =>
@@ -14,6 +16,18 @@ const renderHeader = (props: Parameters<typeof ChatHeaderTitle>[0]) =>
       <ChatHeaderTitle {...props} />
     </MemoryRouter>,
   )
+
+const renderRouted = (routing: unknown) => {
+  const store = createStore()
+  store.set(chatSessionRoutingAtom, routing as never)
+  return render(
+    <Provider store={store}>
+      <MemoryRouter>
+        <ChatHeaderTitle title="Refonte" />
+      </MemoryRouter>
+    </Provider>,
+  )
+}
 
 describe('ChatHeaderTitle', () => {
   it('takes the free width of the bar, and is the one that truncates', () => {
@@ -69,5 +83,11 @@ describe('ChatHeaderTitle', () => {
     renderHeader({ title: 'New conversation' })
     expect(screen.queryByTestId('chat-header-scope')).toBeNull()
     expect(screen.getByText('New conversation')).toBeTruthy()
+  })
+
+  it('carries no routing badge, whoever routed the conversation', () => {
+    renderRouted({ routed_by: 'auto', route_reason: 'cheapest healthy provider' })
+    expect(screen.queryByTestId('routed-by-badge')).toBeNull()
+    expect(screen.getByTestId('chat-header-title').children).toHaveLength(1)
   })
 })
