@@ -111,36 +111,33 @@ describe('RoutingSelectionMenu - move an existing conversation to another provid
     switchConversationProvider.mockReset().mockResolvedValue(MOVE)
   })
 
-  it('pick on another provider -> confirmation says what happens -> route called with the draft -> the tab follows', async () => {
+  it('a typed draft moves straight to the other provider (no confirmation), the route carries it, the tab follows', async () => {
     const store = mount({ draft: 'Now continue on the local model' })
     openMenu()
     expect(screen.getByTestId('routing-switch-hint-local-llama')).toBeTruthy()
     pickOther('local-llama', /Local llama/, 'phi')
 
-    const dialog = await screen.findByRole('dialog', { name: /Move this conversation to Local llama › phi\?/ })
-    // What happens, in words.
-    expect(dialog.textContent).toContain('A new session opens on Local llama › phi.')
-    expect(dialog.textContent).toContain('replayed to it as text')
-    expect(dialog.textContent).toMatch(/oldest turns are left out/)
-    expect(dialog.textContent).toMatch(/current session on Claude Code .* is closed/)
-    // The draft is the message, focused, editable; nothing was sent yet, nothing routed.
-    const message = within(dialog).getByTestId('switch-provider-message') as HTMLTextAreaElement
-    expect(message.value).toBe('Now continue on the local model')
-    expect(document.activeElement).toBe(message)
-    expect(switchConversationProvider).not.toHaveBeenCalled()
+    // No dialog: the typed message is the continuation, so the move is immediate.
+    await waitFor(() =>
+      expect(switchConversationProvider).toHaveBeenCalledWith('s1', {
+        provider: 'local-llama',
+        model: 'phi',
+        message: 'Now continue on the local model',
+      }),
+    )
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(changeConversationRouting).not.toHaveBeenCalled()
 
-    fireEvent.click(within(dialog).getByTestId('switch-provider-confirm'))
-    expect(switchConversationProvider).toHaveBeenCalledWith('s1', { provider: 'local-llama', model: 'phi', message: 'Now continue on the local model' })
-    // This tab is the one moving it: no "moved elsewhere" notice when the old thread says so.
-    expect(store.get(chatSwitchingSessionAtom)).toBe('s1')
-
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
-    expect(store.get(chatFollowRequestAtom)).toEqual({ sessionId: 's2', fromSessionId: 's1', notice: null })
+    await waitFor(() =>
+      expect(store.get(chatFollowRequestAtom)).toEqual({
+        sessionId: 's2',
+        fromSessionId: 's1',
+        notice: null,
+      }),
+    )
     expect(store.get(chatSwitchingSessionAtom)).toBeNull()
-    // The message left with the move: the draft is spent. Focus is back on the menu's trigger.
+    // The message left with the move: the draft is spent.
     expect(store.get(chatDraftInputAtom)).toBe('')
-    expect(document.activeElement).toBe(screen.getByTestId('target-chip'))
   })
 
   it('an empty composer: the confirmation asks for the message, required before anything is sent', async () => {
@@ -160,14 +157,14 @@ describe('RoutingSelectionMenu - move an existing conversation to another provid
     expect(switchConversationProvider).toHaveBeenCalledWith('s1', { provider: 'local-llama', model: 'qwen', message: 'go on' })
   })
 
-  it('a typed refusal (consent / endpoint guard) is said in the dialog, and nothing moves', async () => {
+  it('a typed refusal (consent / endpoint guard) is said in the reopened dialog, and nothing moves', async () => {
     switchConversationProvider.mockRejectedValue(
       new ApiError(403, JSON.stringify({ code: 'endpoint_not_allowed', error: 'not allowed', origin: 'http://10.0.0.5:8080', project_slug: 'po', consent_scope: 'project' })),
     )
     const store = mount({ draft: 'hello' })
     openMenu()
     pickOther('local-llama', /Local llama/, 'phi')
-    fireEvent.click(within(await screen.findByRole('dialog')).getByTestId('switch-provider-confirm'))
+    // The typed draft auto-switched; the move was refused, so the dialog reopens with the reason.
     const refusal = await screen.findByTestId('switch-provider-refusal')
     expect(refusal.getAttribute('role')).toBe('alert')
     expect(refusal.textContent).toContain('http://10.0.0.5:8080')
@@ -183,28 +180,24 @@ describe('RoutingSelectionMenu - move an existing conversation to another provid
     mount({ draft: 'hello' })
     openMenu()
     pickOther('local-llama', /Local llama/, 'phi')
-    fireEvent.click(within(await screen.findByRole('dialog')).getByTestId('switch-provider-confirm'))
     const refusal = await screen.findByTestId('switch-provider-refusal')
     expect(refusal.textContent).toContain('Endpoint refused.')
     expect(refusal.textContent).not.toContain('for this project')
   })
 
-  it('an agent token (403 without a code) is told apart from a failure; Escape cancels and gives focus back', async () => {
+  it('an agent token (403 without a code) is told apart from a failure; Escape cancels', async () => {
     switchConversationProvider.mockRejectedValue(new ApiError(403, JSON.stringify({ error: 'only a signed-in user can move a conversation to another provider' })))
     const store = mount({ draft: 'hello' })
     openMenu()
     pickOther('local-llama', /Local llama/, 'phi')
-    const dialog = await screen.findByRole('dialog')
-    fireEvent.click(within(dialog).getByTestId('switch-provider-confirm'))
     expect((await screen.findByTestId('switch-provider-refusal')).textContent).toContain('Only a signed-in person can move a conversation')
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(document.activeElement).toBe(screen.getByTestId('target-chip'))
     expect(store.get(chatFollowRequestAtom)).toBeNull()
   })
 
   it('keeps focus inside the dialog (Tab wraps around)', async () => {
-    mount({ draft: 'hello' })
+    mount()
     openMenu()
     pickOther('local-llama', /Local llama/, 'phi')
     const dialog = await screen.findByRole('dialog')
