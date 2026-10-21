@@ -44,6 +44,7 @@ import { loadLocale } from '@/i18n/store'
 import { ChatInput } from './ChatInput'
 import { COMPOSER_CHIP_HEIGHT, COMPOSER_CHIP_HIT } from './chipGeometry'
 import { ChatHeaderTitle } from './ChatHeaderTitle'
+import { RoutedByBadge } from './ProviderBadge'
 import { ModelChangedBlock } from './ModelChangedBlock'
 
 vi.mock('@/hooks', () => ({ useIsMobile: () => false }))
@@ -667,7 +668,7 @@ describe('RoutingSelectionMenu', () => {
   })
 })
 
-describe('routed_by badge in the header', () => {
+describe('routed_by badge', () => {
   const header = (routing: Parameters<Store['set']>[1] | null) => {
     const store = createStore()
     store.set(chatSessionRoutingAtom, routing as never)
@@ -690,21 +691,29 @@ describe('routed_by badge in the header', () => {
     expect(screen.queryByTestId('routed-by-badge')).toBeNull()
   })
 
-  it('shows "PO chose" with the reason when routed_by is auto', () => {
+  // The header no longer carries the badge; the badge component itself keeps its labels.
+  const badge = (routedBy: Parameters<typeof RoutedByBadge>[0]['routedBy'], reason: string | null) => {
+    render(<RoutedByBadge routedBy={routedBy} reason={reason} />)
+    return screen.getByTestId('routed-by-badge')
+  }
+
+  it('the header shows no badge even when PO chose', () => {
     header({ routed_by: 'auto', route_reason: 'low-risk edit', routing_mode: 'full' })
-    const badge = screen.getByTestId('routed-by-badge')
-    expect(badge.textContent).toBe('PO chose')
-    expect(badge.getAttribute('title')).toContain('Reason: low-risk edit')
+    expect(screen.queryByTestId('routed-by-badge')).toBeNull()
   })
 
-  it('shows the fallback chain for routed_by fallback', () => {
-    header({ routed_by: 'fallback', route_reason: null, routing_mode: null })
-    expect(screen.getByTestId('routed-by-badge').textContent).toBe('Fallback chain')
+  it('the badge says "PO chose" with the reason when routed_by is auto', () => {
+    const el = badge('auto', 'low-risk edit')
+    expect(el.textContent).toBe('PO chose')
+    expect(el.getAttribute('title')).toContain('Reason: low-risk edit')
   })
 
-  it('shows up for a session with a reason even on another rule', () => {
-    header({ routed_by: 'project_rule', route_reason: 'because', routing_mode: null })
-    expect(screen.getByTestId('routed-by-badge').textContent).toBe('Project rule')
+  it('the badge shows the fallback chain for routed_by fallback', () => {
+    expect(badge('fallback', null).textContent).toBe('Fallback chain')
+  })
+
+  it('the badge shows up for a reason even on another rule', () => {
+    expect(badge('project_rule', 'because').textContent).toBe('Project rule')
   })
 })
 
