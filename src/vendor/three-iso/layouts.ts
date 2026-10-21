@@ -1,4 +1,4 @@
-// GENERATED from website@8ff26ee08f7be0342973cc35bcffb837b7fc5e0f:src/three/iso/layouts.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/layouts.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Dispositions des machines de héros : OÙ poser les postes et la voie qui les relie, selon ce que l'en-tête veut dire.
@@ -18,7 +18,7 @@
  */
 import type { Vec2 } from './iso.ts'
 
-export type LayoutKind = 'ring' | 'stadium' | 'arch' | 'wings' | 'corners' | 'solo'
+export type LayoutKind = 'ring' | 'stadium' | 'arch' | 'wings' | 'corners' | 'solo' | 'phone' | 'compact'
 
 export const LAYOUTS: readonly { kind: LayoutKind; purpose: string }[] = [
   { kind: 'ring', purpose: 'un tout et ses parties, autour du texte' },
@@ -27,6 +27,8 @@ export const LAYOUTS: readonly { kind: LayoutKind; purpose: string }[] = [
   { kind: 'wings', purpose: 'deux côtés en regard (avant/après, deux familles)' },
   { kind: 'corners', purpose: 'un écosystème de groupes autonomes' },
   { kind: 'solo', purpose: 'une seule mécanique, en gros plan (illustration de bloc, pas de héros)' },
+  { kind: 'compact', purpose: 'sans texte à entourer (chat, bloc) : les postes en serpentin serré, sans trou central — variante automatique de toute scène' },
+  { kind: 'phone', purpose: 'téléphone (portrait) : un bloc en serpentin au-dessus du texte, un autre en dessous — variante automatique de toute scène' },
 ]
 
 export interface Track {
@@ -146,8 +148,14 @@ export function ringAngles(n: number, gap = 64): number[] {
  * Disposition `kind` pour `n` postes. `degs` (anneau seulement) impose des angles d'écran. `sx` (≥ 1) étire la disposition
  * en largeur autour du centre, pour un cadre plus large que haut (les objets, eux, ne sont jamais déformés).
  */
-export function makeLayout(kind: LayoutKind, n: number, degs?: readonly number[], sx = 1): Layout {
-  return build(kind, n, degs, sx)
+export function makeLayout(kind: LayoutKind, n: number, degs?: readonly number[], sx = 1, sy = 1): Layout {
+  // Téléphone : `sy` écarte les deux blocs (l'espace du texte grandit), sans étirer les blocs eux-mêmes.
+  if (kind === 'phone') return build(kind, n, degs, sy)
+  const L = build(kind, n, degs, sx)
+  if (sy === 1) return L
+  // Étirement vertical autour du centre de l'espace libre : plus de place pour un texte haut ; objets non déformés.
+  const cy = L.hole[1]
+  return { ...L, tracks: L.tracks.map((t) => ({ ...t, pts: t.pts.map((q) => [q[0], cy + (q[1] - cy) * sy] as const) })) }
 }
 
 function stretch(pts: Vec2[], sx: number): Vec2[] {
@@ -191,6 +199,63 @@ function build(kind: LayoutKind, n: number, degs: readonly number[] | undefined,
         ...openStops(nr).map((t) => ({ track: 1, t })),
       ]
       return { kind, tracks: [left, right], stops, hole: [CX, CY] }
+    }
+    case 'compact': {
+      // Pas de texte au centre : un serpentin serré, au plus 4 postes par rang (3 si n ≤ 6), rangs alternés.
+      const per = n <= 4 ? n : n <= 6 ? 3 : 4
+      const rows = Math.ceil(n / per)
+      const DX = 240
+      const ROW = 200
+      const pts: Vec2[] = []
+      const at: Vec2[] = []
+      for (let r = 0; r < rows; r++) {
+        const cnt = Math.min(per, n - r * per)
+        const y = CY + (r - (rows - 1) / 2) * ROW
+        const xs = Array.from({ length: cnt }, (_, i) => CX + (i - (per - 1) / 2) * DX)
+        const ltr = r % 2 === 0
+        const ordered = ltr ? xs : [...xs].reverse()
+        const edge = CX + ((per - 1) / 2) * DX + 120
+        const from = r === 0 ? (ltr ? xs[0]! - 120 : xs[xs.length - 1]! + 120) : ltr ? CX - edge + CX : edge
+        const to = r === rows - 1 ? (ltr ? xs[xs.length - 1]! + 120 : xs[0]! - 120) : ltr ? edge : CX - (edge - CX)
+        pts.push([from, y], [to, y])
+        for (const x of ordered) at.push([x, y])
+      }
+      const tr: Track = { pts, closed: false }
+      return { kind, tracks: [tr], stops: at.map((q) => ({ track: 0, t: nearestT(tr, q) })), hole: [CX, CY] }
+    }
+    case 'phone': {
+      // Portrait : deux serpentins (au plus trois postes par rang), l'un au-dessus du texte, l'autre en dessous ; la
+      // navette passe de l'un à l'autre. Le trou (texte) est grand : sur téléphone le texte prend la moitié de l'écran.
+      const top = Math.ceil(n / 2)
+      const bottom = n - top
+      // Demi-hauteur de l'espace laissé au texte (unités du viewBox) ; `sx` l'agrandit quand le texte de la page est haut.
+      const GAP = 420 * sx
+      const ROW = 190
+      const snake = (k: number, y0: number, dir: 1 | -1): { tr: Track; stops: number[] } => {
+        const rows: number[] = []
+        for (let left = k; left > 0; left -= 3) rows.push(Math.min(3, left))
+        const pts: Vec2[] = []
+        const at: Vec2[] = []
+        rows.forEach((cnt, r) => {
+          const y = y0 + dir * r * ROW
+          const ltr = r % 2 === 0
+          const xs = Array.from({ length: cnt }, (_, i) => CX + ((i - (cnt - 1) / 2) * 230))
+          const ordered = ltr ? xs : [...xs].reverse()
+          // Le rang va du premier poste (avec une courte amorce) jusqu'au virage, toujours du même côté.
+          const lo = Math.min(...xs) - 120
+          const turn = r % 2 === 0 ? CX + 330 : CX - 330
+          const from = r === 0 ? (ltr ? lo : Math.max(...xs) + 120) : r % 2 === 0 ? CX - 330 : CX + 330
+          const to = r === rows.length - 1 ? (ltr ? Math.max(...xs) + 120 : lo) : turn
+          pts.push([from, y], [to, y])
+          for (const x of ordered) at.push([x, y])
+        })
+        const tr: Track = { pts, closed: false }
+        return { tr, stops: at.map((q) => nearestT(tr, q)) }
+      }
+      const a = snake(top, CY - GAP - ROW * (Math.ceil(top / 3) - 1), 1)
+      const b = snake(bottom, CY + GAP, 1)
+      const stops: Stop[] = [...a.stops.map((t) => ({ track: 0, t })), ...b.stops.map((t) => ({ track: 1, t }))]
+      return { kind, tracks: bottom ? [a.tr, b.tr] : [a.tr], stops, hole: [CX, CY] }
     }
     case 'solo': {
       // Un poste en gros plan sur un court tronçon de voie (illustration d'un bloc de page).

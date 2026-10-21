@@ -1,4 +1,4 @@
-// GENERATED from website@8ff26ee08f7be0342973cc35bcffb837b7fc5e0f:src/three/iso/machine.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/machine.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Une machine de héros : un registre de pièces nommées (groupées, avec un niveau de détail) et une fonction de
@@ -51,11 +51,16 @@ export interface MachineDef {
   anchor?: readonly [number, number]
   /** Calendrier de l'apparition (qui construit quoi, quand) ; absent : ordonnancement parallèle par défaut. */
   buildPlan?: BuildPlan
+  /** Variante compacte (aucun texte à entourer : chat, bloc de page) : serpentin serré, cadré sur la machine. */
+  compact?(): MachineDef
+  /** Variante téléphone (portrait) : même scène, disposition `phone` (au-dessus et en dessous du texte). `gap` (≥ 1)
+   * écarte les deux blocs pour un texte plus haut (IsoHero le choisit en mesurant le texte de la page). */
+  phone?(gap?: number): MachineDef
   /** Variante pour un cadre très large et bas (rapport ≥ WIDE_ASPECT) : une disposition qui laisse au texte toute la
    * hauteur centrale (ailes), au lieu d'un anneau écrasé dont le trou ne contient plus le texte. */
   wide?(): MachineDef
   /** La même machine, sa disposition étirée en largeur de `sx` (≥ 1) : cadre plus large que haut (rendu WebGL). */
-  stretch?(sx: number): MachineDef
+  stretch?(sx: number, sy?: number): MachineDef
 }
 
 /** Registre de construction : déclarer les groupes et les pièces une fois, avant `build`. */

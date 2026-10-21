@@ -1,4 +1,4 @@
-// GENERATED from website@8ff26ee08f7be0342973cc35bcffb837b7fc5e0f:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Fabrique de MACHINES À POSTES : une disposition (`layouts.ts`), une voie tracée le long de ses tracés, une navette
@@ -209,6 +209,32 @@ interface Registered {
 
 /** Registre partagé par toutes les variantes d'une même machine (mêmes pièces, quelle que soit la disposition). */
 const registries = new WeakMap<StationMachineDef, Registered>()
+/** Variante téléphone d'une machine (une par définition, partagée). */
+const phones = new WeakMap<StationMachineDef, Map<number, MachineDef>>()
+function phoneOf(def: StationMachineDef, gap = 1): MachineDef {
+  const g = Math.round(Math.min(2.5, Math.max(1, gap)) * 10) / 10
+  let byGap = phones.get(def)
+  if (!byGap) {
+    byGap = new Map()
+    phones.set(def, byGap)
+  }
+  let m = byGap.get(g)
+  if (!m) {
+    m = makeStationMachine(def, 'phone', g).machine
+    byGap.set(g, m)
+  }
+  return m
+}
+/** Variante compacte d'une machine (une par définition, partagée). */
+const compacts = new WeakMap<StationMachineDef, MachineDef>()
+function compactOf(def: StationMachineDef): MachineDef {
+  let m = compacts.get(def)
+  if (!m) {
+    m = makeStationMachine(def, 'compact').machine
+    compacts.set(def, m)
+  }
+  return m
+}
 const mechOf = (m: MechId | Mechanism): Mechanism => (typeof m === 'string' ? MECHANISMS[m] : m)
 function register(def: StationMachineDef): Registered {
   const hit = registries.get(def)
@@ -238,19 +264,19 @@ function register(def: StationMachineDef): Registered {
 }
 
 /** Une machine à postes posée sur la disposition `kind` (défaut : celle de la définition), étirée de `sx`. */
-export function makeStationMachine(def: StationMachineDef, kind: LayoutKind = def.layout, sx = 1): StationVariant {
+export function makeStationMachine(def: StationMachineDef, kind: LayoutKind = def.layout, sx = 1, sy = 1): StationVariant {
   const { R, P, posts: reg } = register(def)
   const n = def.stations.length
   const home = def.home ?? 0
   const stepS = def.stepS ?? 1.5
-  const layout = makeLayout(kind, n, kind === 'ring' ? def.degs : undefined, sx)
+  const layout = makeLayout(kind, n, kind === 'ring' ? def.degs : undefined, kind === 'phone' ? 1 : sx, kind === 'phone' ? sx : sy)
   const tracks = layout.tracks.map(groundTrack)
   const posts = layout.stops.map((st) => along(tracks[st.track]!, st.t).p)
   // Taille des postes : la plus grande qui laisse un jour entre deux socles voisins (au plus le plafond de la disposition).
   let dmin = posts.length > 1 ? Infinity : 99
   for (let a = 0; a < posts.length; a++)
     for (let b = a + 1; b < posts.length; b++) dmin = Math.min(dmin, Math.hypot(posts[a]![0] - posts[b]![0], posts[a]![1] - posts[b]![1]))
-  const caps: Partial<Record<LayoutKind, number>> = { ring: 2.3, wings: 2.0, ...def.caps }
+  const caps: Partial<Record<LayoutKind, number>> = { ring: 2.3, wings: 2.0, phone: 2.6, compact: 2.6, ...def.caps }
   const scale = Math.max(1.3, Math.min(caps[kind] ?? POST_SCALE, dmin / (2 * 1.95 * 1.06)))
   let fine = true
   const seg = (k: number) => (fine ? k : Math.max(6, Math.round(k / 3)))
@@ -313,7 +339,7 @@ export function makeStationMachine(def: StationMachineDef, kind: LayoutKind = de
   }
 
   const machine: MachineDef = {
-    id: kind === def.layout ? def.id : `${def.id}@${kind}`,
+    id: (kind === def.layout ? def.id : `${def.id}@${kind}`) + (sx !== 1 || sy !== 1 ? `~${sx}x${sy}` : ''),
     U,
     origin: ORIGIN,
     cycle: n * stepS,
@@ -333,12 +359,14 @@ export function makeStationMachine(def: StationMachineDef, kind: LayoutKind = de
       return s.sorted()
     },
     // Gros plan : pas de texte à centrer, on cadre la mécanique elle-même.
-    anchor: kind === 'solo' ? undefined : layout.hole,
+    anchor: kind === 'solo' || kind === 'compact' ? undefined : layout.hole,
     // Points d'interaction : le centre de chaque poste, à mi-hauteur de son objet ; rayon = celui du socle.
     hotspots: { at: posts.map((q) => [q[0], q[1], Z_TOP + 1.4 * scale] as const), radius: 1.95 * scale },
     buildPlan: planBuild(n, def.deps ?? [], def.build),
-    wide: kind === 'wings' || kind === 'corners' || kind === 'solo' ? undefined : () => makeStationMachine(def, 'wings').machine,
-    stretch: (k: number) => (k === 1 ? machine : makeStationMachine(def, kind, k).machine),
+    wide: kind === 'wings' || kind === 'corners' || kind === 'solo' || kind === 'phone' || kind === 'arch' ? undefined : () => makeStationMachine(def, 'wings').machine,
+    phone: kind === 'solo' || kind === 'phone' || kind === 'compact' ? undefined : (gap?: number) => phoneOf(def, gap),
+    compact: kind === 'solo' || kind === 'compact' ? undefined : () => compactOf(def),
+    stretch: (k: number, ky = 1) => (k === 1 && ky === 1 ? machine : makeStationMachine(def, kind, k, ky).machine),
   }
   return { machine, layout }
 }

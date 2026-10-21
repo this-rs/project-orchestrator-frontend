@@ -1,4 +1,4 @@
-// GENERATED from website@8ff26ee08f7be0342973cc35bcffb837b7fc5e0f:src/three/iso/scene.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/scene.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * API SÛRE pour décrire une scène isométrique (en-tête ou bloc de page) : `defineScene`.
@@ -87,6 +87,8 @@ export const STATION_RANGE: Readonly<Record<LayoutKind, readonly [number, number
   wings: [2, 10],
   corners: [4, 12],
   solo: [1, 1],
+  compact: [1, 12],
+  phone: [2, 12],
 }
 
 /** Budgets de faces : SVG de repli (dans le HTML) et rendu WebGL. */
@@ -137,7 +139,8 @@ function checkMachine(m: MachineDef, layout: LayoutKind): string[] {
   const svgMax = layout === 'solo' ? SCENE_BUDGETS.svgSolo : SCENE_BUDGETS.svgHero
   if (svg.length > svgMax) out.push(`${svg.length} faces au SVG de repli (au plus ${svgMax}) : moins de postes, ou des détails en lod 2`)
   if (lit.length > SCENE_BUDGETS.lit) out.push(`${lit.length} faces au rendu WebGL (au plus ${SCENE_BUDGETS.lit})`)
-  if (layout === 'solo') return out
+  // Sans texte à entourer (gros plan, compact) ou portrait : pas de contrôle de composition d'en-tête.
+  if (layout === 'solo' || layout === 'compact' || layout === 'phone') return out
   for (const v of checkComposition(m, lit).slice(0, 6)) {
     const why = v.rule === 'SAFE' ? 'passe sous le texte' : v.rule === 'CUE' ? 'couvre le repère de défilement' : 'sort du cadre'
     out.push(`« ${v.name} » ${why} (x ${v.x}, y ${v.y}) : changer de disposition ou réduire le poste`)
@@ -155,8 +158,9 @@ export function defineScene(spec: SceneSpec): Scene {
   if (prev !== undefined && prev !== sig) {
     // Rechargement à chaud (serveur de développement) : le module qui définit la scène a été réévalué avec une version
     // modifiée — c'est la même scène, on la remplace. Partout ailleurs (tests, build), un doublon est une erreur.
-    const hot = (import.meta as ImportMeta & { hot?: unknown }).hot
-    if (hot) console.warn(`[three/iso] scène « ${spec.id} » redéfinie (rechargement à chaud)`)
+    // `hot` côté navigateur ; côté rendu serveur du dev, `env.DEV` (vite) — jamais sous Node (tests) ni au build.
+    const meta = import.meta as ImportMeta & { hot?: unknown; env?: { DEV?: boolean } }
+    if (meta.hot || meta.env?.DEV) console.warn(`[three/iso] scène « ${spec.id} » redéfinie (rechargement à chaud)`)
     else problems.push(`id « ${spec.id} » déjà employé par une autre scène`)
   }
   if (problems.length) throw new SceneError(spec.id, problems)

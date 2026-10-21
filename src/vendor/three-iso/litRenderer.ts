@@ -1,4 +1,4 @@
-// GENERATED from website@8ff26ee08f7be0342973cc35bcffb837b7fc5e0f:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@797e9337039cf99231f992fe53f843418a89c9ef:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Rendu WebGL 2 des machines isométriques : la MÊME géométrie que le SVG prérendu (`machine.build`), mais éclairée
@@ -19,7 +19,7 @@ import { LIGHT, ISO_BG, withHiddenFaces, type Face, type Vec3 } from './iso'
 import { EMIT_GAIN, LIGHTS, METAL } from './shading'
 import { WIDE_ASPECT, type MachineDef } from './machine'
 import { triangulate } from './triangulate'
-import { contentBox, fitWindow } from './fit'
+import { contentBox, DESK_FITS, fitAround, fitWindow, type CssRect } from './fit'
 import { assemble } from './buildIn'
 
 const C30 = Math.cos(Math.PI / 6)
@@ -590,6 +590,7 @@ export class IsoRenderer {
   }
 
   private readonly variants = new Map<string, MachineDef>()
+  private readonly fitted = new Map<string, MachineDef>()
   private root: MachineDef | null = null
   private wideRoot: MachineDef | undefined
 
@@ -597,6 +598,18 @@ export class IsoRenderer {
    * Cadre plus large que la machine : on prend sa variante étirée en largeur (par pas de 5 %, au plus × 1,7), pour
    * remplir la largeur au lieu de laisser deux bandes vides. Les objets ne sont pas déformés.
    */
+  private text: { rect: CssRect; w: number; h: number } | null = null
+
+  /** Identifiant de la variante dessinée (contrôle qualité : `canvas.dataset.machine`). */
+  get current(): string {
+    return this.machine.id
+  }
+
+  /** Texte à dégager (pixels CSS du canvas `w` × `h`) : la disposition s'étire verticalement jusqu'à ne plus le couvrir. */
+  avoid(rect: CssRect, w: number, h: number): void {
+    this.text = { rect, w, h }
+  }
+
   private adapt(): void {
     if (!this.root) this.root = this.machine
     const aspect = this.canvas.width / Math.max(1, this.canvas.height)
@@ -610,11 +623,28 @@ export class IsoRenderer {
     // Étirer dès que le cadre est plus large de 15 % (le SVG prérendu n'est jamais montré en même temps : pas de saut).
     const want = aspect / (b.w / b.h)
     const sx = want > 1.15 ? Math.min(1.7, Math.round(want * 20) / 20) : 1
-    const key = `${base.id}@${sx}`
-    let m = this.variants.get(key)
+    const pick = (kx: number, sy: number) => {
+      const x = Math.round(sx * kx * 100) / 100
+      const key = `${base.id}@${x}x${sy}`
+      let m = this.variants.get(key)
+      if (!m) {
+        m = base.stretch!(x, sy)
+        this.variants.set(key, m)
+      }
+      return m
+    }
+    // Dégager le texte réel : écarter en largeur et/ou étirer en hauteur, le moins possible (calculé une fois par
+    // taille de cadre et de texte).
+    const t = this.text
+    if (!t) {
+      this.machine = pick(1, 1)
+      return
+    }
+    const key = `${base.id}|${Math.round(t.w)}x${Math.round(t.h)}|${t.rect.x0.toFixed(0)},${t.rect.y0.toFixed(0)},${t.rect.x1.toFixed(0)},${t.rect.y1.toFixed(0)}`
+    let m = this.fitted.get(key)
     if (!m) {
-      m = base.stretch(sx)
-      this.variants.set(key, m)
+      m = fitAround((i) => pick(DESK_FITS[i]![0], DESK_FITS[i]![1]), DESK_FITS.map((_, i) => i), t.w, t.h, t.rect)
+      this.fitted.set(key, m)
     }
     this.machine = m
   }
