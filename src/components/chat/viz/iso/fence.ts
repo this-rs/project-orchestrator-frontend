@@ -56,3 +56,18 @@ export function isoSceneFallback(data: Record<string, unknown>, source: string):
   if (title || labels.length) return [title, labels.join(' → ')].filter(Boolean).join(' — ')
   return source
 }
+
+/** A fence closes on a line of its own made of ``` / ~~~ (code) or $$ (math). */
+const CLOSING_FENCE = /\n[ \t]*(?:`{3,}|~{3,}|\${2,})[ \t]*$/
+
+/**
+ * Whether the block of `text` at `position` is closed. While the message streams, the last
+ * block may still miss its closing fence: its body is unfinished, and it is "composing".
+ */
+export function fenceClosed(text: string, position: unknown): boolean {
+  const p = position as { start?: { offset?: number }; end?: { offset?: number } } | undefined
+  const start = p?.start?.offset
+  const end = p?.end?.offset
+  if (typeof start !== 'number' || typeof end !== 'number') return false
+  return CLOSING_FENCE.test(text.slice(start, end).trimEnd())
+}

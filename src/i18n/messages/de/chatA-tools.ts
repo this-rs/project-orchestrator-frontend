@@ -178,6 +178,20 @@ export default {
       notJson: "Diese 3D-Szene ist kein gültiges JSON ({detail}). Ihr Text:",
       notObject: "Diese 3D-Szene muss ein JSON-Objekt sein. Ihr Text:",
       tooLarge: "Diese 3D-Szene ist zu groß (höchstens {max} Zeichen). Ihr Text:"
+    },
+    mermaid: {
+      title: "Diagramm",
+      loading: "Diagramm wird geladen…",
+      composing: "Diagramm wird geschrieben…",
+      refused: "Dieses Diagramm wurde abgelehnt — Mermaid meldet:",
+      empty: "Dieses Diagramm ist leer.",
+      tooLarge: "Dieses Diagramm ist zu groß (höchstens {max} Zeichen). Sein Text:"
+    },
+    math: {
+      composing: "Formel wird geschrieben…",
+      refused: "Diese Formel wurde abgelehnt — KaTeX meldet:",
+      empty: "Diese Formel ist leer.",
+      tooLarge: "Diese Formel ist zu lang (höchstens {max} Zeichen). Ihr Text:"
     }
   },
   permission: {

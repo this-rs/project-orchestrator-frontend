@@ -1,6 +1,7 @@
-import { memo, useMemo, type ComponentType } from 'react'
+import { createContext, memo, useContext, useMemo, type ComponentType } from 'react'
 import ReactMarkdown, { type Options as MarkdownOptions } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import rehypeHighlight from 'rehype-highlight'
 type PluggableList = NonNullable<MarkdownOptions['rehypePlugins']>
 import { ExternalLink } from '@/components/ui/ExternalLink'
@@ -8,10 +9,16 @@ import type { ChatReference } from '@/refs/types'
 import { CitedRefChip } from './CitedRefChip'
 import { KnownRefsContext } from './citedRef'
 import { remarkCiteRefs } from './citeRefsPlugin'
-import { fenceLang, hastText } from './viz/iso/fence'
+import { fenceClosed, fenceLang, hastText } from './viz/iso/fence'
+import { MATH_LANG } from './viz/math/fence'
 
-/** A component that renders a fenced code block of one language instead of the code (```iso-scene → a 3D scene). */
-export type FenceRenderer = ComponentType<{ source: string; streaming: boolean }>
+/**
+ * A component that renders a fenced code block of one language instead of the code
+ * (```iso-scene → a 3D scene, ```mermaid → a diagram, ```math / $$…$$ → a formula).
+ * `streaming`: the block is still being written (its closing fence has not arrived).
+ * `inline`: the block is inline (`$$x$$` in a sentence — only math is ever inline).
+ */
+export type FenceRenderer = ComponentType<{ source: string; streaming: boolean; inline?: boolean }>
 
 /**
  * Markdown link component: uses ExternalLink which renders differently
@@ -33,23 +40,48 @@ const citingComponents = {
   ),
 }
 /**
- * A `pre` override that hands a fenced block of a known language to its renderer; any
- * other block renders as before.
+ * The markdown being streamed, for `fenceClosed`. A context, not an argument of the
+ * overrides: they must stay the same components from one delta to the next, or every
+ * diagram of the message would be re-mounted (and re-rendered) at each delta.
  */
-function fencedPre(fences: Readonly<Record<string, FenceRenderer>>, streaming: boolean) {
+const StreamingTextContext = createContext('')
+
+/**
+ * The `pre` and `code` overrides that hand a fenced block of a known language to its
+ * renderer (and inline math, `$$x$$`, to the math renderer); any other block renders as
+ * before.
+ */
+function fencedComponents(fences: Readonly<Record<string, FenceRenderer>>, streaming: boolean) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return function Pre({ node, children, ...props }: any) {
+  function Pre({ node, children, ...props }: any) {
+    const text = useContext(StreamingTextContext)
     const code = node?.children?.find((c: { type?: string; tagName?: string }) => c.type === 'element' && c.tagName === 'code')
     const lang = code ? fenceLang(code.properties?.className) : null
     const Fence = lang ? fences[lang] : undefined
-    if (Fence) return <Fence source={hastText(code)} streaming={streaming} />
+    if (Fence) return <Fence source={hastText(code)} streaming={streaming && !fenceClosed(text, node?.position)} />
     return <pre {...props}>{children}</pre>
   }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function Code({ node, children, ...props }: any) {
+    const classes = node?.properties?.className
+    const inlineMath = Array.isArray(classes) && classes.includes('math-inline')
+    const Fence = inlineMath ? fences[MATH_LANG] : undefined
+    if (Fence) return <Fence source={hastText(node)} streaming={false} inline />
+    return <code {...props}>{children}</code>
+  }
+  return { pre: Pre, code: Code }
 }
 
 const DEFAULT_REHYPE: PluggableList = [rehypeHighlight]
 const PLAIN_PLUGINS = [remarkGfm]
 const CITING_PLUGINS = [remarkGfm, remarkCiteRefs]
+/**
+ * `$$…$$` is math (inline or on its own lines); a single `$` never is: "$5 and $10" stays
+ * prose. Only for the agent's words, when a math renderer is given.
+ */
+const MATH_PLUGIN = [remarkMath, { singleDollarTextMath: false }] as const
+const PLAIN_MATH_PLUGINS = [remarkGfm, MATH_PLUGIN]
+const CITING_MATH_PLUGINS = [remarkGfm, MATH_PLUGIN, remarkCiteRefs]
 
 
 /**
@@ -112,22 +144,28 @@ export const MarkdownText = memo(function MarkdownText({
   /**
    * Fenced blocks rendered by a component instead of as code, by language
    * (`{ 'iso-scene': IsoSceneFence }`). Pass a STABLE object (module constant).
-   * Only for the agent's own words, like `citeRefs`.
+   * Only for the agent's own words, like `citeRefs`. With a `math` renderer, `$$…$$`
+   * is math too.
    */
   fences?: Readonly<Record<string, FenceRenderer>>
 }) {
   const base = citeRefs ? (citingComponents as typeof markdownComponents) : markdownComponents
-  const components = useMemo(() => (fences ? { ...base, pre: fencedPre(fences, isStreaming) } : base), [base, fences, isStreaming])
+  const text = isStreaming ? holdBackAmbiguousTail(content) : content
+  const components = useMemo(() => (fences ? { ...base, ...fencedComponents(fences, isStreaming) } : base), [base, fences, isStreaming])
   // A fence a component renders is never highlighted (its language is unknown to highlight.js).
   const rehype = useMemo<PluggableList>(() => (fences ? [[rehypeHighlight, { plainText: Object.keys(fences) }]] : DEFAULT_REHYPE), [fences])
+  const math = !!fences?.[MATH_LANG]
+  const remark = (math ? (citeRefs ? CITING_MATH_PLUGINS : PLAIN_MATH_PLUGINS) : citeRefs ? CITING_PLUGINS : PLAIN_PLUGINS) as PluggableList
   const md = (
     <ReactMarkdown
-      remarkPlugins={citeRefs ? CITING_PLUGINS : PLAIN_PLUGINS}
+      remarkPlugins={remark}
       rehypePlugins={rehype}
       components={components}
     >
-      {isStreaming ? holdBackAmbiguousTail(content) : content}
+      {text}
     </ReactMarkdown>
   )
-  return citeRefs && knownRefs?.length ? <KnownRefsContext.Provider value={knownRefs}>{md}</KnownRefsContext.Provider> : md
+  const withRefs = citeRefs && knownRefs?.length ? <KnownRefsContext.Provider value={knownRefs}>{md}</KnownRefsContext.Provider> : md
+  // Only while streaming: whether the last block is closed yet (`fenceClosed`).
+  return fences && isStreaming ? <StreamingTextContext.Provider value={text}>{withRefs}</StreamingTextContext.Provider> : withRefs
 })

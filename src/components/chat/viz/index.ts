@@ -15,6 +15,8 @@ import { ContextRadarViz } from './ContextRadarViz'
 import { KnowledgeCardViz } from './KnowledgeCardViz'
 import { ProtocolRunViz } from './ProtocolRunViz'
 import { LazyIsoSceneViz } from './iso/LazyIsoSceneViz'
+import { LazyMermaidViz } from './mermaid/LazyMermaidViz'
+import { LazyMathViz } from './math/LazyMathViz'
 
 // ============================================================================
 // Register built-in viz components
@@ -29,6 +31,9 @@ vizRegistry.register(VIZ_TYPES.PROTOCOL_RUN, ProtocolRunViz, 'Protocol Run')
 // Lazy: the 3D engine is its own chunk, fetched when a scene first appears.
 vizRegistry.register(VIZ_TYPES.ISO_SCENE, LazyIsoSceneViz, '3D Scene')
 vizRegistry.register(VIZ_TYPES.ISO_OBJECT, LazyIsoSceneViz, '3D Object')
+// Lazy too: Mermaid and KaTeX are their own chunks, fetched with the first diagram / formula.
+vizRegistry.register(VIZ_TYPES.MERMAID, LazyMermaidViz, 'Diagram')
+vizRegistry.register(VIZ_TYPES.MATH, LazyMathViz, 'Formula')
 
 // ============================================================================
 // Re-exports

@@ -178,6 +178,20 @@ export default {
       notJson: "この 3D シーンは有効な JSON ではありません（{detail}）。テキスト:",
       notObject: "この 3D シーンは JSON オブジェクトである必要があります。テキスト:",
       tooLarge: "この 3D シーンは大きすぎます（最大 {max} 文字）。テキスト:"
+    },
+    mermaid: {
+      title: "ダイアグラム",
+      loading: "ダイアグラムを読み込み中…",
+      composing: "ダイアグラムを作成中…",
+      refused: "このダイアグラムは拒否されました — Mermaid のメッセージ:",
+      empty: "このダイアグラムは空です。",
+      tooLarge: "このダイアグラムは大きすぎます（最大 {max} 文字）。テキスト:"
+    },
+    math: {
+      composing: "数式を作成中…",
+      refused: "この数式は拒否されました — KaTeX のメッセージ:",
+      empty: "この数式は空です。",
+      tooLarge: "この数式は長すぎます（最大 {max} 文字）。テキスト:"
     }
   },
   permission: {

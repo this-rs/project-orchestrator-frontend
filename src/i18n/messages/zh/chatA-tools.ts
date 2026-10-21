@@ -178,6 +178,20 @@ export default {
       notJson: "此 3D 场景不是有效的 JSON（{detail}）。其文本：",
       notObject: "此 3D 场景必须是 JSON 对象。其文本：",
       tooLarge: "此 3D 场景过大（最多 {max} 个字符）。其文本："
+    },
+    mermaid: {
+      title: "图表",
+      loading: "正在加载图表…",
+      composing: "正在编写图表…",
+      refused: "此图表被拒绝 — Mermaid 提示：",
+      empty: "此图表为空。",
+      tooLarge: "此图表过大（最多 {max} 个字符）。其文本："
+    },
+    math: {
+      composing: "正在编写公式…",
+      refused: "此公式被拒绝 — KaTeX 提示：",
+      empty: "此公式为空。",
+      tooLarge: "此公式过长（最多 {max} 个字符）。其文本："
     }
   },
   permission: {

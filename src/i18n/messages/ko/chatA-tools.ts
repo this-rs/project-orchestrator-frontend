@@ -178,6 +178,20 @@ export default {
       notJson: "이 3D 장면은 유효한 JSON이 아닙니다 ({detail}). 텍스트:",
       notObject: "이 3D 장면은 JSON 객체여야 합니다. 텍스트:",
       tooLarge: "이 3D 장면이 너무 큽니다 (최대 {max}자). 텍스트:"
+    },
+    mermaid: {
+      title: "다이어그램",
+      loading: "다이어그램 불러오는 중…",
+      composing: "다이어그램 작성 중…",
+      refused: "이 다이어그램은 거부되었습니다 — Mermaid 메시지:",
+      empty: "이 다이어그램은 비어 있습니다.",
+      tooLarge: "이 다이어그램이 너무 큽니다(최대 {max}자). 텍스트:"
+    },
+    math: {
+      composing: "수식 작성 중…",
+      refused: "이 수식은 거부되었습니다 — KaTeX 메시지:",
+      empty: "이 수식은 비어 있습니다.",
+      tooLarge: "이 수식이 너무 깁니다(최대 {max}자). 텍스트:"
     }
   },
   permission: {

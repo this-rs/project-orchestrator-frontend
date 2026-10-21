@@ -170,6 +170,20 @@ export default {
       notObject: 'This 3D scene must be a JSON object. Its text:',
       tooLarge: 'This 3D scene is too large (at most {max} characters). Its text:',
     },
+    mermaid: {
+      title: 'Diagram',
+      loading: 'Loading the diagram…',
+      composing: 'Composing the diagram…',
+      refused: 'This diagram was refused — Mermaid says:',
+      empty: 'This diagram is empty.',
+      tooLarge: 'This diagram is too large (at most {max} characters). Its text:',
+    },
+    math: {
+      composing: 'Writing the formula…',
+      refused: 'This formula was refused — KaTeX says:',
+      empty: 'This formula is empty.',
+      tooLarge: 'This formula is too large (at most {max} characters). Its text:',
+    },
   },
   permission: {
     actions: 'Answer this permission request',
