@@ -1,4 +1,4 @@
-// GENERATED from website@68fc05a16f43f7955077d1db0a7a00e456a1d22f:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@67d8d11c519b16c8bf0b61eaea3a67f1e6491a6a:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Rendu WebGL 2 des machines isométriques : la MÊME géométrie que le SVG prérendu (`machine.build`), mais éclairée
@@ -48,7 +48,7 @@ function linear(hex: string): Vec3 {
 const MAIN_VS = `#version 300 es
 in vec3 aPos; in vec3 aNor; in vec3 aCol; in vec4 aMat; in vec3 aEdge;
 uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform mat4 uLight; uniform vec4 uWin; uniform float uFocal;
-out vec3 vN; out vec3 vCol; out vec4 vMat; out vec3 vL; out vec3 vEdge;
+out vec3 vN; out vec3 vCol; out vec4 vMat; out vec3 vL; out vec3 vEdge; out float vGrain;
 void main() {
   vec2 q = vec2((aPos.x - aPos.y) * ${C30.toFixed(7)}, (aPos.x + aPos.y) * 0.5 - aPos.z);
   float s = aPos.x + aPos.y + aPos.z;
@@ -57,6 +57,7 @@ void main() {
   float z = 1.0 - 2.0 * (s - uDepth.x) / (uDepth.y - uDepth.x);
   gl_Position = vec4((v.x - uWin.x) / uWin.z * 2.0 - 1.0, 1.0 - (v.y - uWin.y) / uWin.w * 2.0, z * 0.98, 1.0);
   vN = aNor; vCol = aCol; vMat = aMat; vEdge = aEdge;
+  vGrain = 0.9 + 0.2 * fract(sin(dot(aPos * 2.5, vec3(127.1, 311.7, 74.7))) * 43758.5453);
   // Décalage le long de la normale : pas d'acné d'ombre sur les grandes faces rasantes.
   vL = (uLight * vec4(aPos + aNor * 0.06, 1.0)).xyz * 0.5 + 0.5;
 }`
@@ -64,7 +65,7 @@ void main() {
 const MAIN_FS = `#version 300 es
 precision highp float;
 precision highp sampler2DShadow;
-in vec3 vN; in vec3 vCol; in vec4 vMat; in vec3 vL; in vec3 vEdge;
+in vec3 vN; in vec3 vCol; in vec4 vMat; in vec3 vL; in vec3 vEdge; in float vGrain;
 uniform sampler2DShadow uShadow; uniform vec3 uLightDir; uniform vec3 uBg; uniform float uTexel; uniform float uTransparent;
 uniform vec3 uKey; uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uRim;
 out vec4 o;
@@ -93,6 +94,7 @@ void main() {
   } else {
     float metallic = vMat.z;
     float rough = vMat.w;
+    vec3 baseCol = vCol * vGrain;
     float ndl = max(dot(N, uLightDir), 0.0);
     float ndv = max(dot(N, V), 0.0);
     vec3 hemi = mix(uGround, uSky, N.z * 0.5 + 0.5);
@@ -104,11 +106,11 @@ void main() {
     float d2 = nh * nh * (a2 - 1.0) + 1.0;
     float D = a2 / (3.14159265 * d2 * d2);
     float G = (2.0 * ndl / (ndl + sqrt(a2 + (1.0 - a2) * ndl * ndl))) * (2.0 * ndv / (ndv + sqrt(a2 + (1.0 - a2) * ndv * ndv)));
-    vec3 F0 = vec3(0.04) + (vCol - vec3(0.04)) * metallic;
+    vec3 F0 = vec3(0.04) + (baseCol - vec3(0.04)) * metallic;
     vec3 F = F0 + (vec3(1.0) - F0) * pow(1.0 - ndv, 5.0);
     vec3 spec = vec3(${SPEC_GAIN.toFixed(2)}) * D * F * G / (4.0 * ndl * ndv + 1e-4);
     float rim = pow(1.0 - ndv, 4.0);
-    c = vCol * (uKey * ndl * sh * (1.0 - 0.35 * metallic) + hemi) + uKey * spec * sh + uRim * rim;
+    c = baseCol * (uKey * ndl * sh * (1.0 - 0.35 * metallic) + hemi) + uKey * spec * sh + uRim * rim;
     // Réflexion d'environnement : ciel procédural + tache du soleil, pour les métaux.
     vec3 R = reflect(-V, N);
     float et = R.z * 0.5 + 0.5;

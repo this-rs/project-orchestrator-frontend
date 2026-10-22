@@ -1,4 +1,4 @@
-// GENERATED from website@68fc05a16f43f7955077d1db0a7a00e456a1d22f:src/three/iso/shading.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@67d8d11c519b16c8bf0b61eaea3a67f1e6491a6a:src/three/iso/shading.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Éclairage des machines, partagé : les constantes du rendu WebGL (`litRenderer.ts`) et sa formule, portée en JS pour
@@ -57,10 +57,27 @@ const toHex = (c: Vec3) =>
 
 const V: Vec3 = [1 / Math.sqrt(3), 1 / Math.sqrt(3), 1 / Math.sqrt(3)]
 
+/** Bruit 3D (hash) : [0,1] déterministe — grain procédural des matières. */
+const grain3 = (x: number, y: number, z: number): number => {
+  const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453
+  return s - Math.floor(s)
+}
+
 /** Couleur sRGB d'une face éclairée comme au rendu WebGL (normale moyenne de la face, sans ombre portée). */
 export function litColor(f: Face): string {
-  const c = linearRgb(f.emit ?? f.col)
+  let c = linearRgb(f.emit ?? f.col)
   if (f.emit) return toHex([c[0] * EMIT_GAIN, c[1] * EMIT_GAIN, c[2] * EMIT_GAIN])
+  // Grain procédural (bruit 3D au centroïde de la face) : casse les aplats.
+  let gx = 0
+  let gy = 0
+  let gz = 0
+  for (const p of f.pts) {
+    gx += p[0]
+    gy += p[1]
+    gz += p[2]
+  }
+  const gr = 0.9 + 0.2 * grain3((gx / f.pts.length) * 2.5, (gy / f.pts.length) * 2.5, (gz / f.pts.length) * 2.5)
+  c = [c[0] * gr, c[1] * gr, c[2] * gr]
   let nx = 0
   let ny = 0
   let nz = 0
