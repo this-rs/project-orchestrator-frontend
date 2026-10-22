@@ -1,4 +1,4 @@
-// GENERATED from website@e049ffb8034c92a5bf6e6f782286e8777a5893f6:src/three/iso/shading.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@8efd848719228d64dd983232c67cfca66c3db191:src/three/iso/shading.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Éclairage des machines, partagé : les constantes du rendu WebGL (`litRenderer.ts`) et sa formule, portée en JS pour
@@ -17,8 +17,24 @@ export const LIGHTS = {
   rim: [0.08, 0.09, 0.18] as Vec3,
 }
 
-/** Matières métalliques : reflet plus fort et teinté de leur couleur. */
-export const METAL: ReadonlySet<string> = new Set<string>([MAT.brass, MAT.brassL, MAT.copper, MAT.steelL, MAT.rail])
+/** Rugosité par matière (0 = poli, 1 = mat). */
+export const ROUGHNESS: Readonly<Record<string, number>> = {
+  [MAT.porcelain]: 0.85, [MAT.satin]: 0.7, [MAT.graphite]: 0.6,
+  [MAT.steel]: 0.55, [MAT.steelL]: 0.4, [MAT.brass]: 0.5, [MAT.brassL]: 0.42,
+  [MAT.copper]: 0.5, [MAT.rail]: 0.6, [MAT.iron]: 0.6, [MAT.plate]: 0.7,
+  [MAT.bevel]: 0.6, [MAT.wood]: 0.8, [MAT.ballast]: 0.7, [MAT.glass]: 0.2,
+  [MAT.ghost]: 0.5, [MAT.dark]: 0.6,
+}
+
+/** Métallicité par matière (0 = diélectrique, 1 = métal). */
+export const METALLIC: Readonly<Record<string, number>> = {
+  [MAT.brass]: 1, [MAT.brassL]: 1, [MAT.copper]: 1, [MAT.steelL]: 0.9,
+  [MAT.steel]: 0.8, [MAT.rail]: 0.8, [MAT.iron]: 0.7, [MAT.plate]: 0.5,
+  [MAT.bevel]: 0.4,
+}
+
+/** Gain du terme spéculaire Cook-Torrance (à ajuster au cadrage visuel). */
+export const SPEC_GAIN = 4
 
 /** Multiplicateur des faces émissives (lampes). */
 export const EMIT_GAIN = 2.6
@@ -67,18 +83,29 @@ export function litColor(f: Face): string {
   const l = Math.hypot(nx, ny, nz) || 1
   let N: Vec3 = [nx / l, ny / l, nz / l]
   if (N[0] * V[0] + N[1] * V[1] + N[2] * V[2] < 0) N = [-N[0], -N[1], -N[2]]
-  const metal = METAL.has(f.col) ? 1 : 0
+  const metallic = METALLIC[f.col] ?? 0
+  const rough = ROUGHNESS[f.col] ?? 0.6
   const ndl = Math.max(0, N[0] * LIGHT[0] + N[1] * LIGHT[1] + N[2] * LIGHT[2])
+  const ndv = Math.max(0, N[0] * V[0] + N[1] * V[1] + N[2] * V[2])
   const t = N[2] * 0.5 + 0.5
   const H = [LIGHT[0] + V[0], LIGHT[1] + V[1], LIGHT[2] + V[2]]
   const hl = Math.hypot(H[0]!, H[1]!, H[2]!)
   const nh = Math.max(0, (N[0] * H[0]! + N[1] * H[1]! + N[2] * H[2]!) / hl)
-  const rim = Math.pow(1 - Math.max(0, N[0] * V[0] + N[1] * V[1] + N[2] * V[2]), 4)
+  const rim = Math.pow(1 - ndv, 4)
+  // Cook-Torrance GGX : distribution, Fresnel de Schlick, géométrie de Smith.
+  const a = rough * rough
+  const a2 = a * a
+  const d2 = nh * nh * (a2 - 1) + 1
+  const D = a2 / (Math.PI * d2 * d2)
+  const g1 = (x: number) => (2 * x) / (x + Math.sqrt(a2 + (1 - a2) * x * x))
+  const G = g1(ndl) * g1(ndv)
   const out: number[] = []
   for (let k = 0; k < 3; k++) {
+    const F0 = 0.04 + (c[k]! - 0.04) * metallic
+    const F = F0 + (1 - F0) * Math.pow(1 - ndv, 5)
+    const spec = (SPEC_GAIN * D * F * G) / (4 * ndl * ndv + 1e-4)
     const hemi = LIGHTS.ground[k]! + (LIGHTS.sky[k]! - LIGHTS.ground[k]!) * t
-    const spec = metal ? c[k]! * Math.pow(nh, 90) * 2.4 + c[k]! * Math.pow(nh, 12) * 0.35 : Math.pow(nh, 36) * 0.12
-    out.push(c[k]! * (LIGHTS.key[k]! * ndl * (1 - 0.35 * metal) + hemi) + LIGHTS.key[k]! * spec + LIGHTS.rim[k]! * rim)
+    out.push(c[k]! * (LIGHTS.key[k]! * ndl * (1 - 0.35 * metallic) + hemi) + LIGHTS.key[k]! * spec + LIGHTS.rim[k]! * rim)
   }
   return toHex(out as unknown as Vec3)
 }

@@ -1,4 +1,4 @@
-// GENERATED from website@e049ffb8034c92a5bf6e6f782286e8777a5893f6:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@8efd848719228d64dd983232c67cfca66c3db191:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Rendu WebGL 2 des machines isométriques : la MÊME géométrie que le SVG prérendu (`machine.build`), mais éclairée
@@ -16,7 +16,7 @@
  * Aucune dépendance : quelques Ko, chargés à part comme l'ancien canvas 2D.
  */
 import { ease, LIGHT, ISO_BG, withHiddenFaces, type Face, type Vec3 } from './iso'
-import { EMIT_GAIN, LIGHTS, METAL } from './shading'
+import { EMIT_GAIN, LIGHTS, METALLIC, ROUGHNESS, SPEC_GAIN } from './shading'
 import { WIDE_ASPECT, type MachineDef } from './machine'
 import { triangulate } from './triangulate'
 import { contentBox, DESK_FITS, fitAround, fitWindow, type Box, type CssRect } from './fit'
@@ -24,7 +24,7 @@ import { assemble } from './buildIn'
 import { MOVE_MS as GLIDE_MS } from './live'
 
 const C30 = Math.cos(Math.PI / 6)
-const FLOATS = 15 // position 3, normale 3, couleur 3, alpha, émission, métal, arêtes 3
+const FLOATS = 16 // position 3, normale 3, couleur 3, alpha, émission, métal, rugosité, arêtes 3
 const SHADOW_SIZE = 2048
 
 const hexRgb = (hex: string): Vec3 => {
@@ -46,9 +46,9 @@ function linear(hex: string): Vec3 {
 
 
 const MAIN_VS = `#version 300 es
-in vec3 aPos; in vec3 aNor; in vec3 aCol; in vec3 aMat; in vec3 aEdge;
+in vec3 aPos; in vec3 aNor; in vec3 aCol; in vec4 aMat; in vec3 aEdge;
 uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform mat4 uLight; uniform vec4 uWin; uniform float uFocal;
-out vec3 vN; out vec3 vCol; out vec3 vMat; out vec3 vL; out vec3 vEdge;
+out vec3 vN; out vec3 vCol; out vec4 vMat; out vec3 vL; out vec3 vEdge;
 void main() {
   vec2 q = vec2((aPos.x - aPos.y) * ${C30.toFixed(7)}, (aPos.x + aPos.y) * 0.5 - aPos.z);
   float s = aPos.x + aPos.y + aPos.z;
@@ -64,7 +64,7 @@ void main() {
 const MAIN_FS = `#version 300 es
 precision highp float;
 precision highp sampler2DShadow;
-in vec3 vN; in vec3 vCol; in vec3 vMat; in vec3 vL; in vec3 vEdge;
+in vec3 vN; in vec3 vCol; in vec4 vMat; in vec3 vL; in vec3 vEdge;
 uniform sampler2DShadow uShadow; uniform vec3 uLightDir; uniform vec3 uBg; uniform float uTexel; uniform float uTransparent;
 uniform vec3 uKey; uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uRim;
 out vec4 o;
@@ -91,15 +91,24 @@ void main() {
   if (vMat.y > 0.5) {
     c = vCol * ${EMIT_GAIN.toFixed(2)};
   } else {
-    float metal = vMat.z;
+    float metallic = vMat.z;
+    float rough = vMat.w;
     float ndl = max(dot(N, uLightDir), 0.0);
+    float ndv = max(dot(N, V), 0.0);
     vec3 hemi = mix(uGround, uSky, N.z * 0.5 + 0.5);
     vec3 H = normalize(uLightDir + V);
     float nh = max(dot(N, H), 0.0);
-    // Peinture : reflet large et faible ; métal : reflet serré, fort, teinté de sa couleur.
-    vec3 spec = mix(vec3(pow(nh, 36.0) * 0.12), vCol * pow(nh, 90.0) * 2.4 + vCol * pow(nh, 12.0) * 0.35, metal);
-    float rim = pow(1.0 - max(dot(N, V), 0.0), 4.0);
-    c = vCol * (uKey * ndl * sh * (1.0 - 0.35 * metal) + hemi) + uKey * spec * sh + uRim * rim;
+    // Cook-Torrance GGX : distribution, Fresnel de Schlick, géométrie de Smith.
+    float a = rough * rough;
+    float a2 = a * a;
+    float d2 = nh * nh * (a2 - 1.0) + 1.0;
+    float D = a2 / (3.14159265 * d2 * d2);
+    float G = (2.0 * ndl / (ndl + sqrt(a2 + (1.0 - a2) * ndl * ndl))) * (2.0 * ndv / (ndv + sqrt(a2 + (1.0 - a2) * ndv * ndv)));
+    vec3 F0 = vec3(0.04) + (vCol - vec3(0.04)) * metallic;
+    vec3 F = F0 + (vec3(1.0) - F0) * pow(1.0 - ndv, 5.0);
+    vec3 spec = vec3(${SPEC_GAIN.toFixed(2)}) * D * F * G / (4.0 * ndl * ndv + 1e-4);
+    float rim = pow(1.0 - ndv, 4.0);
+    c = vCol * (uKey * ndl * sh * (1.0 - 0.35 * metallic) + hemi) + uKey * spec * sh + uRim * rim;
     // Arête chanfreinée : un liseré de 1 px qui attrape la lumière (côté éclairé) ou s'assombrit (côté ombre).
     vec3 w = fwidth(vEdge);
     vec3 e = vEdge / max(w, vec3(1e-5));
@@ -246,7 +255,7 @@ export class IsoRenderer {
     let yMax = -Infinity
     const glow: number[] = []
     const lamps = new Map<number, { x: number; y: number; z: number; n: number; lo: number[]; hi: number[]; c: Vec3; a: number }>()
-    const push = (p: Vec3, nx: number, ny: number, nz: number, c: Vec3, a: number, e: number, mt: number, b0: number, b1: number, b2: number) => {
+    const push = (p: Vec3, nx: number, ny: number, nz: number, c: Vec3, a: number, e: number, mt: number, rough: number, b0: number, b1: number, b2: number) => {
       d[n++] = p[0]
       d[n++] = p[1]
       d[n++] = p[2]
@@ -259,6 +268,7 @@ export class IsoRenderer {
       d[n++] = a
       d[n++] = e
       d[n++] = mt
+      d[n++] = rough
       d[n++] = b0
       d[n++] = b1
       d[n++] = b2
@@ -307,7 +317,8 @@ export class IsoRenderer {
       nz /= l
       const c = linear(f.emit ?? f.col)
       const e = f.emit ? 1 : 0
-      const mt = !f.emit && METAL.has(f.col) ? 1 : 0
+      const mt = !f.emit ? (METALLIC[f.col] ?? 0) : 0
+      const rough = ROUGHNESS[f.col] ?? 0.6
       const N = f.nrm
       const soft = f.soft ?? 0
       // Triangles de la face ; coordonnées barycentriques : la composante k s'annule sur l'arête opposée au sommet k.
@@ -329,7 +340,7 @@ export class IsoRenderer {
         for (let k = 0; k < 3; k++) {
           const v = vs[k]!
           const nn = N ? N[v]! : null
-          push(pts[v]!, nn ? nn[0] : nx, nn ? nn[1] : ny, nn ? nn[2] : nz, c, f.alpha, e, mt, (k === 0 ? 1 : 0) + opp0, (k === 1 ? 1 : 0) + opp1, (k === 2 ? 1 : 0) + opp2)
+          push(pts[v]!, nn ? nn[0] : nx, nn ? nn[1] : ny, nn ? nn[2] : nz, c, f.alpha, e, mt, rough, (k === 0 ? 1 : 0) + opp0, (k === 1 ? 1 : 0) + opp1, (k === 2 ? 1 : 0) + opp2)
         }
       }
       if (f.alpha >= 1) opaque += tri.length
@@ -368,7 +379,7 @@ export class IsoRenderer {
       [xMin - m, yMax + m, -0.01],
     ]
     const bg: Vec3 = [0, 0, 0]
-    for (const i of [0, 1, 2, 0, 2, 3]) push(g[i]!, 0, 0, 1, bg, 1, 2, 0, 1, 1, 1)
+    for (const i of [0, 1, 2, 0, 2, 3]) push(g[i]!, 0, 0, 1, bg, 1, 2, 0, 0.5, 1, 1, 1)
     const ground = 6
     for (const p of g) {
       const s = p[0] + p[1] + p[2]
@@ -495,7 +506,7 @@ export class IsoRenderer {
     attrib(p, 'aPos', 3, 0)
     attrib(p, 'aNor', 3, 3)
     attrib(p, 'aCol', 3, 6)
-    attrib(p, 'aMat', 3, 9)
+    attrib(p, 'aMat', 4, 9)
     attrib(p, 'aEdge', 3, 12)
     gl.disable(gl.BLEND)
     gl.drawArrays(gl.TRIANGLES, 0, geo.opaque)

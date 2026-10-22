@@ -1,7 +1,7 @@
 {
   "repo": "website",
   "path": "src/three/iso",
-  "commit": "e049ffb8034c92a5bf6e6f782286e8777a5893f6",
+  "commit": "8efd848719228d64dd983232c67cfca66c3db191",
   "branch": "docs/rel-wr1-v0018",
   "sources": {
     "ast.ts": "87d48fa679f22cce14885e053fa349e34a6ad164dac0265eeed0be65aa59338c",
@@ -15,13 +15,13 @@
     "iso.ts": "64f500957fa681c600c57cc51c58c2fee58fa2771b4d6e19f98cd732bd546715",
     "IsoGL.tsx": "aad1af251086f8aa97b0988281599de6eacafdaab9b8af098d51002acd37ca95",
     "layouts.ts": "15048c71e6609310dba4ccf37499864d9068f10c19b35ec82feca3ad96545e3a",
-    "litRenderer.ts": "6ea739322009df083c8f8dc647c8941efdbfef57a2a674b69f3c6e5d3c57bf94",
+    "litRenderer.ts": "5679fcec5d02238e5b86564232d9386b1edd04898a09f65c6488a8dd0fe2d19f",
     "live.ts": "1ddc2e3deb79eb9370923cdc21bcf212d2eaad8e9871e683fa1e95632bc998c3",
     "machine.ts": "6d6a25f454eeb7fa0ab6703ff81d2e78aa3632fb5c06eec883f7e602d3c89184",
     "meaning.ts": "4341749b0c72bc99de07d642bc0ae54363479b447e94486b6d1641b87f769658",
     "mechanisms.ts": "4e26f44602b1b52b2a39d39081d79a41812206ab4b0dcd81c7686bfdccab3894",
     "scene.ts": "e863f12ed887c04dfbf6233fe62de75947646496519b156405d1e152b7420475",
-    "shading.ts": "277e8dcc0f8c09703603b715997a506d74d5b3dc41a3a8d6eb33a91a052fa863",
+    "shading.ts": "b08514b326027011721e88f7cc41da46757ee21c756f9a4e78a964f334a0a7e8",
     "stations.ts": "38197059156cfd8f7dfd4b171e8f6f4b46a668b1b8a1468d242fd9a073ae946f",
     "triangulate.ts": "2b87445b8bc0f8cf0f4e2877721a3250293cfcd230bf802d1522160b7397ef4a"
   }

@@ -1,4 +1,4 @@
-// GENERATED from website@e049ffb8034c92a5bf6e6f782286e8777a5893f6:src/three/iso/live.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@8efd848719228d64dd983232c67cfca66c3db191:src/three/iso/live.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Scène VIVANTE : une machine qui se construit au rythme d'un travail réel, au lieu d'une apparition jouée une fois.
