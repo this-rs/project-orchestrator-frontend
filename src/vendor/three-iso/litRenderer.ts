@@ -1,4 +1,4 @@
-// GENERATED from website@627d49eb05470cf08f848dcfa28876bf4ac962b7:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@68fc05a16f43f7955077d1db0a7a00e456a1d22f:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Rendu WebGL 2 des machines isométriques : la MÊME géométrie que le SVG prérendu (`machine.build`), mais éclairée
@@ -109,6 +109,12 @@ void main() {
     vec3 spec = vec3(${SPEC_GAIN.toFixed(2)}) * D * F * G / (4.0 * ndl * ndv + 1e-4);
     float rim = pow(1.0 - ndv, 4.0);
     c = vCol * (uKey * ndl * sh * (1.0 - 0.35 * metallic) + hemi) + uKey * spec * sh + uRim * rim;
+    // Réflexion d'environnement : ciel procédural + tache du soleil, pour les métaux.
+    vec3 R = reflect(-V, N);
+    float et = R.z * 0.5 + 0.5;
+    float es = pow(max(dot(R, uLightDir), 0.0), 96.0);
+    vec3 env = mix(vec3(0.02, 0.03, 0.05), vec3(0.35, 0.45, 0.65), et) + vec3(2.5, 2.3, 2.0) * es;
+    c += env * metallic * (1.0 - rough) * 0.5;
     // Arête chanfreinée : un liseré de 1 px qui attrape la lumière (côté éclairé) ou s'assombrit (côté ombre).
     vec3 w = fwidth(vEdge);
     vec3 e = vEdge / max(w, vec3(1e-5));

@@ -1,4 +1,4 @@
-// GENERATED from website@627d49eb05470cf08f848dcfa28876bf4ac962b7:src/three/iso/iso.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@68fc05a16f43f7955077d1db0a7a00e456a1d22f:src/three/iso/iso.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Moteur isométrique des machines de héros : des solides pleins (lofts, boîtes, cylindres, poutres, tubes) rendus en

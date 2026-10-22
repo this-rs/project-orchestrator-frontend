@@ -1,4 +1,4 @@
-// GENERATED from website@627d49eb05470cf08f848dcfa28876bf4ac962b7:src/three/iso/shading.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@68fc05a16f43f7955077d1db0a7a00e456a1d22f:src/three/iso/shading.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Éclairage des machines, partagé : les constantes du rendu WebGL (`litRenderer.ts`) et sa formule, portée en JS pour
@@ -99,13 +99,21 @@ export function litColor(f: Face): string {
   const D = a2 / (Math.PI * d2 * d2)
   const g1 = (x: number) => (2 * x) / (x + Math.sqrt(a2 + (1 - a2) * x * x))
   const G = g1(ndl) * g1(ndv)
+  // Réflexion d'environnement (ciel procédural + tache du soleil), pour les métaux.
+  const R = [2 * ndv * N[0] - V[0], 2 * ndv * N[1] - V[1], 2 * ndv * N[2] - V[2]]
+  const et = R[2]! * 0.5 + 0.5
+  const es = Math.pow(Math.max(0, R[0]! * LIGHT[0] + R[1]! * LIGHT[1] + R[2]! * LIGHT[2]), 96)
+  const ENV_SKY = [0.02, 0.03, 0.05]
+  const ENV_ZEN = [0.35, 0.45, 0.65]
+  const ENV_SUN = [2.5, 2.3, 2.0]
   const out: number[] = []
   for (let k = 0; k < 3; k++) {
     const F0 = 0.04 + (c[k]! - 0.04) * metallic
     const F = F0 + (1 - F0) * Math.pow(1 - ndv, 5)
     const spec = (SPEC_GAIN * D * F * G) / (4 * ndl * ndv + 1e-4)
     const hemi = LIGHTS.ground[k]! + (LIGHTS.sky[k]! - LIGHTS.ground[k]!) * t
-    out.push(c[k]! * (LIGHTS.key[k]! * ndl * (1 - 0.35 * metallic) + hemi) + LIGHTS.key[k]! * spec + LIGHTS.rim[k]! * rim)
+    const env = ENV_SKY[k]! + (ENV_ZEN[k]! - ENV_SKY[k]!) * et + ENV_SUN[k]! * es
+    out.push(c[k]! * (LIGHTS.key[k]! * ndl * (1 - 0.35 * metallic) + hemi) + LIGHTS.key[k]! * spec + LIGHTS.rim[k]! * rim + env * metallic * (1 - rough) * 0.5)
   }
   return toHex(out as unknown as Vec3)
 }
