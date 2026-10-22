@@ -23,7 +23,7 @@ vi.mock('@/services/env', () => ({
 vi.mock('@/hooks', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/hooks')>()),
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
-  useDragRegion: () => ({}),
+  useDragRegion: () => () => {},
 }))
 
 import { SetupLayout } from '../SetupLayout'
