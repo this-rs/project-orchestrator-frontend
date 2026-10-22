@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Cpu, KeyRound, LogOut, Settings } from 'lucide-react'
 import { authModeAtom, currentUserAtom } from '@/atoms'
 import { clearChatDraftsAtom } from '@/atoms/chat'
-import { settingsReturnUrlAtom } from '@/atoms/setup'
+import { trayNavigationAtom } from '@/atoms/setup'
 import { forceLogout } from '@/services/authManager'
 import { isTauri } from '@/services/env'
 import { glass, glassButton, glassFlat, popIn } from '@/components/ui/classes'
@@ -75,8 +75,7 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
   }, [open])
 
   const navigate = useNavigate()
-  const location = useLocation()
-  const setSettingsReturnUrl = useSetAtom(settingsReturnUrlAtom)
+  const setTrayNavigation = useSetAtom(trayNavigationAtom)
   const clearChatDrafts = useSetAtom(clearChatDraftsAtom)
 
   // Hide in no-auth mode (early returns must come AFTER all hook calls)
@@ -99,8 +98,11 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
 
   const handleSettings = () => {
     setOpen(false)
-    setSettingsReturnUrl(location.pathname + location.search)
-    navigate('/settings')
+    // The desktop Settings is the setup wizard in reconfigure mode (servers,
+    // auth, models) — mark the tray intent so the wizard skips the first-run
+    // status check and pre-fills from the existing config.yaml.
+    setTrayNavigation(true)
+    navigate('/setup?from=tray')
   }
 
   return (

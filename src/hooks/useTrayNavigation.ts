@@ -1,31 +1,48 @@
 import { useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
+import { useSetAtom } from 'jotai'
+import { trayNavigationAtom } from '@/atoms/setup'
 
 /**
- * Cleans the `?from=tray` query parameter from the URL after it has been
- * captured by `trayNavigationAtom` (which reads it synchronously at module
- * load time).
+ * Captures the tray's navigation intent and drives `trayNavigationAtom`.
  *
- * This hook only handles URL cleanup — the actual detection is done in the
- * atom's initial value so that the flag is available on the very first
- * render, before any useEffect runs.
+ * The atom's module-load initializer only sees `?from=tray` when the app boots
+ * on that URL (a full reload). The desktop tray now navigates INSIDE the SPA
+ * (`history.pushState`), so the param appears after the module has already
+ * loaded: this hook sets the atom reactively from the current search params,
+ * then removes `?from=tray` to keep the URL clean.
+ *
+ * When the app leaves the setup wizard without a fresh tray signal, the atom is
+ * reset so a later plain `/setup` visit (e.g. the first-run SetupGuard redirect)
+ * is not mistaken for a tray reconfigure.
  *
  * Must be rendered inside `<BrowserRouter>`.
  */
 export function useTrayNavigation(): void {
   const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const setTrayNavigation = useSetAtom(trayNavigationAtom)
 
   useEffect(() => {
-    if (searchParams.get('from') !== 'tray') return
+    const fromTray = searchParams.get('from') === 'tray'
 
-    // Remove ?from=tray from the URL to keep it clean
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev)
-        next.delete('from')
-        return next
-      },
-      { replace: true },
-    )
-  }, [searchParams, setSearchParams])
+    if (fromTray) {
+      setTrayNavigation(true)
+      // Remove ?from=tray from the URL to keep it clean
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('from')
+          return next
+        },
+        { replace: true },
+      )
+      return
+    }
+
+    if (location.pathname !== '/setup') {
+      // Left the wizard without a fresh tray signal: the intent is consumed.
+      setTrayNavigation(false)
+    }
+  }, [searchParams, location.pathname, setSearchParams, setTrayNavigation])
 }

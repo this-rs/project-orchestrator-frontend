@@ -8,6 +8,12 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
 import { UserMenu } from '../UserMenu'
 import { currentUserAtom } from '@/atoms'
+import { trayNavigationAtom } from '@/atoms/setup'
+
+vi.mock('@/services/env', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/services/env')>()),
+  isTauri: true,
+}))
 
 describe('UserMenu vault entry', () => {
   vi.stubGlobal('__APP_VERSION__', 'test')
@@ -28,5 +34,29 @@ describe('UserMenu vault entry', () => {
     fireEvent.click(screen.getByRole('button'))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Vault' }))
     expect(screen.getByText('vault route')).toBeTruthy()
+  })
+})
+
+describe('UserMenu settings entry', () => {
+  vi.stubGlobal('__APP_VERSION__', 'test')
+  it('opens the setup wizard in reconfigure mode, not the chat settings', () => {
+    const store = createStore()
+    store.set(currentUserAtom, { id: 'u1', name: 'Ada Lovelace', email: 'ada@example.com' } as never)
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/']}>
+          <UserMenu />
+          <Routes>
+            <Route path="/" element={<p>home</p>} />
+            <Route path="/setup" element={<p>setup route</p>} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>,
+    )
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Settings' }))
+    expect(screen.getByText('setup route')).toBeTruthy()
+    // The tray/reconfigure intent is set so the wizard skips the first-run check.
+    expect(store.get(trayNavigationAtom)).toBe(true)
   })
 })

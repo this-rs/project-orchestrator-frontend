@@ -90,6 +90,14 @@ export function SetupWizard() {
   useEffect(() => {
     if (!isTrayNavigation) return
 
+    // The tray reaches `/setup?from=tray` through an in-SPA pushState: the atom
+    // flips true only after this component first mounted (via `useTrayNavigation`),
+    // so the `useState` initializers above ran with `false` (checking=true). Drive
+    // the spinner from here instead of relying on the mount-time value, otherwise a
+    // late tray navigation would strand `checking=true` forever.
+    setChecking(false)
+    setLoadingConfig(true)
+
     let cancelled = false
 
     ;(async () => {
