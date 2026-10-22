@@ -1,4 +1,4 @@
-// GENERATED from website@426fd63fe793882ef8490df5cff1b9a4f75b2520:src/three/iso/iso.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@61b8193b80146bbceefa1ac92cd9536f2740a6ba:src/three/iso/iso.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Moteur isométrique des machines de héros : des solides pleins (lofts, boîtes, cylindres, poutres, tubes) rendus en
@@ -522,6 +522,27 @@ export class Frame {
     this.sphere([c[0], c[1], c[2] + h / 2], r, o, seg, rings)
     this.sphere([c[0], c[1], c[2] - h / 2], r, o, seg, rings)
     this.loft(ngon(r, seg), ngon(r, seg), h, { ...o, at: [c[0], c[1], c[2] - h / 2] })
+  }
+
+  /** Tore local : grand rayon r, rayon du tube t (normales lissées). */
+  torus(r: number, t: number, n: number, o: Omit<LocalOpts, 'at' | 'rot'>): void {
+    const k = this.k
+    const m = Math.max(3, Math.round(n / 2))
+    const P = (i: number, j: number): Vec3 => {
+      const th = (2 * Math.PI * i) / n
+      const ph = (2 * Math.PI * j) / m
+      return xf(this.rot, [(r + t * Math.cos(ph)) * Math.cos(th) * k, (r + t * Math.cos(ph)) * Math.sin(th) * k, t * Math.sin(ph) * k], this.pos)
+    }
+    const N = (i: number, j: number): Vec3 => {
+      const th = (2 * Math.PI * i) / n
+      const ph = (2 * Math.PI * j) / m
+      return norm(xf(this.rot, [Math.cos(ph) * Math.cos(th), Math.cos(ph) * Math.sin(th), Math.sin(ph)], [0, 0, 0]))
+    }
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < m; j++) {
+        this.s.face([P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)], o, [N(i, j), N(i + 1, j), N(i + 1, j + 1), N(i, j + 1)], 0b1111)
+      }
+    }
   }
 
   /** Dalle à arêtes chanfreinées : coin minimal (x, y, z), w × d × h, chanfrein b sur les arêtes verticales et du dessus. */

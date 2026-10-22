@@ -1,4 +1,4 @@
-// GENERATED from website@426fd63fe793882ef8490df5cff1b9a4f75b2520:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@61b8193b80146bbceefa1ac92cd9536f2740a6ba:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * PROTOCOLE DE CONSTRUCTION : des objets et des mécaniques décrits comme des DONNÉES (un arbre JSON), compilés en
@@ -72,6 +72,7 @@ export type IsoNode =
   | (Base & { kind: 'lathe'; profile: readonly (readonly [number, number])[]; seg?: number })
   | (Base & { kind: 'capsule'; r: number; h: number; seg?: number })
   | (Base & { kind: 'repeat'; shape: IsoNode; positions: readonly V3[] })
+  | (Base & { kind: 'torus'; r: number; t: number; seg?: number })
   | (Base & { kind: 'group'; children: readonly IsoNode[]; sockets?: Readonly<Record<string, V3>> })
   | (Base & { kind: 'use'; ref: string; attach?: string; scale?: number })
 
@@ -91,7 +92,7 @@ const MATS: Readonly<Record<Material, string>> = {
   copper: MAT.copper,
   dark: MAT.dark,
 }
-const KINDS = new Set(['slab', 'puck', 'sphere', 'tube', 'ring', 'cone', 'lathe', 'capsule', 'repeat', 'group', 'use'])
+const KINDS = new Set(['slab', 'puck', 'sphere', 'tube', 'ring', 'cone', 'lathe', 'capsule', 'repeat', 'torus', 'group', 'use'])
 const MOTIONS = new Set(['spin', 'bob', 'slide', 'pulse', 'orbit', 'path'])
 const TAU = Math.PI * 2
 const deg = (v: number) => (v * Math.PI) / 180
@@ -185,6 +186,12 @@ export function checkAst(root: IsoNode): string[] {
         shapes++
         break
       }
+      case 'torus':
+        num(where, 'r', n.r)
+        num(where, 't', n.t)
+        if (n.seg !== undefined) num(where, 'seg', n.seg, 3, 48)
+        shapes++
+        break
       case 'group': {
         if (!Array.isArray(n.children) || n.children.length === 0) out.push(`${where} : un groupe a au moins un enfant`)
         const s = new Set(sockets)
@@ -244,7 +251,9 @@ function leaves(root: IsoNode): Leaf[] {
           ? Math.max(n.r * 2, Math.hypot(n.to[0] - (n.at?.[0] ?? 0), n.to[1] - (n.at?.[1] ?? 0), n.to[2] - (n.at?.[2] ?? 0)))
           : n.kind === 'puck' || n.kind === 'cone'
             ? Math.max(n.r * 2, n.h)
-            : n.r * 2
+            : n.kind === 'torus'
+              ? (n.r + n.t) * 2
+              : n.r * 2
     out.push({ path: path || n.kind, node: n, depth, size: size * scale })
   }
   walk(root, root.name ?? '', 0, 1)
@@ -373,6 +382,9 @@ function drawTree(root: IsoNode, c: MechCtx, F: Frame, z0: number, sockets: Map<
         break
       case 'capsule':
         sub.capsule([0, 0, 0], n.r, n.h, o, c.seg(n.seg ?? 12), Math.max(4, c.seg(6)))
+        break
+      case 'torus':
+        sub.torus(n.r, n.t, c.seg(n.seg ?? 24), o)
         break
     }
   }
