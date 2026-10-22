@@ -1,4 +1,4 @@
-// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/iso.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@67d8d11c519b16c8bf0b61eaea3a67f1e6491a6a:src/three/iso/iso.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Moteur isométrique des machines de héros : des solides pleins (lofts, boîtes, cylindres, poutres, tubes) rendus en
@@ -60,6 +60,9 @@ export const S30 = 0.5
 
 /** Projection isométrique : monde → plan (unités, sans échelle ni origine). */
 export const proj = (p: Vec3): Vec2 => [(p[0] - p[1]) * C30, (p[0] + p[1]) * S30 - p[2]]
+
+/** Facteur de perspective (0 = isométrique) : raccourcit selon la profondeur isométrique s = x + y + z. */
+export const persp = (p: Vec3, focal: number): number => 1 / (1 + (p[0] + p[1] + p[2]) * focal)
 
 /** Inverse : un point du plan (unités) et une hauteur z → le point du sol correspondant. */
 export const unproj = (x: number, y: number, z = 0): Vec3 => {
@@ -344,6 +347,47 @@ export class Scene {
     }
   }
 
+  /** Surface de révolution : profil [r, z] (r ≥ 0) tourné autour de l'axe z, `n` méridiens, normales lissées. */
+  lathe(profile: Vec2[], n: number, o: FaceOpts): void {
+    const m = profile.length
+    if (m < 2 || n < 3) return
+    const P = (i: number, j: number): Vec3 => {
+      const th = (2 * Math.PI * i) / n
+      return [profile[j]![0]! * Math.cos(th), profile[j]![0]! * Math.sin(th), profile[j]![1]!]
+    }
+    const N = (i: number, j: number): Vec3 => {
+      const th = (2 * Math.PI * i) / n
+      const j0 = Math.max(0, j - 1)
+      const j1 = Math.min(m - 1, j + 1)
+      const dr = profile[j1]![0]! - profile[j0]![0]!
+      const dz = profile[j1]![1]! - profile[j0]![1]!
+      return norm([dz * Math.cos(th), dz * Math.sin(th), -dr])
+    }
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < m - 1; j++) {
+        this.face([P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)], o, [N(i, j), N(i + 1, j), N(i + 1, j + 1), N(i, j + 1)], 0b1111)
+      }
+    }
+    // Calottes si le profil s'appuie sur l'axe (r = 0).
+    if (profile[0]![0]! < 1e-4) {
+      const pts: Vec3[] = []
+      for (let i = n - 1; i >= 0; i--) pts.push(P(i, 0))
+      this.face(pts, o)
+    }
+    if (profile[m - 1]![0]! < 1e-4) {
+      const pts: Vec3[] = []
+      for (let i = 0; i < n; i++) pts.push(P(i, m - 1))
+      this.face(pts, o)
+    }
+  }
+
+  /** Capsule : cylindre de rayon r et hauteur h, coiffé de deux sphères (normales lissées). */
+  capsule(c: Vec3, r: number, h: number, o: FaceOpts, seg = 12, rings = 6): void {
+    this.sphere([c[0], c[1], c[2] + h / 2], r, o, seg, rings)
+    this.sphere([c[0], c[1], c[2] - h / 2], r, o, seg, rings)
+    this.loft(ngon(r, seg), ngon(r, seg), h, { ...o, pos: [c[0], c[1], c[2] - h / 2] })
+  }
+
   /** Faces triées du fond vers l'avant (tri stable sur la clé). */
   sorted(): Face[] {
     return [...this.faces].sort((a, b) => a.key - b.key)
@@ -437,6 +481,47 @@ export class Frame {
   sphere(c: Vec3, r: number, o: Omit<LocalOpts, 'at' | 'rot'>, seg = 14, rings = 8): void {
     const w = xf(this.rot, [c[0] * this.k, c[1] * this.k, c[2] * this.k], this.pos)
     this.s.sphere(w, r * this.k, { ...o }, seg, rings)
+  }
+
+  /** Surface de révolution locale : profil [r, z] tourné autour de l'axe z local (normales lissées). */
+  lathe(profile: Vec2[], n: number, o: Omit<LocalOpts, 'at' | 'rot'>): void {
+    const m = profile.length
+    if (m < 2 || n < 3) return
+    const k = this.k
+    const P = (i: number, j: number): Vec3 => {
+      const th = (2 * Math.PI * i) / n
+      return xf(this.rot, [profile[j]![0]! * Math.cos(th) * k, profile[j]![0]! * Math.sin(th) * k, profile[j]![1]! * k], this.pos)
+    }
+    const N = (i: number, j: number): Vec3 => {
+      const th = (2 * Math.PI * i) / n
+      const j0 = Math.max(0, j - 1)
+      const j1 = Math.min(m - 1, j + 1)
+      const dr = profile[j1]![0]! - profile[j0]![0]!
+      const dz = profile[j1]![1]! - profile[j0]![1]!
+      return norm(xf(this.rot, [dz * Math.cos(th), dz * Math.sin(th), -dr], [0, 0, 0]))
+    }
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < m - 1; j++) {
+        this.s.face([P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)], o, [N(i, j), N(i + 1, j), N(i + 1, j + 1), N(i, j + 1)], 0b1111)
+      }
+    }
+    if (profile[0]![0]! < 1e-4) {
+      const pts: Vec3[] = []
+      for (let i = n - 1; i >= 0; i--) pts.push(P(i, 0))
+      this.s.face(pts, o)
+    }
+    if (profile[m - 1]![0]! < 1e-4) {
+      const pts: Vec3[] = []
+      for (let i = 0; i < n; i++) pts.push(P(i, m - 1))
+      this.s.face(pts, o)
+    }
+  }
+
+  /** Capsule locale : cylindre + deux sphères. */
+  capsule(c: Vec3, r: number, h: number, o: Omit<LocalOpts, 'at' | 'rot'>, seg = 12, rings = 6): void {
+    this.sphere([c[0], c[1], c[2] + h / 2], r, o, seg, rings)
+    this.sphere([c[0], c[1], c[2] - h / 2], r, o, seg, rings)
+    this.loft(ngon(r, seg), ngon(r, seg), h, { ...o, at: [c[0], c[1], c[2] - h / 2] })
   }
 
   /** Dalle à arêtes chanfreinées : coin minimal (x, y, z), w × d × h, chanfrein b sur les arêtes verticales et du dessus. */

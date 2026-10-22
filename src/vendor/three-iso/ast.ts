@@ -1,4 +1,4 @@
-// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@67d8d11c519b16c8bf0b61eaea3a67f1e6491a6a:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * PROTOCOLE DE CONSTRUCTION : des objets et des mécaniques décrits comme des DONNÉES (un arbre JSON), compilés en
@@ -69,6 +69,8 @@ export type IsoNode =
   | (Base & { kind: 'tube'; to: V3; r: number })
   | (Base & { kind: 'ring'; r: number; w?: number; h?: number })
   | (Base & { kind: 'cone'; r: number; h: number; top?: number })
+  | (Base & { kind: 'lathe'; profile: readonly (readonly [number, number])[]; seg?: number })
+  | (Base & { kind: 'capsule'; r: number; h: number; seg?: number })
   | (Base & { kind: 'group'; children: readonly IsoNode[]; sockets?: Readonly<Record<string, V3>> })
   | (Base & { kind: 'use'; ref: string; attach?: string; scale?: number })
 
@@ -88,7 +90,7 @@ const MATS: Readonly<Record<Material, string>> = {
   copper: MAT.copper,
   dark: MAT.dark,
 }
-const KINDS = new Set(['slab', 'puck', 'sphere', 'tube', 'ring', 'cone', 'group', 'use'])
+const KINDS = new Set(['slab', 'puck', 'sphere', 'tube', 'ring', 'cone', 'lathe', 'capsule', 'group', 'use'])
 const MOTIONS = new Set(['spin', 'bob', 'slide', 'pulse', 'orbit', 'path'])
 const TAU = Math.PI * 2
 const deg = (v: number) => (v * Math.PI) / 180
@@ -158,6 +160,21 @@ export function checkAst(root: IsoNode): string[] {
       case 'cone':
         num(where, 'r', n.r)
         num(where, 'h', n.h)
+        shapes++
+        break
+      case 'lathe': {
+        if (!Array.isArray(n.profile) || n.profile.length < 2 || n.profile.length > 12) out.push(`${where} : lathe demande un profil de 2 à 12 points [r, z]`)
+        else n.profile.forEach((v, k) => {
+          if (!Array.isArray(v) || v.length !== 2 || typeof v[0] !== 'number' || typeof v[1] !== 'number' || v[0] < 0 || v[0] > 6 || v[1] < -6 || v[1] > 6) out.push(`${where} : profil[${k}] doit être [r, z] avec r ≥ 0 (bornes ±6)`)
+        })
+        if (n.seg !== undefined) num(where, 'seg', n.seg, 3, 48)
+        shapes++
+        break
+      }
+      case 'capsule':
+        num(where, 'r', n.r)
+        num(where, 'h', n.h)
+        if (n.seg !== undefined) num(where, 'seg', n.seg, 3, 48)
         shapes++
         break
       case 'group': {
@@ -333,6 +350,12 @@ function drawTree(root: IsoNode, c: MechCtx, F: Frame, z0: number, sockets: Map<
         sub.loft(ngon(n.r, s), ngon(Math.max(0.01, n.top ?? 0.01), s), n.h, { ...o, at: [0, 0, 0] })
         break
       }
+      case 'lathe':
+        sub.lathe(n.profile.map((p) => [p[0], p[1]] as const), c.seg(n.seg ?? 24), o)
+        break
+      case 'capsule':
+        sub.capsule([0, 0, 0], n.r, n.h, o, c.seg(n.seg ?? 12), Math.max(4, c.seg(6)))
+        break
     }
   }
   walk(root, root.name ?? '', F.sub([0, 0, z0], I3), sockets)

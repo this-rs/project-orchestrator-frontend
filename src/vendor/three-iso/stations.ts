@@ -1,4 +1,4 @@
-// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@67d8d11c519b16c8bf0b61eaea3a67f1e6491a6a:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Fabrique de MACHINES À POSTES : une disposition (`layouts.ts`), une voie tracée le long de ses tracés, une navette
@@ -56,6 +56,8 @@ export interface StationMachineDef {
   build?: BuildSpec | undefined
   /** Taille maximale des postes par disposition (défaut : 3 ; l'anneau et les ailes serrent le texte de plus près). */
   caps?: Partial<Record<LayoutKind, number>> | undefined
+  /** Perspective : 0 = isométrique (défaut) ; > 0 = force du raccourcissement en profondeur. */
+  focal?: number | undefined
 }
 
 export interface StationState {
@@ -342,6 +344,7 @@ export function makeStationMachine(def: StationMachineDef, kind: LayoutKind = de
     id: (kind === def.layout ? def.id : `${def.id}@${kind}`) + (sx !== 1 || sy !== 1 ? `~${sx}x${sy}` : ''),
     U,
     origin: ORIGIN,
+    focal: def.focal ?? 0,
     cycle: n * stepS,
     t0: 0.05,
     groups: R.groups,

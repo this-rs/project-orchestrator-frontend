@@ -1,4 +1,4 @@
-// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/machine.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@67d8d11c519b16c8bf0b61eaea3a67f1e6491a6a:src/three/iso/machine.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Une machine de héros : un registre de pièces nommées (groupées, avec un niveau de détail) et une fonction de
@@ -35,6 +35,8 @@ export interface MachineDef {
   U: number
   /** Origine : point du viewBox où tombe l'origine monde projetée. */
   origin: readonly [number, number]
+  /** Perspective : 0 = isométrique (défaut) ; > 0 = force du raccourcissement en profondeur (ex. 0,08). */
+  focal?: number
   /** Durée d'un cycle (s). */
   cycle: number
   /** Instant canonique (0 ≤ t0 < 1) : le SVG prérendu, reduced-motion et lowPower. */

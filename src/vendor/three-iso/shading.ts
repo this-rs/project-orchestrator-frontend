@@ -1,4 +1,4 @@
-// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/shading.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@67d8d11c519b16c8bf0b61eaea3a67f1e6491a6a:src/three/iso/shading.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Éclairage des machines, partagé : les constantes du rendu WebGL (`litRenderer.ts`) et sa formule, portée en JS pour
@@ -17,8 +17,24 @@ export const LIGHTS = {
   rim: [0.08, 0.09, 0.18] as Vec3,
 }
 
-/** Matières métalliques : reflet plus fort et teinté de leur couleur. */
-export const METAL: ReadonlySet<string> = new Set<string>([MAT.brass, MAT.brassL, MAT.copper, MAT.steelL, MAT.rail])
+/** Rugosité par matière (0 = poli, 1 = mat). */
+export const ROUGHNESS: Readonly<Record<string, number>> = {
+  [MAT.porcelain]: 0.85, [MAT.satin]: 0.7, [MAT.graphite]: 0.6,
+  [MAT.steel]: 0.55, [MAT.steelL]: 0.4, [MAT.brass]: 0.5, [MAT.brassL]: 0.42,
+  [MAT.copper]: 0.5, [MAT.rail]: 0.6, [MAT.iron]: 0.6, [MAT.plate]: 0.7,
+  [MAT.bevel]: 0.6, [MAT.wood]: 0.8, [MAT.ballast]: 0.7, [MAT.glass]: 0.2,
+  [MAT.ghost]: 0.5, [MAT.dark]: 0.6,
+}
+
+/** Métallicité par matière (0 = diélectrique, 1 = métal). */
+export const METALLIC: Readonly<Record<string, number>> = {
+  [MAT.brass]: 1, [MAT.brassL]: 1, [MAT.copper]: 1, [MAT.steelL]: 0.9,
+  [MAT.steel]: 0.8, [MAT.rail]: 0.8, [MAT.iron]: 0.7, [MAT.plate]: 0.5,
+  [MAT.bevel]: 0.4,
+}
+
+/** Gain du terme spéculaire Cook-Torrance (à ajuster au cadrage visuel). */
+export const SPEC_GAIN = 4
 
 /** Multiplicateur des faces émissives (lampes). */
 export const EMIT_GAIN = 2.6
@@ -41,10 +57,27 @@ const toHex = (c: Vec3) =>
 
 const V: Vec3 = [1 / Math.sqrt(3), 1 / Math.sqrt(3), 1 / Math.sqrt(3)]
 
+/** Bruit 3D (hash) : [0,1] déterministe — grain procédural des matières. */
+const grain3 = (x: number, y: number, z: number): number => {
+  const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453
+  return s - Math.floor(s)
+}
+
 /** Couleur sRGB d'une face éclairée comme au rendu WebGL (normale moyenne de la face, sans ombre portée). */
 export function litColor(f: Face): string {
-  const c = linearRgb(f.emit ?? f.col)
+  let c = linearRgb(f.emit ?? f.col)
   if (f.emit) return toHex([c[0] * EMIT_GAIN, c[1] * EMIT_GAIN, c[2] * EMIT_GAIN])
+  // Grain procédural (bruit 3D au centroïde de la face) : casse les aplats.
+  let gx = 0
+  let gy = 0
+  let gz = 0
+  for (const p of f.pts) {
+    gx += p[0]
+    gy += p[1]
+    gz += p[2]
+  }
+  const gr = 0.9 + 0.2 * grain3((gx / f.pts.length) * 2.5, (gy / f.pts.length) * 2.5, (gz / f.pts.length) * 2.5)
+  c = [c[0] * gr, c[1] * gr, c[2] * gr]
   let nx = 0
   let ny = 0
   let nz = 0
@@ -67,18 +100,37 @@ export function litColor(f: Face): string {
   const l = Math.hypot(nx, ny, nz) || 1
   let N: Vec3 = [nx / l, ny / l, nz / l]
   if (N[0] * V[0] + N[1] * V[1] + N[2] * V[2] < 0) N = [-N[0], -N[1], -N[2]]
-  const metal = METAL.has(f.col) ? 1 : 0
+  const metallic = METALLIC[f.col] ?? 0
+  const rough = ROUGHNESS[f.col] ?? 0.6
   const ndl = Math.max(0, N[0] * LIGHT[0] + N[1] * LIGHT[1] + N[2] * LIGHT[2])
+  const ndv = Math.max(0, N[0] * V[0] + N[1] * V[1] + N[2] * V[2])
   const t = N[2] * 0.5 + 0.5
   const H = [LIGHT[0] + V[0], LIGHT[1] + V[1], LIGHT[2] + V[2]]
   const hl = Math.hypot(H[0]!, H[1]!, H[2]!)
   const nh = Math.max(0, (N[0] * H[0]! + N[1] * H[1]! + N[2] * H[2]!) / hl)
-  const rim = Math.pow(1 - Math.max(0, N[0] * V[0] + N[1] * V[1] + N[2] * V[2]), 4)
+  const rim = Math.pow(1 - ndv, 4)
+  // Cook-Torrance GGX : distribution, Fresnel de Schlick, géométrie de Smith.
+  const a = rough * rough
+  const a2 = a * a
+  const d2 = nh * nh * (a2 - 1) + 1
+  const D = a2 / (Math.PI * d2 * d2)
+  const g1 = (x: number) => (2 * x) / (x + Math.sqrt(a2 + (1 - a2) * x * x))
+  const G = g1(ndl) * g1(ndv)
+  // Réflexion d'environnement (ciel procédural + tache du soleil), pour les métaux.
+  const R = [2 * ndv * N[0] - V[0], 2 * ndv * N[1] - V[1], 2 * ndv * N[2] - V[2]]
+  const et = R[2]! * 0.5 + 0.5
+  const es = Math.pow(Math.max(0, R[0]! * LIGHT[0] + R[1]! * LIGHT[1] + R[2]! * LIGHT[2]), 96)
+  const ENV_SKY = [0.02, 0.03, 0.05]
+  const ENV_ZEN = [0.35, 0.45, 0.65]
+  const ENV_SUN = [2.5, 2.3, 2.0]
   const out: number[] = []
   for (let k = 0; k < 3; k++) {
+    const F0 = 0.04 + (c[k]! - 0.04) * metallic
+    const F = F0 + (1 - F0) * Math.pow(1 - ndv, 5)
+    const spec = (SPEC_GAIN * D * F * G) / (4 * ndl * ndv + 1e-4)
     const hemi = LIGHTS.ground[k]! + (LIGHTS.sky[k]! - LIGHTS.ground[k]!) * t
-    const spec = metal ? c[k]! * Math.pow(nh, 90) * 2.4 + c[k]! * Math.pow(nh, 12) * 0.35 : Math.pow(nh, 36) * 0.12
-    out.push(c[k]! * (LIGHTS.key[k]! * ndl * (1 - 0.35 * metal) + hemi) + LIGHTS.key[k]! * spec + LIGHTS.rim[k]! * rim)
+    const env = ENV_SKY[k]! + (ENV_ZEN[k]! - ENV_SKY[k]!) * et + ENV_SUN[k]! * es
+    out.push(c[k]! * (LIGHTS.key[k]! * ndl * (1 - 0.35 * metallic) + hemi) + LIGHTS.key[k]! * spec + LIGHTS.rim[k]! * rim + env * metallic * (1 - rough) * 0.5)
   }
   return toHex(out as unknown as Vec3)
 }
