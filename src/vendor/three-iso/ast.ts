@@ -1,4 +1,4 @@
-// GENERATED from website@67d8d11c519b16c8bf0b61eaea3a67f1e6491a6a:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@426fd63fe793882ef8490df5cff1b9a4f75b2520:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * PROTOCOLE DE CONSTRUCTION : des objets et des mécaniques décrits comme des DONNÉES (un arbre JSON), compilés en
@@ -71,6 +71,7 @@ export type IsoNode =
   | (Base & { kind: 'cone'; r: number; h: number; top?: number })
   | (Base & { kind: 'lathe'; profile: readonly (readonly [number, number])[]; seg?: number })
   | (Base & { kind: 'capsule'; r: number; h: number; seg?: number })
+  | (Base & { kind: 'repeat'; shape: IsoNode; positions: readonly V3[] })
   | (Base & { kind: 'group'; children: readonly IsoNode[]; sockets?: Readonly<Record<string, V3>> })
   | (Base & { kind: 'use'; ref: string; attach?: string; scale?: number })
 
@@ -90,7 +91,7 @@ const MATS: Readonly<Record<Material, string>> = {
   copper: MAT.copper,
   dark: MAT.dark,
 }
-const KINDS = new Set(['slab', 'puck', 'sphere', 'tube', 'ring', 'cone', 'lathe', 'capsule', 'group', 'use'])
+const KINDS = new Set(['slab', 'puck', 'sphere', 'tube', 'ring', 'cone', 'lathe', 'capsule', 'repeat', 'group', 'use'])
 const MOTIONS = new Set(['spin', 'bob', 'slide', 'pulse', 'orbit', 'path'])
 const TAU = Math.PI * 2
 const deg = (v: number) => (v * Math.PI) / 180
@@ -177,6 +178,13 @@ export function checkAst(root: IsoNode): string[] {
         if (n.seg !== undefined) num(where, 'seg', n.seg, 3, 48)
         shapes++
         break
+      case 'repeat': {
+        if (!Array.isArray(n.positions) || n.positions.length < 1 || n.positions.length > 128) out.push(`${where} : repeat demande de 1 à 128 positions`)
+        else (n.positions as readonly unknown[]).forEach((p, k) => vec(where, `positions[${k}]`, p))
+        walk(n.shape, `${where}>shape`, depth + 1, sockets)
+        shapes++
+        break
+      }
       case 'group': {
         if (!Array.isArray(n.children) || n.children.length === 0) out.push(`${where} : un groupe a au moins un enfant`)
         const s = new Set(sockets)
@@ -223,6 +231,10 @@ function leaves(root: IsoNode): Leaf[] {
     }
     if (n.kind === 'use') {
       walk(CATALOG.get(n.ref)!, `${path}>${n.ref}`, depth + 1, scale * (n.scale ?? 1))
+      return
+    }
+    if (n.kind === 'repeat') {
+      walk(n.shape, `${path}>shape`, depth + 1, scale)
       return
     }
     const size =
@@ -318,6 +330,12 @@ function drawTree(root: IsoNode, c: MechCtx, F: Frame, z0: number, sockets: Map<
       const k = n.scale ?? 1
       const scaled = k === 1 ? sub : sub.scaled(k)
       walk(obj, `${path}>${n.ref}`, scaled, new Map())
+      return
+    }
+    if (n.kind === 'repeat') {
+      for (const p of n.positions) {
+        walk(n.shape, `${path}>shape`, sub.sub([p[0], p[1], p[2]], I3), socks)
+      }
       return
     }
     const part = c.id(path || n.kind)
