@@ -1,4 +1,4 @@
-// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/scene.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@e049ffb8034c92a5bf6e6f782286e8777a5893f6:src/three/iso/scene.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * API SÛRE pour décrire une scène isométrique (en-tête ou bloc de page) : `defineScene`.
@@ -58,6 +58,8 @@ export interface SceneSpec {
   /** Chorégraphie de l'apparition : `mode` (`parallel` | `sequential` | `waves`), `agents` (escouades), `squad`
    * (agents par escouade), `durationMs`. Avec les `after` des postes, elle dit QUI construit QUOI, QUAND. */
   build?: BuildSpec | undefined
+  /** Perspective : 0 = isométrique (défaut) ; > 0 = force du raccourcissement en profondeur (borné à 0,25). */
+  focal?: number | undefined
 }
 
 export interface Scene {
@@ -114,6 +116,7 @@ function checkSpec(spec: SceneSpec): string[] {
     out.push('angles : seulement pour l’anneau, un par poste')
   if (spec.home !== undefined && (spec.home < 0 || spec.home >= spec.stations.length)) out.push(`home ${spec.home} : hors des postes`)
   if (spec.stepSeconds !== undefined && (spec.stepSeconds < 0.6 || spec.stepSeconds > 10)) out.push(`stepSeconds ${spec.stepSeconds} : de 0,6 à 10 s`)
+  if (spec.focal !== undefined && (spec.focal < 0 || spec.focal > 0.25)) out.push(`focal ${spec.focal} : de 0 à 0,25`)
   // Chorégraphie : dépendances valides et sans cycle, réglages dans leurs plages.
   spec.stations.forEach((st, i) => {
     for (const d of st.after ?? []) {
@@ -163,6 +166,7 @@ export function stationDefOf(spec: SceneSpec): StationMachineDef {
     degs: spec.angles,
     home: spec.home,
     stepS: spec.stepSeconds,
+    focal: spec.focal,
     deps: spec.stations.map((s) => s.after ?? []),
     build: spec.build,
   }

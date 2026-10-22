@@ -1,4 +1,4 @@
-// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/iso.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@e049ffb8034c92a5bf6e6f782286e8777a5893f6:src/three/iso/iso.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Moteur isométrique des machines de héros : des solides pleins (lofts, boîtes, cylindres, poutres, tubes) rendus en
@@ -60,6 +60,9 @@ export const S30 = 0.5
 
 /** Projection isométrique : monde → plan (unités, sans échelle ni origine). */
 export const proj = (p: Vec3): Vec2 => [(p[0] - p[1]) * C30, (p[0] + p[1]) * S30 - p[2]]
+
+/** Facteur de perspective (0 = isométrique) : raccourcit selon la profondeur isométrique s = x + y + z. */
+export const persp = (p: Vec3, focal: number): number => 1 / (1 + (p[0] + p[1] + p[2]) * focal)
 
 /** Inverse : un point du plan (unités) et une hauteur z → le point du sol correspondant. */
 export const unproj = (x: number, y: number, z = 0): Vec3 => {

@@ -1,4 +1,4 @@
-// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/fit.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@e049ffb8034c92a5bf6e6f782286e8777a5893f6:src/three/iso/fit.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Cadrage des machines de héros : la boîte de tout ce que la machine dessine pendant un cycle (en pixels du viewBox

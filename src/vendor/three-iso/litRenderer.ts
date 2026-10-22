@@ -1,4 +1,4 @@
-// GENERATED from website@185eab267e4d5376df1cabbb8309fe7e53a4206b:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@e049ffb8034c92a5bf6e6f782286e8777a5893f6:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Rendu WebGL 2 des machines isométriques : la MÊME géométrie que le SVG prérendu (`machine.build`), mais éclairée
@@ -47,12 +47,13 @@ function linear(hex: string): Vec3 {
 
 const MAIN_VS = `#version 300 es
 in vec3 aPos; in vec3 aNor; in vec3 aCol; in vec3 aMat; in vec3 aEdge;
-uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform mat4 uLight; uniform vec4 uWin;
+uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform mat4 uLight; uniform vec4 uWin; uniform float uFocal;
 out vec3 vN; out vec3 vCol; out vec3 vMat; out vec3 vL; out vec3 vEdge;
 void main() {
   vec2 q = vec2((aPos.x - aPos.y) * ${C30.toFixed(7)}, (aPos.x + aPos.y) * 0.5 - aPos.z);
-  vec2 v = uOrigin + q * uU;
   float s = aPos.x + aPos.y + aPos.z;
+  float k = 1.0 / (1.0 + s * uFocal);
+  vec2 v = uOrigin + q * uU * k;
   float z = 1.0 - 2.0 * (s - uDepth.x) / (uDepth.y - uDepth.x);
   gl_Position = vec4((v.x - uWin.x) / uWin.z * 2.0 - 1.0, 1.0 - (v.y - uWin.y) / uWin.w * 2.0, z * 0.98, 1.0);
   vN = aNor; vCol = aCol; vMat = aMat; vEdge = aEdge;
@@ -117,12 +118,13 @@ precision mediump float; out vec4 o; void main() { o = vec4(1.0); }`
 
 const GLOW_VS = `#version 300 es
 in vec3 aPos; in vec3 aCol; in float aSize;
-uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform float uPx; uniform vec4 uWin;
+uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform float uPx; uniform vec4 uWin; uniform float uFocal;
 out vec3 vCol;
 void main() {
   vec2 q = vec2((aPos.x - aPos.y) * ${C30.toFixed(7)}, (aPos.x + aPos.y) * 0.5 - aPos.z);
-  vec2 v = uOrigin + q * uU;
   float s = aPos.x + aPos.y + aPos.z;
+  float k = 1.0 / (1.0 + s * uFocal);
+  vec2 v = uOrigin + q * uU * k;
   float z = 1.0 - 2.0 * (s - uDepth.x) / (uDepth.y - uDepth.x);
   gl_Position = vec4((v.x - uWin.x) / uWin.z * 2.0 - 1.0, 1.0 - (v.y - uWin.y) / uWin.w * 2.0, z * 0.98 - 0.002, 1.0);
   gl_PointSize = aSize * uPx;
@@ -141,12 +143,13 @@ void main() {
 
 const LINE_VS = `#version 300 es
 in vec3 aPos; in vec4 aCol;
-uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform vec4 uWin;
+uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform vec4 uWin; uniform float uFocal;
 out vec4 vCol;
 void main() {
   vec2 q = vec2((aPos.x - aPos.y) * ${C30.toFixed(7)}, (aPos.x + aPos.y) * 0.5 - aPos.z);
-  vec2 v = uOrigin + q * uU;
   float s = aPos.x + aPos.y + aPos.z;
+  float k = 1.0 / (1.0 + s * uFocal);
+  vec2 v = uOrigin + q * uU * k;
   float z = 1.0 - 2.0 * (s - uDepth.x) / (uDepth.y - uDepth.x);
   gl_Position = vec4((v.x - uWin.x) / uWin.z * 2.0 - 1.0, 1.0 - (v.y - uWin.y) / uWin.w * 2.0, z * 0.98 - 0.001, 1.0);
   vCol = aCol;
@@ -476,6 +479,7 @@ export class IsoRenderer {
     gl.uniform1f(U('uU'), machine.U)
     gl.uniform4f(U('uWin'), win.x, win.y, win.w, win.h)
     gl.uniform2f(U('uDepth'), geo.sMin - 1, geo.sMax + 1)
+    gl.uniform1f(U('uFocal'), machine.focal ?? 0)
     gl.uniformMatrix4fv(U('uLight'), false, light)
     gl.uniform3f(U('uLightDir'), LIGHT[0], LIGHT[1], LIGHT[2])
     gl.uniform3f(U('uBg'), bg[0], bg[1], bg[2])
@@ -522,6 +526,7 @@ export class IsoRenderer {
       gl.uniform2f(L('uOrigin'), machine.origin[0], machine.origin[1])
       gl.uniform1f(L('uU'), machine.U)
       gl.uniform2f(L('uDepth'), geo.sMin - 1, geo.sMax + 1)
+      gl.uniform1f(L('uFocal'), machine.focal ?? 0)
       gl.uniform4f(L('uWin'), win.x, win.y, win.w, win.h)
       gl.bindBuffer(gl.ARRAY_BUFFER, this.lbo)
       gl.bufferData(gl.ARRAY_BUFFER, this.lines, gl.STREAM_DRAW)
@@ -550,6 +555,7 @@ export class IsoRenderer {
       gl.uniform2f(G('uOrigin'), machine.origin[0], machine.origin[1])
       gl.uniform1f(G('uU'), machine.U)
       gl.uniform2f(G('uDepth'), geo.sMin - 1, geo.sMax + 1)
+      gl.uniform1f(G('uFocal'), machine.focal ?? 0)
       gl.uniform1f(G('uPx'), canvas.width / win.w)
       gl.uniform4f(G('uWin'), win.x, win.y, win.w, win.h)
       gl.bindBuffer(gl.ARRAY_BUFFER, this.gbo)
@@ -590,8 +596,9 @@ export class IsoRenderer {
     const C = Math.cos(Math.PI / 6)
     const m = this.machine
     return hs.at.map((p) => {
-      const vx = m.origin[0] + (p[0] - p[1]) * C * m.U
-      const vy = m.origin[1] + ((p[0] + p[1]) * 0.5 - p[2]) * m.U
+      const k = 1 / (1 + (p[0] + p[1] + p[2]) * (m.focal ?? 0))
+      const vx = m.origin[0] + (p[0] - p[1]) * C * m.U * k
+      const vy = m.origin[1] + ((p[0] + p[1]) * 0.5 - p[2]) * m.U * k
       return { x: (vx - win.x) * kx, y: (vy - win.y) * ky, r: hs.radius * m.U * C * kx }
     })
   }
