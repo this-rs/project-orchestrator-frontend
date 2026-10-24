@@ -54,6 +54,7 @@ export default {
     accountFor: "Menu da conta de {name}",
     account: "Conta",
     vault: "Cofre",
+    apiTokens: "API Tokens",
     providers: "Provedores",
     settings: "Configurações",
     signOut: "Sair",

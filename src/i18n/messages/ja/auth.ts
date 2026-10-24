@@ -54,6 +54,7 @@ export default {
     accountFor: "{name} のアカウントメニュー",
     account: "アカウント",
     vault: "ボールト",
+    apiTokens: "API Tokens",
     providers: "プロバイダー",
     settings: "設定",
     signOut: "サインアウト",

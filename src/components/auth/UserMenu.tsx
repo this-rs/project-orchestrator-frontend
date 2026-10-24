@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { Cpu, KeyRound, LogOut, Settings } from 'lucide-react'
+import { Cpu, Key, KeyRound, LogOut, Settings } from 'lucide-react'
 import { authModeAtom, currentUserAtom } from '@/atoms'
 import { clearChatDraftsAtom } from '@/atoms/chat'
 import { trayNavigationAtom } from '@/atoms/setup'
@@ -156,6 +156,18 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
           >
             <KeyRound className="h-4 w-4 text-gray-500" aria-hidden="true" />
             {t('auth.menu.vault')}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false)
+              navigate('/api-tokens')
+            }}
+            className={menuItemClass()}
+          >
+            <Key className="h-4 w-4 text-gray-500" aria-hidden="true" />
+            {t('auth.menu.apiTokens')}
           </button>
           <button
             type="button"

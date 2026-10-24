@@ -54,6 +54,7 @@ export default {
     accountFor: "Menu tài khoản của {name}",
     account: "Tài khoản",
     vault: "Kho khóa",
+    apiTokens: "API Tokens",
     providers: "Nhà cung cấp",
     settings: "Cài đặt",
     signOut: "Đăng xuất",

@@ -54,6 +54,7 @@ export default {
     accountFor: "Меню учётной записи {name}",
     account: "Учётная запись",
     vault: "Хранилище",
+    apiTokens: "API Tokens",
     providers: "Провайдеры",
     settings: "Настройки",
     signOut: "Выйти",

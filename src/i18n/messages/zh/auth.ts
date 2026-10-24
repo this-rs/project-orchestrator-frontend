@@ -54,6 +54,7 @@ export default {
     accountFor: "{name} 的账户菜单",
     account: "账户",
     vault: "保险库",
+    apiTokens: "API Tokens",
     providers: "提供方",
     settings: "设置",
     signOut: "退出登录",

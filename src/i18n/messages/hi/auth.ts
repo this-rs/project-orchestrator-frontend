@@ -54,6 +54,7 @@ export default {
     accountFor: "{name} के लिए खाता मेनू",
     account: "खाता",
     vault: "वॉल्ट",
+    apiTokens: "API Tokens",
     providers: "प्रदाता",
     settings: "सेटिंग्स",
     signOut: "साइन आउट करें",

@@ -59,6 +59,7 @@ import {
   NotFoundPage,
   SettingsPage,
   VaultPage,
+  ApiTokensPage,
   ProvidersPage,
   SetupWizard,
 } from '@/pages'
@@ -192,6 +193,9 @@ function App() {
 
                     {/* Secrets vault (no sidebar, reachable from the user menu and chat cards) */}
                     <Route path="/vault" element={<VaultPage />} />
+
+                    {/* API tokens for programmatic access (no sidebar, from user menu) */}
+                    <Route path="/api-tokens" element={<ApiTokensPage />} />
 
                     {/* Agent providers: instances, project consent, roles, model policy (web and desktop) */}
                     <Route path="/providers" element={<ProvidersPage />} />
