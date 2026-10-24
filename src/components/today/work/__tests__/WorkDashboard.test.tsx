@@ -313,6 +313,38 @@ describe('WorkDashboard', () => {
     await waitFor(() => expect(tasksUpdate).toHaveBeenCalledWith('two', { status: 'in_progress' }))
   })
 
+  it('tucks a task completed today under its own collapsed "Done today" section, apart from what is still to do', async () => {
+    localStorage.setItem(DAY_PLAN_KEY, JSON.stringify({ date: 'x', ids: ['p', 'd'] }))
+    seed({ plans: [plan('a', 1)], pending: [listed(task('p', 'pending'), 'a')] })
+    const done = task('d', 'completed', { completed_at: new Date().toISOString() })
+    tasksGet.mockImplementation(async (id: string) => (id === 'd' ? done : null))
+    renderDash()
+    await screen.findByText('Tâche p')
+    // The day tab counts what is left; the day's progress says what is done; the done task is out of sight.
+    expect(tab(WORK_TEXT.day).textContent).toBe(`${WORK_TEXT.day} 1`)
+    expect(screen.getByTestId('day-progress').textContent).toContain(WORK_TEXT.dayProgress(1, 2))
+    expect(screen.queryByText('Tâche d')).toBeNull()
+    const toggle = screen.getByRole('button', { name: new RegExp(`^${WORK_TEXT.doneToday}`) })
+    expect(toggle.textContent).toContain('1')
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    // Expanding it reveals the done task, without disturbing what is still to do.
+    fireEvent.click(toggle)
+    expect(await screen.findByText('Tâche d')).toBeTruthy()
+    expect(screen.getByText('Tâche p')).toBeTruthy()
+  })
+
+  it('says the day is done when every planned task is, instead of "nothing planned"', async () => {
+    localStorage.setItem(DAY_PLAN_KEY, JSON.stringify({ date: 'x', ids: ['d'] }))
+    seed({ plans: [plan('a', 1)] })
+    tasksGet.mockImplementation(async (id: string) => (id === 'd' ? task('d', 'completed', { completed_at: new Date().toISOString() }) : null))
+    renderDash()
+    expect(await screen.findByText(WORK_TEXT.dayAllDone)).toBeTruthy()
+    expect(panel().getAttribute('data-tab')).toBe('day')
+    expect(screen.queryByText(WORK_TEXT.dayEmpty)).toBeNull()
+    expect(tab(WORK_TEXT.day).textContent).toBe(`${WORK_TEXT.day} 0`)
+    expect(screen.getByRole('button', { name: new RegExp(`^${WORK_TEXT.doneToday}`) })).toBeTruthy()
+  })
+
   it('marks a planned task done from its check, and reports a failed action', async () => {
     localStorage.setItem(DAY_PLAN_KEY, JSON.stringify({ date: 'x', ids: ['one'] }))
     seed({ plans: [plan('a', 1)], pending: [listed(task('one', 'pending'), 'a')] })

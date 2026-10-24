@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { useAtomValue } from 'jotai'
-import { ArrowDown, ArrowUp, CalendarPlus, Check, Circle, FolderGit2, Play, RotateCcw, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, CalendarPlus, Check, Circle, CircleDot, FolderGit2, Play, RotateCcw, X } from 'lucide-react'
 import { projectsAtom } from '@/atoms'
 import {
   Button,
@@ -10,6 +10,7 @@ import {
   ErrorState,
   Fact,
   ProgressLine,
+  Section,
   Skeleton,
   StatusDot,
   StatusText,
@@ -175,8 +176,11 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
       muted={row.muted}
       trailing={
         <span className="flex items-center gap-3">
+          {/* Wide only: on a phone the leading icon already says the state, and the title needs the room. */}
           {row.state && t.task.status !== 'pending' && (
-            <StatusText kind="task" status={t.task.status} label={WORK_TEXT.taskStatus[t.task.status] ?? t.task.status} />
+            <span className="hidden @xl/tasks:inline-flex">
+              <StatusText kind="task" status={t.task.status} label={WORK_TEXT.taskStatus[t.task.status] ?? t.task.status} />
+            </span>
           )}
           {t.planTitle && (
             <span title={t.planTitle} className="hidden max-w-[14rem] truncate @2xl/tasks:inline">
@@ -190,6 +194,8 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
     />
   )
 
+  // Done-today items leave the active list for their own section below: a finished task
+  // does not sit among what is still to do, but it stays on the day until removed.
   const dayRows = data.day.map(({ item, done }, i) =>
     taskRow(item, {
       muted: done,
@@ -204,7 +210,13 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
           disabled={done || busy.has(item.task.id)}
           onClick={() => void setTaskStatus(item, 'completed')}
         >
-          {done ? <Check className="h-4 w-4 text-emerald-400" aria-hidden="true" /> : <Circle className="h-4 w-4" aria-hidden="true" />}
+          {done ? (
+            <Check className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+          ) : item.task.status === 'in_progress' ? (
+            <CircleDot className="h-4 w-4 text-indigo-400" aria-hidden="true" />
+          ) : (
+            <Circle className="h-4 w-4" aria-hidden="true" />
+          )}
         </button>
       ),
       primary:
@@ -214,14 +226,18 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
             {WORK_TEXT.start}
           </Button>
         ) : undefined,
-      menu: [
-        { ...startAction(item), hidden: done || item.task.status !== 'pending' || item.task.id === nextOfDay },
-        { label: WORK_TEXT.moveUp, icon: ArrowUp, disabled: i === 0, onClick: () => edit((p) => moveInDay(p, item.task.id, -1)) },
-        { label: WORK_TEXT.moveDown, icon: ArrowDown, disabled: i === data.day.length - 1, onClick: () => edit((p) => moveInDay(p, item.task.id, 1)) },
-        { label: WORK_TEXT.removeFromDay, icon: X, onClick: () => edit((p) => removeFromDay(p, item.task.id)) },
-      ],
+      menu: done
+        ? [{ label: WORK_TEXT.removeFromDay, icon: X, onClick: () => edit((p) => removeFromDay(p, item.task.id)) }]
+        : [
+            { ...startAction(item), hidden: item.task.status !== 'pending' || item.task.id === nextOfDay },
+            { label: WORK_TEXT.moveUp, icon: ArrowUp, disabled: i === 0, onClick: () => edit((p) => moveInDay(p, item.task.id, -1)) },
+            { label: WORK_TEXT.moveDown, icon: ArrowDown, disabled: i === data.day.length - 1, onClick: () => edit((p) => moveInDay(p, item.task.id, 1)) },
+            { label: WORK_TEXT.removeFromDay, icon: X, onClick: () => edit((p) => removeFromDay(p, item.task.id)) },
+          ],
     }),
   )
+  const pendingDayRows = dayRows.filter((_, i) => !data.day[i].done)
+  const doneTodayRows = dayRows.filter((_, i) => data.day[i].done)
 
   const inProgressRows = inProgress.map((t) =>
     taskRow(t, {
@@ -249,10 +265,15 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
 
   const panels: Record<WorkTab, { rows: ReactNode[]; empty: ReactNode }> = {
     day: {
-      rows: dayRows,
-      empty: (
-        <EmptyState size="sm" icon={<CalendarPlus className="h-5 w-5" aria-hidden="true" />} title={WORK_TEXT.dayEmpty} description={WORK_TEXT.dayEmptyHint} />
-      ),
+      rows: pendingDayRows,
+      // Nothing left to do today: say so, unless it is only because everything planned is already done
+      // (the "Done today" section below says that instead — this empty state never doubles up with it).
+      empty:
+        doneTodayRows.length === 0 ? (
+          <EmptyState size="sm" icon={<CalendarPlus className="h-5 w-5" aria-hidden="true" />} title={WORK_TEXT.dayEmpty} description={WORK_TEXT.dayEmptyHint} />
+        ) : (
+          <EmptyState size="sm" icon={<Check className="h-5 w-5 text-emerald-400" aria-hidden="true" />} title={WORK_TEXT.dayAllDone} description={WORK_TEXT.dayAllDoneHint} />
+        ),
     },
     inProgress: { rows: inProgressRows, empty: <p className="px-4 py-3 text-sm text-gray-400">{WORK_TEXT.inProgressEmpty}</p> },
     next: { rows: nextRows, empty: <p className="px-4 py-3 text-sm text-gray-400">{WORK_TEXT.nextEmpty}</p> },
@@ -266,7 +287,8 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
   // Tabs with nothing to show and nothing to say are left out (blocked, plans to launch).
   const tabs: ViewTab<WorkTab>[] = (
     [
-      { id: 'day', label: WORK_TEXT.day, count: data.day.length },
+      // What is left to do: a task finished today no longer counts (it waits under « Done today »).
+      { id: 'day', label: WORK_TEXT.day, count: pendingDayRows.length },
       { id: 'inProgress', label: WORK_TEXT.inProgress, count: inProgress.length },
       { id: 'next', label: WORK_TEXT.next, count: next.length },
       { id: 'blocked', label: WORK_TEXT.blocked, count: data.blocked.length },
@@ -296,6 +318,17 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
       </div>
 
       <div role="tabpanel" aria-label={tabs.find((t) => t.id === active)?.label} data-tab={active}>
+        {/* How far the day has come: shown once something is done, so the finished tasks count without filling the list. */}
+        {active === 'day' && doneTodayRows.length > 0 && (
+          <div data-testid="day-progress" className="mb-2 flex items-center gap-3 text-xs text-gray-400">
+            <ProgressLine
+              value={(doneTodayRows.length / data.day.length) * 100}
+              label={WORK_TEXT.dayProgress(doneTodayRows.length, data.day.length)}
+              className="max-w-[12rem] flex-1"
+            />
+            <span className="tabular-nums">{WORK_TEXT.dayProgress(doneTodayRows.length, data.day.length)}</span>
+          </div>
+        )}
         {panel.rows.length === 0 ? (
           <div>{panel.empty}</div>
         ) : (
@@ -321,6 +354,13 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
               </li>
             )}
           </EntityList>
+        )}
+        {active === 'day' && doneTodayRows.length > 0 && (
+          <Section title={WORK_TEXT.doneToday} count={doneTodayRows.length} collapsible defaultOpen={false} className="mt-3">
+            <EntityList variant="flush" className="-mx-3 md:-mx-4">
+              {doneTodayRows}
+            </EntityList>
+          </Section>
         )}
       </div>
     </div>
