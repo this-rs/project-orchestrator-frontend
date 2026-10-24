@@ -16,12 +16,18 @@ const getNextTask = vi.fn()
 const tasksList = vi.fn()
 const tasksGet = vi.fn()
 const tasksUpdate = vi.fn()
+const tasksBlockers = vi.fn()
 const batch = vi.fn()
 const listAllRuns = vi.fn()
 const startRun = vi.fn()
 vi.mock('@/services/plans', () => ({ plansApi: { list: (...a: unknown[]) => plansList(...a), getNextTask: (...a: unknown[]) => getNextTask(...a) } }))
 vi.mock('@/services/tasks', () => ({
-  tasksApi: { list: (...a: unknown[]) => tasksList(...a), get: (...a: unknown[]) => tasksGet(...a), update: (...a: unknown[]) => tasksUpdate(...a) },
+  tasksApi: {
+    list: (...a: unknown[]) => tasksList(...a),
+    get: (...a: unknown[]) => tasksGet(...a),
+    update: (...a: unknown[]) => tasksUpdate(...a),
+    getBlockers: (...a: unknown[]) => tasksBlockers(...a),
+  },
 }))
 vi.mock('@/services/progress', () => ({ progressApi: { batch: (...a: unknown[]) => batch(...a) } }))
 vi.mock('@/services/runner', async () => {
@@ -75,6 +81,7 @@ function seed(w: World = {}) {
   listAllRuns.mockResolvedValue(w.runs ?? [])
   batch.mockResolvedValue(w.counts ?? {})
   tasksGet.mockResolvedValue(null)
+  tasksBlockers.mockResolvedValue({ items: [] })
   tasksUpdate.mockResolvedValue({})
   startRun.mockResolvedValue({})
   providersList.mockResolvedValue(ONE)
@@ -313,6 +320,38 @@ describe('WorkDashboard', () => {
     await waitFor(() => expect(tasksUpdate).toHaveBeenCalledWith('two', { status: 'in_progress' }))
   })
 
+  it('tucks a task completed today under its own collapsed "Done today" section, apart from what is still to do', async () => {
+    localStorage.setItem(DAY_PLAN_KEY, JSON.stringify({ date: 'x', ids: ['p', 'd'] }))
+    seed({ plans: [plan('a', 1)], pending: [listed(task('p', 'pending'), 'a')] })
+    const done = task('d', 'completed', { completed_at: new Date().toISOString() })
+    tasksGet.mockImplementation(async (id: string) => (id === 'd' ? done : null))
+    renderDash()
+    await screen.findByText('Tâche p')
+    // The day tab counts what is left; the day's progress says what is done; the done task is out of sight.
+    expect(tab(WORK_TEXT.day).textContent).toBe(`${WORK_TEXT.day} 1`)
+    expect(screen.getByTestId('day-progress').textContent).toContain(WORK_TEXT.dayProgress(1, 2))
+    expect(screen.queryByText('Tâche d')).toBeNull()
+    const toggle = screen.getByRole('button', { name: new RegExp(`^${WORK_TEXT.doneToday}`) })
+    expect(toggle.textContent).toContain('1')
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    // Expanding it reveals the done task, without disturbing what is still to do.
+    fireEvent.click(toggle)
+    expect(await screen.findByText('Tâche d')).toBeTruthy()
+    expect(screen.getByText('Tâche p')).toBeTruthy()
+  })
+
+  it('says the day is done when every planned task is, instead of "nothing planned"', async () => {
+    localStorage.setItem(DAY_PLAN_KEY, JSON.stringify({ date: 'x', ids: ['d'] }))
+    seed({ plans: [plan('a', 1)] })
+    tasksGet.mockImplementation(async (id: string) => (id === 'd' ? task('d', 'completed', { completed_at: new Date().toISOString() }) : null))
+    renderDash()
+    expect(await screen.findByText(WORK_TEXT.dayAllDone)).toBeTruthy()
+    expect(panel().getAttribute('data-tab')).toBe('day')
+    expect(screen.queryByText(WORK_TEXT.dayEmpty)).toBeNull()
+    expect(tab(WORK_TEXT.day).textContent).toBe(`${WORK_TEXT.day} 0`)
+    expect(screen.getByRole('button', { name: new RegExp(`^${WORK_TEXT.doneToday}`) })).toBeTruthy()
+  })
+
   it('marks a planned task done from its check, and reports a failed action', async () => {
     localStorage.setItem(DAY_PLAN_KEY, JSON.stringify({ date: 'x', ids: ['one'] }))
     seed({ plans: [plan('a', 1)], pending: [listed(task('one', 'pending'), 'a')] })
@@ -375,14 +414,39 @@ describe('WorkDashboard', () => {
     for (const l of limits) expect(l).toBeLessThanOrEqual(100)
   })
 
-  it('lists blocked tasks', async () => {
-    seed({ plans: [plan('a', 1)], blocked: [listed(task('bl', 'blocked'), 'a')] })
+  it('lists blocked tasks and says what each one waits on', async () => {
+    seed({ plans: [plan('a', 1)], blocked: [listed(task('bl', 'blocked'), 'a'), listed(task('b2', 'blocked'), 'a')] })
+    tasksBlockers.mockImplementation(async (id: string) =>
+      id === 'bl' ? { items: [task('dep1', 'in_progress'), task('dep2', 'completed')] } : { items: [] },
+    )
     renderDash()
     await screen.findByTestId('work-dashboard')
-    expect(tab(WORK_TEXT.blocked).textContent).toBe(`${WORK_TEXT.blocked} 1`)
+    expect(tab(WORK_TEXT.blocked).textContent).toBe(`${WORK_TEXT.blocked} 2`)
     openTab(WORK_TEXT.blocked)
     expect(panel().getAttribute('data-tab')).toBe('blocked')
-    expect(screen.getByText('Tâche bl')).toBeTruthy()
+    // One call per blocked task, no more.
+    expect(tasksBlockers).toHaveBeenCalledTimes(2)
+    const row = screen.getByText('Tâche bl').closest('li')!
+    expect(row.textContent).toContain(WORK_TEXT.blockedBy)
+    expect(row.textContent).toContain('Tâche dep1')
+    // A blocker already done is struck through: it no longer holds the task.
+    expect(within(row).getByText('Tâche dep2').className).toContain('line-through')
+    // Nothing recorded: the row says so instead of a bare "Blocked".
+    expect(screen.getByText('Tâche b2').closest('li')!.textContent).toContain(WORK_TEXT.blockedByUnknown)
+  })
+
+  it('leaves a task a running plan works on out of "In progress", and says how many it left out', async () => {
+    seed({
+      plans: [plan('run', 2), plan('idle', 1)],
+      inProgress: [listed(task('byPlan', 'in_progress'), 'run'), listed(task('mine', 'in_progress'), 'idle')],
+      runs: [{ run_id: '1', plan_id: 'run', status: 'running', started_at: '2026-10-02T09:00:00Z' }],
+    })
+    renderDash(['acme'], new Set(['run']))
+    await screen.findByTestId('work-dashboard')
+    expect(tab(WORK_TEXT.inProgress).textContent).toBe(`${WORK_TEXT.inProgress} 1`)
+    expect(screen.getByText('Tâche mine')).toBeTruthy()
+    expect(screen.queryByText('Tâche byPlan')).toBeNull()
+    expect(screen.getByText(WORK_TEXT.inProgressByPlans(1))).toBeTruthy()
   })
 
   it('cuts a long list: the first rows, then "Afficher les N", which toggles to "Réduire"', async () => {

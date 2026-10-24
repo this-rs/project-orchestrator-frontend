@@ -13,6 +13,8 @@ const POLL_MS = 30_000
 
 /** The API rejects any `limit` above 100 ("limit cannot exceed 100"): ask for at most that. */
 export const API_MAX_LIMIT = 100
+/** Blocked tasks whose blockers are fetched (one call each): the rows on screen, not the whole backlog. */
+export const BLOCKERS_FETCHED = 12
 
 type Raw = Omit<DashboardInput, 'dayIds' | 'projects' | 'now'>
 
@@ -81,15 +83,24 @@ export function useWorkDashboard(workspaces: string[], dayIds: string[]): WorkDa
       const pending: TaskWithPlan[] = dedupe(slices.flatMap((s) => s.pending))
       const runs: PlanRun[] = slices.flatMap((s) => s.runs)
 
-      const [counts, nexts] = await Promise.all([
+      const [counts, nexts, blockerPairs] = await Promise.all([
         plans.length
           ? progressApi.batch('plan', plans.slice(0, 200).map((p) => p.id)).catch((): Record<string, TaskCounts> => ({}))
           : Promise.resolve({} as Record<string, TaskCounts>),
         Promise.all(
           plans.map(async (p) => [p.id, await plansApi.getNextTask(p.id).catch((): Task | null => null)] as const),
         ),
+        // Why each blocked task waits: the row says it, instead of a bare "Blocked".
+        Promise.all(
+          [...blocked]
+            .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
+            .slice(0, BLOCKERS_FETCHED)
+            .map(async (t) => [t.id, (await tasksApi.getBlockers(t.id).catch(() => null))?.items ?? null] as const),
+        ),
       ])
       const nextByPlan = Object.fromEntries(nexts)
+      const blockers: Record<string, Task[]> = {}
+      for (const [id, items] of blockerPairs) if (items) blockers[id] = items
 
       // Day-plan tasks that none of the lists above contain (completed today, deeper in the backlog).
       const have = new Set([...inProgress, ...blocked, ...pending].map((t) => t.id))
@@ -102,7 +113,7 @@ export function useWorkDashboard(workspaces: string[], dayIds: string[]): WorkDa
         .map((t) => ({ task: t, planId: null, planTitle: null, workspace: null }))
 
       if (mine !== seq.current) return
-      setRaw({ plans, inProgress, blocked, pending, nextByPlan, extra, counts, runs, workspaceByPlan })
+      setRaw({ plans, inProgress, blocked, pending, nextByPlan, extra, blockers, counts, runs, workspaceByPlan })
       setStatus('ready')
       setError(null)
       setStale(false)

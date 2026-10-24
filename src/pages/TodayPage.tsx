@@ -14,6 +14,7 @@ import { AttachSessionButton } from '@/components/discussions/AttachSessionButto
 import type { AttentionThread } from '@/types/attention'
 import { WorkDashboard } from '@/components/today/work/WorkDashboard'
 import { LiveAgents } from '@/components/today/live/LiveAgents'
+import { goToSection } from '@/components/today/TodaySummary'
 
 /** Query parameter holding the lane filter on the cross-workspace entry. */
 export const LANE_PARAM = 'workspace'
@@ -131,7 +132,11 @@ export function TodayPage() {
   const dashboardWorkspaces = lane ? [lane] : workspaces.map((w) => w.slug)
 
   const source = useLiveSource(lane)
-  const shown = useMemo(() => (source.data ? shownPlanIds(buildBands(source.data)) : undefined), [source.data])
+  const bands = useMemo(() => (source.data ? buildBands(source.data) : null), [source.data])
+  const shown = useMemo(() => (bands ? shownPlanIds(bands) : undefined), [bands])
+  // Assistants whose request is a card in « Waiting for you »: named there, not listed twice.
+  const waitingSessions = useMemo(() => new Set(bands?.waiting.map((e) => e.request.session_id) ?? []), [bands])
+  const goToWaiting = useCallback(() => goToSection('waiting'), [])
 
   return (
     // No page title bar: the header of the view IS the title (the day in one sentence).
@@ -146,7 +151,7 @@ export function TodayPage() {
         laneNote={laneName ? TODAY_TEXT.laneNote(laneName) : null}
         renderDiscussions={renderDiscussions}
         renderAttach={renderAttach}
-        liveSlot={<LiveAgents />}
+        liveSlot={<LiveAgents shownSessionIds={waitingSessions} onGoToWaiting={goToWaiting} />}
         daySlot={
           <section aria-label={DAY_REGION} data-testid="today-day" className="min-w-0">
             <WorkDashboard key={dashboardWorkspaces.join('|')} workspaces={dashboardWorkspaces} lane={lane} shownPlanIds={shown} />

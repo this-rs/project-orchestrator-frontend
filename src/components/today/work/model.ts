@@ -1,4 +1,4 @@
-import type { Plan, Project, Task, TaskWithPlan } from '@/types'
+import type { Plan, Project, Task, TaskStatus, TaskWithPlan } from '@/types'
 import type { PlanRun } from '@/services/runner'
 import type { TaskCounts } from '@/services/progress'
 import { isDoneToday } from './dayPlan'
@@ -10,6 +10,8 @@ export interface WorkTask {
   planTitle: string | null
   /** Slug of the workspace the plan lives in, when known (needed to link to the task). */
   workspace: string | null
+  /** For a blocked task: the tasks it waits on, when they were fetched (empty = none recorded). */
+  blockedBy?: { id: string; title: string; status: TaskStatus }[]
 }
 
 export interface WorkChain {
@@ -44,6 +46,8 @@ export interface DashboardInput {
   nextByPlan: Record<string, Task | null>
   /** Tasks fetched by id because the lists above did not contain them (day plan). */
   extra: WorkTask[]
+  /** Blocked task id → the tasks it waits on (only for the ones that were asked). */
+  blockers?: Record<string, Task[]>
   counts: Record<string, TaskCounts>
   runs: PlanRun[]
   projects: Project[]
@@ -115,7 +119,13 @@ export function buildDashboard(input: DashboardInput): WorkDashboard {
     day,
     inProgress: input.inProgress.map((t) => fromList(t, input.workspaceByPlan)).sort((a, b) => byPriorityDesc(a.task, b.task)),
     next,
-    blocked: input.blocked.map((t) => fromList(t, input.workspaceByPlan)).sort((a, b) => byPriorityDesc(a.task, b.task)),
+    blocked: input.blocked
+      .map((t) => {
+        const w = fromList(t, input.workspaceByPlan)
+        const by = input.blockers?.[t.id]
+        return by ? { ...w, blockedBy: by.map((b) => ({ id: b.id, title: b.title || b.description.split('\n')[0], status: b.status })) } : w
+      })
+      .sort((a, b) => byPriorityDesc(a.task, b.task)),
     chains,
     runningPlanIds,
   }
