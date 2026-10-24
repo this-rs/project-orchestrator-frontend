@@ -1,4 +1,4 @@
-// GENERATED from website@61b8193b80146bbceefa1ac92cd9536f2740a6ba:src/three/iso/layouts.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/layouts.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Dispositions des machines de héros : OÙ poser les postes et la voie qui les relie, selon ce que l'en-tête veut dire.

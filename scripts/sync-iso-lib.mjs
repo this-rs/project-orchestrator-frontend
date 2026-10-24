@@ -41,6 +41,7 @@ const SOURCE = 'SOURCE.json'
 const FILES = [
   'ast.ts',
   'buildIn.ts',
+  'camera.ts',
   'catalog.ts',
   'choreography.ts',
   'compose.ts',
@@ -55,6 +56,7 @@ const FILES = [
   'machine.ts',
   'meaning.ts',
   'mechanisms.ts',
+  'pins.ts',
   'scene.ts',
   'shading.ts',
   'stations.ts',

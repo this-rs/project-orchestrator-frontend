@@ -1,4 +1,4 @@
-// GENERATED from website@61b8193b80146bbceefa1ac92cd9536f2740a6ba:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Fabrique de MACHINES À POSTES : une disposition (`layouts.ts`), une voie tracée le long de ses tracés, une navette
@@ -58,6 +58,8 @@ export interface StationMachineDef {
   caps?: Partial<Record<LayoutKind, number>> | undefined
   /** Perspective : 0 = isométrique (défaut) ; > 0 = force du raccourcissement en profondeur. */
   focal?: number | undefined
+  /** `solo` seulement : la mécanique sans socle ni cercle de couleur (une machine composée, posée sur le sol). */
+  bare?: boolean | undefined
 }
 
 export interface StationState {
@@ -311,17 +313,20 @@ export function makeStationMachine(def: StationMachineDef, kind: LayoutKind = de
     const served = st.served === i || focused
     const lit = focused ? 1 : served ? st.lit : 0
     const pos = posts[i]!
-    const B = new Frame(s, [pos[0], pos[1], Z_TOP + 0.35 * (focused ? 1 : served ? st.grip : 0)], FACE, scale)
+    const bare = !!def.bare && kind === 'solo'
+    const B = new Frame(s, [pos[0], pos[1], bare ? 0 : Z_TOP + 0.35 * (focused ? 1 : served ? st.grip : 0)], FACE, scale)
     B.coarse = !fine
     const col = sd.col
     const o: MechCtx['o'] = (part, c, x = {}) => ({ part, col: c, ...x })
     const glow: MechCtx['glow'] = (part, on, base = 0.25) => ({ part, col, emit: col, alpha: base + (1 - base) * on })
     // Socle satiné, cercle de couleur sur son biseau (vif quand le poste est servi).
-    B.puck(0, 0, 0, 1.95, PAD_H, 0.16, o(r.pad, MAT.satin), seg(28))
-    B.loft(annulus(1.62, 1.8, 0, TAU, seg(28)), annulus(1.62, 1.8, 0, TAU, seg(28)), 0.03, { ...glow(r.ring, Math.max(lit, 0.15 * breathe(st.u, 2, i))), at: [0, 0, PAD_H - 0.005] })
+    if (!bare) {
+      B.puck(0, 0, 0, 1.95, PAD_H, 0.16, o(r.pad, MAT.satin), seg(28))
+      B.loft(annulus(1.62, 1.8, 0, TAU, seg(28)), annulus(1.62, 1.8, 0, TAU, seg(28)), 0.03, { ...glow(r.ring, Math.max(lit, 0.15 * breathe(st.u, 2, i))), at: [0, 0, PAD_H - 0.005] })
+    }
     mechOf(sd.mech).build({
       B,
-      z: PAD_H,
+      z: bare ? 0 : PAD_H,
       u: st.u,
       g: focused ? breathe(st.u, Math.max(2, n), 0) : served ? st.g : 0,
       lit,
@@ -365,6 +370,8 @@ export function makeStationMachine(def: StationMachineDef, kind: LayoutKind = de
     anchor: kind === 'solo' || kind === 'compact' ? undefined : layout.hole,
     // Points d'interaction : le centre de chaque poste, à mi-hauteur de son objet ; rayon = celui du socle.
     hotspots: { at: posts.map((q) => [q[0], q[1], Z_TOP + 1.4 * scale] as const), radius: 1.95 * scale },
+    // Repère de l'arbre de chaque poste (= celui de `drawTree` : le cadre du poste, relevé de `z` ; pas de lévitation).
+    treeFrames: posts.map((q) => ({ pos: [q[0], q[1], def.bare && kind === 'solo' ? 0 : Z_TOP + PAD_H * scale] as const, rot: FACE, k: scale })),
     buildPlan: planBuild(n, def.deps ?? [], def.build),
     wide: kind === 'wings' || kind === 'corners' || kind === 'solo' || kind === 'phone' || kind === 'arch' ? undefined : () => makeStationMachine(def, 'wings').machine,
     phone: kind === 'solo' || kind === 'phone' || kind === 'compact' ? undefined : (gap?: number) => phoneOf(def, gap),

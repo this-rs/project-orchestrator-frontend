@@ -178,6 +178,8 @@ export default {
       notJson: "Cảnh 3D này không phải JSON hợp lệ ({detail}). Nội dung:",
       notObject: "Cảnh 3D này phải là một đối tượng JSON. Nội dung:",
       tooLarge: "Cảnh 3D này quá lớn (tối đa {max} ký tự). Nội dung:",
+      fullscreen: "Toàn màn hình",
+      exitFullscreen: "Thoát toàn màn hình",
       live: {
         loading: "Đang đọc kế hoạch…",
         unknownPlan: "Không có kế hoạch {id}: không có gì để hiển thị trực tiếp.",
