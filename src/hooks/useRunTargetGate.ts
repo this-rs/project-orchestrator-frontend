@@ -10,6 +10,10 @@ export interface PendingRun {
   projectSlug?: string | null
   /** What is launched, shown in the dialog. */
   title: string
+  /** Name of the project the plan runs in (confirmation). */
+  projectName?: string | null
+  /** Folder (`cwd`) the run starts in (confirmation). */
+  folder?: string | null
   /**
    * Launch it. `unpriced` is true when the chosen instance has no price: a
    * caller that passes a USD budget must then drop it (it could never trigger).

@@ -156,9 +156,52 @@ describe('AttentionCard — permission', () => {
     expect(onPermission).toHaveBeenCalledTimes(1)
     expect((screen.getByRole('button', { name: 'Deny' }) as HTMLButtonElement).disabled).toBe(true)
     release(true)
-    await screen.findByText('Answer sent.')
-    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    // After success the card becomes an inert line: no button to tap again.
+    await screen.findByTestId('attention-card-sent')
+    expect(screen.queryByRole('button', { name: 'Allow' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Deny' })).toBeNull()
     expect(onPermission).toHaveBeenCalledTimes(1)
+  })
+
+  it('a double tap on Allow never authorizes the NEXT request: the answered card stays as an inert line', async () => {
+    const next: WaitingRequest = { ...permission, request_id: 'req-perm-2', seq: 8, session_id: '22222222-bbbb-cccc-dddd-000000000002' }
+    const onPermission = vi.fn().mockResolvedValue(true)
+    render(
+      <MemoryRouter>
+        <ul>
+          <li>
+            <AttentionCard
+              request={permission}
+              lane="Acme"
+              threadTitle="First thread"
+              session={{ title: 'Agent A', state: 'live' }}
+              onPermission={onPermission}
+              onReply={vi.fn()}
+            />
+          </li>
+          <li>
+            <AttentionCard
+              request={next}
+              lane="Acme"
+              threadTitle="Second thread"
+              session={{ title: 'Agent B', state: 'live' }}
+              onPermission={onPermission}
+              onReply={vi.fn()}
+            />
+          </li>
+        </ul>
+      </MemoryRouter>,
+    )
+    const allows = screen.getAllByRole('button', { name: 'Allow' })
+    expect(allows).toHaveLength(2)
+    fireEvent.click(allows[0])
+    // The first card becomes an inert line and STAYS: the second card has not shifted up under the tap.
+    expect(await screen.findByTestId('attention-card-sent')).toBeTruthy()
+    expect(onPermission).toHaveBeenCalledTimes(1)
+    expect(onPermission).toHaveBeenCalledWith(permission, true)
+    expect(onPermission).not.toHaveBeenCalledWith(next, true)
+    // Only the second request's Allow remains — the tap on it is a fresh, deliberate tap.
+    expect(screen.getAllByRole('button', { name: 'Allow' })).toHaveLength(1)
   })
 
   it('treats a 409 as already decided, not as an error', async () => {
@@ -360,7 +403,7 @@ describe('AttentionCard — question', () => {
     fireEvent.click(screen.getByRole('button', { name: /SQLite/ }))
     expect(onReply).toHaveBeenCalledTimes(1)
     release(true)
-    await screen.findByText('Answer sent.')
+    await screen.findByTestId('attention-card-sent')
   })
 
   it('with options, the free answer is folded behind a ghost "Another answer…" button', () => {
@@ -418,7 +461,7 @@ describe('AttentionCard — question', () => {
     fireEvent.click(screen.getByRole('button', { name: /SQLite/ }))
     expect(onReply).toHaveBeenCalledTimes(1)
     release(true)
-    await screen.findByText('Answer sent.')
+    await screen.findByTestId('attention-card-sent')
   })
 
   it('every action of a question is at least 36px tall, folded or open', () => {

@@ -7,8 +7,14 @@ export const globalSearchQueryAtom = atom<string>('')
 
 export const activeModalAtom = atom<string | null>(null)
 
+/** An optional action button on a toast (e.g. « Undo »). */
+export interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
 export const toastMessagesAtom = atom<
-  { id: string; type: 'success' | 'error' | 'info' | 'warning'; message: string }[]
+  { id: string; type: 'success' | 'error' | 'info' | 'warning'; message: string; action?: ToastAction }[]
 >([])
 
 export const tasksViewModeAtom = atomWithStorage<'list' | 'kanban'>('tasks-view-mode', 'list')

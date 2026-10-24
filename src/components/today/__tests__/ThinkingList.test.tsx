@@ -74,10 +74,24 @@ describe('ThinkingList', () => {
     expect(screen.queryByRole('link', { name: 'Disk almost full' })).toBeNull()
   })
 
+  it('accepting a proposal is not possible from the list without opening the menu', () => {
+    setup()
+    // No Accept / Reject button sits on the row: the decision is behind the ⋯ menu.
+    expect(screen.queryByRole('button', { name: /^Accept/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Reject/ })).toBeNull()
+    // The one visible action of a readable item is « Read » (rfc, decision, note).
+    expect(screen.getAllByRole('link', { name: 'Read' })).toHaveLength(3)
+    // Opening the menu reveals the decision.
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Adopt Rust' }))
+    expect(screen.getByRole('menuitem', { name: 'Accept' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Reject' })).toBeTruthy()
+  })
+
   it('proposal accept acts in place, optimistically, with a toast and no confirmation', async () => {
     const onChanged = vi.fn()
     setup(ITEMS, onChanged)
-    fireEvent.click(screen.getByRole('button', { name: 'Accept Adopt Rust' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Adopt Rust' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Accept' }))
     expect(screen.queryByText('Adopt Rust')).toBeNull() // gone before the server answers
     expect(screen.queryByRole('dialog')).toBeNull()
     await waitFor(() => expect(m.success).toHaveBeenCalledWith(expect.stringMatching(/^Accepted: /)))
@@ -87,36 +101,61 @@ describe('ThinkingList', () => {
 
   it('rejecting a proposal asks for confirmation first, and cancel does nothing', async () => {
     setup()
-    fireEvent.click(screen.getByRole('button', { name: 'Reject Adopt Rust' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Adopt Rust' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reject' }))
     expect(m.decide).not.toHaveBeenCalled()
     const dlg = await screen.findByText('Reject this proposal?')
     expect(dlg).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(m.decide).not.toHaveBeenCalled()
     expect(screen.getByText('Adopt Rust')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Reject Adopt Rust' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Adopt Rust' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reject' }))
     const confirm = await screen.findByText('Reject this proposal?')
     fireEvent.click(within(confirm.closest('[role="dialog"]') ?? document.body).getByRole('button', { name: 'Reject' }))
     await waitFor(() => expect(m.decide).toHaveBeenCalledWith('rfc', 'r1', 'reject'))
   })
 
-  it.each([
-    ['Accept Use Neo4j', () => expect(m.decide).toHaveBeenCalledWith('decision', 'd1', 'accept')],
-    ['Confirm Stale gotcha', () => expect(m.confirm).toHaveBeenCalledWith('n1')],
-    ['Invalidate Stale gotcha', () => expect(m.invalidate).toHaveBeenCalledWith('n1', expect.any(String))],
-    ['Acknowledge Disk almost full', () => expect(m.post).toHaveBeenCalledWith('/alerts/a1/acknowledge', { acknowledged_by: 'today' })],
-  ])('%s acts in place without confirmation', async (name, check) => {
+  it('Accept (decision) acts in place from the menu without confirmation', async () => {
     setup()
-    fireEvent.click(screen.getByRole('button', { name }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Use Neo4j' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Accept' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     await waitFor(() => expect(m.success).toHaveBeenCalled())
-    check()
+    expect(m.decide).toHaveBeenCalledWith('decision', 'd1', 'accept')
+  })
+
+  it('Confirm acts in place from the menu without confirmation', async () => {
+    setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Stale gotcha' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Confirm' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(m.success).toHaveBeenCalled())
+    expect(m.confirm).toHaveBeenCalledWith('n1')
+  })
+
+  it('Invalidate acts in place from the menu without confirmation', async () => {
+    setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Stale gotcha' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Invalidate' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(m.success).toHaveBeenCalled())
+    expect(m.invalidate).toHaveBeenCalledWith('n1', expect.any(String))
+  })
+
+  it('Acknowledge (alert, no page) stays the primary action, without confirmation', async () => {
+    setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Acknowledge Disk almost full' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(m.success).toHaveBeenCalled())
+    expect(m.post).toHaveBeenCalledWith('/alerts/a1/acknowledge', { acknowledged_by: 'today' })
   })
 
   it('a failed action brings the row back and says so', async () => {
     m.confirm.mockRejectedValue(new Error('boom'))
     setup()
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm Stale gotcha' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Stale gotcha' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Confirm' }))
     await waitFor(() => expect(m.error).toHaveBeenCalledWith('Not saved: boom'))
     expect(screen.getByText('Stale gotcha')).toBeTruthy()
     expect(m.success).not.toHaveBeenCalled()

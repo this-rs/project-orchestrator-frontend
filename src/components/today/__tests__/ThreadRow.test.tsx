@@ -73,9 +73,11 @@ describe('ThreadRow — stuck (À reprendre)', () => {
         `/workspace/${thread.workspace}/tasks/${t.id}`,
       )
     }
-    // The button is described by the resume preview, which is in the row from the start.
-    const button = screen.getByRole('button', { name: ROW_TEXT.resume })
-    expect(button.getAttribute('aria-describedby')).toBe(screen.getByTestId('resume-preview').id)
+    // The PRIMARY action is « Unblock <task> », a link to the first blocked task; resume is in the ⋯ menu.
+    const unblock = screen.getByRole('link', { name: ROW_TEXT.unblock(thread.blocked_tasks[0].title) })
+    expect(unblock.getAttribute('href')).toBe(`/workspace/${thread.workspace}/tasks/${thread.blocked_tasks[0].id}`)
+    // The resume preview is in the row from the start.
+    expect(screen.getByTestId('resume-preview')).toBeTruthy()
   })
 
   it('agrees the blocked summary in the plural', () => {
@@ -101,30 +103,35 @@ describe('ThreadRow — stuck (À reprendre)', () => {
     expect(bar.closest('a')!.getAttribute('href')).toBe(`/workspace/${thread.workspace}/plans/${thread.plan!.id}#graph`)
   })
 
-  it('Reprendre is a secondary button: eight stuck threads must not stack eight primaries', () => {
-    renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={noResume} />)
-    expect(screen.getByRole('button', { name: ROW_TEXT.resume }).className).not.toContain('btn-primary')
+  it('a blocked thread has no filled button: « Unblock » is a link and « Resume anyway » lives in the menu', () => {
+    const { container } = renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={noResume} />)
+    expect(screen.queryByRole('button', { name: ROW_TEXT.resume })).toBeNull()
+    expect(screen.getByRole('link', { name: ROW_TEXT.unblock(thread.blocked_tasks[0].title) })).toBeTruthy()
+    const row = container.querySelector('li[data-variant="stuck"]')!
+    expect(row.querySelector('.btn-primary')).toBeNull()
   })
 
-  it('Reprendre calls onResume once with the thread (the page does POST /run)', async () => {
+  it('« Resume anyway » (in the menu) calls onResume once with the thread (the page does POST /run)', async () => {
     const onResume = vi.fn().mockResolvedValue(undefined)
     renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={onResume} />)
-    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resume }))
+    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.actionsFor(thread.title) }))
+    fireEvent.click(screen.getByRole('menuitem', { name: ROW_TEXT.resumeAnyway }))
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain(ROW_TEXT.resumeStarted))
     expect(onResume).toHaveBeenCalledTimes(1)
     expect(onResume).toHaveBeenCalledWith(thread)
     // the dead end is gone: the row points at the run it just started
     expect(screen.getByRole('link', { name: ROW_TEXT.followRun }).getAttribute('href')).toContain('#runner')
-    // No double start.
-    expect((screen.getByRole('button', { name: ROW_TEXT.resume }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('a failed resume says why and stays retryable', async () => {
     const onResume = vi.fn().mockRejectedValue(new Error('boom'))
     renderRow(<ThreadRow variant="stuck" thread={thread} runner={blocked.runner} onResume={onResume} />)
-    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.resume }))
+    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.actionsFor(thread.title) }))
+    fireEvent.click(screen.getByRole('menuitem', { name: ROW_TEXT.resumeAnyway }))
     expect((await screen.findByRole('alert')).textContent).toBe('boom')
-    expect((screen.getByRole('button', { name: ROW_TEXT.resume }) as HTMLButtonElement).disabled).toBe(false)
+    // Still retryable: reopen the menu and the item is enabled.
+    fireEvent.click(screen.getByRole('button', { name: ROW_TEXT.actionsFor(thread.title) }))
+    expect((screen.getByRole('menuitem', { name: ROW_TEXT.resumeAnyway }) as HTMLButtonElement).disabled).toBe(false)
   })
 
   describe('runner busy', () => {
@@ -164,12 +171,14 @@ describe('ThreadRow — stuck (À reprendre)', () => {
   })
 
   it('disables with a reason when there is no plan or no preview', () => {
-    const noPlan: AttentionThread = { ...thread, plan: null }
+    // A stuck thread WITHOUT a blocked task keeps the plain « Resume » button.
+    const plain = fixture('four_bands').threads.find((t) => t.band === 'stuck')!
+    const noPlan: AttentionThread = { ...plain, plan: null }
     const { unmount } = renderRow(<ThreadRow variant="stuck" thread={noPlan} runner={blocked.runner} onResume={noResume} />)
     expect((screen.getByRole('button', { name: ROW_TEXT.resume }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.getByTestId('resume-disabled-reason').textContent).toBe(ROW_TEXT.noPlan)
     unmount()
-    renderRow(<ThreadRow variant="stuck" thread={{ ...thread, resume: null }} runner={blocked.runner} onResume={noResume} />)
+    renderRow(<ThreadRow variant="stuck" thread={{ ...plain, resume: null }} runner={blocked.runner} onResume={noResume} />)
     expect(screen.getByTestId('resume-disabled-reason').textContent).toBe(ROW_TEXT.noPreview)
     expect(screen.queryByTestId('resume-preview')).toBeNull()
   })

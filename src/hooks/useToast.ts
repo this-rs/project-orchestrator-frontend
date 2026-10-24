@@ -1,16 +1,16 @@
 import { useCallback } from 'react'
 import { useSetAtom } from 'jotai'
-import { toastMessagesAtom } from '@/atoms'
+import { toastMessagesAtom, type ToastAction } from '@/atoms'
 
-type ToastMessage = { id: string; type: 'success' | 'error' | 'info' | 'warning'; message: string }
+type ToastMessage = { id: string; type: 'success' | 'error' | 'info' | 'warning'; message: string; action?: ToastAction }
 
 export function useToast() {
   const set = useSetAtom(toastMessagesAtom)
 
   const show = useCallback(
-    (type: ToastMessage['type'], message: string) => {
+    (type: ToastMessage['type'], message: string, action?: ToastAction) => {
       const id = Math.random().toString(36).slice(2) + Date.now().toString(36)
-      set((prev: ToastMessage[]) => [...prev, { id, type, message }])
+      set((prev: ToastMessage[]) => [...prev, { id, type, message, action }])
       setTimeout(() => {
         set((prev: ToastMessage[]) => prev.filter((t) => t.id !== id))
       }, 4000)
@@ -19,9 +19,9 @@ export function useToast() {
   )
 
   return {
-    success: useCallback((msg: string) => show('success', msg), [show]),
-    error: useCallback((msg: string) => show('error', msg), [show]),
-    info: useCallback((msg: string) => show('info', msg), [show]),
-    warning: useCallback((msg: string) => show('warning', msg), [show]),
+    success: useCallback((msg: string, action?: ToastAction) => show('success', msg, action), [show]),
+    error: useCallback((msg: string, action?: ToastAction) => show('error', msg, action), [show]),
+    info: useCallback((msg: string, action?: ToastAction) => show('info', msg, action), [show]),
+    warning: useCallback((msg: string, action?: ToastAction) => show('warning', msg, action), [show]),
   }
 }

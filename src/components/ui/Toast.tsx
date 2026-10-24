@@ -51,6 +51,17 @@ export function ToastContainer() {
             <div className="flex items-center gap-3 px-4 py-3 flex-1 min-w-0">
               <div className="shrink-0">{config.icon}</div>
               <p className="text-sm text-gray-200 flex-1 min-w-0">{toast.message}</p>
+              {toast.action && (
+                <button
+                  onClick={() => {
+                    toast.action!.onClick()
+                    dismiss(toast.id)
+                  }}
+                  className="shrink-0 text-sm font-medium text-indigo-300 hover:text-indigo-200 transition-colors"
+                >
+                  {toast.action.label}
+                </button>
+              )}
               <button
                 onClick={() => dismiss(toast.id)}
                 className="shrink-0 text-gray-500 hover:text-gray-300 transition-colors"

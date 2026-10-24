@@ -7,6 +7,7 @@ import { StatusDot } from '@/components/ui/Status'
 import { focusRing, inlineLink, provenanceText } from '@/components/ui/classes'
 import type { SessionLink, SessionState, WaitingRequest } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
+import { describeRequest } from '@/hooks/useAttention'
 import { ReplyAction } from './ThreadRow'
 import { TEXT } from './text'
 
@@ -118,6 +119,8 @@ export function AttentionCard({
   const [phase, setPhase] = useState<Phase>('idle')
   const [error, setError] = useState<string | null>(null)
   const [localDraft, setLocalDraft] = useState('')
+  /** What the card says once the answer is sent: it becomes an inert line before it leaves. */
+  const [sentLabel, setSentLabel] = useState<string | null>(null)
   /** The free answer of a question WITH options is folded until asked for (or until a draft exists). */
   const [freeOpen, setFreeOpen] = useState(false)
   // A ref, not state: two taps in the same tick must not both pass.
@@ -135,10 +138,11 @@ export function AttentionCard({
   const text = draft ?? localDraft
   const setText = (t: string) => (onDraftChange ? onDraftChange(t) : setLocalDraft(t))
 
-  async function send(call: () => Promise<AnswerResult>) {
+  async function send(call: () => Promise<AnswerResult>, label: string) {
     if (inFlight.current || locked) return
     inFlight.current = true
     setPhase('sending')
+    setSentLabel(label)
     setError(null)
     try {
       const res = await call()
@@ -176,10 +180,11 @@ export function AttentionCard({
     <ReplyAction req={request} sessionId={request.session_id} dead emphasis="primary" onSendMessage={resumeSession} />
   )
 
-  const allow = (v: boolean) => void send(() => onPermission(request, v))
+  const allow = (v: boolean) =>
+    void send(() => onPermission(request, v), v ? C.authorized(describeRequest(request)) : C.denied(describeRequest(request)))
   const reply = (content: string) => {
     const c = content.trim()
-    if (c) void send(() => onReply(request, c))
+    if (c) void send(() => onReply(request, c), C.answered(describeRequest(request)))
   }
 
   const sending = phase === 'sending'
@@ -189,6 +194,21 @@ export function AttentionCard({
 
   const hasOptions = request.options.length > 0
   const linked = Boolean(links && links.length > 0)
+
+  // Once the answer is sent the card is INERT: a one-line summary, still in the list, so a second
+  // tap cannot land on the NEXT card below (which has not shifted). It leaves on the next refetch.
+  if (phase === 'sent') {
+    return (
+      <div
+        data-testid="attention-card-sent"
+        role="status"
+        className="flex min-w-0 items-center gap-2 rounded-xl border border-white/[0.07] px-4 py-3 text-sm text-gray-300"
+      >
+        <StatusDot tone="success" />
+        <span className="min-w-0 truncate">{sentLabel}</span>
+      </div>
+    )
+  }
 
   return (
     <section
@@ -253,11 +273,6 @@ export function AttentionCard({
       {phase === 'decided' && (
         <p role="status" className="text-sm text-gray-300 break-words">
           {DECIDED_NOTICE}
-        </p>
-      )}
-      {phase === 'sent' && (
-        <p role="status" className="text-sm text-gray-400">
-          {C.sent}
         </p>
       )}
       {error && (

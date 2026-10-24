@@ -160,7 +160,7 @@ export function TodayPage() {
         askSlot={<AskBar lane={lane} hasWorkspace={workspaces.length > 0} plannedTasks={plannedTasks} waitingRequests={waitingRequests} />}
         daySlot={
           <section aria-label={DAY_REGION} data-testid="today-day" className="min-w-0">
-            <WorkDashboard key={dashboardWorkspaces.join('|')} workspaces={dashboardWorkspaces} lane={lane} shownPlanIds={shown} onDayTitles={setPlannedTasks} />
+            <WorkDashboard key={dashboardWorkspaces.join('|')} workspaces={dashboardWorkspaces} lane={lane} shownPlanIds={shown} onDayTitles={setPlannedTasks} runner={source.data?.runner} />
           </section>
         }
       />
