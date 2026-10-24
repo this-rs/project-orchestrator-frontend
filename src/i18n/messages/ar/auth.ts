@@ -54,7 +54,6 @@ export default {
     accountFor: "قائمة حساب {name}",
     account: "الحساب",
     vault: "الخزنة",
-    apiTokens: "API Tokens",
     providers: "المزوّدون",
     settings: "الإعدادات",
     signOut: "تسجيل الخروج",

@@ -54,7 +54,6 @@ export default {
     accountFor: "{name}님의 계정 메뉴",
     account: "계정",
     vault: "볼트",
-    apiTokens: "API Tokens",
     providers: "제공자",
     settings: "설정",
     signOut: "로그아웃",

@@ -25,6 +25,7 @@ import {
 import { Notice, SettingRow, SettingsList } from '@/components/settings/SettingRow'
 import { useT } from '@/i18n'
 import { VaultPanel } from './VaultPage'
+import { ApiTokensPanel } from '@/components/settings/ApiTokensPanel'
 import { sharingApi, workspacesApi } from '@/services'
 import { useConfirmDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import type {
@@ -109,6 +110,11 @@ export function SharingPage() {
         description={t('sharing.vaultDescription')}
       >
         <VaultPanel />
+      </Section>
+
+      {/* API tokens — personal and instance-wide like the vault: the credential an outside service uses. */}
+      <Section title={t('apiTokens.title')} description={t('apiTokens.description')}>
+        <ApiTokensPanel />
       </Section>
 
       <h2 className="pt-2 text-sm font-semibold text-gray-200">{t('sharing.noteSharing')}</h2>
