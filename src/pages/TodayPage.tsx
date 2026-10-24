@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { workspacesAtom } from '@/atoms'
@@ -15,6 +15,7 @@ import type { AttentionThread } from '@/types/attention'
 import { WorkDashboard } from '@/components/today/work/WorkDashboard'
 import { LiveAgents } from '@/components/today/live/LiveAgents'
 import { goToSection } from '@/components/today/TodaySummary'
+import { AskBar } from '@/components/today/AskBar'
 
 /** Query parameter holding the lane filter on the cross-workspace entry. */
 export const LANE_PARAM = 'workspace'
@@ -134,6 +135,10 @@ export function TodayPage() {
   const source = useLiveSource(lane)
   const bands = useMemo(() => (source.data ? buildBands(source.data) : null), [source.data])
   const shown = useMemo(() => (bands ? shownPlanIds(bands) : undefined), [bands])
+  // The day plan, resolved to task titles, reported by the work dashboard (ask bar context).
+  const [plannedTasks, setPlannedTasks] = useState<string[]>([])
+  // The requests waiting for the user's answer (ask bar context).
+  const waitingRequests = useMemo(() => (bands ? bands.waiting.map((e) => e.request.text) : []), [bands])
   // Assistants whose request is a card in « Waiting for you »: named there, not listed twice.
   const waitingSessions = useMemo(() => new Set(bands?.waiting.map((e) => e.request.session_id) ?? []), [bands])
   const goToWaiting = useCallback(() => goToSection('waiting'), [])
@@ -152,9 +157,10 @@ export function TodayPage() {
         renderDiscussions={renderDiscussions}
         renderAttach={renderAttach}
         liveSlot={<LiveAgents shownSessionIds={waitingSessions} onGoToWaiting={goToWaiting} />}
+        askSlot={<AskBar lane={lane} hasWorkspace={workspaces.length > 0} plannedTasks={plannedTasks} waitingRequests={waitingRequests} />}
         daySlot={
           <section aria-label={DAY_REGION} data-testid="today-day" className="min-w-0">
-            <WorkDashboard key={dashboardWorkspaces.join('|')} workspaces={dashboardWorkspaces} lane={lane} shownPlanIds={shown} />
+            <WorkDashboard key={dashboardWorkspaces.join('|')} workspaces={dashboardWorkspaces} lane={lane} shownPlanIds={shown} onDayTitles={setPlannedTasks} />
           </section>
         }
       />
