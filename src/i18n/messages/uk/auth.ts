@@ -54,6 +54,7 @@ export default {
     accountFor: "Меню облікового запису {name}",
     account: "Обліковий запис",
     vault: "Сховище",
+    apiTokens: "API Tokens",
     providers: "Провайдери",
     settings: "Налаштування",
     signOut: "Вийти",

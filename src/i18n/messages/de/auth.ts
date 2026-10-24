@@ -54,6 +54,7 @@ export default {
     accountFor: "Kontomenü von {name}",
     account: "Konto",
     vault: "Tresor",
+    apiTokens: "API Tokens",
     providers: "Anbieter",
     settings: "Einstellungen",
     signOut: "Abmelden",

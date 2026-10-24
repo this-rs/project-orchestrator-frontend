@@ -28,6 +28,8 @@ export type { RunSnapshot, PlanRun, ActiveAgentSnapshot, WaveSnapshot, AgentStat
 export { protocolApi } from './protocolApi'
 export { rfcApi } from './rfcApi'
 export { sharingApi } from './sharing'
+export { mcpTokensApi } from './mcpTokens'
+export type { McpToken, CreateMcpTokenRequest, CreateMcpTokenResponse } from './mcpTokens'
 export { triggersApi } from './triggers'
 export type { EventTrigger, TriggerStats } from './triggers'
 export { mcpFederationApi } from './mcpFederation'

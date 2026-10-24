@@ -52,6 +52,7 @@ export default {
     accountFor: "Account menu for {name}",
     account: "Account",
     vault: "Vault",
+    apiTokens: "API Tokens",
     providers: "Providers",
     settings: "Settings",
     signOut: "Sign out",
