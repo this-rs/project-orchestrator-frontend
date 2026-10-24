@@ -166,9 +166,15 @@ export interface TodayViewProps {
    * running, which is not what the user is asked to do, so it never sits above the queue.
    */
   liveSlot?: ReactNode
+  /**
+   * The ask bar (components/today/AskBar): a prompt to ask anything about the day. It sits
+   * right under the header, above every section — it is an input, not a section, so the queue
+   * stays the first actionable section.
+   */
+  askSlot?: ReactNode
 }
 
-export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, laneNote, renderDiscussions, renderAttach, daySlot, liveSlot }: TodayViewProps) {
+export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, laneNote, renderDiscussions, renderAttach, daySlot, liveSlot, askSlot }: TodayViewProps) {
   const { status, data, error, refresh } = source
   const bands = data ? buildBands(data) : null
   const errors = data?.source_errors ?? []
@@ -304,6 +310,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
     return (
       <div className="@container/today space-y-5">
         {header}
+        {askSlot}
         {lane ? (
           <EmptyState
             title={TODAY_TEXT.noMatch}
@@ -407,6 +414,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
   return (
     <div className="@container/today space-y-5">
       {header}
+      {askSlot}
 
       <div aria-busy={source.switching || undefined} className={source.switching ? 'pointer-events-none opacity-60' : ''}>
         {/* DOM order = visual order = tab order. Narrow container: one column in this order. */}

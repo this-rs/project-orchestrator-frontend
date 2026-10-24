@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useAtomValue } from 'jotai'
 import { ArrowDown, ArrowUp, CalendarPlus, Check, Circle, CircleDot, FolderGit2, Play, RotateCcw, X } from 'lucide-react'
 import { projectsAtom } from '@/atoms'
@@ -53,6 +53,11 @@ export interface WorkDashboardProps {
    * they are left out of "Plans to launch", so a plan appears once on the page.
    */
   shownPlanIds?: ReadonlySet<string>
+  /**
+   * Reports the resolved day plan (task titles, in the user's order) whenever it changes.
+   * The page uses it to build the ask bar's day context, without loading the dashboard twice.
+   */
+  onDayTitles?: (titles: string[]) => void
 }
 
 /**
@@ -67,7 +72,7 @@ export interface WorkDashboardProps {
  * whole dashboard is filled: "Start" on the next task of the day. Every button inside a row is
  * glass without blur (`flat`, `btn-flat`): the blur budget is about ten on screen, a list has more rows.
  */
-export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardProps) {
+export function WorkDashboard({ workspaces, lane, shownPlanIds, onDayTitles }: WorkDashboardProps) {
   const toast = useToast()
   const projects = useAtomValue(projectsAtom)
   const [plan, setPlan] = useState<DayPlan>(() => loadDayPlan(typeof localStorage === 'undefined' ? null : localStorage))
@@ -79,6 +84,12 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
 
   const gate = useRunTargetGate()
   const { status, data, refresh, refreshing, stale, error } = useWorkDashboard(workspaces, plan.ids)
+
+  // The resolved day plan, reported to the page for the ask bar's context.
+  useEffect(() => {
+    if (!data) return
+    onDayTitles?.(data.day.map((d) => taskTitle(d.item)))
+  }, [data, onDayTitles])
 
   const edit = useCallback((fn: (p: DayPlan) => DayPlan) => {
     setPlan((cur) => {

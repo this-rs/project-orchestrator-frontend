@@ -352,6 +352,44 @@ export const TEXT = {
       budget_exceeded: 'Budget exceeded',
     } as Record<string, string>,
   },
+
+  /** The ask bar at the top of Today (AskBar): a prompt to ask anything about the day. */
+  askBar: {
+    placeholder: 'Ask something about your day…',
+    /** One-tap prompts; a picked one also carries the day's context as text. */
+    suggestions: [
+      'Organize my day',
+      'What moved forward since yesterday?',
+      'Move the rest to tomorrow',
+    ],
+    /** Accessible name of the field and of the send button. */
+    region: 'Ask about your day',
+    send: 'Ask',
+    /** The link shown instead of the field when no workspace exists yet. */
+    createWorkspace: 'Create a workspace',
+    /** The day's context block appended to a suggestion (no server day plan yet). */
+    context: {
+      title: 'Context of my day',
+      planned: 'Planned tasks',
+      waiting: 'Waiting for your answer',
+    },
+  },
 } as const
 
 export type TodayText = typeof TEXT
+
+/** The ask bar's words: a slice of the one registry, under its own name. */
+export const ASK_TEXT = TEXT.askBar
+
+/**
+ * The day's context, as text, appended to a suggestion so the assistant knows what
+ * "today" means while there is no server day plan yet (phase 1: the plan lives in
+ * localStorage and the waiting requests come from `/api/attention`).
+ */
+export function buildDayContext(planned: readonly string[], waiting: readonly string[]): string {
+  const lines: string[] = []
+  if (planned.length > 0) lines.push(`${ASK_TEXT.context.planned} : ${planned.join(', ')}`)
+  if (waiting.length > 0) lines.push(`${ASK_TEXT.context.waiting} : ${waiting.join(', ')}`)
+  if (lines.length === 0) return ''
+  return `${ASK_TEXT.context.title} :\n- ${lines.join('\n- ')}`
+}
