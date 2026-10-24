@@ -1,4 +1,4 @@
-// GENERATED from website@61b8193b80146bbceefa1ac92cd9536f2740a6ba:src/three/iso/machine.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/machine.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Une machine de héros : un registre de pièces nommées (groupées, avec un niveau de détail) et une fonction de
@@ -10,7 +10,7 @@
  *
  * Module PUR, sans import `@/` : lu par Node dans les tests.
  */
-import { Scene, type Face, type Vec3 } from './iso.ts'
+import { Scene, type Face, type Mat3, type Vec3 } from './iso.ts'
 import type { BuildPlan } from './choreography.ts'
 
 export interface GroupDef {
@@ -48,6 +48,9 @@ export interface MachineDef {
   build(u: number, lod: 1 | 2, focus?: number | null): Face[]
   /** Points d'interaction : le centre de chaque poste (monde) et son rayon (monde), dans l'ordre des postes. */
   hotspots?: { at: readonly Vec3[]; radius: number } | undefined
+  /** Repère de l'arbre de construction de chaque poste : monde = pos + rot · (k · p) pour un point `p` de l'arbre (z = 0 :
+   * dessus du socle, ou le sol d'une machine `bare`). Sert à poser des étiquettes (`pins.ts`) en coordonnées d'arbre. */
+  treeFrames?: readonly { pos: Vec3; rot: Mat3; k: number }[] | undefined
   /** Centre de l'espace libre (pixels du viewBox) : le cadrage met ce point au centre de la zone visible, là où se centre
    * le texte du héros. Absent : la boîte de la machine est centrée. */
   anchor?: readonly [number, number] | undefined

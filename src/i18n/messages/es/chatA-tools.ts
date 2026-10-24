@@ -178,6 +178,8 @@ export default {
       notJson: "Esta escena 3D no es JSON válido ({detail}). Su texto:",
       notObject: "Esta escena 3D debe ser un objeto JSON. Su texto:",
       tooLarge: "Esta escena 3D es demasiado grande (como máximo {max} caracteres). Su texto:",
+      fullscreen: "Pantalla completa",
+      exitFullscreen: "Salir de pantalla completa",
       live: {
         loading: "Leyendo el plan…",
         unknownPlan: "Ningún plan {id}: nada que mostrar en directo.",

@@ -1,4 +1,4 @@
-// GENERATED from website@61b8193b80146bbceefa1ac92cd9536f2740a6ba:src/three/iso/scene.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/scene.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * API SÛRE pour décrire une scène isométrique (en-tête ou bloc de page) : `defineScene`.
@@ -24,7 +24,7 @@ import type { MachineDef } from './machine.ts'
 import { MECHANISMS, type MechId } from './mechanisms.ts'
 import { makeStationMachine, type StationMachineDef } from './stations.ts'
 import { findCycle, type BuildSpec } from './choreography.ts'
-import { astMechanism, checkAst, type IsoNode } from './ast.ts'
+import { astMechanism, checkAst, AST_LIMITS, BARE_LIMITS, type IsoNode } from './ast.ts'
 import './catalog.ts'
 
 /** Teintes permises (les lampes du produit). */
@@ -60,6 +60,10 @@ export interface SceneSpec {
   build?: BuildSpec | undefined
   /** Perspective : 0 = isométrique (défaut) ; > 0 = force du raccourcissement en profondeur (borné à 0,25). */
   focal?: number | undefined
+  /** Machine NUE (disposition `solo` seulement) : l'arbre du poste est posé tel quel, sans socle ni cercle de couleur, à
+   * l'échelle du gros plan ; le budget de faces du repli SVG est celui d'un héros. Pour UNE grande machine composée
+   * (le tout comme un seul objet), pas une piste de postes. */
+  bare?: boolean | undefined
 }
 
 export interface Scene {
@@ -94,7 +98,7 @@ export const STATION_RANGE: Readonly<Record<LayoutKind, readonly [number, number
 }
 
 /** Budgets de faces : SVG de repli (dans le HTML) et rendu WebGL. */
-export const SCENE_BUDGETS = { svgHero: 900, svgSolo: 200, lit: 4500 } as const
+export const SCENE_BUDGETS = { svgHero: 900, svgSolo: 200, lit: 4500, litBare: 90_000 } as const
 
 const defined = new Map<string, string>()
 
@@ -108,7 +112,7 @@ function checkSpec(spec: SceneSpec): string[] {
   spec.stations.forEach((st, i) => {
     if ((st.mech === undefined) === (st.ast === undefined)) out.push(`poste ${i + 1} : donner soit \`mech\` (bibliothèque), soit \`ast\` (arbre de construction)`)
     else if (st.mech !== undefined && !(st.mech in MECHANISMS)) out.push(`poste ${i + 1} : mécanique « ${st.mech} » inconnue (${Object.keys(MECHANISMS).join(', ')})`)
-    else if (st.ast !== undefined) for (const p of checkAst(st.ast)) out.push(`poste ${i + 1} (arbre) : ${p}`)
+    else if (st.ast !== undefined) for (const p of checkAst(st.ast, spec.bare && spec.layout === 'solo' ? BARE_LIMITS : AST_LIMITS)) out.push(`poste ${i + 1} (arbre) : ${p}`)
     if (!(st.tone in LAMP)) out.push(`poste ${i + 1} : teinte « ${st.tone} » hors palette (${Object.keys(LAMP).join(', ')})`)
     if (!/^[a-zA-Z0-9.-]+$/.test(st.label)) out.push(`poste ${i + 1} : libellé « ${st.label} » n'est pas une clé i18n`)
   })
@@ -117,6 +121,7 @@ function checkSpec(spec: SceneSpec): string[] {
   if (spec.home !== undefined && (spec.home < 0 || spec.home >= spec.stations.length)) out.push(`home ${spec.home} : hors des postes`)
   if (spec.stepSeconds !== undefined && (spec.stepSeconds < 0.6 || spec.stepSeconds > 10)) out.push(`stepSeconds ${spec.stepSeconds} : de 0,6 à 10 s`)
   if (spec.focal !== undefined && (spec.focal < 0 || spec.focal > 0.25)) out.push(`focal ${spec.focal} : de 0 à 0,25`)
+  if (spec.bare && spec.layout !== 'solo') out.push('bare : seulement sur la disposition « solo » (une machine nue, sans voie ni socle)')
   // Chorégraphie : dépendances valides et sans cycle, réglages dans leurs plages.
   spec.stations.forEach((st, i) => {
     for (const d of st.after ?? []) {
@@ -135,13 +140,14 @@ function checkSpec(spec: SceneSpec): string[] {
   return out
 }
 
-function checkMachine(m: MachineDef, layout: LayoutKind): string[] {
+function checkMachine(m: MachineDef, layout: LayoutKind, bare = false): string[] {
   const out: string[] = []
   const lit = m.build(m.t0, 2)
   const svg = m.build(m.t0, 1)
-  const svgMax = layout === 'solo' ? SCENE_BUDGETS.svgSolo : SCENE_BUDGETS.svgHero
+  const svgMax = layout === 'solo' && !bare ? SCENE_BUDGETS.svgSolo : SCENE_BUDGETS.svgHero
   if (svg.length > svgMax) out.push(`${svg.length} faces au SVG de repli (au plus ${svgMax}) : moins de postes, ou des détails en lod 2`)
-  if (lit.length > SCENE_BUDGETS.lit) out.push(`${lit.length} faces au rendu WebGL (au plus ${SCENE_BUDGETS.lit})`)
+  const litMax = bare ? SCENE_BUDGETS.litBare : SCENE_BUDGETS.lit
+  if (lit.length > litMax) out.push(`${lit.length} faces au rendu WebGL (au plus ${litMax})`)
   // Sans texte à entourer (gros plan, compact) ou portrait : pas de contrôle de composition d'en-tête.
   if (layout === 'solo' || layout === 'compact' || layout === 'phone') return out
   for (const v of checkComposition(m, lit).slice(0, 6)) {
@@ -156,17 +162,18 @@ function checkMachine(m: MachineDef, layout: LayoutKind): string[] {
 /** Les contrôles de `defineScene` sans le registre des identifiants (scènes vivantes : la même scène change de forme). */
 export const checkSceneSpec = (spec: SceneSpec): string[] => checkSpec(spec)
 /** Budgets de faces (et composition d'en-tête si la disposition entoure un texte) d'une machine construite. */
-export const checkSceneMachine = (m: MachineDef, layout: LayoutKind): string[] => checkMachine(m, layout)
+export const checkSceneMachine = (m: MachineDef, layout: LayoutKind, bare = false): string[] => checkMachine(m, layout, bare)
 /** La définition de machine à postes d'une spécification (arbres compilés, teintes résolues). */
 export function stationDefOf(spec: SceneSpec): StationMachineDef {
   return {
     id: spec.id,
     layout: spec.layout,
-    stations: spec.stations.map((s, i) => ({ mech: s.ast ? astMechanism(`${spec.id}-${i + 1}`, s.ast) : s.mech!, col: LAMP[s.tone], key: s.label })),
+    stations: spec.stations.map((s, i) => ({ mech: s.ast ? astMechanism(`${spec.id}-${i + 1}`, s.ast, undefined, spec.bare && spec.layout === 'solo' ? BARE_LIMITS : AST_LIMITS) : s.mech!, col: LAMP[s.tone], key: s.label })),
     degs: spec.angles,
     home: spec.home,
     stepS: spec.stepSeconds,
     focal: spec.focal,
+    bare: spec.bare,
     deps: spec.stations.map((s) => s.after ?? []),
     build: spec.build,
   }
@@ -189,7 +196,7 @@ export function defineScene(spec: SceneSpec): Scene {
   const def = stationDefOf(spec)
   const build = (layout: LayoutKind) => {
     const m = makeStationMachine(def, layout).machine
-    const bad = checkMachine(m, layout)
+    const bad = checkMachine(m, layout, !!spec.bare && layout === 'solo')
     if (bad.length) throw new SceneError(layout === spec.layout ? spec.id : `${spec.id}@${layout}`, bad)
     return m
   }

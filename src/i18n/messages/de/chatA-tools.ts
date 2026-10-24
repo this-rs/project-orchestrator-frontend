@@ -178,6 +178,8 @@ export default {
       notJson: "Diese 3D-Szene ist kein gültiges JSON ({detail}). Ihr Text:",
       notObject: "Diese 3D-Szene muss ein JSON-Objekt sein. Ihr Text:",
       tooLarge: "Diese 3D-Szene ist zu groß (höchstens {max} Zeichen). Ihr Text:",
+      fullscreen: "Vollbild",
+      exitFullscreen: "Vollbild beenden",
       live: {
         loading: "Plan wird gelesen…",
         unknownPlan: "Kein Plan {id}: nichts live zu zeigen.",

@@ -1,11 +1,12 @@
 {
   "repo": "website",
   "path": "src/three/iso",
-  "commit": "61b8193b80146bbceefa1ac92cd9536f2740a6ba",
-  "branch": "docs/rel-wr1-v0018",
+  "commit": "255d188e3498305845e72a27d2569810c72c2e1b",
+  "branch": "worktree-agent-a08eb8278d29895a3",
   "sources": {
-    "ast.ts": "b941ead1cc9763304f430e1cb00c5d0095f6cb74f40657ff5773781c21f1036c",
+    "ast.ts": "3e11ec739a7e4d2002d09ea12e6918c23086e152694ce2ff90ddf186c17340ba",
     "buildIn.ts": "9017fe165f091498207c9057cf29fc0c11f1f2479c4f59747dbe84c3d2a78c19",
+    "camera.ts": "baf813969d3125339c633c58cca61292e6ba5533272b504adfba375e9c3b2720",
     "catalog.ts": "39dde63489910dd70c5c481677fe7489c04c41baaecfff86d421ead957a1f00d",
     "choreography.ts": "49dec16ad342b15aa3860751b31a9ec1af7cd094d2c1532e6b1e7b183dcb8216",
     "compose.ts": "efb3ed0250fdafdceced3dbfee6d8a7761e1885b901fef5d8abff0be2b0860b9",
@@ -13,16 +14,17 @@
     "fit.ts": "d217983a02f3c30c6886a89711cd0c0cebc4a24e55ba2249e476eb356d423256",
     "focus.ts": "1402fbe261798e7b2c6bddc6a399bc26730845cfc94d8fe9917b5249c7589990",
     "iso.ts": "557c22c4317a996c3aacd7bdc96b9eab0041b9f002581c57ae5ab141c60c216b",
-    "IsoGL.tsx": "aad1af251086f8aa97b0988281599de6eacafdaab9b8af098d51002acd37ca95",
+    "IsoGL.tsx": "fd52185e73170552fe55c8a49af8932d00dc30e4cc7d819133a60b1e4596bca2",
     "layouts.ts": "15048c71e6609310dba4ccf37499864d9068f10c19b35ec82feca3ad96545e3a",
-    "litRenderer.ts": "6c74f854070cf49b48c697182fee83012b791ae26e9c58e1ecacfa78606a98a5",
+    "litRenderer.ts": "fdc42aa03e7d58e6172c6dae54a3de3e43139fc6ff8a042fb6a107c1e07fe83e",
     "live.ts": "1ddc2e3deb79eb9370923cdc21bcf212d2eaad8e9871e683fa1e95632bc998c3",
-    "machine.ts": "6d6a25f454eeb7fa0ab6703ff81d2e78aa3632fb5c06eec883f7e602d3c89184",
+    "machine.ts": "956d65d936feb8ef63c8657e6c766959511eddea854f0e6f5f42875d7cef919e",
     "meaning.ts": "4341749b0c72bc99de07d642bc0ae54363479b447e94486b6d1641b87f769658",
     "mechanisms.ts": "4e26f44602b1b52b2a39d39081d79a41812206ab4b0dcd81c7686bfdccab3894",
-    "scene.ts": "e863f12ed887c04dfbf6233fe62de75947646496519b156405d1e152b7420475",
+    "pins.ts": "1fdd97f66fd9e9291135cd01fa6f16c7028cf7c9aa217b6ee44221340cb92af0",
+    "scene.ts": "41d9d2e6dd178a4e2e16b5302675e77ec5e805b41ae1c8ff9876b000b7c3f252",
     "shading.ts": "f8518c69964b5a436fc3daaef30b0b34c6e9338d761545008fc3efbb515df567",
-    "stations.ts": "38197059156cfd8f7dfd4b171e8f6f4b46a668b1b8a1468d242fd9a073ae946f",
+    "stations.ts": "6058a40c45688ac260be55783f2cffe774ae5f0d1b3b8d8c7dde665f5018af3a",
     "triangulate.ts": "2b87445b8bc0f8cf0f4e2877721a3250293cfcd230bf802d1522160b7397ef4a"
   }
 }

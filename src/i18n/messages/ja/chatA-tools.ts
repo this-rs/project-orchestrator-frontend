@@ -178,6 +178,8 @@ export default {
       notJson: "この 3D シーンは有効な JSON ではありません（{detail}）。テキスト:",
       notObject: "この 3D シーンは JSON オブジェクトである必要があります。テキスト:",
       tooLarge: "この 3D シーンは大きすぎます（最大 {max} 文字）。テキスト:",
+      fullscreen: "全画面",
+      exitFullscreen: "全画面を終了",
       live: {
         loading: "プランを読み込み中…",
         unknownPlan: "プラン {id} はありません：ライブ表示するものがありません。",

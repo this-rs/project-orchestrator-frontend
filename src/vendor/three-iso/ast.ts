@@ -1,4 +1,4 @@
-// GENERATED from website@61b8193b80146bbceefa1ac92cd9536f2740a6ba:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * PROTOCOLE DE CONSTRUCTION : des objets et des mécaniques décrits comme des DONNÉES (un arbre JSON), compilés en
@@ -80,6 +80,9 @@ export type IsoNode =
 export const DETAIL = 0.16
 /** Bornes : profondeur de l'arbre, nombre de formes, tailles. */
 export const AST_LIMITS = { depth: 8, shapes: 160, size: [0.01, 6] as const, path: 12 }
+/** Bornes d'une machine NUE (`bare`, disposition `solo`) : une seule grande mécanique composée, détaillée récursivement. */
+export const BARE_LIMITS = { ...AST_LIMITS, depth: 10, shapes: 2400, size: [0.005, 8] as const }
+export type AstLimits = typeof AST_LIMITS
 
 const MATS: Readonly<Record<Material, string>> = {
   porcelain: MAT.porcelain,
@@ -103,10 +106,10 @@ export const CATALOG = new Map<string, IsoNode>()
 /* ---------- Validation ---------- */
 
 /** Liste des corrections (vide = l'arbre est valide). */
-export function checkAst(root: IsoNode): string[] {
+export function checkAst(root: IsoNode, limits: AstLimits = AST_LIMITS): string[] {
   const out: string[] = []
   let shapes = 0
-  const num = (where: string, k: string, v: unknown, lo: number = AST_LIMITS.size[0], hi: number = AST_LIMITS.size[1]) => {
+  const num = (where: string, k: string, v: unknown, lo: number = limits.size[0], hi: number = limits.size[1]) => {
     if (typeof v !== 'number' || !Number.isFinite(v) || v < lo || v > hi) out.push(`${where} : ${k} = ${String(v)} (attendu de ${lo} à ${hi})`)
   }
   const vec = (where: string, k: string, v: unknown, lo = -20, hi = 20) => {
@@ -118,8 +121,8 @@ export function checkAst(root: IsoNode): string[] {
       out.push(`${where} : type « ${(n as { kind?: string })?.kind} » inconnu (${[...KINDS].join(', ')})`)
       return
     }
-    if (depth > AST_LIMITS.depth) {
-      out.push(`${where} : arbre trop profond (au plus ${AST_LIMITS.depth} niveaux)`)
+    if (depth > limits.depth) {
+      out.push(`${where} : arbre trop profond (au plus ${limits.depth} niveaux)`)
       return
     }
     if (n.at !== undefined) vec(where, 'at', n.at)
@@ -138,7 +141,7 @@ export function checkAst(root: IsoNode): string[] {
     }
     switch (n.kind) {
       case 'slab':
-        vec(where, 'size', n.size, AST_LIMITS.size[0], AST_LIMITS.size[1])
+        vec(where, 'size', n.size, limits.size[0], limits.size[1])
         shapes++
         break
       case 'puck':
@@ -213,7 +216,7 @@ export function checkAst(root: IsoNode): string[] {
     }
   }
   walk(root, '', 0, new Set())
-  if (shapes > AST_LIMITS.shapes) out.push(`${shapes} formes (au plus ${AST_LIMITS.shapes})`)
+  if (shapes > limits.shapes) out.push(`${shapes} formes (au plus ${limits.shapes})`)
   return out
 }
 
@@ -395,8 +398,8 @@ function drawTree(root: IsoNode, c: MechCtx, F: Frame, z0: number, sockets: Map<
  * Une mécanique compilée depuis un arbre (vérifié par `checkAst` : un arbre invalide lève une erreur qui liste les
  * corrections). Ses pièces, leur niveau de détail et leurs couches de construction sont déduits de l'arbre.
  */
-export function astMechanism(id: string, root: IsoNode, shows = 'mécanique décrite par un arbre'): Mechanism & { layers: Map<string, number> } {
-  const bad = checkAst(root)
+export function astMechanism(id: string, root: IsoNode, shows = 'mécanique décrite par un arbre', limits: AstLimits = AST_LIMITS): Mechanism & { layers: Map<string, number> } {
+  const bad = checkAst(root, limits)
   if (bad.length) throw new Error(`mécanique « ${id} » refusée :\n  - ${bad.join('\n  - ')}`)
   const ls = leaves(root)
   const maxDepth = Math.max(1, ...ls.map((l) => l.depth))

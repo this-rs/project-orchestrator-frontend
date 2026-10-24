@@ -178,6 +178,8 @@ export default {
       notJson: "이 3D 장면은 유효한 JSON이 아닙니다 ({detail}). 텍스트:",
       notObject: "이 3D 장면은 JSON 객체여야 합니다. 텍스트:",
       tooLarge: "이 3D 장면이 너무 큽니다 (최대 {max}자). 텍스트:",
+      fullscreen: "전체 화면",
+      exitFullscreen: "전체 화면 종료",
       live: {
         loading: "플랜을 읽는 중…",
         unknownPlan: "플랜 {id} 없음: 실시간으로 보여줄 것이 없습니다.",

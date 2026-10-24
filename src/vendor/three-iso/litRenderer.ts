@@ -1,4 +1,4 @@
-// GENERATED from website@61b8193b80146bbceefa1ac92cd9536f2740a6ba:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Rendu WebGL 2 des machines isométriques : la MÊME géométrie que le SVG prérendu (`machine.build`), mais éclairée
@@ -21,9 +21,9 @@ import { WIDE_ASPECT, type MachineDef } from './machine'
 import { triangulate } from './triangulate'
 import { contentBox, DESK_FITS, fitAround, fitWindow, type Box, type CssRect } from './fit'
 import { assemble } from './buildIn'
+import { anchorOf, basis, DEFAULT_CAMERA, eyeDistance, fovForFocal, ISO_SCALE, sceneBounds, toScreen, viewProj, type CameraState, type Frame } from './camera'
 import { MOVE_MS as GLIDE_MS } from './live'
 
-const C30 = Math.cos(Math.PI / 6)
 const FLOATS = 16 // position 3, normale 3, couleur 3, alpha, émission, métal, rugosité, arêtes 3
 const SHADOW_SIZE = 2048
 
@@ -45,18 +45,14 @@ function linear(hex: string): Vec3 {
 
 
 
+// Projection : une matrice vue-projection (camera.ts) ; la caméra par défaut redonne la projection isométrique classique.
 const MAIN_VS = `#version 300 es
 in vec3 aPos; in vec3 aNor; in vec3 aCol; in vec4 aMat; in vec3 aEdge;
-uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform mat4 uLight; uniform vec4 uWin; uniform float uFocal;
-out vec3 vN; out vec3 vCol; out vec4 vMat; out vec3 vL; out vec3 vEdge; out float vGrain;
+uniform mat4 uViewProj; uniform mat4 uLight;
+out vec3 vN; out vec3 vCol; out vec4 vMat; out vec3 vL; out vec3 vEdge; out float vGrain; out vec3 vW;
 void main() {
-  vec2 q = vec2((aPos.x - aPos.y) * ${C30.toFixed(7)}, (aPos.x + aPos.y) * 0.5 - aPos.z);
-  float s = aPos.x + aPos.y + aPos.z;
-  float k = 1.0 / (1.0 + s * uFocal);
-  vec2 v = uOrigin + q * uU * k;
-  float z = 1.0 - 2.0 * (s - uDepth.x) / (uDepth.y - uDepth.x);
-  gl_Position = vec4((v.x - uWin.x) / uWin.z * 2.0 - 1.0, 1.0 - (v.y - uWin.y) / uWin.w * 2.0, z * 0.98, 1.0);
-  vN = aNor; vCol = aCol; vMat = aMat; vEdge = aEdge;
+  gl_Position = uViewProj * vec4(aPos, 1.0);
+  vN = aNor; vCol = aCol; vMat = aMat; vEdge = aEdge; vW = aPos;
   vGrain = 0.9 + 0.2 * fract(sin(dot(aPos * 2.5, vec3(127.1, 311.7, 74.7))) * 43758.5453);
   // Décalage le long de la normale : pas d'acné d'ombre sur les grandes faces rasantes.
   vL = (uLight * vec4(aPos + aNor * 0.06, 1.0)).xyz * 0.5 + 0.5;
@@ -65,7 +61,8 @@ void main() {
 const MAIN_FS = `#version 300 es
 precision highp float;
 precision highp sampler2DShadow;
-in vec3 vN; in vec3 vCol; in vec4 vMat; in vec3 vL; in vec3 vEdge; in float vGrain;
+in vec3 vN; in vec3 vCol; in vec4 vMat; in vec3 vL; in vec3 vEdge; in float vGrain; in vec3 vW;
+uniform vec4 uEye; // xyz : direction de l'œil (w = 0, orthographique) ou sa position (w = 1, perspective)
 uniform sampler2DShadow uShadow; uniform vec3 uLightDir; uniform vec3 uBg; uniform float uTexel; uniform float uTransparent;
 uniform vec3 uKey; uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uRim;
 out vec4 o;
@@ -85,7 +82,7 @@ void main() {
     else o = vec4(uBg * mix(0.72, 1.0, sh), 1.0);
     return;
   }
-  vec3 V = normalize(vec3(1.0));
+  vec3 V = normalize(uEye.w > 0.5 ? uEye.xyz - vW : uEye.xyz);
   vec3 N = normalize(vN);
   if (dot(N, V) < 0.0) N = -N;
   vec3 c;
@@ -135,16 +132,13 @@ precision mediump float; out vec4 o; void main() { o = vec4(1.0); }`
 
 const GLOW_VS = `#version 300 es
 in vec3 aPos; in vec3 aCol; in float aSize;
-uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform float uPx; uniform vec4 uWin; uniform float uFocal;
+uniform mat4 uViewProj; uniform float uPx;
 out vec3 vCol;
 void main() {
-  vec2 q = vec2((aPos.x - aPos.y) * ${C30.toFixed(7)}, (aPos.x + aPos.y) * 0.5 - aPos.z);
-  float s = aPos.x + aPos.y + aPos.z;
-  float k = 1.0 / (1.0 + s * uFocal);
-  vec2 v = uOrigin + q * uU * k;
-  float z = 1.0 - 2.0 * (s - uDepth.x) / (uDepth.y - uDepth.x);
-  gl_Position = vec4((v.x - uWin.x) / uWin.z * 2.0 - 1.0, 1.0 - (v.y - uWin.y) / uWin.w * 2.0, z * 0.98 - 0.002, 1.0);
-  gl_PointSize = aSize * uPx;
+  vec4 c = uViewProj * vec4(aPos, 1.0);
+  // Un peu devant (z du clip) ; en perspective, la taille suit la distance (1/w).
+  gl_Position = vec4(c.xy, c.z - 0.002 * c.w, c.w);
+  gl_PointSize = aSize * uPx / max(c.w, 0.05);
   vCol = aCol;
 }`
 const GLOW_FS = `#version 300 es
@@ -160,15 +154,11 @@ void main() {
 
 const LINE_VS = `#version 300 es
 in vec3 aPos; in vec4 aCol;
-uniform vec2 uOrigin; uniform float uU; uniform vec2 uDepth; uniform vec4 uWin; uniform float uFocal;
+uniform mat4 uViewProj;
 out vec4 vCol;
 void main() {
-  vec2 q = vec2((aPos.x - aPos.y) * ${C30.toFixed(7)}, (aPos.x + aPos.y) * 0.5 - aPos.z);
-  float s = aPos.x + aPos.y + aPos.z;
-  float k = 1.0 / (1.0 + s * uFocal);
-  vec2 v = uOrigin + q * uU * k;
-  float z = 1.0 - 2.0 * (s - uDepth.x) / (uDepth.y - uDepth.x);
-  gl_Position = vec4((v.x - uWin.x) / uWin.z * 2.0 - 1.0, 1.0 - (v.y - uWin.y) / uWin.w * 2.0, z * 0.98 - 0.001, 1.0);
+  vec4 c = uViewProj * vec4(aPos, 1.0);
+  gl_Position = vec4(c.xy, c.z - 0.001 * c.w, c.w);
   vCol = aCol;
 }`
 const LINE_FS = `#version 300 es
@@ -255,8 +245,6 @@ export class IsoRenderer {
     if (this.data.length < tris * 3 * FLOATS) this.data = new Float32Array(tris * 3 * FLOATS * 1.25)
     const d = this.data
     let n = 0
-    let sMin = Infinity
-    let sMax = -Infinity
     let xMin = Infinity
     let xMax = -Infinity
     let yMin = Infinity
@@ -291,9 +279,6 @@ export class IsoRenderer {
         if ((f.soft ?? 0) & (1 << k)) continue
         const a = p[k]!
         const b = p[(k + 1) % p.length]!
-        const sa = a[0] + a[1] + a[2]
-        if (sa < sMin) sMin = sa
-        if (sa > sMax) sMax = sa
         lines.push(a[0], a[1], a[2], c[0], c[1], c[2], f.wire, b[0], b[1], b[2], c[0], c[1], c[2], f.wire)
       }
     }
@@ -311,9 +296,6 @@ export class IsoRenderer {
         nx += (a[1] - b[1]) * (a[2] + b[2])
         ny += (a[2] - b[2]) * (a[0] + b[0])
         nz += (a[0] - b[0]) * (a[1] + b[1])
-        const s = a[0] + a[1] + a[2]
-        if (s < sMin) sMin = s
-        if (s > sMax) sMax = s
         if (a[0] < xMin) xMin = a[0]
         if (a[0] > xMax) xMax = a[0]
         if (a[1] < yMin) yMin = a[1]
@@ -389,14 +371,9 @@ export class IsoRenderer {
     const bg: Vec3 = [0, 0, 0]
     for (const i of [0, 1, 2, 0, 2, 3]) push(g[i]!, 0, 0, 1, bg, 1, 2, 0, 0.5, 1, 1, 1)
     const ground = 6
-    for (const p of g) {
-      const s = p[0] + p[1] + p[2]
-      if (s < sMin) sMin = s
-      if (s > sMax) sMax = s
-    }
     this.glow = new Float32Array(glow)
     this.count = n / FLOATS
-    return { count: n / FLOATS, opaque, ground, sMin, sMax, bounds: [xMin, xMax, yMin, yMax] as const }
+    return { count: n / FLOATS, opaque, ground, bounds: [xMin, xMax, yMin, yMax] as const }
   }
 
   /** Matrice monde → espace de la lumière (orthographique, ajustée aux bornes de la scène). */
@@ -457,6 +434,7 @@ export class IsoRenderer {
     // Fenêtre du viewBox montrée : la machine entière, centrée (même cadrage que le SVG prérendu) ; après un changement
     // de machine d'une scène vivante, le cadrage glisse de l'ancien vers le nouveau.
     const win = this.window(fitWindow(contentBox(machine), canvas.width, canvas.height))
+    const cam = this.view(win, geo.count)
     const light = this.lightMatrix()
     const stride = FLOATS * 4
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo)
@@ -494,11 +472,8 @@ export class IsoRenderer {
     const p = this.main
     gl.useProgram(p)
     const U = (n: string) => gl.getUniformLocation(p, n)
-    gl.uniform2f(U('uOrigin'), machine.origin[0], machine.origin[1])
-    gl.uniform1f(U('uU'), machine.U)
-    gl.uniform4f(U('uWin'), win.x, win.y, win.w, win.h)
-    gl.uniform2f(U('uDepth'), geo.sMin - 1, geo.sMax + 1)
-    gl.uniform1f(U('uFocal'), machine.focal ?? 0)
+    gl.uniformMatrix4fv(U('uViewProj'), false, cam.M)
+    gl.uniform4fv(U('uEye'), cam.eye)
     gl.uniformMatrix4fv(U('uLight'), false, light)
     gl.uniform3f(U('uLightDir'), LIGHT[0], LIGHT[1], LIGHT[2])
     gl.uniform3f(U('uBg'), bg[0], bg[1], bg[2])
@@ -542,11 +517,7 @@ export class IsoRenderer {
       const q = this.lineProg
       gl.useProgram(q)
       const L = (n: string) => gl.getUniformLocation(q, n)
-      gl.uniform2f(L('uOrigin'), machine.origin[0], machine.origin[1])
-      gl.uniform1f(L('uU'), machine.U)
-      gl.uniform2f(L('uDepth'), geo.sMin - 1, geo.sMax + 1)
-      gl.uniform1f(L('uFocal'), machine.focal ?? 0)
-      gl.uniform4f(L('uWin'), win.x, win.y, win.w, win.h)
+      gl.uniformMatrix4fv(L('uViewProj'), false, cam.M)
       gl.bindBuffer(gl.ARRAY_BUFFER, this.lbo)
       gl.bufferData(gl.ARRAY_BUFFER, this.lines, gl.STREAM_DRAW)
       for (const [name, size, off] of [
@@ -571,12 +542,8 @@ export class IsoRenderer {
       const q = this.glowProg
       gl.useProgram(q)
       const G = (n: string) => gl.getUniformLocation(q, n)
-      gl.uniform2f(G('uOrigin'), machine.origin[0], machine.origin[1])
-      gl.uniform1f(G('uU'), machine.U)
-      gl.uniform2f(G('uDepth'), geo.sMin - 1, geo.sMax + 1)
-      gl.uniform1f(G('uFocal'), machine.focal ?? 0)
-      gl.uniform1f(G('uPx'), canvas.width / win.w)
-      gl.uniform4f(G('uWin'), win.x, win.y, win.w, win.h)
+      gl.uniformMatrix4fv(G('uViewProj'), false, cam.M)
+      gl.uniform1f(G('uPx'), (canvas.width / win.w) * cam.zoom)
       gl.bindBuffer(gl.ARRAY_BUFFER, this.gbo)
       gl.bufferData(gl.ARRAY_BUFFER, this.glow, gl.STREAM_DRAW)
       const gs = 7 * 4
@@ -604,22 +571,95 @@ export class IsoRenderer {
 
   /**
    * Les points d'interaction de la machine dessinée, en pixels CSS du canvas (`cssW` × `cssH`) : centre et rayon de
-   * chaque poste, pour poser des boutons dessus (survol, toucher). Vide si la machine n'en déclare pas.
+   * chaque poste, pour poser des boutons dessus (survol, toucher). Vide si la machine n'en déclare pas. Projetés par la
+   * caméra de la dernière image (rayon 0 : poste derrière l'œil).
    */
   hotspots(cssW: number, cssH: number): { x: number; y: number; r: number }[] {
     const hs = this.machine.hotspots
     if (!hs) return []
-    const win = fitWindow(contentBox(this.machine), this.canvas.width, this.canvas.height)
-    const kx = cssW / win.w
-    const ky = cssH / win.h
-    const C = Math.cos(Math.PI / 6)
     const m = this.machine
+    const f = this.last ?? this.frameOf(fitWindow(contentBox(m), this.canvas.width, this.canvas.height), [-50, 50])
+    const cam = this.last?.camera ?? this.defaultCamera()
+    const M = this.last?.M ?? viewProj(cam, cam.target ?? sceneBounds(m).center, f)
+    const k = (cssW / f.win.w) * cam.zoom * m.U * Math.cos(Math.PI / 6)
     return hs.at.map((p) => {
-      const k = 1 / (1 + (p[0] + p[1] + p[2]) * (m.focal ?? 0))
-      const vx = m.origin[0] + (p[0] - p[1]) * C * m.U * k
-      const vy = m.origin[1] + ((p[0] + p[1]) * 0.5 - p[2]) * m.U * k
-      return { x: (vx - win.x) * kx, y: (vy - win.y) * ky, r: hs.radius * m.U * C * kx }
+      const s = toScreen(M, p, cssW, cssH)
+      return s.w > 0 ? { x: s.x, y: s.y, r: (hs.radius * k) / s.w } : { x: -1e4, y: -1e4, r: 0 }
     })
+  }
+
+  /* ---------- Caméra (camera.ts) ---------- */
+
+  /** Caméra choisie par le lecteur ; `null` : la caméra par défaut de la machine (iso, cadrée comme le SVG). */
+  private camera: CameraState | null = null
+  /** Dernière image : la caméra et son cadre (les gestes de IsoGL en ont besoin). */
+  private last: (Frame & { camera: CameraState; M: Float32Array; T: Vec3 }) | null = null
+
+  setCamera(c: CameraState | null): void {
+    this.camera = c
+  }
+
+  /** Réglages de la caméra par défaut imposés par le parent (le chat : perspective ; le héros du site : rien). */
+  private defaults: Partial<CameraState> = {}
+
+  setDefaults(d: Partial<CameraState>): void {
+    this.defaults = d
+  }
+
+  /** Caméra par défaut : la vue isométrique ; perspective vraie si la machine déclare `focal` (le champ en dépend). */
+  defaultCamera(): CameraState {
+    const focal = this.machine.focal ?? 0
+    const base: CameraState = focal > 0 ? { ...DEFAULT_CAMERA, mode: 'persp', fov: fovForFocal(focal) } : DEFAULT_CAMERA
+    return { ...base, ...this.defaults }
+  }
+
+  /** Le cadre et la caméra de la dernière image (null avant la première). */
+  get frame(): (Frame & { camera: CameraState; T: Vec3; M: Float32Array }) | null {
+    return this.last
+  }
+
+  /** La machine dessinée (variante étirée ou large comprise) : ses postes, sa boîte. */
+  get drawn(): MachineDef {
+    return this.machine
+  }
+
+  /** Centre de la scène dessinée (cible par défaut). */
+  get center(): Vec3 {
+    return sceneBounds(this.machine).center
+  }
+
+  private frameOf(win: Box, depth: readonly [number, number]): Frame {
+    return { win, anchor: anchorOf(this.machine), s0: this.machine.U * ISO_SCALE, depth }
+  }
+
+  /** Matrice vue-projection de l'image : profondeurs de la scène (sol compris) le long de l'œil, cadre, œil. */
+  private view(win: Box, count: number): { M: Float32Array; eye: Float32Array; zoom: number } {
+    const cam = this.camera ?? this.defaultCamera()
+    const T = cam.target ?? sceneBounds(this.machine).center
+    const { eye } = basis(cam.yaw, cam.pitch)
+    const d = this.data
+    let c0 = Infinity
+    let c1 = -Infinity
+    const at = (x: number, y: number, z: number) => {
+      const c = (x - T[0]) * eye[0] + (y - T[1]) * eye[1] + (z - T[2]) * eye[2]
+      if (c < c0) c0 = c
+      if (c > c1) c1 = c
+    }
+    for (let i = 0; i < count * FLOATS; i += FLOATS) at(d[i]!, d[i + 1]!, d[i + 2]!)
+    for (let i = 0; i < this.lines.length; i += 7) at(this.lines[i]!, this.lines[i + 1]!, this.lines[i + 2]!)
+    if (!(c1 >= c0)) {
+      c0 = -1
+      c1 = 1
+    }
+    const f = this.frameOf(win, [c0 - 1, c1 + 1])
+    const M = viewProj(cam, T, f)
+    this.last = { ...f, camera: cam, M, T }
+    const e = new Float32Array(4)
+    if (cam.mode === 'persp') {
+      const dist = eyeDistance(cam, f)
+      e.set([T[0] + eye[0] * dist, T[1] + eye[1] * dist, T[2] + eye[2] * dist, 1])
+    } else e.set([eye[0], eye[1], eye[2], 0])
+    return { M, eye: e, zoom: cam.zoom }
   }
 
   private glide: { from: Box; at: number } | null = null

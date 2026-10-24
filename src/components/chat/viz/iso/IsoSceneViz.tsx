@@ -12,7 +12,7 @@
  *   SVG, in the same colours.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, RotateCcw } from 'lucide-react'
+import { AlertTriangle, Maximize2, Minimize2, RotateCcw } from 'lucide-react'
 import { useT } from '@/i18n'
 import { useReducedMotion } from '@/utils/motion'
 import IsoGL from '@/vendor/three-iso/IsoGL'
@@ -87,6 +87,7 @@ export function IsoStage({ machine, expanded, label, live }: { machine: MachineD
   const [near, setNear] = useState(() => typeof IntersectionObserver === 'undefined')
   const [noGl, setNoGl] = useState(false)
   const [run, setRun] = useState(0)
+  const [fullscreen, setFullscreen] = useState(false)
   useEffect(() => {
     const el = box.current
     if (!el || typeof IntersectionObserver === 'undefined') return
@@ -94,8 +95,26 @@ export function IsoStage({ machine, expanded, label, live }: { machine: MachineD
     io.observe(el)
     return () => io.disconnect()
   }, [])
+  useEffect(() => {
+    const onFs = () => setFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
+  const toggleFullscreen = () => {
+    const el = box.current
+    if (!el) return
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {})
+      setFullscreen(false)
+    } else if (typeof el.requestFullscreen === 'function') {
+      el.requestFullscreen().then(() => setFullscreen(true)).catch(() => setFullscreen(true))
+    } else {
+      setFullscreen((v) => !v)
+    }
+  }
+  const fullscreenCls = fullscreen ? 'fixed inset-0 z-50 bg-gray-950' : expanded ? 'h-[min(70vh,640px)]' : 'h-[220px]'
   return (
-    <div ref={box} className={`relative w-full ${expanded ? 'h-[min(70vh,640px)]' : 'h-[220px]'}`} role="img" aria-label={label}>
+    <div ref={box} className={`relative w-full ${fullscreenCls}`} role="img" aria-label={label}>
       {noGl ? (
         <IsoSvg machine={machine} />
       ) : (
@@ -107,11 +126,21 @@ export function IsoStage({ machine, expanded, label, live }: { machine: MachineD
             still={reduced}
             drive="time"
             transparent
+            controls
             className="absolute inset-0 block h-full w-full"
             onUnsupported={() => setNoGl(true)}
           />
         )
       )}
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        title={fullscreen ? t('chatA-tools.viz.iso.exitFullscreen') : t('chatA-tools.viz.iso.fullscreen')}
+        aria-label={fullscreen ? t('chatA-tools.viz.iso.exitFullscreen') : t('chatA-tools.viz.iso.fullscreen')}
+        className="absolute right-1 top-1 flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-gray-500 hover:text-gray-300 hover:bg-white/[0.04] transition-colors"
+      >
+        {fullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
+      </button>
       {!noGl && !reduced && !live && (
         <button
           type="button"
