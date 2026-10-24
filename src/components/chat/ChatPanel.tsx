@@ -5,7 +5,7 @@ import { useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useAtom } from 'jotai'
 import { useT } from '@/i18n'
 import { useChatUrlSync } from '@/hooks/useChatUrlSync'
-import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatProjectsLoadedAtom, chatNeutralPlaceAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom, providersAtom, chatOneOffProviderPickAtom, clearOneOffProviderPickAtom, dropStalePickAtom } from '@/atoms'
+import { chatPanelModeAtom, chatPanelWidthAtom, chatScrollToTurnAtom, chatPermissionConfigAtom, chatSelectedProjectAtom, chatAllProjectsModeAtom, chatWorkspaceHasProjectsAtom, chatProjectsLoadedAtom, chatNeutralPlaceAtom, chatBackgroundTasksAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, chatSessionEngineFactsAtom, chatSessionDeclaredFactsAtom, chatSessionProviderAtom, chatSessionModelAtom, chatDraftInputAtom, chatTimelineOpenAtom, chatDraftAutoAtom, chatDraftSelectionAtom, chatSelectedProviderAtom, chatForcedTargetAtom, providersAtom, chatOneOffProviderPickAtom, clearOneOffProviderPickAtom, dropStalePickAtom, chatPendingSwitchAtom, chatSwitchingSessionAtom, chatFollowRequestAtom } from '@/atoms'
 import type { ProviderFallback, ProviderId } from '@/types/provider'
 import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
@@ -16,7 +16,7 @@ import { describeSessionProvider, providerUnavailableReason } from '@/constants/
 import { instanceMissingComposerText, mirrorReadOnlyComposerText, noProviderComposerText, NO_PROVIDER_ERROR } from '@/constants/providerErrors'
 import { resumeUnsupportedText } from '@/constants/capabilities'
 import type { BackgroundTaskInfo } from '@/types'
-import { chatApi } from '@/services/chat'
+import { chatApi, switchConversationProvider, switchProviderRefusal } from '@/services/chat'
 import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2, TriangleAlert, Eye } from 'lucide-react'
 import { ChatMessages } from './ChatMessages'
 import { RefsAnnouncer } from './RefsAnnouncer'
@@ -296,6 +296,19 @@ export function ChatPanel() {
   // `attachmentIds` are document ids the server has already issued — ChatInput
   // holds the send until every upload has resolved (see `attachmentState.ts`).
   const handleSend = useCallback((text: string, attachmentIds?: string[], refs?: ChatReference[]) => {
+    // A model of another provider was picked before this message: the move leaves with it
+    // (no popup). A refusal is handed back to the routing menu, which says why and keeps the text.
+    const pending = store.get(chatPendingSwitchAtom)
+    if (pending && pending.sessionId === chat.sessionId && text.trim()) {
+      const sid = pending.sessionId
+      store.set(chatPendingSwitchAtom, null)
+      store.set(chatSwitchingSessionAtom, sid)
+      switchConversationProvider(sid, { provider: pending.pick.provider, model: pending.pick.model, message: text })
+        .then((move) => store.set(chatFollowRequestAtom, { sessionId: move.session_id, fromSessionId: sid, notice: null }))
+        .catch((err: unknown) => store.set(chatPendingSwitchAtom, { ...pending, message: text, refusal: switchProviderRefusal(err) }))
+        .finally(() => store.set(chatSwitchingSessionAtom, null))
+      return
+    }
     if (isNewConversation && !hasContext) return
     // `sendMessage` reports a failed session creation itself (see
     // `chatSessionOpenErrorAtom`). Anything else it could reject with is
@@ -321,7 +334,7 @@ export function ChatPanel() {
       // No project: no `cwd`, no project — the server opens it in its neutral place.
       send(text, { cwd: '' }, attachmentIds, refs)
     }
-  }, [isNewConversation, hasContext, projectContext, neutralPlace, selectedProject, allProjectsMode, activeWsSlug, chat.sendMessage])
+  }, [isNewConversation, hasContext, projectContext, neutralPlace, selectedProject, allProjectsMode, activeWsSlug, chat.sendMessage, chat.sessionId, store])
 
 
   // ── Provider state of the composer ────────────────────────────────────
