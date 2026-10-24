@@ -2,6 +2,7 @@ import { atom } from 'jotai'
 import { atomWithStorage, RESET } from 'jotai/utils'
 import type { BackgroundTaskInfo, ChatPanelMode, PermissionConfig, Project, WsConnectionStatus } from '@/types'
 import type { ToolPolicyMode } from '@/types/provider'
+import type { SwitchProviderRefusal } from '@/services/chat'
 import type { QueuedMessage } from '@/components/chat/messageQueue'
 import type { Attachment } from '@/components/chat/attachmentState'
 
@@ -339,3 +340,16 @@ export const chatFollowNoticeAtom = atom<{ sessionId: string; fromProvider: stri
 
 /** The session this tab is moving to another provider right now (switch route in flight). */
 export const chatSwitchingSessionAtom = atom<string | null>(null)
+
+/**
+ * A move to another provider picked on a chat whose next message is not written yet: it
+ * happens when that message is sent, with no popup. `refusal` is set when the server refused
+ * the move at send time; the routing menu then reopens its dialog with `message` to retry.
+ */
+export interface PendingSwitch {
+  sessionId: string
+  pick: { provider: string; model: string }
+  message: string
+  refusal: SwitchProviderRefusal | null
+}
+export const chatPendingSwitchAtom = atom<PendingSwitch | null>(null)

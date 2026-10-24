@@ -12,6 +12,7 @@ import { Provider, createStore } from 'jotai'
 import { clearModelCatalogCache } from '@/components/settings/useModelCatalog'
 import { providersApi } from '@/services/providers'
 import { ApiError } from '@/services/api'
+import { chatPendingSwitchAtom } from '@/atoms'
 import {
   chatDraftInputAtom,
   chatFollowRequestAtom,
@@ -140,20 +141,35 @@ describe('RoutingSelectionMenu - move an existing conversation to another provid
     expect(store.get(chatDraftInputAtom)).toBe('')
   })
 
-  it('an empty composer: the confirmation asks for the message, required before anything is sent', async () => {
-    mount()
+  it('an empty composer: no popup, the move waits for the next message (it leaves when that message is sent)', () => {
+    const store = mount()
     openMenu()
     pickOther('local-llama', /Local llama/, 'qwen')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(store.get(chatPendingSwitchAtom)).toEqual({
+      sessionId: 's1',
+      pick: { provider: 'local-llama', model: 'qwen' },
+      message: '',
+      refusal: null,
+    })
+    expect(switchConversationProvider).not.toHaveBeenCalled()
+  })
+
+  it('a move refused at send time reopens the dialog with the message to retry, and says why', async () => {
+    const store = mount()
+    store.set(chatPendingSwitchAtom, {
+      sessionId: 's1',
+      pick: { provider: 'local-llama', model: 'qwen' },
+      message: 'go on',
+      refusal: { kind: 'failed' },
+    })
+    openMenu()
     const dialog = await screen.findByRole('dialog')
     const message = within(dialog).getByTestId('switch-provider-message') as HTMLTextAreaElement
-    expect(message.value).toBe('')
-    expect(message.required).toBe(true)
+    expect(message.value).toBe('go on')
+    expect(store.get(chatPendingSwitchAtom)).not.toBeNull()
     fireEvent.click(within(dialog).getByTestId('switch-provider-confirm'))
-    expect(switchConversationProvider).not.toHaveBeenCalled()
-    expect(message.getAttribute('aria-invalid')).toBe('true')
-    expect(dialog.textContent).toContain('Write the message to send first.')
-    fireEvent.change(message, { target: { value: 'go on' } })
-    fireEvent.click(within(dialog).getByTestId('switch-provider-confirm'))
+    expect(store.get(chatPendingSwitchAtom)).toBeNull()
     expect(switchConversationProvider).toHaveBeenCalledWith('s1', { provider: 'local-llama', model: 'qwen', message: 'go on' })
   })
 
@@ -197,9 +213,14 @@ describe('RoutingSelectionMenu - move an existing conversation to another provid
   })
 
   it('keeps focus inside the dialog (Tab wraps around)', async () => {
-    mount()
+    const store = mount()
+    store.set(chatPendingSwitchAtom, {
+      sessionId: 's1',
+      pick: { provider: 'local-llama', model: 'phi' },
+      message: 'hello',
+      refusal: { kind: 'failed' },
+    })
     openMenu()
-    pickOther('local-llama', /Local llama/, 'phi')
     const dialog = await screen.findByRole('dialog')
     const confirm = within(dialog).getByTestId('switch-provider-confirm')
     confirm.focus()

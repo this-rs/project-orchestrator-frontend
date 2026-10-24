@@ -11,6 +11,7 @@ import {
   chatDraftInputAtom,
   chatFollowRequestAtom,
   chatSwitchingSessionAtom,
+  chatPendingSwitchAtom,
   chatDraftAutoAtom,
   chatDraftSelectionAtom,
   chatForcedTargetAtom,
@@ -230,7 +231,12 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
   const [refusal, setRefusal] = useState<{ sessionId: string; reason: ConversationRoutingRefusal } | null>(null)
   const settings = useAtomValue(chatRoutingSettingsAtom)
   /** A move to another provider being confirmed: the model picked there, and the route's answer. */
-  const [switchTarget, setSwitchTarget] = useState<{ sessionId: string; pick: RoutingPick } | null>(null)
+  const [switchTarget, setSwitchTarget] = useState<{ sessionId: string; pick: RoutingPick; message?: string } | null>(null)
+  /** A move picked before its message was written: it leaves when that message is sent. */
+  const [pendingSwitch, setPendingSwitch] = useAtom(chatPendingSwitchAtom)
+  /** A move the server refused at send time: the dialog reopens on it (to retry or cancel). */
+  const refusedSwitch = pendingSwitch?.refusal && pendingSwitch.sessionId === sessionId ? pendingSwitch : null
+  const dialogSwitch = refusedSwitch ? { sessionId: refusedSwitch.sessionId, pick: refusedSwitch.pick, message: refusedSwitch.message } : switchTarget
   const [switchPending, setSwitchPending] = useState(false)
   const [switchRefusal, setSwitchRefusal] = useState<SwitchProviderRefusal | null>(null)
   const [draft, setDraft] = useAtom(chatDraftInputAtom)
@@ -329,8 +335,9 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
         if (draft.trim()) {
           switchTo(sessionId, added, draft)
         } else {
+          // No message yet: the move waits for the next one (sent from the composer), no popup.
           setSwitchRefusal(null)
-          setSwitchTarget({ sessionId, pick: added })
+          setPendingSwitch({ sessionId, pick: added, message: '', refusal: null })
         }
         return
       }
@@ -368,8 +375,9 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
     )
 
   const confirmSwitch = (message: string) => {
-    if (!switchTarget || switchPending) return
-    const { sessionId: sid, pick } = switchTarget
+    if (!dialogSwitch || switchPending) return
+    const { sessionId: sid, pick } = dialogSwitch
+    if (refusedSwitch) setPendingSwitch(null)
     switchTo(sid, pick, message)
   }
 
@@ -595,21 +603,22 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
           </div>
         </div>
       )}
-      {switchTarget && switchTarget.sessionId === sessionId && (
+      {dialogSwitch && dialogSwitch.sessionId === sessionId && (
         <SwitchProviderDialog
           target={`${(() => {
-            const p = instances.find((x) => x.id === switchTarget.pick.provider)
-            return p ? providerDisplayName(p) : switchTarget.pick.provider
-          })()} › ${nameOf(switchTarget.pick.provider, switchTarget.pick.model)}`}
+            const p = instances.find((x) => x.id === dialogSwitch.pick.provider)
+            return p ? providerDisplayName(p) : dialogSwitch.pick.provider
+          })()} › ${nameOf(dialogSwitch.pick.provider, dialogSwitch.pick.model)}`}
           current={liveModel ? `${sessionLabel} › ${nameOf(targetId, liveModel)}` : sessionLabel}
-          initialMessage={draft}
+          initialMessage={dialogSwitch.message ?? draft}
           pending={switchPending}
-          refusal={switchRefusal}
+          refusal={refusedSwitch ? refusedSwitch.refusal : switchRefusal}
           projectSlug={projectSlug}
           onConfirm={confirmSwitch}
           onCancel={() => {
             setSwitchTarget(null)
             setSwitchRefusal(null)
+            if (refusedSwitch) setPendingSwitch(null)
           }}
           returnFocus={() => chipRef.current}
         />
