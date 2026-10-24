@@ -134,8 +134,10 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
     return <ErrorState title={WORK_TEXT.loadError} description={error ?? undefined} onRetry={refresh} />
   }
 
-  // A task already on today's plan is shown there, once.
-  const inProgress = data.inProgress.filter((t) => !dayIds.has(t.task.id))
+  // A task already on today's plan is shown there, once. A task a running plan works on is the
+  // plan's business: the page's "In progress" row of that plan counts it, this list does not.
+  const byPlans = data.inProgress.filter((t) => !dayIds.has(t.task.id) && t.planId !== null && data.runningPlanIds.has(t.planId)).length
+  const inProgress = data.inProgress.filter((t) => !dayIds.has(t.task.id) && !(t.planId !== null && data.runningPlanIds.has(t.planId)))
   const next = data.next.filter((t) => !dayIds.has(t.task.id))
   // A plan that runs, waits on the user or is to resume is shown by the page's queue, once.
   const toLaunch = data.chains.filter((c) => !shownPlanIds?.has(c.plan.id) && c.run?.status !== 'running')
@@ -164,7 +166,7 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
   // One line per task: the tab already says its state, the plan it belongs to sits at the right.
   const taskRow = (
     t: WorkTask,
-    row: { primary?: ReactNode; menu?: OverflowMenuAction[]; leading?: ReactNode; muted?: boolean; state?: boolean },
+    row: { primary?: ReactNode; menu?: OverflowMenuAction[]; leading?: ReactNode; muted?: boolean; state?: boolean; status?: ReactNode[] },
   ) => (
     <EntityRow
       key={t.task.id}
@@ -174,6 +176,7 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
       href={taskHref(t)}
       leading={row.leading}
       muted={row.muted}
+      status={row.status}
       trailing={
         <span className="flex items-center gap-3">
           {/* Wide only: on a phone the leading icon already says the state, and the title needs the room. */}
@@ -261,7 +264,32 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
     }),
   )
 
-  const blockedRows = data.blocked.map((t) => taskRow(t, { menu: [addToDayAction(t)] }))
+  // Why it waits, on the row: the blocking tasks by name (a done one is struck through: it no
+  // longer blocks, the status just has not caught up). Nothing recorded: say so, not a bare "Blocked".
+  const blockedRows = data.blocked.map((t) =>
+    taskRow(t, {
+      menu: [addToDayAction(t)],
+      status: t.blockedBy
+        ? t.blockedBy.length > 0
+          ? [
+              <span key="by" className="inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-amber-300/90">
+                <span className="font-medium">{WORK_TEXT.blockedBy}</span>
+                {t.blockedBy.map((b, i) => (
+                  <span key={b.id} className={`truncate font-normal ${b.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-300'}`}>
+                    {b.title}
+                    {i < t.blockedBy!.length - 1 ? ',' : ''}
+                  </span>
+                ))}
+              </span>,
+            ]
+          : [
+              <span key="none" className="font-normal text-gray-500">
+                {WORK_TEXT.blockedByUnknown}
+              </span>,
+            ]
+        : undefined,
+    }),
+  )
 
   const panels: Record<WorkTab, { rows: ReactNode[]; empty: ReactNode }> = {
     day: {
@@ -275,7 +303,15 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
           <EmptyState size="sm" icon={<Check className="h-5 w-5 text-emerald-400" aria-hidden="true" />} title={WORK_TEXT.dayAllDone} description={WORK_TEXT.dayAllDoneHint} />
         ),
     },
-    inProgress: { rows: inProgressRows, empty: <p className="px-4 py-3 text-sm text-gray-400">{WORK_TEXT.inProgressEmpty}</p> },
+    inProgress: {
+      rows: inProgressRows,
+      empty: (
+        <p className="px-4 py-3 text-sm text-gray-400">
+          {WORK_TEXT.inProgressEmpty}
+          {byPlans > 0 && <span className="block text-xs text-gray-500">{WORK_TEXT.inProgressByPlans(byPlans)}</span>}
+        </p>
+      ),
+    },
     next: { rows: nextRows, empty: <p className="px-4 py-3 text-sm text-gray-400">{WORK_TEXT.nextEmpty}</p> },
     blocked: { rows: blockedRows, empty: null },
     chains: {
@@ -354,6 +390,9 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds }: WorkDashboardP
               </li>
             )}
           </EntityList>
+        )}
+        {active === 'inProgress' && panel.rows.length > 0 && byPlans > 0 && (
+          <p className="px-1 pt-2 text-xs text-gray-500">{WORK_TEXT.inProgressByPlans(byPlans)}</p>
         )}
         {active === 'day' && doneTodayRows.length > 0 && (
           <Section title={WORK_TEXT.doneToday} count={doneTodayRows.length} collapsible defaultOpen={false} className="mt-3">

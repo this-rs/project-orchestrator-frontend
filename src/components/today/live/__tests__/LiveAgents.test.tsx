@@ -49,11 +49,11 @@ const response = (agents: LiveAgent[]): LiveAgentsResponse => ({
   idle: agents.filter((a) => a.state === 'idle').length,
 })
 
-const renderLive = () => {
+const renderLive = (props: React.ComponentProps<typeof LiveAgents> = {}) => {
   const store = createStore()
   const utils = render(
     <Provider store={store}>
-      <LiveAgents />
+      <LiveAgents {...props} />
     </Provider>,
   )
   return { store, ...utils }
@@ -96,6 +96,28 @@ describe('LiveAgents', () => {
     expect(rows[0].textContent).not.toContain('claude-opus')
     // The summary counts who waits and who works: no total, no idle.
     expect(screen.getByText('1 waiting for your answer · 1 working')).toBeTruthy()
+  })
+
+  it('names once an assistant whose request is already a card above, with a way to it', async () => {
+    list.mockResolvedValue(
+      response([
+        agent({ session_id: 'a', title: 'Waits above', state: 'waiting_input', pending_requests: 1 }),
+        agent({ session_id: 'b', title: 'Waits here', state: 'waiting_input', pending_requests: 1 }),
+        agent({ session_id: 'c', title: 'Runs', state: 'streaming' }),
+      ]),
+    )
+    const go = vi.fn()
+    renderLive({ shownSessionIds: new Set(['a']), onGoToWaiting: go })
+    expect(await screen.findByText('Runs')).toBeTruthy()
+    // The carded one is not a row; the other waiting one still is.
+    expect(screen.queryByText('Waits above')).toBeNull()
+    expect(screen.getByText('Waits here')).toBeTruthy()
+    expect(screen.getAllByTestId('live-agent').map((r) => r.getAttribute('data-state'))).toEqual(['waiting_input', 'streaming'])
+    // One line counts it and leads to the cards; the summary still counts the whole fleet.
+    const link = screen.getByRole('button', { name: LIVE_TEXT.answeredAbove(1) })
+    fireEvent.click(link)
+    expect(go).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('2 waiting for your answer · 1 working')).toBeTruthy()
   })
 
   it('folds the idle agents behind a button that reveals them', async () => {

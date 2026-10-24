@@ -284,6 +284,8 @@ export const TEXT = {
     } as Record<string, string>,
     waiting: (n: number) => `${n} waiting for your answer`,
     working: (n: number) => `${n} working`,
+    /** Assistants whose request is already a card in « Waiting for you »: named once, not listed twice. */
+    answeredAbove: (n: number) => (n === 1 ? '1 is waiting for you above' : `${n} are waiting for you above`),
   },
 
   /** « My tasks » (work/WorkDashboard). */
@@ -300,6 +302,10 @@ export const TEXT = {
     dayProgress: (done: number, total: number) => `${done} of ${total} done today`,
     inProgress: 'In progress',
     inProgressEmpty: 'No task in progress.',
+    /** Tasks a running plan works on: counted here, listed under « In progress » (the plans). */
+    inProgressByPlans: (n: number) => (n === 1 ? '1 more is being worked on by a plan in progress.' : `${n} more are being worked on by plans in progress.`),
+    blockedBy: 'Waiting on',
+    blockedByUnknown: 'Blocked, no dependency recorded',
     next: 'Up next',
     nextEmpty: 'No active plan has a task ready.',
     chains: 'Plans to launch',

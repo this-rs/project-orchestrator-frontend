@@ -41,7 +41,8 @@ export { PANEL } from './BandFrame'
  *   that used to feed "Start here"), with the workspace filter and four counters that are
  *   also the anchors of the sections (`TodaySummary`);
  * - "what depends on you" on the left: Waiting for you (request cards), To resume (rows), then the
- *   user's own tasks (`daySlot`);
+ *   user's own tasks (`daySlot`) — which go FIRST when both bands are empty (nothing asks for the
+ *   user: their tasks are what depends on them, the two soft lines follow);
  * - "what advances without you" on the right: the plans that run, the assistants (`liveSlot`),
  *   and To read (folded). From a wide container the right column stays in view while the left scrolls.
  *
@@ -399,6 +400,10 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
     )
   }
 
+  // Nobody waits on the user and nothing is to resume: the day is what depends on them, it goes
+  // first; the two empty bands (one soft line each) follow, so the eye lands on the tasks.
+  const dayFirst = state === 'ready' && !!bands && bands.waiting.length === 0 && bands.stuck.length === 0
+
   return (
     <div className="@container/today space-y-5">
       {header}
@@ -406,7 +411,8 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
       <div aria-busy={source.switching || undefined} className={source.switching ? 'pointer-events-none opacity-60' : ''}>
         {/* DOM order = visual order = tab order. Narrow container: one column in this order. */}
         <div data-testid="sections" className="grid min-w-0 grid-cols-1 gap-x-5 gap-y-5 @4xl/today:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] @4xl/today:items-start">
-          <div data-testid="sections-main" className="min-w-0 space-y-5">
+          <div data-testid="sections-main" data-day-first={dayFirst || undefined} className="min-w-0 space-y-5">
+            {dayFirst && daySlot}
             <BandFrame
               {...common('waiting')}
               count={bands ? bands.counts.waiting : null}
@@ -435,7 +441,7 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
               {bands && <ThreadRowList label={TODAY_TEXT.stuckList}>{bands.stuck.map(renderStuck)}</ThreadRowList>}
             </BandFrame>
 
-            {daySlot}
+            {!dayFirst && daySlot}
           </div>
 
           <div data-testid="sections-side" className="min-w-0 space-y-5 @4xl/today:sticky @4xl/today:top-4">

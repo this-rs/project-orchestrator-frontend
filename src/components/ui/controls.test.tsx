@@ -3,7 +3,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { Box } from 'lucide-react'
 import { TabLayout } from './TabLayout'
-import { ViewTabs } from './ViewTabs'
+import { ViewTabs, overflowEdges } from './ViewTabs'
 import { ViewToggle } from './ViewToggle'
 import { RowCheckbox } from './RowCheckbox'
 import { ProgressLine } from './ProgressLine'
@@ -170,6 +170,17 @@ describe('HaloPointer', () => {
       raf.mockRestore()
       window.matchMedia = original
     }
+  })
+})
+
+describe('overflowEdges', () => {
+  it('says which side of a strip hides tabs, and nothing when everything fits', () => {
+    expect(overflowEdges(0, 300, 300)).toEqual({ left: false, right: false })
+    expect(overflowEdges(0, 300.6, 300)).toEqual({ left: false, right: false })
+    expect(overflowEdges(0, 500, 300)).toEqual({ left: false, right: true })
+    expect(overflowEdges(100, 500, 300)).toEqual({ left: true, right: true })
+    expect(overflowEdges(200, 500, 300)).toEqual({ left: true, right: false })
+    expect(overflowEdges(199.5, 500, 300)).toEqual({ left: true, right: false })
   })
 })
 

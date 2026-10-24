@@ -65,8 +65,18 @@ export function LiveAgentRow({ agent, onOpen, scale }: { agent: LiveAgent; onOpe
   )
 }
 
+export interface LiveAgentsProps {
+  /**
+   * Sessions whose request is already a card in « Waiting for you »: the page names an assistant
+   * once. Those are left out of the rows and counted in one line that leads to the cards.
+   */
+  shownSessionIds?: ReadonlySet<string>
+  /** Where that line leads (the « Waiting for you » section). */
+  onGoToWaiting?: () => void
+}
+
 /** Today's "Assistants": every assistant whose conversation is alive now, whatever started it. */
-export function LiveAgents() {
+export function LiveAgents({ shownSessionIds, onGoToWaiting }: LiveAgentsProps = {}) {
   const { status, data, stale, refresh } = useLiveAgents()
   const setSession = useSetAtom(chatSessionIdAtom)
   const setMode = useSetAtom(chatPanelModeAtom)
@@ -78,8 +88,13 @@ export function LiveAgents() {
 
   // Who needs the user first, then who works; the idle ones are folded (nothing happens there).
   const order = { waiting_input: 0, streaming: 1, idle: 2 } as const
-  const active = (data?.agents ?? []).filter((a) => a.state !== 'idle').sort((a, b) => order[a.state] - order[b.state])
-  const idle = (data?.agents ?? []).filter((a) => a.state === 'idle')
+  const agents = data?.agents ?? []
+  // Already a card above: not a row here (the summary line and the bar still count the whole fleet).
+  const above = agents.filter((a) => a.state === 'waiting_input' && shownSessionIds?.has(a.session_id)).length
+  const active = agents
+    .filter((a) => a.state !== 'idle' && !(a.state === 'waiting_input' && shownSessionIds?.has(a.session_id)))
+    .sort((a, b) => order[a.state] - order[b.state])
+  const idle = agents.filter((a) => a.state === 'idle')
 
   const scale = Math.max(0, ...active.map((a) => a.age_secs))
   // Agents without a figure make this a floor ("≥ $x"); nothing known, or a zero, shows nothing.
@@ -121,6 +136,19 @@ export function LiveAgents() {
           <p className="text-sm text-gray-300">{LIVE_TEXT.empty}</p>
           <p className="text-xs text-gray-500">{LIVE_TEXT.emptyHint}</p>
         </div>
+      )}
+
+      {data && above > 0 && (
+        <p data-testid="live-above" className="flex items-center gap-1.5 text-xs text-amber-300/90">
+          <PulseIndicator variant="pending" />
+          {onGoToWaiting ? (
+            <button type="button" onClick={onGoToWaiting} className={`rounded underline-offset-2 hover:underline ${focusRing}`}>
+              {LIVE_TEXT.answeredAbove(above)}
+            </button>
+          ) : (
+            <span>{LIVE_TEXT.answeredAbove(above)}</span>
+          )}
+        </p>
       )}
 
       {data && active.length > 0 && (

@@ -72,6 +72,36 @@ describe('TodayView: the discussions slot of "In progress"', () => {
   })
 })
 
+describe('TodayView: where the day sits', () => {
+  const data = fixture('four_bands')
+  const day = <section aria-label="My day" data-testid="day" />
+
+  it('comes after the queue while something waits on the user or is to resume', () => {
+    view(data, { daySlot: day })
+    const main = screen.getByTestId('sections-main')
+    expect(main.getAttribute('data-day-first')).toBeNull()
+    const queue = screen.getByRole('region', { name: BAND_TEXT.waiting.title })
+    expect(queue.compareDocumentPosition(screen.getByTestId('day')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('goes first when nothing waits and nothing is to resume: the tasks are what depends on the user', () => {
+    const calm: AttentionResponse = {
+      ...data,
+      waiting: [],
+      orphans: [],
+      unattached: [],
+      threads: data.threads.filter((t) => t.band !== 'stuck'),
+    }
+    view(calm, { daySlot: day })
+    const main = screen.getByTestId('sections-main')
+    expect(main.getAttribute('data-day-first')).toBe('true')
+    expect(main.firstElementChild).toBe(screen.getByTestId('day'))
+    // The two empty bands are still there, as soft lines, right after.
+    expect(screen.getByRole('region', { name: BAND_TEXT.waiting.title })).toBeTruthy()
+    expect(screen.getByRole('region', { name: BAND_TEXT.stuck.title })).toBeTruthy()
+  })
+})
+
 describe('TodayView: an empty section is one soft line', () => {
   it.each([
     ['waiting', BAND_TEXT.waiting.empty],

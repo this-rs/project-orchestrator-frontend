@@ -16,12 +16,18 @@ const getNextTask = vi.fn()
 const tasksList = vi.fn()
 const tasksGet = vi.fn()
 const tasksUpdate = vi.fn()
+const tasksBlockers = vi.fn()
 const batch = vi.fn()
 const listAllRuns = vi.fn()
 const startRun = vi.fn()
 vi.mock('@/services/plans', () => ({ plansApi: { list: (...a: unknown[]) => plansList(...a), getNextTask: (...a: unknown[]) => getNextTask(...a) } }))
 vi.mock('@/services/tasks', () => ({
-  tasksApi: { list: (...a: unknown[]) => tasksList(...a), get: (...a: unknown[]) => tasksGet(...a), update: (...a: unknown[]) => tasksUpdate(...a) },
+  tasksApi: {
+    list: (...a: unknown[]) => tasksList(...a),
+    get: (...a: unknown[]) => tasksGet(...a),
+    update: (...a: unknown[]) => tasksUpdate(...a),
+    getBlockers: (...a: unknown[]) => tasksBlockers(...a),
+  },
 }))
 vi.mock('@/services/progress', () => ({ progressApi: { batch: (...a: unknown[]) => batch(...a) } }))
 vi.mock('@/services/runner', async () => {
@@ -75,6 +81,7 @@ function seed(w: World = {}) {
   listAllRuns.mockResolvedValue(w.runs ?? [])
   batch.mockResolvedValue(w.counts ?? {})
   tasksGet.mockResolvedValue(null)
+  tasksBlockers.mockResolvedValue({ items: [] })
   tasksUpdate.mockResolvedValue({})
   startRun.mockResolvedValue({})
   providersList.mockResolvedValue(ONE)
@@ -407,14 +414,39 @@ describe('WorkDashboard', () => {
     for (const l of limits) expect(l).toBeLessThanOrEqual(100)
   })
 
-  it('lists blocked tasks', async () => {
-    seed({ plans: [plan('a', 1)], blocked: [listed(task('bl', 'blocked'), 'a')] })
+  it('lists blocked tasks and says what each one waits on', async () => {
+    seed({ plans: [plan('a', 1)], blocked: [listed(task('bl', 'blocked'), 'a'), listed(task('b2', 'blocked'), 'a')] })
+    tasksBlockers.mockImplementation(async (id: string) =>
+      id === 'bl' ? { items: [task('dep1', 'in_progress'), task('dep2', 'completed')] } : { items: [] },
+    )
     renderDash()
     await screen.findByTestId('work-dashboard')
-    expect(tab(WORK_TEXT.blocked).textContent).toBe(`${WORK_TEXT.blocked} 1`)
+    expect(tab(WORK_TEXT.blocked).textContent).toBe(`${WORK_TEXT.blocked} 2`)
     openTab(WORK_TEXT.blocked)
     expect(panel().getAttribute('data-tab')).toBe('blocked')
-    expect(screen.getByText('Tâche bl')).toBeTruthy()
+    // One call per blocked task, no more.
+    expect(tasksBlockers).toHaveBeenCalledTimes(2)
+    const row = screen.getByText('Tâche bl').closest('li')!
+    expect(row.textContent).toContain(WORK_TEXT.blockedBy)
+    expect(row.textContent).toContain('Tâche dep1')
+    // A blocker already done is struck through: it no longer holds the task.
+    expect(within(row).getByText('Tâche dep2').className).toContain('line-through')
+    // Nothing recorded: the row says so instead of a bare "Blocked".
+    expect(screen.getByText('Tâche b2').closest('li')!.textContent).toContain(WORK_TEXT.blockedByUnknown)
+  })
+
+  it('leaves a task a running plan works on out of "In progress", and says how many it left out', async () => {
+    seed({
+      plans: [plan('run', 2), plan('idle', 1)],
+      inProgress: [listed(task('byPlan', 'in_progress'), 'run'), listed(task('mine', 'in_progress'), 'idle')],
+      runs: [{ run_id: '1', plan_id: 'run', status: 'running', started_at: '2026-10-02T09:00:00Z' }],
+    })
+    renderDash(['acme'], new Set(['run']))
+    await screen.findByTestId('work-dashboard')
+    expect(tab(WORK_TEXT.inProgress).textContent).toBe(`${WORK_TEXT.inProgress} 1`)
+    expect(screen.getByText('Tâche mine')).toBeTruthy()
+    expect(screen.queryByText('Tâche byPlan')).toBeNull()
+    expect(screen.getByText(WORK_TEXT.inProgressByPlans(1))).toBeTruthy()
   })
 
   it('cuts a long list: the first rows, then "Afficher les N", which toggles to "Réduire"', async () => {
