@@ -41,6 +41,7 @@ export function isAttentionChanged(e: CrudEvent): boolean {
 /** A not-yet-confirmed local change. Entries are dropped on failure, or once a refetch started after the settle lands. */
 export type Op =
   | { kind: 'drop_request'; id: string }
+  | { kind: 'answer_request'; id: string }
   | { kind: 'orphan_request'; id: string }
   | { kind: 'resume_thread'; id: string }
   | { kind: 'drop_thinking'; id: string }
@@ -260,7 +261,7 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
       if (raw?.orphans.some((o) => o.request_id === req.request_id) || notices[req.request_id]) return 'orphaned'
       let gone = false
       const ok = await run(
-        { kind: 'drop_request', id: req.request_id },
+        { kind: 'answer_request', id: req.request_id },
         () => attentionApi.answerPermission(req.session_id, req.request_id, allow),
         { ok: tr(allow ? 'app.attention.allowed' : 'app.attention.denied', { what: describeRequest(req) }), fail: tr('app.attention.replyFailed') },
         () => {
@@ -277,7 +278,7 @@ export function useAttention({ workspace = null }: UseAttentionOptions = {}) {
   const sendReply = useCallback(
     async (req: WaitingRequest, content: string) => {
       const ok = await run(
-        { kind: 'drop_request', id: req.request_id },
+        { kind: 'answer_request', id: req.request_id },
         () => attentionApi.sendMessage(req.session_id, content),
         { ok: tr('app.attention.replySent', { what: describeRequest(req) }), fail: tr('app.attention.replyFailed') },
       )

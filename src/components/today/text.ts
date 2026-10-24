@@ -129,6 +129,10 @@ export const TEXT = {
     allow: 'Allow',
     deny: 'Deny',
     sent: 'Answer sent.',
+    /** The inert line a card turns into once the answer is sent, before it leaves the list. */
+    authorized: (what: string) => `Authorized: ${what}`,
+    denied: (what: string) => `Denied: ${what}`,
+    answered: (what: string) => `Answered: ${what}`,
     decided: 'Already decided: the request was handled elsewhere.',
     notSent: 'Answer not sent. You can try again.',
     /** Shown when the conversation stopped before the answer (also the hook's `ORPHAN_NOTICE`). */
@@ -151,6 +155,9 @@ export const TEXT = {
   row: {
     resume: 'Resume',
     resuming: 'Resuming…',
+    resumeAnyway: 'Resume anyway',
+    unblock: (task: string) => `Unblock ${task}`,
+    actionsFor: (name: string) => `Actions for ${name}`,
     resumeSession: 'Resume the conversation',
     reply: 'Reply…',
     replyTitle: 'Reply',
@@ -232,6 +239,7 @@ export const TEXT = {
       alert: 'Alerts',
     } satisfies Record<ThinkingKind, string>,
     empty: 'Nothing to read',
+    read: 'Read',
     accept: 'Accept',
     reject: 'Reject',
     confirm: 'Confirm',
@@ -324,7 +332,10 @@ export const TEXT = {
     launching: 'Launching…',
     launched: 'Plan launched',
     started: 'Task started',
-    completed: 'Task completed',
+    completed: 'Completed',
+    undo: 'Undo',
+    /** Why a plan cannot be launched: the execution slot is taken (same wording as the resume row). */
+    unavailableBusy: 'Unavailable: another plan is already in progress,',
     actionFailed: 'The action did not go through.',
     neverRun: 'Never launched',
     untitled: 'Untitled task',

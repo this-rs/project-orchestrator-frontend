@@ -2,9 +2,10 @@ import { useId, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ReferenceSource } from '@/refs/source'
 import { Button } from '@/components/ui/Button'
+import { OverflowMenu } from '@/components/ui'
 import { StatusIcon } from '@/components/ui/Status'
 import { RelativeTime } from '@/components/ui/MetaLine'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Play } from 'lucide-react'
 import { focusRing, hitArea, inlineLink, metaTextReadable as metaText, segmentItem, segmented } from '@/components/ui/classes'
 import { formatDurationMs } from '@/components/ui/format'
 import { CostDisplay } from '@/components/ui/CostDisplay'
@@ -142,6 +143,7 @@ function RowShell({
   lead,
   title,
   action,
+  menu,
   meta,
   children,
   className = '',
@@ -150,6 +152,7 @@ function RowShell({
   lead: ReactNode
   title: ReactNode
   action?: ReactNode
+  menu?: ReactNode
   meta?: ReactNode
   children?: ReactNode
   className?: string
@@ -164,6 +167,7 @@ function RowShell({
             {meta && <div className={`mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 ${metaText}`}>{meta}</div>}
           </div>
           {action && <div className="-my-1 shrink-0">{action}</div>}
+          {menu && <div className="-my-1 shrink-0">{menu}</div>}
         </div>
         {children}
       </div>
@@ -246,6 +250,39 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
     }
   }
 
+  // « Unblock » before « Resume »: when a task blocks the resume, the PRIMARY action is a link to
+  // unblock it, and « Resume anyway » (which skips it) moves into the ⋯ menu. No blocked task: the
+  // resume button stays THE action.
+  const hasBlocked = blocked.length > 0
+  const resumeButton = (
+    <Button
+      variant="secondary"
+      size="sm"
+      flat
+      onClick={click}
+      disabled={disabled}
+      aria-describedby={noteId}
+      // Not a dimmed button: a visibly unavailable one (dashed, grey), at full opacity so its reason stays readable.
+      // The glass draws its hairline in `::after`; the dashed border needs a real 1px border.
+      className="disabled:border disabled:border-dashed disabled:border-white/[0.12]! disabled:bg-transparent! disabled:bg-none! disabled:shadow-none! disabled:text-gray-400! disabled:opacity-100!"
+    >
+      {pending ? ROW_TEXT.resuming : ROW_TEXT.resume}
+    </Button>
+  )
+  const primaryAction = hasBlocked ? (
+    <Link
+      to={workspacePath(thread.workspace, `/tasks/${blocked[0].id}`)}
+      className={`${inlineLink} inline-flex min-h-9 items-center px-2 text-sm underline underline-offset-2 ${focusRing}`}
+    >
+      {ROW_TEXT.unblock(blocked[0].title)}
+    </Link>
+  ) : (
+    resumeButton
+  )
+  const menu = hasBlocked ? (
+    <OverflowMenu size="sm" label={ROW_TEXT.actionsFor(thread.title)} actions={[{ label: ROW_TEXT.resumeAnyway, icon: Play, disabled, onClick: click }]} />
+  ) : null
+
   return (
     <RowShell
       attrs={{ 'data-variant': 'stuck', 'data-thread': thread.id }}
@@ -260,21 +297,8 @@ export function StuckThreadRow({ thread, runner, onResume, laneName, className }
         )
       }
       title={<Title thread={thread} />}
-      action={
-        <Button
-          variant="secondary"
-          size="sm"
-          flat
-          onClick={click}
-          disabled={disabled}
-          aria-describedby={noteId}
-          // Not a dimmed button: a visibly unavailable one (dashed, grey), at full opacity so its reason stays readable.
-          // The glass draws its hairline in `::after`; the dashed border needs a real 1px border.
-          className="disabled:border disabled:border-dashed disabled:border-white/[0.12]! disabled:bg-transparent! disabled:bg-none! disabled:shadow-none! disabled:text-gray-400! disabled:opacity-100!"
-        >
-          {pending ? ROW_TEXT.resuming : ROW_TEXT.resume}
-        </Button>
-      }
+      action={primaryAction}
+      menu={menu}
       meta={
         <>
           <span className={reason === 'task_blocked' ? 'text-amber-300' : 'text-red-300'}>{cause}</span>

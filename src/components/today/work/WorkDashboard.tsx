@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { useAtomValue } from 'jotai'
 import { ArrowDown, ArrowUp, CalendarPlus, Check, Circle, CircleDot, FolderGit2, Play, RotateCcw, X } from 'lucide-react'
 import { projectsAtom } from '@/atoms'
@@ -19,12 +20,13 @@ import {
   type OverflowMenuAction,
   type ViewTab,
 } from '@/components/ui'
-import { glassFlat, iconButton } from '@/components/ui/classes'
+import { glassFlat, iconButton, inlineLink } from '@/components/ui/classes'
 import { PANEL } from '../BandFrame'
 import { useToast } from '@/hooks/useToast'
 import { planRunTarget } from '@/services/runner'
 import { tasksApi } from '@/services/tasks'
 import type { TaskStatus } from '@/types'
+import type { RunnerState } from '@/types/attention'
 import { workspacePath } from '@/utils/paths'
 import { addToDay, loadDayPlan, moveInDay, removeFromDay, saveDayPlan, type DayPlan } from './dayPlan'
 import type { WorkChain, WorkTask } from './model'
@@ -58,6 +60,11 @@ export interface WorkDashboardProps {
    * The page uses it to build the ask bar's day context, without loading the dashboard twice.
    */
   onDayTitles?: (titles: string[]) => void
+  /**
+   * Execution occupancy (the page's `/api/attention` runner). When busy, a plan cannot be
+   * launched: the button is disabled with the reason, before the click, never by a 409.
+   */
+  runner?: RunnerState
 }
 
 /**
@@ -72,7 +79,7 @@ export interface WorkDashboardProps {
  * whole dashboard is filled: "Start" on the next task of the day. Every button inside a row is
  * glass without blur (`flat`, `btn-flat`): the blur budget is about ten on screen, a list has more rows.
  */
-export function WorkDashboard({ workspaces, lane, shownPlanIds, onDayTitles }: WorkDashboardProps) {
+export function WorkDashboard({ workspaces, lane, shownPlanIds, onDayTitles, runner }: WorkDashboardProps) {
   const toast = useToast()
   const projects = useAtomValue(projectsAtom)
   const [plan, setPlan] = useState<DayPlan>(() => loadDayPlan(typeof localStorage === 'undefined' ? null : localStorage))
@@ -100,11 +107,12 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds, onDayTitles }: W
   }, [])
 
   const run = useCallback(
-    async (key: string, action: () => Promise<unknown>, success: string) => {
+    async (key: string, action: () => Promise<unknown>, success: string, undo?: { label: string; onClick: () => void }) => {
       setBusy((b) => new Set(b).add(key))
       try {
         await action()
-        toast.success(success)
+        if (undo) toast.success(success, undo)
+        else toast.success(success)
         refresh()
       } catch (e) {
         toast.error(e instanceof Error && e.message ? e.message : WORK_TEXT.actionFailed)
@@ -120,8 +128,17 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds, onDayTitles }: W
   )
 
   const setTaskStatus = useCallback(
-    (t: WorkTask, to: TaskStatus) =>
-      run(t.task.id, () => tasksApi.update(t.task.id, { status: to }), to === 'completed' ? WORK_TEXT.completed : WORK_TEXT.started),
+    (t: WorkTask, to: TaskStatus) => {
+      const previous = t.task.status
+      const undo =
+        to === 'completed'
+          ? {
+              label: WORK_TEXT.undo,
+              onClick: () => void run(t.task.id, () => tasksApi.update(t.task.id, { status: previous }), WORK_TEXT.started),
+            }
+          : undefined
+      return run(t.task.id, () => tasksApi.update(t.task.id, { status: to }), to === 'completed' ? WORK_TEXT.completed : WORK_TEXT.started, undo)
+    },
     [run],
   )
 
@@ -132,6 +149,8 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds, onDayTitles }: W
       await gate.ask({
         title: c.plan.title ?? c.plan.id,
         projectSlug,
+        projectName: project?.name ?? null,
+        folder: cwd,
         run: (options) => run(c.plan.id, () => launchRun(c.plan.id, cwd, projectSlug, options), WORK_TEXT.launched),
       })
     },
@@ -326,7 +345,7 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds, onDayTitles }: W
     next: { rows: nextRows, empty: <p className="px-4 py-3 text-sm text-gray-400">{WORK_TEXT.nextEmpty}</p> },
     blocked: { rows: blockedRows, empty: null },
     chains: {
-      rows: toLaunch.map((c) => <ChainRow key={c.plan.id} chain={c} lane={lane} busy={busy} onLaunch={launch} />),
+      rows: toLaunch.map((c) => <ChainRow key={c.plan.id} chain={c} lane={lane} busy={busy} runner={runner} onLaunch={launch} />),
       empty: null,
     },
   }
@@ -420,17 +439,22 @@ export function WorkDashboard({ workspaces, lane, shownPlanIds, onDayTitles }: W
 function ChainRow({
   chain,
   busy,
+  runner,
   onLaunch,
 }: {
   chain: WorkChain
   lane: string | null
   busy: Set<string>
+  runner?: RunnerState
   onLaunch: (c: WorkChain) => Promise<unknown>
 }) {
   const { plan, counts, run, project, workspace } = chain
   const running = run?.status === 'running'
   const failedLike = run && ['failed', 'cancelled', 'budget_exceeded'].includes(run.status)
   const pending = busy.has(plan.id)
+  // The execution slot is taken: the constraint is said before the click, never by a 409.
+  const occupant = runner?.status === 'busy' ? runner.busy_with : null
+  const occupied = Boolean(occupant)
   const segments = counts && counts.total > 0
     ? [
         { pct: (counts.completed / counts.total) * 100, className: 'bg-emerald-500/80' },
@@ -474,10 +498,22 @@ function ChainRow({
           </Fact>
         ) : null,
       ]}
-      context={counts ? <ProgressLine value={counts.percentage} segments={segments} label={WORK_TEXT.progressOf(plan.title)} /> : undefined}
+      context={
+        <>
+          {counts ? <ProgressLine value={counts.percentage} segments={segments} label={WORK_TEXT.progressOf(plan.title)} /> : null}
+          {occupied && occupant && (
+            <p data-testid="launch-disabled-reason" className="text-xs text-amber-300">
+              {WORK_TEXT.unavailableBusy}{' '}
+              <Link to={workspacePath(occupant.workspace, `/plans/${occupant.plan_id}`)} className={`${inlineLink} underline`}>
+                {occupant.plan_title}
+              </Link>
+            </p>
+          )}
+        </>
+      }
       primaryAction={
         running ? undefined : (
-          <Button variant="secondary" size="sm" flat disabled={pending} onClick={() => void onLaunch(chain)}>
+          <Button variant="secondary" size="sm" flat disabled={pending || occupied} onClick={() => void onLaunch(chain)}>
             {failedLike ? <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> : <Play className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />}
             {pending ? WORK_TEXT.launching : failedLike ? WORK_TEXT.relaunch : WORK_TEXT.launch}
           </Button>

@@ -59,6 +59,13 @@ function OpenRunTargetDialog({ pending, onCancel }: { pending: PendingRun; onCan
       <div ref={panel} tabIndex={-1} className="relative outline-none bg-[#1a1a2e] border border-white/[0.08] rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4">
         <h3 className="text-lg font-semibold text-gray-100">Run on which provider?</h3>
         <p className="text-sm text-gray-400 truncate">{pending.title}</p>
+        {(pending.projectName || pending.folder) && (
+          <p className="text-xs text-gray-500">
+            {pending.projectName ? <span>{pending.projectName}</span> : null}
+            {pending.projectName && pending.folder ? <span> · </span> : null}
+            {pending.folder ? <span className="font-mono">{pending.folder}</span> : null}
+          </p>
+        )}
         <RunTargetPicker target={target} />
         <div className="flex items-center justify-end gap-2 pt-2">
           <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>

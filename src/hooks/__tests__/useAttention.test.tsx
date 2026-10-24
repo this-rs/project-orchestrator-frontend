@@ -158,7 +158,7 @@ describe('useAttention: refetch keeps the page', () => {
 })
 
 describe('useAttention: optimistic mutations', () => {
-  it('removes the item at once, then rolls back with an error toast when the server refuses', async () => {
+  it('keeps the card in place (inert) while it answers, then rolls back with an error toast when the server refuses', async () => {
     const { result } = await mount()
     const req = result.current.data!.waiting.find((w) => w.kind === 'permission')!
     let reject!: (e: Error) => void
@@ -167,7 +167,9 @@ describe('useAttention: optimistic mutations', () => {
     act(() => {
       p = result.current.answerPermission(req, true)
     })
-    expect(result.current.data!.waiting.map((w) => w.request_id)).toEqual(['req_q1'])
+    // The request STAYS in the list while in flight: the card turns inert instead of leaving,
+    // so a double tap cannot land on the next card below (it never shifts up).
+    expect(result.current.data!.waiting.map((w) => w.request_id)).toEqual(['req_p1', 'req_q1'])
     expect(post).toHaveBeenCalledWith(`/chat/sessions/${req.session_id}/permissions/req_p1`, { allow: true })
     await act(async () => {
       reject(new ApiError(500, 'nope'))
@@ -178,16 +180,18 @@ describe('useAttention: optimistic mutations', () => {
     expect(toast.success).not.toHaveBeenCalled()
   })
 
-  it('keeps the item gone on success (even if a stale refetch still lists it), toast.success', async () => {
+  it('keeps the item (inert) until a refetch confirms it left, toast.success', async () => {
     const { result } = await mount()
     const req = result.current.data!.waiting[1]
     post.mockResolvedValueOnce({})
-    get.mockResolvedValueOnce(clone(fixture('four_bands'))) // server not yet caught up
+    // A stale refetch that still lists the request: it stays, inert, until the server drops it.
+    get.mockResolvedValueOnce(clone(fixture('four_bands')))
     await act(async () => {
       await result.current.sendReply(req, 'oui')
     })
     expect(post).toHaveBeenCalledWith(`/chat/sessions/${req.session_id}/messages`, { content: 'oui' })
     expect(toast.success).toHaveBeenCalled()
+    expect(result.current.data!.waiting.map((w) => w.request_id)).toContain(req.request_id)
     await waitFor(() => expect(get).toHaveBeenCalledTimes(2))
   })
 

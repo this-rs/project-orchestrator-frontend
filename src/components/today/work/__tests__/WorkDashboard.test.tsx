@@ -8,6 +8,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
 import { projectsAtom } from '@/atoms'
 import type { Plan, Task, TaskWithPlan } from '@/types'
+import type { RunnerState } from '@/types/attention'
 import { DAY_PLAN_KEY } from '../dayPlan'
 import { WORK_TEXT } from '../text'
 
@@ -87,13 +88,13 @@ function seed(w: World = {}) {
   providersList.mockResolvedValue(ONE)
 }
 
-function renderDash(workspaces = ['acme'], shownPlanIds?: ReadonlySet<string>) {
+function renderDash(workspaces = ['acme'], shownPlanIds?: ReadonlySet<string>, runner?: RunnerState) {
   const store = createStore()
   store.set(projectsAtom, [{ id: 'pr', name: 'Backend', slug: 'backend', root_path: '/work/backend', created_at: '2026-01-01T00:00:00Z' }])
   return render(
     <Provider store={store}>
       <MemoryRouter>
-        <WorkDashboard workspaces={workspaces} lane={null} shownPlanIds={shownPlanIds} />
+        <WorkDashboard workspaces={workspaces} lane={null} shownPlanIds={shownPlanIds} runner={runner} />
       </MemoryRouter>
     </Provider>,
   )
@@ -277,7 +278,7 @@ describe('WorkDashboard', () => {
     expect(screen.queryByRole('button', { name: new RegExp(`^${WORK_TEXT.complete}`) })).toBeNull()
     menu('Tâche run', WORK_TEXT.complete)
     await waitFor(() => expect(tasksUpdate).toHaveBeenCalledWith('run', { status: 'completed' }))
-    expect(toast.success).toHaveBeenCalledWith(WORK_TEXT.completed)
+    expect(toast.success).toHaveBeenCalledWith(WORK_TEXT.completed, expect.objectContaining({ label: WORK_TEXT.undo }))
   })
 
   it('shows ONE visible action per row, and ONE filled button in all: "Démarrer" on the next task of the day', async () => {
@@ -370,6 +371,23 @@ describe('WorkDashboard', () => {
     fireEvent.click(screen.getByRole('button', { name: new RegExp(WORK_TEXT.launch) }))
     await waitFor(() => expect(startRun).toHaveBeenCalledWith('a', '/work/backend', 'backend'))
     expect(toast.success).toHaveBeenCalledWith(WORK_TEXT.launched)
+  })
+
+  it('disables the launch while the execution is occupied, says why, and makes no network call', async () => {
+    seed({ plans: [plan('a', 1, { project_id: 'pr' })], counts: { a: { total: 2, completed: 0, in_progress: 0, blocked: 0, pending: 2, failed: 0, percentage: 0 } } })
+    renderDash(['acme'], undefined, {
+      status: 'busy',
+      busy_with: { plan_id: 'other', plan_title: 'Other plan', run_id: 'r', workspace: 'acme', since: '2026-10-02T08:00:00Z' },
+    })
+    await screen.findByTestId('work-dashboard')
+    openTab(WORK_TEXT.chains)
+    const btn = screen.getByRole('button', { name: new RegExp(WORK_TEXT.launch) }) as HTMLButtonElement
+    expect(btn.disabled).toBe(true)
+    const reason = screen.getByTestId('launch-disabled-reason')
+    expect(reason.textContent).toBe(`${WORK_TEXT.unavailableBusy} Other plan`)
+    expect(within(reason).getByRole('link').getAttribute('href')).toBe('/workspace/acme/plans/other')
+    fireEvent.click(btn)
+    expect(startRun).not.toHaveBeenCalled()
   })
 
   it('offers to relaunch a failed plan and does not list one that is running (the queue shows it)', async () => {

@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
-import { Button, ConfirmDialog, EntityRow, ListGroup } from '@/components/ui'
+import { Button, ConfirmDialog, EntityRow, ListGroup, type OverflowMenuAction } from '@/components/ui'
 import { RelativeTime } from '@/components/ui/MetaLine'
-import { focusRing } from '@/components/ui/classes'
+import { focusRing, glassButton, glassFlat } from '@/components/ui/classes'
 import { useToast } from '@/hooks/useToast'
 import { api } from '@/services/api'
 import { attentionApi, type Verdict } from '@/services/attention'
@@ -150,26 +151,47 @@ export function ThinkingList({
   const visible = items.filter((i) => !gone.has(i.id))
   const bodyId = 'today-thinking-body'
 
-  const actionsFor = (item: ThinkingItem) => {
-    const label = (verb: string) => `${verb} ${item.title}`
-    const btn = (act: Act, text: string, onClick: () => void) => (
-      <Button key={act} variant="secondary" size="sm" flat aria-label={label(text)} onClick={onClick}>
-        {text}
-      </Button>
-    )
+  // The ONE visible action is « Read »: the decision (accept / reject / confirm / invalidate)
+  // lives in the ⋯ menu, so a proposal is read before it is decided. An alert has no page:
+  // its single action (acknowledge) stays the primary.
+  const menuActionsFor = (item: ThinkingItem): OverflowMenuAction[] => {
     switch (item.kind) {
       case 'rfc':
-        return [btn('accept', T.accept, () => void perform(item, 'accept')), btn('reject', T.reject, () => setRejecting(item))]
+        return [
+          { label: T.accept, onClick: () => void perform(item, 'accept') },
+          { label: T.reject, onClick: () => setRejecting(item) },
+        ]
       case 'decision':
-        return [btn('accept', T.accept, () => void perform(item, 'accept'))]
+        return [{ label: T.accept, onClick: () => void perform(item, 'accept') }]
       case 'note_review':
         return [
-          btn('confirm', T.confirm, () => void perform(item, 'confirm')),
-          btn('invalidate', T.invalidate, () => void perform(item, 'invalidate')),
+          { label: T.confirm, onClick: () => void perform(item, 'confirm') },
+          { label: T.invalidate, onClick: () => void perform(item, 'invalidate') },
         ]
       case 'alert':
-        return [btn('acknowledge', T.acknowledge, () => void perform(item, 'acknowledge'))]
+        return []
     }
+  }
+
+  const primaryActionFor = (item: ThinkingItem, href: string | null) => {
+    if (href) {
+      return (
+        <Link to={href} className={`${glassButton.secondary} ${glassFlat} min-h-9 px-3 py-2 text-sm ${focusRing}`}>
+          {T.read}
+        </Link>
+      )
+    }
+    return (
+      <Button
+        variant="secondary"
+        size="sm"
+        flat
+        aria-label={`${T.acknowledge} ${item.title}`}
+        onClick={() => void perform(item, 'acknowledge')}
+      >
+        {T.acknowledge}
+      </Button>
+    )
   }
 
   return (
@@ -207,7 +229,8 @@ export function ThinkingList({
                       href={href ?? undefined}
                       trailing={<RelativeTime date={item.since} />}
                       meta={[item.status.replace(/_/g, ' '), item.workspace]}
-                      context={<div className="relative z-10 flex flex-wrap gap-2">{actionsFor(item)}</div>}
+                      primaryAction={primaryActionFor(item, href)}
+                      actions={menuActionsFor(item)}
                     />
                   )
                 })}
