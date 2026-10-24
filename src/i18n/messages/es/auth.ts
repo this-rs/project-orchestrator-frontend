@@ -54,7 +54,6 @@ export default {
     accountFor: "Menú de cuenta de {name}",
     account: "Cuenta",
     vault: "Bóveda",
-    apiTokens: "API Tokens",
     providers: "Proveedores",
     settings: "Ajustes",
     signOut: "Cerrar sesión",

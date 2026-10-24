@@ -26,6 +26,9 @@ vi.mock('@/services/vault', async (orig) => ({
       Promise.resolve({ initialized: false, unlocked_until: null, secret_count: 0, unavailable: null, secrets: [], grants: [], requests: [] }),
   },
 }))
+vi.mock('@/services/mcpTokens', () => ({
+  mcpTokensApi: { list: () => Promise.resolve([]), create: vi.fn(), revoke: vi.fn(), purge: vi.fn() },
+}))
 vi.mock('@/hooks', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/hooks')>()),
   useToast: () => toast,

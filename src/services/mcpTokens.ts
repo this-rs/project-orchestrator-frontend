@@ -1,4 +1,4 @@
-import { api, apiErrorMessage } from './api'
+import { apiAuth, apiErrorMessage } from './api'
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -33,15 +33,15 @@ export interface PurgeResponse {
 // ── API ──────────────────────────────────────────────────────────────────
 
 export const mcpTokensApi = {
-  list: (signal?: AbortSignal) => api.get<McpToken[]>('/auth/mcp-tokens', signal),
+  list: (signal?: AbortSignal) => apiAuth.get<McpToken[]>('/mcp-tokens', signal),
 
   create: (req: CreateMcpTokenRequest, signal?: AbortSignal) =>
-    api.post<CreateMcpTokenResponse>('/auth/mcp-tokens', req, signal),
+    apiAuth.post<CreateMcpTokenResponse>('/mcp-tokens', req, signal),
 
   revoke: (jti: string, signal?: AbortSignal) =>
-    api.delete<void>(`/auth/mcp-tokens/${encodeURIComponent(jti)}`, signal),
+    apiAuth.delete<void>(`/mcp-tokens/${encodeURIComponent(jti)}`, signal),
 
-  purge: (signal?: AbortSignal) => api.delete<PurgeResponse>('/auth/mcp-tokens', signal),
+  purge: (signal?: AbortSignal) => apiAuth.delete<PurgeResponse>('/mcp-tokens', signal),
 }
 
 export { apiErrorMessage as mcpTokensErrorMessage }

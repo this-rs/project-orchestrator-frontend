@@ -1,35 +1,18 @@
 /**
- * ApiTokensPage — manage long-lived MCP tokens for programmatic API access.
+ * ApiTokensPanel — a person's long-lived MCP tokens for programmatic API access.
  *
- * Accessible from the user menu ("API Tokens"). Lists the caller's tokens,
- * lets them create new ones (with a one-time reveal), revoke active ones,
- * and purge dead records.
+ * Mounted on the Sharing & privacy page, next to the vault (both are
+ * instance-wide and personal). Lists the caller's tokens, creates new ones
+ * (with a one-time reveal), revokes active ones, and purges dead records.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Check, Copy, Plus, Trash2 } from 'lucide-react'
-import {
-  Button,
-  ConceptIntro,
-  ConfirmDialog,
-  EmptyState,
-  Input,
-  PageContainer,
-  PageHeader,
-  Section,
-  Spinner,
-  Badge,
-  surface,
-} from '@/components/ui'
+import { Check, Copy, Plus, Trash2 } from 'lucide-react'
+import { Badge, Button, ConceptIntro, ConfirmDialog, EmptyState, Input, Spinner, surface } from '@/components/ui'
 import type { ConceptExplain } from '@/constants/nomenclature'
 import { useT } from '@/i18n'
 import { useToast } from '@/hooks/useToast'
-import {
-  mcpTokensApi,
-  type McpToken,
-  type CreateMcpTokenResponse,
-} from '@/services/mcpTokens'
+import { mcpTokensApi, type McpToken, type CreateMcpTokenResponse } from '@/services/mcpTokens'
 import { apiErrorMessage } from '@/services/api'
 
 // ── Concept intro ────────────────────────────────────────────────────────
@@ -58,13 +41,7 @@ function formatDate(iso: string): string {
 
 // ── Token reveal (shown once after creation) ─────────────────────────────
 
-function TokenReveal({
-  response,
-  onDone,
-}: {
-  response: CreateMcpTokenResponse
-  onDone: () => void
-}) {
+function TokenReveal({ response, onDone }: { response: CreateMcpTokenResponse; onDone: () => void }) {
   const { t } = useT()
   const toast = useToast()
   const [copied, setCopied] = useState(false)
@@ -199,13 +176,7 @@ function CreateTokenForm({ onCreated }: { onCreated: (r: CreateMcpTokenResponse)
 
 // ── Token row ────────────────────────────────────────────────────────────
 
-function TokenRow({
-  token,
-  onRevoke,
-}: {
-  token: McpToken
-  onRevoke: (jti: string) => void
-}) {
+function TokenRow({ token, onRevoke }: { token: McpToken; onRevoke: (jti: string) => void }) {
   const { t } = useT()
   const status = tokenStatus(token)
   const dead = status !== 'active'
@@ -217,20 +188,13 @@ function TokenRow({
       <td className="px-4 py-3 text-xs text-gray-400">{formatDate(token.created_at)}</td>
       <td className="px-4 py-3 text-xs text-gray-400">{formatDate(token.expires_at)}</td>
       <td className="px-4 py-3">
-        <Badge
-          variant={status === 'active' ? 'success' : status === 'revoked' ? 'error' : 'default'}
-        >
+        <Badge variant={status === 'active' ? 'success' : status === 'revoked' ? 'error' : 'default'}>
           {t(`apiTokens.status.${status}`)}
         </Badge>
       </td>
       <td className="px-4 py-3">
         {status === 'active' && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onRevoke(token.jti)}
-            className="text-red-400 hover:text-red-300"
-          >
+          <Button size="sm" variant="ghost" onClick={() => onRevoke(token.jti)} className="text-red-400 hover:text-red-300">
             <Trash2 className="h-3.5 w-3.5" />
             <span className="ml-1">{t('apiTokens.revoke.button')}</span>
           </Button>
@@ -240,10 +204,9 @@ function TokenRow({
   )
 }
 
-// ── Main page ────────────────────────────────────────────────────────────
+// ── Panel ────────────────────────────────────────────────────────────────
 
-export function ApiTokensPage() {
-  const navigate = useNavigate()
+export function ApiTokensPanel() {
   const { t } = useT()
   const toast = useToast()
   const explain = useApiTokensExplain()
@@ -254,7 +217,6 @@ export function ApiTokensPage() {
   const [revealed, setRevealed] = useState<CreateMcpTokenResponse | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<string | null>(null)
 
-  // ── Load ──────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
     try {
       const list = await mcpTokensApi.list()
@@ -271,7 +233,6 @@ export function ApiTokensPage() {
     load()
   }, [load])
 
-  // ── Revoke ────────────────────────────────────────────────────────────
   const handleRevoke = useCallback(async () => {
     if (!revokeTarget) return
     try {
@@ -284,7 +245,6 @@ export function ApiTokensPage() {
     }
   }, [revokeTarget, toast, t, load])
 
-  // ── Purge ─────────────────────────────────────────────────────────────
   const handlePurge = useCallback(async () => {
     try {
       const { purged } = await mcpTokensApi.purge()
@@ -299,7 +259,6 @@ export function ApiTokensPage() {
     }
   }, [toast, t, load])
 
-  // ── Created ───────────────────────────────────────────────────────────
   const handleCreated = useCallback(
     (response: CreateMcpTokenResponse) => {
       setRevealed(response)
@@ -311,88 +270,60 @@ export function ApiTokensPage() {
   const hasDeadTokens = tokens.some((tk) => tokenStatus(tk) !== 'active')
 
   return (
-    <div className="h-dvh overflow-y-auto bg-[var(--bg-primary)]">
-      <div className="px-4 md:px-6">
-        <PageContainer width="narrow" className="space-y-6">
-          <div className="space-y-1">
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="-ml-3 text-gray-400">
-              <ArrowLeft className="w-4 h-4 mr-1.5" aria-hidden="true" />
-              {t('apiTokens.title')}
-            </Button>
-            <PageHeader
-              title={t('apiTokens.title')}
-              description={t('apiTokens.description')}
-            />
-            <ConceptIntro concept={explain} storageKey="api-tokens" />
-          </div>
+    <div className="space-y-4">
+      <ConceptIntro concept={explain} storageKey="api-tokens" />
 
-          {/* Token reveal (after creation) */}
-          {revealed && (
-            <TokenReveal response={revealed} onDone={() => setRevealed(null)} />
+      {revealed && <TokenReveal response={revealed} onDone={() => setRevealed(null)} />}
+
+      <CreateTokenForm onCreated={handleCreated} />
+
+      {loading ? (
+        <div className="flex justify-center py-8">
+          <Spinner className="h-6 w-6" />
+        </div>
+      ) : error ? (
+        <div className={`${surface} p-4 text-sm text-red-400`}>{error}</div>
+      ) : tokens.length === 0 ? (
+        <EmptyState size="sm" title={t('apiTokens.empty')} description={t('apiTokens.emptyHint')} />
+      ) : (
+        <div className={`${surface} overflow-hidden`}>
+          {hasDeadTokens && (
+            <div className="flex justify-end border-b border-white/[0.06] px-2 py-1">
+              <Button size="sm" variant="ghost" onClick={handlePurge}>
+                {t('apiTokens.purge.button')}
+              </Button>
+            </div>
           )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  <th className="px-4 py-2 text-xs font-medium text-gray-500">{t('apiTokens.table.label')}</th>
+                  <th className="px-4 py-2 text-xs font-medium text-gray-500">{t('apiTokens.table.scope')}</th>
+                  <th className="px-4 py-2 text-xs font-medium text-gray-500">{t('apiTokens.table.created')}</th>
+                  <th className="px-4 py-2 text-xs font-medium text-gray-500">{t('apiTokens.table.expires')}</th>
+                  <th className="px-4 py-2 text-xs font-medium text-gray-500">{t('apiTokens.table.status')}</th>
+                  <th className="px-4 py-2 text-xs font-medium text-gray-500">{t('apiTokens.table.actions')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {tokens.map((tk) => (
+                  <TokenRow key={tk.jti} token={tk} onRevoke={setRevokeTarget} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-          {/* Create form */}
-          <CreateTokenForm onCreated={handleCreated} />
-
-          {/* Token list */}
-          <Section
-            title={t('apiTokens.title')}
-            count={tokens.length}
-            action={
-              hasDeadTokens ? (
-                <Button size="sm" variant="ghost" onClick={handlePurge}>
-                  {t('apiTokens.purge.button')}
-                </Button>
-              ) : undefined
-            }
-          >
-            {loading ? (
-              <div className="flex justify-center py-8">
-                <Spinner className="h-6 w-6" />
-              </div>
-            ) : error ? (
-              <div className={`${surface} p-4 text-sm text-red-400`}>{error}</div>
-            ) : tokens.length === 0 ? (
-              <EmptyState
-                title={t('apiTokens.empty')}
-                description={t('apiTokens.emptyHint')}
-              />
-            ) : (
-              <div className={`${surface} overflow-hidden`}>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="border-b border-white/[0.06]">
-                        <th className="px-4 py-2 text-xs font-medium text-gray-500">{t('apiTokens.table.label')}</th>
-                        <th className="px-4 py-2 text-xs font-medium text-gray-500">{t('apiTokens.table.scope')}</th>
-                        <th className="px-4 py-2 text-xs font-medium text-gray-500">{t('apiTokens.table.created')}</th>
-                        <th className="px-4 py-2 text-xs font-medium text-gray-500">{t('apiTokens.table.expires')}</th>
-                        <th className="px-4 py-2 text-xs font-medium text-gray-500">{t('apiTokens.table.status')}</th>
-                        <th className="px-4 py-2 text-xs font-medium text-gray-500">{t('apiTokens.table.actions')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/[0.04]">
-                      {tokens.map((tk) => (
-                        <TokenRow key={tk.jti} token={tk} onRevoke={setRevokeTarget} />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </Section>
-
-          {/* Revoke confirmation */}
-          <ConfirmDialog
-            open={!!revokeTarget}
-            onClose={() => setRevokeTarget(null)}
-            onConfirm={handleRevoke}
-            title={t('apiTokens.revoke.title')}
-            description={t('apiTokens.revoke.confirm')}
-            variant="danger"
-          />
-        </PageContainer>
-      </div>
+      <ConfirmDialog
+        open={!!revokeTarget}
+        onClose={() => setRevokeTarget(null)}
+        onConfirm={handleRevoke}
+        title={t('apiTokens.revoke.title')}
+        description={t('apiTokens.revoke.confirm')}
+        variant="danger"
+      />
     </div>
   )
 }

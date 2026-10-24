@@ -1,6 +1,6 @@
 import { getAuthMode } from './auth'
 import { getValidToken, refreshToken, forceLogout } from './authManager'
-import { isTauri, getApiBase } from './env'
+import { isTauri, getApiBase, getAuthBase } from './env'
 import { tr } from '@/i18n/lazy'
 
 export class ApiError extends Error {
@@ -98,10 +98,14 @@ async function fetchWithStartupRetry(
   throw lastError
 }
 
+/** Which backend prefix an endpoint lives under: `/api` (the default) or `/auth` (account routes). */
+type RequestBase = 'api' | 'auth'
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},
   _isRetry = false,
+  base: RequestBase = 'api',
 ): Promise<T> {
   // Fast-path: bail immediately if already aborted (e.g. navigation happened
   // while a previous request was still being set up). This avoids queueing
@@ -110,7 +114,7 @@ async function request<T>(
     throw new DOMException('The operation was aborted.', 'AbortError')
   }
 
-  const url = `${getApiBase()}${endpoint}`
+  const url = `${base === 'auth' ? getAuthBase() : getApiBase()}${endpoint}`
 
   // Build headers with fresh auth token injection
   const headers: Record<string, string> = {
@@ -143,7 +147,7 @@ async function request<T>(
         try {
           // Attempt token refresh and retry the original request once
           await refreshToken()
-          return request<T>(endpoint, options, true)
+          return request<T>(endpoint, options, true, base)
         } catch {
           // Refresh failed (forceLogout already called inside refreshToken on 401)
           throw new ApiError(401, tr('app.api.sessionExpired'))
@@ -213,6 +217,20 @@ export const api = {
 
   delete: <T>(endpoint: string, signal?: AbortSignal) =>
     request<T>(endpoint, { method: 'DELETE', signal }),
+}
+
+/**
+ * The same client on the `/auth` base, for the account routes that live outside `/api`
+ * (MCP tokens): same Bearer injection, same refresh-on-401, same empty-body handling.
+ */
+export const apiAuth = {
+  get: <T>(endpoint: string, signal?: AbortSignal) => request<T>(endpoint, { signal }, false, 'auth'),
+
+  post: <T>(endpoint: string, data?: unknown, signal?: AbortSignal) =>
+    request<T>(endpoint, { method: 'POST', body: data ? JSON.stringify(data) : undefined, signal }, false, 'auth'),
+
+  delete: <T>(endpoint: string, signal?: AbortSignal) =>
+    request<T>(endpoint, { method: 'DELETE', signal }, false, 'auth'),
 }
 
 /** Low-level request, for the rare call that needs extra headers. */

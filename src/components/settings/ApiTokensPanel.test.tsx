@@ -1,10 +1,9 @@
 /**
- * API Tokens page — lists, creates, revokes MCP tokens.
+ * API Tokens panel — lists, creates, revokes MCP tokens (on the Sharing & privacy page).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
-import { ApiTokensPage } from '../ApiTokensPage'
+import { ApiTokensPanel } from './ApiTokensPanel'
 import type { McpToken, CreateMcpTokenResponse } from '@/services/mcpTokens'
 
 // ConfirmDialog uses useReducedMotion → window.matchMedia
@@ -56,14 +55,6 @@ const REVOKED_TOKEN: McpToken = {
   revoked: true,
 }
 
-function mount() {
-  render(
-    <MemoryRouter>
-      <ApiTokensPage />
-    </MemoryRouter>,
-  )
-}
-
 beforeEach(() => {
   list.mockReset().mockResolvedValue([ACTIVE_TOKEN])
   create.mockReset()
@@ -71,16 +62,16 @@ beforeEach(() => {
   purge.mockReset().mockResolvedValue({ purged: 0 })
 })
 
-describe('ApiTokensPage', () => {
+describe('ApiTokensPanel', () => {
   it('renders the token list', async () => {
-    mount()
+    render(<ApiTokensPanel />)
     await waitFor(() => expect(screen.getByText('CI Pipeline')).toBeTruthy())
     expect(screen.getByText('mcp:read mcp:write')).toBeTruthy()
   })
 
   it('shows empty state when no tokens', async () => {
     list.mockResolvedValue([])
-    mount()
+    render(<ApiTokensPanel />)
     await waitFor(() => expect(screen.getByText(/no api tokens/i)).toBeTruthy())
   })
 
@@ -93,11 +84,10 @@ describe('ApiTokensPage', () => {
       expires_at: '2099-06-01T00:00:00Z',
     }
     create.mockResolvedValue(response)
-    mount()
+    render(<ApiTokensPanel />)
 
     await waitFor(() => expect(screen.getByText('CI Pipeline')).toBeTruthy())
 
-    // Fill the form
     fireEvent.change(screen.getByLabelText(/label/i), { target: { value: 'My Token' } })
     fireEvent.click(screen.getByRole('button', { name: /create token/i }))
 
@@ -106,22 +96,20 @@ describe('ApiTokensPage', () => {
   })
 
   it('revokes a token after confirmation', async () => {
-    mount()
+    render(<ApiTokensPanel />)
     await waitFor(() => expect(screen.getByText('CI Pipeline')).toBeTruthy())
 
-    // Click revoke
     fireEvent.click(screen.getByRole('button', { name: /revoke/i }))
 
-    // Confirm dialog
     await waitFor(() => expect(screen.getByText(/revoke this token/i)).toBeTruthy())
   })
 
-  it('shows revoked tokens as greyed out', async () => {
+  it('shows revoked tokens as greyed out, with the purge action', async () => {
     list.mockResolvedValue([ACTIVE_TOKEN, REVOKED_TOKEN])
-    mount()
+    render(<ApiTokensPanel />)
     await waitFor(() => expect(screen.getByText('Old Script')).toBeTruthy())
-    // The revoked row should have opacity-50
     const row = screen.getByText('Old Script').closest('tr')
     expect(row?.className).toContain('opacity-50')
+    expect(screen.getByRole('button', { name: /purge/i })).toBeTruthy()
   })
 })
