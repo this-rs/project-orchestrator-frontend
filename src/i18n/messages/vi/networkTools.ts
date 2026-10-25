@@ -106,6 +106,9 @@ export default {
     moveDownAria: "Đưa {id} xuống",
     rankAria: "Vị trí {rank} trên {total}",
     reordered: "Đã lưu thứ tự: {order}.",
+    embeddedMissing: "Bản cài đặt này không cung cấp công cụ tìm kiếm và trình duyệt tích hợp (bản dựng không có Obscura, ví dụ bản legacy cho macOS Intel 10.15). Hãy thêm công cụ Brave hoặc SearXNG, hoặc cài Obscura trên máy chủ.",
+    embeddedMissingChat: "Bản cài đặt này không cung cấp tìm kiếm tích hợp: đây là giới hạn của bản dựng, không phải của mô hình. Hãy cấu hình công cụ Brave hoặc SearXNG, hoặc cài Obscura (dsh-obscura-nav) trong PATH của máy chủ.",
+    embeddedMissingLink: "Cài đặt → Công cụ mạng",
   },
   browser: {
     title: "Trình duyệt",

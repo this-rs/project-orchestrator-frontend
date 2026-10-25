@@ -106,6 +106,9 @@ export default {
     moveDownAria: "{id} nach unten verschieben",
     rankAria: "Position {rank} von {total}",
     reordered: "Reihenfolge gespeichert: {order}.",
+    embeddedMissing: "Die integrierte Suchmaschine und der integrierte Browser werden von dieser Installation nicht bereitgestellt (Build ohne Obscura, z. B. der Legacy-Build für macOS Intel 10.15). Fügen Sie eine Brave- oder SearXNG-Suchmaschine hinzu oder installieren Sie Obscura auf dem Server.",
+    embeddedMissingChat: "Die integrierte Suche wird von dieser Installation nicht bereitgestellt: Das ist eine Grenze des Builds, nicht des Modells. Richten Sie eine Brave- oder SearXNG-Suchmaschine ein oder installieren Sie Obscura (dsh-obscura-nav) im PATH des Servers.",
+    embeddedMissingLink: "Einstellungen → Netzwerk-Tools",
   },
   browser: {
     title: "Browser",

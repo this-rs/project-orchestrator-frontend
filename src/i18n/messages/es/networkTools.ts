@@ -106,6 +106,9 @@ export default {
     moveDownAria: "Bajar {id}",
     rankAria: "Posición {rank} de {total}",
     reordered: "Orden guardado: {order}.",
+    embeddedMissing: "Esta instalación no proporciona el motor de búsqueda ni el navegador integrados (compilación sin Obscura, p. ej. la compilación legacy de macOS Intel 10.15). Añada un motor Brave o SearXNG, o instale Obscura en el servidor.",
+    embeddedMissingChat: "Esta instalación no proporciona la búsqueda integrada: es un límite de la compilación, no del modelo. Configure un motor Brave o SearXNG, o instale Obscura (dsh-obscura-nav) en el PATH del servidor.",
+    embeddedMissingLink: "Ajustes → Herramientas de red",
   },
   browser: {
     title: "Navegador",

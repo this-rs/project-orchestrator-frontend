@@ -106,6 +106,9 @@ export default {
     moveDownAria: "{id} को नीचे ले जाएँ",
     rankAria: "{total} में से स्थान {rank}",
     reordered: "क्रम सहेजा गया: {order}।",
+    embeddedMissing: "यह इंस्टॉलेशन इनबिल्ट सर्च इंजन और ब्राउज़र उपलब्ध नहीं कराता (Obscura के बिना बना बिल्ड, जैसे macOS Intel 10.15 का legacy बिल्ड)। Brave या SearXNG इंजन जोड़ें, या सर्वर पर Obscura इंस्टॉल करें।",
+    embeddedMissingChat: "यह इंस्टॉलेशन इनबिल्ट सर्च उपलब्ध नहीं कराता: यह बिल्ड की सीमा है, मॉडल की नहीं। Brave या SearXNG इंजन कॉन्फ़िगर करें, या सर्वर के PATH में Obscura (dsh-obscura-nav) इंस्टॉल करें।",
+    embeddedMissingLink: "सेटिंग्स → नेटवर्क टूल",
   },
   browser: {
     title: "ब्राउज़र",

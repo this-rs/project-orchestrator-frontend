@@ -12,6 +12,8 @@ import { useBlockProviderKind } from './useBlockProviderKind'
 import { toolCancelUnsupportedText } from '@/constants/capabilities'
 import { ChevronRight, Square } from 'lucide-react'
 import { useT } from '@/i18n'
+import { ToolEngineMissingNote } from './ToolEngineMissingNote'
+import { isEngineNotInstalled } from '@/utils/toolEngineMissing'
 import { chipOutcomeOfReason, nextCancelStamp, readCancelFailure, type ChipOutcome } from '@/utils/cancelFailure'
 
 const MCP_PREFIX = 'mcp__project-orchestrator__'
@@ -246,6 +248,8 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
           )
         )}
       </button>
+
+      {isEngineNotInstalled(isError, resultBlock?.content) && <ToolEngineMissingNote />}
 
       {expanded && (
         <div className="px-3 pb-2">

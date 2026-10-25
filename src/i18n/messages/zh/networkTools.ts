@@ -106,6 +106,9 @@ export default {
     moveDownAria: "将 {id} 下移",
     rankAria: "第 {rank} 个，共 {total} 个",
     reordered: "顺序已保存：{order}。",
+    embeddedMissing: "此安装未提供内置搜索引擎和浏览器（不含 Obscura 的构建，例如 macOS Intel 10.15 旧版构建）。请添加 Brave 或 SearXNG 搜索引擎，或在服务器上安装 Obscura。",
+    embeddedMissingChat: "此安装未提供内置搜索：这是构建的限制，而不是模型的限制。请配置 Brave 或 SearXNG 搜索引擎，或在服务器的 PATH 中安装 Obscura（dsh-obscura-nav）。",
+    embeddedMissingLink: "设置 → 网络工具",
   },
   browser: {
     title: "浏览器",

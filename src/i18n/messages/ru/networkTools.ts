@@ -106,6 +106,9 @@ export default {
     moveDownAria: "Переместить {id} ниже",
     rankAria: "Позиция {rank} из {total}",
     reordered: "Порядок сохранён: {order}.",
+    embeddedMissing: "Встроенные поисковая система и браузер не предоставляются этой установкой (сборка без Obscura, например устаревшая сборка для macOS Intel 10.15). Добавьте поисковую систему Brave или SearXNG либо установите Obscura на сервере.",
+    embeddedMissingChat: "Встроенный поиск не предоставляется этой установкой: это ограничение сборки, а не модели. Настройте поисковую систему Brave или SearXNG либо установите Obscura (dsh-obscura-nav) в PATH сервера.",
+    embeddedMissingLink: "Настройки → Сетевые инструменты",
   },
   browser: {
     title: "Браузер",

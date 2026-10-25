@@ -104,6 +104,9 @@ export default {
     moveDownAria: "Move {id} down",
     rankAria: "Position {rank} of {total}",
     reordered: "Order saved: {order}.",
+    embeddedMissing: "The built-in search engine and browser are not provided by this installation (a build without Obscura, e.g. the macOS Intel 10.15 legacy build). Add a Brave or SearXNG engine, or install Obscura on the server.",
+    embeddedMissingChat: "Built-in search is not provided by this installation: this is a limit of the build, not of the model. Configure a Brave or SearXNG engine, or install Obscura (dsh-obscura-nav) on the server's PATH.",
+    embeddedMissingLink: "Settings → Network tools",
   },
   browser: {
     title: "Browser",
