@@ -43,6 +43,7 @@ import { engineGaps } from '@/constants/engine'
 import { ChatInput, type PrefillPayload } from './ChatInput'
 import { NeutralPlaceLabel } from './NeutralPlaceLabel'
 import { SecretRequestTray } from './SecretRequestTray'
+import { ExecPlaceConfirmTray } from './ExecPlaceConfirmTray'
 import { SessionOpenError } from './SessionOpenError'
 import { FollowNotice } from './FollowNotice'
 import { ComposerDock } from './ComposerDock'
@@ -1005,6 +1006,7 @@ export function ChatPanel() {
                   />
                   <ComposerDock onHeight={setDockHeight}>
                     <SecretRequestTray sessionId={chat.sessionId} />
+                    <ExecPlaceConfirmTray humanSession={!!chat.sessionId && !chat.sessionMeta?.spawnedBy && !chat.sessionMeta?.mirrorOf} />
                     {composerNotices}
                     <ChatInput
                       onSend={handleSend}
@@ -1255,6 +1257,7 @@ export function ChatPanel() {
             />
             <ComposerDock onHeight={setDockHeight}>
               <SecretRequestTray sessionId={chat.sessionId} />
+              <ExecPlaceConfirmTray humanSession={!!chat.sessionId && !chat.sessionMeta?.spawnedBy && !chat.sessionMeta?.mirrorOf} />
               {composerNotices}
               <ChatInput
                 onSend={handleSend}
