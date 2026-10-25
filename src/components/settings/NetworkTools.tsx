@@ -444,8 +444,21 @@ export function NetworkTools() {
   if (!engines && !loadError) {
     enginesBody = <Loading>{t('networkTools.loading')}</Loading>
   } else {
+    // The installation provides neither the built-in engine nor a browser: a limit of the BUILD
+    // (N23c: both come from the server's own resolution, nothing is recomputed here). One of the
+    // two missing is not enough to say it.
+    const embeddedMissing = !!engines && !!browser && !browser.available && !engines.some((e) => e.builtin || e.id === 'obscura')
     enginesBody = (
       <>
+        {embeddedMissing && (
+          <p
+            role="note"
+            data-testid="embedded-engine-missing"
+            className="rounded-lg border border-amber-500/25 px-3 py-2 text-xs text-amber-200"
+          >
+            {t('networkTools.engines.embeddedMissing')}
+          </p>
+        )}
         {engines && engines.length === 0 && <p className="text-sm text-gray-400">{t('networkTools.engines.empty')}</p>}
         {orderable.length > 1 && (
           <p id={ids.orderHelp} className="text-xs text-gray-400" data-testid="search-engine-order-help">

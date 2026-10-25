@@ -106,6 +106,9 @@ export default {
     moveDownAria: "نقل {id} إلى الأسفل",
     rankAria: "الموضع {rank} من {total}",
     reordered: "حُفظ الترتيب: {order}.",
+    embeddedMissing: "هذا التثبيت لا يوفّر محرك البحث والمتصفح المدمجين (إصدار بدون Obscura، مثل الإصدار القديم لـ macOS Intel 10.15). أضف محرك Brave أو SearXNG، أو ثبّت Obscura على الخادم.",
+    embeddedMissingChat: "هذا التثبيت لا يوفّر البحث المدمج: هذا حدّ في الإصدار وليس في النموذج. اضبط محرك Brave أو SearXNG، أو ثبّت Obscura (dsh-obscura-nav) في PATH الخاص بالخادم.",
+    embeddedMissingLink: "الإعدادات ← أدوات الشبكة",
   },
   browser: {
     title: "المتصفح",

@@ -106,6 +106,9 @@ export default {
     moveDownAria: "{id} を下へ移動",
     rankAria: "{total} 件中 {rank} 番目",
     reordered: "順序を保存しました: {order}。",
+    embeddedMissing: "このインストールは、組み込みの検索エンジンとブラウザを提供していません（Obscura なしのビルド。例：macOS Intel 10.15 のレガシービルド）。Brave または SearXNG のエンジンを追加するか、サーバーに Obscura をインストールしてください。",
+    embeddedMissingChat: "このインストールは組み込み検索を提供していません。これはビルドの制限であり、モデルの制限ではありません。Brave または SearXNG のエンジンを設定するか、サーバーの PATH に Obscura（dsh-obscura-nav）をインストールしてください。",
+    embeddedMissingLink: "設定 → ネットワークツール",
   },
   browser: {
     title: "ブラウザ",

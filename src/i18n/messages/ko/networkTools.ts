@@ -106,6 +106,9 @@ export default {
     moveDownAria: "{id} 아래로 이동",
     rankAria: "{total}개 중 {rank}번째",
     reordered: "순서를 저장했습니다: {order}.",
+    embeddedMissing: "이 설치는 내장 검색 엔진과 브라우저를 제공하지 않습니다(Obscura가 없는 빌드, 예: macOS Intel 10.15 레거시 빌드). Brave 또는 SearXNG 엔진을 추가하거나 서버에 Obscura를 설치하세요.",
+    embeddedMissingChat: "이 설치는 내장 검색을 제공하지 않습니다. 이는 모델이 아니라 빌드의 한계입니다. Brave 또는 SearXNG 엔진을 설정하거나 서버의 PATH에 Obscura(dsh-obscura-nav)를 설치하세요.",
+    embeddedMissingLink: "설정 → 네트워크 도구",
   },
   browser: {
     title: "브라우저",

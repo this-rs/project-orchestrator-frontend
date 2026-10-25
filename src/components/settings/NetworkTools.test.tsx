@@ -519,3 +519,29 @@ describe('networkToolsApi — wire', () => {
     put.mockRestore()
   })
 })
+
+describe('NetworkTools — an installation without the built-in engine (OBS-LEGACY)', () => {
+  const NOTE = 'embedded-engine-missing'
+
+  it('says it as a limit of the build when there is no built-in engine AND the browser is not provided', async () => {
+    overview.mockResolvedValue(state({ browser: { allowed: false, available: false } }))
+    mount()
+    const note = await screen.findByTestId(NOTE)
+    expect(note.textContent).toContain('not provided by this installation')
+    expect(note.textContent).toContain('Brave or SearXNG')
+  })
+
+  it('says nothing when the built-in engine is listed (even if the browser is missing)', async () => {
+    overview.mockResolvedValue(state({ browser: { allowed: false, available: false }, search_engines: [BRAVE, KEYLESS] }))
+    mount()
+    await screen.findByTestId('search-engine-obscura')
+    expect(screen.queryByTestId(NOTE)).toBeNull()
+  })
+
+  it('says nothing when the browser is provided, even with no built-in engine listed', async () => {
+    overview.mockResolvedValue(state({ browser: { allowed: false, available: true } }))
+    mount()
+    await screen.findByTestId('search-engine-brave')
+    expect(screen.queryByTestId(NOTE)).toBeNull()
+  })
+})
