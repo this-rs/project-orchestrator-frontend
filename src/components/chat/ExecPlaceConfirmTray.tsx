@@ -14,15 +14,17 @@
  *   `placement_id`.
  */
 
-import { useCallback, useEffect, useState } from 'react'
-import { useAtom } from 'jotai'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAtom, useAtomValue } from 'jotai'
 import { FolderGit2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { panelGlass } from '@/components/ui/panelGlass'
 import { useT } from '@/i18n'
 import { useEventBus } from '@/hooks/useEventBus'
 import { execConfirmRequestsAtom, type ExecConfirmRequest } from '@/atoms'
+import { currentUserAtom } from '@/atoms/auth'
 import { executionPlaceApi } from '@/services/executionPlace'
+import type { ExecutionPlaceView } from '@/services/executionPlace'
 import { ApiError } from '@/services/api'
 import type { CrudEvent } from '@/types'
 import { execConfirmFromEvent } from '@/utils/executionPlace'
@@ -34,6 +36,8 @@ interface Props {
 
 export function ExecPlaceConfirmTray({ humanSession }: Props) {
   const [requests, setRequests] = useAtom(execConfirmRequestsAtom)
+  const currentUser = useAtomValue(currentUserAtom)
+  const rehydratedRef = useRef(false)
 
   const patch = useCallback(
     (placementId: string, change: Partial<ExecConfirmRequest>) =>
@@ -45,6 +49,8 @@ export function ExecPlaceConfirmTray({ humanSession }: Props) {
     (event: CrudEvent) => {
       const found = execConfirmFromEvent(event)
       if (!found) return
+      // Client-side owner filter: ignore events for another person.
+      if (currentUser?.id && event.payload?.owner && event.payload.owner !== currentUser.id) return
       let isNew = false
       setRequests((cur) => {
         if (cur.some((r) => r.placementId === found.placementId)) return cur
@@ -58,9 +64,36 @@ export function ExecPlaceConfirmTray({ humanSession }: Props) {
         .then((v) => patch(found.placementId, { expiresAt: v.expires_at ?? null }))
         .catch(() => {})
     },
-    [setRequests, patch],
+    [setRequests, patch, currentUser],
   )
   useEventBus(onEvent)
+
+  // Re-hydrate pending placements on mount (page reload, new tab, late connection).
+  // The server filters by owner; the client deduplicates by placementId.
+  useEffect(() => {
+    if (!humanSession || rehydratedRef.current) return
+    rehydratedRef.current = true
+    const ac = new AbortController()
+    void executionPlaceApi
+      .listPending(ac.signal)
+      .then((views) => {
+        if (ac.signal.aborted || views.length === 0) return
+        // Client-side owner filter (defence in depth: the server already filters).
+        const userId = currentUser?.id
+        const owned = userId ? views.filter((v) => !v.owner || v.owner === userId) : views
+        setRequests((cur) => {
+          const known = new Set(cur.map((r) => r.placementId))
+          const fresh: ExecConfirmRequest[] = owned
+            .filter((v) => !known.has(v.placement_id))
+            .map(viewToRequest)
+          return fresh.length > 0 ? [...cur, ...fresh] : cur
+        })
+      })
+      .catch(() => {
+        // Best effort: the CrudEvent path still works; a failed fetch is not a broken card.
+      })
+    return () => ac.abort()
+  }, [humanSession, setRequests, currentUser])
 
   if (!humanSession || requests.length === 0) return null
   return (
@@ -70,6 +103,18 @@ export function ExecPlaceConfirmTray({ humanSession }: Props) {
       ))}
     </div>
   )
+}
+
+/** Convert a server view to the display atom shape (re-hydration from `GET /api/execution-places?status=pending`). */
+function viewToRequest(v: ExecutionPlaceView): ExecConfirmRequest {
+  return {
+    placementId: v.placement_id,
+    path: v.path,
+    taskId: v.task_id ?? null,
+    expiresAt: v.expires_at ?? null,
+    state: 'pending',
+    error: null,
+  }
 }
 
 function useNow(deadline: string | null, active: boolean): number {
