@@ -12,6 +12,7 @@ import {
   chatFollowRequestAtom,
   chatSwitchingSessionAtom,
   chatPendingSwitchAtom,
+  chatPermissionConfigAtom,
   chatDraftAutoAtom,
   chatDraftSelectionAtom,
   chatForcedTargetAtom,
@@ -59,7 +60,7 @@ import {
   type ConversationRoutingRefusal,
   type SwitchProviderRefusal,
 } from '@/services/chat'
-import type { LearningStage } from '@/types/routing'
+import { conversationModeOfServer, type LearningStage } from '@/types/routing'
 import { isClaudeCodeProvider, providerDisplayName, providerKindLabel, type ProviderInstance, type ProviderModel, type RoutedBy } from '@/types/provider'
 import {
   distinctModels,
@@ -168,13 +169,16 @@ export function RoutingSelectionMenu(props: RoutingSelectionMenuProps) {
   const list = useAtomValue(providersAtom)
   const loadState = useAtomValue(providersLoadStateAtom)
   const setForced = useSetAtom(chatForcedTargetAtom)
+  // A server default model of `auto` opens every untouched conversation in Auto (the backend
+  // reads such an opening as `routing_mode: full`), whatever the settings' mode.
+  const serverDefaultModel = useAtomValue(chatPermissionConfigAtom)?.default_model
 
   useEffect(() => {
     void load({ slug })
   }, [load, slug])
 
   if (!settings || !list || loadState === 'unsupported') return <ProviderModelPicker {...props} onForce={setForced} />
-  return <RoutingMenu {...props} autoByDefault={settings.mode === 'full'} />
+  return <RoutingMenu {...props} autoByDefault={conversationModeOfServer(settings.mode, serverDefaultModel) === 'full'} />
 }
 
 /**

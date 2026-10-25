@@ -250,6 +250,24 @@ describe('RoutingSelectionMenu', () => {
     expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
   })
 
+  it('a server default model of `auto` opens on Auto too, whatever the settings mode (the backend routes such an opening)', () => {
+    mount('executors_only', {
+      prepare: (s) => s.set(chatPermissionConfigAtom, { mode: 'default', allowed_tools: [], disallowed_tools: [], default_model: 'auto' }),
+    })
+    expect(screen.getByTestId('target-chip').textContent).toContain('Auto')
+    openMenu()
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('a concrete server default model leaves executors_only settings off Auto', () => {
+    mount('executors_only', {
+      prepare: (s) => s.set(chatPermissionConfigAtom, { mode: 'default', allowed_tools: [], disallowed_tools: [], default_model: 'claude-sonnet-5-5' }),
+    })
+    expect(screen.getByTestId('target-chip').textContent).not.toContain('Auto')
+    openMenu()
+    expect(screen.getByRole('switch').getAttribute('aria-checked')).toBe('false')
+  })
+
   it('select all and clear all, for everything that can be used', () => {
     const store = mount('primary', { prepare: (s) => s.set(modelCatalogAtom, CLAUDE_MODELS) })
     openMenu()

@@ -20,7 +20,7 @@ import {
   type ToolPolicy,
 } from '@/types/provider'
 import { routingApi } from '@/services/routing'
-import { conversationModeOfSettings, type ConversationRoutingMode, type LearningStage, type RoutingSettingsResponse } from '@/types/routing'
+import { conversationModeOfServer, type ConversationRoutingMode, type LearningStage, type RoutingSettingsResponse } from '@/types/routing'
 import { pickModelResolver } from '@/constants/providers'
 import { modeOf, type RoutingPick } from '@/utils/routingSelection'
 import { chatPermissionConfigAtom, chatSelectedProjectAtom, chatSessionIdAtom, chatSessionModelAtom } from './chat'
@@ -317,8 +317,9 @@ export const chatRoutingModeAtom = atom<ConversationRoutingMode>((get) => {
     const record = get(chatSessionRoutingAtom)
     return record?.routing_mode ?? (record?.routed_by === 'auto' ? 'full' : 'primary')
   }
-  const settings = get(chatRoutingSettingsAtom)?.mode
-  return get(chatDraftRoutingModeAtom) ?? (settings ? conversationModeOfSettings(settings) : 'primary')
+  // A server default model of `auto` opens every untouched conversation in Auto (the backend
+  // reads it as `routing_mode: full`), whatever the settings' mode says.
+  return get(chatDraftRoutingModeAtom) ?? conversationModeOfServer(get(chatRoutingSettingsAtom)?.mode, get(chatPermissionConfigAtom)?.default_model)
 })
 
 /**
