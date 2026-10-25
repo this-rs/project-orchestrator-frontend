@@ -13,6 +13,7 @@ import {
   chatDraftAutoAtom,
   chatDraftSelectionAtom,
   chatForcedTargetAtom,
+  chatPermissionConfigAtom,
   chatRoutingModeAtom,
   chatSelectedProviderAtom,
   chatSessionModelAtom,
@@ -230,5 +231,26 @@ describe('useChat.createSession — routing mode', () => {
   it('without a choice in the menu no routing_mode is sent: the settings decide', async () => {
     const body = await send(setup('full'))
     expect(body).not.toHaveProperty('routing_mode')
+  })
+
+  it('a server default model of `auto`: nothing is named, no routing_mode is sent, and the conversation reads as Auto (the backend routes it)', async () => {
+    const r = setup('executors_only')
+    act(() => r.store.set(chatPermissionConfigAtom, { mode: 'default', allowed_tools: [], disallowed_tools: [], default_model: 'auto' }))
+    expect(r.store.get(chatRoutingModeAtom)).toBe('full')
+    const body = await send(r)
+    expect(body).not.toHaveProperty('provider')
+    expect(body.model).toBeUndefined()
+    expect(body).not.toHaveProperty('routing_mode')
+    // Opened as Auto: its record is read back, as for a conversation the settings put in full.
+    await waitFor(() => expect(r.store.get(chatSessionRoutingAtom)?.routing_mode).toBe('full'))
+    expect(r.store.get(chatRoutingModeAtom)).toBe('full')
+  })
+
+  it('a concrete server default model with executors_only settings still reads as primary', async () => {
+    const r = setup('executors_only')
+    act(() => r.store.set(chatPermissionConfigAtom, { mode: 'default', allowed_tools: [], disallowed_tools: [], default_model: 'claude-sonnet-5-5' }))
+    expect(r.store.get(chatRoutingModeAtom)).toBe('primary')
+    await send(r)
+    expect(r.store.get(chatSessionRoutingAtom)?.routing_mode).toBe('primary')
   })
 })

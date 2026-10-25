@@ -59,7 +59,7 @@ import { cancelNoticeMetadata, chipOutcomeOfNotice, nextCancelStamp } from '@/ut
 import { tr } from '@/i18n/lazy'
 import { useEffectiveCapabilities } from './useEffectiveCapabilities'
 import { toProviderRef, toToolPolicy, type PermissionScope, type ToolPolicyMode } from '@/types/provider'
-import { conversationModeOfSettings } from '@/types/routing'
+import { conversationModeOfServer } from '@/types/routing'
 import type { BackgroundActivityMetadata, BackgroundOutputEntry } from '@/types'
 
 /** Number of messages to load per page via REST */
@@ -2266,8 +2266,10 @@ export function useChat() {
         const chosenMode = store.get(chatDraftRoutingModeAtom)
         // The settings' mode, for a conversation that chose nothing: `executors_only` leaves its pilot
         // alone (`primary` for it), `full` routes it (decision R-S4: `mixed` is the menu's word only).
+        // A server default model of `auto` opens it in Auto whatever the settings say (the backend
+        // reads such an opening as `routing_mode: full`): the record is read back as for Auto.
         const settingsMode = store.get(routingSettingsAtom(slug)).settings?.mode
-        const mode = chosenMode ?? (settingsMode ? conversationModeOfSettings(settingsMode) : 'primary')
+        const mode = chosenMode ?? conversationModeOfServer(settingsMode, store.get(chatPermissionConfigAtom)?.default_model)
         // In `full`, PO / the server resolves provider AND model: nothing is sent unless the user
         // forced a target through the "Advanced" path.
         // A draft that picked models names them (strict: one; mixed: the pool, plus the pilot the

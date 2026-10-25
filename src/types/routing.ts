@@ -72,6 +72,25 @@ export function conversationModeOfSettings(mode: ProviderRoutingMode): Conversat
   return mode === 'full' ? 'full' : 'primary'
 }
 
+/**
+ * `auto` as a model id is the server's sentinel for "PO decides", never a model name
+ * (backend `is_auto_model`: trimmed, case-insensitive).
+ */
+export function isAutoModelSentinel(model: string | null | undefined): boolean {
+  return typeof model === 'string' && model.trim().toLowerCase() === 'auto'
+}
+
+/**
+ * The mode a conversation that chose nothing in the menu opens in, as the server applies it:
+ * `full` when the server's default model is the `auto` sentinel (`chat.default_model: auto` is
+ * the operator's standing choice of Auto for every pilot that names nothing — the backend reads
+ * such an opening as `routing_mode: full`), else the settings' mode, else `primary`.
+ */
+export function conversationModeOfServer(settingsMode: ProviderRoutingMode | null | undefined, serverDefaultModel: string | null | undefined): ConversationRoutingMode {
+  if (isAutoModelSentinel(serverDefaultModel)) return 'full'
+  return settingsMode ? conversationModeOfSettings(settingsMode) : 'primary'
+}
+
 export function toLearningStage(value: unknown): LearningStage | null {
   return typeof value === 'string' && (LEARNING_STAGES as readonly string[]).includes(value) ? (value as LearningStage) : null
 }
