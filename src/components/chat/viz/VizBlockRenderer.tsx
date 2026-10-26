@@ -40,6 +40,10 @@ export class VizErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundar
     return { hasError: true, error }
   }
 
+  componentDidCatch(error: Error) {
+    console.error('[viz] render failed:', error)
+  }
+
   render() {
     if (this.state.hasError) {
       return <VizFallback text={this.props.fallbackText} error={this.state.error?.message} />
@@ -60,6 +64,12 @@ function VizFallback({ text, error }: { text: string; error?: string }) {
           <AlertTriangle className="w-3 h-3" />
           <span>Visualization failed to render</span>
         </div>
+      )}
+      {/* The cause, verbatim: without it neither the reader nor the agent that wrote the block can correct it. */}
+      {error && (
+        <pre className="mb-1.5 text-[10px] text-amber-300/80 whitespace-pre-wrap font-mono leading-relaxed" data-testid="viz-error">
+          {error}
+        </pre>
       )}
       <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono leading-relaxed">
         {text}
