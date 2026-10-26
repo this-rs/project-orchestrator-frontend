@@ -13,7 +13,6 @@ import {
   triangulatePolygonWithHoles,
   trsToMat4,
   type TRS,
-  type Vec3,
 } from './math3d'
 
 const qz = (deg: number) => quatFromAxisAngle([0, 0, 1], (deg * Math.PI) / 180)
