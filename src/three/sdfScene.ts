@@ -46,7 +46,26 @@ export const ORGANIC: Readonly<Record<string, string>> = {
 
 const PALETTE: Readonly<Record<string, string>> = { ...(MAT as Record<string, string>), ...(LAMP as Record<string, string>), ...ORGANIC }
 
-export const SDF_LIMITS = { leaves: 96, depth: 8, res: [16, 72] as const, defaultRes: 56, size: [0.005, 6] as const, coord: 12 }
+export const SDF_LIMITS = { leaves: 96, depth: 8, res: [16, 128] as const, defaultRes: 56, size: [0.005, 6] as const, coord: 12 }
+
+/**
+ * Meshing work the chat can afford, in `volumes × res²` units: the surface band evaluates one grid
+ * node per unit, so a scene's cost grows with its number of volumes and with res².
+ *
+ * Measured on a 26-volume bust (frontend/, 2026-10): res 72 -> 253 ms / 20.7k faces, res 96 ->
+ * 400 ms / 38k, res 128 -> 676 ms / 67.8k, res 160 -> 1053 ms / 106k. The surface band already
+ * divides the grid work by 7.6 at res 128; what is left is the evaluation itself.
+ *
+ * `res` is therefore capped per scene: 500 000 units is about 800 ms here, the point where a chat
+ * frame is still worth the wait. A light scene may reach 128; a 96-volume one stops at 72, as before.
+ */
+export const SDF_BUDGET = 500_000
+
+/** Highest resolution a scene of `leaves` volumes may ask for (see `SDF_BUDGET`). */
+export function maxResFor(leaves: number): number {
+  const affordable = Math.floor(Math.sqrt(SDF_BUDGET / Math.max(1, leaves)))
+  return Math.max(SDF_LIMITS.res[0], Math.min(SDF_LIMITS.res[1], affordable))
+}
 
 const LEAF_KINDS = ['sphere', 'ellipsoid', 'capsule', 'box', 'torus', 'cylinder'] as const
 const OPS = ['union', 'smooth_union', 'subtract', 'smooth_subtract', 'intersect'] as const
@@ -77,11 +96,6 @@ const transpose = (m: Mat3): Mat3 => [
   [m[0][1], m[1][1], m[2][1]],
   [m[0][2], m[1][2], m[2][2]],
 ]
-const mulV = (m: Mat3, v: Vec3): Vec3 => [
-  m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
-  m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
-  m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2],
-]
 const len = (v: Vec3) => Math.hypot(v[0], v[1], v[2])
 
 /* ---------- Validation ---------- */
@@ -102,6 +116,7 @@ export function checkSdf(raw: unknown): { ok: true; spec: SdfSpec } | { ok: fals
   for (const k of Object.keys(raw)) if (!['root', 'res', 'yaw'].includes(k)) out.push(`sdf: unknown field « ${k} » (root, res, yaw)`)
   const res = raw.res === undefined ? SDF_LIMITS.defaultRes : raw.res
   if (typeof res !== 'number' || !Number.isInteger(res) || res < SDF_LIMITS.res[0] || res > SDF_LIMITS.res[1]) out.push(`sdf.res = ${String(res)} (an integer from ${SDF_LIMITS.res[0]} to ${SDF_LIMITS.res[1]})`)
+  const resWanted = typeof res === 'number' && Number.isInteger(res) ? res : 0
   const yaw = raw.yaw === undefined ? 180 : raw.yaw
   if (typeof yaw !== 'number' || !Number.isFinite(yaw) || Math.abs(yaw) > 360) out.push(`sdf.yaw = ${String(yaw)} (degrees, −360 to 360)`)
 
@@ -223,6 +238,9 @@ export function checkSdf(raw: unknown): { ok: true; spec: SdfSpec } | { ok: fals
 
   const root = walk(raw.root, 'root', 0, false)
   if (leaves > SDF_LIMITS.leaves) out.push(`${leaves} volumes (at most ${SDF_LIMITS.leaves})`)
+  if (resWanted > 0 && resWanted > maxResFor(leaves)) {
+    out.push(`sdf.res = ${resWanted} is too much for ${leaves} volumes: the mesh budget allows ${maxResFor(leaves)} (cost grows with volumes × res²)`)
+  }
   if (!root && !out.length) out.push('sdf.root: nothing to build')
   if (out.length || !root) return { ok: false, problems: out }
   const pad = 0.08
@@ -231,43 +249,46 @@ export function checkSdf(raw: unknown): { ok: true; spec: SdfSpec } | { ok: fals
 
 /* ---------- Evaluation ---------- */
 
-function leafDist(n: Extract<Node, { leaf: LeafKind }>, q: Vec3): number {
+/** Distance from a leaf to a point, in the leaf's own frame. Scalars only: no array per call. */
+function leafDist(n: Extract<Node, { leaf: LeafKind }>, qx: number, qy: number, qz: number): number {
   const p = n.p
   switch (n.leaf) {
     case 'sphere':
-      return len(q) - (p.r as number)
+      return Math.hypot(qx, qy, qz) - (p.r as number)
     case 'ellipsoid': {
       // Inigo Quilez's bound: exact on the surface, a good meshing field near it.
       const r = p.radii as Vec3
-      const k0 = Math.hypot(q[0] / r[0], q[1] / r[1], q[2] / r[2])
-      const k1 = Math.hypot(q[0] / (r[0] * r[0]), q[1] / (r[1] * r[1]), q[2] / (r[2] * r[2]))
-      return k1 === 0 ? -Math.min(...r) : (k0 * (k0 - 1)) / k1
+      const k0 = Math.hypot(qx / r[0], qy / r[1], qz / r[2])
+      const k1 = Math.hypot(qx / (r[0] * r[0]), qy / (r[1] * r[1]), qz / (r[2] * r[2]))
+      return k1 === 0 ? -Math.min(r[0], r[1], r[2]) : (k0 * (k0 - 1)) / k1
     }
     case 'capsule': {
       const a = p.a as Vec3
       const b = p.b as Vec3
-      const pa: Vec3 = [q[0] - a[0], q[1] - a[1], q[2] - a[2]]
-      const ba: Vec3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
-      const bb = ba[0] * ba[0] + ba[1] * ba[1] + ba[2] * ba[2]
-      const h = bb === 0 ? 0 : Math.max(0, Math.min(1, (pa[0] * ba[0] + pa[1] * ba[1] + pa[2] * ba[2]) / bb))
-      return len([pa[0] - ba[0] * h, pa[1] - ba[1] * h, pa[2] - ba[2] * h]) - (p.r as number)
+      const pax = qx - a[0], pay = qy - a[1], paz = qz - a[2]
+      const bax = b[0] - a[0], bay = b[1] - a[1], baz = b[2] - a[2]
+      const bb = bax * bax + bay * bay + baz * baz
+      const h = bb === 0 ? 0 : Math.max(0, Math.min(1, (pax * bax + pay * bay + paz * baz) / bb))
+      return Math.hypot(pax - bax * h, pay - bay * h, paz - baz * h) - (p.r as number)
     }
     case 'box': {
       const h = p.half as Vec3
       const rr = Math.min(p.round as number, h[0], h[1], h[2])
-      const d: Vec3 = [Math.abs(q[0]) - h[0] + rr, Math.abs(q[1]) - h[1] + rr, Math.abs(q[2]) - h[2] + rr]
-      return len([Math.max(d[0], 0), Math.max(d[1], 0), Math.max(d[2], 0)]) + Math.min(Math.max(d[0], d[1], d[2]), 0) - rr
+      const dx = Math.abs(qx) - h[0] + rr
+      const dy = Math.abs(qy) - h[1] + rr
+      const dz = Math.abs(qz) - h[2] + rr
+      return Math.hypot(Math.max(dx, 0), Math.max(dy, 0), Math.max(dz, 0)) + Math.min(Math.max(dx, Math.max(dy, dz)), 0) - rr
     }
     case 'torus': {
       // In the xy plane (axis z), like the three-iso torus.
-      const qx = Math.hypot(q[0], q[1]) - (p.R as number)
-      return Math.hypot(qx, q[2]) - (p.r as number)
+      const qq = Math.hypot(qx, qy) - (p.R as number)
+      return Math.hypot(qq, qz) - (p.r as number)
     }
     case 'cylinder': {
       // Axis z, from z = 0 to z = h (set on its base, like three-iso shapes).
-      const dx = Math.hypot(q[0], q[1]) - (p.r as number)
+      const dx = Math.hypot(qx, qy) - (p.r as number)
       const hh = (p.h as number) / 2
-      const dz = Math.abs(q[2] - hh) - hh
+      const dz = Math.abs(qz - hh) - hh
       return Math.min(Math.max(dx, dz), 0) + Math.hypot(Math.max(dx, 0), Math.max(dz, 0))
     }
   }
@@ -287,10 +308,7 @@ function distNode(n: Node, x: number, y: number, z: number): number {
       qx = rx
       qy = ry
     }
-    SCRATCH[0] = qx
-    SCRATCH[1] = qy
-    SCRATCH[2] = qz
-    return leafDist(n, SCRATCH)
+    return leafDist(n, qx, qy, qz)
   }
   const px = n.mirror ? Math.abs(x) : x
   let a = distNode(n.of[0]!, px, y, z)
@@ -316,8 +334,6 @@ function distNode(n: Node, x: number, y: number, z: number): number {
   }
   return a
 }
-const SCRATCH: [number, number, number] = [0, 0, 0]
-
 interface Hit {
   d: number
   color: string | undefined
@@ -325,8 +341,18 @@ interface Hit {
 
 function evalNode(n: Node, pt: Vec3, inherited: string | undefined): Hit {
   if ('leaf' in n) {
-    const rel: Vec3 = [pt[0] - n.at[0], pt[1] - n.at[1], pt[2] - n.at[2]]
-    return { d: leafDist(n, n.inv ? mulV(n.inv, rel) : rel), color: n.color ?? inherited }
+    let qx = pt[0] - n.at[0]
+    let qy = pt[1] - n.at[1]
+    let qz = pt[2] - n.at[2]
+    if (n.inv) {
+      const m = n.inv
+      const rx = m[0][0] * qx + m[0][1] * qy + m[0][2] * qz
+      const ry = m[1][0] * qx + m[1][1] * qy + m[1][2] * qz
+      qz = m[2][0] * qx + m[2][1] * qy + m[2][2] * qz
+      qx = rx
+      qy = ry
+    }
+    return { d: leafDist(n, qx, qy, qz), color: n.color ?? inherited }
   }
   const p: Vec3 = n.mirror ? [Math.abs(pt[0]), pt[1], pt[2]] : pt
   const own = n.color ?? inherited
