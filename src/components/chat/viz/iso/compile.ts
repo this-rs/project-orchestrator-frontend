@@ -28,6 +28,13 @@ import { defineScene, SceneError, STATION_RANGE, type SceneSpec } from '@/vendor
 import type { MachineDef } from '@/vendor/three-iso/machine'
 import { checkSdf, sdfMachine } from '@/three/sdfScene'
 
+/**
+ * Time the chat gives a sculpted scene before settling for a coarser mesh. Measured on a 26-volume
+ * bust: res 128 costs 676 ms, so 900 ms lets a light scene reach the ceiling while a heavy one
+ * degrades instead of freezing the frame. See `meshSdfWithinBudget`.
+ */
+const MESH_BUDGET_MS = 900
+
 export type ToneName = keyof typeof LAMP
 
 export interface LegendEntry {
@@ -148,7 +155,7 @@ function compileSdfScene(data: Record<string, unknown>): IsoCompile {
   const base = compileIsoScene({ ast: { kind: 'sphere', r: 0.5 } })
   if (!base.ok) return base
   const title = typeof data.title === 'string' ? data.title.slice(0, 120) : undefined
-  const { machine } = sdfMachine(base.machine, checked.spec, `chat-sdf-${hash(JSON.stringify(data.sdf))}`)
+  const { machine } = sdfMachine(base.machine, checked.spec, `chat-sdf-${hash(JSON.stringify(data.sdf))}`, MESH_BUDGET_MS)
   return { ok: true, machine, legend: [], ...(title ? { title } : {}) }
 }
 
