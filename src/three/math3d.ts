@@ -649,72 +649,171 @@ const MC_TET_EDGES: [number, number][] = [
  * calculées ici (elles se dérivent du gradient de la SDF) ; le maillage est indexé
  * et étanche (sommets partagés par clé d'arête de grille).
  */
-export function sdfToMesh(sdf: Sdf, min: Vec3, max: Vec3, res: number): Mesh {
+/** Options of `sdfToMesh`: narrow-band block size (cells, 1 = evaluate every node) and the field's Lipschitz bound. */
+export interface MeshOptions {
+  band?: number
+  lipschitz?: number
+}
+
+export function sdfToMesh(sdf: Sdf, min: Vec3, max: Vec3, res: number, opts: MeshOptions = {}): Mesh {
   const n = res + 1
-  const size: Vec3 = [max[0] - min[0], max[1] - min[1], max[2] - min[2]]
+  const nn = n * n
+  const sx = (max[0] - min[0]) / res
+  const sy = (max[1] - min[1]) / res
+  const sz = (max[2] - min[2]) / res
   const values = new Float64Array(n * n * n)
-  const nodeId = (ix: number, iy: number, iz: number) => (iz * n + iy) * n + ix
-  const posAt = (ix: number, iy: number, iz: number): Vec3 => [
-    min[0] + (ix / res) * size[0],
-    min[1] + (iy / res) * size[1],
-    min[2] + (iz / res) * size[2],
-  ]
-  for (let iz = 0; iz < n; iz++) {
-    for (let iy = 0; iy < n; iy++) {
-      for (let ix = 0; ix < n; ix++) values[nodeId(ix, iy, iz)] = sdf(posAt(ix, iy, iz))
+  const p: Vec3 = [0, 0, 0]
+  const at = (ix: number, iy: number, iz: number) => {
+    p[0] = min[0] + ix * sx
+    p[1] = min[1] + iy * sy
+    p[2] = min[2] + iz * sz
+    return sdf(p)
+  }
+  // Narrow band: a block of B³ cells whose 8 corners all lie farther from the surface than
+  // `lipschitz` × its diagonal cannot contain any of it (a distance field changes at most that
+  // fast); its nodes only need the sign. Only blocks near the surface are evaluated node by node.
+  const B = Math.max(1, Math.floor(opts.band ?? 4))
+  const L = opts.lipschitz ?? 1.5
+  const nb = Math.ceil(res / B)
+  const exact = new Uint8Array(n * n * n)
+  const signOf = new Float64Array(n * n * n)
+  const diag = B * Math.hypot(sx, sy, sz) * L
+  const corner = new Map<number, number>()
+  const cornerVal = (ix: number, iy: number, iz: number) => {
+    const id = (iz * n + iy) * n + ix
+    let v = corner.get(id)
+    if (v === undefined) {
+      v = at(ix, iy, iz)
+      corner.set(id, v)
     }
+    return v
   }
-
-  const positions: number[] = []
-  const indices: number[] = []
-  const cache = new Map<string, number>()
-  const addVertex = (g0: [number, number, number], g1: [number, number, number]): number => {
-    const a = nodeId(g0[0], g0[1], g0[2])
-    const b = nodeId(g1[0], g1[1], g1[2])
-    const lo = a < b ? a : b
-    const hi = a < b ? b : a
-    const key = `${lo}_${hi}`
-    const hit = cache.get(key)
-    if (hit !== undefined) return hit
-    const va = values[a]
-    const vb = values[b]
-    const t = va / (va - vb)
-    const pa = posAt(g0[0], g0[1], g0[2])
-    const pb = posAt(g1[0], g1[1], g1[2])
-    const idx = positions.length / 3
-    positions.push(pa[0] + (pb[0] - pa[0]) * t, pa[1] + (pb[1] - pa[1]) * t, pa[2] + (pb[2] - pa[2]) * t)
-    cache.set(key, idx)
-    return idx
-  }
-
-  for (let iz = 0; iz < res; iz++) {
-    for (let iy = 0; iy < res; iy++) {
-      for (let ix = 0; ix < res; ix++) {
-        const cornerVal = MC_CORNERS.map(([dx, dy, dz]) => values[nodeId(ix + dx, iy + dy, iz + dz)])
-        const cornerGrid = MC_CORNERS.map(([dx, dy, dz]) => [ix + dx, iy + dy, iz + dz] as [number, number, number])
-        for (const tet of MC_TETS) {
-          const inside = [cornerVal[tet[0]] < 0, cornerVal[tet[1]] < 0, cornerVal[tet[2]] < 0, cornerVal[tet[3]] < 0]
-          const cross: [number, number][] = []
-          for (const [e0, e1] of MC_TET_EDGES) {
-            if (inside[e0] !== inside[e1]) cross.push([e0, e1])
-          }
-          const gridOf = (ci: number): [number, number, number] => cornerGrid[tet[ci]]
-          if (cross.length === 3) {
-            const [p0, p1, p2] = cross.map(([e0, e1]) => addVertex(gridOf(e0), gridOf(e1)))
-            indices.push(p0, p1, p2)
-          } else if (cross.length === 4) {
-            const inC = [0, 1, 2, 3].filter((i) => inside[i])
-            const outC = [0, 1, 2, 3].filter((i) => !inside[i])
-            const ia = inC[0], ib = inC[1], oa = outC[0], ob = outC[1]
-            const q0 = addVertex(gridOf(ia), gridOf(oa))
-            const q1 = addVertex(gridOf(ib), gridOf(oa))
-            const q2 = addVertex(gridOf(ib), gridOf(ob))
-            const q3 = addVertex(gridOf(ia), gridOf(ob))
-            indices.push(q0, q1, q2, q0, q2, q3)
+  for (let bz = 0; bz < nb; bz++) {
+    for (let by = 0; by < nb; by++) {
+      for (let bx = 0; bx < nb; bx++) {
+        const x0 = bx * B, x1 = Math.min(res, x0 + B)
+        const y0 = by * B, y1 = Math.min(res, y0 + B)
+        const z0 = bz * B, z1 = Math.min(res, z0 + B)
+        let far = B > 1
+        let sign = 0
+        for (let c = 0; c < 8 && far; c++) {
+          const v = cornerVal(c & 1 ? x1 : x0, c & 2 ? y1 : y0, c & 4 ? z1 : z0)
+          const sg = v < 0 ? -1 : 1
+          if (Math.abs(v) <= diag || (sign !== 0 && sg !== sign)) far = false
+          sign = sg
+        }
+        for (let iz = z0; iz <= z1; iz++) {
+          for (let iy = y0; iy <= y1; iy++) {
+            for (let ix = x0; ix <= x1; ix++) {
+              const id = (iz * n + iy) * n + ix
+              if (far) {
+                if (!exact[id]) signOf[id] = sign * diag
+              } else exact[id] = 1
+            }
           }
         }
       }
     }
   }
-  return { positions: Float32Array.from(positions), indices: Uint32Array.from(indices) }
+  for (let iz = 0, id = 0; iz < n; iz++) {
+    for (let iy = 0; iy < n; iy++) {
+      for (let ix = 0; ix < n; ix++, id++) {
+        values[id] = exact[id] ? (corner.get(id) ?? at(ix, iy, iz)) : signOf[id]!
+      }
+    }
+  }
+
+  // Grid node of each cube corner, as an offset from the cell's first node.
+  const cornerOff = MC_CORNERS.map(([dx, dy, dz]) => dz * nn + dy * n + dx)
+  let positions = new Float32Array(3 * 4096)
+  let nPos = 0
+  let indices = new Uint32Array(3 * 8192)
+  let nIdx = 0
+  // Edge key: (lo, hi) node ids packed in one number (both < n³ ≤ 73³ → product < 2^53).
+  const N3 = n * n * n
+  const cache = new Map<number, number>()
+  const nodePos = (id: number, axis: number) => {
+    const ix = id % n
+    const iy = Math.floor(id / n) % n
+    const iz = Math.floor(id / nn)
+    return axis === 0 ? min[0] + ix * sx : axis === 1 ? min[1] + iy * sy : min[2] + iz * sz
+  }
+  const vertex = (a: number, b: number): number => {
+    const lo = a < b ? a : b
+    const hi = a < b ? b : a
+    const key = lo * N3 + hi
+    const hit = cache.get(key)
+    if (hit !== undefined) return hit
+    const va = values[a]!
+    const t = va / (va - values[b]!)
+    if (nPos + 3 > positions.length) {
+      const grown = new Float32Array(positions.length * 2)
+      grown.set(positions)
+      positions = grown
+    }
+    for (let k = 0; k < 3; k++) {
+      const pa = nodePos(a, k)
+      positions[nPos + k] = pa + (nodePos(b, k) - pa) * t
+    }
+    const idx = nPos / 3
+    nPos += 3
+    cache.set(key, idx)
+    return idx
+  }
+  const tri = (i0: number, i1: number, i2: number) => {
+    if (nIdx + 3 > indices.length) {
+      const grown = new Uint32Array(indices.length * 2)
+      grown.set(indices)
+      indices = grown
+    }
+    indices[nIdx++] = i0
+    indices[nIdx++] = i1
+    indices[nIdx++] = i2
+  }
+
+  const node = [0, 0, 0, 0]
+  const inside = [false, false, false, false]
+  const inC = [0, 0]
+  const outC = [0, 0]
+  for (let iz = 0; iz < res; iz++) {
+    for (let iy = 0; iy < res; iy++) {
+      for (let ix = 0; ix < res; ix++) {
+        const base = iz * nn + iy * n + ix
+        // Skip a cell whose 8 corners lie on the same side: no surface crosses it.
+        let neg = 0
+        for (let c = 0; c < 8; c++) if (values[base + cornerOff[c]!]! < 0) neg++
+        if (neg === 0 || neg === 8) continue
+        for (const tet of MC_TETS) {
+          let nIn = 0
+          for (let k = 0; k < 4; k++) {
+            node[k] = base + cornerOff[tet[k]]!
+            inside[k] = values[node[k]!]! < 0
+            if (inside[k]) nIn++
+          }
+          if (nIn === 0 || nIn === 4) continue
+          if (nIn === 1 || nIn === 3) {
+            // One corner differs from the other three: one triangle on its three edges.
+            const lone = nIn === 1 ? inside.indexOf(true) : inside.indexOf(false)
+            const v: number[] = []
+            for (const [e0, e1] of MC_TET_EDGES) if ((e0 === lone) !== (e1 === lone)) v.push(vertex(node[e0]!, node[e1]!))
+            tri(v[0]!, v[1]!, v[2]!)
+          } else {
+            let ni = 0
+            let no = 0
+            for (let k = 0; k < 4; k++) {
+              if (inside[k]) inC[ni++] = k
+              else outC[no++] = k
+            }
+            const q0 = vertex(node[inC[0]!]!, node[outC[0]!]!)
+            const q1 = vertex(node[inC[1]!]!, node[outC[0]!]!)
+            const q2 = vertex(node[inC[1]!]!, node[outC[1]!]!)
+            const q3 = vertex(node[inC[0]!]!, node[outC[1]!]!)
+            tri(q0, q1, q2)
+            tri(q0, q2, q3)
+          }
+        }
+      }
+    }
+  }
+  return { positions: positions.slice(0, nPos), indices: indices.slice(0, nIdx) }
 }

@@ -26,6 +26,7 @@ import { LAMP } from '@/vendor/three-iso/iso'
 import { MECHANISMS } from '@/vendor/three-iso/mechanisms'
 import { defineScene, SceneError, STATION_RANGE, type SceneSpec } from '@/vendor/three-iso/scene'
 import type { MachineDef } from '@/vendor/three-iso/machine'
+import { checkSdf, sdfMachine } from '@/three/sdfScene'
 
 export type ToneName = keyof typeof LAMP
 
@@ -134,8 +135,32 @@ export function toSceneSpec(data: unknown): { spec?: SceneSpec; title?: string; 
   return { spec, title, legend, problems }
 }
 
+const SDF_SCENE_KEYS = new Set(['title', 'caption', 'label', 'tone', 'sdf'])
+
+/** A sculpted object (`sdf`): a tree of smooth volumes, meshed, shown alone on the `solo` stage. */
+function compileSdfScene(data: Record<string, unknown>): IsoCompile {
+  const problems: string[] = []
+  for (const k of Object.keys(data)) if (!SDF_SCENE_KEYS.has(k)) problems.push(`unknown field « ${k} » next to « sdf » (${[...SDF_SCENE_KEYS].join(', ')})`)
+  const checked = checkSdf(data.sdf)
+  if (!checked.ok) problems.push(...checked.problems)
+  if (problems.length || !checked.ok) return { ok: false, problems }
+  // The frame, cycle and registry of a checked one-object machine; its faces are replaced by the mesh.
+  const base = compileIsoScene({ ast: { kind: 'sphere', r: 0.5 } })
+  if (!base.ok) return base
+  const title = typeof data.title === 'string' ? data.title.slice(0, 120) : undefined
+  const { machine } = sdfMachine(base.machine, checked.spec, `chat-sdf-${hash(JSON.stringify(data.sdf))}`)
+  return { ok: true, machine, legend: [], ...(title ? { title } : {}) }
+}
+
 /** Check and build an `iso_scene`. Never throws: a refusal carries the list of corrections. */
 export function compileIsoScene(data: unknown): IsoCompile {
+  if (isObj(data) && data.sdf !== undefined) {
+    try {
+      return compileSdfScene(data)
+    } catch (e) {
+      return { ok: false, problems: [`the sculpted object could not be built: ${e instanceof Error ? e.message : String(e)}`] }
+    }
+  }
   const { spec, title, legend, problems } = toSceneSpec(data)
   if (!spec || problems.length) return { ok: false, problems }
   try {
