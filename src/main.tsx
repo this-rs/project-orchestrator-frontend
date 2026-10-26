@@ -4,7 +4,11 @@ import '@fontsource-variable/inter'
 import App from './App'
 import { I18nProvider } from '@/i18n'
 import { initBackendPort } from '@/services/env'
+import { installChunkReload } from '@/lib/chunkReload'
 import './index.css'
+
+// A tab opened before a rebuild asks for chunk names that no longer exist; reload it once.
+installChunkReload()
 
 // Detect Tauri environment and add class for CSS targeting.
 // In Tauri, html/body must be transparent so native rounded corners work.
