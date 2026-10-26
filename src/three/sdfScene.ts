@@ -61,6 +61,43 @@ export const SDF_LIMITS = { leaves: 96, depth: 8, res: [16, 128] as const, defau
  */
 export const SDF_BUDGET = 500_000
 
+/**
+ * How mesh time grows with resolution. Measured on a 26-volume bust: res 72 -> 253 ms,
+ * 96 -> 400, 128 -> 676; the ratio is res^1.7, not res^2, because the fixed cost of the pass is
+ * not negligible at low res. Used to buy the finest mesh a time budget affords.
+ */
+const COST_EXPONENT = 1.7
+
+/** A mesh that knows the resolution it was actually built at (a budget may lower it). */
+export interface BudgetedMesh extends SdfMesh {
+  /** Resolution really used: never above what the scene asked for. */
+  res: number
+}
+
+/**
+ * Mesh the finest this scene can be within `budgetMs`.
+ *
+ * One cheap probe at res 40 measures the scene, `res^COST_EXPONENT` extrapolates what the rest of
+ * the budget buys, and a single final pass builds it. Iterative re-meshing (24, 32, 43, 58, …)
+ * was measured to waste 60 % of the budget on discarded passes: for 600 ms it reached res 58,
+ * where one probe + one pass reaches res 101.
+ *
+ * `spec.res` stays a ceiling: a budget never buys MORE detail than the author asked for, only less.
+ */
+export function meshSdfWithinBudget(spec: SdfSpec, budgetMs: number, opts: { cap?: number } = {}): BudgetedMesh {
+  const cap = Math.max(SDF_LIMITS.res[0], Math.min(opts.cap ?? spec.res, spec.res, SDF_LIMITS.res[1]))
+  const probeRes = Math.min(cap, 40)
+  const probe = meshSdf(spec, probeRes)
+  if (probeRes >= cap || budgetMs <= probe.ms) return { ...probe, res: probeRes }
+  const headroom = Math.max(0, budgetMs - probe.ms) * 0.92
+  const perUnit = probe.ms / Math.pow(probeRes, COST_EXPONENT)
+  const affordable = Math.floor(Math.pow(headroom / Math.max(1e-9, perUnit), 1 / COST_EXPONENT))
+  const target = Math.max(probeRes, Math.min(cap, affordable))
+  if (target <= probeRes) return { ...probe, res: probeRes }
+  const fine = meshSdf(spec, target)
+  return { ...fine, res: target }
+}
+
 /** Highest resolution a scene of `leaves` volumes may ask for (see `SDF_BUDGET`). */
 export function maxResFor(leaves: number): number {
   const affordable = Math.floor(Math.sqrt(SDF_BUDGET / Math.max(1, leaves)))
@@ -487,8 +524,15 @@ export function meshSdf(spec: SdfSpec, res = spec.res, part = 0): SdfMesh {
  * (its frame, cycle and registry); its build, hotspots and stations are replaced. The fine mesh feeds
  * the lit renderer (lod 2); a coarser one feeds the SVG fallback (lod 1).
  */
-export function sdfMachine(base: MachineDef, spec: SdfSpec, id: string): { machine: MachineDef; triangles: number; ms: number } {
-  const fine = meshSdf(spec)
+export function sdfMachine(
+  base: MachineDef,
+  spec: SdfSpec,
+  id: string,
+  /** Time the chat may spend meshing; the mesh may come out coarser than `spec.res`, never finer. */
+  budgetMs?: number,
+): { machine: MachineDef; triangles: number; ms: number; res: number } {
+  const fine: SdfMesh & { res: number } =
+    budgetMs === undefined ? { ...meshSdf(spec), res: spec.res } : meshSdfWithinBudget(spec, budgetMs)
   let coarse: Face[] | null = null
   const machine: MachineDef = {
     id,
@@ -505,5 +549,5 @@ export function sdfMachine(base: MachineDef, spec: SdfSpec, id: string): { machi
       return coarse
     },
   }
-  return { machine, triangles: fine.triangles, ms: fine.ms }
+  return { machine, triangles: fine.triangles, ms: fine.ms, res: fine.res }
 }
