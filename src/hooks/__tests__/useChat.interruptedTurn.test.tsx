@@ -216,4 +216,40 @@ describe('a send that interrupts the running answer reads as a stop', () => {
     )
     expect(stored[1].duration_ms).toBe(4200)
   })
+
+  /**
+   * The interrupt is not instantaneous: the cut answer can emit one last live
+   * frame AFTER the forced bubble is on screen (the round trip to the engine and
+   * back). That frame opens an assistant message below the bubble, and the turn
+   * then ends on THAT message — so the bubble waiting for its echo no longer sits
+   * in the turn the `result` closes.
+   *
+   * The echo still belongs to it. Missing it draws the message twice, which is
+   * what the user sees with Cmd/Ctrl+Enter and with the queue's "send now".
+   */
+  it('keeps the forced message to a single bubble when the cut answer streams one more frame', async () => {
+    const { emit, result: hook } = await setup()
+    emit({ type: 'user_message', content: 'explain', seq: 0, created_at: T })
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'stream_delta', text: 'Half an ans' })
+    // Cmd/Ctrl+Enter: the composer calls sendMessage, no `queue`. The bubble is
+    // on screen at once.
+    await act(async () => {
+      await hook.current.sendMessage('stop, do this instead')
+    })
+    // One frame of the cut answer still lands, below the bubble.
+    emit({ type: 'stream_delta', text: 'wer.', seq: 0, created_at: T + 2 })
+    // …the turn ends on it, and the held message opens the next turn.
+    emit({ ...stoppedLive, seq: 0, created_at: T + 3 })
+    emit({ type: 'user_message', content: 'stop, do this instead', seq: 0, created_at: T + 4 })
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'stream_delta', text: 'Doing it' })
+
+    const sent = hook.current.messages
+      .filter((m) => m.role === 'user')
+      .map((m) => m.blocks.filter((b) => b.type === 'text').map((b) => b.content).join(''))
+    // The echo is the one the bubble is waiting for: it must never open a second
+    // bubble below it.
+    expect(sent).toEqual(['explain', 'stop, do this instead'])
+  })
 })

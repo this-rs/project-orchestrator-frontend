@@ -185,9 +185,17 @@ describe('userEchoTarget — which bubble a user_message echo belongs to', () =>
     expect(userEchoTarget(msgs, 'ok')).toEqual({ index: 0, awaiting: true })
   })
 
-  it('never a waiting bubble a turn result has gone past (its echo will not come any more)', () => {
+  it('never a waiting bubble a confirmed message was sent after (its echo has gone by)', () => {
     const msgs = [user('ok', { awaitingEcho: true }), assistant({ duration_ms: 10 }), user('next'), assistant({ duration_ms: 10 })]
     expect(userEchoTarget(msgs, 'ok')).toBeNull()
+  })
+
+  it('a turn result going past it does not disqualify it: a mid-stream send interrupts the answer that ends above it', () => {
+    // The same shape as the case above but with nothing sent after the bubble: the
+    // answer that was cut emitted one last frame below it, and the turn ended on
+    // that frame. The echo of `ok` opens the next turn, so it is still coming.
+    const msgs = [user('explain'), user('ok', { awaitingEcho: true }), assistant({ duration_ms: 10 })]
+    expect(userEchoTarget(msgs, 'ok')).toEqual({ index: 1, awaiting: true })
   })
 
   it('else the bubble opening the turn in progress (a replay of it)', () => {
