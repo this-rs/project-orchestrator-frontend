@@ -221,7 +221,28 @@ describe('RoutingSelectionMenu', () => {
     expect(store.get(chatDraftRoutingModeAtom)).toBe('mixed')
     expect(screen.getByTestId('target-chip').textContent).toContain('Mixed: 3 models')
     expect(screen.getByTestId('routing-summary').textContent).toContain('Mixed: 3 models')
-    expect(screen.getByTestId('routing-summary').textContent).toContain('PO routes among your 3 models, the first answer included')
+    // qwen lives on local-llama, the two Claude models on claude-code: the pool
+    // spans two providers, so the conversation may move — and the menu says it.
+    expect(screen.getByTestId('routing-summary').textContent).toContain(
+      'and may switch provider mid-conversation',
+    )
+  })
+
+  it('a pool ticked on a single provider does not announce a provider change', () => {
+    const store = mount('primary', { prepare: (s) => s.set(modelCatalogAtom, CLAUDE_MODELS) })
+    expect(store).toBeDefined()
+    openMenu()
+    // The two Claude models live on the same provider: several models, one
+    // provider, so the conversation stays where it is and the menu says nothing
+    // about switching.
+    fireEvent.click(
+      within(screen.getByTestId('target-provider-claude-code')).getByRole('checkbox', {
+        name: /All models of Claude Code/,
+      }),
+    )
+    const summary = screen.getByTestId('routing-summary').textContent ?? ''
+    expect(summary).toContain('the first answer included')
+    expect(summary).not.toContain('switch provider')
   })
 
   it('the Auto switch turns everything below off, and keeps what was ticked for when it comes back', () => {

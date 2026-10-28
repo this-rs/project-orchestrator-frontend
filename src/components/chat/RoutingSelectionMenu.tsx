@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import type { MessageKey } from '@/i18n/catalog'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Check, ChevronDown, Minus, RefreshCw, Search } from 'lucide-react'
 import { Highlight } from '@/components/ui/SearchableSelect'
@@ -162,6 +163,19 @@ interface RoutingSelectionMenuProps {
  * existing one, at any time. A server without the router (or without provider
  * routes) has nothing to route: the plain provider/model picker.
  */
+/**
+ * Which "several models" line the menu shows.
+ *
+ * A pool ticked across two providers or more is routed like `full` restricted to
+ * the pool, so the conversation may move to the other provider (R-S2). Saying
+ * nothing would let the user believe the chat is pinned to one.
+ */
+export function summaryMixedKey(providerCount: number): MessageKey {
+  return providerCount > 1
+    ? 'routing.menu.summaryMixedCrossProvider'
+    : 'routing.menu.summaryMixed'
+}
+
 export function RoutingSelectionMenu(props: RoutingSelectionMenuProps) {
   const slug = useAtomValue(chatRoutingSlugAtom)
   const load = useSetAtom(loadRoutingSettingsAtom)
@@ -412,7 +426,23 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
       : count === 1
         ? `${hasSession ? sessionLabel : firstInstance ? providerDisplayName(firstInstance) : first.provider} › ${nameOf(first.provider, first.model)}`
         : modeLabel
-  const summary = auto ? t('routing.modes.full.description') : count === 0 ? t(noDefault ? 'routing.menu.summaryChoose' : 'routing.menu.summaryNone') : count === 1 ? t('routing.modes.primary.description') : t('routing.menu.summaryMixed', { count })
+  // A pool ticked across two providers or more is routed like `full` restricted to
+  // the pool: PO may move the conversation to the other provider (R-S2). Say it,
+  // instead of letting the user believe the chat is pinned to one.
+  const pickedProviders = new Set<string>()
+  for (const p of instances) {
+    for (const m of modelsOf(p)) {
+      if (isPicked(selection, { provider: p.id, model: m })) pickedProviders.add(p.id)
+    }
+  }
+
+  const summary = auto
+    ? t('routing.modes.full.description')
+    : count === 0
+      ? t(noDefault ? 'routing.menu.summaryChoose' : 'routing.menu.summaryNone')
+      : count === 1
+        ? t('routing.modes.primary.description')
+        : t(summaryMixedKey(pickedProviders.size), { count })
   const mode = auto ? 'full' : count > 1 ? 'mixed' : 'primary'
 
   return (
