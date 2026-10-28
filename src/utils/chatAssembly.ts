@@ -319,26 +319,31 @@ export function hasToolUse(messages: ReadonlyArray<ChatMessage>, id: string): bo
  * Which bubble the echo of a user message with text `content` (its broadcast,
  * or the replay of it) belongs to, or `null` when it is a new message:
  * - the OLDEST bubble of this browser still waiting for its echo with that text
- *   (`awaitingEcho`), sent after the last turn result: the echoes come in the
- *   order the messages were sent, and a bubble a result has gone past without
- *   its echo will not get one any more (it never captures a later message);
+ *   (`awaitingEcho`), as long as its echo can still be on its way: the echoes
+ *   come in the order the messages were sent, so a LATER CONFIRMED user message
+ *   means this one's echo has already gone by — such a bubble never captures a
+ *   later message;
  * - otherwise the bubble that opens the turn in progress, when it has that text:
  *   the same message shown again (a snapshot replayed on reconnect);
  * - otherwise none. An older bubble with the same text is another message (an
  *   "ok" sent from another tab after an earlier "ok"), and so is the opener of a
  *   turn already over (a result closed it).
+ *
+ * Where the waiting bubble sits relative to the last turn result says nothing,
+ * and must not bound the search: a message sent mid-stream interrupts the running
+ * answer, which can still emit one last frame AFTER the bubble is on screen —
+ * that frame opens an assistant message below it, and the turn ends there, so the
+ * bubble finds itself before the boundary of a turn it did not open. Its own echo
+ * comes only after that result (it is the opening of the next turn). Bounding the
+ * search there drew the message twice.
  */
 export function userEchoTarget(messages: ReadonlyArray<ChatMessage>, content: string): { index: number; awaiting: boolean } | null {
   const sameText = (m: ChatMessage) => m.role === 'user' && m.blocks[0]?.content === content
-  let since = 0
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === 'assistant' && messages[i].duration_ms != null) {
-      since = i + 1
-      break
-    }
-  }
-  for (let i = since; i < messages.length; i++) {
-    if (messages[i].awaitingEcho === true && sameText(messages[i])) return { index: i, awaiting: true }
+  for (let i = 0; i < messages.length; i++) {
+    if (messages[i].awaitingEcho !== true || !sameText(messages[i])) continue
+    // A message the session has confirmed after this one: its echo cannot still come.
+    const overtaken = messages.slice(i + 1).some((m) => m.role === 'user' && m.awaitingEcho !== true)
+    if (!overtaken) return { index: i, awaiting: true }
   }
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i]

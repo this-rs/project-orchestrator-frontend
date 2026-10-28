@@ -248,6 +248,41 @@ describe('useChat — queued messages are held by the session', () => {
     expect(users().map((m) => [m.blocks[0]?.content, !!m.awaitingEcho])).toEqual([['urgent', false]])
   })
 
+  /**
+   * "Send now" cuts the running answer short, but the cut is not instantaneous:
+   * one last frame of that answer can land AFTER the bubble is on screen, opening
+   * an assistant message below it and ending the turn there. The echo of the
+   * message still belongs to that bubble — otherwise the message is drawn twice,
+   * once as the bubble and once as a new message.
+   */
+  it('keeps "send now" to one bubble when the cut answer streams one more frame', async () => {
+    const { result, ws } = await setup()
+    const emit = (event: Record<string, unknown>) => act(() => ws.callbacks.onEvent(event))
+    emit({ type: 'user_message', content: 'explain' })
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'stream_delta', text: 'Half an ans' })
+    emit({ type: 'pending_queue', messages: [held('s1', 'urgent')] })
+
+    act(() => result.current.queueOp({ op: 'send_now', id: 's1' }))
+    const users = () => result.current.messages.filter((m) => m.role === 'user')
+    expect(users().map((m) => [m.blocks[0]?.content, m.awaitingEcho])).toEqual([
+      ['explain', undefined],
+      ['urgent', true],
+    ])
+
+    // The answer that was cut still emits one frame, below the bubble…
+    emit({ type: 'stream_delta', text: 'wer.' })
+    // …and the turn ends on it.
+    emit({ type: 'result', subtype: 'error_during_execution', is_error: true, stop_reason: 'interrupted', duration_ms: 4200 })
+    // The session delivers the message: the echo is the bubble, not a second one.
+    emit({ type: 'user_message', content: 'urgent' })
+
+    expect(users().map((m) => [m.blocks[0]?.content, !!m.awaitingEcho])).toEqual([
+      ['explain', false],
+      ['urgent', false],
+    ])
+  })
+
   it('adds no bubble for "send now" when the action could not reach the server', async () => {
     const { result, ws } = await setup()
     act(() => {
