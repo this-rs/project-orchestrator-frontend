@@ -208,6 +208,16 @@ interface StreamWindowEntry {
 }
 
 /**
+ * Whether an assistant message is the end of a turn that is over: the live
+ * `result` stamps its metrics on it (`duration_ms` / `cost_usd`), the history
+ * reducer does the same. A message without them belongs to a turn still running,
+ * so new content takes it rather than opening a boundary below.
+ */
+function turnIsClosed(msg: ChatMessage): boolean {
+  return msg.duration_ms != null || msg.cost_usd != null || msg.cost_basis != null
+}
+
+/**
  * Collect the blocks of the CURRENT STREAM as a reconciliation window.
  *
  * The Phase 1.5b snapshot replays the stream from its START, and one stream
@@ -228,7 +238,7 @@ function currentStreamWindow(messages: ReadonlyArray<ChatMessage>): StreamWindow
   let start = Math.max(0, messages.length - 30)
   for (let mi = messages.length - 2; mi >= start; mi--) {
     const msg = messages[mi]
-    if (msg.role === 'assistant' && (msg.duration_ms != null || msg.cost_usd != null || msg.cost_basis != null)) {
+    if (msg.role === 'assistant' && turnIsClosed(msg)) {
       start = mi + 1
       break
     }
@@ -820,18 +830,19 @@ export function useChat() {
     }
     setMessages((prev) => {
       const updated = [...prev]
-      // The end of a turn cut short by a message sent mid-stream without `queue`
-      // (Cmd/Ctrl+Enter): the server interrupts the running answer as Stop does,
-      // but the optimistic bubble already sits below that answer, still waiting
-      // for its echo — its own turn has not started. The turn that ends is the
-      // answer's: the result lands on it (duration, cost) instead of opening an
-      // empty boundary under the bubble, as after Stop and as the reloaded history
-      // shows it (the message is stored after the interrupted result).
+      // A bubble sent mid-stream without `queue` (Cmd/Ctrl+Enter, or the queue's
+      // "send now") sits below the answer it interrupted, still waiting for its echo:
+      // its OWN turn has not started. So whatever the cut answer still emits — its
+      // last frames, the end of a tool call, its `result` (duration, cost) — belongs
+      // ABOVE that bubble, on the assistant message that is still open, as Stop does
+      // and as the reloaded history shows it (the message is stored after the
+      // interrupted result). Once that turn is closed (`turnIsClosed`, stamped by its
+      // result) the bubble's own turn begins and its content goes below it.
       let tailIndex = updated.length - 1
-      if (event.type === 'result' && !event.replaying) {
+      if (!event.replaying) {
         let i = tailIndex
         while (i > 0 && updated[i].role === 'user' && updated[i].awaitingEcho) i--
-        if (i < tailIndex && updated[i].role === 'assistant') tailIndex = i
+        if (i < tailIndex && updated[i].role === 'assistant' && !turnIsClosed(updated[i])) tailIndex = i
       }
       let lastMsg = updated[tailIndex]
       // Track whether THIS event forced a fresh assistant boundary — if the

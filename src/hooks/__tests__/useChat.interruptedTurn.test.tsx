@@ -252,4 +252,33 @@ describe('a send that interrupts the running answer reads as a stop', () => {
     // bubble below it.
     expect(sent).toEqual(['explain', 'stop, do this instead'])
   })
+
+  /**
+   * The same late frame must also stay on the answer it belongs to. It arrives
+   * before the cut turn's `result`, so it is part of that turn: the word it carries
+   * finishes the sentence the user was reading when they hit Cmd/Ctrl+Enter, and the
+   * turn's duration belongs to that message — not to a fragment drawn under the
+   * message the user has just sent.
+   */
+  it('puts the cut answer\'s last frame on the answer, above the message that cut it', async () => {
+    const { emit, result: hook } = await setup()
+    emit({ type: 'user_message', content: 'explain' })
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'stream_delta', text: 'Half an ans' })
+    await act(async () => {
+      await hook.current.sendMessage('stop, do this instead')
+    })
+    emit({ type: 'stream_delta', text: 'wer.', seq: 0, created_at: T + 2 })
+    emit({ ...stoppedLive, seq: 0, created_at: T + 3 })
+    emit({ type: 'user_message', content: 'stop, do this instead', seq: 0, created_at: T + 4 })
+    emit({ type: 'streaming_status', is_streaming: true })
+    emit({ type: 'stream_delta', text: 'Doing it' })
+
+    expect(view(hook.current.messages)).toEqual([
+      { role: 'user', text: 'explain', duration_ms: undefined },
+      { role: 'assistant', text: 'Half an answer.', duration_ms: 4200 },
+      { role: 'user', text: 'stop, do this instead', duration_ms: undefined },
+      { role: 'assistant', text: 'Doing it', duration_ms: undefined },
+    ])
+  })
 })
