@@ -22,6 +22,7 @@ export default {
   bubble: {
     references: "参照",
     attachments: "添付ファイル",
+    openAttachment: "{name} を開く",
     copyMessage: "メッセージを Markdown としてコピー",
     copyReply: "返信を Markdown としてコピー",
     thinking: "考え中..."

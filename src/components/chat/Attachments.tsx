@@ -1,11 +1,9 @@
 import { memo } from 'react'
 import { useT } from '@/i18n'
 import { AlertTriangle, FileText, Image as ImageIcon, Loader2, X } from 'lucide-react'
-import {
-  formatBytes,
-  truncateFilename,
-  type Attachment,
-} from './attachmentState'
+import { formatBytes, truncateFilename, type Attachment } from './attachmentState'
+import { isPreviewableImage } from './attachmentPreview'
+import { useFilePreviewUrl } from './useAttachmentImages'
 
 interface AttachmentsProps {
   attachments: Attachment[]
@@ -18,6 +16,56 @@ interface AttachmentsProps {
    * feature exists to avoid.
    */
   pendingSend?: boolean
+  /**
+   * The file behind each attachment, by `localId`.
+   *
+   * Only the composer has it: the bytes are in the browser until the upload
+   * resolves, and waiting for the server to draw a picture the browser already
+   * holds would be a preview that arrives after the message has been sent.
+   * Kept OUT of `Attachment` on purpose — that state machine is compared and
+   * persisted by value, and a `File` does not belong in it.
+   */
+  files?: ReadonlyMap<string, File>
+}
+
+/**
+ * The little picture at the left of a chip: the file itself while it uploads,
+ * the type icon otherwise.
+ *
+ * A thumbnail and not a bigger icon, because the row must stay one line tall
+ * whatever is uploading — see the progress fill below, which makes the same
+ * promise.
+ */
+function AttachmentGlyph({ attachment, file }: { attachment: Attachment; file?: File }) {
+  const previewable = isPreviewableImage(attachment.mimeType)
+  // The hook is called unconditionally; passing `null` is how a PDF says it has
+  // nothing to preview.
+  const url = useFilePreviewUrl(previewable ? (file ?? null) : null)
+  const Icon = previewable ? ImageIcon : FileText
+  const hasWarnings = attachment.status === 'ready' && (attachment.warnings?.length ?? 0) > 0
+
+  if (url && attachment.status !== 'error') {
+    return (
+      <span className="relative shrink-0">
+        <img src={url} alt="" aria-hidden="true" className="w-6 h-6 rounded object-cover" />
+        {attachment.status === 'uploading' && (
+          <Loader2 className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 text-indigo-300 animate-spin" />
+        )}
+      </span>
+    )
+  }
+
+  return (
+    <span className="relative shrink-0">
+      {attachment.status === 'uploading' ? (
+        <Loader2 className="w-3 h-3 text-indigo-400 animate-spin" />
+      ) : attachment.status === 'error' ? (
+        <AlertTriangle className="w-3 h-3 text-red-400" />
+      ) : (
+        <Icon className={`w-3 h-3 ${hasWarnings ? 'text-amber-400' : 'text-gray-400'}`} />
+      )}
+    </span>
+  )
 }
 
 /**
@@ -35,6 +83,7 @@ export const Attachments = memo(function Attachments({
   attachments,
   onRemove,
   pendingSend,
+  files,
 }: AttachmentsProps) {
   const { t } = useT()
   if (attachments.length === 0) return null
@@ -43,8 +92,6 @@ export const Attachments = memo(function Attachments({
     <div className="flex flex-col gap-1 p-1.5 mb-1 rounded-xl border border-white/[0.1] bg-surface-popover/95 backdrop-blur-md shadow-lg shadow-black/20">
       <ul className="flex flex-wrap gap-1.5">
         {attachments.map((a) => {
-          const isImage = a.mimeType.startsWith('image/')
-          const Icon = isImage ? ImageIcon : FileText
           const hasWarnings = a.status === 'ready' && (a.warnings?.length ?? 0) > 0
 
           return (
@@ -79,15 +126,7 @@ export const Attachments = memo(function Attachments({
                 />
               )}
 
-              <span className="relative shrink-0">
-                {a.status === 'uploading' ? (
-                  <Loader2 className="w-3 h-3 text-indigo-400 animate-spin" />
-                ) : a.status === 'error' ? (
-                  <AlertTriangle className="w-3 h-3 text-red-400" />
-                ) : (
-                  <Icon className={`w-3 h-3 ${hasWarnings ? 'text-amber-400' : 'text-gray-400'}`} />
-                )}
-              </span>
+              <AttachmentGlyph attachment={a} file={files?.get(a.localId)} />
 
               <span className="relative min-w-0 flex flex-col leading-tight">
                 <span className={a.status === 'error' ? 'text-red-200' : 'text-gray-300'}>

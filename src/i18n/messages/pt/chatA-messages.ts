@@ -22,6 +22,7 @@ export default {
   bubble: {
     references: "Referências",
     attachments: "Anexos",
+    openAttachment: "Abrir {name}",
     copyMessage: "Copiar a mensagem como markdown",
     copyReply: "Copiar a resposta como markdown",
     thinking: "Pensando..."

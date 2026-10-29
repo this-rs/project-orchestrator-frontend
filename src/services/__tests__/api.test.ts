@@ -82,3 +82,46 @@ describe('a response that is not JSON', () => {
     await expect(api.get('/x')).resolves.toEqual({ ok: true })
   })
 })
+
+/**
+ * `api.blob` — the binary read a protected file needs.
+ *
+ * The point of these two assertions is that it is the SAME client as
+ * `api.get`: same base, same bearer token, same error type. A thumbnail that
+ * authenticated differently from the rest of the app would work in a
+ * cookie-only deployment and fail everywhere else.
+ */
+describe('api.blob', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('returns the bytes and carries the bearer token', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(new Uint8Array([137, 80, 78, 71]), {
+        status: 200,
+        headers: { 'content-type': 'image/png' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const blob = await api.blob('/documents/d1/raw')
+
+    expect(blob.type).toBe('image/png')
+    expect(blob.size).toBe(4)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/documents/d1/raw')
+    expect((init.headers as Record<string, string>)['Authorization']).toBe('Bearer test-token')
+    expect(init.credentials).toBe('include')
+  })
+
+  it('translates a failed read into the same ApiError as the JSON client', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('no document d1', { status: 404, headers: { 'content-type': 'text/plain' } }),
+      ),
+    )
+    const err = await api.blob('/documents/d1/raw').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ApiError)
+    expect((err as ApiError).status).toBe(404)
+  })
+})

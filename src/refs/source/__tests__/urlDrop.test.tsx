@@ -125,7 +125,12 @@ describe('an address dropped on the panel', () => {
   it('leaves a file dragged from a web page (it carries its address too) to the attachments', () => {
     mount()
     const dt = makeDataTransfer({ 'text/uri-list': appUrl(`/workspace/po/plans/${PLAN_ID}`) }, [new File(['x'], 'a.png', { type: 'image/png' })])
-    expect(fireEvent.dragOver(screen.getByTestId('panel'), { dataTransfer: dt })).toBe(true)
+    // The drag itself is now claimed (default prevented) by the window-level
+    // file guard, which is what makes the drop fire instead of the browser
+    // opening the file. So `dragOver` no longer says which layer declined it —
+    // what this test is about is the outcome: no `#link:` token is produced for
+    // a drag that carries a file.
+    fireEvent.dragOver(screen.getByTestId('panel'), { dataTransfer: dt })
     fireEvent.drop(screen.getByTestId('panel'), { dataTransfer: dt })
     expect(store.get(chatDraftInputAtom)).toBe('')
   })

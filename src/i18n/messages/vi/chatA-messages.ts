@@ -22,6 +22,7 @@ export default {
   bubble: {
     references: "Tham chiếu",
     attachments: "Tệp đính kèm",
+    openAttachment: "Mở {name}",
     copyMessage: "Sao chép tin nhắn dưới dạng markdown",
     copyReply: "Sao chép phản hồi dưới dạng markdown",
     thinking: "Đang suy nghĩ..."

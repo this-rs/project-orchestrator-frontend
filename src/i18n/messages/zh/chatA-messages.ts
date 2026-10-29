@@ -22,6 +22,7 @@ export default {
   bubble: {
     references: "引用",
     attachments: "附件",
+    openAttachment: "打开 {name}",
     copyMessage: "将消息复制为 Markdown",
     copyReply: "将回复复制为 Markdown",
     thinking: "思考中..."

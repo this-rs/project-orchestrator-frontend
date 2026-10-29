@@ -101,12 +101,33 @@ async function fetchWithStartupRetry(
 /** Which backend prefix an endpoint lives under: `/api` (the default) or `/auth` (account routes). */
 type RequestBase = 'api' | 'auth'
 
-async function request<T>(
+/**
+ * Absolute URL of an endpoint. One function so that a message about a request
+ * names the same path whichever stage failed to read it — the auth layer and
+ * the JSON layer both report it.
+ */
+function endpointUrl(endpoint: string, base: RequestBase): string {
+  return `${base === 'auth' ? getAuthBase() : getApiBase()}${endpoint}`
+}
+
+/**
+ * One authenticated round-trip — and the ONLY place a bearer token is attached.
+ *
+ * Extracted out of [`request`] so that the two ways of reading an answer, JSON
+ * and raw bytes, cannot drift apart. A second copy of the token path would be
+ * a second thing to keep in step with `getAuthMode`, the startup retry, and
+ * the refresh-once rule below; the day one of them changed, half the app would
+ * authenticate differently from the other half.
+ *
+ * Resolves only with an `ok` response: every failure has already become an
+ * `ApiError` (or a logout) by then.
+ */
+async function authedFetch(
   endpoint: string,
   options: RequestInit = {},
   _isRetry = false,
   base: RequestBase = 'api',
-): Promise<T> {
+): Promise<Response> {
   // Fast-path: bail immediately if already aborted (e.g. navigation happened
   // while a previous request was still being set up). This avoids queueing
   // a fetch that would just be cancelled, freeing up browser connection slots.
@@ -114,7 +135,7 @@ async function request<T>(
     throw new DOMException('The operation was aborted.', 'AbortError')
   }
 
-  const url = `${base === 'auth' ? getAuthBase() : getApiBase()}${endpoint}`
+  const url = endpointUrl(endpoint, base)
 
   // Build headers with fresh auth token injection
   const headers: Record<string, string> = {
@@ -147,7 +168,7 @@ async function request<T>(
         try {
           // Attempt token refresh and retry the original request once
           await refreshToken()
-          return request<T>(endpoint, options, true, base)
+          return authedFetch(endpoint, options, true, base)
         } catch {
           // Refresh failed (forceLogout already called inside refreshToken on 401)
           throw new ApiError(401, tr('app.api.sessionExpired'))
@@ -168,6 +189,23 @@ async function request<T>(
     throw new ApiError(response.status, message || `HTTP ${response.status}`)
   }
 
+  return response
+}
+
+/**
+ * JSON request on top of [`authedFetch`].
+ *
+ * All the auth, retry and error translation lives above; what is left here is
+ * the one thing that is specific to JSON: an empty body is not a parse error.
+ */
+async function request<T>(
+  endpoint: string,
+  options: RequestInit = {},
+  _isRetry = false,
+  base: RequestBase = 'api',
+): Promise<T> {
+  const response = await authedFetch(endpoint, options, _isRetry, base)
+
   if (response.status === 204) {
     return {} as T
   }
@@ -184,10 +222,28 @@ async function request<T>(
     throw new NonJsonResponseError(
       response.status,
       (options.method ?? 'GET').toUpperCase(),
-      requestPath(url),
+      requestPath(endpointUrl(endpoint, base)),
       response.headers?.get?.('content-type') ?? null,
     )
   }
+}
+
+/**
+ * Binary request: the same authentication as [`request`], without a JSON parse.
+ *
+ * Needed because a protected file cannot be shown with `<img src>`: the tag
+ * sends cookies but no `Authorization` header, so the only documents it could
+ * display are those the cookie session happens to authorise. Reading the bytes
+ * into a Blob first and handing the `<img>` an object URL keeps the bearer
+ * token — and therefore every non-cookie deployment — working.
+ */
+async function requestBlob(
+  endpoint: string,
+  options: RequestInit = {},
+  base: RequestBase = 'api',
+): Promise<Blob> {
+  const response = await authedFetch(endpoint, options, false, base)
+  return response.blob()
 }
 
 export const api = {
@@ -217,6 +273,13 @@ export const api = {
 
   delete: <T>(endpoint: string, signal?: AbortSignal) =>
     request<T>(endpoint, { method: 'DELETE', signal }),
+
+  /**
+   * Read a protected file's bytes. See [`requestBlob`] for why this exists
+   * rather than a plain `<img src>`.
+   */
+  blob: (endpoint: string, signal?: AbortSignal) =>
+    requestBlob(endpoint, { signal }),
 }
 
 /**

@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+
+// A message's image chip asks for the document's bytes; there is no server here,
+// and this test is about the row of chips, not about the thumbnail.
+vi.mock('@/services/api', () => ({
+  api: { blob: vi.fn().mockRejectedValue(new Error('no server in a unit test')) },
+}))
 import { ChatMessageBubble } from './ChatMessageBubble'
 import type { ChatMessage } from '@/types'
 

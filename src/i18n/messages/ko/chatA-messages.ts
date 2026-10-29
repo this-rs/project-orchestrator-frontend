@@ -22,6 +22,7 @@ export default {
   bubble: {
     references: "참조",
     attachments: "첨부 파일",
+    openAttachment: "{name} 열기",
     copyMessage: "메시지를 마크다운으로 복사",
     copyReply: "답변을 마크다운으로 복사",
     thinking: "생각하는 중..."
