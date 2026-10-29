@@ -141,5 +141,12 @@ export default {
     noProjectsTitle: "暂无项目",
     noProjectsBody: "向此工作区添加项目，即可开始与 Claude 对话。",
     addProject: "添加项目"
-  }
+  },
+  attachment: {
+    download: "下载",
+    noPreview: "无法在此显示该格式 — 仍可下载该文件。",
+    noText: "无法从该文件提取文本 — 仍可下载。",
+    loadFailed: "无法读取该文件。",
+    truncated: "预览仅限前 {chars} 个字符 — 下载文件以查看其余内容。",
+  },
 } satisfies Translation<'chatA-messages'>

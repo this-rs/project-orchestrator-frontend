@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { memo, type ReactNode } from 'react'
 import { useT } from '@/i18n'
-import { AttachmentThumbnail } from './AttachmentThumbnail'
+import { AttachmentCard } from './AttachmentCard'
 import { ReferenceChip } from './ReferenceChip'
 import { placeRefs } from '@/refs/placeRefs'
 import type { ChatMessage, ContentBlock } from '@/types'
@@ -237,7 +237,7 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
               <li key={a.id} data-testid="message-attachment">
                 {/* A picture shows itself; anything else — and a picture whose
                     bytes cannot be read — keeps the chip it always had. */}
-                <AttachmentThumbnail attachment={a} />
+                <AttachmentCard attachment={a} />
               </li>
             ))}
           </ul>

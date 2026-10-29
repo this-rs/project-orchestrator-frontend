@@ -141,5 +141,12 @@ export default {
     noProjectsTitle: "Chưa có dự án nào",
     noProjectsBody: "Hãy thêm một dự án vào workspace này để bắt đầu trò chuyện với Claude.",
     addProject: "Thêm dự án"
-  }
+  },
+  attachment: {
+    download: "Tải xuống",
+    noPreview: "Không thể hiển thị định dạng này ở đây — vẫn có thể tải tệp xuống.",
+    noText: "Không thể trích xuất văn bản từ tệp này — vẫn có thể tải xuống.",
+    loadFailed: "Không thể đọc tệp.",
+    truncated: "Bản xem trước chỉ giới hạn ở {chars} ký tự đầu — hãy tải tệp để xem phần còn lại.",
+  },
 } satisfies Translation<'chatA-messages'>

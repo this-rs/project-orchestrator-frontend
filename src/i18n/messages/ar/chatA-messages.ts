@@ -141,5 +141,12 @@ export default {
     noProjectsTitle: "لا توجد مشاريع بعد",
     noProjectsBody: "أضف مشروعًا إلى مساحة العمل هذه لبدء محادثة مع Claude.",
     addProject: "إضافة مشروع"
-  }
+  },
+  attachment: {
+    download: "تنزيل",
+    noPreview: "لا يمكن عرض هذا التنسيق هنا — يمكن تنزيل الملف.",
+    noText: "تعذّر استخراج نص من هذا الملف — يمكن تنزيله.",
+    loadFailed: "تعذّرت قراءة الملف.",
+    truncated: "المعاينة محدودة بأول {chars} حرفًا — نزّل الملف لرؤية الباقي.",
+  },
 } satisfies Translation<'chatA-messages'>
