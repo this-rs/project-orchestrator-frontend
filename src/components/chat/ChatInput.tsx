@@ -666,8 +666,20 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
    * that throws away the conversation and the draft. The guard cancels that
    * everywhere and hands the files to this composer when the drop landed
    * somewhere in the chat panel.
+   *
+   * The guard itself is ALWAYS installed while the composer exists — a
+   * read-only conversation still must not be wiped by a stray drop. Only the
+   * routing is gated: a disabled composer takes no file, because an upload
+   * nobody could send is not something to start silently.
    */
-  useWindowFileDrop(addFiles, !disabled)
+  const intakeFiles = useCallback(
+    (files: File[]) => {
+      if (disabled) return
+      addFiles(files)
+    },
+    [addFiles, disabled],
+  )
+  useWindowFileDrop(intakeFiles)
 
   // Drop the attachments when the session actually changes — a screenshot
   // attached for session A must never ride along to session B. Compared
