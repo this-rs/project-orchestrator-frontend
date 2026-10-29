@@ -22,6 +22,7 @@ export default {
   bubble: {
     references: "संदर्भ",
     attachments: "अटैचमेंट",
+    openAttachment: "{name} खोलें",
     copyMessage: "संदेश को मार्कडाउन के रूप में कॉपी करें",
     copyReply: "उत्तर को मार्कडाउन के रूप में कॉपी करें",
     thinking: "सोच रहा है..."

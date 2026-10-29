@@ -7,12 +7,15 @@
 
 import type { ToolRendererProps } from './types'
 import { detectLanguage, tokenizeLine, getExtBadgeColor, getFileExtension } from './syntax'
+import { toolImageDataUrl, toolResultImages } from './toolResultImages'
 
 /** Max lines to preview in expanded view */
 const MAX_PREVIEW_LINES = 25
 
 export function ReadToolRenderer({ toolInput, resultContent, isError, isLoading }: ToolRendererProps) {
   const filePath = (toolInput.file_path as string) ?? ''
+  // An image the agent read is shown as the picture, never as its base64 text.
+  const images = !isLoading && !isError ? toolResultImages(resultContent) : []
   const offset = toolInput.offset as number | undefined
   const limit = toolInput.limit as number | undefined
 
@@ -58,8 +61,22 @@ export function ReadToolRenderer({ toolInput, resultContent, isError, isLoading 
         {rangeLabel && <span className="shrink-0 text-gray-600">{rangeLabel}</span>}
       </div>
 
+      {images.length > 0 && (
+        <div className="border-t border-white/[0.04] rounded-b-md bg-black/20 p-2 space-y-2">
+          {images.map((image, i) => (
+            <img
+              key={i}
+              data-testid="tool-result-image"
+              src={toolImageDataUrl(image)}
+              alt={filePath || 'image'}
+              className="block max-w-full max-h-96 h-auto rounded border border-white/[0.06] bg-black/30 object-contain"
+            />
+          ))}
+        </div>
+      )}
+
       {/* Content preview with line numbers + syntax highlighting */}
-      {!isLoading && resultContent != null && resultContent.length > 0 && (
+      {images.length === 0 && !isLoading && resultContent != null && resultContent.length > 0 && (
         <div className={`border-t font-mono text-xs overflow-x-auto max-h-72 overflow-y-auto ${
           isError
             ? 'border-red-800/30 bg-red-950/20'

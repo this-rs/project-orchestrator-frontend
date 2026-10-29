@@ -30,6 +30,8 @@ import { deriveInputAction, describeAction } from './inputAction'
 import { MessageQueueBar } from './MessageQueueBar'
 import { shouldEnqueue, type QueueOp, type QueuedMessage } from './messageQueue'
 import { Attachments } from './Attachments'
+import { useWindowFileDrop } from './useWindowFileDrop'
+import { retainFiles, withFile, type AttachmentFiles } from './attachmentFiles'
 import { sendNowShortcut } from './sendNowShortcut'
 import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget'
 import { ReferenceChip } from './ReferenceChip'
@@ -246,6 +248,28 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   const dragDepthRef = useRef(0)
   /** One AbortController per in-flight upload, so removing a chip cancels it. */
   const uploadsRef = useRef(new Map<string, AbortController>())
+  /**
+   * The `File` of each attachment, by `localId`, for the composer's preview.
+   *
+   * Not in `chatAttachmentsAtom`: that state is a small value type compared by
+   * content, and a `File` in it would be a 30 MB object stored in a Jotai atom
+   * and compared on every update. State rather than a ref, because it is read
+   * during render (a ref read in render is exactly what React forbids: the
+   * value must be part of what the commit describes).
+   */
+  const [attachmentFiles, setAttachmentFiles] = useState<AttachmentFiles>(() => new Map())
+
+  /**
+   * Hold exactly the files the composer still shows.
+   *
+   * One rule rather than a `forget()` at each of the five places the list is
+   * emptied (send, Cmd+Enter, session change, queue drain, removal): a place
+   * added later cannot forget to clean up, because it does not have to.
+   */
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- this IS the subscription to the list: the files are a cache of it, and `retainFiles` returns the same map when nothing has to go, so a steady list costs no render.
+    setAttachmentFiles((prev) => retainFiles(prev, attachments.map((a) => a.localId)))
+  }, [attachments])
 
   // The server default arrives as a legacy Claude string (or a neutral mode):
   // the composer works on the neutral one.
@@ -510,6 +534,9 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
         // At the cap `addAttachment` returns the list unchanged; stop rather
         // than firing uploads for files that are not in the list.
         if (next.length === before.length) break
+        // Before the atom: the render triggered by `store.set` below already
+        // needs the file to draw the first frame of the preview.
+        setAttachmentFiles((prev) => withFile(prev, next.map((a) => a.localId), localId, file))
         store.set(chatAttachmentsAtom, next)
 
         const controller = new AbortController()
@@ -620,12 +647,39 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
     (e: React.DragEvent) => {
       if (!dragHasFiles(e.dataTransfer)) return
       e.preventDefault()
+      // Handled here means handled once: the window-level guard
+      // (`useWindowFileDrop`) would otherwise attach the same file a second
+      // time when the event bubbles up to it.
+      e.stopPropagation()
       dragDepthRef.current = 0
       setIsDraggingFiles(false)
       addFiles(Array.from(e.dataTransfer.files))
     },
     [addFiles],
   )
+
+  /**
+   * A drop OUTSIDE the composer no longer replaces the app with the file.
+   *
+   * The composer is a strip at the bottom of a tall panel, so "a centimetre too
+   * high" is the normal case, and the browser's default there is a navigation
+   * that throws away the conversation and the draft. The guard cancels that
+   * everywhere and hands the files to this composer when the drop landed
+   * somewhere in the chat panel.
+   *
+   * The guard itself is ALWAYS installed while the composer exists — a
+   * read-only conversation still must not be wiped by a stray drop. Only the
+   * routing is gated: a disabled composer takes no file, because an upload
+   * nobody could send is not something to start silently.
+   */
+  const intakeFiles = useCallback(
+    (files: File[]) => {
+      if (disabled) return
+      addFiles(files)
+    },
+    [addFiles, disabled],
+  )
+  useWindowFileDrop(intakeFiles)
 
   // Drop the attachments when the session actually changes — a screenshot
   // attached for session A must never ride along to session B. Compared
@@ -924,6 +978,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
         attachments={attachments}
         onRemove={handleRemoveAttachment}
         pendingSend={deferredSend}
+        files={attachmentFiles}
       />
       {refusedImages.length > 0 && (
         <p

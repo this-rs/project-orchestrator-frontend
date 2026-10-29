@@ -1,8 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { memo, type ReactNode } from 'react'
-import { Paperclip } from 'lucide-react'
 import { useT } from '@/i18n'
-import { formatBytes } from './attachmentState'
+import { AttachmentThumbnail } from './AttachmentThumbnail'
 import { ReferenceChip } from './ReferenceChip'
 import { placeRefs } from '@/refs/placeRefs'
 import type { ChatMessage, ContentBlock } from '@/types'
@@ -235,15 +234,10 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
             aria-label={t('chatA-messages.bubble.attachments')}
           >
             {message.attachments.map((a) => (
-              <li
-                key={a.id}
-                data-testid="message-attachment"
-                title={a.filename}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs text-gray-300"
-              >
-                <Paperclip className="w-3 h-3 text-gray-400 shrink-0" aria-hidden />
-                <span className="truncate max-w-[14rem]">{a.filename}</span>
-                <span className="text-gray-500">{formatBytes(a.size_bytes)}</span>
+              <li key={a.id} data-testid="message-attachment">
+                {/* A picture shows itself; anything else — and a picture whose
+                    bytes cannot be read — keeps the chip it always had. */}
+                <AttachmentThumbnail attachment={a} />
               </li>
             ))}
           </ul>

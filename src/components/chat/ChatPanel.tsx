@@ -41,6 +41,7 @@ import { CapabilityGapsButton, CapabilityGapsPopover } from './CapabilityGapsBut
 import { useCapabilityBannerCollapse } from './capabilityBannerCollapse'
 import { engineGaps } from '@/constants/engine'
 import { ChatInput, type PrefillPayload } from './ChatInput'
+import { CHAT_PANEL_ATTR } from './useWindowFileDrop'
 import { NeutralPlaceLabel } from './NeutralPlaceLabel'
 import { SecretRequestTray } from './SecretRequestTray'
 import { ExecPlaceConfirmTray } from './ExecPlaceConfirmTray'
@@ -713,8 +714,12 @@ export function ChatPanel() {
     return (
       <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null}>
       <ChatCapabilitiesProvider capabilities={capabilities}>
+      {/* `data-chat-panel` marks the chat area for `useWindowFileDrop`: a file
+          dropped inside it is attached to the composer, and anywhere else it is
+          only prevented from navigating the browser to the file. */}
       <div
         ref={panelRef}
+        {...{ [CHAT_PANEL_ATTR]: '' }}
         className={`fixed inset-0 z-30 bg-surface-raised flex ${isDragging ? '' : 'transition-transform duration-(--duration-stage) ease-(--ease-standard)'} ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
         style={keyboardStyle}
         {...panelDrop.zoneProps}
@@ -1055,6 +1060,7 @@ export function ChatPanel() {
     <ChatCapabilitiesProvider capabilities={capabilities}>
     <div
       ref={panelRef}
+      {...{ [CHAT_PANEL_ATTR]: '' }}
       className={`fixed z-30 bg-surface-raised border-l border-border-subtle flex flex-col ${isDragging ? '' : 'transition-transform duration-(--duration-stage) ease-(--ease-standard)'} ${isOpen ? 'translate-x-0' : 'translate-x-full'} top-0 right-0 bottom-0 w-full`}
       style={{ maxWidth: isMobile ? undefined : panelWidth, ...keyboardStyle }}
       {...panelDrop.zoneProps}

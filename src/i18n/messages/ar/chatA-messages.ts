@@ -22,6 +22,7 @@ export default {
   bubble: {
     references: "المراجع",
     attachments: "المرفقات",
+    openAttachment: "فتح {name}",
     copyMessage: "نسخ الرسالة بصيغة Markdown",
     copyReply: "نسخ الرد بصيغة Markdown",
     thinking: "يفكّر..."
