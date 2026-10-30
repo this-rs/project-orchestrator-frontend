@@ -153,6 +153,13 @@ describe('RoutingSelectionMenu - move an existing conversation to another provid
       refusal: null,
     })
     expect(switchConversationProvider).not.toHaveBeenCalled()
+    // A click is never a silent nothing: the chip says where it will move, and the
+    // reopened menu says it too and offers a cancel.
+    expect(screen.getByTestId('target-chip').textContent).toContain('qwen')
+    openMenu()
+    expect(screen.getByTestId('routing-pending-switch')).toBeTruthy()
+    fireEvent.click(within(screen.getByTestId('routing-pending-switch')).getByRole('button', { name: 'Cancel' }))
+    expect(store.get(chatPendingSwitchAtom)).toBeNull()
   })
 
   it('a move refused at send time reopens the dialog with the message to retry, and says why', async () => {
