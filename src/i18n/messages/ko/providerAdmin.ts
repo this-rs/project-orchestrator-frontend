@@ -87,6 +87,9 @@ export default {
     unknownModel: "기본 모델",
     alias: "별칭 {name}",
     validation: {
+      windowDigits: "토큰의 정수.",
+      windowTooSmall: "최소 {min} 토큰: 라우터는 창이 더 작은 모델에 턴을 보내지 않습니다.",
+      windowTooLarge: "최대 {max} 토큰.",
       idRequired: "식별자는 필수입니다.",
       idFormat: "소문자, 숫자, “-”만 사용할 수 있습니다(최대 48자).",
       idReserved: "“claude-code”는 기본 제공자용으로 예약되어 있습니다.",
@@ -318,6 +321,10 @@ export default {
     noModel: "모델 없음",
   },
   form: {
+    declaredWindow: "직접 선언한 컨텍스트 창",
+    declaredWindowHelp: "이 엔드포인트가 받는 토큰 수이며 직접 입력합니다. 입력한 값은 하한이며 측정값으로 표시되지 않습니다.",
+    declaredWindowHelpUnknown: "아직 입력하지 않아 창은 알 수 없는 상태입니다. 그러면 라우터가 이 인스턴스를 선택하지 않고(한 턴에 최소 8 000 토큰 필요), 이 인스턴스가 여는 세션은 자동 압축을 하지 않습니다.",
+    declaredWindowUnknown: "선언되지 않음(알 수 없음)",
     credVault: "볼트 키",
     credEnv: "서버 환경 변수",
     credNone: "없음",
@@ -365,6 +372,7 @@ export default {
     toolCallNo: "아니요 — 이 모델은 테스트 도구를 호출하지 않았습니다. 목록의 다른 모델을 시도하세요",
     modelTested: " (테스트한 모델: {model})",
     contextWindow: "컨텍스트 창: {n} 토큰",
+    contextWindowDeclared: "컨텍스트 창: {n} 토큰(직접 선언)",
     saveAnywayTitle: "연결 테스트에 실패했습니다. 그래도 저장할까요?",
     saveAnywayConfirm: "그래도 저장",
     saveAnywayBody: "문제가 해결될 때까지 이 인스턴스의 대화는 실패합니다.",

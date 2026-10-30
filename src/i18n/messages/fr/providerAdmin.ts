@@ -87,6 +87,9 @@ export default {
     unknownModel: "modèle par défaut",
     alias: "alias {name}",
     validation: {
+      windowDigits: "Un nombre entier de jetons.",
+      windowTooSmall: "Au moins {min} jetons : le routage n’envoie jamais un tour à un modèle dont la fenêtre est plus petite.",
+      windowTooLarge: "Au plus {max} jetons.",
       idRequired: "L’identifiant est obligatoire.",
       idFormat: "Lettres minuscules, chiffres et « - » uniquement (48 caractères au plus).",
       idReserved: "« claude-code » est réservé au provider intégré.",
@@ -318,6 +321,10 @@ export default {
     noModel: "aucun modèle",
   },
   form: {
+    declaredWindow: "Fenêtre de contexte déclarée",
+    declaredWindowHelp: "Jetons que cet endpoint accepte, déclarés à la main. Une valeur déclarée est un plancher, jamais présentée comme une mesure.",
+    declaredWindowHelpUnknown: "Rien n’est déclaré : la fenêtre reste INCONNUE. Le routage ne choisit alors jamais cette instance (un tour demande au moins 8 000 jetons) et les sessions qu’elle ouvre n’ont pas de compaction automatique.",
+    declaredWindowUnknown: "Non déclarée (inconnue)",
     credVault: "Clé du coffre",
     credEnv: "Variable d’environnement du serveur",
     credNone: "Aucune",
@@ -365,6 +372,7 @@ export default {
     toolCallNo: "non — ce modèle n’a pas appelé l’outil de test ; essayez un autre modèle listé",
     modelTested: " (modèle testé : {model})",
     contextWindow: "Fenêtre de contexte : {n} tokens",
+    contextWindowDeclared: "Fenêtre de contexte : {n} jetons (déclarée)",
     saveAnywayTitle: "Le test de connexion a échoué. Enregistrer quand même ?",
     saveAnywayConfirm: "Enregistrer quand même",
     saveAnywayBody: "Les conversations sur cette instance échoueront tant que le problème n’est pas réglé.",

@@ -87,6 +87,9 @@ export default {
     unknownModel: "默认模型",
     alias: "别名 {name}",
     validation: {
+      windowDigits: "token 的整数。",
+      windowTooSmall: "至少 {min} 个 token：路由不会把一轮发送给窗口更小的模型。",
+      windowTooLarge: "最多 {max} 个 token。",
       idRequired: "必须填写标识符。",
       idFormat: "仅限小写字母、数字和“-”（最多 48 个字符）。",
       idReserved: "“claude-code”是内置提供方的保留名称。",
@@ -318,6 +321,10 @@ export default {
     noModel: "无模型",
   },
   form: {
+    declaredWindow: "已声明的上下文窗口",
+    declaredWindowHelp: "此端点接受的 token 数，由人工填写。填写的是下限，绝不会被当作实测值。",
+    declaredWindowHelpUnknown: "尚未填写：窗口为未知。此时路由永远不会选择此实例（一轮至少需要 8 000 个 token），其会话也没有自动压缩。",
+    declaredWindowUnknown: "未声明（未知）",
     credVault: "保险库密钥",
     credEnv: "服务器环境变量",
     credNone: "无",
@@ -365,6 +372,7 @@ export default {
     toolCallNo: "否——此模型没有调用测试工具；请尝试列表中的其他模型",
     modelTested: "（测试的模型：{model}）",
     contextWindow: "上下文窗口：{n} 个 token",
+    contextWindowDeclared: "上下文窗口：{n} 个 token（已声明）",
     saveAnywayTitle: "连接测试失败。仍要保存吗？",
     saveAnywayConfirm: "仍然保存",
     saveAnywayBody: "在问题解决之前，此实例上的对话都会失败。",

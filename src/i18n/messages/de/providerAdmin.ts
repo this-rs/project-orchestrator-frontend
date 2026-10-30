@@ -87,6 +87,9 @@ export default {
     unknownModel: "Standardmodell",
     alias: "Alias {name}",
     validation: {
+      windowDigits: "Eine ganze Zahl von Tokens.",
+      windowTooSmall: "Mindestens {min} Tokens: der Router schickt nie einen Zug an ein Modell mit kleinerem Fenster.",
+      windowTooLarge: "Höchstens {max} Tokens.",
       idRequired: "Die Kennung ist erforderlich.",
       idFormat: "Nur Kleinbuchstaben, Ziffern und „-“ (höchstens 48 Zeichen).",
       idReserved: "„claude-code“ ist dem integrierten Anbieter vorbehalten.",
@@ -318,6 +321,10 @@ export default {
     noModel: "kein Modell",
   },
   form: {
+    declaredWindow: "Angegebenes Kontextfenster",
+    declaredWindowHelp: "Tokens, die dieser Endpunkt annimmt, von Hand angegeben. Ein angegebener Wert ist eine Untergrenze und wird nie als Messung dargestellt.",
+    declaredWindowHelpUnknown: "Nichts angegeben: das Fenster bleibt UNBEKANNT. Der Router wählt diese Instanz dann nie (ein Zug braucht mindestens 8 000 Tokens) und ihre Sitzungen erhalten keine automatische Kompaktierung.",
+    declaredWindowUnknown: "Nicht angegeben (unbekannt)",
     credVault: "Tresor-Schlüssel",
     credEnv: "Umgebungsvariable des Servers",
     credNone: "Keine",
@@ -365,6 +372,7 @@ export default {
     toolCallNo: "nein — dieses Modell hat das Testwerkzeug nicht aufgerufen; versuchen Sie ein anderes aufgeführtes Modell",
     modelTested: " (getestetes Modell: {model})",
     contextWindow: "Kontextfenster: {n} Tokens",
+    contextWindowDeclared: "Kontextfenster: {n} Tokens (angegeben)",
     saveAnywayTitle: "Der Verbindungstest ist fehlgeschlagen. Trotzdem speichern?",
     saveAnywayConfirm: "Trotzdem speichern",
     saveAnywayBody: "Unterhaltungen auf dieser Instanz schlagen fehl, bis das Problem behoben ist.",

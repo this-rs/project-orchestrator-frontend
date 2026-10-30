@@ -87,6 +87,9 @@ export default {
     unknownModel: "既定のモデル",
     alias: "エイリアス {name}",
     validation: {
+      windowDigits: "トークンの整数。",
+      windowTooSmall: "最低 {min} トークン：ルーターはウィンドウがより小さいモデルにターンを送りません。",
+      windowTooLarge: "最大 {max} トークン。",
       idRequired: "識別子は必須です。",
       idFormat: "小文字の英字、数字、「-」のみ（48 文字まで）。",
       idReserved: "「claude-code」は組み込みプロバイダー用に予約されています。",
@@ -318,6 +321,10 @@ export default {
     noModel: "モデルなし",
   },
   form: {
+    declaredWindow: "申告したコンテキストウィンドウ",
+    declaredWindowHelp: "このエンドポイントが受け付けるトークン数（手入力）。入力するのは下限値で、実測値として扱われることはありません。",
+    declaredWindowHelpUnknown: "未入力のため、ウィンドウは不明のままです。ルーターはこのインスタンスを選ばず（1 ターンに最低 8 000 トークン必要）、ここから開いたセッションは自動コンパクションを行いません。",
+    declaredWindowUnknown: "未宣言（不明）",
     credVault: "ボールトのキー",
     credEnv: "サーバーの環境変数",
     credNone: "なし",
@@ -365,6 +372,7 @@ export default {
     toolCallNo: "なし — このモデルはテスト用ツールを呼び出しませんでした。一覧の別のモデルを試してください",
     modelTested: "（テストしたモデル：{model}）",
     contextWindow: "コンテキストウィンドウ：{n} トークン",
+    contextWindowDeclared: "コンテキストウィンドウ：{n} トークン（申告値）",
     saveAnywayTitle: "接続テストに失敗しました。それでも保存しますか？",
     saveAnywayConfirm: "それでも保存",
     saveAnywayBody: "問題が解決するまで、このインスタンスでの会話は失敗します。",
