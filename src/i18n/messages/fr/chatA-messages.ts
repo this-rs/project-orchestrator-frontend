@@ -141,5 +141,12 @@ export default {
     noProjectsTitle: "Aucun projet pour l’instant",
     noProjectsBody: "Ajoutez un projet à cet espace de travail pour démarrer une conversation avec Claude.",
     addProject: "Ajouter un projet"
-  }
+  },
+  attachment: {
+    download: "Télécharger",
+    noPreview: "Ce format ne peut pas être affiché ici — le fichier peut être téléchargé.",
+    noText: "Aucun texte n'a pu être extrait de ce fichier — il peut être téléchargé.",
+    loadFailed: "Le fichier n'a pas pu être lu.",
+    truncated: "Aperçu limité aux {chars} premiers caractères — téléchargez le fichier pour la suite.",
+  },
 } satisfies Translation<'chatA-messages'>

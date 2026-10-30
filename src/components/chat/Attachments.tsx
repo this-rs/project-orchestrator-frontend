@@ -3,7 +3,7 @@ import { useT } from '@/i18n'
 import { AlertTriangle, FileText, Image as ImageIcon, Loader2, X } from 'lucide-react'
 import { formatBytes, truncateFilename, type Attachment } from './attachmentState'
 import { isPreviewableImage } from './attachmentPreview'
-import { useFilePreviewUrl } from './useAttachmentImages'
+import { useFilePreviewUrl } from './useFilePreviewUrl'
 
 interface AttachmentsProps {
   attachments: Attachment[]

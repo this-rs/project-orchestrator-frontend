@@ -141,5 +141,12 @@ export default {
     noProjectsTitle: "아직 프로젝트가 없습니다",
     noProjectsBody: "이 워크스페이스에 프로젝트를 추가하여 Claude와 대화를 시작하세요.",
     addProject: "프로젝트 추가"
-  }
+  },
+  attachment: {
+    download: "다운로드",
+    noPreview: "이 형식은 여기에서 표시할 수 없습니다 — 파일은 다운로드할 수 있습니다.",
+    noText: "이 파일에서 텍스트를 추출할 수 없습니다 — 다운로드는 가능합니다.",
+    loadFailed: "파일을 읽을 수 없습니다.",
+    truncated: "미리보기는 처음 {chars}자까지만 표시됩니다 — 나머지는 파일을 다운로드하세요.",
+  },
 } satisfies Translation<'chatA-messages'>

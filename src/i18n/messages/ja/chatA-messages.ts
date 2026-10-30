@@ -141,5 +141,12 @@ export default {
     noProjectsTitle: "プロジェクトがまだありません",
     noProjectsBody: "このワークスペースにプロジェクトを追加して、Claude との会話を始めましょう。",
     addProject: "プロジェクトを追加"
-  }
+  },
+  attachment: {
+    download: "ダウンロード",
+    noPreview: "この形式はここでは表示できません — ファイルはダウンロードできます。",
+    noText: "このファイルからテキストを抽出できませんでした — ダウンロードはできます。",
+    loadFailed: "ファイルを読み込めませんでした。",
+    truncated: "プレビューは先頭 {chars} 文字までです — 続きはファイルをダウンロードしてください。",
+  },
 } satisfies Translation<'chatA-messages'>

@@ -136,4 +136,11 @@ export default {
     noProjectsBody: 'Add a project to this workspace to start a conversation with Claude.',
     addProject: 'Add a project',
   },
+  attachment: {
+    download: 'Download',
+    noPreview: 'This format cannot be shown here — the file can still be downloaded.',
+    noText: 'No text could be extracted from this file — it can still be downloaded.',
+    loadFailed: 'The file could not be read.',
+    truncated: 'Preview limited to the first {chars} characters — download the file for the rest.',
+  },
 }

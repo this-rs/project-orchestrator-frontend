@@ -141,5 +141,12 @@ export default {
     noProjectsTitle: "Noch keine Projekte",
     noProjectsBody: "Füge diesem Workspace ein Projekt hinzu, um eine Unterhaltung mit Claude zu beginnen.",
     addProject: "Projekt hinzufügen"
-  }
+  },
+  attachment: {
+    download: "Herunterladen",
+    noPreview: "Dieses Format kann hier nicht angezeigt werden — die Datei lässt sich weiterhin herunterladen.",
+    noText: "Aus dieser Datei konnte kein Text extrahiert werden — sie lässt sich weiterhin herunterladen.",
+    loadFailed: "Die Datei konnte nicht gelesen werden.",
+    truncated: "Vorschau auf die ersten {chars} Zeichen begrenzt — laden Sie die Datei für den Rest herunter.",
+  },
 } satisfies Translation<'chatA-messages'>
