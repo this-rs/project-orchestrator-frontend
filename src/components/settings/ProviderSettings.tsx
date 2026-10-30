@@ -8,6 +8,7 @@ import { useProviders } from '@/hooks/useProviders'
 import { useT, type MessageKey } from '@/i18n'
 import { providerInstancePath } from '@/constants/providerErrors'
 import { AutoModelsSettings } from './AutoModelsSettings'
+import { BulkConsent } from './BulkConsent'
 import { ModelPolicy } from './ModelPolicy'
 import { NetworkTools } from './NetworkTools'
 import { ProjectConsent } from './ProjectConsent'
@@ -102,6 +103,7 @@ export function ProviderSettings() {
         title={t('providerAdmin.settings.sectionConsent')}
         description={t('providerAdmin.settings.consentDescription')}
       >
+        <BulkConsent onAddProvider={() => setAdding(true)} />
         <ProjectConsent onAddProvider={() => setAdding(true)} />
       </Section>
       <Section

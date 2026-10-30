@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { MessageKey } from '@/i18n/catalog'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
+import { Link } from 'react-router-dom'
 import { Check, ChevronDown, Minus, RefreshCw, Search } from 'lucide-react'
 import { Highlight } from '@/components/ui/SearchableSelect'
 import { Switch } from '@/components/ui/Switch'
@@ -444,6 +445,10 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
         ? t('routing.modes.primary.description')
         : t(summaryMixedKey(pickedProviders.size), { count })
   const mode = auto ? 'full' : count > 1 ? 'mixed' : 'primary'
+  // A move to another provider picked before its message was written: the chip says it,
+  // so a click is never a silent nothing (it will leave with the next message).
+  const pendingMove = pendingSwitch && pendingSwitch.sessionId === sessionId && !pendingSwitch.refusal ? pendingSwitch : null
+  const pendingTarget = pendingMove ? nameOf(pendingMove.pick.provider, pendingMove.pick.model) : null
 
   return (
     <div className="min-w-0">
@@ -456,17 +461,29 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
         ref={chipRef}
         data-testid="target-chip"
         data-mode={mode}
+        data-pending-switch={pendingMove ? true : undefined}
         className={CHIP}
       >
         {!auto && count === 1 && <span className={`w-1.5 h-1.5 rounded-full ${healthDotColor(firstInstance?.health?.status)}`} aria-hidden="true" />}
-        <span className="min-w-0 max-w-[14rem] truncate" title={chipText}>
+        <span className="min-w-0 max-w-[14rem] truncate" title={pendingTarget ? `${chipText} → ${pendingTarget}` : chipText}>
           {chipText}
+          {pendingTarget && <span className="text-amber-300"> → {pendingTarget}</span>}
         </span>
         <ChevronDown className="w-2.5 h-2.5 text-gray-500" aria-hidden="true" />
       </button>
 
       {isOpen && (
         <div data-testid="target-picker-popover" className={POPOVER}>
+          {pendingMove && pendingTarget && (
+            <div data-testid="routing-pending-switch" className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-white/[0.06] bg-amber-500/5 px-3 py-2">
+              <p role="status" className="min-w-0 flex-1 text-[11px] leading-snug text-amber-200/90">
+                {t('routing.switch.title', { target: pendingTarget })}
+              </p>
+              <button type="button" onClick={() => setPendingSwitch(null)} className={BTN}>
+                {t('routing.switch.cancel')}
+              </button>
+            </div>
+          )}
           <AutoSwitch checked={auto} onChange={setAuto} disabled={pending} />
           {auto && hasSession && (
             <AutoPanel
@@ -601,6 +618,14 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
                       </button>
                     </div>
                     {reason && <p className={`px-3 pb-1.5 text-[10px] leading-snug text-gray-500 ${hasSession ? '' : 'pl-9'}`}>{reason}</p>}
+                    {p.allowed_for_project === false && projectSlug && (
+                      <Link
+                        to={`/providers?project=${encodeURIComponent(projectSlug)}`}
+                        className={`block px-3 pb-1.5 text-[11px] font-medium text-indigo-300 hover:text-indigo-200 hover:underline ${hasSession ? '' : 'pl-9'}`}
+                      >
+                        {t('providerAdmin.consent.allow')}
+                      </Link>
+                    )}
                     {!reason && other && (
                       <p data-testid={`routing-switch-hint-${p.id}`} className="px-3 pb-1.5 text-[10px] leading-snug text-gray-500">
                         {t('routing.switch.hint')}
