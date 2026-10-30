@@ -24,6 +24,14 @@ export interface ProviderDraft {
   label: string
   base_url: string
   default_model?: string | null
+  /**
+   * The context window DECLARED for this instance, in tokens: a FLOOR for every
+   * model it serves. Absent = unknown, which is exactly the behaviour before the
+   * field existed (an endpoint that publishes no window is rejected by the
+   * router — `context_too_small` — and its sessions get no automatic
+   * compaction). `null` in a patch CLEARS it. Never a number the interface made up.
+   */
+  context_window?: number | null
   cost_source: CostBasis
   credential_ref: CredentialRef
   /** `claude_code_remote` only. `credential_ref` is then `vault:<name of the SSH private key>`. */

@@ -268,6 +268,8 @@ export interface StoredInstance {
   base_url: string | null
   origin: string | null
   default_model: string | null
+  /** The context window the operator DECLARED, in tokens. `null` = unknown. */
+  context_window: number | null
   cost_source: ReturnType<typeof toCostBasis>
   credential_ref: string | null
   host: string | null
@@ -291,6 +293,7 @@ export function normalizeStoredInstance(raw: unknown, id: ProviderId): StoredIns
     base_url: str(r.base_url) ?? null,
     origin: str(r.origin) ?? str(r.endpoint_origin) ?? null,
     default_model: str(r.default_model) ?? null,
+    context_window: typeof r.context_window === 'number' ? r.context_window : null,
     cost_source: toCostBasis(r.cost_source),
     credential_ref: str(r.credential_ref) ?? str(r.credential) ?? null,
     host: str(r.host) ?? null,

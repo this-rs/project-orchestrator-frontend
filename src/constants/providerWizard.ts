@@ -118,6 +118,33 @@ export function validateEnvName(raw: string, t: T): string | null {
   return null
 }
 
+/**
+ * Bounds of the context window an operator may DECLARE for an instance, in tokens.
+ *
+ * Mirrors the backend (`MIN_DECLARED_CONTEXT_WINDOW`, `MAX_DECLARED_CONTEXT_WINDOW`):
+ * the floor is the smallest context the router assumes any turn needs, so a
+ * smaller declaration would be a silent exclusion — refused here first, with the
+ * same reason, instead of coming back as a server error.
+ */
+export const CONTEXT_WINDOW_MIN = 8_000
+export const CONTEXT_WINDOW_MAX = 100_000_000
+
+/**
+ * The declared window: EMPTY means nothing is declared (unknown) — never zero.
+ * A declared value is a whole number inside the bounds.
+ */
+export function validateContextWindow(raw: string, t: T): string | null {
+  const value = raw.trim()
+  if (!value) return null
+  if (!/^\d+$/.test(value)) return t('providerAdmin.common.validation.windowDigits')
+  const window = Number(value)
+  if (window < CONTEXT_WINDOW_MIN)
+    return t('providerAdmin.common.validation.windowTooSmall', { min: String(CONTEXT_WINDOW_MIN) })
+  if (window > CONTEXT_WINDOW_MAX)
+    return t('providerAdmin.common.validation.windowTooLarge', { max: String(CONTEXT_WINDOW_MAX) })
+  return null
+}
+
 /** Localised twin of `validateBaseUrl`: https everywhere, plain http on a loopback host only. */
 export function validateBaseUrlFr(raw: string, t: T): string | null {
   const value = raw.trim()

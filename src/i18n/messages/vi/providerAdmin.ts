@@ -87,6 +87,9 @@ export default {
     unknownModel: "mô hình mặc định",
     alias: "bí danh {name}",
     validation: {
+      windowDigits: "Một số nguyên token.",
+      windowTooSmall: "Ít nhất {min} token: bộ định tuyến không gửi lượt tới mô hình có cửa sổ nhỏ hơn.",
+      windowTooLarge: "Nhiều nhất {max} token.",
       idRequired: "Cần có mã định danh.",
       idFormat: "Chỉ chữ thường, chữ số và “-” (tối đa 48 ký tự).",
       idReserved: "“claude-code” được dành riêng cho nhà cung cấp tích hợp.",
@@ -318,6 +321,10 @@ export default {
     noModel: "không có mô hình",
   },
   form: {
+    declaredWindow: "Cửa sổ ngữ cảnh đã khai báo",
+    declaredWindowHelp: "Số token endpoint này nhận, do bạn khai báo. Giá trị khai báo là một sàn, không bao giờ được trình bày như số đo.",
+    declaredWindowHelpUnknown: "Chưa khai báo: cửa sổ vẫn CHƯA BIẾT. Bộ định tuyến khi đó không bao giờ chọn instance này (mỗi lượt cần ít nhất 8 000 token) và các phiên nó mở không có nén tự động.",
+    declaredWindowUnknown: "Chưa khai báo (chưa biết)",
     credVault: "Khóa trong kho khóa",
     credEnv: "Biến môi trường của máy chủ",
     credNone: "Không có",
@@ -365,6 +372,7 @@ export default {
     toolCallNo: "không — mô hình này không gọi công cụ kiểm tra; hãy thử mô hình khác trong danh sách",
     modelTested: " (mô hình đã kiểm tra: {model})",
     contextWindow: "Cửa sổ ngữ cảnh: {n} token",
+    contextWindowDeclared: "Cửa sổ ngữ cảnh: {n} token (đã khai báo)",
     saveAnywayTitle: "Kiểm tra kết nối thất bại. Vẫn lưu?",
     saveAnywayConfirm: "Vẫn lưu",
     saveAnywayBody: "Các cuộc trò chuyện trên phiên bản này sẽ thất bại cho đến khi sự cố được khắc phục.",

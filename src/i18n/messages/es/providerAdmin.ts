@@ -87,6 +87,9 @@ export default {
     unknownModel: "modelo predeterminado",
     alias: "alias {name}",
     validation: {
+      windowDigits: "Un número entero de tokens.",
+      windowTooSmall: "Al menos {min} tokens: el enrutador nunca envía un turno a un modelo cuya ventana sea menor.",
+      windowTooLarge: "Como máximo {max} tokens.",
       idRequired: "El identificador es obligatorio.",
       idFormat: "Solo minúsculas, dígitos y «-» (48 caracteres como máximo).",
       idReserved: "«claude-code» está reservado para el proveedor integrado.",
@@ -318,6 +321,10 @@ export default {
     noModel: "ningún modelo",
   },
   form: {
+    declaredWindow: "Ventana de contexto declarada",
+    declaredWindowHelp: "Tokens que acepta este endpoint, declarados a mano. Un valor declarado es un suelo, nunca se presenta como una medida.",
+    declaredWindowHelpUnknown: "No hay nada declarado: la ventana queda DESCONOCIDA. El enrutador entonces nunca elige esta instancia (un turno necesita al menos 8 000 tokens) y las sesiones que abre no tienen compactación automática.",
+    declaredWindowUnknown: "Sin declarar (desconocida)",
     credVault: "Clave de la bóveda",
     credEnv: "Variable de entorno del servidor",
     credNone: "Ninguna",
@@ -365,6 +372,7 @@ export default {
     toolCallNo: "no: este modelo no llamó a la herramienta de prueba; prueba con otro modelo de la lista",
     modelTested: " (modelo probado: {model})",
     contextWindow: "Ventana de contexto: {n} tokens",
+    contextWindowDeclared: "Ventana de contexto: {n} tokens (declarada)",
     saveAnywayTitle: "La prueba de conexión falló. ¿Guardar de todos modos?",
     saveAnywayConfirm: "Guardar de todos modos",
     saveAnywayBody: "Las conversaciones en esta instancia fallarán hasta que se resuelva el problema.",

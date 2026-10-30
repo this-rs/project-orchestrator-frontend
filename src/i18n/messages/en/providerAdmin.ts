@@ -85,6 +85,9 @@ export default {
     unknownModel: "default model",
     alias: "alias {name}",
     validation: {
+      windowDigits: "A whole number of tokens.",
+      windowTooSmall: "At least {min} tokens: the router never sends a turn to a model whose window is smaller.",
+      windowTooLarge: "At most {max} tokens.",
       idRequired: "The identifier is required.",
       idFormat: "Lowercase letters, digits and “-” only (48 characters at most).",
       idReserved: "“claude-code” is reserved for the built-in provider.",
@@ -316,6 +319,10 @@ export default {
     noModel: "no model",
   },
   form: {
+    declaredWindow: "Declared context window",
+    declaredWindowHelp: "Tokens this endpoint accepts, declared by hand. A declared value is a floor, never presented as a measured one.",
+    declaredWindowHelpUnknown: "Nothing declared: the window stays UNKNOWN. The router then never picks this instance (a turn needs at least 8 000 tokens) and the sessions it opens get no automatic compaction.",
+    declaredWindowUnknown: "Not declared (unknown)",
     credVault: "Vault key",
     credEnv: "Server environment variable",
     credNone: "None",
@@ -363,6 +370,7 @@ export default {
     toolCallNo: "no — this model did not call the test tool; try another listed model",
     modelTested: " (model tested: {model})",
     contextWindow: "Context window: {n} tokens",
+    contextWindowDeclared: "Context window: {n} tokens (declared)",
     saveAnywayTitle: "The connection test failed. Save anyway?",
     saveAnywayConfirm: "Save anyway",
     saveAnywayBody: "Conversations on this instance will fail until the problem is fixed.",

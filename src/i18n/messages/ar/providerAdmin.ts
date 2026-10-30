@@ -87,6 +87,9 @@ export default {
     unknownModel: "النموذج الافتراضي",
     alias: "الاسم المستعار {name}",
     validation: {
+      windowDigits: "عدد صحيح من الرموز.",
+      windowTooSmall: "‏{min} رمزًا على الأقل: لا يرسل الموجّه دورًا إلى نموذج نافذته أصغر.",
+      windowTooLarge: "‏{max} رمزًا على الأكثر.",
       idRequired: "المعرّف مطلوب.",
       idFormat: "أحرف صغيرة وأرقام و«-» فقط (48 حرفًا كحد أقصى).",
       idReserved: "«claude-code» محجوز للمزوّد المدمج.",
@@ -318,6 +321,10 @@ export default {
     noModel: "لا نموذج",
   },
   form: {
+    declaredWindow: "نافذة السياق المعلنة",
+    declaredWindowHelp: "عدد الرموز التي يقبلها هذا الطرف، يُكتب يدويًا. القيمة المكتوبة حدّ أدنى، ولا تُعرض أبدًا كقيمة مقيسة.",
+    declaredWindowHelpUnknown: "لم يُعلن شيء: تبقى النافذة مجهولة. عندئذٍ لا يختار الموجّه هذه النسخة أبدًا (يحتاج الدور الواحد إلى 8000 رمز على الأقل)، ولا تحصل الجلسات التي تفتحها على ضغط تلقائي.",
+    declaredWindowUnknown: "غير معلنة (مجهولة)",
     credVault: "مفتاح من الخزنة",
     credEnv: "متغير بيئة الخادم",
     credNone: "لا شيء",
@@ -365,6 +372,7 @@ export default {
     toolCallNo: "لا — لم يستدعِ هذا النموذج أداة الاختبار؛ جرّب نموذجًا آخر من القائمة",
     modelTested: " (النموذج المختبَر: {model})",
     contextWindow: "نافذة السياق: {n} رمز",
+    contextWindowDeclared: "نافذة السياق: {n} رمزًا (معلنة)",
     saveAnywayTitle: "فشل اختبار الاتصال. هل تحفظ على أي حال؟",
     saveAnywayConfirm: "حفظ على أي حال",
     saveAnywayBody: "ستفشل المحادثات على هذه النسخة حتى تُحَل المشكلة.",

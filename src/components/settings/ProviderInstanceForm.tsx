@@ -6,6 +6,7 @@ import {
   COST_LABEL_KEYS,
   isProcessKind,
   validateBaseUrlFr,
+  validateContextWindow,
   validateEnvName,
   wizardErrorMessage,
 } from '@/constants/providerWizard'
@@ -133,6 +134,12 @@ function EditForm({
   const [label, setLabel] = useState(stored?.label ?? instance.label ?? '')
   const [baseUrl, setBaseUrl] = useState(savedUrl)
   const [model, setModel] = useState(stored?.default_model ?? instance.default_model ?? '')
+  // The window DECLARED for this instance, kept as TEXT: an empty field means
+  // "nothing declared" (unknown), and 0 is never a way to say unknown.
+  const [declaredWindow, setDeclaredWindow] = useState<string>(
+    typeof stored?.context_window === 'number' ? String(stored.context_window) : ''
+  )
+  const [windowTouched, setWindowTouched] = useState(false)
   const [cost, setCost] = useState<CostBasis>(
     stored?.cost_source ?? instance.cost_source ?? 'unknown'
   )
@@ -230,7 +237,7 @@ function EditForm({
   }, [])
 
   const errors = useMemo(() => {
-    const e: Partial<Record<'url' | 'cred', string>> = {}
+    const e: Partial<Record<'url' | 'cred' | 'window', string>> = {}
     if (!process && !(urlUnknown && !baseUrl.trim())) {
       const url = validateBaseUrlFr(baseUrl, t)
       if (url) e.url = url
@@ -244,8 +251,10 @@ function EditForm({
       const env = validateEnvName(credName, t)
       if (env) e.cred = env
     }
+    const window = validateContextWindow(declaredWindow, t)
+    if (window) e.window = window
     return e
-  }, [baseUrl, credKind, credName, process, urlUnknown, isRemote, t])
+  }, [baseUrl, credKind, credName, declaredWindow, process, urlUnknown, isRemote, t])
   const valid = Object.keys(errors).length === 0 && Object.keys(remoteErrs).length === 0 && !validateLimits(limits, t)
 
   const patch = (): ProviderPatch => {
@@ -273,6 +282,9 @@ function EditForm({
     // RL1: only a touched list is sent — `[]` clears every limit, and an
     // untouched form leaves whatever the server holds exactly where it is.
     if (limitsTouched) p.rate_limit = limits
+    // The declared window: sent only when touched. Empty = `null`, which CLEARS
+    // it (back to unknown); an empty string is not a number the backend accepts.
+    if (windowTouched) p.context_window = declaredWindow.trim() === '' ? null : Number(declaredWindow.trim())
     return p
   }
 
@@ -470,6 +482,32 @@ function EditForm({
           <FieldNote id={`${uid}-cost`} help={t('providerAdmin.form.costHelp')} />
         </div>
         <div className="min-w-0">
+          <FormField
+            id={`${uid}-window`}
+            label={t('providerAdmin.form.declaredWindow')}
+            help={
+              declaredWindow.trim() === ''
+                ? t('providerAdmin.form.declaredWindowHelpUnknown')
+                : t('providerAdmin.form.declaredWindowHelp')
+            }
+            error={errors.window ?? null}
+          >
+            <Input
+              id={`${uid}-window`}
+              inputMode="numeric"
+              autoComplete="off"
+              value={declaredWindow}
+              placeholder={t('providerAdmin.form.declaredWindowUnknown')}
+              aria-invalid={!!errors.window}
+              onChange={(e) => {
+                setDeclaredWindow(e.target.value)
+                setWindowTouched(true)
+                edited()
+              }}
+            />
+          </FormField>
+        </div>
+        <div className="min-w-0">
           <Select
             label={t('providerAdmin.form.keyRef')}
             options={
@@ -605,7 +643,12 @@ function EditForm({
           )}
           {test.result.probe?.context_window != null && (
             <p className="text-xs text-gray-400">
-              {t('providerAdmin.form.contextWindow', { n: test.result.probe.context_window })}
+              {stored?.context_window != null
+                ? // A declared window wins over whatever a probe could read (nexus
+                  // prefers the configured one), so a number that is ours must SAY so
+                  // instead of passing for a measurement.
+                  t('providerAdmin.form.contextWindowDeclared', { n: test.result.probe.context_window })
+                : t('providerAdmin.form.contextWindow', { n: test.result.probe.context_window })}
             </p>
           )}
         </div>

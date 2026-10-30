@@ -87,6 +87,9 @@ export default {
     unknownModel: "modelo padrão",
     alias: "alias {name}",
     validation: {
+      windowDigits: "Um número inteiro de tokens.",
+      windowTooSmall: "Pelo menos {min} tokens: o roteador nunca envia um turno a um modelo com janela menor.",
+      windowTooLarge: "No máximo {max} tokens.",
       idRequired: "O identificador é obrigatório.",
       idFormat: "Apenas letras minúsculas, dígitos e “-” (no máximo 48 caracteres).",
       idReserved: "“claude-code” é reservado ao provedor integrado.",
@@ -318,6 +321,10 @@ export default {
     noModel: "nenhum modelo",
   },
   form: {
+    declaredWindow: "Janela de contexto declarada",
+    declaredWindowHelp: "Tokens que este endpoint aceita, declarados à mão. Um valor declarado é um piso, nunca apresentado como medição.",
+    declaredWindowHelpUnknown: "Nada declarado: a janela permanece DESCONHECIDA. O roteador então nunca escolhe esta instância (um turno exige pelo menos 8 000 tokens) e as sessões que ela abre ficam sem compactação automática.",
+    declaredWindowUnknown: "Não declarada (desconhecida)",
     credVault: "Chave do cofre",
     credEnv: "Variável de ambiente do servidor",
     credNone: "Nenhuma",
@@ -365,6 +372,7 @@ export default {
     toolCallNo: "não — este modelo não chamou a ferramenta de teste; tente outro modelo da lista",
     modelTested: " (modelo testado: {model})",
     contextWindow: "Janela de contexto: {n} tokens",
+    contextWindowDeclared: "Janela de contexto: {n} tokens (declarada)",
     saveAnywayTitle: "O teste de conexão falhou. Salvar mesmo assim?",
     saveAnywayConfirm: "Salvar mesmo assim",
     saveAnywayBody: "As conversas nesta instância falharão até que o problema seja resolvido.",
