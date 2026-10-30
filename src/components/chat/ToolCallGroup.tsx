@@ -43,17 +43,17 @@ export function ToolCallGroup({ toolBlocks, allBlocks }: ToolCallGroupProps) {
       (b) => b.type === 'tool_result' && b.metadata?.tool_call_id === block.metadata?.tool_call_id,
     )
 
-  // Count completed vs running vs cancelled
+  // Count per outcome, in the same priority order as ToolCallBlock's bar:
+  // error > cancelled > running > success. A result that is both an error and
+  // a cancellation counts as an error only.
   const completedCount = toolBlocks.filter((b) => getResultBlock(b)).length
+  const errorCount = toolBlocks.filter((b) => getResultBlock(b)?.metadata?.is_error).length
   const cancelledCount = toolBlocks.filter((b) => {
     const result = getResultBlock(b)
-    return result?.metadata?.is_cancelled
+    return result?.metadata?.is_cancelled && !result?.metadata?.is_error
   }).length
   const runningCount = toolBlocks.length - completedCount
-  const hasErrors = toolBlocks.some((b) => {
-    const result = getResultBlock(b)
-    return result?.metadata?.is_error
-  })
+  const successCount = completedCount - errorCount - cancelledCount
   const hasCancelled = cancelledCount > 0
 
   // Live timer: recompute total duration while tools are running.
@@ -88,6 +88,17 @@ export function ToolCallGroup({ toolBlocks, allBlocks }: ToolCallGroupProps) {
       ? uniqueTools.join(', ')
       : `${uniqueTools.slice(0, 2).join(', ')} +${uniqueTools.length - 2} more`
 
+  // The vertical status bar is split into segments proportional to each
+  // outcome, so its colours express the real success/error/pending rate
+  // instead of a single "worst" colour.
+  const segments = [
+    { outcome: 'error', color: 'bg-red-400', count: errorCount },
+    { outcome: 'cancelled', color: 'bg-gray-400', count: cancelledCount },
+    { outcome: 'running', color: 'bg-amber-400 animate-pulse', count: runningCount },
+    { outcome: 'success', color: 'bg-green-400', count: successCount },
+  ].filter((segment) => segment.count > 0)
+  const breakdown = segments.map((segment) => `${segment.count} ${segment.outcome}`).join(' · ')
+
   return (
     <div className="my-2 rounded-lg bg-white/[0.04] border border-white/[0.06] overflow-hidden">
       <button
@@ -95,16 +106,18 @@ export function ToolCallGroup({ toolBlocks, allBlocks }: ToolCallGroupProps) {
         className="flex items-center gap-2 w-full px-3 py-2 text-left text-xs hover:bg-white/[0.02] transition-colors"
       >
         <div
-          className={`w-0.5 h-4 rounded-full shrink-0 ${
-            hasErrors
-              ? 'bg-red-400'
-              : runningCount > 0
-                ? 'bg-amber-400 animate-pulse'
-                : hasCancelled
-                  ? 'bg-gray-400'
-                  : 'bg-green-400'
-          }`}
-        />
+          className="w-0.5 h-4 rounded-full shrink-0 overflow-hidden flex flex-col"
+          title={breakdown}
+        >
+          {segments.map((segment) => (
+            <div
+              key={segment.outcome}
+              data-outcome={segment.outcome}
+              className={segment.color}
+              style={{ flexGrow: segment.count, flexShrink: 1, flexBasis: 0 }}
+            />
+          ))}
+        </div>
         <ChevronRight className={`w-3 h-3 text-gray-500 transition-transform shrink-0 ${expanded ? 'rotate-90' : ''}`} />
         <span className="font-mono text-gray-400">
           {toolBlocks.length} tools
