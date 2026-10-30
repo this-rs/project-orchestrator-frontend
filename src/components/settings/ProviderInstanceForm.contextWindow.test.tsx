@@ -23,10 +23,11 @@ const get = vi.fn()
 const limitsApi = vi.fn()
 const models = vi.fn()
 const overview = vi.fn()
+const testApi = vi.fn()
 vi.mock('@/services/providers', async (orig) => ({
   ...(await orig<typeof import('@/services/providers')>()),
   providersApi: {
-    test: vi.fn(),
+    test: (...a: unknown[]) => testApi(...a),
     update: (...a: unknown[]) => update(...a),
     get: (...a: unknown[]) => get(...a),
     models: (...a: unknown[]) => models(...a),
@@ -90,7 +91,7 @@ const save = async () => {
 }
 
 beforeEach(() => {
-  for (const m of [update, get, limitsApi, models, overview, onSaved, onCancel]) m.mockReset()
+  for (const m of [update, get, limitsApi, models, overview, testApi, onSaved, onCancel]) m.mockReset()
   clearModelCatalogCache()
   CURRENT = null
   models.mockResolvedValue([])
@@ -162,5 +163,31 @@ describe('a window the backend would refuse', () => {
     await mount()
     fireEvent.change(windowField(), { target: { value: '128k' } })
     expect(await screen.findByText(/A whole number of tokens/)).toBeTruthy()
+  })
+
+  it('refuses an absurd value at the upper bound', async () => {
+    await mount()
+    fireEvent.change(windowField(), { target: { value: '100000001' } })
+    expect(await screen.findByText(/At most 100000000 tokens/)).toBeTruthy()
+  })
+})
+
+describe('the connection test result', () => {
+  it('never shows a DECLARED window as if it had been measured', async () => {
+    // nexus prefers the configured window over anything a probe could read, so
+    // the number the probe reports here IS the one declared below: the screen
+    // has to say so, otherwise a declaration passes for a measurement.
+    CURRENT = DECLARED
+    testApi.mockResolvedValue({
+      ok: true,
+      health: { status: 'healthy', version: null, checked_at: '2026-10-01T10:00:00Z' },
+      probe: { tools: true, context_window: DECLARED },
+    })
+    await mount()
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
+    const line = await waitFor(() => screen.getByText(/\(declared\)/))
+    // The number is locale-formatted (131,072) and it is a WORD that says where it
+    // comes from: "(declared)", not the measured wording.
+    expect(line.textContent).toMatch(/131.?072/)
   })
 })
