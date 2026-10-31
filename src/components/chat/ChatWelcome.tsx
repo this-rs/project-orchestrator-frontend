@@ -3,7 +3,7 @@ import { useWelcomeData } from '@/hooks'
 import { useT } from '@/i18n'
 import type { Translator } from '@/i18n/translate'
 import type { Project, Plan } from '@/types'
-import { Play, Lightbulb, Zap, Building, Search, BarChart3, ClipboardList, Check, FileEdit, RefreshCw, MessageCircle, Clock } from 'lucide-react'
+import { Play, Lightbulb, Zap, Building, Search, BarChart3, ClipboardList, Check, FileEdit, RefreshCw, MessageCircle, Clock, CalendarCheck, ListChecks, RotateCcw, Scale, TrendingUp } from 'lucide-react'
 
 // ============================================================================
 // PROPS
@@ -25,17 +25,34 @@ interface ChatWelcomeProps {
 interface QuickAction {
   /** Cursor position from the end of the prompt string */
   cursorOffset?: number
-  icon: 'next' | 'plan' | 'impact' | 'arch' | 'search' | 'roadmap'
+  icon: 'next' | 'plan' | 'impact' | 'arch' | 'search' | 'roadmap' | 'prepare' | 'track' | 'resume' | 'decided' | 'standing'
 }
 
 /** Label, description and prompt of each action live in the catalog (`chatA-messages.welcome.actions.<icon>`). */
-const QUICK_ACTIONS: QuickAction[] = [
+
+/**
+ * A codebase (or no project chosen): the code-oriented questions.
+ */
+const SOFTWARE_QUICK_ACTIONS: QuickAction[] = [
   { icon: 'next' },
   { icon: 'plan', cursorOffset: 0 },
   { icon: 'impact', cursorOffset: 0 },
   { icon: 'arch' },
   { icon: 'search', cursorOffset: 0 },
   { icon: 'roadmap' },
+]
+
+/**
+ * A `work` project (no source tree, `Project.profile === 'work'`): the everyday-life
+ * actions instead of the code ones (impact / architecture / code search would be noise).
+ */
+const WORK_QUICK_ACTIONS: QuickAction[] = [
+  { icon: 'prepare', cursorOffset: 0 },
+  { icon: 'track', cursorOffset: 0 },
+  { icon: 'resume' },
+  { icon: 'decided' },
+  { icon: 'standing' },
+  { icon: 'next' },
 ]
 
 // Debounce delay for quick action clicks (ms)
@@ -60,6 +77,16 @@ function QuickActionIcon({ type }: { type: QuickAction['icon'] }) {
       return <Search className={cls} />
     case 'roadmap':
       return <BarChart3 className={cls} />
+    case 'prepare':
+      return <CalendarCheck className={cls} />
+    case 'track':
+      return <ListChecks className={cls} />
+    case 'resume':
+      return <RotateCcw className={cls} />
+    case 'decided':
+      return <Scale className={cls} />
+    case 'standing':
+      return <TrendingUp className={cls} />
   }
 }
 
@@ -147,6 +174,9 @@ export function ChatWelcome({
   const { data, isLoading } = useWelcomeData(selectedProject)
   const lastClickRef = useRef(0)
 
+  // A `work` project (no source tree): everyday-life actions, not the code ones.
+  const quickActions = selectedProject?.profile === 'work' ? WORK_QUICK_ACTIONS : SOFTWARE_QUICK_ACTIONS
+
   // Debounced quick action handler — prevents double-clicks
   const handleQuickAction = useCallback(
     (action: QuickAction) => {
@@ -213,7 +243,7 @@ export function ChatWelcome({
             {t('chatA-messages.welcome.quickActions')}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {QUICK_ACTIONS.map((action, i) => (
+            {quickActions.map((action, i) => (
               <button
                 key={action.icon}
                 onClick={() => handleQuickAction(action)}

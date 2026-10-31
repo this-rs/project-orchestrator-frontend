@@ -95,6 +95,31 @@ export default {
         label: "Roadmap",
         description: "Meilensteine und Releases",
         prompt: "Zeig mir die vollständige Roadmap mit Meilensteinen und Releases"
+      },
+      prepare: {
+        label: "Etwas vorbereiten",
+        description: "Ein Ereignis, eine Datei, ein Start",
+        prompt: "Hilf mir, Folgendes vorzubereiten, als Aufgabenplan mit den Abhängigkeiten: "
+      },
+      track: {
+        label: "Etwas verfolgen",
+        description: "Ein Budget, ein Zeitplan, eine Liste",
+        prompt: "Richte eine Möglichkeit ein, Folgendes zu verfolgen: ein Plan mit seinen Aufgaben, Notizen zu dem, was ich sage, und eine Entscheidung bei jeder Wahl. Das ist zu verfolgen: "
+      },
+      resume: {
+        label: "Fortsetzen, was gestoppt wurde",
+        description: "Wartende Arbeit wieder aufnehmen",
+        prompt: "Was wurde gestoppt oder wartet auf mich? Liste es auf und nimm dann den ersten Punkt wieder auf."
+      },
+      decided: {
+        label: "Was haben wir entschieden?",
+        description: "Entscheidungen und ihre Gründe",
+        prompt: "Was haben wir bisher entschieden und warum? Liste die Entscheidungen mit ihren Gründen und den verworfenen Alternativen auf."
+      },
+      standing: {
+        label: "Wo stehen wir?",
+        description: "Ziele, Pläne, Fortschritt",
+        prompt: "Zeig mir, wo wir stehen: Ziele, Pläne, was erledigt ist und was als Nächstes kommt."
       }
     },
     time: {

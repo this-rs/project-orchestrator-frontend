@@ -95,6 +95,31 @@ export default {
         label: "Roadmap",
         description: "Marcos e releases",
         prompt: "Mostre-me o roadmap completo com marcos e releases"
+      },
+      prepare: {
+        label: "Preparar algo",
+        description: "Um evento, um arquivo, um lançamento",
+        prompt: "Ajude-me a preparar o seguinte, como um plano de tarefas com o que depende do quê: "
+      },
+      track: {
+        label: "Acompanhar algo",
+        description: "Um orçamento, um cronograma, uma lista",
+        prompt: "Configure uma forma de acompanhar o seguinte: um plano com suas tarefas, notas para o que eu disser e uma decisão a cada escolha. Aqui está o que acompanhar: "
+      },
+      resume: {
+        label: "Retomar o que parou",
+        description: "Retomar trabalho em espera",
+        prompt: "O que parou ou está esperando por mim? Liste e depois retome o primeiro item."
+      },
+      decided: {
+        label: "O que decidimos?",
+        description: "Decisões e seus motivos",
+        prompt: "O que decidimos até agora e por quê? Liste as decisões com seus motivos e as alternativas descartadas."
+      },
+      standing: {
+        label: "Como estamos?",
+        description: "Objetivos, planos, progresso",
+        prompt: "Mostre-me como estamos: objetivos, planos, o que está feito e o que vem a seguir."
       }
     },
     time: {

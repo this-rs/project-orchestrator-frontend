@@ -95,6 +95,31 @@ export default {
         label: "Feuille de route",
         description: "Jalons et releases",
         prompt: "Montre-moi la feuille de route complète avec les jalons et les releases"
+      },
+      prepare: {
+        label: "Préparer quelque chose",
+        description: "Un événement, un fichier, un lancement",
+        prompt: "Aide-moi à préparer ce qui suit, sous forme de plan de tâches avec ce qui dépend de quoi : "
+      },
+      track: {
+        label: "Suivre quelque chose",
+        description: "Un budget, un planning, une liste",
+        prompt: "Mets en place un suivi pour ce qui suit : un plan avec ses tâches, des notes pour ce que je te dis, et une décision à chaque fois que je choisis. Voici quoi suivre : "
+      },
+      resume: {
+        label: "Reprendre ce qui s'est arrêté",
+        description: "Reprendre un travail en attente",
+        prompt: "Qu'est-ce qui s'est arrêté ou attend après moi ? Liste-le, puis reprends le premier élément."
+      },
+      decided: {
+        label: "Qu'a-t-on décidé ?",
+        description: "Décisions et leurs raisons",
+        prompt: "Qu'avons-nous décidé jusqu'ici, et pourquoi ? Liste les décisions avec leurs raisons et les alternatives écartées."
+      },
+      standing: {
+        label: "Où en est-on ?",
+        description: "Objectifs, plans, avancement",
+        prompt: "Montre-moi où on en est : objectifs, plans, ce qui est fait et ce qui vient ensuite."
       }
     },
     time: {
