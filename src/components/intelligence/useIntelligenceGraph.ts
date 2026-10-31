@@ -8,8 +8,10 @@ import type {
   BackendGraphNode,
   BackendGraphEdge,
   IntelligenceRelationType,
+  ProjectGraphResponse,
 } from '@/types/intelligence'
 import { NODE_SIZES, EDGE_STYLES } from '@/constants/intelligence'
+import { graphCacheKey, graphCacheGet, graphCacheSet } from './graphCache'
 import {
   intelligenceNodesAtom,
   intelligenceEdgesAtom,
@@ -187,9 +189,13 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     limit: number,
     stageId?: string,
     signal?: AbortSignal,
+    force = false,
   ) => {
     if (!projectSlug || layers.length === 0) return
-    setLoading(true)
+    // Reuse a recently-loaded response for this exact (layers, limit) instead of
+    // hitting the network again — "don't reload a view already loaded".
+    const cacheKey = graphCacheKey('project', projectSlug, layers, limit)
+    const cached = force ? null : (graphCacheGet(cacheKey) as ProjectGraphResponse | null)
     setError(null)
     // Track per-layer loading state for UI indicators
     setLoadingLayers((prev: Set<string>) => {
@@ -197,9 +203,15 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
       layers.forEach((l) => next.add(l))
       return next
     })
-    if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
+    // Only flash the loading state (and the stages) when we actually go to the
+    // network; a cache hit resolves synchronously and must not blink a spinner.
+    if (!cached) {
+      setLoading(true)
+      if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
+    }
     try {
-      const data = await intelligenceApi.getGraph(projectSlug, { layers, limit }, signal)
+      const data = cached ?? await intelligenceApi.getGraph(projectSlug, { layers, limit }, signal)
+      if (!cached) graphCacheSet(cacheKey, data)
 
       const rfNodes = data.nodes.map(toReactFlowNode)
       const rfEdges = data.edges.map(toReactFlowEdge)
@@ -264,7 +276,8 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
   const fetchGraph = useCallback(async () => {
     const layers = Array.from(visibleLayers) as string[]
     fetchedLayersRef.current.clear()
-    await fetchGraphForLayers(layers, nodeLimit)
+    // Explicit refresh (retry button, WebSocket-driven) must bypass the cache.
+    await fetchGraphForLayers(layers, nodeLimit, undefined, undefined, true)
   }, [visibleLayers, nodeLimit, fetchGraphForLayers])
 
   // Fetch summary
