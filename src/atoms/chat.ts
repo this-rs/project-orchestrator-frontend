@@ -1,5 +1,5 @@
 import { atom } from 'jotai'
-import { atomWithStorage, RESET } from 'jotai/utils'
+import { atomWithStorage, createJSONStorage, RESET } from 'jotai/utils'
 import type { BackgroundTaskInfo, ChatPanelMode, PermissionConfig, Project, WsConnectionStatus } from '@/types'
 import type { ToolPolicyMode } from '@/types/provider'
 import type { SwitchProviderRefusal } from '@/services/chat'
@@ -50,8 +50,39 @@ export const chatSessionModelAtom = atom<string | null>(null)
 
 /** Storage key of `chatTimelineOpenAtom` (also read by the reset on phones). */
 export const CHAT_TIMELINE_OPEN_KEY = 'chat-timeline-open'
-/** Whether the chat's timeline panel is open (remembered per browser). */
-export const chatTimelineOpenAtom = atomWithStorage<boolean>(CHAT_TIMELINE_OPEN_KEY, false)
+
+/** sessionStorage that never throws (private window, blocked site data): the open state is then just not remembered for this tab. */
+const safeSessionStorage = (): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> => ({
+  getItem: (key) => {
+    try {
+      return sessionStorage.getItem(key)
+    } catch {
+      return null
+    }
+  },
+  setItem: (key, value) => {
+    try {
+      sessionStorage.setItem(key, value)
+    } catch {
+      /* not remembered */
+    }
+  },
+  removeItem: (key) => {
+    try {
+      sessionStorage.removeItem(key)
+    } catch {
+      /* nothing to forget */
+    }
+  },
+})
+const timelineStorage = createJSONStorage<boolean>(safeSessionStorage)
+
+/**
+ * Whether the chat's timeline panel is open. PER TAB: this is a view state, so it
+ * lives in `sessionStorage`. `localStorage` is shared by every tab of the origin,
+ * which made opening the timeline in one tab open it in all of them.
+ */
+export const chatTimelineOpenAtom = atomWithStorage<boolean>(CHAT_TIMELINE_OPEN_KEY, false, timelineStorage)
 
 /** Draft key of a conversation that has no id yet (nothing sent so far). */
 export const NEW_CONVERSATION_DRAFT_KEY = '__new__'

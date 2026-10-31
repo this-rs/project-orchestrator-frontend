@@ -422,11 +422,12 @@ describe('useResetTimelineOnPhone', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     localStorage.clear()
+    sessionStorage.clear()
   })
 
   it('closes a timeline left open on a phone', () => {
     setViewport(false)
-    localStorage.setItem('chat-timeline-open', 'true')
+    sessionStorage.setItem('chat-timeline-open', 'true')
     const setOpen = vi.fn()
     renderHook(() => useResetTimelineOnPhone(setOpen))
     expect(setOpen).toHaveBeenCalledWith(false)
@@ -437,7 +438,7 @@ describe('useResetTimelineOnPhone', () => {
     setViewport(false)
     renderHook(() => useResetTimelineOnPhone(setOpen))
     setViewport(true)
-    localStorage.setItem('chat-timeline-open', 'true')
+    sessionStorage.setItem('chat-timeline-open', 'true')
     renderHook(() => useResetTimelineOnPhone(setOpen))
     expect(setOpen).not.toHaveBeenCalled()
   })
