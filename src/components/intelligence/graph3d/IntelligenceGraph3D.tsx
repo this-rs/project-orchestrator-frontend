@@ -1401,30 +1401,74 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const fg = graphRef.current
     if (!el || !fg || typeof fg.camera !== 'function') return
 
-    const ndc = (ev: { clientX: number; clientY: number }) => {
+    // Prepared ONCE — reusing the raycaster/vector avoids per-move allocation.
+    const raycaster = new THREE.Raycaster()
+    const ndcVec = new THREE.Vector2()
+
+    /** Fill the raycaster from a pointer event and a distance-scaled threshold. */
+    const aim = (ev: { clientX: number; clientY: number }): boolean => {
+      const camera = fg.camera?.()
+      if (!camera) return false
       const rect = el.getBoundingClientRect()
-      return {
-        x: ((ev.clientX - rect.left) / rect.width) * 2 - 1,
-        y: -((ev.clientY - rect.top) / rect.height) * 2 + 1,
-      }
+      ndcVec.set(
+        ((ev.clientX - rect.left) / rect.width) * 2 - 1,
+        -((ev.clientY - rect.top) / rect.height) * 2 + 1,
+      )
+      raycaster.setFromCamera(ndcVec, camera)
+      // Same rule as po-graph: the pick radius grows with camera distance so a
+      // node stays clickable when zoomed out. `controls().target` is the orbit
+      // focus; fall back to the origin if the controls are not ready.
+      let dist = 400
+      try {
+        const c = fg.controls?.()
+        if (c?.target) dist = camera.position.distanceTo(c.target)
+      } catch { /* controls not mounted yet */ }
+      raycaster.params.Points.threshold = Math.max(4, dist / 160)
+      return true
+    }
+
+    // po-graph throttles hover picking to ~16 Hz. Unthrottled, an O(N) raycast
+    // on every pointermove is what makes panning/rotating feel heavy.
+    let lastPick = 0
+    let rafId = 0
+    let pendingEv: PointerEvent | null = null
+    let lastHoverId: string | null = null
+    const runPick = () => {
+      rafId = 0
+      if (!pendingEv) return
+      const ev = pendingEv
+      pendingEv = null
+      lastPick = performance.now()
+      const np = nodePointsRef.current
+      if (!np || !aim(ev)) return
+      const hit = np.pick(raycaster)
+      const id = hit?.id ?? null
+      if (id !== lastHoverId) { lastHoverId = id; setHoveredNodeId(id) }
+      el.style.cursor = hit ? 'pointer' : 'default'
     }
 
     const onMove = (ev: PointerEvent) => {
-      const np = nodePointsRef.current
-      const camera = fg.camera?.()
-      if (!np || !camera) return
-      const p = ndc(ev)
-      const hit = np.pick(p.x, p.y, camera)
-      setHoveredNodeId(hit?.id ?? null)
-      el.style.cursor = hit ? 'pointer' : 'default'
+      if (!nodePointsRef.current) return
+      // While a button is held the user is orbiting/panning the camera, not
+      // pointing at a node: skip picking entirely (no O(N) style churn during
+      // the drag — this is what makes panning feel heavy on the Points tier).
+      if (ev.buttons !== 0) {
+        if (rafId) { cancelAnimationFrame(rafId); rafId = 0 }
+        if (lastHoverId) { lastHoverId = null; setHoveredNodeId(null) }
+        return
+      }
+      // Coalesce to one pick per animation frame, and no faster than 60 Hz.
+      pendingEv = ev
+      if (rafId) return
+      const since = performance.now() - lastPick
+      if (since >= 60) runPick()
+      else rafId = requestAnimationFrame(runPick)
     }
 
     const onClick = (ev: MouseEvent) => {
       const np = nodePointsRef.current
-      const camera = fg.camera?.()
-      if (!np || !camera) return
-      const p = ndc(ev)
-      const hit = np.pick(p.x, p.y, camera)
+      if (!np || !aim(ev)) return
+      const hit = np.pick(raycaster)
       if (!hit) { setSelectedNodeId(null); return }
 
       const now = Date.now()
@@ -1443,6 +1487,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return () => {
       el.removeEventListener('pointermove', onMove)
       el.removeEventListener('click', onClick)
+      if (rafId) cancelAnimationFrame(rafId)
       el.style.cursor = 'default'
     }
   }, [useOptimizedNodes, selectedNodeId, setHoveredNodeId, setSelectedNodeId, onNodeDoubleClick])

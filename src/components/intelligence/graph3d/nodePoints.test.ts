@@ -74,20 +74,22 @@ describe('createNodePoints', () => {
     np.dispose()
   })
 
-  it('picks the node nearest the pointer', () => {
+  it('picks the node under the raycaster', () => {
     const nodes = fixture()
-    // Put the camera on +Z looking at the origin so world XY maps cleanly to NDC.
+    // Camera on +Z looking at the origin so node a (0,0,0) projects to NDC (0,0).
     const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 10000)
     camera.position.set(0, 0, 500)
     camera.lookAt(0, 0, 0)
     camera.updateMatrixWorld()
     camera.updateProjectionMatrix()
     const np = createNodePoints(nodes)
-    // Projects node a (0,0,0) to NDC ~ (0,0); pick there.
-    const hit = np.pick(0, 0, camera)
-    expect(hit?.id).toBe('a')
-    // A far-away NDC misses.
-    expect(np.pick(0.99, 0.99, camera)).toBeNull()
+    const ray = new THREE.Raycaster()
+    ray.params.Points.threshold = 6
+    ray.setFromCamera(new THREE.Vector2(0, 0), camera)
+    expect(np.pick(ray)?.id).toBe('a')
+    // Aim at the far corner: no point there.
+    ray.setFromCamera(new THREE.Vector2(0.99, 0.99), camera)
+    expect(np.pick(ray)).toBeNull()
     np.dispose()
   })
 })

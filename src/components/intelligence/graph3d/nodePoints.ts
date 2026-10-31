@@ -148,10 +148,11 @@ export interface NodePoints {
   updatePositions: () => void
   updateStyles: (fn: NodeStyleFn) => void
   /**
-   * Return the node nearest to a pointer in NDC (-1..1). O(N) projection; fine
-   * for the large-graph overview tier, a spatial index would be a later win.
+   * Return the node under a prepared raycaster (three.js Points.raycast).
+   * The caller sets `raycaster.params.Points.threshold` from camera distance
+   * and throttles the calls (~16/s) — see po-graph's onMove.
    */
-  pick: (ndcX: number, ndcY: number, camera: THREE.Camera) => Graph3DNode | null
+  pick: (raycaster: THREE.Raycaster) => Graph3DNode | null
   dispose: () => void
 }
 
@@ -228,19 +229,26 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
     }
   }
 
-  const _v = new THREE.Vector3()
-  const pick = (ndcX: number, ndcY: number, camera: THREE.Camera): Graph3DNode | null => {
-    let best: Graph3DNode | null = null
-    let bestD = 0.035 * 0.035 // ~3.5% of NDC half-width
-    for (const node of nodeList) {
-      _v.set(node.x ?? 0, node.y ?? 0, node.z ?? 0).project(camera)
-      if (_v.z > 1) continue // behind the camera
-      const dx = _v.x - ndcX
-      const dy = _v.y - ndcY
-      const d = dx * dx + dy * dy
-      if (d < bestD) { bestD = d; best = node }
+  // A large, static bounding sphere so Points.raycast never early-rejects on a
+  // stale (position-dependent) sphere. frustumCulled is off, so the sphere is
+  // only read by the raycaster.
+  geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e7)
+
+  /**
+   * Pick the node under a prepared raycaster. Uses three.js's built-in
+   * Points.raycast (per-point ray distance, cheap) instead of projecting every
+   * node to NDC — the caller must set `raycaster.params.Points.threshold`
+   * (scaled by camera distance) and throttle the calls (po-graph: ≤16/s).
+   */
+  const pick = (raycaster: THREE.Raycaster): Graph3DNode | null => {
+    object.updateMatrixWorld()
+    const hits = raycaster.intersectObject(object)
+    for (const h of hits) {
+      if (typeof h.index === 'number' && h.index >= 0 && h.index < nodeList.length) {
+        return nodeList[h.index]
+      }
     }
-    return best
+    return null
   }
 
   const dispose = () => {
