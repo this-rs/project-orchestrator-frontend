@@ -121,6 +121,10 @@ export default {
   bg: {
     title: "Activité en arrière-plan",
     listAria: "Activités en arrière-plan",
+    noWork: "que des avis du fournisseur",
+    noticeOne: "{count} avis du fournisseur",
+    noticeMany: "{count} avis du fournisseur",
+    noticesAria: "Avis du fournisseur — télémétrie, aucun travail",
     summary: {
       running: "{count} en cours",
       queued: "{count} en attente",
@@ -153,11 +157,17 @@ export default {
     parameters: "Paramètres",
     latestOutput: "Dernière sortie",
     output: "Sortie",
+    result: "Résultat",
+    watched: "Sortie surveillée",
+    outputInFile: "La sortie est allée dans le fichier de la tâche (ci-dessus) : le fournisseur ne la met pas dans le flux.",
+    toolsAria: "Outils appelés",
     kind: {
       workflow: "Workflow",
       shell: "Commande en arrière-plan",
       monitor: "Moniteur",
       agent: "Sous-agent",
+      message: "Agent de fond",
+      notice: "Avis du fournisseur",
       generic: "Activité en arrière-plan"
     },
     status: {

@@ -121,6 +121,10 @@ export default {
   bg: {
     title: "백그라운드 활동",
     listAria: "백그라운드 활동 목록",
+    noWork: "공급자 알림만 있음",
+    noticeOne: "공급자 알림 {count}개",
+    noticeMany: "공급자 알림 {count}개",
+    noticesAria: "공급자 알림 — 텔레메트리, 작업 없음",
     summary: {
       running: "{count}개 실행 중",
       queued: "{count}개 대기 중",
@@ -153,11 +157,17 @@ export default {
     parameters: "매개변수",
     latestOutput: "최근 출력",
     output: "출력",
+    result: "결과",
+    watched: "감시 중인 출력",
+    outputInFile: "출력은 작업 파일(위)로 갔으며 공급자는 스트림으로 보내지 않습니다.",
+    toolsAria: "호출한 도구",
     kind: {
       workflow: "워크플로",
       shell: "백그라운드 명령",
       monitor: "모니터",
       agent: "하위 에이전트",
+      message: "백그라운드 에이전트",
+      notice: "공급자 알림",
       generic: "백그라운드 활동"
     },
     status: {

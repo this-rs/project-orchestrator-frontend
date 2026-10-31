@@ -121,6 +121,10 @@ export default {
   bg: {
     title: "Фонова активність",
     listAria: "Фонові активності",
+    noWork: "лише повідомлення провайдера",
+    noticeOne: "{count} повідомлення провайдера",
+    noticeMany: "{count} повідомлень провайдера",
+    noticesAria: "Повідомлення провайдера — телеметрія, без роботи",
     summary: {
       running: "Виконується: {count}",
       queued: "У черзі: {count}",
@@ -153,11 +157,17 @@ export default {
     parameters: "Параметри",
     latestOutput: "Останній вивід",
     output: "Вивід",
+    result: "Результат",
+    watched: "Спостережуваний вивід",
+    outputInFile: "Вивід пішов у файл завдання (вище); провайдер не передає його в потік.",
+    toolsAria: "Викликані інструменти",
     kind: {
       workflow: "Воркфлоу",
       shell: "Фонова команда",
       monitor: "Монітор",
       agent: "Субагент",
+      message: "Фоновий агент",
+      notice: "Повідомлення провайдера",
       generic: "Фонова активність"
     },
     status: {

@@ -189,10 +189,13 @@ describe('shell renderer', () => {
       data: { command: 'npm run build && npm test', timeout: 9000 },
     })
 
-  it('shows the command as code and a collapsed output tail', () => {
+  it('never repeats a command the row already shows, and still draws its stream', () => {
     render(withTasks(['b1'], <BackgroundActivityBlock block={shell()} />))
     unfold()
-    expect(screen.getByText('npm run build && npm test', { selector: 'div.font-mono' })).toBeInTheDocument()
+    const term = screen.getByTestId('activity-terminal')
+    // ONE occurrence: the row. The body is the stream, not a second prompt.
+    expect(screen.getAllByText('npm run build && npm test')).toHaveLength(1)
+    expect(term).not.toHaveTextContent('$')
     const outputToggle = screen.getByRole('button', { name: /Output · 20 lines/ })
     expect(outputToggle).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(outputToggle)
@@ -204,7 +207,31 @@ describe('shell renderer', () => {
     expect(screen.getByLabelText('Output').textContent).toContain('line 0')
   })
 
-  it('opens short output straight away and offers the raw payload only as a last resort', () => {
+  it('carries no window decoration: no dots, no title bar', () => {
+    render(withTasks(['b1'], <BackgroundActivityBlock block={shell()} />))
+    unfold()
+    const term = screen.getByTestId('activity-terminal')
+    expect(term.textContent).not.toContain('bash')
+    // The facts a shell prints after the command live on the prompt line.
+    expect(term).not.toHaveTextContent('●')
+  })
+
+  it('keeps a multi-line command out of the row and gives it the whole prompt line', () => {
+    // What the CLI actually sends for a background Bash task: the whole script.
+    const script = "cd frontend && python3 - <<'EOF'\nimport re\nprint('x')\nEOF\nnpm run build"
+    const b = block({ correlation_id: 'b1', source: 'Workflow', entries: [tick(1)], data: { task_type: 'local_bash', description: script } })
+    render(withTasks(['b1'], <BackgroundActivityBlock block={b} />))
+    unfold()
+    const card = screen.getByTestId('background-activity-card')
+    // The row says the first line and "+4", never the five lines. (The
+    // terminal's prompt carries the whole command as its tooltip too.)
+    expect(within(card).getAllByTitle(/cd frontend && python3/)[0]).toHaveTextContent("cd frontend && python3 - <<'EOF'")
+    expect(within(card).getByText('+4')).toBeInTheDocument()
+    // …and the terminal's prompt holds the script whole (clamped in CSS).
+    expect(screen.getByTestId('activity-terminal')).toHaveTextContent(/npm run build/)
+  })
+
+  it('never offers a raw payload for a command: its exit and its output are the interface', () => {
     const b = block({
       correlation_id: 'b1',
       source: 'BashOutput',
@@ -213,15 +240,77 @@ describe('shell renderer', () => {
     render(withTasks(['b1'], <BackgroundActivityBlock block={b} />))
     unfold()
     expect(screen.getByLabelText('Output')).toHaveTextContent('hi')
-    expect(screen.getByLabelText('Parameters')).toHaveTextContent('Exit code0')
-    const raw = screen.getByRole('button', { name: 'Raw payload' })
-    expect(raw).toHaveAttribute('aria-expanded', 'false')
-    fireEvent.click(raw)
-    expect(screen.getByLabelText('Raw payload', { selector: 'pre' })).toHaveTextContent('"exit_code": 0')
+    expect(screen.getByTestId('activity-terminal')).toHaveTextContent('exit 0')
+    expect(screen.queryByRole('button', { name: 'Raw payload' })).not.toBeInTheDocument()
+  })
+
+  it('titles a command by what it DOES, and never shows the same sentence three times', () => {
+    // Measured payload of a finished CLI Bash task: `description` is the script,
+    // `summary` is the human sentence about it.
+    const b = block({
+      correlation_id: 'b1',
+      source: 'Workflow',
+      entries: [tick(1, 'Workflow', 'task_started'), { ...tick(2, 'Workflow', 'task_notification'), subtype: 'task_notification' }],
+      data: {
+        task_type: 'local_bash',
+        description: 'R=/w; git clone --branch feat/x /w/.git-mirror "$R"',
+        summary: 'Create local working clone on kv-splice-chat and dry-run the WIP patch',
+        status: 'completed',
+      },
+    })
+    render(withTasks([], <BackgroundActivityBlock block={b} />))
+    unfold()
+    const card = screen.getByTestId('background-activity-card')
+    // Once as the title, and NOWHERE else (no chip, no "Résultat" section).
+    expect(within(card).getAllByText(/Create local working clone/)).toHaveLength(1)
+    expect(within(card).queryByText('Résultat')).not.toBeInTheDocument()
+    // And the lifecycle labels of the ticks are not presented as output.
+    expect(card).not.toHaveTextContent('task_started')
+    expect(card).not.toHaveTextContent('task_notification')
+  })
+
+  it('does not repeat the command as a “Task” parameter', () => {
+    const b = block({ correlation_id: 'b1', source: 'Workflow', entries: [tick(1)], data: { task_type: 'local_bash', description: 'ls -la\npwd' } })
+    render(withTasks(['b1'], <BackgroundActivityBlock block={b} />))
+    unfold()
+    // The script is the subject of the card (title + body), never a chip: a
+    // chip carrying twenty lines is what buried the header.
+    expect(screen.queryByText('Task')).not.toBeInTheDocument()
   })
 })
 
 describe('agent + generic renderers', () => {
+  it('opens the TOOL’S OWN card when the backend relayed the call input', () => {
+    // Shape of a backend tick since PR #1050: the call carries its input.
+    const withTool = (id: string, source: string, tool: Record<string, unknown>, at: number) => ({
+      source,
+      content: source === 'tool' ? `[tool_use: ${tool.name}]` : '[tool_result] done',
+      received_at: `2026-05-01T10:00:${String(at).padStart(2, '0')}Z`,
+      tool,
+    })
+    const b = block({
+      correlation_id: 'agent-1',
+      source: 'Workflow',
+      entries: [
+        withTool('t1', 'tool', { name: 'Edit', input: { file_path: 'src/a.ts', old_string: 'const a = 1', new_string: 'const a = 2' } }, 1),
+        withTool('t1', 'tool_result', { name: 'Edit', result_head: 'The file src/a.ts has been updated.', is_error: false }, 2),
+      ],
+      data: { task_type: 'local_agent', description: 'Renomme la constante' },
+    })
+    render(withTasks(['agent-1'], <BackgroundActivityBlock block={b} />))
+    unfold()
+    const list = screen.getByRole('list', { name: 'Tools called' })
+    const row = within(list).getByRole('button', { name: /Edit/ })
+    // Nothing about the change is visible yet: the row is the sequence.
+    expect(row).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(row)
+    expect(row).toHaveAttribute('aria-expanded', 'true')
+    // …and the diff is: it is the transcript's own Edit renderer, not an imitation.
+    expect(list.textContent).toContain('const a = 2')
+    expect(list.textContent).toContain('const a = 1')
+    expect(list.textContent).toContain('src/a.ts')
+  })
+
   it('renders sub-agent params as chips', () => {
     const b = block({ source: 'Task', subagent_type: 'researcher', description: 'Audit auth', entries: [tick(1, 'Task', 'reading files')], data: { last_tool_name: 'Grep' } })
     render(withTasks(['toolu_X'], <BackgroundActivityBlock block={b} />))
@@ -249,6 +338,56 @@ describe('agent + generic renderers', () => {
   })
 })
 
+describe('per-tool rendering', () => {
+  /** A sub-agent stream as the backend emits it: markers, no parameters. */
+  const streamBlock = (lines: string[]) =>
+    block({
+      correlation_id: 'agent-1',
+      source: 'Workflow',
+      entries: lines.map((content, i) => tick(i + 1, 'Workflow', content)),
+      data: { task_type: 'local_agent', description: "Audit de l'auth", subagent_type: 'general-purpose' },
+    })
+
+  it('says WHICH tools the background agent called, with counts, on one line', () => {
+    render(
+      withTasks(['agent-1'], (
+        <BackgroundActivityBlock
+          block={streamBlock([
+            '[tool_use: Bash]', '[tool_result] ok',
+            '[tool_use: Bash]', '[tool_result] ok',
+            '[tool_use: Grep]', '[tool_result] src/a.rs:12',
+          ])}
+        />
+      )),
+    )
+    const group = screen.getByRole('button', { name: /Background activity/ })
+    if (group.getAttribute('aria-expanded') === 'false') fireEvent.click(group)
+    const row = screen.getByTestId('background-activity-card')
+    expect(within(row).getByTitle('Bash ×2')).toBeInTheDocument()
+    expect(within(row).getByTitle('Grep ×1')).toBeInTheDocument()
+  })
+
+  it('shows the tool running now and what each one returned, in order', () => {
+    render(
+      withTasks(['agent-1'], (
+        <BackgroundActivityBlock
+          block={streamBlock(['[tool_use: Grep]', '[tool_result] 3 fichiers', '[tool_use: Edit]'])}
+        />
+      )),
+    )
+    unfold()
+    const list = screen.getByRole('list', { name: 'Tools called' })
+    expect(within(list).getByText('Grep')).toBeInTheDocument()
+    expect(within(list).getByText('3 fichiers')).toBeInTheDocument()
+    // The call with no result yet is the one running NOW.
+    expect(within(list).getByText('Edit')).toBeInTheDocument()
+    expect(within(list).getByText('Running')).toBeInTheDocument()
+    // The raw markers never reach the screen.
+    expect(document.body.textContent).not.toContain('[tool_use:')
+    expect(document.body.textContent).not.toContain('[tool_result]')
+  })
+})
+
 describe('accessibility + truncation', () => {
   it('expands long text on demand with aria-expanded', () => {
     render(<ExpandableText text={'x'.repeat(400)} />)
@@ -263,10 +402,33 @@ describe('accessibility + truncation', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('notes earlier events that were not kept', () => {
-    render(withTasks(['toolu_X'], <BackgroundActivityBlock block={block({ count: 25, entries: [tick(1), tick(2)] })} />))
+  it('notes earlier events that were not kept, for an activity of unknown nature', () => {
+    // A Monitor's ticks ARE its output: its timeline would repeat the stream.
+    // The note belongs to the one kind where the ticks are all we have.
+    render(withTasks(['toolu_X'], <BackgroundActivityBlock block={block({ source: 'custom', count: 25, entries: [tick(1), tick(2)] })} />))
     unfold()
     fireEvent.click(screen.getByRole('button', { name: /Timeline · 25 events/ }))
     expect(screen.getByRole('list', { name: /events of/i })).toHaveTextContent('23 earlier events not kept')
+  })
+
+  it('folds provider telemetry instead of drawing a card per notice', () => {
+    // 27 % of the measured background feed: thinking tokens, status pings, init.
+    render(
+      withTasks([], (
+        <BackgroundActivityGroup
+          blocks={[
+            block({ correlation_id: 'c1', source: 'system:thinking_tokens', entries: [tick(1, 'system:thinking_tokens', '{"estimated_tokens":255}')] }, 'b-1'),
+            block({ correlation_id: 'c2', source: 'system:status', entries: [tick(2, 'system:status', '{"status":"requesting"}')] }, 'b-2'),
+            block({ correlation_id: 'c3', source: 'Workflow', entries: [tick(3)], data: { task_type: 'local_bash', description: 'npm test' } }, 'b-3'),
+          ]}
+        />
+      )),
+    )
+    unfold()
+    // One card — the command — and no card for the two notices.
+    expect(screen.getAllByTestId('background-activity-card')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /2 provider notices/ })).toBeInTheDocument()
+    expect(document.body.textContent).not.toContain('estimated_tokens')
+    expect(document.body.textContent).not.toContain('Raw payload')
   })
 })

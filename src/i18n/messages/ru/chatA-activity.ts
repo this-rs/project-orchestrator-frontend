@@ -121,6 +121,10 @@ export default {
   bg: {
     title: "Фоновая активность",
     listAria: "Фоновые активности",
+    noWork: "только уведомления провайдера",
+    noticeOne: "{count} уведомление провайдера",
+    noticeMany: "{count} уведомлений провайдера",
+    noticesAria: "Уведомления провайдера — телеметрия, без работы",
     summary: {
       running: "Выполняется: {count}",
       queued: "В очереди: {count}",
@@ -153,11 +157,17 @@ export default {
     parameters: "Параметры",
     latestOutput: "Последний вывод",
     output: "Вывод",
+    result: "Результат",
+    watched: "Наблюдаемый вывод",
+    outputInFile: "Вывод ушёл в файл задачи (выше); провайдер не передаёт его в поток.",
+    toolsAria: "Вызванные инструменты",
     kind: {
       workflow: "Воркфлоу",
       shell: "Фоновая команда",
       monitor: "Монитор",
       agent: "Субагент",
+      message: "Фоновый агент",
+      notice: "Уведомление провайдера",
       generic: "Фоновая активность"
     },
     status: {

@@ -15,6 +15,7 @@ import { permissionConsentOf } from './permissionConsent'
 import type {
   BackgroundActivityMetadata,
   BackgroundOutputEntry,
+  BackgroundToolTick,
   ChatMessage,
   PermissionConsent,
   ContentBlock,
@@ -137,6 +138,7 @@ function entryOf(tick: BackgroundTick): BackgroundOutputEntry {
     received_at: tick.received_at,
   }
   if (tick.subtype) entry.subtype = tick.subtype
+  if (tick.tool) entry.tool = tick.tool
   return entry
 }
 
@@ -1124,6 +1126,11 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
               source: (evt.source as string) ?? 'background',
               content: (evt.content as string) ?? '',
               received_at: (evt.received_at as string) ?? createdAt.toISOString(),
+              // The call itself, when the backend relays it (PR backend #1050):
+              // name, input, is_error, result_head. Absent on an older frame.
+              ...((evt as { tool?: BackgroundToolTick }).tool
+                ? { tool: (evt as { tool?: BackgroundToolTick }).tool }
+                : {}),
             }
         if (!attachToParentToolUse(messages, tick)) {
           appendBackgroundActivity(lastAssistant(createdAt), tick)
