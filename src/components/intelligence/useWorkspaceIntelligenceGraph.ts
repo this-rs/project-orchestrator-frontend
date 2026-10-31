@@ -31,7 +31,8 @@ import {
 } from '@/atoms/intelligence'
 import { intelligenceApi } from '@/services/intelligence'
 import { VISIBILITY_PRESETS } from '@/constants/intelligence'
-import type { VisibilityMode } from '@/types/intelligence'
+import { graphCacheKey, graphCacheGet, graphCacheSet } from './graphCache'
+import type { VisibilityMode, WorkspaceGraphResponse } from '@/types/intelligence'
 
 // ── Dagre Web Worker ─────────────────────────────────────────────────────────
 
@@ -178,18 +179,25 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     limit: number,
     stageId?: string,
     signal?: AbortSignal,
+    force = false,
   ) => {
     if (!workspaceSlug || layers.length === 0) return
-    setLoading(true)
+    // Reuse a recently-loaded workspace response for this exact (layers, limit).
+    const cacheKey = graphCacheKey('workspace', workspaceSlug, layers, limit)
+    const cached = force ? null : (graphCacheGet(cacheKey) as WorkspaceGraphResponse | null)
     setError(null)
     setLoadingLayers((prev: Set<string>) => {
       const next = new Set(prev)
       layers.forEach((l) => next.add(l))
       return next
     })
-    if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
+    if (!cached) {
+      setLoading(true)
+      if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
+    }
     try {
-      const data = await intelligenceApi.getWorkspaceGraph(workspaceSlug, { layers, limit }, signal)
+      const data = cached ?? await intelligenceApi.getWorkspaceGraph(workspaceSlug, { layers, limit }, signal)
+      if (!cached) graphCacheSet(cacheKey, data)
 
       // Store project metadata
       setProjectMetas(data.projects)
@@ -253,7 +261,8 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
   const fetchGraph = useCallback(async () => {
     const layers = Array.from(visibleLayers) as string[]
     fetchedLayersRef.current.clear()
-    await fetchGraphForLayers(layers, nodeLimit)
+    // Explicit refresh must bypass the cache.
+    await fetchGraphForLayers(layers, nodeLimit, undefined, undefined, true)
   }, [visibleLayers, nodeLimit, fetchGraphForLayers])
 
   // Fetch workspace summary (aggregated)
