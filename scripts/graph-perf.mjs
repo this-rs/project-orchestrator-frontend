@@ -156,6 +156,16 @@ async function capture(chrome, base, n) {
     await tab.send('Emulation.setDeviceMetricsOverride', { width: VIEWPORT.width, height: VIEWPORT.height, deviceScaleFactor: 1, mobile: false })
     const tNav = Date.now()
     await tab.send('Page.navigate', { url: base + ROUTE })
+    // the code map is the default view now: switch the graph to 3D before measuring
+    for (let i = 0; i < 100; i++) {
+      const box = await tab.evaluate(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '3D'); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })()`)
+      if (box) {
+        await tab.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1 })
+        await tab.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1 })
+        break
+      }
+      await sleep(200)
+    }
 
     // wait: loaded, no API traffic, and a renderer observed with a stable draw-call count
     const t0 = Date.now()

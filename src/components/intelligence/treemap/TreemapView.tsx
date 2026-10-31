@@ -15,13 +15,15 @@ interface TreemapViewProps {
   /** Rendered inside the map (e.g. NodeInspector overlay). */
   children?: React.ReactNode
   className?: string
+  /** Fill the parent (h-full) instead of the fixed inline height. */
+  fill?: boolean
 }
 
 const GAP = 2
 const MIN_LABEL_W = 56
 const MIN_LABEL_H = 22
 
-export function TreemapView({ nodes, edges, selectedId, onSelect, children, className = '' }: TreemapViewProps) {
+export function TreemapView({ nodes, edges, selectedId, onSelect, children, className = '', fill = false }: TreemapViewProps) {
   const { t } = useT()
   const [prism, setPrism] = useState<TreemapPrism>('risk')
   const [folder, setFolder] = useState('')
@@ -70,7 +72,7 @@ export function TreemapView({ nodes, edges, selectedId, onSelect, children, clas
 
   return (
     <div
-      className={`flex flex-col bg-[var(--color-surface-base)] ${fullscreen ? 'fixed inset-0 z-[9999]' : 'h-[420px] sm:h-[540px]'} ${className}`}
+      className={`flex flex-col bg-[var(--color-surface-base)] ${fullscreen ? 'fixed inset-0 z-[9999]' : fill ? 'h-full' : 'h-[420px] sm:h-[540px]'} ${className}`}
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2 border-b border-white/[0.06]">
         <nav aria-label={t('graph.unified.treemapView.path')} className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-xs">

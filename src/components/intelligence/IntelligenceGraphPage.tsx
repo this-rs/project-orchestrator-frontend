@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { lazy, Suspense, useCallback, useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
@@ -22,6 +22,8 @@ import {
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
+import { TreemapView } from './treemap/TreemapView'
+import type { TmEdge, TmNode } from './treemap/treemapLayout'
 import { Branding } from '@/components/ui'
 import type { IntelligenceLayer } from '@/types/intelligence'
 import { useT, type MessageKey } from '@/i18n'
@@ -86,6 +88,8 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
     nodes: layoutedNodes,
     edges,
     allNodes,
+    allEdges,
+    setSelectedNodeId,
     visibleLayers,
     toggleLayer,
     applyPreset,
@@ -100,6 +104,13 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   // Graph-level fullscreen (fills the app window, NOT OS fullscreen)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // Graph view: the code map is the default (readable at any size), 3D is on demand
+  const [graphView, setGraphView] = useState<'treemap' | '3d'>('treemap')
+  const treemapNodes = useMemo<TmNode[]>(() => allNodes as unknown as TmNode[], [allNodes])
+  const treemapEdges = useMemo<TmEdge[]>(
+    () => allEdges.map((e) => ({ source: e.source, target: e.target, type: e.type as string })),
+    [allEdges],
+  )
   // Custom mode — shows LayerControls panel
   const [showCustomPanel, setShowCustomPanel] = useState(false)
   // Inspector collapsed
@@ -185,8 +196,20 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       {/* Spreading Activation search overlay (top-center) */}
       <SpreadingActivation projectSlug={projectSlug} />
 
-      {/* ── Canvas: 3D ───────────────────────────────────────────────── */}
-      <Graph3DErrorBoundary context="Intelligence Graph">
+      {/* ── Canvas: code map (default) or 3D ─────────────────────────── */}
+      {graphView === 'treemap' && (
+        // Reserve the overlay bands: layer presets on top, legend and search at the bottom
+        <div className="absolute inset-x-3 top-14 bottom-28">
+          <TreemapView
+            nodes={treemapNodes}
+            edges={treemapEdges}
+            selectedId={selectedNodeId}
+            onSelect={setSelectedNodeId}
+            fill
+          />
+        </div>
+      )}
+      {graphView === '3d' && <Graph3DErrorBoundary context="Intelligence Graph">
         <Suspense fallback={
           <div className="absolute inset-0 flex items-center justify-center bg-surface-base">
             <div className="text-[var(--text-tertiary)] text-sm flex items-center gap-2">
@@ -197,7 +220,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         }>
           <IntelligenceGraph3D nodes={layoutedNodes} edges={edges} />
         </Suspense>
-      </Graph3DErrorBoundary>
+      </Graph3DErrorBoundary>}
 
       {/* ── Overlay states ── */}
       {showError && (
@@ -240,6 +263,20 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
 
       {/* Controls (bottom-right): brightness slider stacked above fullscreen */}
       <div className="absolute bottom-3 right-3 z-40 flex flex-col items-center gap-1.5">
+        {/* View switch: code map ⇄ 3D */}
+        <div role="group" aria-label={t('graph.unified.view')} className="flex items-center gap-0.5 bg-[var(--color-surface-raised)]/90 backdrop-blur-sm rounded-lg border border-white/[0.1] p-0.5">
+          {(['treemap', '3d'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={graphView === v}
+              onClick={() => setGraphView(v)}
+              className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${graphView === v ? 'bg-[var(--color-primary-muted)] text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'}`}
+            >
+              {v === 'treemap' ? t('graph.unified.treemap') : '3D'}
+            </button>
+          ))}
+        </div>
         {/* Brightness slider (vertical) */}
         <div className="flex flex-col items-center gap-1 bg-surface-raised/90 backdrop-blur-sm rounded-lg border border-border-default shadow-[var(--shadow-md)] p-1">
           <Sun size={11} className="text-[var(--text-tertiary)] shrink-0" aria-hidden="true" />
