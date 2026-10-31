@@ -1,6 +1,14 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  activity: {
+    singular: "Hoạt động",
+    plural: "Hoạt động",
+    description: "Những gì đang chạy ngay lúc này, theo loại.",
+    what: "Hoạt động cho biết các trợ lý đang làm gì trong lúc này: chạy kế hoạch, chạy giao thức và các cuộc trò chuyện.",
+    why: "Bạn thấy ngay công việc có tiến triển không và lần chạy nào đang chờ bạn trả lời.",
+    different: "Hôm nay mỗi lần chạy ở một màn hình riêng; ở đây chúng là một bảng, mỗi cái với chi tiết của loại đó.",
+  },
   overview: {
     singular: "Tổng quan",
     description: "Công việc trong không gian làm việc hiện đang ở đâu.",

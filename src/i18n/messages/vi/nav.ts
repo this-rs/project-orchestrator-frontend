@@ -9,6 +9,7 @@ export default {
     system: "Hệ thống",
   },
   concepts: {
+    activity: "Hoạt động",
     overview: "Tổng quan",
     trajectory: "Lộ trình",
     projects: "Dự án",

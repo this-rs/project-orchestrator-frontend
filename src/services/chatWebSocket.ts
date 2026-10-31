@@ -580,6 +580,20 @@ export class ChatWebSocket {
   // Private
   // --------------------------------------------------------------------------
 
+  /**
+   * Re-open the socket on the SAME session, then reload its tail from REST.
+   *
+   * A provider switch keeps the session id but replaces its engine: the server
+   * closes the old broadcast channel quietly, so this socket goes dormant and
+   * never hears the new engine. Nothing else reconnects it — `connect()` is a
+   * no-op for an unchanged session id. Callers use this, not `connect()`.
+   */
+  reconnectSameSession(reason: string) {
+    if (!this._sessionId) return
+    this.resyncOnNextAuth = true
+    this.forceReconnect(reason)
+  }
+
   private setStatus(status: WsConnectionStatus) {
     this._status = status
     this.onStatusChange?.(status)

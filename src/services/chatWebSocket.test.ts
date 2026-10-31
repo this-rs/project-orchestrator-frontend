@@ -340,3 +340,65 @@ describe('ChatWebSocket — stream resume (stuck “…” recovery)', () => {
     expect(localHistory).not.toContain('reconnecting')
   })
 })
+
+// ---------------------------------------------------------------------------
+// Provider switch keeps the session id: the socket must re-open on it
+// ---------------------------------------------------------------------------
+
+describe('ChatWebSocket — reconnectSameSession after an in-place provider switch', () => {
+  let ws: ChatWebSocket
+  let mock: ReturnType<typeof mockCreateWebSocket>
+  let statusHistory: WsConnectionStatus[]
+  let resyncs: number
+
+  const flushAsync = () => new Promise((r) => setTimeout(r, 0))
+
+  beforeEach(async () => {
+    vi.resetModules()
+    mock = mockCreateWebSocket()
+
+    const mod = await import('./chatWebSocket')
+    ws = new mod.ChatWebSocket()
+
+    statusHistory = []
+    resyncs = 0
+    ws.setCallbacks({
+      onStatusChange: (status) => statusHistory.push(status),
+      onResync: () => {
+        resyncs += 1
+      },
+    })
+
+    await ws.connect('switched-session', 0)
+    mock.triggerOpen()
+    mock.serverSend({ type: 'auth_ok' })
+    // The server closed the old engine's channel quietly: the socket goes dormant.
+    mock.serverSend({ type: 'session_dormant', message: 'switched' })
+  })
+
+  afterEach(() => {
+    ws.disconnect()
+  })
+
+  it('drops the dormant socket and re-opens on the same session, with a REST resync', async () => {
+    ws.reconnectSameSession('provider_switch')
+    await flushAsync()
+
+    expect(mock.mockWs.close).toHaveBeenCalled()
+    expect(statusHistory).toContain('reconnecting')
+    expect(ws.sessionId).toBe('switched-session')
+
+    mock.triggerOpen()
+    mock.serverSend({ type: 'auth_ok' })
+    expect(ws.status).toBe('connected')
+    expect(resyncs).toBeGreaterThanOrEqual(1)
+  })
+
+  it('does nothing before any session is set', async () => {
+    vi.resetModules()
+    const mod = await import('./chatWebSocket')
+    const fresh = new mod.ChatWebSocket()
+    expect(() => fresh.reconnectSameSession('provider_switch')).not.toThrow()
+    expect(fresh.status).not.toBe('reconnecting')
+  })
+})

@@ -1,6 +1,27 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  hub: {
+    conversations: "对话",
+    other: "其他动态",
+    all: "全部",
+    filterType: "类型",
+    filterStatus: "状态",
+    emptyTitle: "没有任何运行",
+    emptyDescription: "计划运行、协议和对话在工作时会出现在这里。",
+    log: "实时日志",
+    logEmpty: "还没有动态。",
+    follow: "跟随",
+    gap: "丢掉了 {count} 个事件——列表已刷新。",
+    pulse: "卡片动画",
+    idle: "空闲",
+    waiting: "{count} 个等你回复",
+    background: "{count} 个在后台",
+    activeTasks: "进行中的任务",
+    connectionLive: "实时",
+    connectionReconnecting: "正在重连…",
+    connectionOffline: "离线",
+  },
   status: {
     running: '运行中',
     queued: '排队中',

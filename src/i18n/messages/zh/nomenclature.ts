@@ -1,6 +1,14 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  activity: {
+    singular: "动态",
+    plural: "动态",
+    description: "此刻正在运行的内容，按类型划分。",
+    what: "动态显示助手此刻在做什么：计划运行、协议运行和对话。",
+    why: "一眼看出工作是否在推进，以及哪个运行在等您回复。",
+    different: "如今每个运行都在自己的页面上；这里它们合成一块看板，各自带着属于自己的细节。",
+  },
   overview: {
     singular: "概览",
     description: "工作区此刻的状况。",

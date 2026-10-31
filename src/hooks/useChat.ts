@@ -2769,8 +2769,14 @@ export function useChat() {
     store.set(chatFollowRequestAtom, null)
     store.set(moveChatDraftAtom, { from: followRequest.fromSessionId, to: followRequest.sessionId })
     store.set(chatFollowNoticeAtom, followRequest.notice ? { sessionId: followRequest.sessionId, ...followRequest.notice } : null)
+    // An in-place switch keeps the session id: `loadSession` is a no-op on it and the
+    // socket effect does not re-run, so the socket must be re-opened here.
+    if (followRequest.sessionId === store.get(chatSessionIdAtom)) {
+      getWs().reconnectSameSession('provider_switch')
+      return
+    }
     void loadSession(followRequest.sessionId)
-  }, [followRequest, loadSession, store])
+  }, [followRequest, loadSession, store, getWs])
 
   /**
    * Cancel the running tools over the socket (`cancel_tools` frame) when it is open on

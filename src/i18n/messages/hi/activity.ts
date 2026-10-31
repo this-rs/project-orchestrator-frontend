@@ -1,6 +1,27 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  hub: {
+    conversations: "बातचीत",
+    other: "अन्य गतिविधि",
+    all: "सब",
+    filterType: "किस्म",
+    filterStatus: "स्थिति",
+    emptyTitle: "कुछ नहीं चल रहा",
+    emptyDescription: "प्लान रन, प्रोटोकॉल और बातचीत काम करते समय यहाँ दिखती हैं।",
+    log: "लाइव लॉग",
+    logEmpty: "अभी कोई गतिविधि नहीं।",
+    follow: "फ़ॉलो करें",
+    gap: "{count} इवेंट छूट गए — सूची फिर से लोड की गई।",
+    pulse: "कार्ड एनिमेट करें",
+    idle: "निष्क्रिय",
+    waiting: "{count} आपका जवाब चाहते हैं",
+    background: "{count} पृष्ठभूमि में",
+    activeTasks: "सक्रिय कार्य",
+    connectionLive: "लाइव",
+    connectionReconnecting: "फिर से जुड़ रहे हैं…",
+    connectionOffline: "ऑफ़लाइन",
+  },
   status: {
     running: 'चल रहा है',
     queued: 'कतार में',

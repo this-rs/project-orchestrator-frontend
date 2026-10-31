@@ -9,6 +9,7 @@ export default {
     system: "Система",
   },
   concepts: {
+    activity: "Активность",
     overview: "Обзор",
     trajectory: "Траектория",
     projects: "Проекты",

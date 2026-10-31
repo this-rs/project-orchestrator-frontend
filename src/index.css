@@ -992,3 +992,22 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .trace-running { animation: none; }
 }
+
+/* ─── Live Activity Hub: the pulse a card plays when it just received an event ── */
+/*
+ * Decoration that answers one question ("did anything move?") and nothing else:
+ * a ring in the card's own type colour, expanding once and fading out. Keyed by
+ * the event's sequence number, so the element is remounted and the animation
+ * restarts without a timer in JS. Off entirely under prefers-reduced-motion —
+ * the card still re-renders, it just does not move.
+ */
+@keyframes activity-pulse-ring {
+  0%   { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--entity-tint) 70%, transparent); opacity: 1; }
+  100% { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--entity-tint) 0%, transparent); opacity: 0; }
+}
+.activity-pulse-ring {
+  animation: activity-pulse-ring 900ms var(--ease-standard) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .activity-pulse-ring { animation: none; }
+}

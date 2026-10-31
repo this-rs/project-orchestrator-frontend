@@ -1,6 +1,27 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  hub: {
+    conversations: "Cuộc trò chuyện",
+    other: "Hoạt động khác",
+    all: "Tất cả",
+    filterType: "Loại",
+    filterStatus: "Trạng thái",
+    emptyTitle: "Không có gì đang chạy",
+    emptyDescription: "Các lần chạy kế hoạch, giao thức và cuộc trò chuyện xuất hiện ở đây khi đang làm việc.",
+    log: "Nhật ký trực tiếp",
+    logEmpty: "Chưa có hoạt động.",
+    follow: "Theo dõi",
+    gap: "Đã mất {count} sự kiện — danh sách đã được làm mới.",
+    pulse: "Tạo hiệu ứng cho thẻ",
+    idle: "Nghỉ",
+    waiting: "{count} đang chờ bạn",
+    background: "{count} ở nền",
+    activeTasks: "Tác vụ đang chạy",
+    connectionLive: "Trực tiếp",
+    connectionReconnecting: "Đang kết nối lại…",
+    connectionOffline: "Ngoại tuyến",
+  },
   status: {
     running: 'Đang chạy',
     queued: 'Đang xếp hàng',

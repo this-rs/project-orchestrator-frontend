@@ -9,6 +9,7 @@ export default {
     system: "系统",
   },
   concepts: {
+    activity: "动态",
     overview: "概览",
     trajectory: "轨迹",
     projects: "项目",

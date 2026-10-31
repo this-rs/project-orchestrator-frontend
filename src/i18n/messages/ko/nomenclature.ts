@@ -1,6 +1,14 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  activity: {
+    singular: "활동",
+    plural: "활동",
+    description: "지금 실행 중인 것을 종류별로.",
+    what: "활동은 어시스턴트가 지금 무엇을 하는지 보여 줍니다: 플랜 실행, 프로토콜 실행, 대화입니다.",
+    why: "작업이 진행되는지, 어떤 실행이 답을 기다리는지 한눈에 보입니다.",
+    different: "지금은 실행마다 화면이 따로 있지만, 여기서는 하나의 보드에 각자의 세부 정보와 함께 모입니다.",
+  },
   overview: {
     singular: '개요',
     description: '워크스페이스의 현재 상태.',

@@ -53,6 +53,7 @@ import {
   SharingPage,
   RunnerDashboard,
   PipelineDashboardPage,
+  ActivityHubPage,
   TriggerDashboardPage,
   IntelligencePage,
 
@@ -246,6 +247,7 @@ function App() {
                         <Route path={ENTITY_PATH.conversation} element={<ChatSessionPage />} />
                         <Route path="chat/:sessionId/timeline" element={<ChatTimelinePage />} />
                         <Route path="pipelines" element={<PipelineDashboardPage />} />
+                        <Route path="activity" element={<ActivityHubPage />} />
                         <Route path="triggers" element={<TriggerDashboardPage />} />
                         <Route path="sharing" element={<SharingPage />} />
                         <Route path="neural-routing" element={<NeuralRoutingPage />} />

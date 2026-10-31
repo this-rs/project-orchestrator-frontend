@@ -7,6 +7,7 @@ export default {
     system: 'System',
   },
   concepts: {
+    activity: "Activity",
     overview: 'Overview',
     trajectory: 'Trajectory',
     projects: 'Projects',

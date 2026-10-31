@@ -31,6 +31,7 @@ import {
   Plug,
   Lightbulb,
   Sun,
+  Radio,
   GitBranch,
   Rocket,
   Files,
@@ -71,6 +72,7 @@ export type ConceptKey =
   | 'admin'
   | 'insights'
   | 'today'
+  | 'activity'
   | 'trajectory'
   | 'deployments'
   | 'documents'
@@ -665,6 +667,32 @@ export const NOMENCLATURE: Record<ConceptKey, Concept> = {
       },
     },
   },
+  activity: {
+    get singular() {
+      return tr('nomenclature.activity.singular')
+    },
+    get plural() {
+      return tr('nav.concepts.activity')
+    },
+    get description() {
+      return tr('nomenclature.activity.description')
+    },
+    icon: Radio,
+    tint: '#22d3ee',
+    segment: 'activity',
+    profile: 'all',
+    explain: {
+      get what() {
+        return tr('nomenclature.activity.what')
+      },
+      get why() {
+        return tr('nomenclature.activity.why')
+      },
+      get different() {
+        return tr('nomenclature.activity.different')
+      },
+    },
+  },
   trajectory: {
     get singular() {
       return tr('nomenclature.trajectory.singular')
@@ -856,7 +884,7 @@ export interface NavGroup {
 export const NAV_GROUPS: NavGroup[] = [
   { id: 'work', label: 'Work', items: ['overview', 'trajectory', 'projects', 'objectives', 'plans', 'tasks'] },
   { id: 'memory', label: 'Memory', items: ['notes', 'decisions', 'proposals', 'documents'] },
-  { id: 'assistants', label: 'Assistants', items: ['automation', 'triggers', 'personas', 'skills', 'protocols'] },
+  { id: 'assistants', label: 'Assistants', items: ['activity', 'automation', 'triggers', 'personas', 'skills', 'protocols'] },
   { id: 'code', label: 'Code', items: ['code', 'featureGraphs', 'architecture', 'deployments'] },
   { id: 'system', label: 'System', items: ['sharing', 'mcpFederation', 'neuralRouting', 'admin'], collapsed: true },
 ]

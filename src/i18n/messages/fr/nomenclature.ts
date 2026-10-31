@@ -1,6 +1,14 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  activity: {
+    singular: "Activité",
+    plural: "Activité",
+    description: "Ce qui tourne en ce moment, par nature.",
+    what: "L’activité montre ce que font les assistants à cet instant : exécutions de plans, exécutions de protocoles et conversations.",
+    why: "Vous voyez d’un coup d’œil si le travail avance, et quelle exécution attend une réponse de votre part.",
+    different: "Aujourd’hui chaque exécution vit sur son propre écran ; ici elles forment un seul tableau, chacune avec le détail qui lui appartient.",
+  },
   overview: {
     singular: 'Vue d\'ensemble',
     description: 'Où en est l\'espace de travail en ce moment.',
