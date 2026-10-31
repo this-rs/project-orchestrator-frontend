@@ -93,6 +93,10 @@ export default {
   bg: {
     title: 'Background activity',
     listAria: 'Background activities',
+    noWork: 'nothing but provider notices',
+    noticeOne: '{count} provider notice',
+    noticeMany: '{count} provider notices',
+    noticesAria: 'Provider notices — telemetry, no work',
     summary: {
       running: '{count} running',
       queued: '{count} queued',
@@ -125,11 +129,16 @@ export default {
     parameters: 'Parameters',
     latestOutput: 'Latest output',
     output: 'Output',
+    result: 'Result',
+    watched: 'Watched output',
+    outputInFile: 'The output went to the task’s file (above); the provider keeps it out of the stream.',
     kind: {
       workflow: 'Workflow',
       shell: 'Background command',
       monitor: 'Monitor',
       agent: 'Sub-agent',
+      message: 'Background agent',
+      notice: 'Provider notice',
       generic: 'Background activity',
     },
     status: {

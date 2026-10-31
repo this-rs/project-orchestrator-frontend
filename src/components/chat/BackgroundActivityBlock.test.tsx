@@ -189,10 +189,11 @@ describe('shell renderer', () => {
       data: { command: 'npm run build && npm test', timeout: 9000 },
     })
 
-  it('shows the command as code and a collapsed output tail', () => {
+  it('shows a one-line command once — in the row — and a collapsed output tail', () => {
     render(withTasks(['b1'], <BackgroundActivityBlock block={shell()} />))
     unfold()
-    expect(screen.getByText('npm run build && npm test', { selector: 'div.font-mono' })).toBeInTheDocument()
+    // The row IS the command: repeating it in the body would be the same line twice.
+    expect(screen.getAllByText('npm run build && npm test')).toHaveLength(1)
     const outputToggle = screen.getByRole('button', { name: /Output · 20 lines/ })
     expect(outputToggle).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(outputToggle)
@@ -204,7 +205,21 @@ describe('shell renderer', () => {
     expect(screen.getByLabelText('Output').textContent).toContain('line 0')
   })
 
-  it('opens short output straight away and offers the raw payload only as a last resort', () => {
+  it('keeps a multi-line command out of the row and folds it in the body', () => {
+    // What the CLI actually sends for a background Bash task: the whole script.
+    const script = "cd frontend && python3 - <<'EOF'\nimport re\nprint('x')\nEOF\nnpm run build"
+    const b = block({ correlation_id: 'b1', source: 'Workflow', entries: [tick(1)], data: { task_type: 'local_bash', description: script } })
+    render(withTasks(['b1'], <BackgroundActivityBlock block={b} />))
+    unfold()
+    const card = screen.getByTestId('background-activity-card')
+    // The row says the first line and "+4", never the five lines.
+    expect(within(card).getByTitle(/cd frontend && python3/)).toHaveTextContent("cd frontend && python3 - <<'EOF'")
+    expect(within(card).getByText('+4')).toBeInTheDocument()
+    // …and the body opens it whole.
+    expect(within(card).getByText(/npm run build$/)).toBeInTheDocument()
+  })
+
+  it('never offers a raw payload for a command: its facts and its output are the interface', () => {
     const b = block({
       correlation_id: 'b1',
       source: 'BashOutput',
@@ -214,10 +229,16 @@ describe('shell renderer', () => {
     unfold()
     expect(screen.getByLabelText('Output')).toHaveTextContent('hi')
     expect(screen.getByLabelText('Parameters')).toHaveTextContent('Exit code0')
-    const raw = screen.getByRole('button', { name: 'Raw payload' })
-    expect(raw).toHaveAttribute('aria-expanded', 'false')
-    fireEvent.click(raw)
-    expect(screen.getByLabelText('Raw payload', { selector: 'pre' })).toHaveTextContent('"exit_code": 0')
+    expect(screen.queryByRole('button', { name: 'Raw payload' })).not.toBeInTheDocument()
+  })
+
+  it('does not repeat the command as a “Task” parameter', () => {
+    const b = block({ correlation_id: 'b1', source: 'Workflow', entries: [tick(1)], data: { task_type: 'local_bash', description: 'ls -la\npwd' } })
+    render(withTasks(['b1'], <BackgroundActivityBlock block={b} />))
+    unfold()
+    // The script is the subject of the card (title + body), never a chip: a
+    // chip carrying twenty lines is what buried the header.
+    expect(screen.queryByText('Task')).not.toBeInTheDocument()
   })
 })
 
@@ -263,10 +284,33 @@ describe('accessibility + truncation', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('notes earlier events that were not kept', () => {
-    render(withTasks(['toolu_X'], <BackgroundActivityBlock block={block({ count: 25, entries: [tick(1), tick(2)] })} />))
+  it('notes earlier events that were not kept, for an activity of unknown nature', () => {
+    // A Monitor's ticks ARE its output: its timeline would repeat the stream.
+    // The note belongs to the one kind where the ticks are all we have.
+    render(withTasks(['toolu_X'], <BackgroundActivityBlock block={block({ source: 'custom', count: 25, entries: [tick(1), tick(2)] })} />))
     unfold()
     fireEvent.click(screen.getByRole('button', { name: /Timeline · 25 events/ }))
     expect(screen.getByRole('list', { name: /events of/i })).toHaveTextContent('23 earlier events not kept')
+  })
+
+  it('folds provider telemetry instead of drawing a card per notice', () => {
+    // 27 % of the measured background feed: thinking tokens, status pings, init.
+    render(
+      withTasks([], (
+        <BackgroundActivityGroup
+          blocks={[
+            block({ correlation_id: 'c1', source: 'system:thinking_tokens', entries: [tick(1, 'system:thinking_tokens', '{"estimated_tokens":255}')] }, 'b-1'),
+            block({ correlation_id: 'c2', source: 'system:status', entries: [tick(2, 'system:status', '{"status":"requesting"}')] }, 'b-2'),
+            block({ correlation_id: 'c3', source: 'Workflow', entries: [tick(3)], data: { task_type: 'local_bash', description: 'npm test' } }, 'b-3'),
+          ]}
+        />
+      )),
+    )
+    unfold()
+    // One card — the command — and no card for the two notices.
+    expect(screen.getAllByTestId('background-activity-card')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /2 provider notices/ })).toBeInTheDocument()
+    expect(document.body.textContent).not.toContain('estimated_tokens')
+    expect(document.body.textContent).not.toContain('Raw payload')
   })
 })

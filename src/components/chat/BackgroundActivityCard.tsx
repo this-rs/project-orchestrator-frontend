@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
-import { Activity, Bot, ChevronRight, Radar, Terminal, Workflow, type LucideIcon } from 'lucide-react'
+import { Activity, Bot, ChevronRight, Info, MessageSquare, Radar, Terminal, Workflow, type LucideIcon } from 'lucide-react'
 import { useT } from '@/i18n'
+import { tr } from '@/i18n/lazy'
 import { MetaLine } from '@/components/ui/MetaLine'
 import { ProgressLine } from '@/components/ui/ProgressLine'
 import { StatusDot, ToneText } from '@/components/ui/Status'
@@ -21,6 +22,8 @@ const KIND_META: Record<ActivityKind, { icon: LucideIcon }> = {
   shell: { icon: Terminal },
   monitor: { icon: Radar },
   agent: { icon: Bot },
+  message: { icon: MessageSquare },
+  notice: { icon: Info },
   generic: { icon: Activity },
 }
 
@@ -105,11 +108,60 @@ function Disclosure({
   )
 }
 
-function CommandBlock({ command }: { command: string }) {
+/** Lines of a command shown before the row offers to unfold it. */
+const COMMAND_CLAMP_LINES = 3
+
+/**
+ * The command of a background task, drawn the way the transcript draws a Bash
+ * call (`$` then the command) — one shape for one thing, wherever it appears.
+ *
+ * `description` of a CLI background Bash task is the whole script: heredocs,
+ * pipes, `python3 - <<'EOF'`… Twenty lines pasted into a list row is what made
+ * the panel unreadable, so the row is clamped and the full text opens on demand.
+ */
+function CommandBlock({ command, lines }: { command: string; lines: number }) {
+  const { t } = useT()
+  const [open, setOpen] = useState(false)
+  const long = lines > COMMAND_CLAMP_LINES
   return (
-    <div className="rounded border border-white/[0.06] bg-black/20 px-2 py-1.5 text-[11px] text-gray-200">
-      <ExpandableText text={command} mono />
+    <div className="rounded border border-white/[0.06] bg-black/30 px-2 py-1.5 text-[11px] leading-4 font-mono text-gray-300">
+      <div className="flex items-start gap-2">
+        <span aria-hidden="true" className="shrink-0 select-none text-emerald-500/70">
+          $
+        </span>
+        <div className={`min-w-0 flex-1 whitespace-pre-wrap break-all ${long && !open ? 'line-clamp-3' : ''}`}>
+          {command}
+        </div>
+        {long && (
+          <span className="shrink-0 select-none text-[10px] tabular-nums text-gray-600">
+            {t('chatA-activity.card.lineMany', { count: lines })}
+          </span>
+        )}
+      </div>
+      {long && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className={`${hitArea} rounded text-[11px] text-indigo-400 hover:text-indigo-300 ${focusRingInset}`}
+        >
+          {open ? t('chatA-activity.card.showLess') : t('chatA-activity.card.showMore')}
+        </button>
+      )}
     </div>
+  )
+}
+
+/** Where a background task puts its output, said plainly — the backend cannot read it for us. */
+function OutputFile({ path }: { path: string }) {
+  const { t } = useT()
+  return (
+    <p className="flex min-w-0 items-baseline gap-1 text-[11px] text-gray-500">
+      <span className="shrink-0">{t('activity.param.outputFile')}</span>
+      <span className="min-w-0 truncate font-mono text-gray-400" title={path}>
+        {path}
+      </span>
+    </p>
   )
 }
 
@@ -247,12 +299,103 @@ function RawPayload({ raw }: { raw: NonNullable<ActivityModel['raw']> }) {
 }
 
 // ---------------------------------------------------------------------------
-// Specialised bodies
+// Specialised bodies — one shape per NATURE of thing, never one shape for all
 // ---------------------------------------------------------------------------
+
+/** The output file a task names, when it is a real path the provider wrote. */
+function outputFilePath(activity: ActivityModel): string | undefined {
+  const param = activity.params.find((p) => p.label === tr('activity.param.outputFile'))
+  return param?.value?.trim() || undefined
+}
+
+function lines(text: string | undefined): string[] {
+  if (!text) return []
+  return text.replace(/\r\n/g, '\n').replace(/\n+$/, '').split('\n')
+}
+
+/** A background command: what was run, then what came back. Nothing else. */
+function ShellBody({ activity }: { activity: ActivityModel }) {
+  const { t } = useT()
+  const resultLines = lines(activity.result)
+  const streamLines = activity.outputLines
+  const file = outputFilePath(activity)
+  // The command is the subject of the row already when it fits on one line;
+  // the body shows it whole as soon as it does not.
+  const showCommand = !!activity.command && (activity.commandLines > 1 || activity.command.includes('\n'))
+  return (
+    <div className="space-y-1.5 px-3 pb-2.5 pt-1">
+      {showCommand && <CommandBlock command={activity.command!} lines={activity.commandLines} />}
+      <OutputTail lines={resultLines} label={t('chatA-activity.card.result')} />
+      <OutputTail lines={streamLines} label={t('chatA-activity.card.output')} />
+      {file && <OutputFile path={file} />}
+      {!activity.result && streamLines.length === 0 && activity.status !== 'running' && file && (
+        <p className="text-[11px] text-gray-600">{t('chatA-activity.card.outputInFile')}</p>
+      )}
+    </div>
+  )
+}
+
+/** A background sub-agent: what it was asked, what it used, and what it answered. */
+function AgentBody({ activity }: { activity: ActivityModel }) {
+  const { t } = useT()
+  return (
+    <div className="space-y-2 px-3 pb-2.5 pt-1">
+      <OutputTail lines={lines(activity.result)} label={t('chatA-activity.card.result')} />
+      {activity.usage && <UsageLine usage={activity.usage} />}
+      <OutputTail lines={activity.outputLines} label={t('chatA-activity.card.latestOutput')} />
+      <Timeline activity={activity} />
+      {activity.raw && <RawPayload raw={activity.raw} />}
+    </div>
+  )
+}
+
+/** A background agent's own words: a message, drawn as text — not a task with a payload. */
+function MessageBody({ activity }: { activity: ActivityModel }) {
+  const text = activity.outputLines.join('\n').trim() || activity.result || ''
+  // The row already reads the first line; the body only adds what does not fit.
+  const more = text.length > activity.title.length
+  return (
+    <div className="space-y-1.5 px-3 pb-2.5 pt-1 text-xs">
+      {more ? <ExpandableText text={text} className="text-gray-300" /> : null}
+      {activity.model && (
+        <p className="text-[11px] text-gray-600">
+          {tr('activity.param.model')} <span className="font-mono text-gray-500">{activity.model}</span>
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** A Workflow tool: the fan-out when the provider reports agents, its report otherwise. */
+function WorkflowBody({ activity }: { activity: ActivityModel }) {
+  const { t } = useT()
+  return (
+    <div className="space-y-2 px-3 pb-2.5 pt-1">
+      {activity.agents.length > 0 ? (
+        <AgentList activity={activity} />
+      ) : (
+        <OutputTail lines={lines(activity.result)} label={t('chatA-activity.card.result')} />
+      )}
+      {activity.usage && <UsageLine usage={activity.usage} />}
+      <Timeline activity={activity} />
+      {activity.raw && <RawPayload raw={activity.raw} />}
+    </div>
+  )
+}
+
+/** A Monitor: the stream it watched, newest last. */
+function MonitorBody({ activity }: { activity: ActivityModel }) {
+  const { t } = useT()
+  return (
+    <div className="space-y-1.5 px-3 pb-2.5 pt-1">
+      {activity.command && <CommandBlock command={activity.command} lines={activity.commandLines} />}
+      <OutputTail lines={activity.outputLines} label={t('chatA-activity.card.watched')} />
+    </div>
+  )
+}
 
 function ActivityBody({ activity }: { activity: ActivityModel }) {
   const { t } = useT()
-  const { kind } = activity
   const chips = activity.params
   return (
     <div className="space-y-2 px-3 pb-2.5 pt-1 text-xs">
@@ -264,14 +407,22 @@ function ActivityBody({ activity }: { activity: ActivityModel }) {
         </div>
       )}
 
-      {kind === 'workflow' && activity.agents.length > 0 && <AgentList activity={activity} />}
-      {(kind === 'shell' || kind === 'monitor') && activity.command && <CommandBlock command={activity.command} />}
-      {kind === 'generic' && <DetailList details={activity.details} />}
-      {activity.usage && <UsageLine usage={activity.usage} />}
-
-      <OutputTail lines={activity.outputLines} label={kind === 'agent' ? t('chatA-activity.card.latestOutput') : t('chatA-activity.card.output')} />
-      <Timeline activity={activity} />
-      {activity.raw && <RawPayload raw={activity.raw} />}
+      {activity.kind === 'shell' && <ShellBody activity={activity} />}
+      {activity.kind === 'monitor' && <MonitorBody activity={activity} />}
+      {activity.kind === 'agent' && <AgentBody activity={activity} />}
+      {activity.kind === 'message' && <MessageBody activity={activity} />}
+      {activity.kind === 'workflow' && <WorkflowBody activity={activity} />}
+      {/* What is NOT known keeps everything: an unknown payload is the one case
+          where the raw data is the only honest thing to show, folded. */}
+      {activity.kind === 'generic' && (
+        <>
+          <DetailList details={activity.details} />
+          <OutputTail lines={activity.outputLines} label={t('chatA-activity.card.output')} />
+          <Timeline activity={activity} />
+          {activity.raw && <RawPayload raw={activity.raw} />}
+        </>
+      )}
+      {activity.kind === 'notice' && <DetailList details={activity.details} />}
     </div>
   )
 }
@@ -281,6 +432,12 @@ function collapsedHint(activity: ActivityModel, agentsLabel: (settled: number, t
   if (activity.kind === 'workflow' && activity.agents.length > 0) {
     const { settled, total } = agentProgress(activity.agents)
     return agentsLabel(settled, total)
+  }
+  // A shell task's title already IS its command, and its last event repeats it:
+  // the useful line is what came back, or nothing.
+  if (activity.kind === 'shell') {
+    const first = activity.result?.split('\n').find((l) => l.trim() !== '')?.trim()
+    return first ?? ''
   }
   const last = activity.events[activity.events.length - 1]
   return last?.detail ?? ''
@@ -322,11 +479,23 @@ export function ActivityCard({ activity, defaultOpen = false, className = '' }: 
         <Icon aria-hidden="true" className="mt-0.5 w-3.5 h-3.5 shrink-0 text-gray-500" />
         <span className="min-w-0 flex-1">
           <span className="sr-only">{kindLabel}: </span>
-          <span
-            className={`block text-xs text-gray-200 break-words line-clamp-2 ${activity.kind === 'shell' ? 'font-mono' : ''}`}
-            title={activity.title}
-          >
-            {activity.title}
+          {/* ONE line always: a background script's twenty lines belong in the
+              body, never in the row that stands for it. */}
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            <span
+              className={`min-w-0 truncate text-xs text-gray-200 ${activity.kind === 'shell' ? 'font-mono' : ''}`}
+              title={activity.command ?? activity.title}
+            >
+              {activity.title}
+            </span>
+            {activity.kind === 'shell' && activity.commandLines > 1 && (
+              <span
+                className="shrink-0 text-[10px] tabular-nums text-gray-600"
+                title={t('chatA-activity.card.lineMany', { count: activity.commandLines })}
+              >
+                +{activity.commandLines - 1}
+              </span>
+            )}
           </span>
           {!open && (
             <MetaLine

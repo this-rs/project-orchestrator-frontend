@@ -121,6 +121,10 @@ export default {
   bg: {
     title: "बैकग्राउंड गतिविधि",
     listAria: "बैकग्राउंड गतिविधियाँ",
+    noWork: "केवल प्रदाता की सूचनाएँ",
+    noticeOne: "{count} प्रदाता सूचना",
+    noticeMany: "{count} प्रदाता सूचनाएँ",
+    noticesAria: "प्रदाता सूचनाएँ — टेलीमेट्री, कोई कार्य नहीं",
     summary: {
       running: "{count} चल रहे हैं",
       queued: "{count} कतार में",
@@ -153,11 +157,16 @@ export default {
     parameters: "पैरामीटर",
     latestOutput: "नवीनतम आउटपुट",
     output: "आउटपुट",
+    result: "परिणाम",
+    watched: "निगरानी किया गया आउटपुट",
+    outputInFile: "आउटपुट कार्य की फ़ाइल में गया (ऊपर); प्रदाता उसे स्ट्रीम में नहीं भेजता।",
     kind: {
       workflow: "वर्कफ़्लो",
       shell: "बैकग्राउंड कमांड",
       monitor: "मॉनिटर",
       agent: "सब-एजेंट",
+      message: "पृष्ठभूमि एजेंट",
+      notice: "प्रदाता सूचना",
       generic: "बैकग्राउंड गतिविधि"
     },
     status: {

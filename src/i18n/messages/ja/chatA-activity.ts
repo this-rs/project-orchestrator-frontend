@@ -121,6 +121,10 @@ export default {
   bg: {
     title: "バックグラウンドアクティビティ",
     listAria: "バックグラウンドアクティビティ一覧",
+    noWork: "プロバイダーの通知のみ",
+    noticeOne: "プロバイダー通知 {count} 件",
+    noticeMany: "プロバイダー通知 {count} 件",
+    noticesAria: "プロバイダー通知 — テレメトリー、作業なし",
     summary: {
       running: "{count} 件実行中",
       queued: "{count} 件待機中",
@@ -153,11 +157,16 @@ export default {
     parameters: "パラメーター",
     latestOutput: "最新の出力",
     output: "出力",
+    result: "結果",
+    watched: "監視中の出力",
+    outputInFile: "出力はタスクのファイル（上記）に書き込まれ、プロバイダーはストリームに流しません。",
     kind: {
       workflow: "ワークフロー",
       shell: "バックグラウンドコマンド",
       monitor: "モニター",
       agent: "サブエージェント",
+      message: "バックグラウンドエージェント",
+      notice: "プロバイダー通知",
       generic: "バックグラウンドアクティビティ"
     },
     status: {

@@ -15,6 +15,7 @@ import {
   humanizeKey,
   normalizeState,
   parseContent,
+  partitionActivities,
   subtypeLabel,
   summarizeFields,
   summarizeStatuses,
@@ -139,9 +140,18 @@ describe('workflow agents', () => {
 })
 
 describe('classifyActivity', () => {
-  it('detects each kind', () => {
-    expect(classifyActivity({ source: 'Workflow', fields: {} })).toBe('workflow')
-    expect(classifyActivity({ fields: { workflow_progress: [] } })).toBe('workflow')
+  it('reads the nature from the payload, never from the provider’s label', () => {
+    // MEASURED (stored chat events, week of 2026-10-24): every CLI task
+    // lifecycle arrives as `source: "Workflow"` — background Bash commands
+    // included (199 of 400 sampled ticks were `task_type: local_bash`). Reading
+    // the source name made every background command a card labelled "Workflow".
+    expect(classifyActivity({ source: 'Workflow', fields: { task_type: 'local_bash' } })).toBe('shell')
+    expect(classifyActivity({ source: 'Workflow', fields: { task_type: 'local_agent' } })).toBe('agent')
+    // A `Workflow` label with no fan-out in its payload is NOT a workflow: it
+    // is a task whose kind said nothing else (rendered as a generic activity).
+    expect(classifyActivity({ source: 'Workflow', fields: {} })).toBe('generic')
+    // A real fan-out is recognised by its own payload.
+    expect(classifyActivity({ source: 'Workflow', fields: { workflow_progress: [] } })).toBe('workflow')
     expect(classifyActivity({ fields: { workflow_name: 'wf' } })).toBe('workflow')
     expect(classifyActivity({ source: 'Monitor', fields: {} })).toBe('monitor')
     expect(classifyActivity({ source: 'BashOutput', fields: {} })).toBe('shell')
@@ -150,6 +160,24 @@ describe('classifyActivity', () => {
     expect(classifyActivity({ source: 'Task', fields: {} })).toBe('agent')
     expect(classifyActivity({ subagentType: 'researcher', fields: {} })).toBe('agent')
     expect(classifyActivity({ source: 'system', fields: {} })).toBe('generic')
+  })
+
+  it('never makes an activity out of provider telemetry, and reads a relayed agent as a message', () => {
+    // 27 % of the background feed is `system:*` (thinking tokens, status, init…):
+    // it is counted apart, never listed as work.
+    expect(classifyActivity({ source: 'system:thinking_tokens', fields: {} })).toBe('notice')
+    expect(classifyActivity({ source: 'system:status', fields: {} })).toBe('notice')
+    expect(classifyActivity({ source: 'system:init', fields: {} })).toBe('notice')
+    // A background agent's out-of-turn text is the agent talking, not a task.
+    expect(classifyActivity({ source: 'assistant', fields: {} })).toBe('message')
+  })
+
+  it('partitions work from provider notices', () => {
+    const work = { kind: 'shell' as const }
+    const notice = { kind: 'notice' as const }
+    const { work: w, notices } = partitionActivities([work, notice, work])
+    expect(w).toHaveLength(2)
+    expect(notices).toHaveLength(1)
   })
 })
 

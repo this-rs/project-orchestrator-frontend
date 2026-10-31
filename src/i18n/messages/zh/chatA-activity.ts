@@ -121,6 +121,10 @@ export default {
   bg: {
     title: "后台活动",
     listAria: "后台活动列表",
+    noWork: "仅有提供方通知",
+    noticeOne: "{count} 条提供方通知",
+    noticeMany: "{count} 条提供方通知",
+    noticesAria: "提供方通知 — 遥测，不是工作",
     summary: {
       running: "{count} 个运行中",
       queued: "{count} 个排队中",
@@ -153,11 +157,16 @@ export default {
     parameters: "参数",
     latestOutput: "最新输出",
     output: "输出",
+    result: "结果",
+    watched: "被监视的输出",
+    outputInFile: "输出写入了任务文件（见上），提供方不会把它放进流。",
     kind: {
       workflow: "工作流",
       shell: "后台命令",
       monitor: "监视器",
       agent: "子智能体",
+      message: "后台代理",
+      notice: "提供方通知",
       generic: "后台活动"
     },
     status: {

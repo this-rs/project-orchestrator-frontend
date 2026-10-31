@@ -121,6 +121,10 @@ export default {
   bg: {
     title: "Hoạt động nền",
     listAria: "Các hoạt động nền",
+    noWork: "chỉ có thông báo của nhà cung cấp",
+    noticeOne: "{count} thông báo của nhà cung cấp",
+    noticeMany: "{count} thông báo của nhà cung cấp",
+    noticesAria: "Thông báo của nhà cung cấp — đo từ xa, không có công việc",
     summary: {
       running: "{count} đang chạy",
       queued: "{count} đang chờ",
@@ -153,11 +157,16 @@ export default {
     parameters: "Tham số",
     latestOutput: "Đầu ra mới nhất",
     output: "Đầu ra",
+    result: "Kết quả",
+    watched: "Đầu ra được theo dõi",
+    outputInFile: "Đầu ra đã vào tệp của tác vụ (ở trên); nhà cung cấp không đưa nó vào luồng.",
     kind: {
       workflow: "Workflow",
       shell: "Lệnh nền",
       monitor: "Monitor",
       agent: "Sub-agent",
+      message: "Tác nhân nền",
+      notice: "Thông báo nhà cung cấp",
       generic: "Hoạt động nền"
     },
     status: {

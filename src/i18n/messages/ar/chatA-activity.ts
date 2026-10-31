@@ -121,6 +121,10 @@ export default {
   bg: {
     title: "نشاط في الخلفية",
     listAria: "أنشطة الخلفية",
+    noWork: "مجرد إشعارات من المزود",
+    noticeOne: "{count} إشعار من المزود",
+    noticeMany: "{count} إشعارات من المزود",
+    noticesAria: "إشعارات المزود — قياسات، لا عمل",
     summary: {
       running: "{count} قيد التشغيل",
       queued: "{count} في الانتظار",
@@ -153,11 +157,16 @@ export default {
     parameters: "المعاملات",
     latestOutput: "أحدث مخرجات",
     output: "المخرجات",
+    result: "النتيجة",
+    watched: "المخرجات المراقبة",
+    outputInFile: "ذهبت المخرجات إلى ملف المهمة (أعلاه)؛ المزود لا يرسلها إلى التدفق.",
     kind: {
       workflow: "سير عمل",
       shell: "أمر في الخلفية",
       monitor: "مراقب",
       agent: "وكيل فرعي",
+      message: "وكيل في الخلفية",
+      notice: "إشعار المزود",
       generic: "نشاط في الخلفية"
     },
     status: {

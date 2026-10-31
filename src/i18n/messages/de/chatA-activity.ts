@@ -121,6 +121,10 @@ export default {
   bg: {
     title: "Hintergrundaktivität",
     listAria: "Hintergrundaktivitäten",
+    noWork: "nur Hinweise des Anbieters",
+    noticeOne: "{count} Hinweis des Anbieters",
+    noticeMany: "{count} Hinweise des Anbieters",
+    noticesAria: "Hinweise des Anbieters — Telemetrie, keine Arbeit",
     summary: {
       running: "{count} laufend",
       queued: "{count} wartend",
@@ -153,11 +157,16 @@ export default {
     parameters: "Parameter",
     latestOutput: "Neueste Ausgabe",
     output: "Ausgabe",
+    result: "Ergebnis",
+    watched: "Überwachte Ausgabe",
+    outputInFile: "Die Ausgabe ging in die Datei der Aufgabe (oben); der Anbieter schickt sie nicht in den Stream.",
     kind: {
       workflow: "Workflow",
       shell: "Hintergrundbefehl",
       monitor: "Monitor",
       agent: "Sub-Agent",
+      message: "Hintergrund-Agent",
+      notice: "Hinweis des Anbieters",
       generic: "Hintergrundaktivität"
     },
     status: {
