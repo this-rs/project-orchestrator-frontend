@@ -121,6 +121,10 @@ export default {
   bg: {
     title: "Actividad en segundo plano",
     listAria: "Actividades en segundo plano",
+    noWork: "solo avisos del proveedor",
+    noticeOne: "{count} aviso del proveedor",
+    noticeMany: "{count} avisos del proveedor",
+    noticesAria: "Avisos del proveedor — telemetría, sin trabajo",
     summary: {
       running: "{count} en ejecución",
       queued: "{count} en cola",
@@ -153,11 +157,17 @@ export default {
     parameters: "Parámetros",
     latestOutput: "Última salida",
     output: "Salida",
+    result: "Resultado",
+    watched: "Salida vigilada",
+    outputInFile: "La salida fue al archivo de la tarea (arriba); el proveedor no la envía al flujo.",
+    toolsAria: "Herramientas usadas",
     kind: {
       workflow: "Workflow",
       shell: "Comando en segundo plano",
       monitor: "Monitor",
       agent: "Subagente",
+      message: "Agente en segundo plano",
+      notice: "Aviso del proveedor",
       generic: "Actividad en segundo plano"
     },
     status: {

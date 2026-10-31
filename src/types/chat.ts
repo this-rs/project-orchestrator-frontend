@@ -777,7 +777,7 @@ export type ChatEvent =
       /** How long it lasted, in ms (`up` only). */
       duration_ms?: number
     }
-  | { type: 'background_output'; source: string; content: string; received_at: string; correlation_id?: string }
+  | { type: 'background_output'; source: string; content: string; received_at: string; correlation_id?: string; tool?: BackgroundToolTick }
   | { type: 'workflow'; subtype: string; data: Record<string, unknown> }
   | { type: 'session_error'; reason: string; message: string; received_at: string; code?: string }
   | { type: 'tools_cancelled'; cli_pid?: number; killed_count: number; requested_by: string }
@@ -863,7 +863,7 @@ export const CHAT_EVENT_FIELDS = {
   system_hint: { content: 'required' },
   retrying: { attempt: 'required', max_attempts: 'required', delay_ms: 'required', error_message: 'required' },
   provider_outage: { phase: 'required', provider_id: 'required', failures: 'required', started_at: 'required', cause: 'optional', duration_ms: 'optional' },
-  background_output: { source: 'required', content: 'required', received_at: 'required', correlation_id: 'optional' },
+  background_output: { source: 'required', content: 'required', received_at: 'required', correlation_id: 'optional', tool: 'optional' },
   workflow: { subtype: 'required', data: 'required' },
   session_error: { reason: 'required', message: 'required', received_at: 'required', code: 'optional' },
   tools_cancelled: { cli_pid: 'optional', killed_count: 'required', requested_by: 'required' },
@@ -1104,12 +1104,34 @@ export interface ContentBlock {
  * block's `metadata.child_outputs` (F6) or a `background_activity`
  * block's `metadata.entries` (F10).
  */
+/**
+ * The tool call a background tick IS, when the backend relays it in its
+ * structured form (`ChatEvent::BackgroundOutput::tool`, additive field: absent
+ * on an older frame, and for a purely textual tick such as a `system:*` notice).
+ *
+ * It is what lets the background panel draw the SAME card the transcript draws
+ * for that tool — a `Read` with its path and range, an `Edit` with its diff —
+ * instead of a tool name guessed from a `[tool_use: …]` marker.
+ */
+export interface BackgroundToolTick {
+  /** Tool name as the provider spells it (`Bash`, `Read`, `Edit`…). Empty when a result has no call to name. */
+  name: string
+  /** The call's input, exactly as the in-turn `tool_use` event sends it. */
+  input?: Record<string, unknown>
+  /** True when the tool reported a failure. */
+  is_error?: boolean
+  /** What the tool returned, head only (the backend caps it at 400 characters). */
+  result_head?: string
+}
+
 export interface BackgroundOutputEntry {
   source: string
   content: string
   received_at: string
   /** Workflow lifecycle subtype (`task_started` / `task_progress` / …) when the tick came from a `workflow` event. */
   subtype?: string
+  /** The structured tool call/result, when the backend relays one. */
+  tool?: BackgroundToolTick
 }
 
 /** Cap on the entries kept on a `background_activity` block (count keeps growing). */

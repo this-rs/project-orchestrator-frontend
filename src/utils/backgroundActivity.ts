@@ -7,16 +7,49 @@
  * sometimes `<task-notification>` tags). This module turns them into one
  * normalised `ActivityModel` so the UI never has to show raw JSON:
  *
- * - `classifyActivity`  — workflow | shell | monitor | agent | generic
+ * - `classifyActivity`  — workflow | shell | monitor | agent | message | notice | generic
  * - `deriveStatus`      — running | queued | done | failed | cancelled | ended
  * - `extractParams`     — human-readable key/value parameters
  * - `buildActivity`     — everything the renderer needs, in one object
+ *
+ * WHAT THE PROVIDER ACTUALLY SENDS (measured on the stored chat events,
+ * week of 2026-10-24 — 5 947 `workflow` ticks and 21 500 `background_output`
+ * lines): classification by SOURCE name is a trap. Every task lifecycle of the
+ * CLI (its own background Bash, its sub-agents, its Workflow fan-out) arrives
+ * with `source: "Workflow"`, so `source` says nothing about what the thing is;
+ * `data.task_type` does (`local_bash`, `local_agent`, …). Reading the source
+ * name made every background command render as a card labelled "Workflow",
+ * titled by its whole multi-line command. The NATURE of a tick comes from its
+ * payload, in this order:
+ *
+ * | what it is                      | how it is recognised                              |
+ * |---------------------------------|---------------------------------------------------|
+ * | a background command            | `data.task_type = local_bash`                     |
+ * | a background sub-agent          | `data.task_type = local_agent`, or a subagent type |
+ * | a Workflow fan-out              | `data.workflow_progress[]` / `data.workflow_name`  |
+ * | a Monitor watching a target      | source `Monitor`                                  |
+ * | a background agent's own words   | `background_output` with source `assistant`/`user` |
+ * | provider telemetry (NOT work)    | source `system:*` (thinking tokens, status, init)  |
+ *
+ * That last row is 27 % of the background feed (4 024 `system:thinking_tokens`,
+ * 1 359 `system:status`, 313 `system:init`…): it used to become one activity
+ * card each, complete with a "raw payload" JSON dump. It is not work, it never
+ * belongs in the list of what runs — it is counted, and kept behind one line.
  */
 import type { BackgroundActivityMetadata, BackgroundOutputEntry, ContentBlock } from '@/types'
 import type { StatusTone } from '@/components/ui/statusMeta'
 import { tr } from '@/i18n/lazy'
 
-export type ActivityKind = 'workflow' | 'shell' | 'monitor' | 'agent' | 'generic'
+export type ActivityKind =
+  | 'workflow'
+  | 'shell'
+  | 'monitor'
+  | 'agent'
+  /** A background agent's own words (out-of-turn `assistant` text): a message, not a task. */
+  | 'message'
+  /** Provider telemetry (`system:*`): carries no work, is never listed as an activity. */
+  | 'notice'
+  | 'generic'
 export type ActivityStatus = 'running' | 'queued' | 'done' | 'failed' | 'cancelled' | 'ended'
 
 /** Status of an activity: the label is read when used, so it follows the language on screen. */
@@ -221,6 +254,145 @@ export interface ActivityUsage {
   durationMs?: number
 }
 
+// ---------------------------------------------------------------------------
+// The tools an activity used, in order (the per-TOOL view of a background stream)
+// ---------------------------------------------------------------------------
+
+/**
+ * One tool call seen in a background stream.
+ *
+ * The provider flattens an out-of-turn sub-agent into text lines, and two of
+ * those lines are markers: `[tool_use: Read]` when a call starts, then
+ * `[tool_result] <what it returned>` (measured: 3 989 such markers in three
+ * days). That is the whole per-tool structure that reaches the client — the
+ * call's PARAMETERS are not in it (no path, no pattern, no diff), so this view
+ * names the tool, orders it, and shows what it returned; it never pretends to
+ * show an argument it does not have.
+ */
+export interface ToolTick {
+  key: string
+  name: string
+  /** The call's input, when the backend relays the structured call. */
+  input?: Record<string, unknown>
+  /** First meaningful line the tool returned, cut short. */
+  resultHead?: string
+  /** Everything it returned, folded by the renderer. */
+  resultBody?: string
+  /** The tool reported a failure. */
+  isError?: boolean
+  /** A call with no result yet: the tool that is running NOW. */
+  pending: boolean
+}
+
+/**
+ * The tool flow when the backend RELAYS the calls (PR #1050 on the backend):
+ * each `tool` entry is a call, each `tool_result` entry closes the call above
+ * it. This is the only form that carries the call's INPUT, i.e. the only one
+ * that can render the real per-tool card (a diff, a path, a pattern).
+ */
+export function toolFlowFromEntries(
+  entries: ReadonlyArray<{ source: string; tool?: BackgroundToolLike }>,
+): ToolTick[] {
+  const ticks: ToolTick[] = []
+  for (const entry of entries) {
+    const tool = entry.tool
+    if (!tool) continue
+    if (entry.source === 'tool') {
+      ticks.push({ key: `${ticks.length}-${tool.name}`, name: tool.name, input: tool.input, pending: true })
+      continue
+    }
+    const target = [...ticks].reverse().find((tick) => tick.pending && (!tool.name || sameToolName(tick.name, tool.name))) ?? null
+    if (target) {
+      if (tool.result_head) target.resultHead = cut(tool.result_head.split('\n')[0].trim())
+      target.resultBody = tool.result_head ?? target.resultBody
+      target.isError = tool.is_error === true
+      target.pending = false
+    } else if (tool.name) {
+      // A result whose call is outside the kept entries still counts.
+      ticks.push({
+        key: `${ticks.length}-${tool.name}`,
+        name: tool.name,
+        resultHead: tool.result_head ? cut(tool.result_head.split('\n')[0].trim()) : undefined,
+        resultBody: tool.result_head,
+        isError: tool.is_error === true,
+        pending: false,
+      })
+    }
+  }
+  return ticks
+}
+
+/** The shape the backend stamps on a tick (mirror of `BackgroundToolTick` in types). */
+export interface BackgroundToolLike {
+  name: string
+  input?: Record<string, unknown>
+  is_error?: boolean
+  result_head?: string
+}
+
+function sameToolName(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase()
+}
+
+const TOOL_USE_LINE = /^\[tool_use:\s*([^\]]+)\]$/
+const TOOL_RESULT_PREFIX = '[tool_result]'
+
+/** How much of a tool result one line keeps before it is cut. */
+const RESULT_HEAD_MAX = 120
+
+function cut(text: string, max = RESULT_HEAD_MAX): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
+
+/**
+ * The ordered tool calls of a flattened stream, each with what it returned.
+ * Non-marker lines belong to the result of the call above them, so a
+ * multi-line result stays ONE tick instead of becoming noise lines.
+ */
+export function parseToolFlow(lines: ReadonlyArray<string>): ToolTick[] {
+  const ticks: ToolTick[] = []
+  let current: ToolTick | undefined
+  for (const raw of lines) {
+    const line = raw.trimEnd()
+    const use = TOOL_USE_LINE.exec(line.trim())
+    if (use) {
+      current = { key: `${ticks.length}-${use[1]}`, name: use[1].trim(), pending: true }
+      ticks.push(current)
+      continue
+    }
+    if (line.trimStart().startsWith(TOOL_RESULT_PREFIX)) {
+      // A result closes the last open call.
+      const text = line.trimStart().slice(TOOL_RESULT_PREFIX.length).trim()
+      if (current) {
+        current.resultBody = text
+        current.resultHead = cut(text.split('\n').find((l) => l.trim() !== '')?.trim() ?? '')
+        current.pending = false
+      }
+      continue
+    }
+    if (current && !current.pending && line.trim() !== '') {
+      current.resultBody = `${current.resultBody ?? ''}\n${line}`
+      if (!current.resultHead) current.resultHead = cut(line.trim())
+    }
+  }
+  return ticks
+}
+
+/** How many calls per tool, biggest first — what a row can show without unfolding. */
+export function toolCounts(ticks: ReadonlyArray<ToolTick>): Array<{ name: string; count: number }> {
+  const counts = new Map<string, number>()
+  for (const tick of ticks) counts.set(tick.name, (counts.get(tick.name) ?? 0) + 1)
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+}
+
+/** The tool running now, when the stream has a call with no result yet. */
+export function runningTool(ticks: ReadonlyArray<ToolTick>): ToolTick | undefined {
+  for (let i = ticks.length - 1; i >= 0; i--) if (ticks[i].pending) return ticks[i]
+  return undefined
+}
+
 export function extractUsage(fields: Fields): ActivityUsage | undefined {
   const u = isRecord(fields.usage) ? fields.usage : undefined
   if (!u) return undefined
@@ -249,6 +421,10 @@ function statusFromAgents(agents: WorkflowAgent[]): ActivityStatus | undefined {
 
 const SHELL_SOURCES = /^(bash|bashoutput|shell|killbash)$/i
 const AGENT_SOURCES = /^(task|agent|subagent|sub-agent)$/i
+/** `background_output` sources that are the provider talking about itself, not work. */
+const NOTICE_SOURCE = /^system:/i
+/** Out-of-turn text of a background agent, relayed by the provider with its own role as source. */
+const RELAY_SOURCE = /^(assistant|user|tool_result)$/i
 
 export interface ClassifyInput {
   source?: string
@@ -257,18 +433,40 @@ export interface ClassifyInput {
   fields: Fields
 }
 
+/** The provider's own kind of task, when it names one (`local_bash`, `local_agent`, …). */
+function kindFromTaskType(taskType: string): ActivityKind | undefined {
+  if (/agent|subagent/i.test(taskType)) return 'agent'
+  if (/workflow|fan/i.test(taskType)) return 'workflow'
+  if (/bash|shell|command|exec/i.test(taskType)) return 'shell'
+  if (/monitor|watch/i.test(taskType)) return 'monitor'
+  return undefined
+}
+
+/**
+ * What a tick IS. The payload decides, never the label the provider puts on the
+ * tick: every task lifecycle of the CLI arrives as `source: "Workflow"`, bash
+ * commands included (see the header of this module).
+ */
 export function classifyActivity({ source, toolName, subagentType, fields }: ClassifyInput): ActivityKind {
+  // Telemetry first: a `system:*` line is never an activity, whatever else it carries.
+  if (source && NOTICE_SOURCE.test(source)) return 'notice'
+
+  // The provider's own task type is the strongest evidence there is.
+  const taskType = str(fields.task_type)
+  const fromTaskType = taskType ? kindFromTaskType(taskType) : undefined
+  if (fromTaskType) return fromTaskType
+
+  // A real fan-out: per-agent progress or a workflow name.
+  if (Array.isArray(fields.workflow_progress) || str(fields.workflow_name)) return 'workflow'
+
   const names = [source, toolName].filter((n): n is string => !!n)
-  if (
-    Array.isArray(fields.workflow_progress) ||
-    str(fields.workflow_name) ||
-    names.some((n) => /^workflow$/i.test(n))
-  ) {
-    return 'workflow'
-  }
   if (names.some((n) => /^monitor$/i.test(n))) return 'monitor'
   if (names.some((n) => SHELL_SOURCES.test(n)) || str(fields.command) || str(fields.cmd)) return 'shell'
   if (names.some((n) => AGENT_SOURCES.test(n)) || subagentType || str(fields.subagent_type)) return 'agent'
+
+  // A background agent's out-of-turn text: the agent is talking, it is not running a task.
+  if (source && RELAY_SOURCE.test(source)) return 'message'
+
   return 'generic'
 }
 
@@ -320,12 +518,28 @@ export interface ActivityModel {
   title: string
   source: string
   command?: string
+  /** Non-empty lines of `command` — what a row says as "+N lines" instead of showing a blob. */
+  commandLines: number
+  /**
+   * What the activity produced, in the provider's own final words
+   * (`data.summary` of a `task_notification`): the agent's report, the
+   * command's result. Absent when the provider repeats the command instead.
+   */
+  result?: string
+  /** What a background command DOES, in the provider's words — a better title than its script. */
+  about?: string
+  /** Model the provider names for the activity (`data.model`), when it names one. */
+  model?: string
+  /** Provider's own task type (`local_bash`, `local_agent`…), kept for the row's facts. */
+  taskType?: string
   params: KeyValue[]
   agents: WorkflowAgent[]
   usage?: ActivityUsage
   events: ActivityEvent[]
   /** Plain-text output lines (Bash / Monitor streams), oldest first. */
   outputLines: string[]
+  /** The tools this activity called, in order — the per-tool view of a stream. */
+  tools: ToolTick[]
   /** Flattened structured payload for the generic renderer. */
   details: KeyValue[]
   /** Structured payload kept as the "raw" last resort. */
@@ -360,6 +574,60 @@ function firstLine(text: string): string {
   return text.split('\n').find((l) => l.trim() !== '')?.trim() ?? ''
 }
 
+/** Longest title a row accepts before it is cut — a row is ONE line, never a blob. */
+const TITLE_MAX = 110
+
+/**
+ * The subject line of a command: its first non-empty line, cut. `description`
+ * of a CLI background Bash task IS the whole script (heredocs included), so it
+ * must never reach a row unclipped — that is what buried the transcript.
+ */
+export function commandTitle(command: string): string {
+  const line = firstLine(command)
+  return line.length > TITLE_MAX ? `${line.slice(0, TITLE_MAX - 1)}…` : line
+}
+
+/** How many non-empty lines a command has (what "+N lines" counts). */
+export function commandLineCount(command: string | undefined): number {
+  if (!command) return 0
+  return command.split('\n').filter((l) => l.trim() !== '').length
+}
+
+/**
+ * The final result the provider states, when it states one. A Bash task's
+ * notification repeats its command as `summary`; repeating it as a "result"
+ * would be a lie, so an echo of the command is not a result.
+ */
+/**
+ * The final RESULT the provider states, when it states one.
+ *
+ * Only a sub-agent (or an unknown activity) answers with text: a background
+ * Bash task's `summary` is a DESCRIPTION of what the command does ("Create
+ * local working clone on …"), so presenting it as a result is a lie — and it
+ * was being shown a third time, after the row title and the chip.
+ */
+function resultOf(kind: ActivityKind, fields: Fields, command: string | undefined): string | undefined {
+  if (kind === 'shell' || kind === 'monitor') return undefined
+  const summary = str(fields.summary)?.trim()
+  if (!summary) return undefined
+  if (command && (summary === command.trim() || summary === firstLine(command))) return undefined
+  return summary
+}
+
+/**
+ * The human sentence the provider gives about a background Bash task — its
+ * `summary` once it ended ("Create local working clone on kv-splice-chat…").
+ * It makes a far better row title than the script it runs, and it removes the
+ * duplication of showing the command in the row AND in the terminal.
+ */
+function aboutOf(kind: ActivityKind, fields: Fields, command: string | undefined): string | undefined {
+  if (kind !== 'shell') return undefined
+  const summary = str(fields.summary)?.trim()
+  if (!summary) return undefined
+  if (command && (summary === command.trim() || summary === firstLine(command))) return undefined
+  return firstLine(summary)
+}
+
 function pushParam(params: KeyValue[], label: string, value: string | undefined, mono = false): void {
   if (!value || params.some((p) => p.label === label)) return
   params.push({ label, value, mono })
@@ -371,10 +639,12 @@ export function extractParams(args: {
   title: string
   subagentType?: string
   description?: string
+  /** The command the model resolved (a CLI Bash task names it `description`). */
+  command?: string
   fields: Fields
   toolInput?: Fields
 }): KeyValue[] {
-  const { kind, title, subagentType, description, fields, toolInput } = args
+  const { kind, title, subagentType, description, command, fields, toolInput } = args
   const params: KeyValue[] = []
   const merged: Fields = { ...toolInput, ...fields }
   pushParam(params, tr('activity.param.agent'), subagentType ?? str(merged.subagent_type))
@@ -383,7 +653,15 @@ export function extractParams(args: {
     if (name && name !== title) pushParam(params, tr('activity.param.workflow'), name)
   }
   const desc = description ?? str(merged.description)
-  if (desc && desc !== title) pushParam(params, tr('activity.param.task'), desc)
+  // The command of a shell activity is its SUBJECT, not a parameter of it: chip
+  // it and a background script's twenty lines land in the header.
+  const commandKey = command ?? str(merged.command) ?? str(merged.cmd)
+  const descIsCommand = !!commandKey && !!desc && desc.trim() === commandKey.trim()
+  // A shell activity whose description is a script-length duplicate of its
+  // command would put twenty lines in the header; a short one is worth a chip.
+  if (desc && desc !== title && !descIsCommand && (kind !== 'shell' || desc.length <= MAX_PARAM_LEN)) {
+    pushParam(params, tr('activity.param.task'), desc)
+  }
   pushParam(params, tr('activity.param.tool'), str(merged.last_tool_name) ?? str(merged.tool_name) ?? str(merged.tool))
   pushParam(params, tr('activity.param.model'), str(merged.model))
   const exit = merged.exit_code ?? merged.exitCode
@@ -407,6 +685,29 @@ function spanMs(start?: string, end?: string): number | undefined {
   return Number.isNaN(ms) ? undefined : Math.max(0, ms)
 }
 
+/** Plain-text lines of a tick stream, oldest first (structured payloads contribute none). */
+/**
+ * The REAL output lines of a stream.
+ *
+ * A `workflow` tick's content is a lifecycle line ("task_started · <command> ·
+ * last tool: Edit · 21 tool uses"), not output: repeating it under "Sortie"
+ * showed the task's own labels as if the command had printed them.
+ */
+/** Lines a `workflow` tick writes about itself, never about the command's output. */
+const LIFECYCLE_LINE = /^(task_(started|progress|updated|notification)|workflow)$/i
+
+function outputLinesOf(parsed: ReadonlyArray<{ content: ParsedContent; entry: { subtype?: string } }>): string[] {
+  return parsed.flatMap(({ content, entry }) =>
+    content.text === '' || entry.subtype
+      ? []
+      : content.text
+          .replace(/\r\n/g, '\n')
+          .replace(/\n+$/, '')
+          .split('\n')
+          .filter((line) => !LIFECYCLE_LINE.test(line.trim())),
+  )
+}
+
 export function buildActivity(input: ActivityInput): ActivityModel {
   const { id, source, entries, tool } = input
   const parsed = entries.map((e) => ({ entry: e, content: parseContent(e.content) }))
@@ -421,9 +722,17 @@ export function buildActivity(input: ActivityInput): ActivityModel {
   const firstAt = input.firstAt ?? entries[0]?.received_at
   const lastAt = input.lastAt ?? lastEntry?.received_at
 
-  const command =
-    str(fields.command) ?? str(fields.cmd) ?? (tool && /^(bash|monitor)$/i.test(tool.name) ? str(tool.input.command) : undefined)
   const description = input.description ?? str(fields.description) ?? str(tool?.input.description)
+  // A CLI background Bash task names its command `description` and nothing else
+  // (measured: `{task_type: "local_bash", description: "cd frontend && …"}`), so
+  // a shell activity with no explicit command runs the description.
+  const command =
+    str(fields.command) ??
+    str(fields.cmd) ??
+    (tool && /^(bash|monitor)$/i.test(tool.name) ? str(tool.input.command) : undefined) ??
+    (kind === 'shell' ? description : undefined)
+
+  const about = aboutOf(kind, fields, command)
 
   let title: string
   switch (kind) {
@@ -431,16 +740,27 @@ export function buildActivity(input: ActivityInput): ActivityModel {
       title = str(fields.workflow_name) ?? str(tool?.input.workflow_name) ?? description ?? tr('activity.title.workflow')
       break
     case 'shell':
-      title = command ? firstLine(command) : (description ?? tr('activity.title.shell'))
+      // What it DOES reads better than what it runs: the sentence the provider
+      // gives at the end, else the command's first line.
+      title = about ?? (command ? commandTitle(command) : (description ? firstLine(description) : tr('activity.title.shell')))
       break
     case 'monitor':
-      title = description ?? (command ? firstLine(command) : tr('activity.title.monitor'))
+      title = description ?? (command ? commandTitle(command) : tr('activity.title.monitor'))
       break
     case 'agent':
-      title = description ?? subagentType ?? tr('activity.title.agent')
+      title = description ? firstLine(description) : (subagentType ?? tr('activity.title.agent'))
+      break
+    case 'notice':
+      // Never a card, but a row in the folded "provider notices" list: its source
+      // IS its name (`system:status`, `system:thinking_tokens`…).
+      title = source.replace(NOTICE_SOURCE, '') || source
+      break
+    case 'message':
+      // The agent's own words: its first sentence is its title.
+      title = firstLine(outputLinesOf(parsed).join('\n')) || (description ? firstLine(description) : tr('chatA-activity.card.kind.message'))
       break
     default:
-      title = description ?? str(fields.summary) ?? source
+      title = description ? firstLine(description) : (str(fields.summary) ?? source)
   }
 
   const status = deriveStatus({
@@ -461,13 +781,11 @@ export function buildActivity(input: ActivityInput): ActivityModel {
     label: entry.subtype ? subtypeLabel(entry.subtype) : entry.source,
     detail: content.fields ? summarizeFields(content.fields) : firstLine(content.text),
   }))
-  const outputLines = parsed.flatMap(({ content }) =>
-    content.text === '' ? [] : content.text.replace(/\r\n/g, '\n').replace(/\n+$/, '').split('\n'),
-  )
+  const outputLines = outputLinesOf(parsed)
   const raw = Object.keys(fields).length > 0 ? fields : undefined
   const count = input.count ?? entries.length
 
-  const params = extractParams({ kind, title, subagentType, description, fields, toolInput: tool?.input })
+  const params = extractParams({ kind, title, subagentType, description, command, fields, toolInput: tool?.input })
 
   return {
     id,
@@ -476,11 +794,24 @@ export function buildActivity(input: ActivityInput): ActivityModel {
     title,
     source,
     command,
+    commandLines: commandLineCount(command),
+    result: resultOf(kind, fields, command),
+    about: aboutOf(kind, fields, command),
+    model: str(fields.model) ?? str(tool?.input.model),
+    taskType: str(fields.task_type),
     params,
     agents,
     usage,
     events,
     outputLines,
+    tools: (() => {
+      // The relayed structure wins: it carries the input, so the card can be
+      // the tool's real card. The marker parser stays for stored history.
+      const structured = toolFlowFromEntries(
+        parsed.map(({ entry }) => ({ source: entry.source, tool: entry.tool })),
+      )
+      return structured.length > 0 ? structured : parseToolFlow(outputLines)
+    })(),
     details: flattenFields(fields).filter((d) => d.value !== title && !params.some((p) => p.label === d.label)),
     raw,
     count,
@@ -562,6 +893,24 @@ export function summarizeStatuses(activities: ReadonlyArray<Pick<ActivityModel, 
     else counts.other++
   }
   return counts
+}
+
+/**
+ * Split what the feed carries from what the provider says about itself.
+ *
+ * `system:*` lines (thinking-token counts, status pings, init, MCP server
+ * status…) are 27 % of the background feed and describe no work: listed as
+ * activities they push the real ones off the screen and each grows a "raw
+ * payload" dump. They are COUNTED here, so the panel can say they exist, and
+ * they stay out of the status summary and of the list.
+ */
+export function partitionActivities<T extends Pick<ActivityModel, 'kind'>>(
+  activities: ReadonlyArray<T>,
+): { work: T[]; notices: T[] } {
+  const work: T[] = []
+  const notices: T[] = []
+  for (const a of activities) (a.kind === 'notice' ? notices : work).push(a)
+  return { work, notices }
 }
 
 /** Progress of a workflow fan-out: settled agents / total (0–100). */
