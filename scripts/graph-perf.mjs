@@ -154,11 +154,14 @@ async function capture(chrome, base, n) {
     await tab.send('Page.addScriptToEvaluateOnNewDocument', { source: DEVTOOLS_HOOK })
     await tab.send('Fetch.enable', { patterns: [{ urlPattern: '*/api/*', requestStage: 'Request' }, { urlPattern: '*/auth/*', requestStage: 'Request' }] })
     await tab.send('Emulation.setDeviceMetricsOverride', { width: VIEWPORT.width, height: VIEWPORT.height, deviceScaleFactor: 1, mobile: false })
+    const tNav = Date.now()
     await tab.send('Page.navigate', { url: base + ROUTE })
 
     // wait: loaded, no API traffic, and a renderer observed with a stable draw-call count
     const t0 = Date.now()
     while (Date.now() - t0 < 30000 && (!loaded || inflight > 0 || Date.now() - lastNet < 800 || !(await tab.evaluate(PROBE)))) await sleep(200)
+    // Time from navigation to a stable first render (includes ~0.8 s network-idle padding).
+    const loadMs = Date.now() - tNav
     // the force layout runs for cooldownTime (5 s) after mount: idle is only meaningful once it has stopped
     await sleep(SETTLE)
 
@@ -192,6 +195,7 @@ async function capture(chrome, base, n) {
 
     return {
       nodes: n,
+      loadMs,
       unfixtured: [...unfixtured].slice(0, 8),
       renderer: { ...probe0, drawCallsDrag: { min: Math.min(...calls), max: Math.max(...calls) } },
       idle: { passesIn3s: idleRenders },
