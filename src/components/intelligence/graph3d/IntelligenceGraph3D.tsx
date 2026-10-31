@@ -22,6 +22,7 @@ import {
 } from './useRenderLoop'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
 import { createLinkSegments, parseColor, type LinkSegments, type LinkStyle } from './linkSegments'
+import { createNodePoints, shapeForType, sizeForType, type NodePoints, type NodeStyle } from './nodePoints'
 import { buildCommunityHulls, disposeCommunityHulls, type CommunityHullGroup } from './CommunityHulls3D'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
@@ -113,6 +114,30 @@ const MAX_PIXEL_RATIO = 2
 /** Base link transparency — the single LineSegments material bakes this in per-vertex. */
 const LINK_OPACITY = 0.35
 
+/**
+ * Node count at or above which nodes are drawn as one THREE.Points (overview
+ * tier) instead of one Group + sprites per node. Below it the emoji/label
+ * identity is preserved; above it the sprite path's O(3·N) draw calls defeat
+ * the purpose. Tune here, not at the call site.
+ */
+const NODE_POINTS_THRESHOLD = 2000
+
+/** Precomputed ENTITY_COLORS → normalized RGB (avoids a THREE.Color per node). */
+const ENTITY_RGB: Record<string, { r: number; g: number; b: number }> = Object.fromEntries(
+  Object.entries(ENTITY_COLORS).map(([k, hex]) => {
+    const p = parseColor(hex)
+    return [k, { r: p.r, g: p.g, b: p.b }]
+  }),
+)
+const DEFAULT_NODE_RGB = { r: 0.42, g: 0.45, b: 0.5 } // #6B7280
+
+/** Flexible node↔activation-id match (raw UUID, prefixed id, or suffix). */
+function activationMatches(id: string, activated: Set<string>): boolean {
+  if (activated.has(id)) return true
+  const colon = id.indexOf(':')
+  return colon !== -1 && activated.has(id.slice(colon + 1))
+}
+
 export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }: IntelligenceGraph3DProps) {
   const { t } = useT()
   const graphRef = useRef<GraphRef>(undefined)
@@ -146,6 +171,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // ── Single LineSegments renderer for links (optimized path) ───────────
   const linkSegmentsRef = useRef<LinkSegments | null>(null)
+
+  // ── Single Points renderer for nodes (overview tier) ──────────────────
+  const nodePointsRef = useRef<NodePoints | null>(null)
 
   // ── Cleanup cached Three.js resources on unmount ────────────────────────
   useEffect(() => {
@@ -293,6 +321,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // links are drawn as ONE LineSegments instead of one cylinder per link.
   const useOptimizedLinks = getNodeQuality() === 'minimal'
 
+  // Above NODE_POINTS_THRESHOLD the sprite path (a Group + 3 sprites per node)
+  // stops scaling, so nodes are drawn as ONE THREE.Points instead (see
+  // nodePoints.ts). Below it, the rich sprite identity (emoji + ring + label)
+  // is kept. The threshold keeps the familiar look for everyday graphs and
+  // switches to the overview tier only when the count would choke WebGL.
+  const useOptimizedNodes = graphData.nodes.length >= NODE_POINTS_THRESHOLD
+
   // wake: new data arrived (REST load, WebSocket update, preset/filter change).
   // ForceGraph3D rebuilds its node/link objects inside tickFrame(), and the
   // force engine restarts, so the loop must be running. `setEngineRunning(true)`
@@ -387,8 +422,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const onEngineTick = useCallback(() => {
     setEngineRunning(true)
     // The force sim has just advanced node x/y/z (layoutTick fires this AFTER
-    // state.layout.tick()), so the single LineSegments must re-read positions.
+    // state.layout.tick()), so the single LineSegments / Points must re-read positions.
     linkSegmentsRef.current?.updatePositions()
+    nodePointsRef.current?.updatePositions()
   }, [setEngineRunning])
 
   // ── Save positions when simulation stops ────────────────────────────────
@@ -556,6 +592,87 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const p = parseColor(linkColor(link))
     return { r: p.r, g: p.g, b: p.b, a: LINK_OPACITY * p.a }
   }, [linkColor])
+
+  // ── Per-node style for the overview (Points) tier ─────────────────────
+  // This is the Points analogue of the five sprite-mutation effects below
+  // (heatmap / legend / project / group / dim): one pure function returning
+  // each node's final color, alpha, size, shape and activation. Priority is
+  // the same — activation > hover/selection > legend > project > group > dim.
+  const computeNodeStyle = useCallback((node: Graph3DNode): NodeStyle => {
+    const entityType = node.entityType
+    const base = ENTITY_RGB[entityType] ?? DEFAULT_NODE_RGB
+    const shape = shapeForType(entityType)
+    const size = sizeForType(entityType)
+    const energy = Math.min(1, Math.max(0, (node.data.energy as number) ?? 0))
+    const isActive = activation.phase !== 'idle' && activation.phase !== 'searching'
+
+    // ── Heatmap (energy for notes / churn for files) ──
+    if (energyHeatmap || touchesHeatmap) {
+      if (energyHeatmap && entityType === 'note') {
+        const c = energyToColor3(energy)
+        return { r: c.r, g: c.g, b: c.b, alpha: 0.6 + energy * 0.4, size, shape, act: 0 }
+      }
+      if (touchesHeatmap && entityType === 'file') {
+        const attrs = node.data.attributes as Record<string, unknown> | undefined
+        const churn = Math.min(1, Math.max(0, (attrs?.churnScore as number) ?? (node.data.churnScore as number) ?? 0))
+        if (churn > 0) {
+          const c = churnToColor3(churn)
+          return { r: c.r, g: c.g, b: c.b, alpha: 0.6 + churn * 0.4, size, shape, act: 0 }
+        }
+      }
+      return { r: base.r, g: base.g, b: base.b, alpha: 0.15, size, shape, act: 0 }
+    }
+
+    // ── Spreading activation ──
+    if (isActive) {
+      if (activationMatches(node.id, activation.directIds)) {
+        return { r: base.r, g: base.g, b: base.b, alpha: 1, size: size * 1.4, shape, act: 0.9 }
+      }
+      if (activationMatches(node.id, activation.propagatedIds)) {
+        return { r: base.r, g: base.g, b: base.b, alpha: 0.85, size: size * 1.15, shape, act: 0.45 }
+      }
+      return { r: base.r, g: base.g, b: base.b, alpha: 0.12, size: size * 0.7, shape, act: 0 }
+    }
+
+    // ── Hover / selection ──
+    if (hoveredNodeId || selectedNodeId) {
+      if (node.id === hoveredNodeId || node.id === selectedNodeId) {
+        return { r: base.r, g: base.g, b: base.b, alpha: 1, size: size * 1.6, shape, act: 0.6 }
+      }
+      return { r: base.r, g: base.g, b: base.b, alpha: 0.3, size, shape, act: 0 }
+    }
+
+    // ── Legend hover ──
+    if (legendHoveredType) {
+      const match = entityType === legendHoveredType
+      return { r: base.r, g: base.g, b: base.b, alpha: match ? 1 : 0.06, size: match ? size * 1.5 : size * 0.6, shape, act: 0 }
+    }
+
+    // ── Project hover ──
+    if (hoveredProjectSlug) {
+      const ps = (node.data.projectSlug ?? node.data.project_slug) as string | undefined
+      return { r: base.r, g: base.g, b: base.b, alpha: ps === hoveredProjectSlug ? 1 : 0.15, size, shape, act: 0 }
+    }
+
+    // ── Group highlight ──
+    if (highlightedGroup) {
+      const inGroup = highlightedGroup.has(entityType)
+      return { r: base.r, g: base.g, b: base.b, alpha: inGroup ? 1 : 0.08, size: inGroup ? size * 1.3 : size * 0.6, shape, act: 0 }
+    }
+
+    // ── Connection-dimmed types ──
+    if (dimmedEntityTypes && dimmedEntityTypes.has(entityType)) {
+      return { r: base.r, g: base.g, b: base.b, alpha: 0.25, size: size * 0.6, shape, act: 0 }
+    }
+
+    return { r: base.r, g: base.g, b: base.b, alpha: 1, size, shape, act: 0 }
+  }, [energyHeatmap, touchesHeatmap, activation, hoveredNodeId, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes])
+
+  /** Always-current node style fn, so the structure effect can color without re-running on every hover. */
+  const computeNodeStyleRef = useRef(computeNodeStyle)
+  useEffect(() => {
+    computeNodeStyleRef.current = computeNodeStyle
+  }, [computeNodeStyle])
 
   /** Always-current style fn, so the structure effect can color without re-running on hover. */
   const computeLinkStyleRef = useRef(computeLinkStyle)
@@ -1234,6 +1351,102 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
   }, [useOptimizedLinks, computeLinkStyle, activeGraphData])
 
+  // ── Overview tier — one THREE.Points for all nodes ────────────────────
+  // Above NODE_POINTS_THRESHOLD the library's per-node sprite objects are
+  // suppressed (`nodeVisibility`) and a single Points draws every node as a
+  // coloured shape. Built/removed on mode or graph change.
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg || typeof fg.scene !== 'function') return
+    const scene = fg.scene()
+    if (!scene) return
+
+    if (nodePointsRef.current) {
+      scene.remove(nodePointsRef.current.object)
+      nodePointsRef.current.dispose()
+      nodePointsRef.current = null
+    }
+
+    if (!useOptimizedNodes || activeGraphData.nodes.length === 0) return
+
+    const np = createNodePoints(activeGraphData.nodes)
+    np.updateStyles(computeNodeStyleRef.current)
+    scene.add(np.object)
+    nodePointsRef.current = np
+    wake(WAKE_MUTATION_MS)
+
+    return () => {
+      if (nodePointsRef.current === np) {
+        scene.remove(np.object)
+        np.dispose()
+        nodePointsRef.current = null
+      }
+    }
+  }, [useOptimizedNodes, activeGraphData, wake])
+
+  // Recolor points when any highlight/activation/heatmap state changes.
+  useEffect(() => {
+    if (useOptimizedNodes) {
+      nodePointsRef.current?.updateStyles(computeNodeStyle)
+    }
+  }, [useOptimizedNodes, computeNodeStyle, activeGraphData])
+
+  // ── Overview tier — custom pick for hover / click ─────────────────────
+  // With nodeVisibility=false the library has no node objects to raycast, so
+  // hover/click/double-click are driven from our own NDC projection (pick).
+  const pointsClickRef = useRef<{ nodeId: string; time: number } | null>(null)
+  useEffect(() => {
+    if (!useOptimizedNodes) return
+    const el = containerRef.current
+    const fg = graphRef.current
+    if (!el || !fg || typeof fg.camera !== 'function') return
+
+    const ndc = (ev: { clientX: number; clientY: number }) => {
+      const rect = el.getBoundingClientRect()
+      return {
+        x: ((ev.clientX - rect.left) / rect.width) * 2 - 1,
+        y: -((ev.clientY - rect.top) / rect.height) * 2 + 1,
+      }
+    }
+
+    const onMove = (ev: PointerEvent) => {
+      const np = nodePointsRef.current
+      const camera = fg.camera?.()
+      if (!np || !camera) return
+      const p = ndc(ev)
+      const hit = np.pick(p.x, p.y, camera)
+      setHoveredNodeId(hit?.id ?? null)
+      el.style.cursor = hit ? 'pointer' : 'default'
+    }
+
+    const onClick = (ev: MouseEvent) => {
+      const np = nodePointsRef.current
+      const camera = fg.camera?.()
+      if (!np || !camera) return
+      const p = ndc(ev)
+      const hit = np.pick(p.x, p.y, camera)
+      if (!hit) { setSelectedNodeId(null); return }
+
+      const now = Date.now()
+      const last = pointsClickRef.current
+      if (last && last.nodeId === hit.id && now - last.time < 350) {
+        pointsClickRef.current = null
+        onNodeDoubleClick?.(hit.id)
+        return
+      }
+      pointsClickRef.current = { nodeId: hit.id, time: now }
+      setSelectedNodeId(hit.id === selectedNodeId ? null : hit.id)
+    }
+
+    el.addEventListener('pointermove', onMove, { passive: true })
+    el.addEventListener('click', onClick)
+    return () => {
+      el.removeEventListener('pointermove', onMove)
+      el.removeEventListener('click', onClick)
+      el.style.cursor = 'default'
+    }
+  }, [useOptimizedNodes, selectedNodeId, setHoveredNodeId, setSelectedNodeId, onNodeDoubleClick])
+
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-[#0f172a]">
       {hasDimensions && <ForceGraph3D<Graph3DNode, Graph3DLink>
@@ -1249,6 +1462,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         nodeThreeObjectExtend={false}
         nodeOpacity={nodeOpacity}
         nodeResolution={nodeResolution}
+        // Overview tier: suppress the per-node sprite objects; nodes are drawn
+        // by the single Points (see effects above) and picked by our own NDC
+        // projection, so the library's own node/tooltip rendering is off.
+        nodeVisibility={useOptimizedNodes ? false : true}
         // Link styling — subtle lines, energy-proportional
         linkColor={linkColor}
         linkWidth={linkWidth}
@@ -1260,9 +1477,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         linkDirectionalParticleSpeed={linkParticleSpeed}
         linkDirectionalParticleColor={linkParticleColor}
         linkDirectionalParticleWidth={1.0}
-        // Interactions
-        onNodeClick={onNodeClick}
-        onNodeHover={onNodeHover}
+        // Interactions — in the overview tier our own pick drives hover/click.
+        onNodeClick={useOptimizedNodes ? undefined : onNodeClick}
+        onNodeHover={useOptimizedNodes ? undefined : onNodeHover}
         onNodeDrag={() => {
           // Dragged node moves without a force tick — keep edges attached.
           linkSegmentsRef.current?.updatePositions()
@@ -1279,7 +1496,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           setEngineRunning(true)
           wake(WAKE_DATA_MS)
         }}
-        onBackgroundClick={onBackgroundClick}
+        onBackgroundClick={useOptimizedNodes ? undefined : onBackgroundClick}
         // Force engine
         cooldownTicks={100}
         cooldownTime={5000}
