@@ -1584,18 +1584,18 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
       {/* ── Scale stepper (multi-scale aggregation) ─────────────────────── */}
       {graphData.nodes.length > 0 && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900/80 px-1.5 py-1 backdrop-blur">
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-lg border border-border-default bg-surface-raised/90 shadow-[var(--shadow-md)] p-0.5 backdrop-blur-sm">
           <button
             type="button"
             aria-label="Detail"
             title="Detail"
             onClick={() => setScaleLevel((v) => Math.max(0, v - 1))}
             disabled={scaleLevel === 0}
-            className="px-2 py-0.5 rounded text-slate-300 text-xs hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="px-2 py-1.5 rounded-md text-[var(--text-secondary)] text-xs hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             −
           </button>
-          <span className="px-1 text-xs text-slate-400 tabular-nums">
+          <span className="px-1 text-xs text-[var(--text-secondary)] tabular-nums" aria-live="polite">
             {scaleLevel === 0 ? `${graphData.nodes.length} nœuds` : `${activeGraphData.nodes.length} groupes`}
           </span>
           <button
@@ -1604,7 +1604,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
             title="Vue d'ensemble"
             onClick={() => setScaleLevel((v) => Math.min(MAX_SCALE, v + 1))}
             disabled={scaleLevel >= MAX_SCALE}
-            className="px-2 py-0.5 rounded text-slate-300 text-xs hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed"
+            className="px-2 py-1.5 rounded-md text-[var(--text-secondary)] text-xs hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             +
           </button>
