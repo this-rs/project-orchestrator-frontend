@@ -7,8 +7,9 @@
 //
 // What it measures, per graph size, on the real page (IntelligenceGraph3D):
 //   - scene : objects in the three.js scene (Sprite / Mesh / Points / Line), lights, programs
-//   - idle  : three renders in 3 s with nothing happening (the on-demand loop should be ~0)
-//   - drag  : three renders in 2 s and their JS time (p50/p95/max) while the camera is dragged
+//   - idle  : render passes in 3 s with nothing happening (the on-demand loop: ~3, the 1 Hz heartbeat)
+//   - drag  : render passes in 2 s, JS time per pass, and the page frame interval (rAF) while dragged.
+//             A frame is several passes (bloom), so pass counts are not frame counts.
 // The renderer is captured through three's devtools hook (`window.__THREE_DEVTOOLS__`,
 // dispatched by WebGLRenderer in three >= 0.160), so no debug code ships in the app.
 // Output: one JSON document on stdout (and in --out when given). Exit 2 if the bench cannot run.
@@ -30,6 +31,7 @@ const args = Object.fromEntries(process.argv.slice(2).map((a) => { const m = /^-
 const SIZES = String(args.sizes || '80,300,1000').split(',').map(Number).filter(Boolean)
 const ROUTE = '/workspace/acme-freelance/projects/billing/intelligence/graph'
 const VIEWPORT = { width: 1440, height: 900 }
+const SETTLE = Number(args.settle || 8000)
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const freePort = () => new Promise((res, rej) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => res(port)) }); s.on('error', rej) })
@@ -112,12 +114,12 @@ async function openTab(chrome) {
 // Installed before any page script: three then reports every renderer it creates.
 // Each renderer.render() call is timed (JS side: scene walk + command submission; with SwiftShader the
 // GPU work runs on the CPU too). Renders are counted by three's own info.render.frame, not by rAF.
-const DEVTOOLS_HOOK = `window.__THREE_DEVTOOLS__ = new EventTarget();
+const DEVTOOLS_HOOK = `window.__THREE_DEVTOOLS__ = new EventTarget(); window.__RAF = null; (function raf(t) { if (window.__RAF) window.__RAF.push(t); requestAnimationFrame(raf); })(performance.now());
 window.__POR = null; window.__RT = [];
 window.__THREE_DEVTOOLS__.addEventListener('observe', (e) => {
   const R = e.detail; window.__POR = R;
   const orig = R.render;
-  R.render = function (...a) { const t = performance.now(); const out = orig.apply(this, a); window.__RT.push(performance.now() - t); if (window.__RT.length > 4000) window.__RT.shift(); return out; };
+  R.render = function (...a) { const t = performance.now(); if (window.__CALLERS) window.__CALLERS.push((new Error().stack || "").split("\\n").slice(2, 5).map((l) => l.trim()).join(" < ")); const out = orig.apply(this, a); window.__RT.push(performance.now() - t); if (window.__RT.length > 4000) window.__RT.shift(); return out; };
 });`
 
 // Renderer counters of the last frame (autoReset is on: `calls` is one frame's worth).
@@ -158,7 +160,7 @@ async function capture(chrome, base, n) {
     const t0 = Date.now()
     while (Date.now() - t0 < 30000 && (!loaded || inflight > 0 || Date.now() - lastNet < 800 || !(await tab.evaluate(PROBE)))) await sleep(200)
     // the force layout runs for cooldownTime (5 s) after mount: idle is only meaningful once it has stopped
-    await sleep(8000)
+    await sleep(SETTLE)
 
     const probe0 = await tab.evaluate(PROBE)
 
@@ -170,7 +172,8 @@ async function capture(chrome, base, n) {
     // drag: rotate the camera for ~2 s, sample the renderer counters during the gesture
     const box = await tab.evaluate('(() => { const c = document.querySelector("canvas"); if (!c) return null; const r = c.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })()')
     if (!box) throw new Error('no canvas on the graph page')
-    await tab.evaluate('window.__RT.length = 0')
+    await tab.evaluate('window.__RT.length = 0; window.__RAF = []')
+    await tab.evaluate('window.__CALLERS = []')
     const d0 = await tab.evaluate('window.__POR.info.render.frame')
     await tab.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1 })
     const samples = []
@@ -183,14 +186,16 @@ async function capture(chrome, base, n) {
     await sleep(300)
     const dragRenders = (await tab.evaluate('window.__POR.info.render.frame')) - d0
     const calls = samples.filter(Boolean).map((s) => s.calls)
+    const callers = await tab.evaluate(`(() => { const c = {}; (window.__CALLERS || []).forEach((k) => { c[k] = (c[k] || 0) + 1 }); window.__CALLERS = null; return Object.entries(c).sort((x, y) => y[1] - x[1]).slice(0, 4) })()`)
+    const frame = await tab.evaluate(`(() => { const t = window.__RAF || []; window.__RAF = null; const d = []; for (let i = 1; i < t.length; i++) d.push(t[i] - t[i - 1]); d.sort((a, b) => a - b); const q = (p) => d.length ? +d[Math.min(d.length - 1, Math.floor(d.length * p))].toFixed(1) : null; return { n: d.length, p50: q(.5), p95: q(.95), max: d.length ? +d[d.length - 1].toFixed(1) : null }; })()`)
     const rt = await tab.evaluate(`(() => { const d = window.__RT.slice().sort((a, b) => a - b); const q = (p) => d.length ? +d[Math.min(d.length - 1, Math.floor(d.length * p))].toFixed(2) : null; return { n: d.length, p50: q(.5), p95: q(.95), max: d.length ? +d[d.length - 1].toFixed(2) : null }; })()`)
 
     return {
       nodes: n,
       unfixtured: [...unfixtured].slice(0, 8),
       renderer: { ...probe0, drawCallsDrag: { min: Math.min(...calls), max: Math.max(...calls) } },
-      idle: { rendersIn3s: idleRenders },
-      drag: { rendersIn2s: dragRenders, renderMs: rt },
+      idle: { passesIn3s: idleRenders },
+      drag: { passesIn2s: dragRenders, passMs: rt, frameIntervalMs: frame, topCallers: callers },
     }
   } finally {
     await tab.close()
