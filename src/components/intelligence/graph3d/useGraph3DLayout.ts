@@ -11,30 +11,6 @@
 import { useCallback, useRef } from 'react'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
 
-// ── Seeded PRNG (Mulberry32) ──────────────────────────────────────────────────
-// Deterministic random number generator — same seed always produces same sequence
-
-function mulberry32(seed: number): () => number {
-  return () => {
-    seed |= 0
-    seed = (seed + 0x6d2b79f5) | 0
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-// ── Hash function for node ID → seed ──────────────────────────────────────────
-// Simple djb2 hash — fast and produces well-distributed values
-
-function hashString(str: string): number {
-  let hash = 5381
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0
-  }
-  return hash >>> 0 // unsigned 32-bit
-}
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface Graph3DNode {
@@ -158,36 +134,100 @@ const LAYER_Z_OFFSET: Record<string, number> = {
   pm: -80,
 }
 
+/** Per-layer angular phase for the community ring (keeps layers from overlapping). */
+const LAYER_ANGLE: Record<string, number> = {
+  code: 0,
+  fabric: 0.4,
+  pm: 3.1,
+  knowledge: 0.8,
+  neural: 1.4,
+  skills: 2.0,
+  behavioral: 2.6,
+}
+
+const DOUBLE_SEP = '\u0001'
+const GOLDEN_ANGLE = 2.39996
+
+/**
+ * Deterministic O(N log N) placement — the po-graph technique.
+ *
+ * Nodes are grouped by (layer, community) and laid on a Fermat spiral over a
+ * sphere per group, the group spheres spread on a ring inside the layer's
+ * z-plane. No force simulation: the layout is complete the instant it is
+ * computed, sorted by degree so the busiest nodes sit near each group's pole.
+ * Same input ⇒ same output (stable across refreshes).
+ */
+export function deterministicPlacement(
+  nodes: Graph3DNode[],
+  edges: IntelligenceEdge[],
+): Map<string, { x: number; y: number; z: number }> {
+  const out = new Map<string, { x: number; y: number; z: number }>()
+  if (nodes.length === 0) return out
+
+  // Degree (importance proxy) straight from the edges.
+  const deg = new Map<string, number>()
+  for (const e of edges) {
+    deg.set(e.source, (deg.get(e.source) ?? 0) + 1)
+    deg.set(e.target, (deg.get(e.target) ?? 0) + 1)
+  }
+
+  // Group by layer + community.
+  const groups = new Map<string, Graph3DNode[]>()
+  for (const n of nodes) {
+    const key = n.layer + DOUBLE_SEP + (n.communityId ?? 0)
+    const g = groups.get(key)
+    if (g) g.push(n)
+    else groups.set(key, [n])
+  }
+
+  // Per-layer, deterministic ordering of its groups.
+  const layerGroups = new Map<string, string[]>()
+  for (const key of groups.keys()) {
+    const layer = key.split(DOUBLE_SEP)[0]
+    const arr = layerGroups.get(layer)
+    if (arr) arr.push(key)
+    else layerGroups.set(layer, [key])
+  }
+  for (const arr of layerGroups.values()) arr.sort()
+
+  for (const [layer, keys] of layerGroups) {
+    const z = LAYER_Z_OFFSET[layer] ?? 0
+    const baseAngle = LAYER_ANGLE[layer] ?? 0
+    const ring = keys.length > 1 ? 150 : 0
+    keys.forEach((key, gi) => {
+      const ids = groups.get(key)!
+      const angle = baseAngle + (gi / Math.max(1, keys.length)) * Math.PI * 2
+      const cx = ring === 0 ? 0 : Math.cos(angle) * ring
+      const cy = ring === 0 ? 0 : Math.sin(angle) * ring
+
+      // Busiest first → they land near the pole (cos(rr) ≈ 1).
+      ids.sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+
+      const n = ids.length
+      const r = 14 + 4 * Math.sqrt(n) // sphere radius grows with group size
+      for (let k = 0; k < n; k++) {
+        const rr = Math.acos(1 - 2 * (k + 0.5) / n) // 0..π, even on the sphere
+        const th = k * GOLDEN_ANGLE
+        const s = Math.sin(rr)
+        out.set(ids[k].id, {
+          x: cx + r * s * Math.cos(th),
+          y: cy + r * s * Math.sin(th),
+          z: z + r * Math.cos(rr),
+        })
+      }
+    })
+  }
+  return out
+}
+
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 const RELAYOUT_THRESHOLD = 0.2 // 20% change triggers relayout
-const SPREAD_RADIUS = 200
 
 export function useGraph3DLayout() {
   // Cache positions for stable refresh
   const positionCache = useRef<Map<string, { x: number; y: number; z: number }>>(new Map())
   const previousNodeIds = useRef<Set<string>>(new Set())
-
-  /**
-   * Compute deterministic initial position for a node.
-   * Uses mulberry32 PRNG seeded by hash of node ID.
-   */
-  const computeInitialPosition = useCallback((nodeId: string, layer: string) => {
-    const seed = hashString(nodeId)
-    const rng = mulberry32(seed)
-    const zOffset = LAYER_Z_OFFSET[layer] ?? 0
-
-    // Spherical coordinates for even distribution
-    const theta = rng() * Math.PI * 2
-    const phi = Math.acos(2 * rng() - 1)
-    const r = SPREAD_RADIUS * Math.cbrt(rng()) // cube root for uniform volume distribution
-
-    return {
-      x: r * Math.sin(phi) * Math.cos(theta),
-      y: r * Math.sin(phi) * Math.sin(theta),
-      z: r * Math.cos(phi) + zOffset,
-    }
-  }, [])
 
   /**
    * Transform IntelligenceNodes/Edges → Graph3DData.
@@ -214,32 +254,43 @@ export function useGraph3DLayout() {
       positionCache.current.delete(id)
     }
 
-    // Build 3D nodes
+    // Build 3D nodes (positions filled below from cache or the deterministic layout).
     const graph3dNodes: Graph3DNode[] = nodes.map((node) => {
       const data = node.data as Record<string, unknown>
       const entityType = (data.entityType as string) ?? 'file'
       const layer = (data.layer as string) ?? 'code'
-
-      // Use cached position if available, otherwise compute deterministic initial
-      let pos = positionCache.current.get(node.id)
-      if (!pos) {
-        pos = computeInitialPosition(node.id, layer)
-        positionCache.current.set(node.id, pos)
-      }
-
+      const pos = positionCache.current.get(node.id)
       return {
         id: node.id,
         label: (data.label as string) ?? node.id,
         entityType,
         layer,
-        x: pos.x,
-        y: pos.y,
-        z: pos.z,
+        x: pos?.x ?? 0,
+        y: pos?.y ?? 0,
+        z: pos?.z ?? 0,
         communityId: data.communityId as number | undefined,
         communityLabel: data.communityLabel as string | undefined,
         data,
       }
     })
+
+    // Nodes without a cached position are laid out deterministically in one
+    // O(N log N) pass (po-graph's Fermat-spiral-per-community). On a first load
+    // that is every node → the layout is complete immediately, no force
+    // settling. Cached positions win so refreshes and drags stay stable.
+    const uncached = graph3dNodes.filter((n) => !positionCache.current.has(n.id))
+    if (uncached.length > 0) {
+      const placed = deterministicPlacement(uncached, edges)
+      for (const n of uncached) {
+        const p = placed.get(n.id)
+        if (p) {
+          n.x = p.x
+          n.y = p.y
+          n.z = p.z
+          positionCache.current.set(n.id, p)
+        }
+      }
+    }
 
     // Build community lookup for inter-community edge detection
     const communityMap = new Map<string, number>()
@@ -282,7 +333,7 @@ export function useGraph3DLayout() {
       data: { nodes: graph3dNodes, links: graph3dLinks },
       needsRelayout,
     }
-  }, [computeInitialPosition])
+  }, [])
 
   /**
    * Update position cache after simulation settles.
