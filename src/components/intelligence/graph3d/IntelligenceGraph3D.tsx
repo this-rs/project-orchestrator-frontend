@@ -585,7 +585,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // cylinders' transparency exactly (only their 3D thickness is dropped).
   const computeLinkStyle = useCallback((link: Graph3DLink): LinkStyle => {
     const p = parseColor(linkColor(link))
-    return { r: p.r, g: p.g, b: p.b, a: LINK_OPACITY * p.a }
+    // Edge weight drives opacity: weak links fade, strong links stand out, so the
+    // structural backbone reads through a dense graph instead of a uniform wash.
+    // (1 px WebGL lines can't carry thickness — opacity is the weight channel here;
+    // the small-graph path already maps weight → width via `linkWidth`.)
+    const w = Math.max(0, Math.min(1, link.weight ?? 0.5))
+    const weightFactor = 0.12 + 0.88 * Math.sqrt(w)
+    return { r: p.r, g: p.g, b: p.b, a: LINK_OPACITY * p.a * weightFactor }
   }, [linkColor])
 
   // ── Per-node style for the overview (Points) tier ─────────────────────
