@@ -64,3 +64,49 @@ describe('resolutionLadder', () => {
     expect(ladder[ladder.length - 1]).toBeGreaterThanOrEqual(4)
   })
 })
+
+import { buildScaledGraph } from './graphAggregation'
+
+describe('buildScaledGraph', () => {
+  const data = {
+    nodes: [
+      node('a', 0, 0, 0), node('b', 1, 1, 1),
+      node('d', 100, 100, 100), node('e', 101, 101, 101),
+    ],
+    links: [link('a', 'd', 1), link('b', 'd', 0.5), link('a', 'b')],
+  }
+
+  it('produces render-ready nodes positioned at cell centroids', () => {
+    const g = buildScaledGraph(data, 2)
+    expect(g.nodes.length).toBeGreaterThan(0)
+    for (const n of g.nodes) {
+      expect(Number.isFinite(n.x) && Number.isFinite(n.y) && Number.isFinite(n.z)).toBe(true)
+      expect(typeof n.id).toBe('string')
+      expect((n.data as { count: number }).count).toBeGreaterThan(0)
+    }
+  })
+
+  it('edges only reference existing super-node ids', () => {
+    const g = buildScaledGraph(data, 2)
+    const ids = new Set(g.nodes.map((n) => n.id))
+    for (const e of g.links) {
+      expect(ids.has(typeof e.source === 'string' ? e.source : (e.source as { id: string }).id)).toBe(true)
+      expect(ids.has(typeof e.target === 'string' ? e.target : (e.target as { id: string }).id)).toBe(true)
+    }
+  })
+
+  it('preserves total node count through composition', () => {
+    const g = buildScaledGraph(data, 2)
+    const total = g.nodes.reduce((s, n) => s + (n.data as { count: number }).count, 0)
+    expect(total).toBe(data.nodes.length)
+  })
+
+  it('carries byType composition summing to count', () => {
+    const g = buildScaledGraph(data, 2)
+    for (const n of g.nodes) {
+      const d = n.data as { count: number; byType: Record<string, number> }
+      const sum = Object.values(d.byType).reduce((s, v) => s + v, 0)
+      expect(sum).toBe(d.count)
+    }
+  })
+})

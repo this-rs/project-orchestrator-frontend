@@ -138,3 +138,73 @@ export function resolutionLadder(nodeCount: number, topRes = 4, maxLevels = 6): 
   }
   return ladder
 }
+
+/**
+ * Turn an aggregated graph into render-ready Graph3DData (positions = cell
+ * centroids, so no re-layout). Each super-node carries its dominant entity type
+ * (for colour/shape) and a `byType` composition (for a stacked/composition
+ * ring later). Super-edges carry `count` (how many links bundled) as their
+ * importance, which the renderer maps to opacity/width.
+ *
+ * Pure and deterministic; the renderer just swaps this in for the raw graph.
+ */
+export function buildScaledGraph(
+  data: { nodes: Graph3DNode[]; links: Graph3DLink[] },
+  res: number,
+): { nodes: Graph3DNode[]; links: Graph3DLink[] } {
+  const { superNodes, superEdges, cellOfNode } = aggregateAtResolution(data.nodes, data.links, res)
+
+  // Per-cell entity-type composition → dominant type + byType map.
+  const cells = new Map<string, Map<string, number>>()
+  const cellLayer = new Map<string, string>()
+  for (let i = 0; i < data.nodes.length; i++) {
+    const key = cellOfNode.get(i)
+    if (!key) continue
+    const t = data.nodes[i].entityType
+    let m = cells.get(key)
+    if (!m) { m = new Map(); cells.set(key, m) }
+    m.set(t, (m.get(t) ?? 0) + 1)
+    if (!cellLayer.has(key)) cellLayer.set(key, data.nodes[i].layer)
+  }
+
+  const nodes: Graph3DNode[] = superNodes.map((sn) => {
+    const m = cells.get(sn.key)
+    let dom = 'file'
+    let domN = -1
+    const byType: Record<string, number> = {}
+    if (m) {
+      for (const [t, n] of m) {
+        byType[t] = n
+        if (n > domN) { domN = n; dom = t }
+      }
+    }
+    return {
+      id: sn.key,
+      label: String(sn.count),
+      entityType: dom,
+      layer: cellLayer.get(sn.key) ?? 'fabric',
+      x: sn.x,
+      y: sn.y,
+      z: sn.z,
+      data: { count: sn.count, byType },
+    }
+  })
+
+  const links: Graph3DLink[] = superEdges.map((e) => ({
+    source: e.source,
+    target: e.target,
+    relationType: 'AGGREGATE',
+    layer: 'fabric',
+    // Importance of a bundle = how many links it carries → renderer maps to
+    // opacity (LineSegments) / width (cylinders). Saturate at a handful.
+    weight: Math.min(1, e.count / 8),
+    count: e.count,
+    color: 'rgba(148, 163, 184, 0.4)',
+    width: Math.min(4, 0.5 + e.count * 0.25),
+    particles: 0,
+    particleSpeed: 0,
+    isInterCommunity: true,
+  }))
+
+  return { nodes, links }
+}
