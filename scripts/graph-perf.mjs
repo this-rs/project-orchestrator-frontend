@@ -125,7 +125,7 @@ window.__THREE_DEVTOOLS__.addEventListener('observe', (e) => {
 // Renderer counters of the last frame (autoReset is on: `calls` is one frame's worth).
 const PROBE = `(() => {
   const R = window.__POR; if (!R) return null;
-  return { frame: R.info.render.frame, calls: R.info.render.calls, triangles: R.info.render.triangles, programs: R.info.programs ? R.info.programs.length : null, geometries: R.info.memory.geometries, textures: R.info.memory.textures };
+  return { frame: R.info.render.frame, calls: R.info.render.calls, points: R.info.render.points, triangles: R.info.render.triangles, programs: R.info.programs ? R.info.programs.length : null, geometries: R.info.memory.geometries, textures: R.info.memory.textures };
 })()`
 
 async function capture(chrome, base, n) {
@@ -156,6 +156,12 @@ async function capture(chrome, base, n) {
     await tab.send('Emulation.setDeviceMetricsOverride', { width: VIEWPORT.width, height: VIEWPORT.height, deviceScaleFactor: 1, mobile: false })
     const tNav = Date.now()
     await tab.send('Page.navigate', { url: base + ROUTE })
+    // the user switches to 3D once the code map has its data (the real order): wait for the tiles
+    for (let i = 0; i < 150; i++) {
+      const tiles = await tab.evaluate(`[...document.querySelectorAll('button')].filter((b) => /^(Ouvrir|Open)/.test(b.getAttribute('aria-label') || '')).length`)
+      if (tiles > 0 && inflight === 0) break
+      await sleep(200)
+    }
     // the code map is the default view now: switch the graph to 3D before measuring
     for (let i = 0; i < 100; i++) {
       const box = await tab.evaluate(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '3D'); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })()`)

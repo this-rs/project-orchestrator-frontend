@@ -121,6 +121,62 @@ const PROBE = `(() => {
   return { frame: R.info.render.frame, calls: R.info.render.calls, triangles: R.info.render.triangles, programs: R.info.programs ? R.info.programs.length : null, geometries: R.info.memory.geometries, textures: R.info.memory.textures };
 })()`
 
+
+import zlib from 'node:zlib'
+
+// Decode an 8-bit RGB/RGBA PNG (what Chrome's screenshots are) and count the pixels
+// that differ visibly from the canvas background. Used to see the graph, not to
+// trust a draw-call counter: an empty scene still submits draw calls.
+function litPixels(png, background = [15, 23, 42], threshold = 60, box = [0.25, 0.25, 0.75, 0.75]) {
+  if (png.readUInt32BE(0) !== 0x89504e47) throw new Error('not a PNG')
+  let pos = 8, width = 0, height = 0, colorType = 0
+  const idat = []
+  while (pos < png.length) {
+    const len = png.readUInt32BE(pos)
+    const type = png.toString('ascii', pos + 4, pos + 8)
+    const data = png.subarray(pos + 8, pos + 8 + len)
+    if (type === 'IHDR') { width = data.readUInt32BE(0); height = data.readUInt32BE(4); colorType = data[9] }
+    if (type === 'IDAT') idat.push(data)
+    pos += 12 + len
+  }
+  const bpp = colorType === 6 ? 4 : colorType === 2 ? 3 : 0
+  if (!bpp) throw new Error('unsupported PNG colour type ' + colorType)
+  const raw = zlib.inflateSync(Buffer.concat(idat))
+  const stride = width * bpp
+  const out = Buffer.alloc(stride * height)
+  for (let y = 0; y < height; y++) {
+    const filter = raw[y * (stride + 1)]
+    const src = y * (stride + 1) + 1
+    for (let x = 0; x < stride; x++) {
+      const a = x >= bpp ? out[y * stride + x - bpp] : 0
+      const b = y > 0 ? out[(y - 1) * stride + x] : 0
+      const c = x >= bpp && y > 0 ? out[(y - 1) * stride + x - bpp] : 0
+      let v = raw[src + x]
+      if (filter === 1) v += a
+      else if (filter === 2) v += b
+      else if (filter === 3) v += (a + b) >> 1
+      else if (filter === 4) {
+        const pa = Math.abs(b - c), pb = Math.abs(a - c), pc = Math.abs(a + b - 2 * c)
+        v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c
+      }
+      out[y * stride + x] = v & 0xff
+    }
+  }
+  // only the centre of the canvas: the toolbar, legend and search overlays sit on the edges
+  const [fx0, fy0, fx1, fy1] = box
+  const x0 = Math.floor(width * fx0), x1 = Math.floor(width * fx1)
+  const y0 = Math.floor(height * fy0), y1 = Math.floor(height * fy1)
+  let lit = 0
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const i = (y * width + x) * bpp
+      const d = Math.abs(out[i] - background[0]) + Math.abs(out[i + 1] - background[1]) + Math.abs(out[i + 2] - background[2])
+      if (d > threshold) lit++
+    }
+  }
+  return lit
+}
+
 // ---------- fullscreen / resize check ----------
 const TARGET = '/workspace/acme-freelance/projects/billing/intelligence/graph'
 
@@ -157,6 +213,12 @@ async function run(chrome, base, n) {
     await tab.send('Emulation.setDeviceMetricsOverride', profile)
     if (args.mobile) await tab.send('Emulation.setTouchEmulationEnabled', { enabled: true })
     await tab.send('Page.navigate', { url: base + TARGET })
+    // the user switches to 3D once the code map has its data (the real order): wait for the tiles
+    for (let i = 0; i < 150; i++) {
+      const tiles = await tab.evaluate(`[...document.querySelectorAll('button')].filter((b) => /^(Ouvrir|Open)/.test(b.getAttribute('aria-label') || '')).length`)
+      if (tiles > 0 && inflight === 0) break
+      await sleep(200)
+    }
     // the code map is the default view now: switch the graph to 3D before measuring
     for (let i = 0; i < 100; i++) {
       const box = await tab.evaluate(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '3D'); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })()`)
@@ -172,21 +234,26 @@ async function run(chrome, base, n) {
     await sleep(SETTLE)
 
     // state of the canvas and its container, read in the page
-    const state = () => tab.evaluate(`(() => {
+    const state = async () => { const base = await stateRaw(); if (!base) return base; const shot = await tab.send('Page.captureScreenshot', { format: 'png', clip: { x: base.x, y: base.y, width: base.w, height: base.h, scale: 1 } }); return { ...base, lit: litPixels(Buffer.from(shot.data, 'base64')) } }
+    const stateRaw = () => tab.evaluate(`(() => {
+      if (!window.__POR) return null
       const c = document.querySelector('canvas'); if (!c) return null
       const r = c.getBoundingClientRect()
       const host = c.closest('[data-graph-host]')
       const p = window.__POR && window.__POR.info
       return {
-        w: Math.round(r.width), h: Math.round(r.height),
+        x: r.left, y: r.top, w: Math.round(r.width), h: Math.round(r.height),
         vw: window.innerWidth, vh: window.innerHeight,
         inBody: !!host && host.parentElement === document.body,
         calls: p ? p.render.calls : null,
+        points: p ? p.render.points : null,
         frame: p ? p.render.frame : null,
       }
     })()`)
     const fillsContainer = (s) => s && Math.abs(s.w - (s.inBody ? s.vw : s.w)) <= 2 && s.h > 0 && s.w > 0
-    const drawing = (s, before) => s && s.calls > 0 && s.frame > before
+    // a draw call alone is not proof: an empty scene still submits two. The graph's
+    // nodes must reach the GPU as points (the overview tier) or as sprites (below it).
+    const drawing = (s, before) => s && s.frame > before && s.lit > 2000
 
     // 1. inline, then 2. resize inline
     const s0 = await state()
