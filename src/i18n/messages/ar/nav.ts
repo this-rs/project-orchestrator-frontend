@@ -9,6 +9,7 @@ export default {
     system: "النظام",
   },
   concepts: {
+    activity: "النشاط",
     overview: "نظرة عامة",
     trajectory: "المسار",
     projects: "المشاريع",

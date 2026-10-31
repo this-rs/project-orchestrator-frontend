@@ -1,6 +1,27 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  hub: {
+    conversations: "Бесіди",
+    other: "Інша активність",
+    all: "Усі",
+    filterType: "Вид",
+    filterStatus: "Статус",
+    emptyTitle: "Нічого не виконується",
+    emptyDescription: "Запуски планів, протоколів і бесіди з’являються тут, поки працюють.",
+    log: "Живий журнал",
+    logEmpty: "Активності ще немає.",
+    follow: "Стежити",
+    gap: "Втрачено подій: {count} — список оновлено.",
+    pulse: "Анімувати картки",
+    idle: "Спочинок",
+    waiting: "{count} чекають на вас",
+    background: "{count} у фоні",
+    activeTasks: "Активні завдання",
+    connectionLive: "Наживо",
+    connectionReconnecting: "Перепідключення…",
+    connectionOffline: "Поза мережею",
+  },
   status: {
     running: 'Виконується',
     queued: 'У черзі',

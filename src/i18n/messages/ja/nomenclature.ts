@@ -1,6 +1,14 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  activity: {
+    singular: "アクティビティ",
+    plural: "アクティビティ",
+    description: "いま実行中のものを種類ごとに。",
+    what: "アクティビティは、アシスタントがいま何をしているかを表示します：プランの実行、プロトコルの実行、会話です。",
+    why: "作業が進んでいるか、どの実行があなたの返答を待っているかが一目で分かります。",
+    different: "これまでは実行ごとに別の画面でしたが、ここでは一つのボードになり、それぞれの種類に合った詳細が付きます。",
+  },
   overview: {
     singular: "概要",
     description: "ワークスペースの今の状況です。",

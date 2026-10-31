@@ -1,6 +1,27 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  hub: {
+    conversations: "المحادثات",
+    other: "نشاط آخر",
+    all: "الكل",
+    filterType: "النوع",
+    filterStatus: "الحالة",
+    emptyTitle: "لا شيء يعمل",
+    emptyDescription: "تظهر تشغيلات الخطط والبروتوكولات والمحادثات هنا ما دامت تعمل.",
+    log: "سجل مباشر",
+    logEmpty: "لا نشاط بعد.",
+    follow: "متابعة",
+    gap: "فُقد {count} حدثًا — أُعيد تحميل القائمة.",
+    pulse: "تحريك البطاقات",
+    idle: "في راحة",
+    waiting: "{count} بانتظارك",
+    background: "{count} في الخلفية",
+    activeTasks: "مهام نشطة",
+    connectionLive: "مباشر",
+    connectionReconnecting: "إعادة الاتصال…",
+    connectionOffline: "غير متصل",
+  },
   status: {
     running: 'قيد التنفيذ',
     queued: 'في الانتظار',

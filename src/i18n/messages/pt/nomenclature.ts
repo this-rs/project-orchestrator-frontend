@@ -1,6 +1,14 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  activity: {
+    singular: "Atividade",
+    plural: "Atividade",
+    description: "O que está a correr agora, por tipo.",
+    what: "A atividade mostra o que os assistentes estão a fazer neste instante: execuções de planos, de protocolos e conversas.",
+    why: "Vê num relance se o trabalho avança e qual execução espera por si.",
+    different: "Hoje cada execução vive no seu próprio ecrã; aqui são um único quadro, cada uma com o detalhe que lhe pertence.",
+  },
   overview: {
     singular: 'Visão geral',
     description: 'Onde o espaço de trabalho está neste momento.',

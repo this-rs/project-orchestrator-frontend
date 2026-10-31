@@ -1,6 +1,27 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  hub: {
+    conversations: "대화",
+    other: "기타 활동",
+    all: "전체",
+    filterType: "종류",
+    filterStatus: "상태",
+    emptyTitle: "실행 중인 것이 없습니다",
+    emptyDescription: "플랜 실행, 프로토콜, 대화는 작업하는 동안 여기에 표시됩니다.",
+    log: "실시간 로그",
+    logEmpty: "아직 활동이 없습니다.",
+    follow: "따라가기",
+    gap: "이벤트 {count}개가 유실되었습니다 — 목록을 새로 고쳤습니다.",
+    pulse: "카드 애니메이션",
+    idle: "대기",
+    waiting: "{count}개가 답을 기다립니다",
+    background: "{count}개가 백그라운드에서",
+    activeTasks: "진행 중인 작업",
+    connectionLive: "실시간",
+    connectionReconnecting: "다시 연결하는 중…",
+    connectionOffline: "오프라인",
+  },
   status: {
     running: '실행 중',
     queued: '대기 중',

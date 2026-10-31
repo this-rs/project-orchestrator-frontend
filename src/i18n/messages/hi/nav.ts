@@ -9,6 +9,7 @@ export default {
     system: "सिस्टम",
   },
   concepts: {
+    activity: "गतिविधि",
     overview: "अवलोकन",
     trajectory: "प्रगति-पथ",
     projects: "प्रोजेक्ट",

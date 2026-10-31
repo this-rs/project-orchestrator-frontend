@@ -1,4 +1,12 @@
 export default {
+  activity: {
+    singular: "Activity",
+    plural: "Activity",
+    description: "What is running right now, by kind.",
+    what: "Activity lists what the assistants are doing at this moment: plan runs, protocol runs and conversations.",
+    why: "You see at a glance whether work is progressing, and which run is waiting on you.",
+    different: "Today each run lives on its own screen; here they are one board, each with the detail that belongs to its kind.",
+  },
   overview: {
     singular: 'Overview',
     description: 'Where the workspace stands right now.',

@@ -1,6 +1,27 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  hub: {
+    conversations: "会話",
+    other: "その他のアクティビティ",
+    all: "すべて",
+    filterType: "種類",
+    filterStatus: "状態",
+    emptyTitle: "何も実行されていません",
+    emptyDescription: "プランの実行・プロトコル・会話は、動作中ここに表示されます。",
+    log: "ライブログ",
+    logEmpty: "まだアクティビティはありません。",
+    follow: "追従",
+    gap: "{count} 件のイベントが失われました — 一覧を更新しました。",
+    pulse: "カードをアニメーション",
+    idle: "待機",
+    waiting: "{count} 件があなたの返答待ち",
+    background: "{count} 件がバックグラウンド",
+    activeTasks: "実行中のタスク",
+    connectionLive: "ライブ",
+    connectionReconnecting: "再接続中…",
+    connectionOffline: "オフライン",
+  },
   status: {
     running: '実行中',
     queued: '待機中',

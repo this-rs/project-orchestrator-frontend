@@ -1,6 +1,27 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  hub: {
+    conversations: "Conversaciones",
+    other: "Otra actividad",
+    all: "Todo",
+    filterType: "Tipo",
+    filterStatus: "Estado",
+    emptyTitle: "No se está ejecutando nada",
+    emptyDescription: "Las ejecuciones de planes, de protocolos y las conversaciones aparecen aquí mientras trabajan.",
+    log: "Registro en directo",
+    logEmpty: "Todavía no hay actividad.",
+    follow: "Seguir",
+    gap: "Se han perdido {count} eventos: la lista se ha actualizado.",
+    pulse: "Animar las tarjetas",
+    idle: "En reposo",
+    waiting: "{count} esperando tu respuesta",
+    background: "{count} en segundo plano",
+    activeTasks: "Tareas activas",
+    connectionLive: "En directo",
+    connectionReconnecting: "Reconectando…",
+    connectionOffline: "Sin conexión",
+  },
   status: {
     running: 'En curso',
     queued: 'En cola',

@@ -9,6 +9,7 @@ export default {
     system: "시스템",
   },
   concepts: {
+    activity: "활동",
     overview: "개요",
     trajectory: "궤적",
     projects: "프로젝트",
