@@ -9,7 +9,7 @@ export function useResetTimelineOnPhone(setOpen: (open: boolean) => void, breakp
   useEffect(() => {
     try {
       if (!window.matchMedia(`(max-width: ${breakpointPx - 1}px)`).matches) return
-      if (window.localStorage.getItem(CHAT_TIMELINE_OPEN_KEY) === 'true') setOpen(false)
+      if (window.sessionStorage.getItem(CHAT_TIMELINE_OPEN_KEY) === 'true') setOpen(false)
     } catch {
       // No storage (private mode, blocked): nothing was remembered.
     }
