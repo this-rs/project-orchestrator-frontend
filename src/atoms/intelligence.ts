@@ -213,6 +213,13 @@ export const intelligenceCommunitiesAtom = atom<BackendGraphCommunity[]>([])
  */
 export const graphNodeLimitAtom = atom<number>(5000)
 
+/**
+ * Aggregation scale of the 3D graph. 0 = full detail (individual nodes);
+ * 1..N = aggregated super-nodes (see graph3d/graphAggregation.ts). Driven by
+ * the scale stepper and (later) by semantic zoom.
+ */
+export const graphScaleAtom = atom<number>(0)
+
 // ── Search / filter ──────────────────────────────────────────────────────────
 
 /** Search query for filtering nodes */

@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ForceGraph3D from 'react-force-graph-3d'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import * as THREE from 'three'
 import { useT } from '@/i18n'
 
@@ -36,7 +36,9 @@ import {
   highlightedGroupAtom,
   dimmedEntityTypesAtom,
   graphBrightnessAtom,
+  graphScaleAtom,
 } from '@/atoms/intelligence'
+import { buildScaledGraph, resolutionForLevel } from './graphAggregation'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
 
@@ -122,6 +124,9 @@ const LINK_OPACITY = 0.35
  */
 const NODE_POINTS_THRESHOLD = 2000
 
+/** Highest aggregation level the scale stepper offers (resolutionForLevel saturates at ~2). */
+const MAX_SCALE = 6
+
 /** Precomputed ENTITY_COLORS → normalized RGB (avoids a THREE.Color per node). */
 const ENTITY_RGB: Record<string, { r: number; g: number; b: number }> = Object.fromEntries(
   Object.entries(ENTITY_COLORS).map(([k, hex]) => {
@@ -157,6 +162,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const highlightedGroup = useAtomValue(highlightedGroupAtom)
   const dimmedEntityTypes = useAtomValue(dimmedEntityTypesAtom)
   const brightness = useAtomValue(graphBrightnessAtom)
+  const [scaleLevel, setScaleLevel] = useAtom(graphScaleAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
 
@@ -317,16 +323,26 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     setNodeQuality(graphData.nodes.length)
   }, [graphData.nodes.length])
 
+  // ── Multi-scale aggregation (see graphAggregation.ts) ──────────────────
+  // scaleLevel 0 = detail (raw nodes); >0 = super-nodes aggregated on a grid.
+  const aggregated = scaleLevel > 0
+  const scaleRes = aggregated ? resolutionForLevel(graphData.nodes.length, scaleLevel) : 0
+  const displayData = useMemo(() => {
+    if (!aggregated || scaleRes <= 0 || graphData.nodes.length === 0) return graphData
+    return buildScaledGraph(graphData, scaleRes)
+  }, [aggregated, scaleRes, graphData])
+
   // True in the optimized path (minimal quality: ≥500 nodes, particles off):
   // links are drawn as ONE LineSegments instead of one cylinder per link.
-  const useOptimizedLinks = getNodeQuality() === 'minimal'
+  // Aggregated tiers always draw points + segments (few, size-coded super-nodes).
+  const useOptimizedLinks = aggregated || getNodeQuality() === 'minimal'
 
   // Above NODE_POINTS_THRESHOLD the sprite path (a Group + 3 sprites per node)
   // stops scaling, so nodes are drawn as ONE THREE.Points instead (see
   // nodePoints.ts). Below it, the rich sprite identity (emoji + ring + label)
   // is kept. The threshold keeps the familiar look for everyday graphs and
   // switches to the overview tier only when the count would choke WebGL.
-  const useOptimizedNodes = graphData.nodes.length >= NODE_POINTS_THRESHOLD
+  const useOptimizedNodes = aggregated || graphData.nodes.length >= NODE_POINTS_THRESHOLD
 
   // wake: new data arrived (REST load, WebSocket update, preset/filter change).
   // ForceGraph3D rebuilds its node/link objects inside tickFrame(), and the
@@ -375,7 +391,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         communityHullsRef.current = null
       }
 
-      if (!showCommunityHulls || graphData.nodes.length === 0) return
+      if (!showCommunityHulls || graphData.nodes.length === 0 || aggregated) return
 
       // Only build if any node has a communityId
       const hasCommunities = graphData.nodes.some((n) => n.communityId != null)
@@ -392,7 +408,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       // wake: hull meshes/labels were added to or removed from the scene.
       wake(WAKE_MUTATION_MS)
     }
-  }, [showCommunityHulls, graphData.nodes, wake, t])
+  }, [showCommunityHulls, graphData.nodes, aggregated, wake, t])
 
   // Rebuild when toggle changes (immediate — user clicked the button)
   useEffect(() => {
@@ -602,8 +618,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const computeNodeStyle = useCallback((node: Graph3DNode): NodeStyle => {
     const entityType = node.entityType
     const base = ENTITY_RGB[entityType] ?? DEFAULT_NODE_RGB
-    const shape = shapeForType(entityType)
-    const size = sizeForType(entityType)
+    // Super-nodes (aggregated) are sized by how many nodes they bundle (area ∝
+    // count), coloured/shaped by their dominant type. Individual nodes use the
+    // per-type size.
+    const count = node.data.count as number | undefined
+    const isSuper = typeof count === 'number' && count > 1
+    const shape = isSuper ? 0 : shapeForType(entityType)
+    const size = isSuper ? 3 + 2.6 * Math.sqrt(count) : sizeForType(entityType)
     const energy = Math.min(1, Math.max(0, (node.data.energy as number) ?? 0))
     const isActive = activation.phase !== 'idle' && activation.phase !== 'searching'
 
@@ -1272,7 +1293,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // configured background + lights, avoiding the unmount/remount cycle that
   // creates a new white scene each time. See note: "ForceGraph3D white screen on (re)mount"
   const emptyGraphData = useMemo(() => ({ nodes: [] as Graph3DNode[], links: [] as Graph3DLink[] }), [])
-  const activeGraphData = graphData.nodes.length > 0 ? graphData : emptyGraphData
+  // The graph that is actually rendered: aggregated super-nodes/edges when a
+  // scale is active, the raw graph otherwise.
+  const activeGraphData = displayData.nodes.length > 0 ? displayData : emptyGraphData
 
   // Don't render ForceGraph3D until we have real container dimensions —
   // passing width=0/height=0 causes Three.js to create a degenerate renderer
@@ -1558,6 +1581,35 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         // Background
         backgroundColor="#0f172a"
       />}
+
+      {/* ── Scale stepper (multi-scale aggregation) ─────────────────────── */}
+      {graphData.nodes.length > 0 && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-lg border border-slate-700 bg-slate-900/80 px-1.5 py-1 backdrop-blur">
+          <button
+            type="button"
+            aria-label="Detail"
+            title="Detail"
+            onClick={() => setScaleLevel((v) => Math.max(0, v - 1))}
+            disabled={scaleLevel === 0}
+            className="px-2 py-0.5 rounded text-slate-300 text-xs hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            −
+          </button>
+          <span className="px-1 text-xs text-slate-400 tabular-nums">
+            {scaleLevel === 0 ? `${graphData.nodes.length} nœuds` : `${activeGraphData.nodes.length} groupes`}
+          </span>
+          <button
+            type="button"
+            aria-label="Vue d'ensemble"
+            title="Vue d'ensemble"
+            onClick={() => setScaleLevel((v) => Math.min(MAX_SCALE, v + 1))}
+            disabled={scaleLevel >= MAX_SCALE}
+            className="px-2 py-0.5 rounded text-slate-300 text-xs hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            +
+          </button>
+        </div>
+      )}
     </div>
   )
 }

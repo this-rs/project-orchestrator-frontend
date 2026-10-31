@@ -124,19 +124,15 @@ export function aggregateAtResolution(
 }
 
 /**
- * The resolution ladder for semantic zoom: level 0 = finest (all nodes), each
- * step up roughly halves the grid (≈8 cells → 1, i.e. "several of a scale become
- * one of the scale above"). Returned finest-first.
+ * Grid resolution (cells per axis) for an aggregation level.
+ * level 0 = detail (caller keeps the raw nodes); level L targets ~nodeCount / 5^L
+ * super-nodes, i.e. "about 5 of this scale become 1 of the scale above".
+ * Returns 0 for level 0, ≥2 otherwise.
  */
-export function resolutionLadder(nodeCount: number, topRes = 4, maxLevels = 6): number[] {
-  const finest = Math.max(topRes, Math.ceil(Math.sqrt(nodeCount)))
-  const ladder: number[] = []
-  let res = finest
-  for (let i = 0; i < maxLevels && res >= topRes; i++) {
-    ladder.push(res)
-    res = Math.floor(res / 2)
-  }
-  return ladder
+export function resolutionForLevel(nodeCount: number, level: number): number {
+  if (level <= 0 || nodeCount <= 0) return 0
+  const targetCells = Math.max(8, Math.ceil(nodeCount / Math.pow(5, level)))
+  return Math.max(2, Math.round(Math.cbrt(targetCells)))
 }
 
 /**
