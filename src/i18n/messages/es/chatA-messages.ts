@@ -95,6 +95,31 @@ export default {
         label: "Hoja de ruta",
         description: "Hitos y releases",
         prompt: "Muéstrame la hoja de ruta completa con hitos y releases"
+      },
+      prepare: {
+        label: "Preparar algo",
+        description: "Un evento, un archivo, un lanzamiento",
+        prompt: "Ayúdame a preparar lo siguiente, como un plan de tareas con lo que depende de qué: "
+      },
+      track: {
+        label: "Hacer seguimiento de algo",
+        description: "Un presupuesto, un calendario, una lista",
+        prompt: "Configura una forma de seguir lo siguiente: un plan con sus tareas, notas para lo que te digo y una decisión cada vez que elijo. Esto es lo que hay que seguir: "
+      },
+      resume: {
+        label: "Retomar lo que se detuvo",
+        description: "Retomar un trabajo en espera",
+        prompt: "¿Qué se ha detenido o está esperándome? Enuméralo y luego retoma el primer elemento."
+      },
+      decided: {
+        label: "¿Qué decidimos?",
+        description: "Decisiones y sus motivos",
+        prompt: "¿Qué hemos decidido hasta ahora y por qué? Enumera las decisiones con sus motivos y las alternativas descartadas."
+      },
+      standing: {
+        label: "¿Cómo vamos?",
+        description: "Objetivos, planes, avance",
+        prompt: "Muéstrame cómo vamos: objetivos, planes, lo hecho y lo que viene."
       }
     },
     time: {

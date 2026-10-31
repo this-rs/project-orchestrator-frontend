@@ -95,6 +95,31 @@ export default {
         label: "路线图",
         description: "里程碑与发布",
         prompt: "请给我展示包含里程碑和发布的完整路线图"
+      },
+      prepare: {
+        label: "准备某事",
+        description: "一个活动、一个文件、一次发布",
+        prompt: "帮我准备以下内容，以带有依赖关系的任务计划呈现："
+      },
+      track: {
+        label: "记录某事",
+        description: "预算、日程、清单",
+        prompt: "建立一种方式来记录以下内容：带有任务的计划、对我说的话的记录，以及每次我做选择时的决定。要记录的内容如下："
+      },
+      resume: {
+        label: "继续已停止的事",
+        description: "接续等待中的工作",
+        prompt: "有什么停止了或在等我？列出来，然后继续第一项。"
+      },
+      decided: {
+        label: "我们决定了什么？",
+        description: "决定及其理由",
+        prompt: "到目前为止我们决定了什么，为什么？列出决定及其理由和被放弃的备选方案。"
+      },
+      standing: {
+        label: "我们进展如何？",
+        description: "目标、计划、进度",
+        prompt: "告诉我我们的进展：目标、计划、已完成的和接下来的。"
       }
     },
     time: {

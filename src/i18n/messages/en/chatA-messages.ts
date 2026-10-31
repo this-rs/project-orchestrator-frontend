@@ -90,6 +90,31 @@ export default {
         description: 'Milestones & releases',
         prompt: 'Show me the full roadmap with milestones and releases',
       },
+      prepare: {
+        label: 'Prepare something',
+        description: 'An event, a file, a launch',
+        prompt: 'Help me prepare the following, as a plan of tasks with what depends on what: '
+      },
+      track: {
+        label: 'Keep track of something',
+        description: 'A budget, a schedule, a list',
+        prompt: 'Set up a way to keep track of the following: a plan with its tasks, notes for what I tell you, and a decision each time I choose. Here is what to track: '
+      },
+      resume: {
+        label: 'Resume what stopped',
+        description: 'Pick up work that is waiting',
+        prompt: 'What has stopped or is waiting on me? List it, then resume the first item.'
+      },
+      decided: {
+        label: 'What did we decide?',
+        description: 'Decisions and their reasons',
+        prompt: 'What have we decided so far, and why? List the decisions with their reasons and the alternatives set aside.'
+      },
+      standing: {
+        label: 'Where do we stand?',
+        description: 'Objectives, plans, progress',
+        prompt: 'Show me where we stand: objectives, plans, what is done and what comes next.'
+      }
     },
     time: {
       now: 'just now',

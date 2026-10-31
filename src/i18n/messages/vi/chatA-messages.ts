@@ -95,6 +95,31 @@ export default {
         label: "Lộ trình",
         description: "Cột mốc và bản phát hành",
         prompt: "Cho tôi xem lộ trình đầy đủ với các cột mốc và bản phát hành"
+      },
+      prepare: {
+        label: "Chuẩn bị một việc",
+        description: "Một sự kiện, một tệp, một buổi ra mắt",
+        prompt: "Giúp tôi chuẩn bị những điều sau, dưới dạng kế hoạch công việc kèm các phụ thuộc: "
+      },
+      track: {
+        label: "Theo dõi một việc",
+        description: "Một ngân sách, một lịch trình, một danh sách",
+        prompt: "Thiết lập cách theo dõi những điều sau: một kế hoạch với các công việc, ghi chú cho những gì tôi nói, và một quyết định mỗi khi tôi chọn. Đây là điều cần theo dõi: "
+      },
+      resume: {
+        label: "Tiếp tục điều đã dừng",
+        description: "Tiếp nhận công việc đang chờ",
+        prompt: "Điều gì đã dừng hoặc đang chờ tôi? Liệt kê rồi tiếp tục mục đầu tiên."
+      },
+      decided: {
+        label: "Chúng ta đã quyết định gì?",
+        description: "Các quyết định và lý do",
+        prompt: "Chúng ta đã quyết định gì đến nay, và vì sao? Liệt kê các quyết định cùng lý do và các phương án đã loại."
+      },
+      standing: {
+        label: "Chúng ta đang ở đâu?",
+        description: "Mục tiêu, kế hoạch, tiến độ",
+        prompt: "Cho tôi thấy chúng ta đang ở đâu: mục tiêu, kế hoạch, việc đã xong và việc tiếp theo."
       }
     },
     time: {
