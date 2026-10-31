@@ -1406,7 +1406,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         nodePointsRef.current = null
       }
     }
-  }, [useOptimizedNodes, activeGraphData, wake])
+    // hasDimensions: the library mounts only once the container is measured. If the
+    // graph data arrives first, this effect runs with no ForceGraph3D yet and must run
+    // again when it mounts — otherwise the Points are never created above the threshold.
+  }, [useOptimizedNodes, activeGraphData, wake, hasDimensions])
 
   // Recolor points when any highlight/activation/heatmap state changes.
   useEffect(() => {
