@@ -160,6 +160,7 @@ export default {
     result: "Kết quả",
     watched: "Đầu ra được theo dõi",
     outputInFile: "Đầu ra đã vào tệp của tác vụ (ở trên); nhà cung cấp không đưa nó vào luồng.",
+    toolsAria: "Công cụ đã gọi",
     kind: {
       workflow: "Workflow",
       shell: "Lệnh nền",

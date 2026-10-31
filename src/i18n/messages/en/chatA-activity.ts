@@ -132,6 +132,7 @@ export default {
     result: 'Result',
     watched: 'Watched output',
     outputInFile: 'The output went to the task’s file (above); the provider keeps it out of the stream.',
+    toolsAria: 'Tools called',
     kind: {
       workflow: 'Workflow',
       shell: 'Background command',

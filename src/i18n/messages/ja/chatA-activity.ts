@@ -160,6 +160,7 @@ export default {
     result: "結果",
     watched: "監視中の出力",
     outputInFile: "出力はタスクのファイル（上記）に書き込まれ、プロバイダーはストリームに流しません。",
+    toolsAria: "呼び出したツール",
     kind: {
       workflow: "ワークフロー",
       shell: "バックグラウンドコマンド",

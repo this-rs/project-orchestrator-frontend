@@ -160,6 +160,7 @@ export default {
     result: "결과",
     watched: "감시 중인 출력",
     outputInFile: "출력은 작업 파일(위)로 갔으며 공급자는 스트림으로 보내지 않습니다.",
+    toolsAria: "호출한 도구",
     kind: {
       workflow: "워크플로",
       shell: "백그라운드 명령",

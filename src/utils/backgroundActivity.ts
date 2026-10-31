@@ -254,6 +254,91 @@ export interface ActivityUsage {
   durationMs?: number
 }
 
+// ---------------------------------------------------------------------------
+// The tools an activity used, in order (the per-TOOL view of a background stream)
+// ---------------------------------------------------------------------------
+
+/**
+ * One tool call seen in a background stream.
+ *
+ * The provider flattens an out-of-turn sub-agent into text lines, and two of
+ * those lines are markers: `[tool_use: Read]` when a call starts, then
+ * `[tool_result] <what it returned>` (measured: 3 989 such markers in three
+ * days). That is the whole per-tool structure that reaches the client — the
+ * call's PARAMETERS are not in it (no path, no pattern, no diff), so this view
+ * names the tool, orders it, and shows what it returned; it never pretends to
+ * show an argument it does not have.
+ */
+export interface ToolTick {
+  key: string
+  name: string
+  /** First meaningful line the tool returned, cut short. */
+  resultHead?: string
+  /** Everything it returned, folded by the renderer. */
+  resultBody?: string
+  /** A call with no result yet: the tool that is running NOW. */
+  pending: boolean
+}
+
+const TOOL_USE_LINE = /^\[tool_use:\s*([^\]]+)\]$/
+const TOOL_RESULT_PREFIX = '[tool_result]'
+
+/** How much of a tool result one line keeps before it is cut. */
+const RESULT_HEAD_MAX = 120
+
+function cut(text: string, max = RESULT_HEAD_MAX): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
+
+/**
+ * The ordered tool calls of a flattened stream, each with what it returned.
+ * Non-marker lines belong to the result of the call above them, so a
+ * multi-line result stays ONE tick instead of becoming noise lines.
+ */
+export function parseToolFlow(lines: ReadonlyArray<string>): ToolTick[] {
+  const ticks: ToolTick[] = []
+  let current: ToolTick | undefined
+  for (const raw of lines) {
+    const line = raw.trimEnd()
+    const use = TOOL_USE_LINE.exec(line.trim())
+    if (use) {
+      current = { key: `${ticks.length}-${use[1]}`, name: use[1].trim(), pending: true }
+      ticks.push(current)
+      continue
+    }
+    if (line.trimStart().startsWith(TOOL_RESULT_PREFIX)) {
+      // A result closes the last open call.
+      const text = line.trimStart().slice(TOOL_RESULT_PREFIX.length).trim()
+      if (current) {
+        current.resultBody = text
+        current.resultHead = cut(text.split('\n').find((l) => l.trim() !== '')?.trim() ?? '')
+        current.pending = false
+      }
+      continue
+    }
+    if (current && !current.pending && line.trim() !== '') {
+      current.resultBody = `${current.resultBody ?? ''}\n${line}`
+      if (!current.resultHead) current.resultHead = cut(line.trim())
+    }
+  }
+  return ticks
+}
+
+/** How many calls per tool, biggest first — what a row can show without unfolding. */
+export function toolCounts(ticks: ReadonlyArray<ToolTick>): Array<{ name: string; count: number }> {
+  const counts = new Map<string, number>()
+  for (const tick of ticks) counts.set(tick.name, (counts.get(tick.name) ?? 0) + 1)
+  return [...counts.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+}
+
+/** The tool running now, when the stream has a call with no result yet. */
+export function runningTool(ticks: ReadonlyArray<ToolTick>): ToolTick | undefined {
+  for (let i = ticks.length - 1; i >= 0; i--) if (ticks[i].pending) return ticks[i]
+  return undefined
+}
+
 export function extractUsage(fields: Fields): ActivityUsage | undefined {
   const u = isRecord(fields.usage) ? fields.usage : undefined
   if (!u) return undefined
@@ -397,6 +482,8 @@ export interface ActivityModel {
   events: ActivityEvent[]
   /** Plain-text output lines (Bash / Monitor streams), oldest first. */
   outputLines: string[]
+  /** The tools this activity called, in order — the per-tool view of a stream. */
+  tools: ToolTick[]
   /** Flattened structured payload for the generic renderer. */
   details: KeyValue[]
   /** Structured payload kept as the "raw" last resort. */
@@ -617,6 +704,7 @@ export function buildActivity(input: ActivityInput): ActivityModel {
     usage,
     events,
     outputLines,
+    tools: parseToolFlow(outputLines),
     details: flattenFields(fields).filter((d) => d.value !== title && !params.some((p) => p.label === d.label)),
     raw,
     count,

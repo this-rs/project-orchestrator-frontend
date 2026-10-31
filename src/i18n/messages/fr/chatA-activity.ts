@@ -160,6 +160,7 @@ export default {
     result: "Résultat",
     watched: "Sortie surveillée",
     outputInFile: "La sortie est allée dans le fichier de la tâche (ci-dessus) : le fournisseur ne la met pas dans le flux.",
+    toolsAria: "Outils appelés",
     kind: {
       workflow: "Workflow",
       shell: "Commande en arrière-plan",

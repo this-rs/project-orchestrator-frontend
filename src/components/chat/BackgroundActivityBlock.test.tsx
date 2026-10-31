@@ -270,6 +270,56 @@ describe('agent + generic renderers', () => {
   })
 })
 
+describe('per-tool rendering', () => {
+  /** A sub-agent stream as the backend emits it: markers, no parameters. */
+  const streamBlock = (lines: string[]) =>
+    block({
+      correlation_id: 'agent-1',
+      source: 'Workflow',
+      entries: lines.map((content, i) => tick(i + 1, 'Workflow', content)),
+      data: { task_type: 'local_agent', description: "Audit de l'auth", subagent_type: 'general-purpose' },
+    })
+
+  it('says WHICH tools the background agent called, with counts, on one line', () => {
+    render(
+      withTasks(['agent-1'], (
+        <BackgroundActivityBlock
+          block={streamBlock([
+            '[tool_use: Bash]', '[tool_result] ok',
+            '[tool_use: Bash]', '[tool_result] ok',
+            '[tool_use: Grep]', '[tool_result] src/a.rs:12',
+          ])}
+        />
+      )),
+    )
+    const group = screen.getByRole('button', { name: /Background activity/ })
+    if (group.getAttribute('aria-expanded') === 'false') fireEvent.click(group)
+    const row = screen.getByTestId('background-activity-card')
+    expect(within(row).getByTitle('Bash ×2')).toBeInTheDocument()
+    expect(within(row).getByTitle('Grep ×1')).toBeInTheDocument()
+  })
+
+  it('shows the tool running now and what each one returned, in order', () => {
+    render(
+      withTasks(['agent-1'], (
+        <BackgroundActivityBlock
+          block={streamBlock(['[tool_use: Grep]', '[tool_result] 3 fichiers', '[tool_use: Edit]'])}
+        />
+      )),
+    )
+    unfold()
+    const list = screen.getByRole('list', { name: 'Tools called' })
+    expect(within(list).getByText('Grep')).toBeInTheDocument()
+    expect(within(list).getByText('3 fichiers')).toBeInTheDocument()
+    // The call with no result yet is the one running NOW.
+    expect(within(list).getByText('Edit')).toBeInTheDocument()
+    expect(within(list).getByText('Running')).toBeInTheDocument()
+    // The raw markers never reach the screen.
+    expect(document.body.textContent).not.toContain('[tool_use:')
+    expect(document.body.textContent).not.toContain('[tool_result]')
+  })
+})
+
 describe('accessibility + truncation', () => {
   it('expands long text on demand with aria-expanded', () => {
     render(<ExpandableText text={'x'.repeat(400)} />)

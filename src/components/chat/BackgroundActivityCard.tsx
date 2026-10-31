@@ -1,5 +1,21 @@
 import { useState, type ReactNode } from 'react'
-import { Activity, Bot, ChevronRight, Info, MessageSquare, Radar, Terminal, Workflow, type LucideIcon } from 'lucide-react'
+import {
+  Activity,
+  Bot,
+  ChevronRight,
+  FileText,
+  Globe,
+  Info,
+  ListChecks,
+  MessageSquare,
+  Pencil,
+  Radar,
+  Search,
+  Terminal,
+  Wrench,
+  Workflow,
+  type LucideIcon,
+} from 'lucide-react'
 import { useT } from '@/i18n'
 import { tr } from '@/i18n/lazy'
 import { MetaLine } from '@/components/ui/MetaLine'
@@ -11,10 +27,13 @@ import { TONE_CLASSES } from '@/components/ui/statusMeta'
 import {
   ACTIVITY_STATUS_META,
   agentProgress,
+  runningTool,
   tailLines,
+  toolCounts,
   type ActivityKind,
   type ActivityModel,
   type KeyValue,
+  type ToolTick,
 } from '@/utils/backgroundActivity'
 
 const KIND_META: Record<ActivityKind, { icon: LucideIcon }> = {
@@ -26,6 +45,40 @@ const KIND_META: Record<ActivityKind, { icon: LucideIcon }> = {
   notice: { icon: Info },
   generic: { icon: Activity },
 }
+
+/**
+ * One glyph per TOOL — the smallest visible difference between a read and a
+ * write. A background stream names its tools (`[tool_use: Read]`), so the glyph
+ * is the only thing that has to be invented here; the tool keeps its identity
+ * from the transcript's own vocabulary (`BashToolRenderer`, `ReadToolRenderer`…).
+ */
+const TOOL_ICONS: Record<string, LucideIcon> = {
+  Bash: Terminal,
+  BashOutput: Terminal,
+  Monitor: Radar,
+  Read: FileText,
+  Write: Pencil,
+  Edit: Pencil,
+  MultiEdit: Pencil,
+  NotebookEdit: Pencil,
+  Grep: Search,
+  Glob: Search,
+  WebFetch: Globe,
+  WebSearch: Globe,
+  TodoWrite: ListChecks,
+  Task: Bot,
+  Agent: Bot,
+  Workflow,
+}
+
+/** The glyph of a tool, by canonical name — unknown and MCP tools get the wrench. */
+function toolIcon(toolName: string): LucideIcon {
+  const bare = toolName.replace(/^mcp__[a-z-]+__/i, '')
+  return TOOL_ICONS[bare] ?? TOOL_ICONS[toolName] ?? Wrench
+}
+
+/** Tools whose result reads as code (monospace), the others as prose. */
+const MONO_RESULT = /^(Bash|BashOutput|Read|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|Monitor)$/i
 
 const OUTPUT_TAIL_LINES = 12
 const LONG_TEXT_CHARS = 160
@@ -41,6 +94,94 @@ function localTime(iso: string): string {
 // Building blocks
 // ---------------------------------------------------------------------------
 
+/** Serialised pipelines are one "tool", whatever the name the provider gives. */
+function sameTool(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase()
+}
+
+/**
+ * What the activity is doing, by TOOL, on one line: `Bash ×12 · Read ×4 · Edit`.
+ *
+ * This is the line that was missing: a background sub-agent was one grey row
+ * saying "running", while the stream it emits names every tool it calls. The
+ * tool running NOW pulses; the rest are counts.
+ */
+function ToolStrip({ tools, max = 4 }: { tools: ReadonlyArray<ToolTick>; max?: number }) {
+  const counts = toolCounts(tools)
+  const live = runningTool(tools)
+  if (counts.length === 0) return null
+  const shown = counts.slice(0, max)
+  return (
+    <span className="inline-flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5" aria-hidden="true">
+      {shown.map(({ name, count }) => {
+        const Icon = toolIcon(name)
+        const isLive = live && sameTool(live.name, name) && count === 1
+        return (
+          <span key={name} className="inline-flex items-center gap-1" title={`${name} ×${count}`}>
+            <Icon className={`h-3 w-3 shrink-0 ${isLive ? 'animate-pulse text-emerald-400/80' : 'text-gray-600'}`} />
+            <span className="text-gray-500">{name}</span>
+            {count > 1 && <span className="tabular-nums text-gray-600">×{count}</span>}
+          </span>
+        )
+      })}
+      {counts.length > shown.length && <span className="text-gray-700">+{counts.length - shown.length}</span>}
+    </span>
+  )
+}
+
+/** Last tools of a stream, drawn one per line: the glyph, the name, what came back. */
+function ToolFlowPanel({ tools }: { tools: ReadonlyArray<ToolTick> }) {
+  const { t } = useT()
+  const [all, setAll] = useState(false)
+  if (tools.length === 0) return null
+  const limit = all ? tools.length : 6
+  const shown = tools.slice(-limit)
+  const omitted = tools.length - shown.length
+  const live = runningTool(tools)
+  return (
+    <div>
+      <ol aria-label={t('chatA-activity.card.toolsAria')} className="space-y-0.5">
+        {omitted > 0 && (
+          <li className="text-[11px] text-gray-600">
+            {t(omitted === 1 ? 'chatA-activity.card.hiddenEventOne' : 'chatA-activity.card.hiddenEventMany', { count: omitted })}
+          </li>
+        )}
+        {shown.map((tick) => {
+          const Icon = toolIcon(tick.name)
+          const isLive = live?.key === tick.key
+          return (
+            <li key={tick.key} className="flex min-w-0 items-baseline gap-1.5 text-[11px]">
+              <Icon
+                aria-hidden="true"
+                className={`mt-0.5 h-3 w-3 shrink-0 ${isLive ? 'animate-pulse text-emerald-400/80' : 'text-gray-600'}`}
+              />
+              <span className="shrink-0 text-gray-400">{tick.name}</span>
+              {tick.resultHead ? (
+                <span
+                  className={`min-w-0 truncate text-gray-500 ${MONO_RESULT.test(tick.name) ? 'font-mono' : ''}`}
+                  title={tick.resultBody}
+                >
+                  {tick.resultHead}
+                </span>
+              ) : (
+                <span className="text-gray-600">{t('chatA-activity.card.status.running')}</span>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+      {omitted > 0 && !all && (
+        <button
+          type="button"
+          onClick={() => setAll(true)}
+          className={`${hitArea} mt-0.5 rounded text-[11px] text-indigo-400 hover:text-indigo-300 ${focusRingInset}`}
+        >
+          {t('chatA-activity.card.showMore')}
+        </button>
+      )}
+    </div>
+  )
+}
 /** Text clamped to 3 lines with a keyboard-reachable Show more / Show less. */
 export function ExpandableText({ text, mono = false, className = '' }: { text: string; mono?: boolean; className?: string }) {
   const { t } = useT()
@@ -335,14 +476,19 @@ function ShellBody({ activity }: { activity: ActivityModel }) {
   )
 }
 
-/** A background sub-agent: what it was asked, what it used, and what it answered. */
+/** A background sub-agent: what it was asked, WHICH TOOLS it called, what it answered. */
 function AgentBody({ activity }: { activity: ActivityModel }) {
   const { t } = useT()
   return (
     <div className="space-y-2 px-3 pb-2.5 pt-1">
+      {activity.tools.length > 0 ? (
+        <ToolFlowPanel tools={activity.tools} />
+      ) : (
+        // A stream with no structured tool call: its lines ARE what it says.
+        <OutputTail lines={activity.outputLines} label={t('chatA-activity.card.latestOutput')} />
+      )}
       <OutputTail lines={lines(activity.result)} label={t('chatA-activity.card.result')} />
       {activity.usage && <UsageLine usage={activity.usage} />}
-      <OutputTail lines={activity.outputLines} label={t('chatA-activity.card.latestOutput')} />
       <Timeline activity={activity} />
       {activity.raw && <RawPayload raw={activity.raw} />}
     </div>
@@ -411,11 +557,13 @@ function ActivityBody({ activity }: { activity: ActivityModel }) {
       {activity.kind === 'monitor' && <MonitorBody activity={activity} />}
       {activity.kind === 'agent' && <AgentBody activity={activity} />}
       {activity.kind === 'message' && <MessageBody activity={activity} />}
+      {activity.kind === 'message' && activity.tools.length > 0 && <ToolFlowPanel tools={activity.tools} />}
       {activity.kind === 'workflow' && <WorkflowBody activity={activity} />}
       {/* What is NOT known keeps everything: an unknown payload is the one case
           where the raw data is the only honest thing to show, folded. */}
       {activity.kind === 'generic' && (
         <>
+          <ToolFlowPanel tools={activity.tools} />
           <DetailList details={activity.details} />
           <OutputTail lines={activity.outputLines} label={t('chatA-activity.card.output')} />
           <Timeline activity={activity} />
@@ -458,6 +606,8 @@ export function ActivityCard({ activity, defaultOpen = false, className = '' }: 
   const kindLabel = t(`chatA-activity.card.kind.${activity.kind}`)
   const hint = collapsedHint(activity, (settled, total) => t('chatA-activity.card.agents', { settled, total }))
   const chipPreview = activity.params.slice(0, 3)
+  // A command IS its own tool; every other nature is a stream of tool calls.
+  const showTools = activity.tools.length > 0 && activity.kind !== 'shell' && activity.kind !== 'monitor'
 
   return (
     <div
@@ -501,13 +651,16 @@ export function ActivityCard({ activity, defaultOpen = false, className = '' }: 
             <MetaLine
               className="mt-0.5"
               items={[
+                // By TOOL first: what it called says more about a background
+                // agent than the chips of its payload ever did.
+                showTools && <ToolStrip key="tools" tools={activity.tools} />,
                 ...chipPreview.map((p) => (
                   <span key={p.label} className="min-w-0 truncate max-w-[14rem]" title={`${p.label}: ${p.value}`}>
                     <span className="text-gray-600">{p.label} </span>
                     <span className={p.mono ? 'font-mono' : ''}>{p.value}</span>
                   </span>
                 )),
-                hint && <span key="hint" className="min-w-0 truncate max-w-[16rem]" title={hint}>{hint}</span>,
+                !showTools && hint && <span key="hint" className="min-w-0 truncate max-w-[16rem]" title={hint}>{hint}</span>,
               ]}
             />
           )}

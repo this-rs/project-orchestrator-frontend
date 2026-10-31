@@ -160,6 +160,7 @@ export default {
     result: "Ergebnis",
     watched: "Überwachte Ausgabe",
     outputInFile: "Die Ausgabe ging in die Datei der Aufgabe (oben); der Anbieter schickt sie nicht in den Stream.",
+    toolsAria: "Aufgerufene Werkzeuge",
     kind: {
       workflow: "Workflow",
       shell: "Hintergrundbefehl",

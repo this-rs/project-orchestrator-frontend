@@ -160,6 +160,7 @@ export default {
     result: "结果",
     watched: "被监视的输出",
     outputInFile: "输出写入了任务文件（见上），提供方不会把它放进流。",
+    toolsAria: "调用的工具",
     kind: {
       workflow: "工作流",
       shell: "后台命令",

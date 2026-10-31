@@ -160,6 +160,7 @@ export default {
     result: "Resultado",
     watched: "Salida vigilada",
     outputInFile: "La salida fue al archivo de la tarea (arriba); el proveedor no la envía al flujo.",
+    toolsAria: "Herramientas usadas",
     kind: {
       workflow: "Workflow",
       shell: "Comando en segundo plano",

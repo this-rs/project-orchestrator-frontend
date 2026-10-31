@@ -15,11 +15,14 @@ import {
   humanizeKey,
   normalizeState,
   parseContent,
+  parseToolFlow,
   partitionActivities,
+  runningTool,
   subtypeLabel,
   summarizeFields,
   summarizeStatuses,
   tailLines,
+  toolCounts,
 } from './backgroundActivity'
 
 const NOW = Date.parse('2026-05-01T10:10:00Z')
@@ -98,6 +101,58 @@ describe('flattenFields / summarizeFields', () => {
   })
   it('summarizes into a short human line', () => {
     expect(summarizeFields({ status: 'completed', summary: 'ok', a: 1, b: 2 }, 2)).toBe('status completed · summary ok')
+  })
+})
+
+describe('parseToolFlow — the per-tool view of a flattened stream', () => {
+  // The exact lines the backend emits for an out-of-turn sub-agent.
+  const stream = [
+    'Je vais chercher les fichiers concernés.',
+    '[tool_use: Grep]',
+    '[tool_result] src/chat/manager.rs:120: pub fn stream_response',
+    'src/chat/manager.rs:340: fn emit_chat',
+    '[tool_use: Read]',
+    '[tool_result]     1\tuse std::sync::Arc;',
+    '[tool_use: Edit]',
+    '[tool_result] The file /src/chat/manager.rs has been updated.',
+  ]
+
+  it('orders the calls and attaches each result to its own call', () => {
+    const flow = parseToolFlow(stream)
+    expect(flow.map((t) => t.name)).toEqual(['Grep', 'Read', 'Edit'])
+    expect(flow[0].resultHead).toBe('src/chat/manager.rs:120: pub fn stream_response')
+    // A multi-line result stays ONE tick, not two lines of noise.
+    expect(flow[0].resultBody).toContain('fn emit_chat')
+    expect(flow.every((t) => !t.pending)).toBe(true)
+  })
+
+  it('names the tool running now — a call with no result yet', () => {
+    const flow = parseToolFlow(['[tool_use: Bash]'])
+    expect(flow).toHaveLength(1)
+    expect(flow[0].pending).toBe(true)
+    expect(runningTool(flow)?.name).toBe('Bash')
+    expect(runningTool(parseToolFlow(stream))).toBeUndefined()
+  })
+
+  it('counts per tool, biggest first, and ignores prose', () => {
+    const flow = parseToolFlow([
+      'some prose',
+      '[tool_use: Bash]', '[tool_result] ok',
+      '[tool_use: Bash]', '[tool_result] ok',
+      '[tool_use: Read]', '[tool_result] x',
+    ])
+    expect(toolCounts(flow)).toEqual([
+      { name: 'Bash', count: 2 },
+      { name: 'Read', count: 1 },
+    ])
+  })
+
+  it('cuts a long result head so a row stays one line', () => {
+    const long = 'x'.repeat(400)
+    const [tickOf] = parseToolFlow(['[tool_use: Bash]', `[tool_result] ${long}`])
+    expect(tickOf.resultHead).toHaveLength(120)
+    expect(tickOf.resultHead?.endsWith('…')).toBe(true)
+    expect(tickOf.resultBody).toBe(long)
   })
 })
 

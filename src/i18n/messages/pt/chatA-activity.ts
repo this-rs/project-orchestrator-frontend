@@ -160,6 +160,7 @@ export default {
     result: "Resultado",
     watched: "Saída observada",
     outputInFile: "A saída foi para o arquivo da tarefa (acima); o fornecedor não a envia ao fluxo.",
+    toolsAria: "Ferramentas usadas",
     kind: {
       workflow: "Workflow",
       shell: "Comando em segundo plano",
