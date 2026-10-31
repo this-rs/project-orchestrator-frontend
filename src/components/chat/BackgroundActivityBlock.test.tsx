@@ -189,14 +189,13 @@ describe('shell renderer', () => {
       data: { command: 'npm run build && npm test', timeout: 9000 },
     })
 
-  it('draws the command as a terminal — prompt, stream, tail — and not as a code box', () => {
+  it('never repeats a command the row already shows, and still draws its stream', () => {
     render(withTasks(['b1'], <BackgroundActivityBlock block={shell()} />))
     unfold()
     const term = screen.getByTestId('activity-terminal')
-    // The prompt line carries the command; the row above is only its summary.
-    expect(term).toHaveTextContent('$')
-    expect(term).toHaveTextContent('npm run build && npm test')
-    expect(term).toHaveTextContent('bash')
+    // ONE occurrence: the row. The body is the stream, not a second prompt.
+    expect(screen.getAllByText('npm run build && npm test')).toHaveLength(1)
+    expect(term).not.toHaveTextContent('$')
     const outputToggle = screen.getByRole('button', { name: /Output · 20 lines/ })
     expect(outputToggle).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(outputToggle)
@@ -206,6 +205,15 @@ describe('shell renderer', () => {
     expect(pre.textContent).not.toContain('line 0\n')
     fireEvent.click(screen.getByRole('button', { name: /Show 8 earlier lines/ }))
     expect(screen.getByLabelText('Output').textContent).toContain('line 0')
+  })
+
+  it('carries no window decoration: no dots, no title bar', () => {
+    render(withTasks(['b1'], <BackgroundActivityBlock block={shell()} />))
+    unfold()
+    const term = screen.getByTestId('activity-terminal')
+    expect(term.textContent).not.toContain('bash')
+    // The facts a shell prints after the command live on the prompt line.
+    expect(term).not.toHaveTextContent('●')
   })
 
   it('keeps a multi-line command out of the row and gives it the whole prompt line', () => {
@@ -223,7 +231,7 @@ describe('shell renderer', () => {
     expect(screen.getByTestId('activity-terminal')).toHaveTextContent(/npm run build/)
   })
 
-  it('never offers a raw payload for a command: its facts and its output are the interface', () => {
+  it('never offers a raw payload for a command: its exit and its output are the interface', () => {
     const b = block({
       correlation_id: 'b1',
       source: 'BashOutput',
@@ -232,8 +240,33 @@ describe('shell renderer', () => {
     render(withTasks(['b1'], <BackgroundActivityBlock block={b} />))
     unfold()
     expect(screen.getByLabelText('Output')).toHaveTextContent('hi')
-    expect(screen.getByLabelText('Parameters')).toHaveTextContent('Exit code0')
+    expect(screen.getByTestId('activity-terminal')).toHaveTextContent('exit 0')
     expect(screen.queryByRole('button', { name: 'Raw payload' })).not.toBeInTheDocument()
+  })
+
+  it('titles a command by what it DOES, and never shows the same sentence three times', () => {
+    // Measured payload of a finished CLI Bash task: `description` is the script,
+    // `summary` is the human sentence about it.
+    const b = block({
+      correlation_id: 'b1',
+      source: 'Workflow',
+      entries: [tick(1, 'Workflow', 'task_started'), { ...tick(2, 'Workflow', 'task_notification'), subtype: 'task_notification' }],
+      data: {
+        task_type: 'local_bash',
+        description: 'R=/w; git clone --branch feat/x /w/.git-mirror "$R"',
+        summary: 'Create local working clone on kv-splice-chat and dry-run the WIP patch',
+        status: 'completed',
+      },
+    })
+    render(withTasks([], <BackgroundActivityBlock block={b} />))
+    unfold()
+    const card = screen.getByTestId('background-activity-card')
+    // Once as the title, and NOWHERE else (no chip, no "Résultat" section).
+    expect(within(card).getAllByText(/Create local working clone/)).toHaveLength(1)
+    expect(within(card).queryByText('Résultat')).not.toBeInTheDocument()
+    // And the lifecycle labels of the ticks are not presented as output.
+    expect(card).not.toHaveTextContent('task_started')
+    expect(card).not.toHaveTextContent('task_notification')
   })
 
   it('does not repeat the command as a “Task” parameter', () => {

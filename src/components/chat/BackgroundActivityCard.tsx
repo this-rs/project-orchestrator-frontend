@@ -80,6 +80,17 @@ function toolIcon(toolName: string): LucideIcon {
 /** Tools whose result reads as code (monospace), the others as prose. */
 const MONO_RESULT = /^(Bash|BashOutput|Read|Write|Edit|MultiEdit|NotebookEdit|Grep|Glob|Monitor)$/i
 
+/** One colour per NATURE, on a 2 px rail: the eye sorts the list before reading it. */
+const KIND_RAIL: Record<ActivityKind, string> = {
+  shell: 'border-l-emerald-500/40',
+  agent: 'border-l-sky-500/40',
+  workflow: 'border-l-violet-500/40',
+  message: 'border-l-amber-500/40',
+  monitor: 'border-l-teal-500/40',
+  generic: 'border-l-white/[0.12]',
+  notice: 'border-l-white/[0.12]',
+}
+
 const OUTPUT_TAIL_LINES = 12
 const LONG_TEXT_CHARS = 160
 const LONG_TEXT_LINES = 3
@@ -256,88 +267,91 @@ function Disclosure({
 const COMMAND_CLAMP_LINES = 3
 
 /**
- * A background command, drawn as a TERMINAL — because that is what it is.
+ * A background command, drawn as its TERMINAL — no window decoration.
  *
- * A grey card saying "Background command" with a bordered code box reads as
- * metadata about a command; a terminal window with a prompt, a monospace
- * stream and an exit status reads as the command itself. Same facts, and the
- * eye recognises the thing without reading a label:
+ * Three dots and a title bar say "this is an app window"; nothing here is a
+ * window. What is left is what a shell shows: a prompt, the stream it writes,
+ * and how it ended, inline at the end of the prompt line.
  *
- * - the chrome says WHERE it runs (`bash`) and how it ENDED (`exit 0`);
- * - the prompt line carries the command, clamped, with "+N lines" and an
- *   unfold for a script;
- * - the stream below is the output, tail-first, with a blinking caret while
- *   the task still writes.
- *
- * `description` of a CLI background Bash task is the whole script (heredocs,
- * `python3 - <<'EOF'`…): twenty lines pasted into a row is what buried the
- * transcript, so the prompt line is clamped and the whole text opens on demand.
+ * - `$` then the command, clamped, "+N lines", unfold on click — `description`
+ *   of a CLI Bash task is the whole script (heredocs, `python3 - <<'EOF'`);
+ * - the stream below, tail-first, with the caret of a task still writing;
+ * - `exit 0` / `exit ≠ 0` and the duration, on the prompt line: the two facts
+ *   a person looks for after "what did it run".
  */
 function TerminalCard({
   command,
   commandLines,
-  footer,
-  children,
+  exit,
+  failed,
+  duration,
   running,
+  showPrompt = true,
+  children,
 }: {
   command: string
   commandLines: number
-  /** Right end of the chrome: exit code, state, duration. */
-  footer?: ReactNode
-  children?: ReactNode
+  exit?: string
+  failed?: boolean
+  duration?: string
   running: boolean
+  /** False when the row above already shows this exact command. */
+  showPrompt?: boolean
+  children?: ReactNode
 }) {
   const { t } = useT()
   const [open, setOpen] = useState(false)
   const long = commandLines > COMMAND_CLAMP_LINES
+  const facts = (exit !== undefined || failed || duration) && (
+    <span className="flex shrink-0 items-center gap-1.5 self-start text-[10px]">
+      {(exit !== undefined || failed) && (
+        <span className={failed ? 'text-red-400/90' : 'text-emerald-400/80'}>exit {exit ?? '≠ 0'}</span>
+      )}
+      {duration && <span className="tabular-nums text-gray-500">{duration}</span>}
+    </span>
+  )
   return (
-    <div
-      className="overflow-hidden rounded-md border border-white/[0.09] bg-[#0b0e13] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-      data-testid="activity-terminal"
-    >
-      {/* Window chrome: three dots, the shell's name, and how it ended. */}
-      <div className="flex items-center gap-1.5 border-b border-white/[0.06] bg-white/[0.03] px-2 py-1">
-        <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#ff5f57]/60" />
-        <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#febc2e]/60" />
-        <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#28c840]/60" />
-        <span className="ml-1 font-mono text-[10px] text-gray-500">bash</span>
-        <span className="ml-auto flex items-center gap-2 font-mono text-[10px]">{footer}</span>
-      </div>
-
-      {/* Prompt line: the command, clamped, never a wall of text. */}
-      <div className="flex items-start gap-1.5 px-2.5 py-1.5 font-mono text-[11px] leading-4 text-gray-200">
-        <span aria-hidden="true" className="shrink-0 select-none text-emerald-400/90">
-          $
-        </span>
-        <div
-          role={long ? 'button' : undefined}
-          tabIndex={long ? 0 : undefined}
-          onClick={long ? () => setOpen((v) => !v) : undefined}
-          onKeyDown={
-            long
-              ? (e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    setOpen((v) => !v)
-                  }
-                }
-              : undefined
-          }
-          className={`min-w-0 flex-1 whitespace-pre-wrap break-all ${long && !open ? 'line-clamp-3' : ''} ${long ? 'cursor-pointer' : ''}`}
-          title={long ? command : undefined}
-        >
-          {command}
-        </div>
-        {long && (
-          <span className="shrink-0 select-none text-[10px] tabular-nums text-gray-600">
-            {t('chatA-activity.card.lineMany', { count: commandLines })}
+    <div className="overflow-hidden rounded-md border border-white/[0.08] bg-[#0b0e13]" data-testid="activity-terminal">
+      {showPrompt ? (
+        <div className="flex items-start gap-1.5 px-2.5 py-1.5 font-mono text-[11px] leading-4 text-gray-200">
+          <span aria-hidden="true" className="shrink-0 select-none text-emerald-400/90">
+            $
           </span>
-        )}
-      </div>
+          <div
+            role={long ? 'button' : undefined}
+            tabIndex={long ? 0 : undefined}
+            onClick={long ? () => setOpen((v) => !v) : undefined}
+            onKeyDown={
+              long
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setOpen((v) => !v)
+                    }
+                  }
+                : undefined
+            }
+            className={`min-w-0 flex-1 whitespace-pre-wrap break-all ${long && !open ? 'line-clamp-3' : ''} ${long ? 'cursor-pointer' : ''}`}
+            title={long ? command : undefined}
+          >
+            {command}
+          </div>
+          {long && (
+            <span className="shrink-0 select-none text-[10px] tabular-nums text-gray-600">
+              {t('chatA-activity.card.lineMany', { count: commandLines })}
+            </span>
+          )}
+          {facts}
+        </div>
+      ) : (
+        // The row above already shows this command: no second prompt, just the
+        // facts a shell would print after it.
+        facts && <div className="flex justify-end px-2.5 pt-1 font-mono">{facts}</div>
+      )}
 
       {children}
 
-      {/* The caret of a task still writing: the one live signal a terminal has. */}
+      {/* The caret of a task still writing: the one live signal a shell has. */}
       {running && (
         <div aria-hidden="true" className="px-2.5 pb-1 font-mono text-[11px] leading-3 text-emerald-400/70">
           <span className="animate-pulse">█</span>
@@ -393,6 +407,12 @@ function OutputTail({ lines, label, plain = false }: { lines: string[]; label: s
   )
 }
 
+/**
+ * A Workflow is a FAN-OUT, so it is drawn as a board of agents, not as a list
+ * of lines: one tile per agent, its state shown by a dot AND a word, the last
+ * tool it called underneath. The bar above is the wave's progress — the only
+ * thing that moves while it runs.
+ */
 function AgentList({ activity }: { activity: ActivityModel }) {
   const { t } = useT()
   const { settled, total, pct } = agentProgress(activity.agents)
@@ -404,19 +424,32 @@ function AgentList({ activity }: { activity: ActivityModel }) {
           {t('chatA-activity.card.agents', { settled, total })}
         </span>
       </div>
-      <ul aria-label={t('chatA-activity.card.agentsOf', { title: activity.title })} className="divide-y divide-white/[0.04] rounded border border-white/[0.06]">
+      <ul
+        aria-label={t('chatA-activity.card.agentsOf', { title: activity.title })}
+        className="grid list-none grid-cols-1 gap-1 sm:grid-cols-2"
+      >
         {activity.agents.map((agent) => {
           const meta = ACTIVITY_STATUS_META[agent.state]
           return (
-            <li key={agent.key} className="flex items-start gap-2 px-2 py-1 text-xs">
-              <span className="mt-1.5">
+            <li
+              key={agent.key}
+              className="min-w-0 rounded border border-white/[0.06] bg-white/[0.015] px-2 py-1 text-xs"
+              data-agent-state={agent.state}
+            >
+              <span className="flex items-center gap-1.5">
                 <StatusDot tone={meta.tone} pulse={agent.state === 'running'} />
+                <span className="min-w-0 flex-1 truncate text-gray-300" title={agent.name}>
+                  {agent.name}
+                </span>
+                <span className={`shrink-0 text-[11px] ${TONE_CLASSES[meta.tone].text}`}>
+                  {t(`chatA-activity.card.status.${agent.state}`)}
+                </span>
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="break-words text-gray-300">{agent.name}</span>
-                {agent.detail && <span className="ml-1.5 font-mono text-[11px] text-gray-500 break-all">{agent.detail}</span>}
-              </span>
-              <span className={`shrink-0 text-[11px] ${TONE_CLASSES[meta.tone].text}`}>{t(`chatA-activity.card.status.${agent.state}`)}</span>
+              {agent.detail && (
+                <span className="mt-0.5 block truncate font-mono text-[10px] text-gray-500" title={agent.detail}>
+                  {agent.detail}
+                </span>
+              )}
             </li>
           )
         })}
@@ -522,35 +555,29 @@ function lines(text: string | undefined): string[] {
  */
 function ShellBody({ activity }: { activity: ActivityModel }) {
   const { t } = useT()
-  const resultLines = lines(activity.result)
   const streamLines = activity.outputLines
   const file = outputFilePath(activity)
   const running = activity.status === 'running' || activity.status === 'queued'
   const exit = activity.params.find((p) => p.label === tr('activity.param.exitCode'))?.value
   const failed = activity.status === 'failed' || activity.status === 'cancelled'
+  // The row already shows this exact command (single line, not truncated):
+  // printing it again under a `$` is the duplication that made the panel noisy.
+  const showPrompt = activity.commandLines > 1 || activity.title !== activity.command
   return (
     <div className="space-y-1.5 px-3 pb-2.5 pt-1">
       <TerminalCard
         command={activity.command ?? activity.title}
         commandLines={activity.commandLines}
+        showPrompt={showPrompt}
+        exit={exit}
+        failed={failed}
+        duration={activity.durationMs !== undefined ? formatDurationMs(activity.durationMs) : undefined}
         running={running}
-        footer={
-          <>
-            {exit !== undefined && (
-              <span className={failed ? 'text-red-400/90' : 'text-emerald-400/80'}>exit {exit}</span>
-            )}
-            {failed && exit === undefined && <span className="text-red-400/90">exit ≠ 0</span>}
-            {activity.durationMs !== undefined && (
-              <span className="tabular-nums text-gray-500">{formatDurationMs(activity.durationMs)}</span>
-            )}
-          </>
-        }
       >
-        <OutputTail lines={resultLines} label={t('chatA-activity.card.result')} plain />
         <OutputTail lines={streamLines} label={t('chatA-activity.card.output')} plain />
       </TerminalCard>
       {file && <OutputFile path={file} />}
-      {!activity.result && streamLines.length === 0 && !running && file && (
+      {streamLines.length === 0 && !running && file && (
         <p className="text-[11px] text-gray-600">{t('chatA-activity.card.outputInFile')}</p>
       )}
     </div>
@@ -583,7 +610,11 @@ function MessageBody({ activity }: { activity: ActivityModel }) {
   const more = text.length > activity.title.length
   return (
     <div className="space-y-1.5 px-3 pb-2.5 pt-1 text-xs">
-      {more ? <ExpandableText text={text} className="text-gray-300" /> : null}
+      {more ? (
+        <div className="border-l-2 border-l-amber-500/25 pl-2">
+          <ExpandableText text={text} className="text-gray-300" />
+        </div>
+      ) : null}
       {activity.model && (
         <p className="text-[11px] text-gray-600">
           {tr('activity.param.model')} <span className="font-mono text-gray-500">{activity.model}</span>
@@ -619,6 +650,9 @@ function MonitorBody({ activity }: { activity: ActivityModel }) {
       <TerminalCard
         command={activity.command ?? activity.title}
         commandLines={activity.commandLines}
+        showPrompt={activity.title !== activity.command}
+        duration={activity.durationMs !== undefined ? formatDurationMs(activity.durationMs) : undefined}
+        failed={activity.status === 'failed' || activity.status === 'cancelled'}
         running={activity.status === 'running' || activity.status === 'queued'}
       >
         <OutputTail lines={activity.outputLines} label={t('chatA-activity.card.watched')} plain />
@@ -632,7 +666,7 @@ function ActivityBody({ activity }: { activity: ActivityModel }) {
   const chips = activity.params
   return (
     <div className="space-y-2 px-3 pb-2.5 pt-1 text-xs">
-      {chips.length > 0 && (
+      {chips.length > 0 && activity.kind !== 'shell' && (
         <div className="flex flex-wrap gap-1" aria-label={t('chatA-activity.card.parameters')}>
           {chips.map((p) => (
             <ParamChip key={p.label} param={p} />
@@ -698,7 +732,7 @@ export function ActivityCard({ activity, defaultOpen = false, className = '' }: 
 
   return (
     <div
-      className={`rounded-lg border border-white/[0.06] bg-white/[0.02] overflow-hidden ${className}`}
+      className={`rounded-lg border border-l-2 border-white/[0.06] bg-white/[0.02] overflow-hidden ${KIND_RAIL[activity.kind]} ${className}`}
       data-testid="background-activity-card"
       data-kind={activity.kind}
       data-status={activity.status}

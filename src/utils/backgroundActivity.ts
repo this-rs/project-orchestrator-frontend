@@ -472,6 +472,8 @@ export interface ActivityModel {
    * command's result. Absent when the provider repeats the command instead.
    */
   result?: string
+  /** What a background command DOES, in the provider's words — a better title than its script. */
+  about?: string
   /** Model the provider names for the activity (`data.model`), when it names one. */
   model?: string
   /** Provider's own task type (`local_bash`, `local_agent`…), kept for the row's facts. */
@@ -542,11 +544,34 @@ export function commandLineCount(command: string | undefined): number {
  * notification repeats its command as `summary`; repeating it as a "result"
  * would be a lie, so an echo of the command is not a result.
  */
-function resultOf(fields: Fields, command: string | undefined): string | undefined {
+/**
+ * The final RESULT the provider states, when it states one.
+ *
+ * Only a sub-agent (or an unknown activity) answers with text: a background
+ * Bash task's `summary` is a DESCRIPTION of what the command does ("Create
+ * local working clone on …"), so presenting it as a result is a lie — and it
+ * was being shown a third time, after the row title and the chip.
+ */
+function resultOf(kind: ActivityKind, fields: Fields, command: string | undefined): string | undefined {
+  if (kind === 'shell' || kind === 'monitor') return undefined
   const summary = str(fields.summary)?.trim()
   if (!summary) return undefined
   if (command && (summary === command.trim() || summary === firstLine(command))) return undefined
   return summary
+}
+
+/**
+ * The human sentence the provider gives about a background Bash task — its
+ * `summary` once it ended ("Create local working clone on kv-splice-chat…").
+ * It makes a far better row title than the script it runs, and it removes the
+ * duplication of showing the command in the row AND in the terminal.
+ */
+function aboutOf(kind: ActivityKind, fields: Fields, command: string | undefined): string | undefined {
+  if (kind !== 'shell') return undefined
+  const summary = str(fields.summary)?.trim()
+  if (!summary) return undefined
+  if (command && (summary === command.trim() || summary === firstLine(command))) return undefined
+  return firstLine(summary)
 }
 
 function pushParam(params: KeyValue[], label: string, value: string | undefined, mono = false): void {
@@ -607,9 +632,25 @@ function spanMs(start?: string, end?: string): number | undefined {
 }
 
 /** Plain-text lines of a tick stream, oldest first (structured payloads contribute none). */
-function outputLinesOf(parsed: ReadonlyArray<{ content: ParsedContent }>): string[] {
-  return parsed.flatMap(({ content }) =>
-    content.text === '' ? [] : content.text.replace(/\r\n/g, '\n').replace(/\n+$/, '').split('\n'),
+/**
+ * The REAL output lines of a stream.
+ *
+ * A `workflow` tick's content is a lifecycle line ("task_started · <command> ·
+ * last tool: Edit · 21 tool uses"), not output: repeating it under "Sortie"
+ * showed the task's own labels as if the command had printed them.
+ */
+/** Lines a `workflow` tick writes about itself, never about the command's output. */
+const LIFECYCLE_LINE = /^(task_(started|progress|updated|notification)|workflow)$/i
+
+function outputLinesOf(parsed: ReadonlyArray<{ content: ParsedContent; entry: { subtype?: string } }>): string[] {
+  return parsed.flatMap(({ content, entry }) =>
+    content.text === '' || entry.subtype
+      ? []
+      : content.text
+          .replace(/\r\n/g, '\n')
+          .replace(/\n+$/, '')
+          .split('\n')
+          .filter((line) => !LIFECYCLE_LINE.test(line.trim())),
   )
 }
 
@@ -637,13 +678,17 @@ export function buildActivity(input: ActivityInput): ActivityModel {
     (tool && /^(bash|monitor)$/i.test(tool.name) ? str(tool.input.command) : undefined) ??
     (kind === 'shell' ? description : undefined)
 
+  const about = aboutOf(kind, fields, command)
+
   let title: string
   switch (kind) {
     case 'workflow':
       title = str(fields.workflow_name) ?? str(tool?.input.workflow_name) ?? description ?? tr('activity.title.workflow')
       break
     case 'shell':
-      title = command ? commandTitle(command) : (description ? firstLine(description) : tr('activity.title.shell'))
+      // What it DOES reads better than what it runs: the sentence the provider
+      // gives at the end, else the command's first line.
+      title = about ?? (command ? commandTitle(command) : (description ? firstLine(description) : tr('activity.title.shell')))
       break
     case 'monitor':
       title = description ?? (command ? commandTitle(command) : tr('activity.title.monitor'))
@@ -696,7 +741,8 @@ export function buildActivity(input: ActivityInput): ActivityModel {
     source,
     command,
     commandLines: commandLineCount(command),
-    result: resultOf(fields, command),
+    result: resultOf(kind, fields, command),
+    about: aboutOf(kind, fields, command),
     model: str(fields.model) ?? str(tool?.input.model),
     taskType: str(fields.task_type),
     params,
