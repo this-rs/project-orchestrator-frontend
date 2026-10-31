@@ -150,8 +150,23 @@ async function run(chrome, base, n) {
     await tab.send('Page.enable'); await tab.send('Runtime.enable')
     await tab.send('Page.addScriptToEvaluateOnNewDocument', { source: DEVTOOLS_HOOK })
     await tab.send('Fetch.enable', { patterns: [{ urlPattern: '*/api/*', requestStage: 'Request' }, { urlPattern: '*/auth/*', requestStage: 'Request' }] })
-    await tab.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false })
+    // --mobile: an iPhone-sized viewport at dpr 3 with touch emulation (the same page, another screen)
+    const profile = args.mobile
+      ? { width: 390, height: 844, deviceScaleFactor: 3, mobile: true }
+      : { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }
+    await tab.send('Emulation.setDeviceMetricsOverride', profile)
+    if (args.mobile) await tab.send('Emulation.setTouchEmulationEnabled', { enabled: true })
     await tab.send('Page.navigate', { url: base + TARGET })
+    // the code map is the default view now: switch the graph to 3D before measuring
+    for (let i = 0; i < 100; i++) {
+      const box = await tab.evaluate(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '3D'); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })()`)
+      if (box) {
+        await tab.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1 })
+        await tab.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1 })
+        break
+      }
+      await sleep(200)
+    }
     const t0 = Date.now()
     while (Date.now() - t0 < 30000 && (!loaded || inflight > 0 || Date.now() - lastNet < 800 || !(await tab.evaluate(PROBE)))) await sleep(200)
     await sleep(SETTLE)
@@ -177,7 +192,7 @@ async function run(chrome, base, n) {
     const s0 = await state()
     check('inline: canvas drawn', drawing(s0, 0), s0)
     const resize = async (w, h) => {
-      await tab.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false })
+      await tab.send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: args.mobile ? 3 : 1, mobile: !!args.mobile })
       await sleep(900)
     }
     await resize(900, 700)
@@ -222,15 +237,15 @@ process.on('SIGINT', () => { cleanup(); process.exit(130) })
 try {
   if (!args['no-build']) build()
   server = await preview()
-  const profile = path.join(ROOT, '.graph-fs-profile')
-  fs.rmSync(profile, { recursive: true, force: true })
-  chrome = await launchChrome(profile)
+  const profileDir = path.join(ROOT, '.graph-fs-profile')
+  fs.rmSync(profileDir, { recursive: true, force: true })
+  chrome = await launchChrome(profileDir)
   const n = Number(args.nodes || 5000)
   const result = await run(chrome, server.base, n)
   const text = JSON.stringify(result, null, 2)
   if (args.out) fs.writeFileSync(path.resolve(args.out), text)
   console.log(text)
-  fs.rmSync(profile, { recursive: true, force: true })
+  fs.rmSync(profileDir, { recursive: true, force: true })
   cleanup()
   process.exit(result.passed === result.total ? 0 : 1)
 } catch (e) {
