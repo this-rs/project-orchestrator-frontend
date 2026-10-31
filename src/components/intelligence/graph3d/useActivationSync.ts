@@ -3,9 +3,15 @@
 // ============================================================================
 //
 // Subscribes to activationStateAtom (jotai) and imperatively manages:
-//   - Per-node PointLights (cyan = direct, violet = propagated)
 //   - Per-node sprite opacity (1.0 direct, 0.85 propagated, 0.12 dimmed)
 //   - Camera zoom to activated cluster centroid
+//
+// NOTE — no PointLights. The old per-node PointLight glow illuminated only the
+// link cylinders (the scene's sole MeshLambertMaterial). Nodes are billboard
+// Sprites (unlit) and links are now a single unlit LineSegments, so a PointLight
+// reaches nothing and only forces shader recompiles + per-fragment cost. The
+// activation "glow" is carried by sprite opacity here and edge color/alpha in
+// the link renderer, mirroring po-graph's `aAct` attribute instead of lights.
 //
 // Zero React re-renders — all mutations are imperative Three.js operations.
 // Reusable with ANY ForceGraph3D instance (no IntelligenceGraph3D specifics).
@@ -91,20 +97,6 @@ function nodeMatchesActivation(
   return false
 }
 
-function getMatchingActivationId(
-  node: ActivationSyncNode,
-  activatedIds: Set<string>,
-): string | undefined {
-  if (activatedIds.has(node.id)) return node.id
-  if (node.entityId && activatedIds.has(node.entityId)) return node.entityId
-  const colonIdx = node.id.indexOf(':')
-  if (colonIdx !== -1) {
-    const rawId = node.id.slice(colonIdx + 1)
-    if (activatedIds.has(rawId)) return rawId
-  }
-  return undefined
-}
-
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 /**
@@ -128,9 +120,8 @@ export function useActivationSync(
   // ── Dirty tracking refs ─────────────────────────────────────────────────
   const dirtyRef = useRef<{
     sprites: Map<AnySpriteChild, SpriteOriginal>
-    lights: Set<THREE.PointLight>
     nodeStates: Map<string, 'direct' | 'propagated' | 'dimmed'>
-  }>({ sprites: new Map(), lights: new Set(), nodeStates: new Map() })
+  }>({ sprites: new Map(), nodeStates: new Map() })
 
   // ── Imperative sprite/light sync ────────────────────────────────────────
   useEffect(() => {
@@ -150,14 +141,11 @@ export function useActivationSync(
     if (!isActive) {
       for (const [sprite, orig] of dirty.sprites) { restoreSprite(sprite, orig) }
       dirty.sprites.clear()
-      for (const light of dirty.lights) { light.parent?.remove(light) }
-      dirty.lights.clear()
       dirty.nodeStates.clear()
       return
     }
 
     // ── ACTIVE PHASE ──
-    const allActivated = new Set([...activation.directIds, ...activation.propagatedIds])
     const newNodeStates = new Map<string, 'direct' | 'propagated' | 'dimmed'>()
 
     for (const node of nodes) {
@@ -167,30 +155,10 @@ export function useActivationSync(
       const isDirect = nodeMatchesActivation(node, activation.directIds)
       const isPropagated = !isDirect && nodeMatchesActivation(node, activation.propagatedIds)
       const desiredState: 'direct' | 'propagated' | 'dimmed' = isDirect ? 'direct' : isPropagated ? 'propagated' : 'dimmed'
-
-      // Get the matching activation ID for score lookup
-      const matchId = getMatchingActivationId(node, allActivated)
-      const score = matchId ? (activation.scores.get(matchId) ?? 0) : 0
       newNodeStates.set(node.id, desiredState)
 
       const prevState = dirty.nodeStates.get(node.id)
       if (prevState === desiredState && desiredState === 'dimmed') continue
-
-      const isLit = isDirect || isPropagated
-
-      // ── PointLight management ──
-      const existingLight = obj.children.find((c): c is THREE.PointLight => c instanceof THREE.PointLight && c.userData.__act__)
-      if (existingLight) { obj.remove(existingLight); dirty.lights.delete(existingLight) }
-
-      if (isLit) {
-        const lightColor = isDirect ? 0x34D399 : 0xA78BFA
-        const intensity = isDirect ? 60 + score * 80 : 30 + score * 50
-        const distance = isDirect ? 100 : 70
-        const pointLight = new THREE.PointLight(lightColor, intensity, distance, 1.5)
-        pointLight.userData.__act__ = true
-        obj.add(pointLight)
-        dirty.lights.add(pointLight)
-      }
 
       // ── Sprite opacity updates ──
       const targetOpacity = isDirect ? 1.0 : isPropagated ? 0.85 : 0.12
@@ -205,7 +173,7 @@ export function useActivationSync(
     }
 
     dirty.nodeStates = newNodeStates
-  }, [activationPhase, activation.directIds, activation.propagatedIds, activation.scores, nodes, graphRef, wake])
+  }, [activationPhase, activation.directIds, activation.propagatedIds, nodes, graphRef, wake])
 
   // ── Camera zoom to activated cluster ────────────────────────────────────
   const prevActivationPhaseRef = useRef<string>('idle')
