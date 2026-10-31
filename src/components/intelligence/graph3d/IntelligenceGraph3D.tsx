@@ -337,22 +337,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     wake(WAKE_DATA_MS)
   }, [graphData, wake, setEngineRunning])
 
-  // ── Control simulation based on relayout need ───────────────────────────
-  // The ref methods (cooldownTicks, etc.) are only available after the
-  // ForceGraph3D component has fully mounted. Guard with method existence check.
+  // ── Freeze the force simulation — the layout is deterministic ───────────
+  // Nodes are placed by useGraph3DLayout's Fermat-spiral pass (O(N log N),
+  // instant), so there is nothing to "settle": run zero ticks. This removes
+  // the multi-second jiggle that made the graph feel slow to load, and the
+  // per-frame force cost. The library still positions node objects from
+  // node.x/y/z on its single tick (see three-forcegraph's tickFrame).
   useEffect(() => {
     const fg = graphRef.current
     if (!fg || typeof fg.cooldownTicks !== 'function') return
-
-    if (!needsRelayout && graphData.nodes.length > 0) {
-      // Freeze the simulation — positions are already cached
-      fg.cooldownTicks(0)
-    } else {
-      // Let simulation run briefly to settle new nodes
-      fg.cooldownTicks(80)
-      fg.cooldownTime?.(3000)
-    }
-  }, [needsRelayout, graphData])
+    fg.cooldownTicks(0)
+  }, [graphData])
 
   // ── Community hulls — rebuild when data changes or toggle flips ────────
   // graphData.nodes positions are mutable (d3-force updates x/y/z in-place),
@@ -1542,10 +1537,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           wake(WAKE_DATA_MS)
         }}
         onBackgroundClick={useOptimizedNodes ? undefined : onBackgroundClick}
-        // Force engine
-        cooldownTicks={100}
-        cooldownTime={5000}
-        warmupTicks={30}
+        // Force engine — frozen: the deterministic layout is already final.
+        cooldownTicks={0}
+        cooldownTime={0}
+        warmupTicks={0}
         onEngineTick={onEngineTick}
         onEngineStop={onEngineStop}
         // Controls
