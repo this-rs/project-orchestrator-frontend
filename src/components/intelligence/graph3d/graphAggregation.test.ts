@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateAtResolution, resolutionLadder } from './graphAggregation'
+import { aggregateAtResolution, resolutionForLevel } from './graphAggregation'
 import type { Graph3DNode, Graph3DLink } from './useGraph3DLayout'
 
 const node = (id: string, x: number, y: number, z: number): Graph3DNode => ({
@@ -56,12 +56,18 @@ describe('aggregateAtResolution', () => {
   })
 })
 
-describe('resolutionLadder', () => {
-  it('is descending and ends at or above the floor', () => {
-    const ladder = resolutionLadder(1000, 4, 6)
-    expect(ladder.length).toBeGreaterThan(1)
-    for (let i = 1; i < ladder.length; i++) expect(ladder[i]).toBeLessThan(ladder[i - 1])
-    expect(ladder[ladder.length - 1]).toBeGreaterThanOrEqual(4)
+describe('resolutionForLevel', () => {
+  it('returns 0 for detail level', () => {
+    expect(resolutionForLevel(1000, 0)).toBe(0)
+  })
+
+  it('each level targets ~5x fewer cells than the one below', () => {
+    const r1 = resolutionForLevel(10000, 1)
+    const r2 = resolutionForLevel(10000, 2)
+    const r3 = resolutionForLevel(10000, 3)
+    expect(r2).toBeLessThan(r1)
+    expect(r3).toBeLessThan(r2)
+    expect(r1).toBeGreaterThanOrEqual(2)
   })
 })
 
