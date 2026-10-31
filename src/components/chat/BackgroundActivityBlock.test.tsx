@@ -280,6 +280,37 @@ describe('shell renderer', () => {
 })
 
 describe('agent + generic renderers', () => {
+  it('opens the TOOL’S OWN card when the backend relayed the call input', () => {
+    // Shape of a backend tick since PR #1050: the call carries its input.
+    const withTool = (id: string, source: string, tool: Record<string, unknown>, at: number) => ({
+      source,
+      content: source === 'tool' ? `[tool_use: ${tool.name}]` : '[tool_result] done',
+      received_at: `2026-05-01T10:00:${String(at).padStart(2, '0')}Z`,
+      tool,
+    })
+    const b = block({
+      correlation_id: 'agent-1',
+      source: 'Workflow',
+      entries: [
+        withTool('t1', 'tool', { name: 'Edit', input: { file_path: 'src/a.ts', old_string: 'const a = 1', new_string: 'const a = 2' } }, 1),
+        withTool('t1', 'tool_result', { name: 'Edit', result_head: 'The file src/a.ts has been updated.', is_error: false }, 2),
+      ],
+      data: { task_type: 'local_agent', description: 'Renomme la constante' },
+    })
+    render(withTasks(['agent-1'], <BackgroundActivityBlock block={b} />))
+    unfold()
+    const list = screen.getByRole('list', { name: 'Tools called' })
+    const row = within(list).getByRole('button', { name: /Edit/ })
+    // Nothing about the change is visible yet: the row is the sequence.
+    expect(row).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(row)
+    expect(row).toHaveAttribute('aria-expanded', 'true')
+    // …and the diff is: it is the transcript's own Edit renderer, not an imitation.
+    expect(list.textContent).toContain('const a = 2')
+    expect(list.textContent).toContain('const a = 1')
+    expect(list.textContent).toContain('src/a.ts')
+  })
+
   it('renders sub-agent params as chips', () => {
     const b = block({ source: 'Task', subagent_type: 'researcher', description: 'Audit auth', entries: [tick(1, 'Task', 'reading files')], data: { last_tool_name: 'Grep' } })
     render(withTasks(['toolu_X'], <BackgroundActivityBlock block={b} />))

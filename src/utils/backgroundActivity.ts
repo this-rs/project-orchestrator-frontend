@@ -272,12 +272,66 @@ export interface ActivityUsage {
 export interface ToolTick {
   key: string
   name: string
+  /** The call's input, when the backend relays the structured call. */
+  input?: Record<string, unknown>
   /** First meaningful line the tool returned, cut short. */
   resultHead?: string
   /** Everything it returned, folded by the renderer. */
   resultBody?: string
+  /** The tool reported a failure. */
+  isError?: boolean
   /** A call with no result yet: the tool that is running NOW. */
   pending: boolean
+}
+
+/**
+ * The tool flow when the backend RELAYS the calls (PR #1050 on the backend):
+ * each `tool` entry is a call, each `tool_result` entry closes the call above
+ * it. This is the only form that carries the call's INPUT, i.e. the only one
+ * that can render the real per-tool card (a diff, a path, a pattern).
+ */
+export function toolFlowFromEntries(
+  entries: ReadonlyArray<{ source: string; tool?: BackgroundToolLike }>,
+): ToolTick[] {
+  const ticks: ToolTick[] = []
+  for (const entry of entries) {
+    const tool = entry.tool
+    if (!tool) continue
+    if (entry.source === 'tool') {
+      ticks.push({ key: `${ticks.length}-${tool.name}`, name: tool.name, input: tool.input, pending: true })
+      continue
+    }
+    const target = [...ticks].reverse().find((tick) => tick.pending && (!tool.name || sameToolName(tick.name, tool.name))) ?? null
+    if (target) {
+      if (tool.result_head) target.resultHead = cut(tool.result_head.split('\n')[0].trim())
+      target.resultBody = tool.result_head ?? target.resultBody
+      target.isError = tool.is_error === true
+      target.pending = false
+    } else if (tool.name) {
+      // A result whose call is outside the kept entries still counts.
+      ticks.push({
+        key: `${ticks.length}-${tool.name}`,
+        name: tool.name,
+        resultHead: tool.result_head ? cut(tool.result_head.split('\n')[0].trim()) : undefined,
+        resultBody: tool.result_head,
+        isError: tool.is_error === true,
+        pending: false,
+      })
+    }
+  }
+  return ticks
+}
+
+/** The shape the backend stamps on a tick (mirror of `BackgroundToolTick` in types). */
+export interface BackgroundToolLike {
+  name: string
+  input?: Record<string, unknown>
+  is_error?: boolean
+  result_head?: string
+}
+
+function sameToolName(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase()
 }
 
 const TOOL_USE_LINE = /^\[tool_use:\s*([^\]]+)\]$/
@@ -750,7 +804,14 @@ export function buildActivity(input: ActivityInput): ActivityModel {
     usage,
     events,
     outputLines,
-    tools: parseToolFlow(outputLines),
+    tools: (() => {
+      // The relayed structure wins: it carries the input, so the card can be
+      // the tool's real card. The marker parser stays for stored history.
+      const structured = toolFlowFromEntries(
+        parsed.map(({ entry }) => ({ source: entry.source, tool: entry.tool })),
+      )
+      return structured.length > 0 ? structured : parseToolFlow(outputLines)
+    })(),
     details: flattenFields(fields).filter((d) => d.value !== title && !params.some((p) => p.label === d.label)),
     raw,
     count,

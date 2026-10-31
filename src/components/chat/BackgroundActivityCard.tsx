@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { createElement, useState, type ReactNode } from 'react'
 import {
   Activity,
   Bot,
@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useT } from '@/i18n'
+import { ToolContent } from '@/components/chat/tools'
 import { tr } from '@/i18n/lazy'
 import { MetaLine } from '@/components/ui/MetaLine'
 import { ProgressLine } from '@/components/ui/ProgressLine'
@@ -125,11 +126,15 @@ function ToolStrip({ tools, max = 4 }: { tools: ReadonlyArray<ToolTick>; max?: n
   return (
     <span className="inline-flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5" aria-hidden="true">
       {shown.map(({ name, count }) => {
-        const Icon = toolIcon(name)
         const isLive = live && sameTool(live.name, name) && count === 1
         return (
           <span key={name} className="inline-flex items-center gap-1" title={`${name} ×${count}`}>
-            <Icon className={`h-3 w-3 shrink-0 ${isLive ? 'animate-pulse text-emerald-400/80' : 'text-gray-600'}`} />
+            {/* createElement, not <Icon />: the glyph is looked up during render
+                (react-hooks/static-components). */}
+            {createElement(toolIcon(name), {
+              className: `h-3 w-3 shrink-0 ${isLive ? 'animate-pulse text-emerald-400/80' : 'text-gray-600'}`,
+              'aria-hidden': true,
+            })}
             <span className="text-gray-500">{name}</span>
             {count > 1 && <span className="tabular-nums text-gray-600">×{count}</span>}
           </span>
@@ -137,6 +142,64 @@ function ToolStrip({ tools, max = 4 }: { tools: ReadonlyArray<ToolTick>; max?: n
       })}
       {counts.length > shown.length && <span className="text-gray-700">+{counts.length - shown.length}</span>}
     </span>
+  )
+}
+
+/**
+ * One tool of the flow. When the backend relayed the call's INPUT, the row
+ * opens THE tool's own card — the very component the transcript uses
+ * (`ReadToolRenderer`, `EditToolRenderer` and its diff, `SearchToolRenderer`),
+ * so a background `Edit` finally shows what it changes instead of a sentence.
+ */
+function ToolTickRow({ tick, live }: { tick: ToolTick; live: boolean }) {
+  const { t } = useT()
+  const [open, setOpen] = useState(false)
+  const canOpen = !!tick.input
+  return (
+    <li className="min-w-0">
+      <button
+        type="button"
+        onClick={canOpen ? () => setOpen((v) => !v) : undefined}
+        aria-expanded={canOpen ? open : undefined}
+        disabled={!canOpen}
+        className={`flex w-full min-w-0 items-baseline gap-1.5 rounded text-left text-[11px] ${
+          canOpen ? 'hover:bg-white/[0.03]' : 'cursor-default'
+        } ${focusRingInset}`}
+      >
+        {createElement(toolIcon(tick.name), {
+          'aria-hidden': true,
+          className: `h-3 w-3 shrink-0 self-center ${live ? 'animate-pulse text-emerald-400/80' : 'text-gray-600'}`,
+        })}
+        <span className="shrink-0 text-gray-400">{tick.name}</span>
+        {tick.resultHead ? (
+          <span
+            className={`min-w-0 flex-1 truncate text-gray-500 ${MONO_RESULT.test(tick.name) ? 'font-mono' : ''}`}
+            title={tick.resultBody}
+          >
+            {tick.resultHead}
+          </span>
+        ) : (
+          <span className="text-gray-600">{t('chatA-activity.card.status.running')}</span>
+        )}
+        {canOpen && (
+          <ChevronRight
+            aria-hidden="true"
+            className={`h-3 w-3 shrink-0 self-center text-gray-600 transition-transform ${open ? 'rotate-90' : ''}`}
+          />
+        )}
+      </button>
+      {open && tick.input && (
+        <div className="mb-1 mt-0.5 rounded border border-white/[0.06] bg-black/20 p-1">
+          <ToolContent
+            toolName={tick.name}
+            toolInput={tick.input}
+            resultContent={tick.resultBody ?? tick.resultHead}
+            isError={tick.isError}
+            isLoading={tick.pending}
+          />
+        </div>
+      )}
+    </li>
   )
 }
 
@@ -157,29 +220,9 @@ function ToolFlowPanel({ tools }: { tools: ReadonlyArray<ToolTick> }) {
             {t(omitted === 1 ? 'chatA-activity.card.hiddenEventOne' : 'chatA-activity.card.hiddenEventMany', { count: omitted })}
           </li>
         )}
-        {shown.map((tick) => {
-          const Icon = toolIcon(tick.name)
-          const isLive = live?.key === tick.key
-          return (
-            <li key={tick.key} className="flex min-w-0 items-baseline gap-1.5 text-[11px]">
-              <Icon
-                aria-hidden="true"
-                className={`mt-0.5 h-3 w-3 shrink-0 ${isLive ? 'animate-pulse text-emerald-400/80' : 'text-gray-600'}`}
-              />
-              <span className="shrink-0 text-gray-400">{tick.name}</span>
-              {tick.resultHead ? (
-                <span
-                  className={`min-w-0 truncate text-gray-500 ${MONO_RESULT.test(tick.name) ? 'font-mono' : ''}`}
-                  title={tick.resultBody}
-                >
-                  {tick.resultHead}
-                </span>
-              ) : (
-                <span className="text-gray-600">{t('chatA-activity.card.status.running')}</span>
-              )}
-            </li>
-          )
-        })}
+        {shown.map((tick) => (
+          <ToolTickRow key={tick.key} tick={tick} live={live?.key === tick.key} />
+        ))}
       </ol>
       {omitted > 0 && !all && (
         <button
