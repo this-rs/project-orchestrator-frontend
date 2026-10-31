@@ -189,11 +189,14 @@ describe('shell renderer', () => {
       data: { command: 'npm run build && npm test', timeout: 9000 },
     })
 
-  it('shows a one-line command once — in the row — and a collapsed output tail', () => {
+  it('draws the command as a terminal — prompt, stream, tail — and not as a code box', () => {
     render(withTasks(['b1'], <BackgroundActivityBlock block={shell()} />))
     unfold()
-    // The row IS the command: repeating it in the body would be the same line twice.
-    expect(screen.getAllByText('npm run build && npm test')).toHaveLength(1)
+    const term = screen.getByTestId('activity-terminal')
+    // The prompt line carries the command; the row above is only its summary.
+    expect(term).toHaveTextContent('$')
+    expect(term).toHaveTextContent('npm run build && npm test')
+    expect(term).toHaveTextContent('bash')
     const outputToggle = screen.getByRole('button', { name: /Output · 20 lines/ })
     expect(outputToggle).toHaveAttribute('aria-expanded', 'false')
     fireEvent.click(outputToggle)
@@ -205,18 +208,19 @@ describe('shell renderer', () => {
     expect(screen.getByLabelText('Output').textContent).toContain('line 0')
   })
 
-  it('keeps a multi-line command out of the row and folds it in the body', () => {
+  it('keeps a multi-line command out of the row and gives it the whole prompt line', () => {
     // What the CLI actually sends for a background Bash task: the whole script.
     const script = "cd frontend && python3 - <<'EOF'\nimport re\nprint('x')\nEOF\nnpm run build"
     const b = block({ correlation_id: 'b1', source: 'Workflow', entries: [tick(1)], data: { task_type: 'local_bash', description: script } })
     render(withTasks(['b1'], <BackgroundActivityBlock block={b} />))
     unfold()
     const card = screen.getByTestId('background-activity-card')
-    // The row says the first line and "+4", never the five lines.
-    expect(within(card).getByTitle(/cd frontend && python3/)).toHaveTextContent("cd frontend && python3 - <<'EOF'")
+    // The row says the first line and "+4", never the five lines. (The
+    // terminal's prompt carries the whole command as its tooltip too.)
+    expect(within(card).getAllByTitle(/cd frontend && python3/)[0]).toHaveTextContent("cd frontend && python3 - <<'EOF'")
     expect(within(card).getByText('+4')).toBeInTheDocument()
-    // …and the body opens it whole.
-    expect(within(card).getByText(/npm run build$/)).toBeInTheDocument()
+    // …and the terminal's prompt holds the script whole (clamped in CSS).
+    expect(screen.getByTestId('activity-terminal')).toHaveTextContent(/npm run build/)
   })
 
   it('never offers a raw payload for a command: its facts and its output are the interface', () => {

@@ -224,19 +224,22 @@ function Disclosure({
   label,
   children,
   defaultOpen = false,
+  plain = false,
 }: {
   label: string
   children: ReactNode
   defaultOpen?: boolean
+  /** Inside a terminal: the disclosure sits on the terminal's own surface. */
+  plain?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div>
+    <div className={plain ? 'bg-black/40' : undefined}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={`${hitArea} flex items-center gap-1 rounded text-[11px] text-gray-500 hover:text-gray-300 ${focusRingInset}`}
+        className={`${hitArea} flex items-center gap-1 rounded text-[11px] text-gray-500 hover:text-gray-300 ${focusRingInset} ${plain ? 'w-full px-2.5 text-left font-mono' : ''}`}
       >
         <ChevronRight
           aria-hidden="true"
@@ -244,7 +247,7 @@ function Disclosure({
         />
         {label}
       </button>
-      {open && <div className="mt-1">{children}</div>}
+      {open && <div className={plain ? undefined : 'mt-1'}>{children}</div>}
     </div>
   )
 }
@@ -253,41 +256,92 @@ function Disclosure({
 const COMMAND_CLAMP_LINES = 3
 
 /**
- * The command of a background task, drawn the way the transcript draws a Bash
- * call (`$` then the command) — one shape for one thing, wherever it appears.
+ * A background command, drawn as a TERMINAL — because that is what it is.
  *
- * `description` of a CLI background Bash task is the whole script: heredocs,
- * pipes, `python3 - <<'EOF'`… Twenty lines pasted into a list row is what made
- * the panel unreadable, so the row is clamped and the full text opens on demand.
+ * A grey card saying "Background command" with a bordered code box reads as
+ * metadata about a command; a terminal window with a prompt, a monospace
+ * stream and an exit status reads as the command itself. Same facts, and the
+ * eye recognises the thing without reading a label:
+ *
+ * - the chrome says WHERE it runs (`bash`) and how it ENDED (`exit 0`);
+ * - the prompt line carries the command, clamped, with "+N lines" and an
+ *   unfold for a script;
+ * - the stream below is the output, tail-first, with a blinking caret while
+ *   the task still writes.
+ *
+ * `description` of a CLI background Bash task is the whole script (heredocs,
+ * `python3 - <<'EOF'`…): twenty lines pasted into a row is what buried the
+ * transcript, so the prompt line is clamped and the whole text opens on demand.
  */
-function CommandBlock({ command, lines }: { command: string; lines: number }) {
+function TerminalCard({
+  command,
+  commandLines,
+  footer,
+  children,
+  running,
+}: {
+  command: string
+  commandLines: number
+  /** Right end of the chrome: exit code, state, duration. */
+  footer?: ReactNode
+  children?: ReactNode
+  running: boolean
+}) {
   const { t } = useT()
   const [open, setOpen] = useState(false)
-  const long = lines > COMMAND_CLAMP_LINES
+  const long = commandLines > COMMAND_CLAMP_LINES
   return (
-    <div className="rounded border border-white/[0.06] bg-black/30 px-2 py-1.5 text-[11px] leading-4 font-mono text-gray-300">
-      <div className="flex items-start gap-2">
-        <span aria-hidden="true" className="shrink-0 select-none text-emerald-500/70">
+    <div
+      className="overflow-hidden rounded-md border border-white/[0.09] bg-[#0b0e13] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+      data-testid="activity-terminal"
+    >
+      {/* Window chrome: three dots, the shell's name, and how it ended. */}
+      <div className="flex items-center gap-1.5 border-b border-white/[0.06] bg-white/[0.03] px-2 py-1">
+        <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#ff5f57]/60" />
+        <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#febc2e]/60" />
+        <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[#28c840]/60" />
+        <span className="ml-1 font-mono text-[10px] text-gray-500">bash</span>
+        <span className="ml-auto flex items-center gap-2 font-mono text-[10px]">{footer}</span>
+      </div>
+
+      {/* Prompt line: the command, clamped, never a wall of text. */}
+      <div className="flex items-start gap-1.5 px-2.5 py-1.5 font-mono text-[11px] leading-4 text-gray-200">
+        <span aria-hidden="true" className="shrink-0 select-none text-emerald-400/90">
           $
         </span>
-        <div className={`min-w-0 flex-1 whitespace-pre-wrap break-all ${long && !open ? 'line-clamp-3' : ''}`}>
+        <div
+          role={long ? 'button' : undefined}
+          tabIndex={long ? 0 : undefined}
+          onClick={long ? () => setOpen((v) => !v) : undefined}
+          onKeyDown={
+            long
+              ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setOpen((v) => !v)
+                  }
+                }
+              : undefined
+          }
+          className={`min-w-0 flex-1 whitespace-pre-wrap break-all ${long && !open ? 'line-clamp-3' : ''} ${long ? 'cursor-pointer' : ''}`}
+          title={long ? command : undefined}
+        >
           {command}
         </div>
         {long && (
           <span className="shrink-0 select-none text-[10px] tabular-nums text-gray-600">
-            {t('chatA-activity.card.lineMany', { count: lines })}
+            {t('chatA-activity.card.lineMany', { count: commandLines })}
           </span>
         )}
       </div>
-      {long && (
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          className={`${hitArea} rounded text-[11px] text-indigo-400 hover:text-indigo-300 ${focusRingInset}`}
-        >
-          {open ? t('chatA-activity.card.showLess') : t('chatA-activity.card.showMore')}
-        </button>
+
+      {children}
+
+      {/* The caret of a task still writing: the one live signal a terminal has. */}
+      {running && (
+        <div aria-hidden="true" className="px-2.5 pb-1 font-mono text-[11px] leading-3 text-emerald-400/70">
+          <span className="animate-pulse">█</span>
+        </div>
       )}
     </div>
   )
@@ -307,17 +361,22 @@ function OutputFile({ path }: { path: string }) {
 }
 
 /** Monospace tail of a text stream, oldest first, with the older part collapsed. */
-function OutputTail({ lines, label }: { lines: string[]; label: string }) {
+function OutputTail({ lines, label, plain = false }: { lines: string[]; label: string; plain?: boolean }) {
   const { t } = useT()
   const [all, setAll] = useState(false)
   if (lines.length === 0) return null
   const { shown, omitted } = tailLines(lines, all ? lines.length : OUTPUT_TAIL_LINES)
   return (
-    <Disclosure label={`${label} · ${t(lines.length === 1 ? 'chatA-activity.card.lineOne' : 'chatA-activity.card.lineMany', { count: lines.length })}`} defaultOpen={lines.length <= 3}>
+    <Disclosure label={`${label} · ${t(lines.length === 1 ? 'chatA-activity.card.lineOne' : 'chatA-activity.card.lineMany', { count: lines.length })}`} defaultOpen={lines.length <= 3} plain={plain}>
       <pre
         tabIndex={0}
         aria-label={label}
-        className={`max-h-40 overflow-auto rounded border border-white/[0.06] bg-black/20 px-2 py-1.5 text-[11px] leading-4 font-mono text-gray-300 whitespace-pre-wrap break-words ${focusRingInset}`}
+        className={`max-h-40 overflow-auto text-[11px] leading-4 font-mono whitespace-pre-wrap break-words ${focusRingInset} ${
+          plain
+            ? // Inside a terminal the stream IS the surface: no box in the box.
+              'bg-black/40 px-2.5 py-1.5 text-gray-400'
+            : 'rounded border border-white/[0.06] bg-black/20 px-2 py-1.5 text-gray-300'
+        }`}
       >
         {shown.join('\n')}
       </pre>
@@ -454,22 +513,44 @@ function lines(text: string | undefined): string[] {
   return text.replace(/\r\n/g, '\n').replace(/\n+$/, '').split('\n')
 }
 
-/** A background command: what was run, then what came back. Nothing else. */
+/**
+ * A background command IS a terminal: prompt, stream, exit status.
+ *
+ * The row above already reads the command, so the body repeats it only when it
+ * does not fit on one line (a script); everything else is what the command
+ * printed — the thing the person actually wants to see.
+ */
 function ShellBody({ activity }: { activity: ActivityModel }) {
   const { t } = useT()
   const resultLines = lines(activity.result)
   const streamLines = activity.outputLines
   const file = outputFilePath(activity)
-  // The command is the subject of the row already when it fits on one line;
-  // the body shows it whole as soon as it does not.
-  const showCommand = !!activity.command && (activity.commandLines > 1 || activity.command.includes('\n'))
+  const running = activity.status === 'running' || activity.status === 'queued'
+  const exit = activity.params.find((p) => p.label === tr('activity.param.exitCode'))?.value
+  const failed = activity.status === 'failed' || activity.status === 'cancelled'
   return (
     <div className="space-y-1.5 px-3 pb-2.5 pt-1">
-      {showCommand && <CommandBlock command={activity.command!} lines={activity.commandLines} />}
-      <OutputTail lines={resultLines} label={t('chatA-activity.card.result')} />
-      <OutputTail lines={streamLines} label={t('chatA-activity.card.output')} />
+      <TerminalCard
+        command={activity.command ?? activity.title}
+        commandLines={activity.commandLines}
+        running={running}
+        footer={
+          <>
+            {exit !== undefined && (
+              <span className={failed ? 'text-red-400/90' : 'text-emerald-400/80'}>exit {exit}</span>
+            )}
+            {failed && exit === undefined && <span className="text-red-400/90">exit ≠ 0</span>}
+            {activity.durationMs !== undefined && (
+              <span className="tabular-nums text-gray-500">{formatDurationMs(activity.durationMs)}</span>
+            )}
+          </>
+        }
+      >
+        <OutputTail lines={resultLines} label={t('chatA-activity.card.result')} plain />
+        <OutputTail lines={streamLines} label={t('chatA-activity.card.output')} plain />
+      </TerminalCard>
       {file && <OutputFile path={file} />}
-      {!activity.result && streamLines.length === 0 && activity.status !== 'running' && file && (
+      {!activity.result && streamLines.length === 0 && !running && file && (
         <p className="text-[11px] text-gray-600">{t('chatA-activity.card.outputInFile')}</p>
       )}
     </div>
@@ -532,10 +613,16 @@ function WorkflowBody({ activity }: { activity: ActivityModel }) {
 /** A Monitor: the stream it watched, newest last. */
 function MonitorBody({ activity }: { activity: ActivityModel }) {
   const { t } = useT()
+  // A monitor watches a command: it reads as the same terminal, still writing.
   return (
     <div className="space-y-1.5 px-3 pb-2.5 pt-1">
-      {activity.command && <CommandBlock command={activity.command} lines={activity.commandLines} />}
-      <OutputTail lines={activity.outputLines} label={t('chatA-activity.card.watched')} />
+      <TerminalCard
+        command={activity.command ?? activity.title}
+        commandLines={activity.commandLines}
+        running={activity.status === 'running' || activity.status === 'queued'}
+      >
+        <OutputTail lines={activity.outputLines} label={t('chatA-activity.card.watched')} plain />
+      </TerminalCard>
     </div>
   )
 }
@@ -626,7 +713,14 @@ export function ActivityCard({ activity, defaultOpen = false, className = '' }: 
           aria-hidden="true"
           className={`mt-0.5 w-3 h-3 shrink-0 text-gray-600 transition-transform motion-reduce:transition-none ${open ? 'rotate-90' : ''}`}
         />
-        <Icon aria-hidden="true" className="mt-0.5 w-3.5 h-3.5 shrink-0 text-gray-500" />
+        {/* A command is recognised by its prompt, not by a 14 px pictogram. */}
+        {activity.kind === 'shell' ? (
+          <span aria-hidden="true" className="mt-0.5 w-3.5 shrink-0 select-none text-center font-mono text-[13px] leading-4 text-emerald-400/80">
+            $
+          </span>
+        ) : (
+          <Icon aria-hidden="true" className="mt-0.5 w-3.5 h-3.5 shrink-0 text-gray-500" />
+        )}
         <span className="min-w-0 flex-1">
           <span className="sr-only">{kindLabel}: </span>
           {/* ONE line always: a background script's twenty lines belong in the
