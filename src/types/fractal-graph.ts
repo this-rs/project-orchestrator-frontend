@@ -291,12 +291,12 @@ export interface FractalNavigationState {
 // ── View mode ───────────────────────────────────────────────────────────────
 
 /** Available view modes for the unified graph section */
-export type FractalViewMode = 'dag' | 'waves' | '3d'
+export type FractalViewMode = 'dag' | 'waves' | '3d' | 'treemap'
 
 /** Which views are available at each scale level */
 export const SCALE_LEVEL_VIEWS: Record<ScaleLevel, FractalViewMode[]> = {
   workspace: ['3d'],
-  project: ['3d'],
+  project: ['treemap', '3d'],
   plan: ['dag', 'waves', '3d'],
   task: ['dag', '3d'],
 }
