@@ -83,8 +83,12 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const [graphBrightness, setGraphBrightness] = useAtom(graphBrightnessAtom)
 
   const {
-    nodes: layoutedNodes,
-    edges,
+    // The 3D view places nodes itself (deterministic layout) and only needs the
+    // raw visible sets — not dagre's positions. Feeding it `visibleNodes` /
+    // `visibleEdges` lets the graph render the instant the fetch resolves,
+    // instead of waiting for the dagre layout worker.
+    visibleNodes,
+    visibleEdges,
     allNodes,
     visibleLayers,
     toggleLayer,
@@ -179,7 +183,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
             </div>
           </div>
         }>
-          <IntelligenceGraph3D nodes={layoutedNodes} edges={edges} />
+          <IntelligenceGraph3D nodes={visibleNodes} edges={visibleEdges} />
         </Suspense>
       </Graph3DErrorBoundary>
 
