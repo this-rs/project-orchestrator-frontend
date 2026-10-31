@@ -777,7 +777,7 @@ export type ChatEvent =
       /** How long it lasted, in ms (`up` only). */
       duration_ms?: number
     }
-  | { type: 'background_output'; source: string; content: string; received_at: string; correlation_id?: string }
+  | { type: 'background_output'; source: string; content: string; received_at: string; correlation_id?: string; tool?: BackgroundToolTick }
   | { type: 'workflow'; subtype: string; data: Record<string, unknown> }
   | { type: 'session_error'; reason: string; message: string; received_at: string; code?: string }
   | { type: 'tools_cancelled'; cli_pid?: number; killed_count: number; requested_by: string }
@@ -863,7 +863,7 @@ export const CHAT_EVENT_FIELDS = {
   system_hint: { content: 'required' },
   retrying: { attempt: 'required', max_attempts: 'required', delay_ms: 'required', error_message: 'required' },
   provider_outage: { phase: 'required', provider_id: 'required', failures: 'required', started_at: 'required', cause: 'optional', duration_ms: 'optional' },
-  background_output: { source: 'required', content: 'required', received_at: 'required', correlation_id: 'optional' },
+  background_output: { source: 'required', content: 'required', received_at: 'required', correlation_id: 'optional', tool: 'optional' },
   workflow: { subtype: 'required', data: 'required' },
   session_error: { reason: 'required', message: 'required', received_at: 'required', code: 'optional' },
   tools_cancelled: { cli_pid: 'optional', killed_count: 'required', requested_by: 'required' },
