@@ -123,14 +123,14 @@ function DecisionDetailPanel({ data }: { data: DecisionNodeData }) {
       {data.chosenOption && (
         <div className="bg-violet-950/30 rounded-md p-2 border border-violet-800/40">
           <p className="text-[10px] text-violet-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.chosenOption')}</p>
-          <p className="text-xs text-slate-300 leading-relaxed">{data.chosenOption}</p>
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{data.chosenOption}</p>
         </div>
       )}
 
       {/* Description (from label) */}
-      <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.description')}</p>
-        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-6">
+      <div className="bg-surface-overlay/60 rounded-md p-2 border border-border-subtle">
+        <p className="text-[10px] text-[var(--text-secondary)] mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.description')}</p>
+        <p className="text-xs text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap line-clamp-6">
           {data.label}
         </p>
       </div>
@@ -148,17 +148,17 @@ function PlanDetailPanel({ data }: { data: PlanNodeData }) {
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <StatusBadge status={data.status} />
-        <span className="text-[10px] text-slate-500">{t('intelGraph.inspector.priority', { value: data.priority })}</span>
+        <span className="text-[10px] text-[var(--text-tertiary)]">{t('intelGraph.inspector.priority', { value: data.priority })}</span>
       </div>
       {data.taskCount !== undefined && (
-        <div className="flex items-center gap-2 text-xs text-slate-400">
+        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
           <Target size={12} />
           <span>{t(data.taskCount === 1 ? 'intelGraph.inspector.tasksOne' : 'intelGraph.inspector.tasksOther', { n: data.taskCount })}</span>
         </div>
       )}
-      <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.title')}</p>
-        <p className="text-xs text-slate-300 leading-relaxed">{data.label}</p>
+      <div className="bg-surface-overlay/60 rounded-md p-2 border border-border-subtle">
+        <p className="text-[10px] text-[var(--text-secondary)] mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.title')}</p>
+        <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{data.label}</p>
       </div>
     </div>
   )
@@ -171,12 +171,12 @@ function TaskDetailPanel({ data }: { data: TaskNodeData }) {
       <div className="flex items-center gap-2">
         <StatusBadge status={data.status} />
         {data.priority !== undefined && (
-          <span className="text-[10px] text-slate-500">{t('intelGraph.inspector.priority', { value: data.priority })}</span>
+          <span className="text-[10px] text-[var(--text-tertiary)]">{t('intelGraph.inspector.priority', { value: data.priority })}</span>
         )}
       </div>
-      <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.title')}</p>
-        <p className="text-xs text-slate-300 leading-relaxed">{data.label}</p>
+      <div className="bg-surface-overlay/60 rounded-md p-2 border border-border-subtle">
+        <p className="text-[10px] text-[var(--text-secondary)] mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.title')}</p>
+        <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{data.label}</p>
       </div>
     </div>
   )
@@ -195,13 +195,13 @@ function ChatSessionDetailPanel({ data }: { data: ChatSessionNodeData }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
-        <div className="bg-indigo-950/30 rounded-md p-2 border border-indigo-800/40">
-          <p className="text-[10px] text-indigo-400 font-medium">{t('intelGraph.inspector.messages')}</p>
-          <p className="text-sm text-slate-200 font-semibold">{data.messageCount}</p>
+        <div className="bg-[var(--color-primary-muted)] rounded-md p-2 border border-[var(--color-primary)]/30">
+          <p className="text-[10px] text-[var(--color-primary-light)] font-medium">{t('intelGraph.inspector.messages')}</p>
+          <p className="text-sm text-[var(--text-primary)] font-semibold">{data.messageCount}</p>
         </div>
-        <div className="bg-indigo-950/30 rounded-md p-2 border border-indigo-800/40">
-          <p className="text-[10px] text-indigo-400 font-medium">{t('intelGraph.inspector.cost')}</p>
-          <p className="text-sm text-slate-200 font-semibold">
+        <div className="bg-[var(--color-primary-muted)] rounded-md p-2 border border-[var(--color-primary)]/30">
+          <p className="text-[10px] text-[var(--color-primary-light)] font-medium">{t('intelGraph.inspector.cost')}</p>
+          <p className="text-sm text-[var(--text-primary)] font-semibold">
             {hasCost(sessionCost, SESSION_COST_FORMAT) ? (
               <CostDisplay cost={sessionCost} {...SESSION_COST_FORMAT} />
             ) : (
@@ -212,14 +212,14 @@ function ChatSessionDetailPanel({ data }: { data: ChatSessionNodeData }) {
         </div>
       </div>
       {data.model && (
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span className="text-[10px] text-slate-500">{t('intelGraph.inspector.model')}</span>
-          <span className="font-mono text-slate-300">{data.model}</span>
+        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+          <span className="text-[10px] text-[var(--text-tertiary)]">{t('intelGraph.inspector.model')}</span>
+          <span className="font-mono text-[var(--text-secondary)]">{data.model}</span>
         </div>
       )}
-      <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.title')}</p>
-        <p className="text-xs text-slate-300 leading-relaxed">{data.label}</p>
+      <div className="bg-surface-overlay/60 rounded-md p-2 border border-border-subtle">
+        <p className="text-[10px] text-[var(--text-secondary)] mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.title')}</p>
+        <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{data.label}</p>
       </div>
     </div>
   )
@@ -243,10 +243,10 @@ function GenericPropertiesPanel({ data }: { data: Record<string, unknown> }) {
           typeof value === 'object' ? JSON.stringify(value) : String(value)
         return (
           <div key={key} className="flex items-start gap-2">
-            <span className="text-[10px] font-mono text-slate-500 shrink-0 pt-0.5 min-w-[80px]">
+            <span className="text-[10px] font-mono text-[var(--text-tertiary)] shrink-0 pt-0.5 min-w-[80px]">
               {key}
             </span>
-            <span className="text-xs text-slate-300 break-all">
+            <span className="text-xs text-[var(--text-secondary)] break-all">
               {displayValue}
             </span>
           </div>
@@ -254,7 +254,7 @@ function GenericPropertiesPanel({ data }: { data: Record<string, unknown> }) {
       })}
 
       {properties.length === 0 && (
-        <p className="text-xs text-slate-500 italic">{t('intelGraph.inspector.noProperties')}</p>
+        <p className="text-xs text-[var(--text-tertiary)] italic">{t('intelGraph.inspector.noProperties')}</p>
       )}
     </div>
   )
@@ -281,11 +281,11 @@ function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
   const Icon = entityIcons[entityType] ?? Box
 
   return (
-    <div className={`absolute top-14 right-3 z-30 overflow-y-auto rounded-lg bg-slate-900/95 backdrop-blur-sm border border-slate-700 shadow-xl ${
+    <div className={`absolute top-14 right-3 z-30 overflow-y-auto rounded-lg bg-surface-popover/95 backdrop-blur-sm border border-border-default shadow-[var(--shadow-xl)] ${
       isFullscreen ? 'w-96 max-h-[calc(100%-120px)]' : 'w-80 max-h-[calc(100%-124px)]'
     }`}>
       {/* Header */}
-      <div className="flex items-center gap-2 p-3 border-b border-slate-700">
+      <div className="flex items-center gap-2 p-3 border-b border-border-default">
         <div
           className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
           style={{ backgroundColor: `${color}20` }}
@@ -293,17 +293,17 @@ function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
           <Icon size={16} color={color} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-200 truncate" title={data.label}>
+          <p className="text-sm font-semibold text-[var(--text-primary)] truncate" title={data.label}>
             {data.label}
           </p>
-          <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+          <p className="text-[10px] text-[var(--text-tertiary)] uppercase tracking-wider">
             {entityType} · {data.layer}
           </p>
         </div>
         <button
           onClick={() => setSelectedNodeId(null)}
           aria-label={t('intelGraph.inspector.close')}
-          className="p-1 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+          className="p-1.5 rounded-md hover:bg-surface-highlight text-[var(--text-secondary)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors"
         >
           <X size={14} />
         </button>
@@ -333,8 +333,8 @@ function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
       </div>
 
       {/* Entity ID (footer) */}
-      <div className="px-3 py-2 border-t border-slate-700">
-        <p className="text-[9px] font-mono text-slate-600 truncate" title={data.entityId}>
+      <div className="px-3 py-2 border-t border-border-default">
+        <p className="text-[9px] font-mono text-[var(--text-muted)] truncate" title={data.entityId}>
           {data.entityId}
         </p>
       </div>

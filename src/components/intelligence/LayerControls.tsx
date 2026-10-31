@@ -44,7 +44,7 @@ const CUSTOM_TAB = 'custom'
 /** One item of a segmented control (`.seg-item`, DESIGN.md § Matière): 36px tap target on phones, 32px on desktop. */
 const segItem = `${segmentItem} shrink-0 h-9 md:h-8 px-3 text-xs font-medium whitespace-nowrap gap-1.5`
 /** An opaque floating panel for the controls that are not a segmented control (the slider). */
-const panel = 'rounded-xl border border-white/[0.08] bg-surface-popover'
+const panel = 'rounded-xl border border-border-default bg-surface-popover'
 
 export interface ProjectMeta {
   slug: string
@@ -132,7 +132,7 @@ function LayerControlsComponent({
           >
             {showAllEdges ? <Eye size={14} aria-hidden="true" /> : <EyeOff size={14} aria-hidden="true" />}
             {showAllEdges ? t('intelGraph.controls.allEdges') : t('intelGraph.controls.edges')}
-            {!showAllEdges && hiddenEdgeCount > 0 && <span className="tabular-nums font-normal text-gray-500">{hiddenEdgeCount}</span>}
+            {!showAllEdges && hiddenEdgeCount > 0 && <span className="tabular-nums font-normal text-[var(--text-tertiary)]">{hiddenEdgeCount}</span>}
           </button>
         </div>
       </div>
@@ -145,7 +145,7 @@ function LayerControlsComponent({
             aria-label={t('intelGraph.controls.projectViews')}
             className={`${segmented} max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
           >
-            <span className="inline-flex shrink-0 items-center gap-1 pl-2 pr-1 text-[11px] text-gray-500" aria-hidden="true">
+            <span className="inline-flex shrink-0 items-center gap-1 pl-2 pr-1 text-[11px] text-[var(--text-tertiary)]" aria-hidden="true">
               <LayoutGrid size={12} />
               {t('intelGraph.controls.views')}
             </span>
@@ -223,7 +223,7 @@ function LayerControlsComponent({
                       style={{ borderColor: layer.color, borderTopColor: 'transparent' }}
                     />
                   ) : (
-                    <span className="ml-auto text-[11px] font-normal tabular-nums text-gray-500">z{layer.zIndex}</span>
+                    <span className="ml-auto text-[11px] font-normal tabular-nums text-[var(--text-tertiary)]">z{layer.zIndex}</span>
                   )}
                 </button>
               )
@@ -260,7 +260,7 @@ function LayerControlsComponent({
             >
               <Search size={14} aria-hidden="true" />
               {t('intelGraph.controls.activation')}
-              <kbd className="ml-auto rounded border border-white/[0.08] px-1 py-0.5 font-mono text-[11px] font-normal text-gray-500">⌘K</kbd>
+              <kbd className="ml-auto rounded border border-border-default px-1 py-0.5 font-mono text-[11px] font-normal text-[var(--text-tertiary)]">⌘K</kbd>
             </button>
             <button
               type="button"
@@ -277,10 +277,10 @@ function LayerControlsComponent({
           {/* Fabric controls — CO_CHANGED threshold slider */}
           {visibleLayers.has('fabric') && (
             <div className={`${panel} flex flex-col gap-1 p-2`}>
-              <label htmlFor="co-change-threshold" className="flex items-center gap-2 text-xs text-gray-300">
-                <GitFork size={14} className="text-gray-500" aria-hidden="true" />
+              <label htmlFor="co-change-threshold" className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+                <GitFork size={14} className="text-[var(--text-tertiary)]" aria-hidden="true" />
                 <span className="font-medium">{t('intelGraph.controls.coChange')}</span>
-                <span className="ml-auto text-[11px] tabular-nums text-gray-500">{t('intelGraph.controls.coChangeMin', { n: coChangeThreshold })}</span>
+                <span className="ml-auto text-[11px] tabular-nums text-[var(--text-tertiary)]">{t('intelGraph.controls.coChangeMin', { n: coChangeThreshold })}</span>
               </label>
               <input
                 id="co-change-threshold"
@@ -290,11 +290,11 @@ function LayerControlsComponent({
                 step={1}
                 value={coChangeThreshold}
                 onChange={(e) => setCoChangeThreshold(Number(e.target.value))}
-                className="h-9 w-full cursor-pointer accent-indigo-400"
+                className="h-9 w-full cursor-pointer accent-[var(--color-primary-light)]"
                 aria-valuetext={t('intelGraph.controls.coChangeValue', { n: coChangeThreshold })}
                 title={t('intelGraph.controls.coChangeTitle', { n: coChangeThreshold })}
               />
-              <div className="flex justify-between text-[11px] tabular-nums text-gray-500">
+              <div className="flex justify-between text-[11px] tabular-nums text-[var(--text-tertiary)]">
                 <span>1</span>
                 <span>10</span>
                 <span>20</span>
