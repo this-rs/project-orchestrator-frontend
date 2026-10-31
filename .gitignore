@@ -42,3 +42,4 @@ qa-out/
 
 # tsc -b incremental cache, rewritten on every build
 *.tsbuildinfo
+.graph-perf-profile/

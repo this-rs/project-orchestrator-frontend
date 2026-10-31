@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "check:i18n": "node scripts/check-i18n.mjs",
     "qa:shots": "node scripts/qa-shots.mjs",
+    "perf:graph": "node scripts/graph-perf.mjs",
     "check:design-contract": "vitest run src/components/ui/designContract.test.ts"
   },
   "dependencies": {

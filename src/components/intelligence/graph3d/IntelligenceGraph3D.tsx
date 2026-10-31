@@ -21,6 +21,7 @@ import {
   WAKE_MUTATION_MS,
 } from './useRenderLoop'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
+import { createLinkSegments, parseColor, type LinkSegments, type LinkStyle } from './linkSegments'
 import { buildCommunityHulls, disposeCommunityHulls, type CommunityHullGroup } from './CommunityHulls3D'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
@@ -109,6 +110,9 @@ const RENDERER_CONFIG = { antialias: !IS_MOBILE_LIKE }
 /** Same clamp as ActivityHeatmap3D.tsx — see the note at its call site. */
 const MAX_PIXEL_RATIO = 2
 
+/** Base link transparency — the single LineSegments material bakes this in per-vertex. */
+const LINK_OPACITY = 0.35
+
 export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }: IntelligenceGraph3DProps) {
   const { t } = useT()
   const graphRef = useRef<GraphRef>(undefined)
@@ -139,6 +143,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // ── Community hulls ref ───────────────────────────────────────────────
   const communityHullsRef = useRef<CommunityHullGroup | null>(null)
+
+  // ── Single LineSegments renderer for links (optimized path) ───────────
+  const linkSegmentsRef = useRef<LinkSegments | null>(null)
 
   // ── Cleanup cached Three.js resources on unmount ────────────────────────
   useEffect(() => {
@@ -282,6 +289,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     setNodeQuality(graphData.nodes.length)
   }, [graphData.nodes.length])
 
+  // True in the optimized path (minimal quality: ≥500 nodes, particles off):
+  // links are drawn as ONE LineSegments instead of one cylinder per link.
+  const useOptimizedLinks = getNodeQuality() === 'minimal'
+
   // wake: new data arrived (REST load, WebSocket update, preset/filter change).
   // ForceGraph3D rebuilds its node/link objects inside tickFrame(), and the
   // force engine restarts, so the loop must be running. `setEngineRunning(true)`
@@ -375,6 +386,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // the loop must keep running. onEngineStop releases that keep-alive.
   const onEngineTick = useCallback(() => {
     setEngineRunning(true)
+    // The force sim has just advanced node x/y/z (layoutTick fires this AFTER
+    // state.layout.tick()), so the single LineSegments must re-read positions.
+    linkSegmentsRef.current?.updatePositions()
   }, [setEngineRunning])
 
   // ── Save positions when simulation stops ────────────────────────────────
@@ -532,6 +546,22 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
     return link.color
   }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation, showCommunityHulls, highlightedGroup])
+
+  // ── Per-link style for the optimized LineSegments path ────────────────
+  // Reuses the exact `linkColor` logic above, then extracts RGB + alpha. The
+  // library's material opacity is `linkOpacity * colorAlpha(color)`; we bake the
+  // same number into the per-vertex alpha so the LineSegments matches the old
+  // cylinders' transparency exactly (only their 3D thickness is dropped).
+  const computeLinkStyle = useCallback((link: Graph3DLink): LinkStyle => {
+    const p = parseColor(linkColor(link))
+    return { r: p.r, g: p.g, b: p.b, a: LINK_OPACITY * p.a }
+  }, [linkColor])
+
+  /** Always-current style fn, so the structure effect can color without re-running on hover. */
+  const computeLinkStyleRef = useRef(computeLinkStyle)
+  useEffect(() => {
+    computeLinkStyleRef.current = computeLinkStyle
+  }, [computeLinkStyle])
 
   const linkWidth = useCallback((link: Graph3DLink) => {
     const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
@@ -1134,8 +1164,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // ── Quality-adaptive render settings ──────────────────────────────────
   const quality = getNodeQuality()
   const nodeResolution = quality === 'minimal' ? 6 : quality === 'low' ? 8 : 12
-  // Disable particles for large graphs (saves draw calls)
-  const enableParticles = quality !== 'minimal'
+  // Disable particles for large graphs (saves draw calls). `useOptimizedLinks`
+  // reads the same module state, so the two stay in lockstep.
+  const enableParticles = !useOptimizedLinks
 
   // ── Keep-alive: animated link particles ────────────────────────────────
   // Directional particles move on EVERY frame (updatePhotons() inside
@@ -1155,6 +1186,54 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     setParticlesAnimating(particlesAnimating)
   }, [particlesAnimating, setParticlesAnimating])
 
+  // ── Optimized link rendering — one LineSegments for all links ─────────
+  // In the minimal-quality path (≥500 nodes) the library's per-link cylinders
+  // (and their MeshLambertMaterial lights dependency) are suppressed via
+  // `linkVisibility`, and a single LineSegments draws every edge. Built here
+  // because the scene is guaranteed mounted by the time real graph data has
+  // loaded (the fetch resolves well after ForceGraph3D mounts).
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg || typeof fg.scene !== 'function') return
+    const scene = fg.scene()
+    if (!scene) return
+
+    // Drop any previous instance (mode flipped back, or graph changed).
+    if (linkSegmentsRef.current) {
+      scene.remove(linkSegmentsRef.current.object)
+      linkSegmentsRef.current.dispose()
+      linkSegmentsRef.current = null
+    }
+
+    if (!useOptimizedLinks || activeGraphData.links.length === 0) return
+
+    const seg = createLinkSegments(activeGraphData.nodes, activeGraphData.links)
+    seg.updateColors(computeLinkStyleRef.current)
+    scene.add(seg.object)
+    linkSegmentsRef.current = seg
+    // wake: edges were added to the scene.
+    wake(WAKE_MUTATION_MS)
+
+    return () => {
+      if (linkSegmentsRef.current === seg) {
+        scene.remove(seg.object)
+        seg.dispose()
+        linkSegmentsRef.current = null
+      }
+    }
+  }, [useOptimizedLinks, activeGraphData, wake])
+
+  // ── Recolor links when highlight state changes ────────────────────────
+  // linkColor (and thus computeLinkStyle) depends on hover / selection /
+  // activation / hulls / group. The library re-evaluates its own accessors on
+  // the next frame; the LineSegments must be recolored explicitly. (Cleanup of
+  // the LineSegments object itself is handled by the creation effect above.)
+  useEffect(() => {
+    if (useOptimizedLinks) {
+      linkSegmentsRef.current?.updateColors(computeLinkStyle)
+    }
+  }, [useOptimizedLinks, computeLinkStyle, activeGraphData])
+
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-[#0f172a]">
       {hasDimensions && <ForceGraph3D<Graph3DNode, Graph3DLink>
@@ -1173,7 +1252,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         // Link styling — subtle lines, energy-proportional
         linkColor={linkColor}
         linkWidth={linkWidth}
-        linkOpacity={0.35}
+        linkOpacity={LINK_OPACITY}
+        // In the optimized path the library's per-link cylinders are suppressed;
+        // the single LineSegments (see effects above) draws every edge instead.
+        linkVisibility={useOptimizedLinks ? false : true}
         linkDirectionalParticles={enableParticles ? linkParticles : 0}
         linkDirectionalParticleSpeed={linkParticleSpeed}
         linkDirectionalParticleColor={linkParticleColor}
@@ -1181,6 +1263,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         // Interactions
         onNodeClick={onNodeClick}
         onNodeHover={onNodeHover}
+        onNodeDrag={() => {
+          // Dragged node moves without a force tick — keep edges attached.
+          linkSegmentsRef.current?.updatePositions()
+          wake(WAKE_MUTATION_MS)
+        }}
         onNodeDragEnd={(node: Graph3DNode) => {
           // Pin position after drag
           node.fx = node.x
