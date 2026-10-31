@@ -503,11 +503,6 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     nodes: layoutedNodes,
     edges: layoutedEdges,
     layouting,
-    // The filtered raw sets, available immediately — no dagre wait. The 3D view
-    // ignores dagre positions anyway (it places nodes deterministically), so it
-    // renders from these and never blocks on the layout worker.
-    visibleNodes,
-    visibleEdges,
     allNodes: nodes,
     allEdges: edges,
     selectedNodeId,
