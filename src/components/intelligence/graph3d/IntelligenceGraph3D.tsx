@@ -1517,7 +1517,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       if (rafId) cancelAnimationFrame(rafId)
       el.style.cursor = 'default'
     }
-  }, [useOptimizedNodes, selectedNodeId, setHoveredNodeId, setSelectedNodeId, onNodeDoubleClick])
+    // hasDimensions: the library mounts after the data when the graph is opened
+    // from the code map. Without it this effect returns early (no ForceGraph3D
+    // yet) and never attaches the pick, so a click on a node selects nothing.
+  }, [useOptimizedNodes, selectedNodeId, setHoveredNodeId, setSelectedNodeId, onNodeDoubleClick, hasDimensions])
 
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-[#0f172a]">
