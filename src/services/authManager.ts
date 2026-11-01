@@ -181,9 +181,19 @@ const REFRESH_THRESHOLD_S = 30
  *
  * - In no-auth mode: returns null (no token needed).
  * - If token is missing: attempts a refresh via cookie (page reload case).
- * - If token expires within REFRESH_THRESHOLD_S: triggers refresh.
- * - If token is already expired: triggers refresh.
+ * - If token expires within REFRESH_THRESHOLD_S but is STILL valid: starts the
+ *   rotation in the background and hands the current token out immediately.
+ * - If token is already expired: waits for the refresh (there is no alternative).
  * - Otherwise: returns the current token as-is.
+ *
+ * Why the near-expiry case does not wait: every request goes through this
+ * function, so awaiting the refresh here puts the whole app behind one request.
+ * Measured on dev (2026-10-31): a `/auth/refresh` that waited 39–57 s for a free
+ * Neo4j connection froze the entire UI, even though the access token in memory
+ * was still valid. The rotation is deduplicated (`refreshToken`), so a burst of
+ * calls still produces exactly one network request — it just no longer blocks
+ * anybody. A request that arrives after the token actually expired still waits,
+ * and one that is rejected with 401 retries once through `authedFetch`.
  */
 export async function getValidToken(): Promise<string | null> {
   if (getAuthMode() === 'none') return null
@@ -206,7 +216,13 @@ export async function getValidToken(): Promise<string | null> {
 
   const nowS = Math.floor(Date.now() / 1000)
   if (exp - nowS < REFRESH_THRESHOLD_S) {
-    // Token expired or about to expire → refresh
+    if (exp > nowS) {
+      // Still valid: rotate in the background, keep serving the current token.
+      void refreshToken().catch(() => {})
+      return token
+    }
+
+    // Genuinely expired — this caller has no choice but to wait.
     try {
       return await refreshToken()
     } catch {
