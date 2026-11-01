@@ -204,8 +204,21 @@ export const intelligenceCommunitiesAtom = atom<BackendGraphCommunity[]>([])
 
 // ── Graph node limit ────────────────────────────────────────────────────────
 
-/** Max nodes requested from the API (configurable, default 1000) */
-export const graphNodeLimitAtom = atom<number>(1000)
+/**
+ * Max nodes requested from the API. Raised from 1000 to 5000 so the graph can
+ * show more than the old cap; from 2000 up, nodes are drawn as a single
+ * THREE.Points (see graph3d/nodePoints.ts) instead of one sprite group per
+ * node, which is what makes 5000 drawable. Lower it if the initial payload is
+ * too heavy for your backend.
+ */
+export const graphNodeLimitAtom = atom<number>(5000)
+
+/**
+ * Aggregation scale of the 3D graph. 0 = full detail (individual nodes);
+ * 1..N = aggregated super-nodes (see graph3d/graphAggregation.ts). Driven by
+ * the scale stepper and (later) by semantic zoom.
+ */
+export const graphScaleAtom = atom<number>(0)
 
 // ── Search / filter ──────────────────────────────────────────────────────────
 

@@ -114,7 +114,7 @@ async function openTab(chrome) {
 // Installed before any page script: three then reports every renderer it creates.
 // Each renderer.render() call is timed (JS side: scene walk + command submission; with SwiftShader the
 // GPU work runs on the CPU too). Renders are counted by three's own info.render.frame, not by rAF.
-const DEVTOOLS_HOOK = `window.__THREE_DEVTOOLS__ = new EventTarget(); window.__RAF = null; (function raf(t) { if (window.__RAF) window.__RAF.push(t); requestAnimationFrame(raf); })(performance.now());
+const DEVTOOLS_HOOK = `window.__LT = []; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__LT.push(e.duration) }).observe({ type: 'longtask', buffered: true }) } catch { /* */ } window.__THREE_DEVTOOLS__ = new EventTarget(); window.__RAF = null; (function raf(t) { if (window.__RAF) window.__RAF.push(t); requestAnimationFrame(raf); })(performance.now());
 window.__POR = null; window.__RT = [];
 window.__THREE_DEVTOOLS__.addEventListener('observe', (e) => {
   const R = e.detail; window.__POR = R;
@@ -125,7 +125,7 @@ window.__THREE_DEVTOOLS__.addEventListener('observe', (e) => {
 // Renderer counters of the last frame (autoReset is on: `calls` is one frame's worth).
 const PROBE = `(() => {
   const R = window.__POR; if (!R) return null;
-  return { frame: R.info.render.frame, calls: R.info.render.calls, triangles: R.info.render.triangles, programs: R.info.programs ? R.info.programs.length : null, geometries: R.info.memory.geometries, textures: R.info.memory.textures };
+  return { frame: R.info.render.frame, calls: R.info.render.calls, points: R.info.render.points, triangles: R.info.render.triangles, programs: R.info.programs ? R.info.programs.length : null, geometries: R.info.memory.geometries, textures: R.info.memory.textures };
 })()`
 
 async function capture(chrome, base, n) {
@@ -154,15 +154,36 @@ async function capture(chrome, base, n) {
     await tab.send('Page.addScriptToEvaluateOnNewDocument', { source: DEVTOOLS_HOOK })
     await tab.send('Fetch.enable', { patterns: [{ urlPattern: '*/api/*', requestStage: 'Request' }, { urlPattern: '*/auth/*', requestStage: 'Request' }] })
     await tab.send('Emulation.setDeviceMetricsOverride', { width: VIEWPORT.width, height: VIEWPORT.height, deviceScaleFactor: 1, mobile: false })
+    const tNav = Date.now()
     await tab.send('Page.navigate', { url: base + ROUTE })
+    // the user switches to 3D once the code map has its data (the real order): wait for the tiles
+    for (let i = 0; i < 150; i++) {
+      const tiles = await tab.evaluate(`[...document.querySelectorAll('button')].filter((b) => /^(Ouvrir|Open)/.test(b.getAttribute('aria-label') || '')).length`)
+      if (tiles > 0 && inflight === 0) break
+      await sleep(200)
+    }
+    // the code map is the default view now: switch the graph to 3D before measuring
+    for (let i = 0; i < 100; i++) {
+      const box = await tab.evaluate(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '3D'); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })()`)
+      if (box) {
+        await tab.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1 })
+        await tab.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1 })
+        break
+      }
+      await sleep(200)
+    }
 
     // wait: loaded, no API traffic, and a renderer observed with a stable draw-call count
     const t0 = Date.now()
     while (Date.now() - t0 < 30000 && (!loaded || inflight > 0 || Date.now() - lastNet < 800 || !(await tab.evaluate(PROBE)))) await sleep(200)
+    // Time from navigation to a stable first render (includes ~0.8 s network-idle padding).
+    const loadMs = Date.now() - tNav
     // the force layout runs for cooldownTime (5 s) after mount: idle is only meaningful once it has stopped
     await sleep(SETTLE)
 
     const probe0 = await tab.evaluate(PROBE)
+    // main-thread blocking during load (longtask API): the build's cost the user feels
+    const longTasks = await tab.evaluate('(() => { const d = (window.__LT || []).slice(); return { n: d.length, maxMs: d.length ? +Math.max(...d).toFixed(1) : 0, totalMs: +d.reduce((a, b) => a + b, 0).toFixed(1) } })()')
 
     // idle: frames in 3 s with no input
     const f0 = await tab.evaluate('window.__POR.info.render.frame')
@@ -192,6 +213,8 @@ async function capture(chrome, base, n) {
 
     return {
       nodes: n,
+      loadMs,
+      longTasks,
       unfixtured: [...unfixtured].slice(0, 8),
       renderer: { ...probe0, drawCallsDrag: { min: Math.min(...calls), max: Math.max(...calls) } },
       idle: { passesIn3s: idleRenders },

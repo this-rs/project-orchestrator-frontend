@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ForceGraph3D from 'react-force-graph-3d'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import * as THREE from 'three'
 import { useT } from '@/i18n'
 
@@ -22,6 +22,7 @@ import {
 } from './useRenderLoop'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
 import { createLinkSegments, parseColor, type LinkSegments, type LinkStyle } from './linkSegments'
+import { createNodePoints, shapeForType, sizeForType, type NodePoints, type NodeStyle } from './nodePoints'
 import { buildCommunityHulls, disposeCommunityHulls, type CommunityHullGroup } from './CommunityHulls3D'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
@@ -35,7 +36,9 @@ import {
   highlightedGroupAtom,
   dimmedEntityTypesAtom,
   graphBrightnessAtom,
+  graphScaleAtom,
 } from '@/atoms/intelligence'
+import { buildScaledGraph, resolutionForLevel } from './graphAggregation'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
 
@@ -113,6 +116,33 @@ const MAX_PIXEL_RATIO = 2
 /** Base link transparency — the single LineSegments material bakes this in per-vertex. */
 const LINK_OPACITY = 0.35
 
+/**
+ * Node count at or above which nodes are drawn as one THREE.Points (overview
+ * tier) instead of one Group + sprites per node. Below it the emoji/label
+ * identity is preserved; above it the sprite path's O(3·N) draw calls defeat
+ * the purpose. Tune here, not at the call site.
+ */
+const NODE_POINTS_THRESHOLD = 2000
+
+/** Highest aggregation level the scale stepper offers (resolutionForLevel saturates at ~2). */
+const MAX_SCALE = 6
+
+/** Precomputed ENTITY_COLORS → normalized RGB (avoids a THREE.Color per node). */
+const ENTITY_RGB: Record<string, { r: number; g: number; b: number }> = Object.fromEntries(
+  Object.entries(ENTITY_COLORS).map(([k, hex]) => {
+    const p = parseColor(hex)
+    return [k, { r: p.r, g: p.g, b: p.b }]
+  }),
+)
+const DEFAULT_NODE_RGB = { r: 0.42, g: 0.45, b: 0.5 } // #6B7280
+
+/** Flexible node↔activation-id match (raw UUID, prefixed id, or suffix). */
+function activationMatches(id: string, activated: Set<string>): boolean {
+  if (activated.has(id)) return true
+  const colon = id.indexOf(':')
+  return colon !== -1 && activated.has(id.slice(colon + 1))
+}
+
 export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }: IntelligenceGraph3DProps) {
   const { t } = useT()
   const graphRef = useRef<GraphRef>(undefined)
@@ -132,6 +162,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const highlightedGroup = useAtomValue(highlightedGroupAtom)
   const dimmedEntityTypes = useAtomValue(dimmedEntityTypesAtom)
   const brightness = useAtomValue(graphBrightnessAtom)
+  const [scaleLevel, setScaleLevel] = useAtom(graphScaleAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
 
@@ -146,6 +177,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // ── Single LineSegments renderer for links (optimized path) ───────────
   const linkSegmentsRef = useRef<LinkSegments | null>(null)
+
+  // ── Single Points renderer for nodes (overview tier) ──────────────────
+  const nodePointsRef = useRef<NodePoints | null>(null)
 
   // ── Cleanup cached Three.js resources on unmount ────────────────────────
   useEffect(() => {
@@ -289,9 +323,26 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     setNodeQuality(graphData.nodes.length)
   }, [graphData.nodes.length])
 
+  // ── Multi-scale aggregation (see graphAggregation.ts) ──────────────────
+  // scaleLevel 0 = detail (raw nodes); >0 = super-nodes aggregated on a grid.
+  const aggregated = scaleLevel > 0
+  const scaleRes = aggregated ? resolutionForLevel(graphData.nodes.length, scaleLevel) : 0
+  const displayData = useMemo(() => {
+    if (!aggregated || scaleRes <= 0 || graphData.nodes.length === 0) return graphData
+    return buildScaledGraph(graphData, scaleRes)
+  }, [aggregated, scaleRes, graphData])
+
   // True in the optimized path (minimal quality: ≥500 nodes, particles off):
   // links are drawn as ONE LineSegments instead of one cylinder per link.
-  const useOptimizedLinks = getNodeQuality() === 'minimal'
+  // Aggregated tiers always draw points + segments (few, size-coded super-nodes).
+  const useOptimizedLinks = aggregated || getNodeQuality() === 'minimal'
+
+  // Above NODE_POINTS_THRESHOLD the sprite path (a Group + 3 sprites per node)
+  // stops scaling, so nodes are drawn as ONE THREE.Points instead (see
+  // nodePoints.ts). Below it, the rich sprite identity (emoji + ring + label)
+  // is kept. The threshold keeps the familiar look for everyday graphs and
+  // switches to the overview tier only when the count would choke WebGL.
+  const useOptimizedNodes = aggregated || graphData.nodes.length >= NODE_POINTS_THRESHOLD
 
   // wake: new data arrived (REST load, WebSocket update, preset/filter change).
   // ForceGraph3D rebuilds its node/link objects inside tickFrame(), and the
@@ -302,22 +353,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     wake(WAKE_DATA_MS)
   }, [graphData, wake, setEngineRunning])
 
-  // ── Control simulation based on relayout need ───────────────────────────
-  // The ref methods (cooldownTicks, etc.) are only available after the
-  // ForceGraph3D component has fully mounted. Guard with method existence check.
+  // ── Freeze the force simulation — the layout is deterministic ───────────
+  // Nodes are placed by useGraph3DLayout's Fermat-spiral pass (O(N log N),
+  // instant), so there is nothing to "settle": run zero ticks. This removes
+  // the multi-second jiggle that made the graph feel slow to load, and the
+  // per-frame force cost. The library still positions node objects from
+  // node.x/y/z on its single tick (see three-forcegraph's tickFrame).
   useEffect(() => {
     const fg = graphRef.current
     if (!fg || typeof fg.cooldownTicks !== 'function') return
-
-    if (!needsRelayout && graphData.nodes.length > 0) {
-      // Freeze the simulation — positions are already cached
-      fg.cooldownTicks(0)
-    } else {
-      // Let simulation run briefly to settle new nodes
-      fg.cooldownTicks(80)
-      fg.cooldownTime?.(3000)
-    }
-  }, [needsRelayout, graphData])
+    fg.cooldownTicks(0)
+  }, [graphData])
 
   // ── Community hulls — rebuild when data changes or toggle flips ────────
   // graphData.nodes positions are mutable (d3-force updates x/y/z in-place),
@@ -345,7 +391,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         communityHullsRef.current = null
       }
 
-      if (!showCommunityHulls || graphData.nodes.length === 0) return
+      if (!showCommunityHulls || graphData.nodes.length === 0 || aggregated) return
 
       // Only build if any node has a communityId
       const hasCommunities = graphData.nodes.some((n) => n.communityId != null)
@@ -362,7 +408,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       // wake: hull meshes/labels were added to or removed from the scene.
       wake(WAKE_MUTATION_MS)
     }
-  }, [showCommunityHulls, graphData.nodes, wake, t])
+  }, [showCommunityHulls, graphData.nodes, aggregated, wake, t])
 
   // Rebuild when toggle changes (immediate — user clicked the button)
   useEffect(() => {
@@ -387,8 +433,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const onEngineTick = useCallback(() => {
     setEngineRunning(true)
     // The force sim has just advanced node x/y/z (layoutTick fires this AFTER
-    // state.layout.tick()), so the single LineSegments must re-read positions.
+    // state.layout.tick()), so the single LineSegments / Points must re-read positions.
     linkSegmentsRef.current?.updatePositions()
+    nodePointsRef.current?.updatePositions()
   }, [setEngineRunning])
 
   // ── Save positions when simulation stops ────────────────────────────────
@@ -554,8 +601,100 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // cylinders' transparency exactly (only their 3D thickness is dropped).
   const computeLinkStyle = useCallback((link: Graph3DLink): LinkStyle => {
     const p = parseColor(linkColor(link))
-    return { r: p.r, g: p.g, b: p.b, a: LINK_OPACITY * p.a }
+    // Edge weight drives opacity: weak links fade, strong links stand out, so the
+    // structural backbone reads through a dense graph instead of a uniform wash.
+    // (1 px WebGL lines can't carry thickness — opacity is the weight channel here;
+    // the small-graph path already maps weight → width via `linkWidth`.)
+    const w = Math.max(0, Math.min(1, link.weight ?? 0.5))
+    const weightFactor = 0.12 + 0.88 * Math.sqrt(w)
+    return { r: p.r, g: p.g, b: p.b, a: LINK_OPACITY * p.a * weightFactor }
   }, [linkColor])
+
+  // ── Per-node style for the overview (Points) tier ─────────────────────
+  // This is the Points analogue of the five sprite-mutation effects below
+  // (heatmap / legend / project / group / dim): one pure function returning
+  // each node's final color, alpha, size, shape and activation. Priority is
+  // the same — activation > hover/selection > legend > project > group > dim.
+  const computeNodeStyle = useCallback((node: Graph3DNode): NodeStyle => {
+    const entityType = node.entityType
+    const base = ENTITY_RGB[entityType] ?? DEFAULT_NODE_RGB
+    // Super-nodes (aggregated) are sized by how many nodes they bundle (area ∝
+    // count), coloured/shaped by their dominant type. Individual nodes use the
+    // per-type size.
+    const count = node.data.count as number | undefined
+    const isSuper = typeof count === 'number' && count > 1
+    const shape = isSuper ? 0 : shapeForType(entityType)
+    const size = isSuper ? 3 + 2.6 * Math.sqrt(count) : sizeForType(entityType)
+    const energy = Math.min(1, Math.max(0, (node.data.energy as number) ?? 0))
+    const isActive = activation.phase !== 'idle' && activation.phase !== 'searching'
+
+    // ── Heatmap (energy for notes / churn for files) ──
+    if (energyHeatmap || touchesHeatmap) {
+      if (energyHeatmap && entityType === 'note') {
+        const c = energyToColor3(energy)
+        return { r: c.r, g: c.g, b: c.b, alpha: 0.6 + energy * 0.4, size, shape, act: 0 }
+      }
+      if (touchesHeatmap && entityType === 'file') {
+        const attrs = node.data.attributes as Record<string, unknown> | undefined
+        const churn = Math.min(1, Math.max(0, (attrs?.churnScore as number) ?? (node.data.churnScore as number) ?? 0))
+        if (churn > 0) {
+          const c = churnToColor3(churn)
+          return { r: c.r, g: c.g, b: c.b, alpha: 0.6 + churn * 0.4, size, shape, act: 0 }
+        }
+      }
+      return { r: base.r, g: base.g, b: base.b, alpha: 0.15, size, shape, act: 0 }
+    }
+
+    // ── Spreading activation ──
+    if (isActive) {
+      if (activationMatches(node.id, activation.directIds)) {
+        return { r: base.r, g: base.g, b: base.b, alpha: 1, size: size * 1.4, shape, act: 0.9 }
+      }
+      if (activationMatches(node.id, activation.propagatedIds)) {
+        return { r: base.r, g: base.g, b: base.b, alpha: 0.85, size: size * 1.15, shape, act: 0.45 }
+      }
+      return { r: base.r, g: base.g, b: base.b, alpha: 0.12, size: size * 0.7, shape, act: 0 }
+    }
+
+    // ── Hover / selection ──
+    if (hoveredNodeId || selectedNodeId) {
+      if (node.id === hoveredNodeId || node.id === selectedNodeId) {
+        return { r: base.r, g: base.g, b: base.b, alpha: 1, size: size * 1.6, shape, act: 0.6 }
+      }
+      return { r: base.r, g: base.g, b: base.b, alpha: 0.3, size, shape, act: 0 }
+    }
+
+    // ── Legend hover ──
+    if (legendHoveredType) {
+      const match = entityType === legendHoveredType
+      return { r: base.r, g: base.g, b: base.b, alpha: match ? 1 : 0.06, size: match ? size * 1.5 : size * 0.6, shape, act: 0 }
+    }
+
+    // ── Project hover ──
+    if (hoveredProjectSlug) {
+      const ps = (node.data.projectSlug ?? node.data.project_slug) as string | undefined
+      return { r: base.r, g: base.g, b: base.b, alpha: ps === hoveredProjectSlug ? 1 : 0.15, size, shape, act: 0 }
+    }
+
+    // ── Group highlight ──
+    if (highlightedGroup) {
+      const inGroup = highlightedGroup.has(entityType)
+      return { r: base.r, g: base.g, b: base.b, alpha: inGroup ? 1 : 0.08, size: inGroup ? size * 1.3 : size * 0.6, shape, act: 0 }
+    }
+
+    // ── Connection-dimmed types ──
+    if (dimmedEntityTypes && dimmedEntityTypes.has(entityType)) {
+      return { r: base.r, g: base.g, b: base.b, alpha: 0.25, size: size * 0.6, shape, act: 0 }
+    }
+
+    return { r: base.r, g: base.g, b: base.b, alpha: 1, size, shape, act: 0 }
+  }, [energyHeatmap, touchesHeatmap, activation, hoveredNodeId, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes])
+
+  /** Always-current node style fn, so the structure effect can color without re-running on every hover. */
+  const computeNodeStyleRef = useRef(computeNodeStyle)
+  useEffect(() => {
+    computeNodeStyleRef.current = computeNodeStyle
+  }, [computeNodeStyle])
 
   /** Always-current style fn, so the structure effect can color without re-running on hover. */
   const computeLinkStyleRef = useRef(computeLinkStyle)
@@ -1154,7 +1293,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // configured background + lights, avoiding the unmount/remount cycle that
   // creates a new white scene each time. See note: "ForceGraph3D white screen on (re)mount"
   const emptyGraphData = useMemo(() => ({ nodes: [] as Graph3DNode[], links: [] as Graph3DLink[] }), [])
-  const activeGraphData = graphData.nodes.length > 0 ? graphData : emptyGraphData
+  // The graph that is actually rendered: aggregated super-nodes/edges when a
+  // scale is active, the raw graph otherwise.
+  const activeGraphData = displayData.nodes.length > 0 ? displayData : emptyGraphData
 
   // Don't render ForceGraph3D until we have real container dimensions —
   // passing width=0/height=0 causes Three.js to create a degenerate renderer
@@ -1234,6 +1375,153 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
   }, [useOptimizedLinks, computeLinkStyle, activeGraphData])
 
+  // ── Overview tier — one THREE.Points for all nodes ────────────────────
+  // Above NODE_POINTS_THRESHOLD the library's per-node sprite objects are
+  // suppressed (`nodeVisibility`) and a single Points draws every node as a
+  // coloured shape. Built/removed on mode or graph change.
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg || typeof fg.scene !== 'function') return
+    const scene = fg.scene()
+    if (!scene) return
+
+    if (nodePointsRef.current) {
+      scene.remove(nodePointsRef.current.object)
+      nodePointsRef.current.dispose()
+      nodePointsRef.current = null
+    }
+
+    if (!useOptimizedNodes || activeGraphData.nodes.length === 0) return
+
+    const np = createNodePoints(activeGraphData.nodes)
+    np.updateStyles(computeNodeStyleRef.current)
+    scene.add(np.object)
+    nodePointsRef.current = np
+    wake(WAKE_MUTATION_MS)
+
+    return () => {
+      if (nodePointsRef.current === np) {
+        scene.remove(np.object)
+        np.dispose()
+        nodePointsRef.current = null
+      }
+    }
+    // hasDimensions: the library mounts only once the container is measured. If the
+    // graph data arrives first, this effect runs with no ForceGraph3D yet and must run
+    // again when it mounts — otherwise the Points are never created above the threshold.
+  }, [useOptimizedNodes, activeGraphData, wake, hasDimensions])
+
+  // Recolor points when any highlight/activation/heatmap state changes.
+  useEffect(() => {
+    if (useOptimizedNodes) {
+      nodePointsRef.current?.updateStyles(computeNodeStyle)
+    }
+  }, [useOptimizedNodes, computeNodeStyle, activeGraphData])
+
+  // ── Overview tier — custom pick for hover / click ─────────────────────
+  // With nodeVisibility=false the library has no node objects to raycast, so
+  // hover/click/double-click are driven from our own NDC projection (pick).
+  const pointsClickRef = useRef<{ nodeId: string; time: number } | null>(null)
+  useEffect(() => {
+    if (!useOptimizedNodes) return
+    const el = containerRef.current
+    const fg = graphRef.current
+    if (!el || !fg || typeof fg.camera !== 'function') return
+
+    // Prepared ONCE — reusing the raycaster/vector avoids per-move allocation.
+    const raycaster = new THREE.Raycaster()
+    const ndcVec = new THREE.Vector2()
+
+    /** Fill the raycaster from a pointer event and a distance-scaled threshold. */
+    const aim = (ev: { clientX: number; clientY: number }): boolean => {
+      const camera = fg.camera?.()
+      if (!camera) return false
+      const rect = el.getBoundingClientRect()
+      ndcVec.set(
+        ((ev.clientX - rect.left) / rect.width) * 2 - 1,
+        -((ev.clientY - rect.top) / rect.height) * 2 + 1,
+      )
+      raycaster.setFromCamera(ndcVec, camera)
+      // Same rule as po-graph: the pick radius grows with camera distance so a
+      // node stays clickable when zoomed out. `controls().target` is the orbit
+      // focus; fall back to the origin if the controls are not ready.
+      let dist = 400
+      try {
+        const c = fg.controls?.()
+        if (c?.target) dist = camera.position.distanceTo(c.target)
+      } catch { /* controls not mounted yet */ }
+      raycaster.params.Points.threshold = Math.max(4, dist / 160)
+      return true
+    }
+
+    // po-graph throttles hover picking to ~16 Hz. Unthrottled, an O(N) raycast
+    // on every pointermove is what makes panning/rotating feel heavy.
+    let lastPick = 0
+    let rafId = 0
+    let pendingEv: PointerEvent | null = null
+    let lastHoverId: string | null = null
+    const runPick = () => {
+      rafId = 0
+      if (!pendingEv) return
+      const ev = pendingEv
+      pendingEv = null
+      lastPick = performance.now()
+      const np = nodePointsRef.current
+      if (!np || !aim(ev)) return
+      const hit = np.pick(raycaster)
+      const id = hit?.id ?? null
+      if (id !== lastHoverId) { lastHoverId = id; setHoveredNodeId(id) }
+      el.style.cursor = hit ? 'pointer' : 'default'
+    }
+
+    const onMove = (ev: PointerEvent) => {
+      if (!nodePointsRef.current) return
+      // While a button is held the user is orbiting/panning the camera, not
+      // pointing at a node: skip picking entirely (no O(N) style churn during
+      // the drag — this is what makes panning feel heavy on the Points tier).
+      if (ev.buttons !== 0) {
+        if (rafId) { cancelAnimationFrame(rafId); rafId = 0 }
+        if (lastHoverId) { lastHoverId = null; setHoveredNodeId(null) }
+        return
+      }
+      // Coalesce to one pick per animation frame, and no faster than 60 Hz.
+      pendingEv = ev
+      if (rafId) return
+      const since = performance.now() - lastPick
+      if (since >= 60) runPick()
+      else rafId = requestAnimationFrame(runPick)
+    }
+
+    const onClick = (ev: MouseEvent) => {
+      const np = nodePointsRef.current
+      if (!np || !aim(ev)) return
+      const hit = np.pick(raycaster)
+      if (!hit) { setSelectedNodeId(null); return }
+
+      const now = Date.now()
+      const last = pointsClickRef.current
+      if (last && last.nodeId === hit.id && now - last.time < 350) {
+        pointsClickRef.current = null
+        onNodeDoubleClick?.(hit.id)
+        return
+      }
+      pointsClickRef.current = { nodeId: hit.id, time: now }
+      setSelectedNodeId(hit.id === selectedNodeId ? null : hit.id)
+    }
+
+    el.addEventListener('pointermove', onMove, { passive: true })
+    el.addEventListener('click', onClick)
+    return () => {
+      el.removeEventListener('pointermove', onMove)
+      el.removeEventListener('click', onClick)
+      if (rafId) cancelAnimationFrame(rafId)
+      el.style.cursor = 'default'
+    }
+    // hasDimensions: the library mounts after the data when the graph is opened
+    // from the code map. Without it this effect returns early (no ForceGraph3D
+    // yet) and never attaches the pick, so a click on a node selects nothing.
+  }, [useOptimizedNodes, selectedNodeId, setHoveredNodeId, setSelectedNodeId, onNodeDoubleClick, hasDimensions])
+
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-[#0f172a]">
       {hasDimensions && <ForceGraph3D<Graph3DNode, Graph3DLink>
@@ -1249,6 +1537,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         nodeThreeObjectExtend={false}
         nodeOpacity={nodeOpacity}
         nodeResolution={nodeResolution}
+        // Overview tier: suppress the per-node sprite objects; nodes are drawn
+        // by the single Points (see effects above) and picked by our own NDC
+        // projection, so the library's own node/tooltip rendering is off.
+        nodeVisibility={useOptimizedNodes ? false : true}
         // Link styling — subtle lines, energy-proportional
         linkColor={linkColor}
         linkWidth={linkWidth}
@@ -1260,9 +1552,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         linkDirectionalParticleSpeed={linkParticleSpeed}
         linkDirectionalParticleColor={linkParticleColor}
         linkDirectionalParticleWidth={1.0}
-        // Interactions
-        onNodeClick={onNodeClick}
-        onNodeHover={onNodeHover}
+        // Interactions — in the overview tier our own pick drives hover/click.
+        onNodeClick={useOptimizedNodes ? undefined : onNodeClick}
+        onNodeHover={useOptimizedNodes ? undefined : onNodeHover}
         onNodeDrag={() => {
           // Dragged node moves without a force tick — keep edges attached.
           linkSegmentsRef.current?.updatePositions()
@@ -1279,11 +1571,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           setEngineRunning(true)
           wake(WAKE_DATA_MS)
         }}
-        onBackgroundClick={onBackgroundClick}
-        // Force engine
-        cooldownTicks={100}
-        cooldownTime={5000}
-        warmupTicks={30}
+        onBackgroundClick={useOptimizedNodes ? undefined : onBackgroundClick}
+        // Force engine — frozen: the deterministic layout is already final.
+        cooldownTicks={0}
+        cooldownTime={0}
+        warmupTicks={0}
         onEngineTick={onEngineTick}
         onEngineStop={onEngineStop}
         // Controls
@@ -1295,6 +1587,35 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         // Background
         backgroundColor="#0f172a"
       />}
+
+      {/* ── Scale stepper (multi-scale aggregation) ─────────────────────── */}
+      {graphData.nodes.length > 0 && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-lg border border-border-default bg-surface-raised/90 shadow-[var(--shadow-md)] p-0.5 backdrop-blur-sm">
+          <button
+            type="button"
+            aria-label="Detail"
+            title="Detail"
+            onClick={() => setScaleLevel((v) => Math.max(0, v - 1))}
+            disabled={scaleLevel === 0}
+            className="px-2 py-1.5 rounded-md text-[var(--text-secondary)] text-xs hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            −
+          </button>
+          <span className="px-1 text-xs text-[var(--text-secondary)] tabular-nums" aria-live="polite">
+            {scaleLevel === 0 ? `${graphData.nodes.length} nœuds` : `${activeGraphData.nodes.length} groupes`}
+          </span>
+          <button
+            type="button"
+            aria-label="Vue d'ensemble"
+            title="Vue d'ensemble"
+            onClick={() => setScaleLevel((v) => Math.min(MAX_SCALE, v + 1))}
+            disabled={scaleLevel >= MAX_SCALE}
+            className="px-2 py-1.5 rounded-md text-[var(--text-secondary)] text-xs hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            +
+          </button>
+        </div>
+      )}
     </div>
   )
 }

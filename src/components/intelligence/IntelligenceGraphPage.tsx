@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useState, useEffect, useRef } from 'react'
+import { lazy, Suspense, useCallback, useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
@@ -22,6 +22,8 @@ import {
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
+import { TreemapView } from './treemap/TreemapView'
+import type { TmEdge, TmNode } from './treemap/treemapLayout'
 import { Branding } from '@/components/ui'
 import type { IntelligenceLayer } from '@/types/intelligence'
 import { useT, type MessageKey } from '@/i18n'
@@ -86,6 +88,8 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
     nodes: layoutedNodes,
     edges,
     allNodes,
+    allEdges,
+    setSelectedNodeId,
     visibleLayers,
     toggleLayer,
     applyPreset,
@@ -100,10 +104,42 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   // Graph-level fullscreen (fills the app window, NOT OS fullscreen)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  // Graph view: the code map is the default (readable at any size), 3D is on demand
+  const [graphView, setGraphView] = useState<'treemap' | '3d'>('treemap')
+  const treemapNodes = useMemo<TmNode[]>(() => allNodes as unknown as TmNode[], [allNodes])
+  const treemapEdges = useMemo<TmEdge[]>(
+    () => allEdges.map((e) => ({ source: e.source, target: e.target, type: e.type as string })),
+    [allEdges],
+  )
   // Custom mode — shows LayerControls panel
   const [showCustomPanel, setShowCustomPanel] = useState(false)
   // Inspector collapsed
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false)
+
+  // Stable DOM host for the graph. The graph is ALWAYS rendered through a
+  // portal into this one node, and the NODE is moved (placeholder <-> body) on
+  // fullscreen toggle. Switching between `return graphContent` and
+  // `createPortal(graphContent, body)` would put the tree at two different
+  // positions, so React would unmount + remount it: new WebGL context, empty
+  // layout -> the graph vanished from the canvas on enter/exit fullscreen.
+  const placeholderRef = useRef<HTMLDivElement>(null)
+  const [host] = useState<HTMLDivElement>(() => {
+    const el = document.createElement('div')
+    el.dataset.graphHost = ''
+    return el
+  })
+  useLayoutEffect(() => {
+    const target = isFullscreen ? document.body : placeholderRef.current
+    if (!target) return
+    host.className = isFullscreen
+      ? 'fixed inset-0 z-[9999] bg-surface-base'
+      : 'absolute inset-0'
+    if (host.parentNode !== target) target.appendChild(host)
+    // Let every size observer re-measure once the node is in its new parent.
+    const raf = requestAnimationFrame(() => window.dispatchEvent(new Event('resize')))
+    return () => cancelAnimationFrame(raf)
+  }, [isFullscreen, host])
+  useEffect(() => () => { host.remove() }, [host])
 
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen((v) => !v)
@@ -146,16 +182,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const graphContent = (
     <div
       ref={containerRef}
-      className={`overflow-hidden bg-[#0f172a] ${
-        isFullscreen
-          ? 'fixed inset-0 z-[9999] bg-slate-950'
-          : `relative ${props.embedded ? 'w-full' : '-mx-4 md:-mx-6 -mb-2'}`
-      }`}
-      style={{
-        ...(!isFullscreen && {
-          height: props.embedded ? '600px' : 'calc(100dvh - 5rem)',
-        }),
-      }}
+      className="relative h-full w-full overflow-hidden bg-surface-base"
     >
       {/* Layer controls (top-left overlay) — presets always visible, details in Custom mode */}
       <LayerControls
@@ -169,28 +196,40 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       {/* Spreading Activation search overlay (top-center) */}
       <SpreadingActivation projectSlug={projectSlug} />
 
-      {/* ── Canvas: 3D ───────────────────────────────────────────────── */}
-      <Graph3DErrorBoundary context="Intelligence Graph">
+      {/* ── Canvas: code map (default) or 3D ─────────────────────────── */}
+      {graphView === 'treemap' && (
+        // Reserve the overlay bands: layer presets on top, legend and search at the bottom
+        <div className="absolute inset-x-3 top-14 bottom-28">
+          <TreemapView
+            nodes={treemapNodes}
+            edges={treemapEdges}
+            selectedId={selectedNodeId}
+            onSelect={setSelectedNodeId}
+            fill
+          />
+        </div>
+      )}
+      {graphView === '3d' && <Graph3DErrorBoundary context="Intelligence Graph">
         <Suspense fallback={
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-950">
-            <div className="text-slate-500 text-sm flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center bg-surface-base">
+            <div className="text-[var(--text-tertiary)] text-sm flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
               {t('intelPage.graph.loading3d')}
             </div>
           </div>
         }>
           <IntelligenceGraph3D nodes={layoutedNodes} edges={edges} />
         </Suspense>
-      </Graph3DErrorBoundary>
+      </Graph3DErrorBoundary>}
 
       {/* ── Overlay states ── */}
       {showError && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-surface-base/80 backdrop-blur-sm">
           <ErrorState description={error!} onRetry={fetchGraph} />
         </div>
       )}
       {showEmpty && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-surface-base/80 backdrop-blur-sm">
           <EmptyState
             variant="search"
             title={t('intelPage.graph.noDataTitle')}
@@ -206,14 +245,16 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       {selectedNodeId && (
         <button
           onClick={() => setInspectorCollapsed((v) => !v)}
-          className={`absolute top-[4.5rem] z-40 flex items-center gap-1 py-2 rounded-l-md text-[10px] font-medium bg-slate-800/90 backdrop-blur-sm border border-r-0 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 transition-colors ${
+          className={`absolute top-[4.5rem] z-40 flex items-center gap-1 py-2 rounded-l-md text-[10px] font-medium bg-surface-raised/90 backdrop-blur-sm border border-r-0 border-border-default shadow-[var(--shadow-md)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors ${
             inspectorCollapsed
-              ? 'right-0 px-2 rounded-r-md border-r border-slate-700'
+              ? 'right-0 px-2 rounded-r-md border-r border-border-default'
               : isFullscreen
                 ? 'right-[24.75rem] px-1.5'
                 : 'right-[20.75rem] px-1.5'
           }`}
           title={inspectorCollapsed ? t('intelPage.graph.showInspector') : t('intelPage.graph.hideInspector')}
+          aria-label={inspectorCollapsed ? t('intelPage.graph.showInspector') : t('intelPage.graph.hideInspector')}
+          aria-expanded={!inspectorCollapsed}
         >
           {inspectorCollapsed ? <PanelRightOpen size={12} /> : <PanelRightClose size={12} />}
           {inspectorCollapsed ? t('intelPage.graph.details') : ''}
@@ -222,9 +263,23 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
 
       {/* Controls (bottom-right): brightness slider stacked above fullscreen */}
       <div className="absolute bottom-3 right-3 z-40 flex flex-col items-center gap-1.5">
+        {/* View switch: code map ⇄ 3D */}
+        <div role="group" aria-label={t('graph.unified.view')} className="flex items-center gap-0.5 bg-[var(--color-surface-raised)]/90 backdrop-blur-sm rounded-lg border border-white/[0.1] p-0.5">
+          {(['treemap', '3d'] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={graphView === v}
+              onClick={() => setGraphView(v)}
+              className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${graphView === v ? 'bg-[var(--color-primary-muted)] text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'}`}
+            >
+              {v === 'treemap' ? t('graph.unified.treemap') : '3D'}
+            </button>
+          ))}
+        </div>
         {/* Brightness slider (vertical) */}
-        <div className="flex flex-col items-center gap-1 bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-1">
-          <Sun size={11} className="text-slate-500 shrink-0" />
+        <div className="flex flex-col items-center gap-1 bg-surface-raised/90 backdrop-blur-sm rounded-lg border border-border-default shadow-[var(--shadow-md)] p-1">
+          <Sun size={11} className="text-[var(--text-tertiary)] shrink-0" aria-hidden="true" />
           <input
             type="range"
             min={0}
@@ -234,6 +289,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
             onChange={(e) => setGraphBrightness(parseFloat(e.target.value))}
             className="graph-brightness-slider"
             title={t('intelPage.graph.brightness', { percent: Math.round(graphBrightness * 100) })}
+            aria-label={t('intelPage.graph.brightness', { percent: Math.round(graphBrightness * 100) })}
             style={{
               writingMode: 'vertical-lr',
               direction: 'rtl',
@@ -247,10 +303,12 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
           />
         </div>
         {/* Fullscreen */}
-        <div className="flex items-center bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-0.5">
+        <div className="flex items-center bg-surface-raised/90 backdrop-blur-sm rounded-lg border border-border-default shadow-[var(--shadow-md)] p-0.5">
           <button
             onClick={toggleFullscreen}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
+            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors"
+            aria-pressed={isFullscreen}
+            aria-label={isFullscreen ? t('intelPage.graph.exitFullscreen') : t('intelPage.graph.fullscreen')}
             title={isFullscreen ? t('intelPage.graph.exitFullscreen') : t('intelPage.graph.fullscreen')}
           >
             {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
@@ -263,7 +321,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         {/* Loading progress — inline, non-blocking */}
         <GraphLoadingProgress />
         {/* Entity legend */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 px-3 py-2 max-w-md pointer-events-auto">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-surface-raised/80 backdrop-blur-sm border border-border-default shadow-[var(--shadow-md)] px-3 py-2 max-w-md pointer-events-auto">
           {ENTITY_LEGEND
             .filter((group) => visibleLayers.has(group.layer))
             .flatMap((group) => group.types)
@@ -272,7 +330,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
               return (
                 <span
                   key={entry.key}
-                  className="flex items-center gap-1.5 text-[10px] text-slate-400 cursor-pointer hover:text-slate-200 transition-colors"
+                  className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors"
                   onMouseEnter={() => setLegendHoveredType(entry.key)}
                   onMouseLeave={() => setLegendHoveredType(null)}
                 >
@@ -292,22 +350,28 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       {/* Keyboard shortcut hint (bottom-center) — prominent CTA, hidden when search is open */}
       {!searchOpen && <button
         onClick={() => setSearchOpen(true)}
-        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-4 py-2 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-600/80 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-slate-800 hover:shadow-lg hover:shadow-cyan-500/10 transition-[color,background-color,border-color,box-shadow] group cursor-pointer"
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-4 py-2 rounded-full bg-surface-raised/90 backdrop-blur-sm border border-border-strong shadow-[var(--shadow-md)] text-[var(--text-primary)] hover:text-[var(--color-primary-light)] hover:border-[var(--color-primary)]/60 hover:bg-surface-raised hover:shadow-[var(--shadow-lg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-[color,background-color,border-color,box-shadow] group cursor-pointer"
+        aria-label={t('intelPage.graph.spreadingActivation')}
+        aria-keyshortcuts="Meta+K Control+K"
       >
-        <Search size={14} className="text-slate-400 group-hover:text-cyan-400 transition-colors" />
+        <Search size={14} className="text-[var(--text-secondary)] group-hover:text-[var(--color-primary-light)] transition-colors" aria-hidden="true" />
         <span className="text-xs font-medium">{t('intelPage.graph.spreadingActivation')}</span>
-        <kbd className="text-[11px] px-1.5 py-0.5 rounded-md bg-slate-700/80 border border-slate-600 font-mono text-slate-400 group-hover:text-cyan-300 group-hover:border-cyan-500/40 transition-colors">
+        <kbd className="text-[11px] px-1.5 py-0.5 rounded-md bg-surface-highlight border border-border-default font-mono text-[var(--text-secondary)] group-hover:text-[var(--color-primary-light)] group-hover:border-[var(--color-primary)]/40 transition-colors">
           ⌘K
         </kbd>
       </button>}
     </div>
   )
 
-  // In fullscreen, render via portal to escape MainLayout stacking context
-  // (sidebar, header, chat panel all create stacking contexts that trap z-index)
-  if (isFullscreen) {
-    return createPortal(graphContent, document.body)
-  }
-
-  return graphContent
+  // The placeholder keeps the inline footprint; the host (and the graph in it)
+  // is moved to <body> in fullscreen to escape MainLayout stacking contexts.
+  return (
+    <div
+      ref={placeholderRef}
+      className={`relative ${props.embedded ? 'w-full' : '-mx-4 md:-mx-6 -mb-2'}`}
+      style={{ height: props.embedded ? '600px' : 'calc(100dvh - 5rem)' }}
+    >
+      {createPortal(graphContent, host)}
+    </div>
+  )
 }

@@ -1,0 +1,118 @@
+import { describe, it, expect } from 'vitest'
+import { aggregateAtResolution, resolutionForLevel } from './graphAggregation'
+import type { Graph3DNode, Graph3DLink } from './useGraph3DLayout'
+
+const node = (id: string, x: number, y: number, z: number): Graph3DNode => ({
+  id, label: id, entityType: 'file', layer: 'code', x, y, z, data: {},
+})
+const link = (source: string, target: string, weight = 0.5): Graph3DLink => ({
+  source, target, relationType: 'IMPORTS', layer: 'fabric', weight, color: '#fff', width: 1, particles: 0, particleSpeed: 0, isInterCommunity: false,
+})
+
+describe('aggregateAtResolution', () => {
+  const nodes = [
+    node('a', 0, 0, 0), node('b', 1, 1, 1), node('c', 2, 2, 2), // close together
+    node('d', 100, 100, 100), node('e', 101, 101, 101),          // far away
+  ]
+  const links = [link('a', 'd', 1), link('b', 'd', 0.5), link('a', 'b')]
+
+  it('keeps every node — super-node counts sum to N', () => {
+    const g = aggregateAtResolution(nodes, links, 4)
+    const total = g.superNodes.reduce((s, n) => s + n.count, 0)
+    expect(total).toBe(nodes.length)
+  })
+
+  it('coarser resolution yields no more super-nodes than finer', () => {
+    const fine = aggregateAtResolution(nodes, links, 8).superNodes.length
+    const coarse = aggregateAtResolution(nodes, links, 2).superNodes.length
+    expect(coarse).toBeLessThanOrEqual(fine)
+  })
+
+  it('aggregates cross-cell edges and sums their weight', () => {
+    const g = aggregateAtResolution(nodes, links, 2)
+    // a→d and b→d both cross into d's cell; if a,b share a cell they bundle.
+    const totalWeight = g.superEdges.reduce((s, e) => s + e.weight, 0)
+    expect(g.superEdges.length).toBeGreaterThan(0)
+    expect(totalWeight).toBeGreaterThan(0)
+    // Every super-edge endpoint is a real super-node key.
+    const keys = new Set(g.superNodes.map((n) => n.key))
+    for (const e of g.superEdges) {
+      expect(keys.has(e.source)).toBe(true)
+      expect(keys.has(e.target)).toBe(true)
+    }
+  })
+
+  it('is deterministic', () => {
+    const a = aggregateAtResolution(nodes, links, 3)
+    const b = aggregateAtResolution(nodes, links, 3)
+    expect(a.superNodes).toEqual(b.superNodes)
+    expect(a.superEdges).toEqual(b.superEdges)
+  })
+
+  it('collapses to a single super-node at resolution 1', () => {
+    const g = aggregateAtResolution(nodes, links, 1)
+    expect(g.superNodes.length).toBe(1)
+    expect(g.superEdges.length).toBe(0) // all edges are intra-cell
+  })
+})
+
+describe('resolutionForLevel', () => {
+  it('returns 0 for detail level', () => {
+    expect(resolutionForLevel(1000, 0)).toBe(0)
+  })
+
+  it('each level targets ~5x fewer cells than the one below', () => {
+    const r1 = resolutionForLevel(10000, 1)
+    const r2 = resolutionForLevel(10000, 2)
+    const r3 = resolutionForLevel(10000, 3)
+    expect(r2).toBeLessThan(r1)
+    expect(r3).toBeLessThan(r2)
+    expect(r1).toBeGreaterThanOrEqual(2)
+  })
+})
+
+import { buildScaledGraph } from './graphAggregation'
+
+describe('buildScaledGraph', () => {
+  const data = {
+    nodes: [
+      node('a', 0, 0, 0), node('b', 1, 1, 1),
+      node('d', 100, 100, 100), node('e', 101, 101, 101),
+    ],
+    links: [link('a', 'd', 1), link('b', 'd', 0.5), link('a', 'b')],
+  }
+
+  it('produces render-ready nodes positioned at cell centroids', () => {
+    const g = buildScaledGraph(data, 2)
+    expect(g.nodes.length).toBeGreaterThan(0)
+    for (const n of g.nodes) {
+      expect(Number.isFinite(n.x) && Number.isFinite(n.y) && Number.isFinite(n.z)).toBe(true)
+      expect(typeof n.id).toBe('string')
+      expect((n.data as { count: number }).count).toBeGreaterThan(0)
+    }
+  })
+
+  it('edges only reference existing super-node ids', () => {
+    const g = buildScaledGraph(data, 2)
+    const ids = new Set(g.nodes.map((n) => n.id))
+    for (const e of g.links) {
+      expect(ids.has(typeof e.source === 'string' ? e.source : (e.source as { id: string }).id)).toBe(true)
+      expect(ids.has(typeof e.target === 'string' ? e.target : (e.target as { id: string }).id)).toBe(true)
+    }
+  })
+
+  it('preserves total node count through composition', () => {
+    const g = buildScaledGraph(data, 2)
+    const total = g.nodes.reduce((s, n) => s + (n.data as { count: number }).count, 0)
+    expect(total).toBe(data.nodes.length)
+  })
+
+  it('carries byType composition summing to count', () => {
+    const g = buildScaledGraph(data, 2)
+    for (const n of g.nodes) {
+      const d = n.data as { count: number; byType: Record<string, number> }
+      const sum = Object.values(d.byType).reduce((s, v) => s + v, 0)
+      expect(sum).toBe(d.count)
+    }
+  })
+})

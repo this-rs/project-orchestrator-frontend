@@ -15,7 +15,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import React from 'react'
 import { createPortal } from 'react-dom'
 import { useSetAtom, useAtomValue, useAtom } from 'jotai'
-import { Layers, Box, GitFork, ChevronRight, Maximize, Minimize, Sun } from 'lucide-react'
+import { Layers, Box, GitFork, LayoutGrid, ChevronRight, Maximize, Minimize, Sun } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
 import { EmptyState, ViewTabs, type ViewTab } from '@/components/ui'
@@ -33,6 +33,7 @@ import {
   graphBrightnessAtom,
 } from '@/atoms/intelligence'
 import { ENTITY_GROUP_CONFIGS } from '@/types/fractal-graph'
+import { TreemapView } from '@/components/intelligence/treemap/TreemapView'
 import { NodeInspector } from '@/components/intelligence/NodeInspector'
 import type { IntelligenceNode, IntelligenceEdge, IntelligenceLayer } from '@/types/intelligence'
 import type {
@@ -290,6 +291,11 @@ export function UnifiedGraphSection<T>({
   const intelligenceNodes = useMemo(() => toIntelligenceNodes(nodes), [nodes])
   const intelligenceEdges = useMemo(() => toIntelligenceEdges(links), [links])
 
+  const treemapEdges = useMemo(
+    () => links.map((l) => ({ source: l.source, target: l.target, type: l.type as string })),
+    [links],
+  )
+
   // Atom management for NodeInspector
   const setIntelligenceNodes = useSetAtom(intelligenceNodesAtom)
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom)
@@ -326,7 +332,7 @@ export function UnifiedGraphSection<T>({
 
   // Populate intelligenceNodesAtom for NodeInspector
   useEffect(() => {
-    if (viewMode === '3d') {
+    if (viewMode === '3d' || viewMode === 'treemap') {
       setIntelligenceNodes(intelligenceNodes)
     }
     return () => {
@@ -382,6 +388,7 @@ export function UnifiedGraphSection<T>({
   }, [viewMode, waves, wavesLoading, fetchWaves])
 
   const viewTabs: ViewTab<FractalViewMode>[] = [
+    ...(views.includes('treemap') ? [{ id: 'treemap' as const, label: t('graph.unified.treemap'), icon: <LayoutGrid /> }] : []),
     ...(views.includes('dag') ? [{ id: 'dag' as const, label: 'DAG', icon: <GitFork /> }] : []),
     ...(views.includes('waves')
       ? [{ id: 'waves' as const, label: wavesLoading ? t('graph.unified.computing') : t('graph.unified.waves'), icon: <Layers />, disabled: wavesLoading }]
@@ -397,6 +404,7 @@ export function UnifiedGraphSection<T>({
   const displayTitle = title ?? (
     viewMode === 'waves' ? t('graph.unified.wavesTitle')
     : viewMode === '3d' ? t('graph.unified.universeTitle')
+    : viewMode === 'treemap' ? t('graph.unified.treemapTitle')
     : t('graph.unified.dependencyTitle')
   )
 
@@ -405,6 +413,9 @@ export function UnifiedGraphSection<T>({
     if (viewMode === 'waves' && waves) {
       return t('graph.unified.wavesSummary', { waves: waves.summary.total_waves, tasks: waves.summary.total_tasks })
     }
+    if (viewMode === 'treemap') {
+      return t('graph.unified.treemapSummary', { n: nodes.filter((n) => n.type === 'file').length })
+    }
     if (viewMode === '3d') {
       return t('graph.unified.nodesSummary', { n: nodes.length })
     }
@@ -412,7 +423,7 @@ export function UnifiedGraphSection<T>({
       tasks: counts.core - 1,
       deps: links.filter((l) => l.type === 'DEPENDS_ON').length,
     })
-  }, [viewMode, waves, nodes.length, counts, links, t])
+  }, [viewMode, waves, nodes, counts, links, t])
 
   // ── 3D content (shared between inline and fullscreen portal) ──────────────
 
@@ -513,7 +524,16 @@ export function UnifiedGraphSection<T>({
             <div className="h-[360px] sm:h-[400px] animate-pulse bg-white/[0.03]" aria-busy="true" aria-label={t('graph.unified.loading')} />
           }
         >
-          {viewMode === '3d' ? (
+          {viewMode === 'treemap' ? (
+            <TreemapView
+              nodes={intelligenceNodes}
+              edges={treemapEdges}
+              selectedId={selectedNode?.id ?? null}
+              onSelect={setSelectedNodeId}
+            >
+              {selectedNode && <NodeInspector />}
+            </TreemapView>
+          ) : viewMode === '3d' ? (
             // In fullscreen, render via portal to escape parent stacking context
             isFullscreen ? createPortal(graph3DContent, document.body) : graph3DContent
           ) : viewMode === 'waves' && waves ? (
