@@ -2367,7 +2367,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           id="scale"
           title={t('intelPage.graph.panels.scale')}
           icon={<ZoomIn size={12} className="text-[var(--text-tertiary)]" aria-hidden="true" />}
-          className="absolute bottom-3 left-1/2 -translate-x-1/2"
+          className="absolute bottom-20 left-1/2 -translate-x-1/2"
         >
           <div className="flex items-center gap-1 p-0.5">
             <button
