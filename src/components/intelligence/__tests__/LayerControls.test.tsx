@@ -40,7 +40,13 @@ function setup(props: Partial<React.ComponentProps<typeof LayerControls>> = {}, 
       />
     </Provider>,
   )
+  openPanel()
   return { store, ...fns }
+}
+
+/** The graph panel is collapsed by default (`defaultOpen=false`): open its header before asserting on content. */
+function openPanel() {
+  fireEvent.click(screen.getByRole('button', { expanded: false }))
 }
 
 describe('LayerControls', () => {
