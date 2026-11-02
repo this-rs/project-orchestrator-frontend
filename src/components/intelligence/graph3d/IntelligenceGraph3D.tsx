@@ -11,6 +11,7 @@ import ForceGraph3D from 'react-force-graph-3d'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import * as THREE from 'three'
 import { useT } from '@/i18n'
+import { ZoomIn } from 'lucide-react'
 
 import { useGraph3DLayout, type Graph3DNode, type Graph3DLink } from './useGraph3DLayout'
 import { useActivationSync } from './useActivationSync'
@@ -43,6 +44,7 @@ import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { createSuperLinkTubes, TUBE_MAX_EDGES, type SuperLinkTubes } from './superLinkTubes'
 import { communityFocus } from './useGraph3DLayout'
 import { activationStateAtom } from '../SpreadingActivation'
+import { GraphPanel } from '../GraphPanel'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
 
 // ── Heatmap color interpolators (THREE.Color versions) ───────────────────────
@@ -128,6 +130,22 @@ const RENDERER_CONFIG = { antialias: !IS_MOBILE_LIKE }
 const MAX_PIXEL_RATIO = 1.5
 
 /**
+ * Ceiling for a coarse pointer (touch). A phone's retina panel asks for 2–3×
+ * the fragments for a difference no finger reads on a points cloud, and the
+ * extra resolve hits the battery as hard as the GPU. Cap the CEILING at 1.0 so
+ * the frame budget never opens above one device pixel per CSS pixel; the loop
+ * still steps down from there (frameQuality.ts). Detection is capability-based
+ * (`pointer: coarse`), never user-agent sniffing.
+ */
+const MAX_PIXEL_RATIO_COARSE = 1.0
+
+/** Coarse pointer (touch) — safe in jsdom/tests where `matchMedia` is absent. */
+function isCoarsePointer(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+  return window.matchMedia('(pointer: coarse)').matches
+}
+
+/**
  * The ceiling the render loop's frame budget may raise the pixel ratio back to:
  * the device's own ratio, clamped. This is an upper bound, NOT the value in
  * force — useRenderLoop starts here and steps down 0.5 at a time when the
@@ -135,7 +153,8 @@ const MAX_PIXEL_RATIO = 1.5
  */
 function pixelRatioCeiling(): number {
   if (typeof window === 'undefined') return 1
-  return Math.min(MAX_PIXEL_RATIO, window.devicePixelRatio || 1)
+  const ceiling = isCoarsePointer() ? MAX_PIXEL_RATIO_COARSE : MAX_PIXEL_RATIO
+  return Math.min(ceiling, window.devicePixelRatio || 1)
 }
 
 /**
@@ -2080,12 +2099,45 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       el.style.cursor = hit || hull ? 'pointer' : 'default'
     }
 
+    // ── Gesture guard — touch orbit / pinch must never pick a node ──────────
+    // One finger orbits, two pinch-zoom: neither is a deliberate pick. Track the
+    // active pointers (on `window`, capture, so a `pointercancel` that the
+    // library swallows still releases the guard) and whether the gesture moved.
+    const pointersDown = new Set<number>()
+    let gestureMultiTouch = false
+    let gestureDragged = false
+    let downPos: { x: number; y: number } | null = null
+    // A tap that travels less than this is still a tap; beyond it, it is a pan.
+    const MOVE_TOLERANCE_PX = 8
+
+    const onPointerDown = (ev: PointerEvent) => {
+      pointersDown.add(ev.pointerId)
+      if (pointersDown.size === 1) {
+        gestureMultiTouch = false
+        gestureDragged = false
+        downPos = { x: ev.clientX, y: ev.clientY }
+      } else {
+        gestureMultiTouch = true
+      }
+    }
+    const onPointerEnd = (ev: PointerEvent) => {
+      pointersDown.delete(ev.pointerId)
+      if (pointersDown.size === 0) downPos = null
+    }
+    const trackDrag = (ev: PointerEvent) => {
+      if (downPos && (Math.abs(ev.clientX - downPos.x) > MOVE_TOLERANCE_PX || Math.abs(ev.clientY - downPos.y) > MOVE_TOLERANCE_PX)) {
+        gestureDragged = true
+      }
+    }
+
     const onMove = (ev: PointerEvent) => {
       if (!nodePointsRef.current) return
+      trackDrag(ev)
       // While a button is held the user is orbiting/panning the camera, not
       // pointing at a node: skip picking entirely (no O(N) style churn during
       // the drag — this is what makes panning feel heavy on the Points tier).
-      if (ev.buttons !== 0) {
+      // A second finger (pinch) is the same: nothing under a finger is a pick.
+      if (ev.buttons !== 0 || pointersDown.size > 1) {
         if (rafId) { cancelAnimationFrame(rafId); rafId = 0 }
         if (lastHoverId) { lastHoverId = null; setHoveredNodeId(null) }
         return
@@ -2099,6 +2151,14 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
 
     const onClick = (ev: MouseEvent) => {
+      // A pinch or a pan still emits `click` on some browsers: only a single,
+      // still tap may select. These flags describe the gesture that just ended;
+      // the next pointerdown resets them.
+      if (gestureMultiTouch || gestureDragged) {
+        gestureMultiTouch = false
+        gestureDragged = false
+        return
+      }
       const np = nodePointsRef.current
       if (!np || !aim(ev)) return
       const hit = np.pick(raycaster)
@@ -2124,9 +2184,15 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
 
     el.addEventListener('pointermove', onMove, { passive: true })
+    window.addEventListener('pointerdown', onPointerDown, true)
+    window.addEventListener('pointerup', onPointerEnd, true)
+    window.addEventListener('pointercancel', onPointerEnd, true)
     el.addEventListener('click', onClick)
     return () => {
       el.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerdown', onPointerDown, true)
+      window.removeEventListener('pointerup', onPointerEnd, true)
+      window.removeEventListener('pointercancel', onPointerEnd, true)
       el.removeEventListener('click', onClick)
       if (rafId) cancelAnimationFrame(rafId)
       el.style.cursor = 'default'
@@ -2204,33 +2270,42 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         backgroundColor={PO_CANVAS_BG}
       />}
 
-      {/* ── Scale stepper (multi-scale aggregation) ─────────────────────── */}
+      {/* ── Scale stepper (multi-scale aggregation) — collapsible ───────── */}
       {graphData.nodes.length > 0 && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-lg border border-border-default bg-surface-raised/90 shadow-[var(--shadow-md)] p-0.5 backdrop-blur-sm">
-          <button
-            type="button"
-            aria-label="Detail"
-            title="Detail"
-            onClick={() => setScaleLevel((v) => Math.max(0, v - 1))}
-            disabled={scaleLevel === 0}
-            className="px-2 py-1.5 rounded-md text-[var(--text-secondary)] text-xs hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            −
-          </button>
-          <span className="px-1 text-xs text-[var(--text-secondary)] tabular-nums" aria-live="polite">
-            {scaleLevel === 0 ? `${graphData.nodes.length} nœuds` : `${activeGraphData.nodes.length} groupes`}
-          </span>
-          <button
-            type="button"
-            aria-label="Vue d'ensemble"
-            title="Vue d'ensemble"
-            onClick={() => setScaleLevel((v) => Math.min(MAX_SCALE, v + 1))}
-            disabled={scaleLevel >= MAX_SCALE}
-            className="px-2 py-1.5 rounded-md text-[var(--text-secondary)] text-xs hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            +
-          </button>
-        </div>
+        <GraphPanel
+          id="scale"
+          title={t('intelPage.graph.panels.scale')}
+          icon={<ZoomIn size={12} className="text-[var(--text-tertiary)]" aria-hidden="true" />}
+          className="absolute bottom-3 left-1/2 -translate-x-1/2"
+        >
+          <div className="flex items-center gap-1 p-0.5">
+            <button
+              type="button"
+              aria-label={t('intelGraph.vector.zoomIn')}
+              title={t('intelGraph.vector.zoomIn')}
+              onClick={() => setScaleLevel((v) => Math.max(0, v - 1))}
+              disabled={scaleLevel === 0}
+              className="px-2 py-1.5 rounded-md text-[var(--text-secondary)] text-xs hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              −
+            </button>
+            <span className="px-1 text-xs text-[var(--text-secondary)] tabular-nums" aria-live="polite">
+              {scaleLevel === 0
+                ? t('intelGraph.scale.nodes', { count: graphData.nodes.length })
+                : t('intelGraph.scale.groups', { count: activeGraphData.nodes.length })}
+            </span>
+            <button
+              type="button"
+              aria-label={t('intelGraph.vector.zoomOut')}
+              title={t('intelGraph.vector.zoomOut')}
+              onClick={() => setScaleLevel((v) => Math.min(MAX_SCALE, v + 1))}
+              disabled={scaleLevel >= MAX_SCALE}
+              className="px-2 py-1.5 rounded-md text-[var(--text-secondary)] text-xs hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              +
+            </button>
+          </div>
+        </GraphPanel>
       )}
     </div>
   )

@@ -56,6 +56,11 @@ export default {
     coChangeValue: 'щонайменше {n} спільних змін',
     coChangeTitle: 'Приховати ребра CO_CHANGED із кількістю спільних змін менше {n}',
   },
+  scale: {
+    nodes: 'Вузлів: {count}',
+    groups: 'Груп: {count}',
+  },
+
   inspector: {
     close: 'Закрити',
     chosenOption: 'Обраний варіант',

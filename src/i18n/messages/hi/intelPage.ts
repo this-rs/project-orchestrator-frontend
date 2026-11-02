@@ -186,6 +186,14 @@ export default {
     exitFullscreen: 'फ़ुलस्क्रीन से बाहर निकलें',
     exitFullscreenEsc: 'फ़ुलस्क्रीन से बाहर निकलें (Esc)',
     spreadingActivation: 'सक्रियण प्रसार',
+    panels: {
+      collapse: 'समेटें',
+      expand: 'विस्तार करें',
+      legend: 'संकेत',
+      brightness: 'चमक',
+      scale: 'पैमाना',
+    },
+
     loadFailed: 'ग्राफ़ लोड नहीं हो सका',
     workspaceLoadFailed: 'वर्कस्पेस ग्राफ़ लोड नहीं हो सका',
     workspaceDataLoadFailed: 'वर्कस्पेस इंटेलिजेंस डेटा लोड नहीं हो सका',

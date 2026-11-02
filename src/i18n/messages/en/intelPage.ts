@@ -185,6 +185,14 @@ export default {
     exitFullscreen: 'Exit fullscreen',
     exitFullscreenEsc: 'Exit fullscreen (Esc)',
     spreadingActivation: 'Spreading Activation',
+    panels: {
+      collapse: 'Collapse',
+      expand: 'Expand',
+      legend: 'Legend',
+      brightness: 'Brightness',
+      scale: 'Scale',
+    },
+
     loadFailed: 'Failed to load graph',
     workspaceLoadFailed: 'Failed to load workspace graph',
     workspaceDataLoadFailed: 'Failed to load workspace intelligence data',

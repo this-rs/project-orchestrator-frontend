@@ -56,6 +56,11 @@ export default {
     coChangeValue: '共変更が {n} 回以上',
     coChangeTitle: '共変更が {n} 回未満の CO_CHANGED エッジを非表示',
   },
+  scale: {
+    nodes: 'ノード: {count}',
+    groups: 'グループ: {count}',
+  },
+
   inspector: {
     close: '閉じる',
     chosenOption: '選択された案',

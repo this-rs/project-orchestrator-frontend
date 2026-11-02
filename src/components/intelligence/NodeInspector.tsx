@@ -301,7 +301,7 @@ function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
   const Icon = entityIcons[entityType] ?? Box
 
   return (
-    <div className={`absolute top-14 right-3 z-30 overflow-y-auto ${graphFloat} shadow-[var(--shadow-xl)] ${
+    <div className={`absolute top-14 right-3 z-30 overflow-y-auto ${graphFloat} shadow-[var(--shadow-xl)] max-w-[calc(100vw-1.5rem)] ${
       isFullscreen ? 'w-96 max-h-[calc(100%-120px)]' : 'w-80 max-h-[calc(100%-124px)]'
     }`}>
       {/* Header — title (level 1), then the kind · layer line (level 2) */}

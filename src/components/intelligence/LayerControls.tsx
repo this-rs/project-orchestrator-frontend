@@ -28,6 +28,7 @@ import { PROJECT_COLORS } from '@/constants/intelligence'
 import { ViewTabs, type ViewTab } from '@/components/ui'
 import { glassFlat, iconButton, segmentItem, segmented } from '@/components/ui/classes'
 import { graphGroupTitle } from './graphSurface'
+import { GraphPanel } from './GraphPanel'
 
 const presetIcons: Record<string, typeof Layers> = {
   Code2,
@@ -119,7 +120,13 @@ function LayerControlsComponent({
   }
 
   return (
-    <div className="absolute top-3 left-3 z-40 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
+    <GraphPanel
+      id="layers"
+      title={t('intelGraph.controls.layers')}
+      icon={<Layers size={13} className="text-[var(--text-tertiary)]" aria-hidden="true" />}
+      className="absolute top-3 left-3 z-40 max-w-[calc(100%-1.5rem)]"
+    >
+      <div className="flex flex-col items-start gap-2 p-2">
       {/* Presets — one segmented control (scrolls in its own strip on phones) + the edges toggle */}
       <div className="flex max-w-full flex-wrap items-center gap-2">
         <ViewTabs tabs={presetTabs} value={customMode ? CUSTOM_TAB : activeMode} onChange={selectPreset} label={t('intelGraph.controls.presets')} className="min-w-0" />
@@ -310,7 +317,8 @@ function LayerControlsComponent({
           )}
         </>
       )}
-    </div>
+      </div>
+    </GraphPanel>
   )
 }
 

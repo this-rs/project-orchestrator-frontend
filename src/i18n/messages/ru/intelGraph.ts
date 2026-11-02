@@ -56,6 +56,11 @@ export default {
     coChangeValue: 'не менее {n} совместных изменений',
     coChangeTitle: 'Скрыть рёбра CO_CHANGED с числом совместных изменений меньше {n}',
   },
+  scale: {
+    nodes: 'Узлов: {count}',
+    groups: 'Групп: {count}',
+  },
+
   inspector: {
     close: 'Закрыть',
     chosenOption: 'Выбранный вариант',

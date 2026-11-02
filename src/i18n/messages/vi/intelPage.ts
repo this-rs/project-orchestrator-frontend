@@ -186,6 +186,14 @@ export default {
     exitFullscreen: 'Thoát toàn màn hình',
     exitFullscreenEsc: 'Thoát toàn màn hình (Esc)',
     spreadingActivation: 'Lan truyền kích hoạt',
+    panels: {
+      collapse: 'Thu gọn',
+      expand: 'Mở rộng',
+      legend: 'Chú giải',
+      brightness: 'Độ sáng',
+      scale: 'Tỷ lệ',
+    },
+
     loadFailed: 'Không thể tải đồ thị',
     workspaceLoadFailed: 'Không thể tải đồ thị của không gian làm việc',
     workspaceDataLoadFailed: 'Không thể tải dữ liệu thông minh của không gian làm việc',

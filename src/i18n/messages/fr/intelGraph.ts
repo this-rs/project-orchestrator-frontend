@@ -56,6 +56,11 @@ export default {
     coChangeValue: 'au moins {n} co-changements',
     coChangeTitle: 'Masquer les arêtes CO_CHANGED ayant moins de {n} co-changements',
   },
+  scale: {
+    nodes: 'Nœuds : {count}',
+    groups: 'Groupes : {count}',
+  },
+
   inspector: {
     close: 'Fermer',
     chosenOption: 'Option retenue',

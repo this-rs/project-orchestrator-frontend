@@ -9,6 +9,8 @@ import { LayerControls } from './LayerControls'
 import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActivation'
 import { GraphLoadingProgress } from './GraphLoadingProgress'
 import { entityColor } from '@/constants/graphPalette'
+import { graphFloat, graphControl } from './graphSurface'
+import { GraphPanel } from './GraphPanel'
 import {
   intelligenceLoadingAtom,
   intelligenceErrorAtom,
@@ -225,67 +227,78 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
       )}
 
       {/* Controls toolbar (bottom-right): brightness slider + fullscreen */}
-      <div className="absolute bottom-3 right-3 z-40 flex flex-col items-center gap-1.5 bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-1">
-        {/* Brightness icon */}
-        <Sun size={11} className="text-slate-500 shrink-0" />
-        {/* Vertical range slider */}
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={graphBrightness}
-          onChange={(e) => setGraphBrightness(parseFloat(e.target.value))}
-          className="graph-brightness-slider"
-          title={t('intelPage.graph.brightness', { percent: Math.round(graphBrightness * 100) })}
-          style={{
-            writingMode: 'vertical-lr',
-            direction: 'rtl',
-            width: '14px',
-            height: '80px',
-            appearance: 'none',
-            WebkitAppearance: 'none',
-            background: 'transparent',
-            cursor: 'pointer',
-          }}
-        />
-        {/* Fullscreen toggle */}
-        <button
-          onClick={toggleFullscreen}
-          className="flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
-          title={isFullscreen ? t('intelPage.graph.exitFullscreenEsc') : t('intelPage.graph.fullscreen')}
+      <div className="absolute bottom-3 right-3 z-40 flex flex-col items-center gap-1.5">
+        {/* Brightness slider (vertical) — collapsible */}
+        <GraphPanel
+          id="brightness"
+          title={t('intelPage.graph.panels.brightness')}
+          icon={<Sun size={11} className="text-[var(--text-tertiary)] shrink-0" aria-hidden="true" />}
         >
-          {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
-        </button>
+          <div className="flex flex-col items-center gap-1 p-1">
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={graphBrightness}
+              onChange={(e) => setGraphBrightness(parseFloat(e.target.value))}
+              className="graph-brightness-slider"
+              title={t('intelPage.graph.brightness', { percent: Math.round(graphBrightness * 100) })}
+              aria-label={t('intelPage.graph.brightness', { percent: Math.round(graphBrightness * 100) })}
+              style={{
+                writingMode: 'vertical-lr',
+                direction: 'rtl',
+                width: '14px',
+                height: '80px',
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+              }}
+            />
+          </div>
+        </GraphPanel>
+        {/* Fullscreen toggle */}
+        <div className={`flex items-center ${graphFloat} shadow-[var(--shadow-md)] p-0.5`}>
+          <button
+            onClick={toggleFullscreen}
+            className={`flex items-center justify-center w-7 h-7 rounded-md text-[var(--text-secondary)] ${graphControl}`}
+            title={isFullscreen ? t('intelPage.graph.exitFullscreenEsc') : t('intelPage.graph.fullscreen')}
+          >
+            {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
+          </button>
+        </div>
       </div>
 
       {/* Bottom-left section: loading progress + entity legend */}
       <div className="absolute bottom-3 left-3 z-40 flex flex-col items-start gap-2 pointer-events-none">
         {/* Loading progress — inline, non-blocking */}
         <GraphLoadingProgress />
-        {/* Entity legend */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 px-3 py-2 max-w-md pointer-events-auto">
-          {ENTITY_LEGEND
-            .filter((group) => visibleLayers.has(group.layer))
-            .flatMap((group) => group.types)
-            .map((entry) => {
-              const color = entityColor(entry.key)
-              return (
-                <span
-                  key={entry.key}
-                  className="flex items-center gap-1.5 text-[10px] text-slate-400 cursor-pointer hover:text-slate-200 transition-colors"
-                  onMouseEnter={() => setLegendHoveredType(entry.key)}
-                  onMouseLeave={() => setLegendHoveredType(null)}
-                >
+        {/* Entity legend — collapsible */}
+        <GraphPanel id="legend" title={t('intelPage.graph.panels.legend')} className="pointer-events-auto max-w-[min(28rem,calc(100vw-1.5rem))]">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2">
+            {ENTITY_LEGEND
+              .filter((group) => visibleLayers.has(group.layer))
+              .flatMap((group) => group.types)
+              .map((entry) => {
+                const color = entityColor(entry.key)
+                return (
                   <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: color }}
-                  />
-                  {t(entry.label)}
-                </span>
-              )
-            })}
-        </div>
+                    key={entry.key}
+                    className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+                    onMouseEnter={() => setLegendHoveredType(entry.key)}
+                    onMouseLeave={() => setLegendHoveredType(null)}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
+                    {t(entry.label)}
+                  </span>
+                )
+              })}
+          </div>
+        </GraphPanel>
         {/* Branding */}
         <Branding variant="inline" className="pl-1" />
       </div>

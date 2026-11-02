@@ -186,6 +186,14 @@ export default {
     exitFullscreen: '退出全屏',
     exitFullscreenEsc: '退出全屏（Esc）',
     spreadingActivation: '扩散激活',
+    panels: {
+      collapse: '折叠',
+      expand: '展开',
+      legend: '图例',
+      brightness: '亮度',
+      scale: '缩放',
+    },
+
     loadFailed: '无法加载图谱',
     workspaceLoadFailed: '无法加载工作区图谱',
     workspaceDataLoadFailed: '无法加载工作区智能数据',

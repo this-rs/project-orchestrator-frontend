@@ -209,7 +209,7 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
   if (!isOpen) return null
 
   return (
-    <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 w-[28rem]">
+    <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 w-[min(28rem,calc(100vw-1.5rem))]">
       <div className="flex items-center gap-2 rounded-xl bg-surface-popover/95 backdrop-blur-md border border-border-strong shadow-[var(--shadow-xl)] px-4 py-3 ring-1 ring-[var(--color-primary)]/25 focus-within:ring-2 focus-within:ring-[var(--color-primary-light)]">
         <Search size={16} className="text-[var(--color-primary-light)] shrink-0" aria-hidden="true" />
         <input

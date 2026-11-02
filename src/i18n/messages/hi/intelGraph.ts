@@ -56,6 +56,11 @@ export default {
     coChangeValue: 'कम से कम {n} सह-परिवर्तन',
     coChangeTitle: '{n} से कम सह-परिवर्तन वाले CO_CHANGED एज छिपाएँ',
   },
+  scale: {
+    nodes: 'नोड: {count}',
+    groups: 'समूह: {count}',
+  },
+
   inspector: {
     close: 'बंद करें',
     chosenOption: 'चुना गया विकल्प',

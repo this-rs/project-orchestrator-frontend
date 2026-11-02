@@ -187,6 +187,14 @@ export default {
     exitFullscreen: 'Quitter le plein écran',
     exitFullscreenEsc: 'Quitter le plein écran (Échap)',
     spreadingActivation: 'Propagation d’activation',
+    panels: {
+      collapse: 'Replier',
+      expand: 'Déplier',
+      legend: 'Légende',
+      brightness: 'Luminosité',
+      scale: 'Échelle',
+    },
+
     loadFailed: 'Impossible de charger le graphe',
     workspaceLoadFailed: 'Impossible de charger le graphe de l’espace de travail',
     workspaceDataLoadFailed: 'Impossible de charger les données d’intelligence de l’espace de travail',
