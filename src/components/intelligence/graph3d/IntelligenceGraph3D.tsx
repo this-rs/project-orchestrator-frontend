@@ -866,7 +866,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const HIGHLIGHT_COLOR_HOVER = '#F59E0B'   // amber-500
   const HIGHLIGHT_COLOR_SELECT = '#22D3EE'  // cyan-400
   const ACTIVATION_COLOR_EDGE = '#34D399'    // emerald-400 (active synapse edges)
-  const INTER_COMMUNITY_COLOR = '#F8FAFC'   // slate-50 (bright white — stands out against dark bg)
+  // No colour override for the bridges. A near-white here repainted EVERY link
+  // that crosses two communities — and with hulls on by default that is most of
+  // them, so the whole graph read as one white web ("les liens sont toujours
+  // blancs"). The bridge factor in computeLinkStyle already makes them stand
+  // out; the relation hue stays, so the types remain readable.
 
   // ── Link colour, WITHOUT transient hover ──────────────────────────────
   // Covers spreading activation, selection (cyan + dim), group highlight and
@@ -909,10 +913,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       return 'rgba(107, 114, 128, 0.03)'
     }
 
-    // Inter-community edges get a bright distinct color when hulls are visible
-    if (showCommunityHulls && link.isInterCommunity) {
-      return INTER_COMMUNITY_COLOR
-    }
+    // Inter-community edges keep their relation colour: only their ALPHA is
+    // raised (computeLinkStyle, ×1.7), never their hue.
 
     return link.color
   }, [selectedNodeId, activation, showCommunityHulls, highlightedGroup])
