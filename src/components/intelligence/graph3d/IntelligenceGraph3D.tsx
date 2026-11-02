@@ -165,24 +165,34 @@ const AUTO_AGGREGATE_ABOVE = 4000
  */
 const LINK_FAMILY_ALPHA: Record<string, number> = {
   // Structure — the skeleton of the code and of the work
-  IMPORTS: 0.55,
-  CALLS: 0.5,
-  EXTENDS: 0.6,
-  IMPLEMENTS: 0.55,
-  CONTAINS: 0.5,
-  HAS_TASK: 0.5,
-  HAS_STEP: 0.45,
-  HAS_DECISION: 0.45,
+  IMPORTS: 0.3,
+  CALLS: 0.26,
+  EXTENDS: 0.34,
+  IMPLEMENTS: 0.3,
+  CONTAINS: 0.26,
+  HAS_TASK: 0.26,
+  HAS_STEP: 0.22,
+  HAS_DECISION: 0.22,
   // Tissue — explains why things move together, fainter by design
-  TOUCHES: 0.22,
-  CO_CHANGED: 0.25,
-  CO_CHANGED_TRANSITIVE: 0.18,
+  TOUCHES: 0.1,
+  CO_CHANGED: 0.11,
+  CO_CHANGED_TRANSITIVE: 0.08,
   // Knowledge
-  DISCUSSED: 0.3,
-  AFFECTS: 0.35,
-  SYNAPSE: 0.3,
-  AGGREGATE: 0.4,
+  DISCUSSED: 0.14,
+  AFFECTS: 0.16,
+  SYNAPSE: 0.14,
+  AGGREGATE: 0.2,
 }
+
+/**
+ * How many links one screen area has to swallow before they stop being faint.
+ * With "all edges" on, twenty thousand saturated strands cross the middle of
+ * the nebula and every pixel receives dozens of layers: the picture turns into
+ * a white ball and the nodes disappear under it. The alpha therefore follows
+ * the edge count, not the taste — 2 000 links at full strength is the
+ * reference, beyond it everything fades as 1/√E.
+ */
+const LINK_DENSITY_REFERENCE = 2000
 
 /** Base link transparency — the single LineSegments material bakes this in per-vertex. */
 const LINK_OPACITY = 0.35
@@ -909,11 +919,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // this, every link pooled at one faint alpha, so IMPORTS (structure) and
     // CO_CHANGED (tissue) were the same grey thread and the types were
     // indistinguishable. Structure leads; tissue recedes.
-    const family = LINK_FAMILY_ALPHA[link.relationType] ?? 0.30
+    const family = LINK_FAMILY_ALPHA[link.relationType] ?? 0.18
+    const density = Math.min(1, Math.sqrt(LINK_DENSITY_REFERENCE / Math.max(1, graphData.links.length)))
     // Inter-community links are the filaments between the nebula's cores: a
     // bridge that does not stand out leaves only a scatter of dots.
     const bridge = link.isInterCommunity ? 1.7 : 1
-    return { r: p.r, g: p.g, b: p.b, a: Math.min(1, family * p.a * weightFactor * bridge) }
+    return { r: p.r, g: p.g, b: p.b, a: Math.min(1, family * density * p.a * weightFactor * bridge) }
   }, [])
 
   const computeLinkStyle = useCallback((link: Graph3DLink): LinkStyle => {
