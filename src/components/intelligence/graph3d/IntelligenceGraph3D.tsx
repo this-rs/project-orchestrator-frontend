@@ -40,6 +40,10 @@ import {
 } from '@/atoms/intelligence'
 import { buildScaledGraph, resolutionForLevel } from './graphAggregation'
 import { communityFocus } from './useGraph3DLayout'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
 
@@ -520,6 +524,72 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     linkSegmentsRef.current?.updatePositions()
     nodePointsRef.current?.updatePositions()
   }, [setEngineRunning])
+
+  // ── Post-processing: the layer that makes po-graph look finished ─────────
+  // po-graph renders through an EffectComposer with UnrealBloomPass and ACES
+  // tone mapping (po-graph.js:272-276). This view had NO post-processing: the
+  // same geometry looks flat and cheap because every point is a hard-edged
+  // pixel on a flat background. ActivityHeatmap3D in this repo already uses
+  // exactly this recipe, so it is a known-good pattern here.
+  //
+  // `3d-force-graph` owns its animation loop and calls `renderer.render(...)`
+  // itself: we swap that one call for `composer.render()`, and restore the
+  // original on unmount.
+  const composerRef = useRef<{ composer: EffectComposer; restore: () => void } | null>(null)
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg || typeof fg.renderer !== 'function') return
+    const renderer = fg.renderer()
+    const scene = typeof fg.scene === 'function' ? fg.scene() : null
+    const camera = typeof fg.camera === 'function' ? fg.camera() : null
+    if (!renderer || !scene || !camera) return
+    if (composerRef.current) return
+
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.15
+
+    const size = renderer.getSize(new THREE.Vector2())
+    const composer = new EffectComposer(renderer)
+    composer.addPass(new RenderPass(scene, camera))
+    // Threshold high on purpose: only the bright cores bloom, so the halo of a
+    // community glows and the background stays black (po-graph: .45/.4/.72).
+    composer.addPass(new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.45, 0.4, 0.72))
+    composer.addPass(new OutputPass())
+    composer.setSize(size.x, size.y)
+    composer.setPixelRatio(renderer.getPixelRatio())
+
+    const originalRender = renderer.render.bind(renderer)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(renderer as any).render = () => composer.render()
+    composerRef.current = {
+      composer,
+      restore: () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(renderer as any).render = originalRender
+      },
+    }
+    wake(WAKE_MUTATION_MS)
+
+    return () => {
+      composerRef.current?.restore()
+      composerRef.current?.composer.dispose()
+      composerRef.current = null
+    }
+  }, [dimensions, wake])
+
+  // The composer owns its own render targets: a resize must reach them, or the
+  // bloom keeps the previous resolution and the image smears.
+  useEffect(() => {
+    const entry = composerRef.current
+    const fg = graphRef.current
+    if (!entry || !fg || typeof fg.renderer !== 'function') return
+    const renderer = fg.renderer()
+    if (!renderer) return
+    const size = renderer.getSize(new THREE.Vector2())
+    entry.composer.setSize(size.x, size.y)
+    entry.composer.setPixelRatio(renderer.getPixelRatio())
+    wake(WAKE_MUTATION_MS)
+  }, [dimensions, wake])
 
   // ── A full graph must stay readable: open aggregated past a threshold ─────
   // Above this many nodes the raw cloud is a texture, not a structure. The view
