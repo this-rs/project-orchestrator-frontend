@@ -209,6 +209,24 @@ export function aggregateByGroup(
   })
 }
 
+/**
+ * Human-readable name for an aggregate, shown as the on-screen label at the
+ * aggregated tier. Communities keep their API label when there is one, else
+ * "Communauté N"; directory groups (the no-GDS fallback) keep their path; grid
+ * cells (pure-grid aggregation, unused in the UI) fall back to "Groupe …".
+ */
+export function superNodeName(key: string, communityLabel?: string): string {
+  const label = communityLabel?.trim()
+  if (label) return label
+  const gk = key.startsWith(GROUP_KEY_PREFIX) ? key.slice(GROUP_KEY_PREFIX.length) : ''
+  if (gk) {
+    if (gk.startsWith('c')) return `Communauté ${gk.slice(1)}`
+    if (gk.startsWith('d')) return gk.slice(1)
+    return gk
+  }
+  return key ? `Groupe ${key}` : 'Groupe'
+}
+
 // ── Render-ready scaled graphs ──────────────────────────────────────────────
 
 /**
@@ -241,6 +259,8 @@ function buildScaledGraphFrom(
   // Per-aggregate entity-type composition → dominant type + byType map.
   const cells = new Map<string, Map<string, number>>()
   const cellLayer = new Map<string, string>()
+  // First non-empty community label per aggregate, used to name the super-node.
+  const cellLabel = new Map<string, string>()
   for (let i = 0; i < sourceNodes.length; i++) {
     const key = cellOfNode.get(i)
     if (!key) continue
@@ -252,6 +272,9 @@ function buildScaledGraphFrom(
     }
     m.set(t, (m.get(t) ?? 0) + 1)
     if (!cellLayer.has(key)) cellLayer.set(key, sourceNodes[i].layer)
+    if (!cellLabel.has(key) && sourceNodes[i].communityLabel) {
+      cellLabel.set(key, sourceNodes[i].communityLabel as string)
+    }
   }
 
   const nodes: Graph3DNode[] = superNodes.map((sn) => {
@@ -268,15 +291,16 @@ function buildScaledGraphFrom(
         }
       }
     }
+    const name = superNodeName(sn.key, cellLabel.get(sn.key))
     return {
       id: sn.key,
-      label: String(sn.count),
+      label: name,
       entityType: dom,
       layer: cellLayer.get(sn.key) ?? 'fabric',
       x: sn.x,
       y: sn.y,
       z: sn.z,
-      data: { count: sn.count, byType },
+      data: { count: sn.count, byType, name },
     }
   })
 
