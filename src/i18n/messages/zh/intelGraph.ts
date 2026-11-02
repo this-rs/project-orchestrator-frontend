@@ -56,6 +56,11 @@ export default {
     coChangeValue: '至少 {n} 次共同变更',
     coChangeTitle: '隐藏共同变更少于 {n} 次的 CO_CHANGED 边',
   },
+  scale: {
+    nodes: '节点：{count}',
+    groups: '组：{count}',
+  },
+
   inspector: {
     close: '关闭',
     chosenOption: '选定方案',

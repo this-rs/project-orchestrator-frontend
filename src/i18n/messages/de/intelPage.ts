@@ -187,6 +187,14 @@ export default {
     exitFullscreen: 'Vollbild beenden',
     exitFullscreenEsc: 'Vollbild beenden (Esc)',
     spreadingActivation: 'Aktivierungsausbreitung',
+    panels: {
+      collapse: 'Einklappen',
+      expand: 'Ausklappen',
+      legend: 'Legende',
+      brightness: 'Helligkeit',
+      scale: 'Maßstab',
+    },
+
     loadFailed: 'Graph konnte nicht geladen werden',
     workspaceLoadFailed: 'Graph des Arbeitsbereichs konnte nicht geladen werden',
     workspaceDataLoadFailed: 'Intelligence-Daten des Arbeitsbereichs konnten nicht geladen werden',

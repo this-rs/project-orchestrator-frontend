@@ -187,6 +187,14 @@ export default {
     exitFullscreen: 'Sair da tela cheia',
     exitFullscreenEsc: 'Sair da tela cheia (Esc)',
     spreadingActivation: 'Propagação de ativação',
+    panels: {
+      collapse: 'Recolher',
+      expand: 'Expandir',
+      legend: 'Legenda',
+      brightness: 'Brilho',
+      scale: 'Escala',
+    },
+
     loadFailed: 'Falha ao carregar o grafo',
     workspaceLoadFailed: 'Falha ao carregar o grafo do espaço de trabalho',
     workspaceDataLoadFailed: 'Falha ao carregar os dados de inteligência do espaço de trabalho',

@@ -56,6 +56,11 @@ export default {
     coChangeValue: 'al menos {n} co-cambios',
     coChangeTitle: 'Ocultar las aristas CO_CHANGED con menos de {n} co-cambios',
   },
+  scale: {
+    nodes: 'Nodos: {count}',
+    groups: 'Grupos: {count}',
+  },
+
   inspector: {
     close: 'Cerrar',
     chosenOption: 'Opción elegida',

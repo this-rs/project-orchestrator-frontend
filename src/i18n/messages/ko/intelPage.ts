@@ -186,6 +186,14 @@ export default {
     exitFullscreen: '전체 화면 종료',
     exitFullscreenEsc: '전체 화면 종료 (Esc)',
     spreadingActivation: '활성화 확산',
+    panels: {
+      collapse: '접기',
+      expand: '펼치기',
+      legend: '범례',
+      brightness: '밝기',
+      scale: '축척',
+    },
+
     loadFailed: '그래프를 불러오지 못했습니다',
     workspaceLoadFailed: '워크스페이스 그래프를 불러오지 못했습니다',
     workspaceDataLoadFailed: '워크스페이스 인텔리전스 데이터를 불러오지 못했습니다',

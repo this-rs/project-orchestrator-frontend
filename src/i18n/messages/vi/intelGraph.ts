@@ -56,6 +56,11 @@ export default {
     coChangeValue: 'ít nhất {n} lần đồng thay đổi',
     coChangeTitle: 'Ẩn các cạnh CO_CHANGED có ít hơn {n} lần đồng thay đổi',
   },
+  scale: {
+    nodes: 'Nút: {count}',
+    groups: 'Nhóm: {count}',
+  },
+
   inspector: {
     close: 'Đóng',
     chosenOption: 'Phương án được chọn',

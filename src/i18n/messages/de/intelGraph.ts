@@ -56,6 +56,11 @@ export default {
     coChangeValue: 'mindestens {n} Co-Änderungen',
     coChangeTitle: 'CO_CHANGED-Kanten mit weniger als {n} Co-Änderungen ausblenden',
   },
+  scale: {
+    nodes: 'Knoten: {count}',
+    groups: 'Gruppen: {count}',
+  },
+
   inspector: {
     close: 'Schließen',
     chosenOption: 'Gewählte Option',

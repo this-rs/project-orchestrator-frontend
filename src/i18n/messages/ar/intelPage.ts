@@ -186,6 +186,14 @@ export default {
     exitFullscreen: 'الخروج من ملء الشاشة',
     exitFullscreenEsc: 'الخروج من ملء الشاشة (Esc)',
     spreadingActivation: 'انتشار التنشيط',
+    panels: {
+      collapse: 'طي',
+      expand: 'توسيع',
+      legend: 'وسيلة الإيضاح',
+      brightness: 'السطوع',
+      scale: 'مقياس',
+    },
+
     loadFailed: 'تعذّر تحميل المخطط',
     workspaceLoadFailed: 'تعذّر تحميل مخطط مساحة العمل',
     workspaceDataLoadFailed: 'تعذّر تحميل بيانات الذكاء لمساحة العمل',

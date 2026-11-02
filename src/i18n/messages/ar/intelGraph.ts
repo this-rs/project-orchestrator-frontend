@@ -56,6 +56,11 @@ export default {
     coChangeValue: 'ما لا يقل عن {n} من التغييرات المشتركة',
     coChangeTitle: 'إخفاء حواف CO_CHANGED التي تقل تغييراتها المشتركة عن {n}',
   },
+  scale: {
+    nodes: 'العقد: {count}',
+    groups: 'المجموعات: {count}',
+  },
+
   inspector: {
     close: 'إغلاق',
     chosenOption: 'الخيار المختار',

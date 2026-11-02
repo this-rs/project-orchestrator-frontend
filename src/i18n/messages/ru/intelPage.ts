@@ -186,6 +186,14 @@ export default {
     exitFullscreen: 'Выйти из полноэкранного режима',
     exitFullscreenEsc: 'Выйти из полноэкранного режима (Esc)',
     spreadingActivation: 'Распространение активации',
+    panels: {
+      collapse: 'Свернуть',
+      expand: 'Развернуть',
+      legend: 'Легенда',
+      brightness: 'Яркость',
+      scale: 'Масштаб',
+    },
+
     loadFailed: 'Не удалось загрузить граф',
     workspaceLoadFailed: 'Не удалось загрузить граф рабочего пространства',
     workspaceDataLoadFailed: 'Не удалось загрузить данные аналитики рабочего пространства',

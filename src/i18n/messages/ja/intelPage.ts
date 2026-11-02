@@ -186,6 +186,14 @@ export default {
     exitFullscreen: '全画面を終了',
     exitFullscreenEsc: '全画面を終了（Esc）',
     spreadingActivation: '活性化拡散',
+    panels: {
+      collapse: '折りたたむ',
+      expand: '展開',
+      legend: '凡例',
+      brightness: '明るさ',
+      scale: '縮尺',
+    },
+
     loadFailed: 'グラフを読み込めませんでした',
     workspaceLoadFailed: 'ワークスペースのグラフを読み込めませんでした',
     workspaceDataLoadFailed: 'ワークスペースのインテリジェンスデータを読み込めませんでした',
