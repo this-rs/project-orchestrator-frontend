@@ -39,6 +39,7 @@ import {
   graphScaleAtom,
 } from '@/atoms/intelligence'
 import { buildScaledGraph, resolutionForLevel } from './graphAggregation'
+import { communityFocus } from './useGraph3DLayout'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
 
@@ -118,6 +119,13 @@ const RENDERER_CONFIG = { antialias: !IS_MOBILE_LIKE }
  * them (2² → 1.5²) and is the cheapest win on the canvas.
  */
 const MAX_PIXEL_RATIO = 1.5
+
+/**
+ * Node count above which the 3D view opens in the aggregated step instead of
+ * the raw cloud. Below it the detail is legible; above it the same picture is a
+ * texture and the user has no way to tell a community from a neighbour.
+ */
+const AUTO_AGGREGATE_ABOVE = 4000
 
 /** Base link transparency — the single LineSegments material bakes this in per-vertex. */
 const LINK_OPACITY = 0.35
@@ -497,6 +505,20 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     linkSegmentsRef.current?.updatePositions()
     nodePointsRef.current?.updatePositions()
   }, [setEngineRunning])
+
+  // ── A full graph must stay readable: open aggregated past a threshold ─────
+  // Above this many nodes the raw cloud is a texture, not a structure. The view
+  // opens one step aggregated (≈5:1 per cell) ONCE per graph size, so the user
+  // still sees everything — grouped — and can come back to detail with the
+  // stepper. The ref keeps it from fighting a manual choice.
+  const autoScaledForRef = useRef(0)
+  useEffect(() => {
+    const count = graphData.nodes.length
+    if (count <= AUTO_AGGREGATE_ABOVE) return
+    if (autoScaledForRef.current === count) return
+    autoScaledForRef.current = count
+    if (scaleLevel === 0) setScaleLevel(1)
+  }, [graphData.nodes.length, scaleLevel, setScaleLevel])
 
   // ── Frame the graph after every layout ───────────────────────────────────
   // `zoomToFit` lived only in `onEngineStop`. The simulation is FROZEN here
@@ -1217,6 +1239,39 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const lastClickRef = useRef<{ nodeId: string; time: number } | null>(null)
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // ── Focus a community: click a node, the camera frames its cluster ───────
+  // On thousands of nodes "control" is not orbiting the whole cloud, it is
+  // going to one group. Distance scales with the cluster radius, so a big
+  // community is framed from further away and a small one from up close.
+  const focusCommunityOf = useCallback(
+    (nodeId: string) => {
+      const fg = graphRef.current
+      if (!fg || typeof fg.cameraPosition !== 'function') return
+      const node = graphData.nodes.find((n) => n.id === nodeId)
+      const focus = communityFocus(graphData.nodes, node?.communityId)
+      if (!focus) return
+      const distance = Math.max(120, focus.radius * 2.4)
+      try {
+        fg.cameraPosition(
+          { x: focus.x, y: focus.y, z: focus.z + distance },
+          { x: focus.x, y: focus.y, z: focus.z },
+          800,
+        )
+        wake(1500)
+      } catch {
+        // the library is not mounted yet — the next click will frame it
+      }
+    },
+    [graphData.nodes, wake],
+  )
+
+  // The Points pick lives in an effect with a narrow dependency list; it reads
+  // the latest callback through a ref so a click never frames a stale graph.
+  const focusCommunityOfRef = useRef(focusCommunityOf)
+  useEffect(() => {
+    focusCommunityOfRef.current = focusCommunityOf
+  }, [focusCommunityOf])
+
   const onNodeClick = useCallback((node: Graph3DNode) => {
     const now = Date.now()
     const last = lastClickRef.current
@@ -1239,7 +1294,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
     clickTimerRef.current = setTimeout(() => {
       clickTimerRef.current = null
-      setSelectedNodeId(node.id === selectedNodeId ? null : node.id)
+      const deselect = node.id === selectedNodeId
+      setSelectedNodeId(deselect ? null : node.id)
+      if (!deselect) focusCommunityOf(node.id)
     }, 350)
   }, [selectedNodeId, setSelectedNodeId, onNodeDoubleClick])
 
@@ -1594,7 +1651,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         return
       }
       pointsClickRef.current = { nodeId: hit.id, time: now }
-      setSelectedNodeId(hit.id === selectedNodeId ? null : hit.id)
+      const deselect = hit.id === selectedNodeId
+      setSelectedNodeId(deselect ? null : hit.id)
+      if (!deselect) focusCommunityOfRef.current(hit.id)
     }
 
     el.addEventListener('pointermove', onMove, { passive: true })
