@@ -42,6 +42,10 @@ import {
 import { buildGroupedGraph, resolutionForLevel } from './graphAggregation'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { createSuperLinkTubes, TUBE_MAX_EDGES, type SuperLinkTubes } from './superLinkTubes'
+import { FrameAnimator } from './frameAnimator'
+import { useLivePulse } from './useLivePulse'
+import { useAgentMarkers } from './useAgentMarkers'
+import type { AgentMarkers } from './agentMarkers'
 import { communityFocus } from './useGraph3DLayout'
 import { activationStateAtom } from '../SpreadingActivation'
 import { GraphPanel } from '../GraphPanel'
@@ -327,6 +331,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // scene, mirroring the Points / LineSegments lifecycle below.
   const superLinkTubesRef = useRef<SuperLinkTubes | null>(null)
   const superNodeLabelsRef = useRef<SuperNodeLabels | null>(null)
+  // Live agents' labels (useAgentMarkers fills it; declared here so the
+  // engine-tick callback below can re-anchor them like the other overlays).
+  const agentMarkersRef = useRef<AgentMarkers | null>(null)
 
   // ── Cleanup cached Three.js resources on unmount ────────────────────────
   useEffect(() => {
@@ -636,6 +643,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     nodePointsRef.current?.updatePositions()
     superLinkTubesRef.current?.updatePositions()
     superNodeLabelsRef.current?.updatePositions()
+    agentMarkersRef.current?.updatePositions()
   }, [setEngineRunning])
 
   // ── A full graph must stay readable: open aggregated past a threshold ─────
@@ -2007,6 +2015,63 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     })
   }, [useOptimizedLinks, hoveredNodeId, computeLinkStyle, activeGraphData, activationActive])
 
+  // ── Live: entity pulses + agents at work ──────────────────────────────
+  // One rAF loop for every transient animation, alive only while one runs
+  // (frameAnimator.ts): no permanent frame. `wake` is stable (useRenderLoop),
+  // so the animator is created once per mount.
+  const [animator] = useState(() => new FrameAnimator(wake))
+  useEffect(() => () => animator.dispose(), [animator])
+
+  // The base a pulse returns to is the bulk style PLUS the hover spotlight, so
+  // a pulse ending on the hovered node restores the amber, not the bulk.
+  // Refs: the frame job reads them at write time, never a stale closure.
+  const hoveredNodeIdRef = useRef(hoveredNodeId)
+  const hoverSuppressedRef = useRef(hoverSuppressed)
+  const activationActiveRef = useRef(activationActive)
+  useEffect(() => {
+    hoveredNodeIdRef.current = hoveredNodeId
+    hoverSuppressedRef.current = hoverSuppressed
+    activationActiveRef.current = activationActive
+  }, [hoveredNodeId, hoverSuppressed, activationActive])
+  const liveBaseNodeStyle = useCallback((node: Graph3DNode): NodeStyle => {
+    const base = computeNodeStyleRef.current(node)
+    if (hoveredNodeIdRef.current === node.id && !hoverSuppressedRef.current) return hoverSpotlightStyle(node, base)
+    return base
+  }, [hoverSpotlightStyle])
+  const liveBaseLinkStyle = useCallback((l: Graph3DLink): LinkStyle => {
+    const cur = hoveredNodeIdRef.current
+    if (cur != null && !activationActiveRef.current) {
+      const sid = typeof l.source === 'object' ? (l.source as Graph3DNode).id : l.source
+      const tid = typeof l.target === 'object' ? (l.target as Graph3DNode).id : l.target
+      if (sid === cur || tid === cur) return linkStyleFromColorRef.current(l, HIGHLIGHT_COLOR_HOVER)
+    }
+    return computeLinkStyleRef.current(l)
+  }, [HIGHLIGHT_COLOR_HOVER])
+
+  // Entity pulses: ids published by useGraphWebSocket (graph + CRUD channels).
+  useLivePulse({
+    nodePointsRef,
+    linkSegmentsRef,
+    nodes: activeGraphData.nodes,
+    baseNodeStyle: liveBaseNodeStyle,
+    baseLinkStyle: liveBaseLinkStyle,
+    animator,
+    enabled: hasDimensions,
+  })
+
+  // Agents at work (GET /api/agents/live), on their chat_session / task / plan
+  // node. Off at the aggregated tiers: super-node ids are group keys, no agent
+  // resolves to one, and a marker on an invented spot would be a lie.
+  useAgentMarkers({
+    graphRef,
+    nodePointsRef,
+    markersRef: agentMarkersRef,
+    nodes: activeGraphData.nodes,
+    baseNodeStyle: liveBaseNodeStyle,
+    animator,
+    enabled: hasDimensions && !aggregated,
+  })
+
   // ── Overview tier — custom pick for hover / click ─────────────────────
   // With nodeVisibility=false the library has no node objects to raycast, so
   // hover/click/double-click are driven from our own NDC projection (pick).
@@ -2242,6 +2307,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           linkSegmentsRef.current?.updatePositions()
           superLinkTubesRef.current?.updatePositions()
           superNodeLabelsRef.current?.updatePositions()
+          agentMarkersRef.current?.updatePositions()
           wake(WAKE_MUTATION_MS)
         }}
         onNodeDragEnd={(node: Graph3DNode) => {
