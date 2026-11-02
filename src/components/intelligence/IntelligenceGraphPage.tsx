@@ -13,6 +13,7 @@ import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActiva
 import { GraphLoadingProgress } from './GraphLoadingProgress'
 import { GraphLegend } from './GraphLegend'
 import { GraphSituation } from './GraphSituation'
+import { GraphHoverCard } from './GraphHoverCard'
 import { GraphSearchHint } from './GraphSearchHint'
 import { graphFloat, graphControl, graphChip } from './graphSurface'
 import {
@@ -308,6 +309,8 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         {/* Branding */}
         <Branding variant="inline" className="pl-1" />
       </div>
+
+      <GraphHoverCard />
 
       {/* Keyboard shortcut hint (bottom-center), hidden when search is open */}
       {!searchOpen && <GraphSearchHint onOpen={() => setSearchOpen(true)} />}
