@@ -36,10 +36,13 @@ describe('deterministicPlacement', () => {
     }
   })
 
-  it('separates layers in z (knowledge sits above code)', () => {
+  it('separates layers in space (an island per layer, none on the origin)', () => {
     const nodes = [mkNode('a', 'code', 0), mkNode('k', 'knowledge', 0)]
     const placed = deterministicPlacement(nodes, [])
-    expect(placed.get('k')!.z).toBeGreaterThan(placed.get('a')!.z + 40)
+    const a = placed.get('a')!, k = placed.get('k')!
+    expect(Math.hypot(a.x - k.x, a.y - k.y, a.z - k.z)).toBeGreaterThan(100)
+    expect(Math.hypot(a.x, a.y, a.z)).toBeGreaterThan(50)
+    expect(Math.hypot(k.x, k.y, k.z)).toBeGreaterThan(50)
   })
 
   it('clusters same-community nodes closer than different communities', () => {
@@ -262,5 +265,76 @@ describe('hub-and-corona placement', () => {
     const { nodes } = mkGroup(1)
     const p = deterministicPlacement(nodes, []).get('q0')!
     expect(Math.hypot(p.x, p.y, p.z)).toBeCloseTo(0, 6)
+  })
+})
+
+// ── Islands: one centre per layer, sized by the layer's own mass ─────────────
+
+function islandStats(placed: Map<string, { x: number; y: number; z: number }>, ids: string[]) {
+  const pts = ids.map((i) => placed.get(i)!)
+  const c = {
+    x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
+    y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
+    z: pts.reduce((s, p) => s + p.z, 0) / pts.length,
+  }
+  const radius = Math.max(...pts.map((p) => Math.hypot(p.x - c.x, p.y - c.y, p.z - c.z)))
+  return { c, radius }
+}
+
+describe('layer islands', () => {
+  const build = () => {
+    const nodes: Graph3DNode[] = []
+    const ids: Record<string, string[]> = { code: [], knowledge: [], pm: [] }
+    const add = (layer: string, count: number, groups: number) => {
+      for (let i = 0; i < count; i++) {
+        const id = `${layer}${i}`
+        ids[layer].push(id)
+        nodes.push(mkNode(id, layer, i % groups))
+      }
+    }
+    add('code', 2000, 12)
+    add('knowledge', 60, 3)
+    add('pm', 20, 2)
+    return { nodes, ids }
+  }
+
+  it('keeps three very unequal layers apart by the sum of their radii', () => {
+    const { nodes, ids } = build()
+    const placed = deterministicPlacement(nodes, [])
+    const st = Object.fromEntries(Object.keys(ids).map((l) => [l, islandStats(placed, ids[l])]))
+    const names = Object.keys(st)
+    for (let i = 0; i < names.length; i++) {
+      for (let j = i + 1; j < names.length; j++) {
+        const a = st[names[i]], b = st[names[j]]
+        const d = Math.hypot(a.c.x - b.c.x, a.c.y - b.c.y, a.c.z - b.c.z)
+        expect(d).toBeGreaterThanOrEqual(a.radius + b.radius)
+      }
+    }
+    if (process.env.ISLAND_LOG) console.log(JSON.stringify(st))
+  })
+
+  it('centres no island on the origin when several layers exist', () => {
+    const { nodes, ids } = build()
+    const placed = deterministicPlacement(nodes, [])
+    for (const l of Object.keys(ids)) {
+      const { c } = islandStats(placed, ids[l])
+      expect(Math.hypot(c.x, c.y, c.z)).toBeGreaterThan(100)
+    }
+  })
+
+  it('puts a lone layer at the centre, and leaves no hole for an absent layer', () => {
+    const solo = Array.from({ length: 50 }, (_, i) => mkNode(`s${i}`, 'knowledge', 0))
+    const { c } = islandStats(deterministicPlacement(solo, []), solo.map((n) => n.id))
+    expect(Math.hypot(c.x, c.y, c.z)).toBeLessThan(15)
+    const two = [...solo, mkNode('p', 'pm', 0)]
+    const three = [...two, mkNode('k', 'skills', 0)]
+    const r2 = Math.hypot(...Object.values(deterministicPlacement(two, []).get('p')!))
+    const r3 = Math.hypot(...Object.values(deterministicPlacement(three, []).get('p')!))
+    expect(r2).toBeLessThan(r3 + 1) // a third layer only ever widens the sphere
+  })
+
+  it('is deterministic across islands', () => {
+    const { nodes } = build()
+    expect(deterministicPlacement(nodes, [])).toEqual(deterministicPlacement(nodes, []))
   })
 })

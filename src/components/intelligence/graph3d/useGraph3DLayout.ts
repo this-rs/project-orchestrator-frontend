@@ -131,19 +131,6 @@ const LINK_WIDTHS: Record<string, number> = {
   CONTAINS: 0.5,
 }
 
-// ── Spread radius by layer ────────────────────────────────────────────────────
-// Nodes in different layers get different z-range to separate them visually
-
-const LAYER_Z_OFFSET: Record<string, number> = {
-  code: 0,
-  fabric: 0,     // same z-plane as code (structural)
-  knowledge: 80,
-  neural: 120,
-  skills: 160,
-  behavioral: 200, // protocols & FSM states above skills
-  pm: -80,
-}
-
 function asNumber(v: unknown): number | undefined {
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined
 }
@@ -317,6 +304,42 @@ const DOUBLE_SEP = '\u0001'
 const GOLDEN_ANGLE = 2.39996
 
 /**
+ * Island centres: one per layer, on a Fibonacci sphere around the origin. The
+ * sphere's radius is the smallest that keeps every PAIR of islands apart by
+ * the sum of their extents (plus a gap), so a heavy code layer and a light
+ * knowledge layer never overlap. A single layer sits at the origin.
+ * (The old per-layer z offset is gone: layers are separated in space now.)
+ */
+export function islandCenters(
+  islands: { layer: string; extent: number }[],
+): Map<string, [number, number, number]> {
+  const out = new Map<string, [number, number, number]>()
+  const n = islands.length
+  if (n === 1) {
+    out.set(islands[0].layer, [0, 0, 0])
+    return out
+  }
+  const dirs = islands.map((_, i): [number, number, number] => {
+    const up = 1 - ((i + 0.5) / n) * 2
+    const around = Math.sqrt(Math.max(0, 1 - up * up))
+    const a = GOLDEN_SPHERE * i
+    return [Math.cos(a) * around, up, Math.sin(a) * around]
+  })
+  let R = 0
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const chord = Math.hypot(dirs[i][0] - dirs[j][0], dirs[i][1] - dirs[j][1], dirs[i][2] - dirs[j][2])
+      R = Math.max(R, (islands[i].extent + islands[j].extent + ISLAND_GAP) / chord)
+    }
+  }
+  islands.forEach((isl, i) => out.set(isl.layer, [dirs[i][0] * R, dirs[i][1] * R, dirs[i][2] * R]))
+  return out
+}
+
+/** Free space kept between two islands, beyond their extents. */
+const ISLAND_GAP = 80
+
+/**
  * Deterministic O(N log N) placement — the po-graph technique.
  *
  * Nodes are grouped by (layer, community) and placed per group on two levels: hubs at
@@ -358,21 +381,12 @@ export function deterministicPlacement(
   }
   for (const arr of layerGroups.values()) arr.sort()
 
+  // One ISLAND per layer: each layer sizes its own ring from its own mass, so
+  // the islands are measured first, then their centres are spread on a sphere
+  // wide enough that no two overlap. A layer that is absent has no island.
+  const geometry = new Map<string, { radii: number[]; ring: number; extent: number }>()
   for (const [layer, keys] of layerGroups) {
-    const z = LAYER_Z_OFFSET[layer] ?? 0
-    const baseAngle = LAYER_ANGLE[layer] ?? 0
-    // The ring must hold the groups' circumferences: a fixed 150 px ring put
-    // twenty communities on top of each other, which read as one ball.
     const radii = keys.map((k) => 10 + 3.2 * Math.sqrt(groups.get(k)!.length))
-    // Spread the cores so their clouds do not touch. Two constraints, the
-    // tighter one wins: the ring must hold the sizes (arc), and it must hold
-    // them at the WORST angular gap — the jitter narrows a neighbour pair to
-    // `1 - 2·JITTER` of the step, and the radial jitter pulls a core in to
-    // `1 - RADIAL`. Sizing on the average gap (or on the nominal one) let two
-    // communities land 11 px apart.
-    // Only the CORES must not touch: the halo is meant to interpenetrate, and
-    // spacing the full radii pushed the clusters so far apart that the camera
-    // pulled back and the whole graph read as tiny and distant.
     const cores = radii.map((r) => r * CORE_FRACTION)
     const step = (Math.PI * 2) / Math.max(1, keys.length)
     const ring = keys.length > 1
@@ -382,6 +396,17 @@ export function deterministicPlacement(
           (2 * Math.max(...cores)) / ((1 - RADIAL_JITTER) * 2 * Math.sin((step * (1 - 2 * ANGLE_JITTER)) / 2)),
         )
       : 0
+    geometry.set(layer, { radii, ring, extent: ring * (1 + RADIAL_JITTER) + Math.max(...radii) })
+  }
+  const centers = islandCenters(
+    [...layerGroups.keys()].sort().map((layer) => ({ layer, extent: geometry.get(layer)!.extent })),
+  )
+
+  for (const [layer, keys] of layerGroups) {
+    const { radii, ring } = geometry.get(layer)!
+    const [ox, oy, oz] = centers.get(layer)!
+    const baseAngle = LAYER_ANGLE[layer] ?? 0
+    const step = (Math.PI * 2) / Math.max(1, keys.length)
     keys.forEach((key, gi) => {
       const ids = groups.get(key)!
       // Every group gets its own deterministic shape: an even spiral on a
@@ -421,9 +446,9 @@ export function deterministicPlacement(
         const y0 = radius * Math.sin(el)
         const z0 = radius * ce * Math.sin(th)
         out.set(id, {
-          x: cx + x0,
-          y: cy + y0 * cosT - z0 * sinT,
-          z: z + cz + y0 * sinT + z0 * cosT,
+          x: ox + cx + x0,
+          y: oy + cy + y0 * cosT - z0 * sinT,
+          z: oz + cz + y0 * sinT + z0 * cosT,
         })
       }
       for (let k = 0; k < hubs; k++) {
