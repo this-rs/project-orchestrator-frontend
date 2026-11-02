@@ -8,7 +8,7 @@
 // 3. RELAYOUT THRESHOLD: Only re-simulate if >20% nodes change
 // ============================================================================
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -249,6 +249,7 @@ export function toGraph3DNode(
   node: IntelligenceNode,
   communityByPath: Map<string, { id: number; label?: string }>,
   pos?: { x: number; y: number; z: number },
+  detectedByNode?: Map<string, number> | null,
 ): Graph3DNode {
   const data = node.data as Record<string, unknown>
   const entityType = (data.entityType as string) ?? 'file'
@@ -256,7 +257,11 @@ export function toGraph3DNode(
   const own = asNumber(data.community_id ?? data.communityId)
   const path = asPath(data) ?? (entityType === 'file' ? node.id : undefined)
   const inherited = own == null && path ? communityByPath.get(path) : undefined
-  const communityId = own ?? inherited?.id
+  // The backend community (own or the owning file's) wins when present. The
+  // client-detected community then primes over the directory/(layer, type)
+  // proxy the view used to fall back to on projects without GDS analytics.
+  const detected = detectedByNode?.get(node.id)
+  const communityId = own ?? inherited?.id ?? detected
   const communityLabel = asCommunityLabel(data) ?? inherited?.label
   return {
     id: node.id,
@@ -428,10 +433,91 @@ const ANGLE_JITTER = 0.15
 
 const RELAYOUT_THRESHOLD = 0.2 // 20% change triggers relayout
 
-export function useGraph3DLayout() {
+// ── Community detection worker ────────────────────────────────────────────────
+
+/** Give up on a worker answer after this long; the view keeps its fallback grouping. */
+const COMMUNITY_DETECT_TIMEOUT_MS = 5000
+
+function getCommunityWorker(ref: { current: Worker | null }): Worker {
+  if (!ref.current) {
+    ref.current = new Worker(
+      new URL('@/workers/communityWorker.ts', import.meta.url),
+      { type: 'module' },
+    )
+  }
+  return ref.current
+}
+
+export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceEdge[]) {
   // Cache positions for stable refresh
   const positionCache = useRef<Map<string, { x: number; y: number; z: number }>>(new Map())
   const previousNodeIds = useRef<Set<string>>(new Set())
+
+  // Client-side Louvain communities (computed in a worker). `null` until the
+  // first result: nodes keep the directory/(layer, type) fallback meanwhile.
+  const [detectedCommunities, setDetectedCommunities] = useState<Map<string, number> | null>(null)
+  const communityVersionRef = useRef(0)
+  const communityWorkerRef = useRef<Worker | null>(null)
+
+  // Detect communities when the data changes, off the main thread. A stale
+  // answer (older than the latest request) is dropped, and a worker that errors
+  // or exceeds the global budget leaves the fallback in place — never an empty
+  // screen, never a wrong partition.
+  useEffect(() => {
+    const version = ++communityVersionRef.current
+    // No setState here: the caller keeps the fallback grouping until a result
+    // arrives (and an empty graph has nothing to group).
+    if (nodes.length === 0) return
+
+    const worker = getCommunityWorker(communityWorkerRef)
+    const serializedNodes = nodes.map((n) => n.id)
+    const serializedEdges = edges.map((e) => ({
+      source: e.source,
+      target: e.target,
+      weight: e.data?.weight,
+    }))
+
+    let settled = false
+
+    function cleanup(): void {
+      if (settled) return
+      settled = true
+      worker.removeEventListener('message', handler)
+      worker.removeEventListener('error', onError)
+      clearTimeout(timeoutId)
+    }
+
+    function handler(event: MessageEvent<{ type?: string; communities?: Record<string, number> }>): void {
+      if (settled) return
+      if (version !== communityVersionRef.current) {
+        cleanup()
+        return
+      }
+      if (event.data?.type !== 'result') return
+      cleanup()
+      setDetectedCommunities(new Map(Object.entries(event.data.communities ?? {})))
+    }
+
+    function onError(): void {
+      if (settled) return
+      if (version === communityVersionRef.current) cleanup()
+    }
+
+    const timeoutId = setTimeout(cleanup, COMMUNITY_DETECT_TIMEOUT_MS)
+    worker.addEventListener('message', handler)
+    worker.addEventListener('error', onError)
+    worker.postMessage({ nodes: serializedNodes, edges: serializedEdges })
+
+    return cleanup
+  }, [nodes, edges])
+
+  // Terminate the worker when the consumer unmounts.
+  useEffect(() => () => {
+    if (communityWorkerRef.current) {
+      communityWorkerRef.current.terminate()
+      communityWorkerRef.current = null
+    }
+  }, [])
 
   /**
    * Transform IntelligenceNodes/Edges → Graph3DData.
@@ -461,7 +547,7 @@ export function useGraph3DLayout() {
     // Build 3D nodes (positions filled below from cache or the deterministic layout).
     const communityByPath = communityIndex(nodes)
     const graph3dNodes: Graph3DNode[] = nodes.map((node) =>
-      toGraph3DNode(node, communityByPath, positionCache.current.get(node.id)),
+      toGraph3DNode(node, communityByPath, positionCache.current.get(node.id), detectedCommunities),
     )
 
     // Weight, shared by both views: the size of a node and its place in the
@@ -532,7 +618,7 @@ export function useGraph3DLayout() {
       data: { nodes: graph3dNodes, links: graph3dLinks },
       needsRelayout,
     }
-  }, [])
+  }, [detectedCommunities])
 
   /**
    * Update position cache after simulation settles.
