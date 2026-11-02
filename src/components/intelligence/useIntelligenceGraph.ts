@@ -389,6 +389,10 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     setLayoutedEdges(visibleEdges)
     updateStage('layout', {
       status: 'done',
+      // Honest duration: the pass-through costs nothing, but the stage used to
+      // be "loading" since the fetch began, so the panel reported the whole
+      // load as « disposition ».
+      startedAt: Date.now(),
       completedAt: Date.now(),
       detail: nodesText(tRef.current, visibleNodes.length),
       progress: visibleNodes.length,

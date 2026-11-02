@@ -408,6 +408,27 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     hullNeedsRebuildRef.current = true
   }, [showCommunityHulls, graphData.nodes])
 
+  // A cheap, stable signature of "which communities exist and how big they are".
+  // Positions are deterministic per node set, so this is all the hulls depend on.
+  const hullSignature = useMemo(() => {
+    let total = 0
+    let seen = ''
+    const counts = new Map<number, number>()
+    for (const node of graphData.nodes) {
+      if (node.communityId == null) continue
+      total++
+      counts.set(node.communityId, (counts.get(node.communityId) ?? 0) + 1)
+    }
+    for (const [id, c] of [...counts].sort((a, b) => a[0] - b[0])) seen += `${id}:${c},`
+    return `${total}|${seen}`
+  }, [graphData.nodes])
+
+  // The callback reads the CURRENT nodes without depending on their identity.
+  const nodesRef = useRef(graphData.nodes)
+  useEffect(() => {
+    nodesRef.current = graphData.nodes
+  }, [graphData.nodes])
+
   // Actually build hulls — called from onEngineStop and on toggle
   const rebuildCommunityHulls = useCallback(() => {
     try {
@@ -424,13 +445,14 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         communityHullsRef.current = null
       }
 
-      if (!showCommunityHulls || graphData.nodes.length === 0 || aggregated) return
+      const current = nodesRef.current
+      if (!showCommunityHulls || current.length === 0 || aggregated) return
 
       // Only build if any node has a communityId
-      const hasCommunities = graphData.nodes.some((n) => n.communityId != null)
+      const hasCommunities = current.some((n) => n.communityId != null)
       if (!hasCommunities) return
 
-      const hullGroup = buildCommunityHulls(graphData.nodes, t)
+      const hullGroup = buildCommunityHulls(current, t)
       if (hullGroup.hulls.length > 0) {
         scene.add(hullGroup.group)
         communityHullsRef.current = hullGroup
@@ -441,7 +463,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       // wake: hull meshes/labels were added to or removed from the scene.
       wake(WAKE_MUTATION_MS)
     }
-  }, [showCommunityHulls, graphData.nodes, aggregated, wake, t])
+    // Memoised on the SIGNATURE, not on the array identity: the transform
+    // recreates `graphData.nodes` on every update (WebSocket event, cache hit),
+    // and this callback used to change with it — which re-ran the effect below
+    // and rebuilt a convex hull plus its label texture per community, on the
+    // main thread, for an identical result. That is the "layout blocks".
+  }, [showCommunityHulls, hullSignature, aggregated, wake, t])
 
   // Rebuild when toggle changes (immediate — user clicked the button)
   useEffect(() => {
@@ -470,6 +497,27 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     linkSegmentsRef.current?.updatePositions()
     nodePointsRef.current?.updatePositions()
   }, [setEngineRunning])
+
+  // ── Frame the graph after every layout ───────────────────────────────────
+  // `zoomToFit` lived only in `onEngineStop`. The simulation is FROZEN here
+  // (cooldownTicks/TIME/warmup all 0), so that event may never fire: the camera
+  // stayed at the library's default distance and the graph read as tiny and far
+  // away — the user's « c'est très très éloigné ». A layout that actually moved
+  // nodes re-frames, with a tight padding so the cloud fills the viewport.
+  useEffect(() => {
+    if (!needsRelayout || graphData.nodes.length === 0) return
+    const fg = graphRef.current
+    if (!fg || typeof fg.zoomToFit !== 'function') return
+    const id = setTimeout(() => {
+      try {
+        fg.zoomToFit(600, 30)
+        wake(1200)
+      } catch {
+        // the library is not fully mounted yet — the next layout will frame it
+      }
+    }, 120)
+    return () => clearTimeout(id)
+  }, [needsRelayout, graphData.nodes.length, wake])
 
   // ── Save positions when simulation stops ────────────────────────────────
   const onEngineStop = useCallback(() => {
