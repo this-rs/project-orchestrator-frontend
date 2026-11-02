@@ -117,8 +117,24 @@ const RENDERER_CONFIG = { antialias: !IS_MOBILE_LIKE }
  * (po-graph.js:271): a retina panel asks for 2, i.e. four times the fragments
  * to shade, for a gain no eye reads on a points cloud. 1.5 removes ~44 % of
  * them (2² → 1.5²) and is the cheapest win on the canvas.
+ *
+ * This is a CEILING, not the value in force: the render loop starts here and
+ * steps DOWN 0.5 at a time when the measured frame interval says the machine
+ * cannot follow (frameQuality.ts). The old code hard-set the cap, which was
+ * both too expensive for an integrated GPU and too cheap for a discrete one.
  */
 const MAX_PIXEL_RATIO = 1.5
+
+/**
+ * The ceiling the render loop's frame budget may raise the pixel ratio back to:
+ * the device's own ratio, clamped. This is an upper bound, NOT the value in
+ * force — useRenderLoop starts here and steps down 0.5 at a time when the
+ * measured frame interval says the machine cannot follow (frameQuality.ts).
+ */
+function pixelRatioCeiling(): number {
+  if (typeof window === 'undefined') return 1
+  return Math.min(MAX_PIXEL_RATIO, window.devicePixelRatio || 1)
+}
 
 /**
  * The canvas background is the PO surface token, not a hard-coded slate.
@@ -222,20 +238,57 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout()
 
+  // ── Single Points renderer for nodes (overview tier) ──────────────────
+  // Declared BEFORE the render loop: the loop's frame budget owns the pixel
+  // ratio, and the Points shader must be told about every change.
+  const nodePointsRef = useRef<NodePoints | null>(null)
+
+  /**
+   * Pixel ratio currently in force, shared by the renderer and the Points
+   * shader. A ref (not state) because nothing renders differently: the two
+   * consumers are imperative, and a re-render must not reset a decision the
+   * frame budget took from measured timings.
+   */
+  const pixelRatioRef = useRef(pixelRatioCeiling())
+
+  /**
+   * The single write path for the pixel ratio. The render loop calls this when
+   * its frame budget moves the ratio, and the Points creation effect calls it
+   * once so a shader built later starts in lockstep. The renderer is written by
+   * the loop itself, in the same call — the two cannot drift apart.
+   */
+  const applyPixelRatio = useCallback((pixelRatio: number) => {
+    pixelRatioRef.current = pixelRatio
+    nodePointsRef.current?.setPixelRatio(pixelRatio)
+  }, [])
+
   // ── On-demand render loop ─────────────────────────────────────────────
   // See useRenderLoop.ts. `wake(ms)` must be called by EVERY code path that
   // can change what is on screen; the wake-up inventory is annotated at each
   // call site below with a `wake:` comment.
-  const { wake, setEngineRunning, setParticlesAnimating } = useRenderLoop(graphRef, containerRef)
+  //
+  // The third argument is the frame budget: the loop measures the real
+  // inter-frame interval and lowers the pixel ratio 0.5 at a time when the
+  // machine cannot keep up (~34 ms over ~90 frames), raising it back on a long
+  // cheap window and stopping after two drops (see frameQuality.ts). It
+  // replaces the fixed 1.5 cap: the same guarantee on the worst device, no
+  // penalty on the best one.
+  const initialPixelRatio = pixelRatioRef.current
+  const { wake, setEngineRunning, setParticlesAnimating, setMaxPixelRatio } = useRenderLoop(
+    graphRef,
+    containerRef,
+    {
+      maxPixelRatio: initialPixelRatio,
+      initialPixelRatio,
+      onPixelRatioChange: applyPixelRatio,
+    },
+  )
 
   // ── Community hulls ref ───────────────────────────────────────────────
   const communityHullsRef = useRef<CommunityHullGroup | null>(null)
 
   // ── Single LineSegments renderer for links (optimized path) ───────────
   const linkSegmentsRef = useRef<LinkSegments | null>(null)
-
-  // ── Single Points renderer for nodes (overview tier) ──────────────────
-  const nodePointsRef = useRef<NodePoints | null>(null)
 
   // ── Cleanup cached Three.js resources on unmount ────────────────────────
   useEffect(() => {
@@ -349,31 +402,25 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     wake(1000)
   }, [dimensions, wake])
 
-  // ── Device pixel ratio, capped like po-graph ─────────────────────────────
-  // po-graph opens with `PR0 = Math.min(1.5, devicePixelRatio)` (po-graph.js:271)
-  // and re-applies it when the screen changes. `three-render-objects` takes the
-  // raw ratio: on a retina panel that is 2, i.e. FOUR times the pixels to shade
-  // for a points cloud, with no readable gain. Capping at 1.5 removes ~44 % of
-  // the fragments (2² → 1.5²) and is the single cheapest win on the canvas.
+  // ── Device pixel ratio: the CEILING only ─────────────────────────────────
+  // The ratio in force is owned by the render loop's frame budget
+  // (useRenderLoop + frameQuality.ts): it opens at `min(1.5, devicePixelRatio)`
+  // — po-graph's `PR0`, po-graph.js:271 — and steps down 0.5 at a time when the
+  // measured frame interval says the machine cannot follow. This effect reports
+  // the ceiling, and re-reports it when the screen changes: a window dragged to
+  // another display changes the ratio without a resize, which po-graph watches
+  // through `matchMedia('(resolution: Xdppx)')`.
   useEffect(() => {
-    const apply = () => {
-      const fg = graphRef.current
-      if (!fg || typeof fg.renderer !== 'function') return
-      const renderer = fg.renderer()
-      if (!renderer) return
-      const pr = Math.min(MAX_PIXEL_RATIO, window.devicePixelRatio || 1)
-      if (Math.abs(renderer.getPixelRatio() - pr) > 1e-3) {
-        renderer.setPixelRatio(pr)
-        wake(WAKE_MUTATION_MS)
-      }
-    }
-    apply()
-    // A window dragged to another screen changes the ratio without a resize:
-    // po-graph watches it through `matchMedia('(resolution: Xdppx)')`.
+    const max = pixelRatioCeiling()
     const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
-    mq.addEventListener('change', apply)
-    return () => mq.removeEventListener('change', apply)
-  }, [dimensions, wake])
+    const onChange = () => {
+      setMaxPixelRatio(pixelRatioCeiling())
+      wake(WAKE_MUTATION_MS)
+    }
+    setMaxPixelRatio(max)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [dimensions, setMaxPixelRatio, wake])
 
   // ── Workaround: three.js OrbitControls + DragControls pointercancel crash ──
   // When DragControls dispatches pointercancel, OrbitControls.onPointerUp tries
@@ -1491,12 +1538,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         const renderer = fg.renderer()
         if (renderer) {
           renderer.setClearColor(new THREE.Color(PO_CANVAS_BG), 1)
-          // Clamp the device pixel ratio, same as ActivityHeatmap3D.tsx:170.
-          // On a DPR-3 phone this is 2.25× fewer pixels to shade per frame for
-          // no visible difference at that pixel density. (three-render-objects
-          // applies the same clamp at construction; we re-assert it here so the
-          // guarantee is local and survives a library change.)
-          renderer.setPixelRatio(Math.min(window.devicePixelRatio, MAX_PIXEL_RATIO))
+          // The pixel ratio is NOT set here: useRenderLoop's frame budget owns
+          // it and has already applied it (it writes the renderer and the Points
+          // shader together). A second writer here would undo a measured drop
+          // the moment the renderer became available.
         }
       }
     } catch { /* renderer may not be ready */ }
@@ -1676,6 +1721,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
     const np = createNodePoints(activeGraphData.nodes)
     np.updateStyles(computeNodeStyleRef.current)
+    // The loop only reports CHANGES, so a Points built after a drop must adopt
+    // the ratio already in force or its points would change size on the next
+    // frame (gl_PointSize is in device pixels).
+    np.setPixelRatio(pixelRatioRef.current)
     scene.add(np.object)
     nodePointsRef.current = np
     wake(WAKE_MUTATION_MS)
