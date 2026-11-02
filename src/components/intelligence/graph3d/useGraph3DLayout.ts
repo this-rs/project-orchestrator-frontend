@@ -319,8 +319,8 @@ const GOLDEN_ANGLE = 2.39996
 /**
  * Deterministic O(N log N) placement — the po-graph technique.
  *
- * Nodes are grouped by (layer, community) and laid on a Fermat spiral over a
- * sphere per group, the group spheres spread on a ring inside the layer's
+ * Nodes are grouped by (layer, community) and placed per group on two levels: hubs at
+ * the centre, satellites on a corona, the group spheres spread on a ring inside the layer's
  * z-plane. No force simulation: the layout is complete the instant it is
  * computed, sorted by degree so the busiest nodes sit near each group's pole.
  * Same input ⇒ same output (stable across refreshes).
@@ -399,7 +399,6 @@ export function deterministicPlacement(
       const cx = Math.cos(angle) * around * radial
       const cy = up * radial
       const cz = Math.sin(angle) * around * radial
-      const squashY = 0.5 + 0.35 * rng() // flattened in Y: a disc, not a sphere
       const tilt = (rng() - 0.5) * 1.1
       const cosT = Math.cos(tilt)
       const sinT = Math.sin(tilt)
@@ -409,23 +408,35 @@ export function deterministicPlacement(
 
       const n = ids.length
       const r = radii[gi]
-      for (let k = 0; k < n; k++) {
-        // Rank drives the radius: a hub sits at the centre, a leaf at the rim.
-        // The 1.7 exponent packs half the nodes inside ~31 % of the radius —
-        // that density contrast IS the relief the eye reads.
-        const t = (k + 0.5) / n
-        const radius = r * Math.pow(t, 1.7) * (0.9 + 0.2 * rng())
-        const rr = Math.acos(1 - 2 * (k + 0.5) / n) // directions stay even
-        const th = k * GOLDEN_ANGLE + phase
-        const s = Math.sin(rr)
-        const x0 = radius * s * Math.cos(th)
-        const y0 = radius * s * Math.sin(th) * squashY
-        const z0 = radius * Math.cos(rr) * 0.85
-        out.set(ids[k].id, {
+      // Two levels. HUBS (the most connected ~10 %, at least one) share the
+      // core, within HUB_CORE of the radius. SATELLITES sit on a CORONA between
+      // CORONA_INNER·R and R; the band thins as the group grows, so a big group
+      // reads as a hollow shell around a bright hub, not a filled ball.
+      const hubs = Math.max(1, Math.ceil(n * HUB_SHARE))
+      const sats = n - hubs
+      const band = Math.max(0.12, (1 - CORONA_INNER) / (1 + n / 150))
+      const place = (id: string, radius: number, th: number, el: number) => {
+        const ce = Math.cos(el)
+        const x0 = radius * ce * Math.cos(th)
+        const y0 = radius * Math.sin(el)
+        const z0 = radius * ce * Math.sin(th)
+        out.set(id, {
           x: cx + x0,
           y: cy + y0 * cosT - z0 * sinT,
           z: z + cz + y0 * sinT + z0 * cosT,
         })
+      }
+      for (let k = 0; k < hubs; k++) {
+        // A lone node is exactly at the centre; several hubs spiral inside it.
+        const radius = hubs === 1 ? 0 : r * HUB_CORE * Math.sqrt((k + 0.5) / hubs)
+        place(ids[k].id, radius, k * GOLDEN_ANGLE + phase, Math.asin(1 - (2 * (k + 0.5)) / hubs))
+      }
+      for (let j = 0; j < sats; j++) {
+        // Regular angles (golden stride); the radius inside the band follows a
+        // low-discrepancy sequence, so the corona is even and reproducible.
+        const u = (j * 0.6180339887) % 1
+        const w = (j * 0.7548776662 + 0.5) % 1
+        place(ids[hubs + j].id, r * (1 - band * u), j * GOLDEN_ANGLE + phase, (w - 0.5) * CORONA_ELEVATION)
       }
     })
   }
@@ -440,6 +451,12 @@ export function deterministicPlacement(
  * "this is where the mass is" and the spacing works on that, not on the halo.
  */
 const CORE_FRACTION = 0.45
+/** Share of a group kept as hubs at its centre, and how far they spread. */
+const HUB_SHARE = 0.1
+const HUB_CORE = 0.15
+/** Corona: inner edge as a share of the group radius, and its vertical spread (rad). */
+const CORONA_INNER = 0.55
+const CORONA_ELEVATION = 0.6
 /** Fibonacci-sphere stride: the group centres spread over a volume, not a circle. */
 const GOLDEN_SPHERE = Math.PI * (3 - Math.sqrt(5))
 /** How far a core may drift along its radius, as a fraction of the ring. */

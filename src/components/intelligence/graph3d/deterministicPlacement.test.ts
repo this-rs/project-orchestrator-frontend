@@ -186,3 +186,81 @@ describe('communities reach the placement', () => {
     expect(median(hubs)).toBeLessThan(median(leaves))
   })
 })
+
+// ── Two-level placement: hubs at the centre, satellites on a corona ──────────
+
+describe('hub-and-corona placement', () => {
+  const mkGroup = (n: number, hubDeg = 0) => {
+    const nodes: Graph3DNode[] = Array.from({ length: n }, (_, i) => ({
+      id: `q${i}`, label: `q${i}`, entityType: 'file', layer: 'code',
+      x: 0, y: 0, z: 0, communityId: 1, groupKey: 'c1', data: {},
+    }))
+    const edges: IntelligenceEdge[] = []
+    for (let j = 1; j <= hubDeg; j++) edges.push(mkEdge('q0', `q${j}`))
+    return { nodes, edges }
+  }
+  // Same ranking as the placement: degree desc, then id.
+  const satellitesOf = (nodes: Graph3DNode[], edges: IntelligenceEdge[]) => {
+    const deg = new Map<string, number>()
+    for (const e of edges) {
+      deg.set(e.source, (deg.get(e.source) ?? 0) + 1)
+      deg.set(e.target, (deg.get(e.target) ?? 0) + 1)
+    }
+    const sorted = [...nodes].sort(
+      (a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    )
+    return sorted.slice(Math.ceil(nodes.length * 0.1))
+  }
+  // One group on the code layer: its centre is the origin of the layer plane.
+  const radiusOf = (placed: Map<string, { x: number; y: number; z: number }>, id: string) => {
+    const p = placed.get(id)!
+    const z0 = placed.get('q0')!.z - 0 // hub z is the plane offset (hub at centre)
+    return Math.hypot(p.x, p.y, p.z - z0)
+  }
+
+  it('puts the hub nearer the centre than the median satellite', () => {
+    const { nodes, edges } = mkGroup(100, 40)
+    const placed = deterministicPlacement(nodes, edges)
+    const sats = satellitesOf(nodes, edges).map((n) => radiusOf(placed, n.id)).sort((a, b) => a - b)
+    const median = sats[Math.floor(sats.length / 2)]
+    expect(radiusOf(placed, 'q0')).toBeLessThan(median * 0.3)
+  })
+
+  it('spreads satellites on a corona between 0.55 and 1.0 of the group radius', () => {
+    for (const n of [30, 100, 400]) {
+      const { nodes, edges } = mkGroup(n, 10)
+      const placed = deterministicPlacement(nodes, edges)
+      const R = 10 + 3.2 * Math.sqrt(n)
+      for (const node of satellitesOf(nodes, edges)) {
+        const nr = radiusOf(placed, node.id) / R
+        expect(nr).toBeGreaterThanOrEqual(0.55 - 1e-9)
+        expect(nr).toBeLessThanOrEqual(1 + 1e-9)
+      }
+    }
+  })
+
+  it('thins the corona as the group grows', () => {
+    const spread = (n: number) => {
+      const { nodes, edges } = mkGroup(n, 5)
+      const placed = deterministicPlacement(nodes, edges)
+      const R = 10 + 3.2 * Math.sqrt(n)
+      const rs = satellitesOf(nodes, edges).map((x) => radiusOf(placed, x.id) / R)
+      return Math.max(...rs) - Math.min(...rs)
+    }
+    expect(spread(800)).toBeLessThan(spread(20))
+    expect(spread(800)).toBeLessThan(0.15)
+  })
+
+  it('is strictly deterministic', () => {
+    const { nodes, edges } = mkGroup(150, 20)
+    const a = deterministicPlacement(nodes, edges)
+    const b = deterministicPlacement(nodes, edges)
+    for (const n of nodes) expect(b.get(n.id)).toEqual(a.get(n.id))
+  })
+
+  it('places a single-node group at the centre', () => {
+    const { nodes } = mkGroup(1)
+    const p = deterministicPlacement(nodes, []).get('q0')!
+    expect(Math.hypot(p.x, p.y, p.z)).toBeCloseTo(0, 6)
+  })
+})
