@@ -32,6 +32,9 @@ export interface Graph3DNode {
   /// What the placement groups on. Falls back to the file's directory when the
   /// project has no GDS analytics, so a layer is never ONE anonymous ball.
   groupKey?: string
+  /// Edges touching this node. Size and core position both key on it, in the
+  /// 3D as in the code map: the same grammar in both views.
+  degree?: number
   // Original data for rendering
   data: Record<string, unknown>
 }
@@ -157,6 +160,28 @@ function directoryOf(path: string): string {
   return i > 0 ? path.slice(0, i) : '.'
 }
 
+/** Deterministic 32-bit hash (FNV-1a): the same group name always seeds the same shape. */
+function hashString(s: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
+/** Seeded PRNG (Mulberry32): a nebula is irregular, but it must not move between renders. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
 /**
  * File path → community, read from the nodes that carry one.
  *
@@ -277,28 +302,58 @@ export function deterministicPlacement(
     // The ring must hold the groups' circumferences: a fixed 150 px ring put
     // twenty communities on top of each other, which read as one ball.
     const radii = keys.map((k) => 14 + 4 * Math.sqrt(groups.get(k)!.length))
+    // Spread the cores so their clouds do not touch. Two constraints, the
+    // tighter one wins: the ring must hold the sizes (arc), and it must hold
+    // them at the WORST angular gap — the jitter narrows a neighbour pair to
+    // `1 - 2·JITTER` of the step, and the radial jitter pulls a core in to
+    // `1 - RADIAL`. Sizing on the average gap (or on the nominal one) let two
+    // communities land 11 px apart.
+    const step = (Math.PI * 2) / Math.max(1, keys.length)
     const ring = keys.length > 1
-      ? Math.max(150, (radii.reduce((a, b) => a + b, 0) * 1.4) / Math.PI)
+      ? Math.max(
+          150,
+          (radii.reduce((a, b) => a + b, 0) * 1.4) / Math.PI,
+          (2 * Math.max(...radii)) / ((1 - RADIAL_JITTER) * 2 * Math.sin((step * (1 - 2 * ANGLE_JITTER)) / 2)),
+        )
       : 0
     keys.forEach((key, gi) => {
       const ids = groups.get(key)!
-      const angle = baseAngle + (gi / Math.max(1, keys.length)) * Math.PI * 2
-      const cx = ring === 0 ? 0 : Math.cos(angle) * ring
-      const cy = ring === 0 ? 0 : Math.sin(angle) * ring
+      // Every group gets its own deterministic shape: an even spiral on a
+      // sphere is what read as "a ball". A nebula needs an irregular outline,
+      // a dense core and a sparse halo.
+      const rng = mulberry32(hashString(key))
+      const phase = rng() * Math.PI * 2
+      const radial = ring === 0 ? 0 : ring * (1 - RADIAL_JITTER + 2 * RADIAL_JITTER * rng())
+      const angle =
+        baseAngle + gi * step + (rng() - 0.5) * 2 * ANGLE_JITTER * step
+      const cx = Math.cos(angle) * radial
+      const cy = Math.sin(angle) * radial
+      const squashY = 0.5 + 0.35 * rng() // flattened in Y: a disc, not a sphere
+      const tilt = (rng() - 0.5) * 1.1
+      const cosT = Math.cos(tilt)
+      const sinT = Math.sin(tilt)
 
-      // Busiest first → they land near the pole (cos(rr) ≈ 1).
+      // Busiest first: rank 0 is the core, the leaves are the halo.
       ids.sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 
       const n = ids.length
-      const r = radii[gi] // sphere radius grows with group size
+      const r = radii[gi]
       for (let k = 0; k < n; k++) {
-        const rr = Math.acos(1 - 2 * (k + 0.5) / n) // 0..π, even on the sphere
-        const th = k * GOLDEN_ANGLE
+        // Rank drives the radius: a hub sits at the centre, a leaf at the rim.
+        // The 1.7 exponent packs half the nodes inside ~31 % of the radius —
+        // that density contrast IS the relief the eye reads.
+        const t = (k + 0.5) / n
+        const radius = r * Math.pow(t, 1.7) * (0.9 + 0.2 * rng())
+        const rr = Math.acos(1 - 2 * (k + 0.5) / n) // directions stay even
+        const th = k * GOLDEN_ANGLE + phase
         const s = Math.sin(rr)
+        const x0 = radius * s * Math.cos(th)
+        const y0 = radius * s * Math.sin(th) * squashY
+        const z0 = radius * Math.cos(rr) * 0.85
         out.set(ids[k].id, {
-          x: cx + r * s * Math.cos(th),
-          y: cy + r * s * Math.sin(th),
-          z: z + r * Math.cos(rr),
+          x: cx + x0,
+          y: cy + y0 * cosT - z0 * sinT,
+          z: z + y0 * sinT + z0 * cosT,
         })
       }
     })
@@ -307,6 +362,11 @@ export function deterministicPlacement(
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
+
+/** How far a core may drift along its radius, as a fraction of the ring. */
+const RADIAL_JITTER = 0.1
+/** How far a core may drift in angle, as a fraction of the angular step. */
+const ANGLE_JITTER = 0.15
 
 const RELAYOUT_THRESHOLD = 0.2 // 20% change triggers relayout
 
@@ -345,6 +405,15 @@ export function useGraph3DLayout() {
     const graph3dNodes: Graph3DNode[] = nodes.map((node) =>
       toGraph3DNode(node, communityByPath, positionCache.current.get(node.id)),
     )
+
+    // Weight, shared by both views: the size of a node and its place in the
+    // core (a hub at the centre, a leaf at the rim) both key on this.
+    const degree = new Map<string, number>()
+    for (const e of edges) {
+      degree.set(e.source, (degree.get(e.source) ?? 0) + 1)
+      degree.set(e.target, (degree.get(e.target) ?? 0) + 1)
+    }
+    for (const n of graph3dNodes) n.degree = degree.get(n.id) ?? 0
 
     // Nodes without a cached position are laid out deterministically in one
     // O(N log N) pass (po-graph's Fermat-spiral-per-community). On a first load
