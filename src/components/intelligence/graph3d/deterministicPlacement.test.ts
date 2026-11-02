@@ -143,4 +143,33 @@ describe('communities reach the placement', () => {
     }
     expect(minDistance).toBeGreaterThan(radius * 2)
   })
+
+  it('packs the busy nodes into the core and the leaves into the halo', () => {
+    // A uniform spiral put every node at the same distance from the centre:
+    // that is the "ball". A nebula has a dense core and a sparse halo, so the
+    // hubs must sit near the middle and the leaves at the rim.
+    const n = 200
+    const nodes: Graph3DNode[] = Array.from({ length: n }, (_, i) => ({
+      id: `h${i}`, label: `h${i}`, entityType: 'file', layer: 'code',
+      x: 0, y: 0, z: 0, communityId: 1, groupKey: 'c1', data: {},
+    }))
+    const edges: IntelligenceEdge[] = []
+    for (let i = 0; i < 20; i++) {
+      for (let j = 0; j < 10; j++) edges.push(mkEdge(`h${i}`, `h${100 + j}`))
+    }
+    const placed = deterministicPlacement(nodes, edges)
+    const centre = Array.from({ length: n }, (_, i) => placed.get(`h${i}`)!)
+      .reduce((a, p) => ({ x: a.x + p.x / n, y: a.y + p.y / n, z: a.z + p.z / n }), { x: 0, y: 0, z: 0 })
+    const radiusOf = (id: string) => {
+      const p = placed.get(id)!
+      return Math.hypot(p.x - centre.x, p.y - centre.y, p.z - centre.z)
+    }
+    const median = (ids: string[]) => {
+      const r = ids.map(radiusOf).sort((a, b) => a - b)
+      return r[Math.floor(r.length / 2)]
+    }
+    const hubs = Array.from({ length: 20 }, (_, i) => `h${i}`)
+    const leaves = Array.from({ length: 50 }, (_, i) => `h${150 + i}`)
+    expect(median(hubs)).toBeLessThan(median(leaves))
+  })
 })

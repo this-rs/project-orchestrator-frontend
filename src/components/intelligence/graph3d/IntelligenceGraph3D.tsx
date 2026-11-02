@@ -607,7 +607,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // the small-graph path already maps weight → width via `linkWidth`.)
     const w = Math.max(0, Math.min(1, link.weight ?? 0.5))
     const weightFactor = 0.12 + 0.88 * Math.sqrt(w)
-    return { r: p.r, g: p.g, b: p.b, a: LINK_OPACITY * p.a * weightFactor }
+    // Inter-community links are the filaments between the nebula's cores: a
+    // bridge that does not stand out leaves only a scatter of dots.
+    const bridge = link.isInterCommunity ? 1.7 : 1
+    return { r: p.r, g: p.g, b: p.b, a: Math.min(1, LINK_OPACITY * p.a * weightFactor * bridge) }
   }, [linkColor])
 
   // ── Per-node style for the overview (Points) tier ─────────────────────
@@ -624,7 +627,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const count = node.data.count as number | undefined
     const isSuper = typeof count === 'number' && count > 1
     const shape = isSuper ? 0 : shapeForType(entityType)
-    const size = isSuper ? 3 + 2.6 * Math.sqrt(count) : sizeForType(entityType)
+    // Weight drives size in BOTH views (the code map sizes by the same idea):
+    // a hub is visibly bigger than a leaf, so the nebula has relief.
+    const deg = (node.degree ?? 0) as number
+    const weightGain = 1 + 0.55 * Math.log1p(deg) / Math.log1p(24)
+    const size = isSuper ? 3 + 2.6 * Math.sqrt(count) : sizeForType(entityType) * weightGain
     const energy = Math.min(1, Math.max(0, (node.data.energy as number) ?? 0))
     const isActive = activation.phase !== 'idle' && activation.phase !== 'searching'
 
