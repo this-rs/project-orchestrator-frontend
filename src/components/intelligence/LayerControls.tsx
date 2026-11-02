@@ -27,6 +27,7 @@ import {
 import { PROJECT_COLORS } from '@/constants/intelligence'
 import { ViewTabs, type ViewTab } from '@/components/ui'
 import { glassFlat, iconButton, segmentItem, segmented } from '@/components/ui/classes'
+import { graphGroupTitle } from './graphSurface'
 
 const presetIcons: Record<string, typeof Layers> = {
   Code2,
@@ -193,7 +194,9 @@ function LayerControlsComponent({
       {/* ── Detail panels — only visible in Custom mode ─────────────── */}
       {customMode && (
         <>
-          {/* Layer toggles */}
+          {/* Layer toggles — titled group (level 2 of the hierarchy) */}
+          <section className="flex w-56 max-w-full flex-col gap-1">
+          <p className={`${graphGroupTitle} px-1`} aria-hidden="true">{t('intelGraph.controls.layers')}</p>
           <div role="group" aria-label={t('intelGraph.controls.layers')} className={`${segmented} flex-col items-stretch`}>
             {LAYER_ORDER.map((layerId) => {
               const layer = LAYERS[layerId]
@@ -229,8 +232,11 @@ function LayerControlsComponent({
               )
             })}
           </div>
+          </section>
 
-          {/* Overlay toggles */}
+          {/* Overlay toggles — same titled group */}
+          <section className="flex w-56 max-w-full flex-col gap-1">
+          <p className={`${graphGroupTitle} px-1`} aria-hidden="true">{t('intelGraph.controls.overlays')}</p>
           <div role="group" aria-label={t('intelGraph.controls.overlays')} className={`${segmented} flex-col items-stretch`}>
             <button
               type="button"
@@ -273,6 +279,7 @@ function LayerControlsComponent({
               {t('intelGraph.controls.communities')}
             </button>
           </div>
+          </section>
 
           {/* Fabric controls — CO_CHANGED threshold slider */}
           {visibleLayers.has('fabric') && (

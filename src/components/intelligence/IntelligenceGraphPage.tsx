@@ -11,7 +11,8 @@ import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
 import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActivation'
 import { GraphLoadingProgress } from './GraphLoadingProgress'
-import { ENTITY_COLORS } from '@/constants/intelligence'
+import { entityColor } from '@/constants/graphPalette'
+import { graphFloat, graphControl } from './graphSurface'
 import {
   intelligenceLoadingAtom,
   intelligenceErrorAtom,
@@ -264,7 +265,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       {/* Controls (bottom-right): brightness slider stacked above fullscreen */}
       <div className="absolute bottom-3 right-3 z-40 flex flex-col items-center gap-1.5">
         {/* View switch: code map ⇄ 3D */}
-        <div role="group" aria-label={t('graph.unified.view')} className="flex items-center gap-0.5 bg-[var(--color-surface-raised)]/90 backdrop-blur-sm rounded-lg border border-white/[0.1] p-0.5">
+        <div role="group" aria-label={t('graph.unified.view')} className={`flex items-center gap-0.5 ${graphFloat} shadow-[var(--shadow-md)] p-0.5`}>
           {(['treemap', '3d'] as const).map((v) => (
             <button
               key={v}
@@ -278,7 +279,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
           ))}
         </div>
         {/* Brightness slider (vertical) */}
-        <div className="flex flex-col items-center gap-1 bg-surface-raised/90 backdrop-blur-sm rounded-lg border border-border-default shadow-[var(--shadow-md)] p-1">
+        <div className={`flex flex-col items-center gap-1 ${graphFloat} shadow-[var(--shadow-md)] p-1`}>
           <Sun size={11} className="text-[var(--text-tertiary)] shrink-0" aria-hidden="true" />
           <input
             type="range"
@@ -303,10 +304,10 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
           />
         </div>
         {/* Fullscreen */}
-        <div className="flex items-center bg-surface-raised/90 backdrop-blur-sm rounded-lg border border-border-default shadow-[var(--shadow-md)] p-0.5">
+        <div className={`flex items-center ${graphFloat} shadow-[var(--shadow-md)] p-0.5`}>
           <button
             onClick={toggleFullscreen}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors"
+            className={`flex items-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium text-[var(--text-secondary)] ${graphControl}`}
             aria-pressed={isFullscreen}
             aria-label={isFullscreen ? t('intelPage.graph.exitFullscreen') : t('intelPage.graph.fullscreen')}
             title={isFullscreen ? t('intelPage.graph.exitFullscreen') : t('intelPage.graph.fullscreen')}
@@ -321,16 +322,16 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         {/* Loading progress — inline, non-blocking */}
         <GraphLoadingProgress />
         {/* Entity legend */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-surface-raised/80 backdrop-blur-sm border border-border-default shadow-[var(--shadow-md)] px-3 py-2 max-w-md pointer-events-auto">
+        <div className={`flex flex-wrap items-center gap-x-4 gap-y-1.5 ${graphFloat} shadow-[var(--shadow-md)] px-3 py-2 max-w-md pointer-events-auto`}>
           {ENTITY_LEGEND
             .filter((group) => visibleLayers.has(group.layer))
             .flatMap((group) => group.types)
             .map((entry) => {
-              const color = ENTITY_COLORS[entry.key as keyof typeof ENTITY_COLORS] ?? '#6B7280'
+              const color = entityColor(entry.key)
               return (
                 <span
                   key={entry.key}
-                  className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+                  className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors"
                   onMouseEnter={() => setLegendHoveredType(entry.key)}
                   onMouseLeave={() => setLegendHoveredType(null)}
                 >
