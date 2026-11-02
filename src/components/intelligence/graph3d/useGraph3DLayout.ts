@@ -206,6 +206,37 @@ export function communityIndex(
 }
 
 /**
+ * Where to put the camera to frame one community — the answer to "more control
+ * on a big graph": at thousands of nodes you do not orbit the whole cloud, you
+ * go to one cluster. Returns the centre, the radius that contains it, and the
+ * distance that frames it. `null` when the community has no member.
+ */
+export function communityFocus(
+  nodes: Graph3DNode[],
+  communityId?: number,
+): { x: number; y: number; z: number; radius: number } | null {
+  const members =
+    communityId == null ? [] : nodes.filter((n) => n.communityId === communityId)
+  if (members.length === 0) return null
+  let x = 0
+  let y = 0
+  let z = 0
+  for (const m of members) {
+    x += m.x
+    y += m.y
+    z += m.z
+  }
+  x /= members.length
+  y /= members.length
+  z /= members.length
+  let radius = 0
+  for (const m of members) {
+    radius = Math.max(radius, Math.hypot(m.x - x, m.y - y, m.z - z))
+  }
+  return { x, y, z, radius }
+}
+
+/**
  * One node, with the community it BELONGS to: its own, or the one of the file
  * it lives in. `groupKey` is what the placement groups on — the community when
  * there is one, the file's directory otherwise (a project with no GDS analytics
