@@ -39,6 +39,8 @@ import {
   graphScaleAtom,
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel } from './graphAggregation'
+import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
+import { createSuperLinkTubes, TUBE_MAX_EDGES, type SuperLinkTubes } from './superLinkTubes'
 import { communityFocus } from './useGraph3DLayout'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
@@ -299,6 +301,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // ── Single LineSegments renderer for links (optimized path) ───────────
   const linkSegmentsRef = useRef<LinkSegments | null>(null)
+
+  // ── Aggregated tier: tube links + named super-nodes ───────────────────
+  // At scaleLevel ≥ 1 the super-edges become tubes and the largest super-nodes
+  // get a billboard name. Both are imperative groups added to / removed from the
+  // scene, mirroring the Points / LineSegments lifecycle below.
+  const superLinkTubesRef = useRef<SuperLinkTubes | null>(null)
+  const superNodeLabelsRef = useRef<SuperNodeLabels | null>(null)
 
   // ── Cleanup cached Three.js resources on unmount ────────────────────────
   useEffect(() => {
@@ -606,6 +615,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // state.layout.tick()), so the single LineSegments / Points must re-read positions.
     linkSegmentsRef.current?.updatePositions()
     nodePointsRef.current?.updatePositions()
+    superLinkTubesRef.current?.updatePositions()
+    superNodeLabelsRef.current?.updatePositions()
   }, [setEngineRunning])
 
   // ── A full graph must stay readable: open aggregated past a threshold ─────
@@ -1695,6 +1706,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // scale is active, the raw graph otherwise.
   const activeGraphData = displayData.nodes.length > 0 ? displayData : emptyGraphData
 
+  // The aggregated tier draws its super-edges as TUBES (see superLinkTubes.ts)
+  // while there are few enough of them; beyond TUBE_MAX_EDGES it falls back to
+  // the single LineSegments (cheap for thousands of 1-px lines). The two are
+  // mutually exclusive: never draw the same bundle twice.
+  const useTubes = aggregated && activeGraphData.links.length > 0 && activeGraphData.links.length <= TUBE_MAX_EDGES
+
   // Don't render ForceGraph3D until we have real container dimensions —
   // passing width=0/height=0 causes Three.js to create a degenerate renderer
   // that can produce layout artifacts when resized later.
@@ -1744,7 +1761,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       linkSegmentsRef.current = null
     }
 
-    if (!useOptimizedLinks || activeGraphData.links.length === 0) return
+    if (!useOptimizedLinks || useTubes || activeGraphData.links.length === 0) return
 
     const seg = createLinkSegments(activeGraphData.nodes, activeGraphData.links)
     seg.updateColors(computeLinkStyleRef.current)
@@ -1760,7 +1777,41 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         linkSegmentsRef.current = null
       }
     }
-  }, [useOptimizedLinks, activeGraphData, wake])
+  }, [useOptimizedLinks, useTubes, activeGraphData, wake])
+
+  // ── Aggregated tier — super-edges as tubes ────────────────────────────
+  // At scaleLevel ≥ 1 the super-edges are few enough (≤ TUBE_MAX_EDGES) to
+  // afford one cylinder each; the LineSegments effect above is skipped while
+  // useTubes is true so a bundle is never drawn twice. Falls back to segments
+  // automatically when the bundle count exceeds the bound (useTubes → false).
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg || typeof fg.scene !== 'function') return
+    const scene = fg.scene()
+    if (!scene) return
+
+    if (superLinkTubesRef.current) {
+      scene.remove(superLinkTubesRef.current.group)
+      superLinkTubesRef.current.dispose()
+      superLinkTubesRef.current = null
+    }
+
+    if (!useTubes) return
+
+    const tubes = createSuperLinkTubes(activeGraphData.nodes, activeGraphData.links)
+    if (!tubes) return
+    scene.add(tubes.group)
+    superLinkTubesRef.current = tubes
+    wake(WAKE_MUTATION_MS)
+
+    return () => {
+      if (superLinkTubesRef.current === tubes) {
+        scene.remove(tubes.group)
+        tubes.dispose()
+        superLinkTubesRef.current = null
+      }
+    }
+  }, [useTubes, activeGraphData, wake])
 
   // ── Recolor links when highlight state changes ────────────────────────
   // linkColor (and thus computeLinkStyle) depends on hover / selection /
@@ -1812,6 +1863,39 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // graph data arrives first, this effect runs with no ForceGraph3D yet and must run
     // again when it mounts — otherwise the Points are never created above the threshold.
   }, [useOptimizedNodes, activeGraphData, wake, hasDimensions])
+
+  // ── Aggregated tier — named super-nodes (billboard SpriteText) ────────
+  // The Points above draws every super-node as a bare shape; the N largest get
+  // a billboard name label so the archipel reads as named clusters. The rest
+  // stay points (their name shows on hover).
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg || typeof fg.scene !== 'function') return
+    const scene = fg.scene()
+    if (!scene) return
+
+    if (superNodeLabelsRef.current) {
+      scene.remove(superNodeLabelsRef.current.group)
+      superNodeLabelsRef.current.dispose()
+      superNodeLabelsRef.current = null
+    }
+
+    if (!aggregated || activeGraphData.nodes.length === 0) return
+
+    const labels = createSuperNodeLabels(activeGraphData.nodes)
+    if (labels.count === 0) return
+    scene.add(labels.group)
+    superNodeLabelsRef.current = labels
+    wake(WAKE_MUTATION_MS)
+
+    return () => {
+      if (superNodeLabelsRef.current === labels) {
+        scene.remove(labels.group)
+        labels.dispose()
+        superNodeLabelsRef.current = null
+      }
+    }
+  }, [aggregated, activeGraphData, wake, hasDimensions])
 
   // Recolor points when any highlight/activation/heatmap state changes.
   useEffect(() => {
@@ -2088,6 +2172,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         onNodeDrag={() => {
           // Dragged node moves without a force tick — keep edges attached.
           linkSegmentsRef.current?.updatePositions()
+          superLinkTubesRef.current?.updatePositions()
+          superNodeLabelsRef.current?.updatePositions()
           wake(WAKE_MUTATION_MS)
         }}
         onNodeDragEnd={(node: Graph3DNode) => {

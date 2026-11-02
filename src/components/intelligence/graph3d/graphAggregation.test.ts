@@ -71,7 +71,7 @@ describe('resolutionForLevel', () => {
   })
 })
 
-import { buildScaledGraph, buildGroupedGraph } from './graphAggregation'
+import { buildScaledGraph, buildGroupedGraph, superNodeName } from './graphAggregation'
 
 describe('buildScaledGraph', () => {
   const data = {
@@ -241,5 +241,42 @@ describe('buildGroupedGraph', () => {
     expect(e.count).toBe(2) // a→d and b→d cross groups; a→c is intra-group
     expect(e.weight).toBe(Math.min(1, 2 / 8))
     expect(e.width).toBe(Math.min(4, 0.5 + 2 * 0.25))
+  })
+
+  it('names every super-node (label + data.name) from its group', () => {
+    const g = buildGroupedGraph(data, 2)
+    const c7 = g.nodes.find((n) => n.id === 'g:c7')
+    expect(c7?.label).toBe('Communauté 7')
+    expect((c7?.data as { name?: string }).name).toBe('Communauté 7')
+  })
+
+  it('uses the community label as the name when one is present', () => {
+    const withLabel = {
+      nodes: [
+        { ...groupedNode('a', 0, 0, 0, 'c7', 'file'), communityLabel: 'auth' },
+        { ...groupedNode('b', 10, 0, 0, 'c7', 'file'), communityLabel: 'auth' },
+      ],
+      links: [] as ReturnType<typeof link>[],
+    }
+    const g = buildGroupedGraph(withLabel, 2)
+    expect(g.nodes[0].label).toBe('auth')
+  })
+})
+
+describe('superNodeName', () => {
+  it('uses the community label when present', () => {
+    expect(superNodeName('g:c7', 'auth')).toBe('auth')
+  })
+  it('falls back to Communauté N for a community key without a label', () => {
+    expect(superNodeName('g:c7')).toBe('Communauté 7')
+  })
+  it('keeps the directory path for a directory group key', () => {
+    expect(superNodeName('g:dsrc/chat')).toBe('src/chat')
+  })
+  it('ignores a blank label and derives from the key', () => {
+    expect(superNodeName('g:c7', '   ')).toBe('Communauté 7')
+  })
+  it('falls back to Groupe … for a raw grid cell key', () => {
+    expect(superNodeName('3,2,1')).toBe('Groupe 3,2,1')
   })
 })
