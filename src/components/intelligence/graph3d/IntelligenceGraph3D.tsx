@@ -38,7 +38,7 @@ import {
   graphBrightnessAtom,
   graphScaleAtom,
 } from '@/atoms/intelligence'
-import { buildScaledGraph, resolutionForLevel } from './graphAggregation'
+import { buildGroupedGraph, resolutionForLevel } from './graphAggregation'
 import { communityFocus } from './useGraph3DLayout'
 import { activationStateAtom } from '../SpreadingActivation'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
@@ -406,12 +406,16 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   }, [graphData.nodes.length])
 
   // ── Multi-scale aggregation (see graphAggregation.ts) ──────────────────
-  // scaleLevel 0 = detail (raw nodes); >0 = super-nodes aggregated on a grid.
+  // scaleLevel 0 = detail (raw nodes); >0 = super-nodes grouped by COMMUNITY,
+  // not by a blind 3D grid: the bundles then mean something — one edge per pair
+  // of communities, thickness = how many real links it replaces. That is what
+  // turns 40 000 threads into thirty readable strands. A node with no
+  // `groupKey` still falls back to the grid (see aggregateByGroup).
   const aggregated = scaleLevel > 0
   const scaleRes = aggregated ? resolutionForLevel(graphData.nodes.length, scaleLevel) : 0
   const displayData = useMemo(() => {
     if (!aggregated || scaleRes <= 0 || graphData.nodes.length === 0) return graphData
-    return buildScaledGraph(graphData, scaleRes)
+    return buildGroupedGraph(graphData, scaleRes)
   }, [aggregated, scaleRes, graphData])
 
   // True in the optimized path (minimal quality: ≥500 nodes, particles off):
