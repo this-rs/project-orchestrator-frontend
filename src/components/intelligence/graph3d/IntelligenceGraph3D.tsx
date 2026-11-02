@@ -680,6 +680,25 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         }
         const fov = ((camera?.fov ?? 45) * Math.PI) / 180
         const distance = (radius / Math.sin(fov / 2)) * 1.06
+        // A fixed far plane clips the cloud as soon as you back away far enough
+        // to see it whole — the user's « je ne peux pas reculer assez pour voir
+        // tous les points ». The frustum and the controls' own limit follow the
+        // graph's size instead of a library default.
+        if (camera) {
+          const far = Math.max(camera.far, distance * 4)
+          if (far !== camera.far) {
+            camera.far = far
+            camera.updateProjectionMatrix()
+          }
+        }
+        const orbit = typeof fg.controls === 'function' ? fg.controls() : null
+        if (orbit) {
+          const max = distance * 3
+          if (typeof orbit.maxDistance === 'number' && orbit.maxDistance < max) {
+            orbit.maxDistance = max
+            orbit.update?.()
+          }
+        }
         // Keep the current viewing direction so a re-frame never spins the view.
         const offset = new THREE.Vector3(
           camera.position.x - cx,
@@ -699,7 +718,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       }
     }, 120)
     return () => clearTimeout(id)
-  }, [needsRelayout, graphData.nodes.length, wake])
+    // A fullscreen switch changes the viewport, not the graph: without
+    // `dimensions` here the camera kept a framing computed for the old canvas,
+    // so half the cloud fell outside the frame.
+  }, [needsRelayout, dimensions, graphData.nodes.length, wake])
 
   // ── Save positions when simulation stops ────────────────────────────────
   const onEngineStop = useCallback(() => {
