@@ -121,6 +121,21 @@ const RENDERER_CONFIG = { antialias: !IS_MOBILE_LIKE }
 const MAX_PIXEL_RATIO = 1.5
 
 /**
+ * The canvas background is the PO surface token, not a hard-coded slate.
+ * `#0f172a` (Tailwind slate-900) was visibly a different dark from
+ * `--color-surface-base` (#0f1117): the graph read as a foreign panel inside
+ * the product. Read once at module load; the fallback keeps it working in a
+ * test environment where no stylesheet is applied.
+ */
+const PO_CANVAS_BG = readCssColor('--color-surface-base', '#0f1117')
+
+function readCssColor(name: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value || fallback
+}
+
+/**
  * Node count above which the 3D view opens in the aggregated step instead of
  * the raw cloud. Below it the detail is legible; above it the same picture is a
  * texture and the user has no way to tell a community from a neighbour.
@@ -532,7 +547,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (!fg || typeof fg.zoomToFit !== 'function') return
     const id = setTimeout(() => {
       try {
-        fg.zoomToFit(600, 30)
+        fg.zoomToFit(600, 70)
         wake(1200)
       } catch {
         // the library is not fully mounted yet — the next layout will frame it
@@ -1278,6 +1293,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   useEffect(() => {
     focusCommunityOfRef.current = focusCommunityOf
   }, [focusCommunityOf])
+  const focusCommunityOfRef2 = useRef(focusCommunityOf)
+  useEffect(() => {
+    focusCommunityOfRef2.current = focusCommunityOf
+  }, [focusCommunityOf])
   const focusCommunityRef = useRef(focusCommunity)
   useEffect(() => {
     focusCommunityRef.current = focusCommunity
@@ -1295,7 +1314,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         clickTimerRef.current = null
       }
       lastClickRef.current = null
-      // Fire double-click
+      // Double-click frames the node's community (the explicit "go there").
+      focusCommunityOfRef2.current(node.id)
       onNodeDoubleClick?.(node.id)
       return
     }
@@ -1305,9 +1325,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
     clickTimerRef.current = setTimeout(() => {
       clickTimerRef.current = null
-      const deselect = node.id === selectedNodeId
-      setSelectedNodeId(deselect ? null : node.id)
-      if (!deselect) focusCommunityOf(node.id)
+      // A single click SELECTS and does not move the camera: framing on every
+      // click yanked the user inside a cluster and hid the rest of the graph
+      // ("le zoom m'empêche de tout voir"). Framing is an explicit gesture:
+      // double-click on a node, or a click on a community face.
+      setSelectedNodeId(node.id === selectedNodeId ? null : node.id)
     }, 350)
   }, [selectedNodeId, setSelectedNodeId, onNodeDoubleClick])
 
@@ -1358,14 +1380,14 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (!scene) return false
 
     // Dark background — prevents white flash
-    scene.background = new THREE.Color('#0f172a')
+    scene.background = new THREE.Color(PO_CANVAS_BG)
 
     // Also set clear color on renderer as belt-and-suspenders
     try {
       if (typeof fg.renderer === 'function') {
         const renderer = fg.renderer()
         if (renderer) {
-          renderer.setClearColor(new THREE.Color('#0f172a'), 1)
+          renderer.setClearColor(new THREE.Color(PO_CANVAS_BG), 1)
           // Clamp the device pixel ratio, same as ActivityHeatmap3D.tsx:170.
           // On a DPR-3 phone this is 2.25× fewer pixels to shade per frame for
           // no visible difference at that pixel density. (three-render-objects
@@ -1725,7 +1747,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   }, [useOptimizedNodes, selectedNodeId, setHoveredNodeId, setSelectedNodeId, onNodeDoubleClick, hasDimensions])
 
   return (
-    <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-[#0f172a]">
+    <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-[var(--color-surface-base)]">
       {hasDimensions && <ForceGraph3D<Graph3DNode, Graph3DLink>
         ref={graphRef}
         width={dimensions.width}
@@ -1787,7 +1809,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         // Renderer (init-only prop) — MSAA off on touch/narrow devices
         rendererConfig={RENDERER_CONFIG}
         // Background
-        backgroundColor="#0f172a"
+        backgroundColor={PO_CANVAS_BG}
       />}
 
       {/* ── Scale stepper (multi-scale aggregation) ─────────────────────── */}
