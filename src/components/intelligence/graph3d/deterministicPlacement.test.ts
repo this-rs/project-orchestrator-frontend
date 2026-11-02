@@ -131,7 +131,8 @@ describe('communities reach the placement', () => {
       )
     }
     const centres = Array.from({ length: groups }, (_, g) => centroidOf(g))
-    const radius = 14 + 4 * Math.sqrt(perGroup)
+    // The contract is on the CORES: halos are allowed to interpenetrate.
+    const core = (10 + 3.2 * Math.sqrt(perGroup)) * 0.45
     let minDistance = Infinity
     for (let i = 0; i < groups; i++) {
       for (let j = i + 1; j < groups; j++) {
@@ -141,7 +142,13 @@ describe('communities reach the placement', () => {
         )
       }
     }
-    expect(minDistance).toBeGreaterThan(radius * 2)
+    expect(minDistance).toBeGreaterThan(core * 2)
+    // …and the nebula must stay COMPACT: spacing the full radii pushed the
+    // clusters apart until the camera pulled back and everything read tiny.
+    const furthest = Math.max(
+      ...centres.map((c) => Math.hypot(c.x, c.y)),
+    )
+    expect(furthest).toBeLessThan(260)
   })
 
   it('packs the busy nodes into the core and the leaves into the halo', () => {
