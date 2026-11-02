@@ -42,6 +42,7 @@ import {
 import { buildGroupedGraph, resolutionForLevel } from './graphAggregation'
 import { nextScaleLevel } from './scaleDecision'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
+import { currentDeviceBudget } from './deviceTier'
 import { createSuperLinkTubes, TUBE_MAX_EDGES, type SuperLinkTubes } from './superLinkTubes'
 import { FrameAnimator } from './frameAnimator'
 import { useLivePulse } from './useLivePulse'
@@ -118,6 +119,8 @@ type GraphRef = any // ForceGraph3D ref methods are dynamically extended
 // desktop. Detection is capability-based (coarse pointer / narrow viewport),
 // never user-agent sniffing.
 const IS_MOBILE_LIKE = isMobileLikeDevice()
+/** Thresholds of this device's tier (deviceTier.ts): halos, labels, pixel ratio. */
+const DEVICE_BUDGET = currentDeviceBudget().budget
 const RENDERER_CONFIG = { antialias: !IS_MOBILE_LIKE }
 
 /**
@@ -159,7 +162,7 @@ function isCoarsePointer(): boolean {
 function pixelRatioCeiling(): number {
   if (typeof window === 'undefined') return 1
   const ceiling = isCoarsePointer() ? MAX_PIXEL_RATIO_COARSE : MAX_PIXEL_RATIO
-  return Math.min(ceiling, window.devicePixelRatio || 1)
+  return Math.min(ceiling, DEVICE_BUDGET.maxPixelRatio, window.devicePixelRatio || 1)
 }
 
 /**
@@ -610,7 +613,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       }
 
       const current = nodesRef.current
-      if (!showCommunityHulls || current.length === 0) return
+      // Halos are one convex hull + one label texture per community: past the tier's
+      // node threshold (low-end phones) they are skipped, whatever the toggle says.
+      if (!showCommunityHulls || current.length === 0 || current.length > DEVICE_BUDGET.maxNodesForHulls) return
 
       // Aggregated tier: one translucent envelope per capped group, wrapped
       // around the group's REAL members (the super-nodes alone are 24 points).
@@ -2021,8 +2026,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
 
     if (!aggregated || activeGraphData.nodes.length === 0) return
+    // One canvas texture per label: skipped on a device whose tier says the graph is too big for them.
+    if (graphData.nodes.length > DEVICE_BUDGET.maxNodesForLabels) return
 
-    const labels = createSuperNodeLabels(activeGraphData.nodes)
+    const labels = createSuperNodeLabels(activeGraphData.nodes, DEVICE_BUDGET.labelLimit)
     if (labels.count === 0) return
     scene.add(labels.group)
     superNodeLabelsRef.current = labels
@@ -2035,7 +2042,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         superNodeLabelsRef.current = null
       }
     }
-  }, [aggregated, activeGraphData, wake, hasDimensions])
+  }, [aggregated, activeGraphData, wake, hasDimensions, graphData.nodes.length])
 
   // Recolor points when any highlight/activation/heatmap state changes.
   useEffect(() => {

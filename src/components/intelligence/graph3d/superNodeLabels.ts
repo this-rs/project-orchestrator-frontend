@@ -53,8 +53,8 @@ export interface SuperNodeLabels {
 }
 
 /** Build a billboard name label above each of the largest super-nodes. */
-export function createSuperNodeLabels(nodes: Graph3DNode[]): SuperNodeLabels {
-  const labeled = selectLabeledNodes(nodes)
+export function createSuperNodeLabels(nodes: Graph3DNode[], limit = SUPER_NODE_LABEL_LIMIT): SuperNodeLabels {
+  const labeled = selectLabeledNodes(nodes, limit)
   const group = new THREE.Group()
   const sprites: SpriteTextInstance[] = []
   for (const node of labeled) {
