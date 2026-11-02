@@ -95,4 +95,27 @@ describe('createLinkSegments', () => {
     expect([pos[3], pos[4], pos[5]]).toEqual([10, 20, 30])
     seg.dispose()
   })
+
+  it('recolors only the links touching a node (hover spotlight), not the whole crate', () => {
+    const nodes: Graph3DNode[] = [
+      { id: 'a', label: 'A', entityType: 'file', layer: 'code', x: 0, y: 0, z: 0, data: {} },
+      { id: 'b', label: 'B', entityType: 'file', layer: 'code', x: 0, y: 0, z: 0, data: {} },
+      { id: 'c', label: 'C', entityType: 'file', layer: 'code', x: 0, y: 0, z: 0, data: {} },
+    ]
+    const mk = (source: string, target: string): Graph3DLink => ({
+      source, target, relationType: 'IMPORTS', layer: 'fabric', color: 'rgba(148,163,184,0.35)', width: 1, particles: 0, particleSpeed: 0, isInterCommunity: false,
+    })
+    const links: Graph3DLink[] = [mk('a', 'b'), mk('b', 'c'), mk('a', 'c')]
+    const seg = createLinkSegments(nodes, links)
+    seg.updateColors(() => ({ r: 0, g: 0, b: 0, a: 0 }))
+    let calls = 0
+    seg.updateColorsForNodes(['a'], () => { calls++; return { r: 1, g: 1, b: 0, a: 1 } })
+    // Only links 0 (a-b) and 2 (a-c) touch node 'a'; link 1 (b-c) is untouched.
+    expect(calls).toBe(2)
+    const col = seg.object.geometry.getAttribute('aColor').array as Float32Array
+    expect([col[0], col[1], col[2]]).toEqual([1, 1, 0])   // link 0 source
+    expect([col[3], col[4], col[5]]).toEqual([1, 1, 0])   // link 0 target
+    expect([col[6], col[7], col[8]]).toEqual([0, 0, 0])   // link 1 (b-c) untouched
+    seg.dispose()
+  })
 })

@@ -91,6 +91,12 @@ export interface LinkSegments {
   updatePositions: () => void
   /** Rewrite `aColor` / `aAlpha` from the style function (called on highlight change). */
   updateColors: (styleFn: LinkStyleFn) => void
+  /**
+   * Rewrite only the links touching the given node ids (hover spotlight).
+   * Uses the adjacency built by setData, so a hover move touches O(degree)
+   * edges instead of the whole crate.
+   */
+  updateColorsForNodes: (nodeIds: readonly string[], styleFn: LinkStyleFn) => void
   dispose: () => void
 }
 
@@ -121,11 +127,26 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
   // outside the constructor (update* read them via geometry.getAttribute).
   let nodeById = new Map<string, Graph3DNode>()
   let linkList = links
+  /** id → indices into `linkList` of every edge touching that node. */
+  let linkIndexByNode = new Map<string, number[]>()
 
   const rebuildIndex = (nodeList: Graph3DNode[]) => {
     const m = new Map<string, Graph3DNode>()
     for (const n of nodeList) m.set(n.id, n)
     nodeById = m
+  }
+
+  const rebuildAdjacency = (linksToIndex: Graph3DLink[]) => {
+    const m = new Map<string, number[]>()
+    for (let i = 0; i < linksToIndex.length; i++) {
+      for (const id of [endpointId(linksToIndex[i].source), endpointId(linksToIndex[i].target)]) {
+        if (!id) continue
+        let arr = m.get(id)
+        if (!arr) { arr = []; m.set(id, arr) }
+        arr.push(i)
+      }
+    }
+    linkIndexByNode = m
   }
 
   const setData = (nextNodes: Graph3DNode[], nextLinks: Graph3DLink[]) => {
@@ -139,6 +160,7 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
       geometry.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(newSegments * 2), 1))
     }
     rebuildIndex(nextNodes)
+    rebuildAdjacency(nextLinks)
     // Fill positions from scratch (and, on a fresh object, the arrays start zeroed).
     updatePositions()
   }
@@ -175,6 +197,39 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
     ;(geometry.getAttribute('aAlpha') as THREE.BufferAttribute).needsUpdate = true
   }
 
+  /** Rewrite only the given link indices (two vertices each), with ranged uploads. */
+  const updateColorsAt = (indices: number[], styleFn: LinkStyleFn) => {
+    if (indices.length === 0) return
+    const col = (geometry.getAttribute('aColor') as THREE.BufferAttribute).array as Float32Array
+    const alp = (geometry.getAttribute('aAlpha') as THREE.BufferAttribute).array as Float32Array
+    const colAttr = geometry.getAttribute('aColor') as THREE.BufferAttribute
+    const alpAttr = geometry.getAttribute('aAlpha') as THREE.BufferAttribute
+    for (const i of indices) {
+      if (i < 0 || i >= linkList.length) continue
+      const s = styleFn(linkList[i])
+      const o = i * 6
+      col[o] = s.r; col[o + 1] = s.g; col[o + 2] = s.b
+      col[o + 3] = s.r; col[o + 4] = s.g; col[o + 5] = s.b
+      const a = i * 2
+      alp[a] = s.a; alp[a + 1] = s.a
+      // Two vertices (source + target) per link, in element units.
+      colAttr.addUpdateRange(i * 6, 6)
+      alpAttr.addUpdateRange(i * 2, 2)
+    }
+    colAttr.needsUpdate = true
+    alpAttr.needsUpdate = true
+  }
+
+  const updateColorsForNodes = (nodeIds: readonly string[], styleFn: LinkStyleFn) => {
+    const idxSet = new Set<number>()
+    for (const id of nodeIds) {
+      const arr = linkIndexByNode.get(id)
+      if (arr) for (const i of arr) idxSet.add(i)
+    }
+    if (idxSet.size === 0) return
+    updateColorsAt([...idxSet], styleFn)
+  }
+
   const dispose = () => {
     geometry.dispose()
     material.dispose()
@@ -183,5 +238,5 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
   // Initial fill.
   setData(nodes, links)
 
-  return { object, setData, updatePositions, updateColors, dispose }
+  return { object, setData, updatePositions, updateColors, updateColorsForNodes, dispose }
 }

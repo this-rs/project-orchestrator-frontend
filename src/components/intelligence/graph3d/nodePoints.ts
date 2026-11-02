@@ -139,7 +139,22 @@ const SPRITE_SCALE = 2.0
 export const NODE_GAIN_REFERENCE = 400
 
 /**
- * Per-node light gain for a graph of `count` nodes: `min(1, √(NREF/count))`.
+ * Floor on the per-node light gain.
+ *
+ * Above ~10k nodes `√(NREF/count)` keeps falling — at 40k nodes it is 0.1 —
+ * and a fully-lit node then emits a tenth of its colour, which reads as black
+ * on the dark canvas; a dimmed (alpha 0.3) node emits 3 % and is invisible.
+ * This is the "the elements should also be visible" failure. The floor keeps a
+ * lit node at least this bright while `1/√N` still damps the aggregate above
+ * the reference. It only bites past `NODE_GAIN_REFERENCE / FLOOR²` (~10k
+ * nodes), which is already beyond the auto-aggregation threshold, so it cannot
+ * re-saturate the everyday cases the `1/√N` falloff exists to fix.
+ */
+export const NODE_GAIN_FLOOR = 0.2
+
+/**
+ * Per-node light gain for a graph of `count` nodes:
+ * `min(1, max(FLOOR, √(NREF/count)))`.
  *
  * WHY √ AND NOT 1/N. Halo brightness adds linearly in the number of sprites,
  * but two nodes only overlap when they are close, and d3 spreads them out as
@@ -150,7 +165,7 @@ export const NODE_GAIN_REFERENCE = 400
  */
 export function nodeGain(count: number): number {
   const n = Number.isFinite(count) && count > 0 ? count : 1
-  return Math.min(1, Math.sqrt(NODE_GAIN_REFERENCE / n))
+  return Math.min(1, Math.max(NODE_GAIN_FLOOR, Math.sqrt(NODE_GAIN_REFERENCE / n)))
 }
 
 const VERTEX_SHADER = /* glsl */ `
@@ -257,6 +272,15 @@ export interface NodePoints {
   setData: (nodes: Graph3DNode[]) => void
   updatePositions: () => void
   updateStyles: (fn: NodeStyleFn) => void
+  /** Index of a node id in the current buffer, or -1 when absent. */
+  indexOf: (id: string) => number
+  /**
+   * Targeted in-place write of ONE node's style attributes. Uses per-attribute
+   * `addUpdateRange` so only this vertex is re-uploaded to the GPU — the
+   * counterpart to `updateStyles`'s full-buffer rewrite, for the transient
+   * hover spotlight (O(1) instead of O(N) per hover change).
+   */
+  updateStyleAt: (index: number, style: NodeStyle) => void
   /**
    * Return the node under a prepared raycaster (three.js Points.raycast).
    * The caller sets `raycaster.params.Points.threshold` from camera distance
@@ -278,6 +302,8 @@ export interface NodePoints {
 
 export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
   let nodeList = nodes
+  /** id → index into the attribute arrays, rebuilt by setData. */
+  let indexById = new Map<string, number>()
   const geometry = new THREE.BufferGeometry()
   const positions = new Float32Array(nodes.length * 3)
   const colors = new Float32Array(nodes.length * 3)
@@ -325,6 +351,9 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
 
   const setData = (next: Graph3DNode[]) => {
     nodeList = next
+    const idx = new Map<string, number>()
+    for (let i = 0; i < next.length; i++) idx.set(next[i].id, i)
+    indexById = idx
     // The gain is a property of the crate, not of a node: recompute it here,
     // once per data change, so a filtered or aggregated graph is not lit like
     // the full one it came from.
@@ -369,6 +398,34 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
     }
   }
 
+  const indexOf = (id: string): number => indexById.get(id) ?? -1
+
+  const updateStyleAt = (index: number, s: NodeStyle) => {
+    if (index < 0 || index >= nodeList.length) return
+    const col = geometry.getAttribute('aColor') as THREE.BufferAttribute
+    const alp = geometry.getAttribute('aAlpha') as THREE.BufferAttribute
+    const siz = geometry.getAttribute('aSize') as THREE.BufferAttribute
+    const shp = geometry.getAttribute('aShape') as THREE.BufferAttribute
+    const act = geometry.getAttribute('aAct') as THREE.BufferAttribute
+    col.setXYZ(index, s.r, s.g, s.b)
+    alp.setX(index, s.alpha)
+    siz.setX(index, s.size)
+    shp.setX(index, s.shape)
+    act.setX(index, s.act)
+    // Single-vertex GPU upload. `addUpdateRange` is counted in ELEMENTS, so a
+    // vec3 attribute spans `itemSize` elements per vertex; scalars span one.
+    col.addUpdateRange(index * col.itemSize, col.itemSize)
+    alp.addUpdateRange(index, 1)
+    siz.addUpdateRange(index, 1)
+    shp.addUpdateRange(index, 1)
+    act.addUpdateRange(index, 1)
+    col.needsUpdate = true
+    alp.needsUpdate = true
+    siz.needsUpdate = true
+    shp.needsUpdate = true
+    act.needsUpdate = true
+  }
+
   // A large, static bounding sphere so Points.raycast never early-rejects on a
   // stale (position-dependent) sphere. frustumCulled is off, so the sphere is
   // only read by the raycaster.
@@ -398,5 +455,5 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
 
   setData(nodes)
 
-  return { object, setData, updatePositions, updateStyles, pick, setPixelRatio, getPixelRatio, dispose }
+  return { object, setData, updatePositions, updateStyles, indexOf, updateStyleAt, pick, setPixelRatio, getPixelRatio, dispose }
 }
