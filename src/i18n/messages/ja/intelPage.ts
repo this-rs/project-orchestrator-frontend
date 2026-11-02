@@ -253,4 +253,9 @@ export default {
     tierDetail: '詳細',
     tierGroups: 'グループ',
   },
+  breadcrumb: {
+    aria: 'グラフのパンくずリスト',
+    all: 'グラフ全体',
+    group: 'グループ {id}',
+  },
 } satisfies Translation<'intelPage'>

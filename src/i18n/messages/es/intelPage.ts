@@ -254,4 +254,9 @@ export default {
     tierDetail: 'detalle',
     tierGroups: 'grupos',
   },
+  breadcrumb: {
+    aria: 'Ruta de navegación del grafo',
+    all: 'Todo el grafo',
+    group: 'Grupo {id}',
+  },
 } satisfies Translation<'intelPage'>

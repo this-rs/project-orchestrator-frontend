@@ -253,4 +253,9 @@ export default {
     tierDetail: 'تفصيل',
     tierGroups: 'مجموعات',
   },
+  breadcrumb: {
+    aria: 'مسار تنقل الرسم البياني',
+    all: 'الرسم البياني بالكامل',
+    group: 'مجموعة {id}',
+  },
 } satisfies Translation<'intelPage'>

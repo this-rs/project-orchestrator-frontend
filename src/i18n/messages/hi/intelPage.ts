@@ -253,4 +253,9 @@ export default {
     tierDetail: 'विवरण',
     tierGroups: 'समूह',
   },
+  breadcrumb: {
+    aria: 'ग्राफ़ ब्रेडक्रंब',
+    all: 'संपूर्ण ग्राफ़',
+    group: 'समूह {id}',
+  },
 } satisfies Translation<'intelPage'>

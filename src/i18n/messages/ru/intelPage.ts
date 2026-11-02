@@ -253,4 +253,9 @@ export default {
     tierDetail: 'детали',
     tierGroups: 'группы',
   },
+  breadcrumb: {
+    aria: 'Навигационная цепочка графа',
+    all: 'Весь граф',
+    group: 'Группа {id}',
+  },
 } satisfies Translation<'intelPage'>

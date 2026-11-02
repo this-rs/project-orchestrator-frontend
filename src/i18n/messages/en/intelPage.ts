@@ -252,4 +252,9 @@ export default {
     tierDetail: 'detail',
     tierGroups: 'groups',
   },
+  breadcrumb: {
+    aria: 'Graph breadcrumbs',
+    all: 'Entire graph',
+    group: 'Group {id}',
+  },
 } as const

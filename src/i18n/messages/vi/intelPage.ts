@@ -253,4 +253,9 @@ export default {
     tierDetail: 'chi tiết',
     tierGroups: 'nhóm',
   },
+  breadcrumb: {
+    aria: 'Đường dẫn điều hướng đồ thị',
+    all: 'Toàn bộ đồ thị',
+    group: 'Nhóm {id}',
+  },
 } satisfies Translation<'intelPage'>

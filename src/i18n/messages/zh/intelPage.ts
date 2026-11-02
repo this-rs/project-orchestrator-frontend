@@ -253,4 +253,9 @@ export default {
     tierDetail: '详细',
     tierGroups: '分组',
   },
+  breadcrumb: {
+    aria: '图导航路径',
+    all: '整个图谱',
+    group: '组 {id}',
+  },
 } satisfies Translation<'intelPage'>
