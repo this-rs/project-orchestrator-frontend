@@ -282,6 +282,9 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     fetchedLayersRef.current.clear()
     setNodes([])
     setEdges([])
+    // A new project means the previously selected node no longer exists in the
+    // data: clear it so the inspector never shows an empty "fiche" for a stale id.
+    setSelectedNodeId(null)
     const layers = Array.from(visibleLayers) as string[]
 
     // Progressive loading: fetch primary layer first (code), then remaining layers.
