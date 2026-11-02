@@ -361,8 +361,8 @@ export function deterministicPlacement(
     const step = (Math.PI * 2) / Math.max(1, keys.length)
     const ring = keys.length > 1
       ? Math.max(
-          110,
-          (cores.reduce((a, b) => a + b, 0) * 1.2) / Math.PI,
+          150,
+          (cores.reduce((a, b) => a + b, 0) * 1.9) / Math.PI,
           (2 * Math.max(...cores)) / ((1 - RADIAL_JITTER) * 2 * Math.sin((step * (1 - 2 * ANGLE_JITTER)) / 2)),
         )
       : 0
