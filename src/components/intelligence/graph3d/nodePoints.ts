@@ -133,6 +133,62 @@ export function sizeForType(entityType: string): number {
 const SPRITE_SCALE = 2.0
 
 /**
+ * Smallest ON-SCREEN size of a node's visible shape, in CSS pixels.
+ *
+ * Measured on a 20 000-node graph framed by the camera (fov 50, uPx 1.5): a
+ * `function` node (size 2) came out as a 3.6-px sprite whose shape is 0.43·S =
+ * 1.5 px, and a `commit` (size 1.5) as 1.2 px — below one pixel the additive
+ * light is spread over a pixel that never reaches the threshold, so the node is
+ * simply not there. Below this size a node stops shrinking: the overview needs
+ * to see every point, even when the camera is far.
+ */
+export const NODE_MIN_SHAPE_PX = 3
+
+/**
+ * Diameter of the visible shape as a fraction of the sprite, at the small end.
+ * At big sizes it is 0.43 (disc edge, see the fragment shader). When the sprite
+ * is small the shapes are enlarged by up to SHAPE_GROW_SMALL so the core
+ * keeps its pixels instead of being eaten by the halo: radius 0.36 (mid-ramp of
+ * the disc) × 1.6 = 0.576 of the half-sprite, i.e. 0.576·S px across.
+ */
+/** Mid-ramp radius of the disc, as a fraction of the half-sprite. */
+export const NODE_SHAPE_MID_RADIUS = 0.36
+const SHAPE_GROW_SMALL = 1.6
+export const NODE_SHAPE_FRACTION_SMALL = NODE_SHAPE_MID_RADIUS * SHAPE_GROW_SMALL
+/** Sprite size (CSS px) under which shapes grow, fully grown at the lower bound. */
+const SHAPE_GROW_FROM_PX = 20
+const SHAPE_GROW_FULL_PX = 8
+
+/**
+ * Sprite floor in CSS px: the sprite for which a fully-grown shape measures
+ * NODE_MIN_SHAPE_PX. 3 / 0.576 = 5.21 px. (It was 2.5 DEVICE px = 1.7 CSS px.)
+ */
+export const NODE_MIN_SPRITE_PX = NODE_MIN_SHAPE_PX / NODE_SHAPE_FRACTION_SMALL
+/** Sprite ceiling in CSS px. */
+export const NODE_MAX_SPRITE_PX = 160
+
+/**
+ * CPU mirror of the vertex shader's `gl_PointSize` (device px), so the bounds
+ * are testable without a GPU. `viewDepth` is the distance along the view axis
+ * (`-mv.z`).
+ */
+export function nodeSpritePx(size: number, viewDepth: number, uPx: number, act = 0): number {
+  const persp = Math.min(24, Math.max(0, 900 / Math.max(1, viewDepth)))
+  const raw = size * persp * uPx * SPRITE_SCALE * (1 + act * 1.2)
+  return Math.min(NODE_MAX_SPRITE_PX * uPx, Math.max(NODE_MIN_SPRITE_PX * uPx, raw))
+}
+
+/** CPU mirror of the fragment shader's shape growth factor (1 → SHAPE_GROW_SMALL). */
+export function shapeGrow(spriteCssPx: number): number {
+  const t = Math.min(1, Math.max(0, (SHAPE_GROW_FROM_PX - spriteCssPx) / (SHAPE_GROW_FROM_PX - SHAPE_GROW_FULL_PX)))
+  return 1 + (SHAPE_GROW_SMALL - 1) * (t * t * (3 - 2 * t))
+}
+
+/** Draw order: edges first, then nodes on top (additive light cannot be hidden by a line). */
+export const LINK_RENDER_ORDER = 1
+export const NODE_POINTS_RENDER_ORDER = 10
+
+/**
  * Node count at which the per-node gain is still 1. A 200-node graph must not
  * pay for a 4000-node one, so nothing is dimmed below this count.
  */
@@ -146,11 +202,18 @@ export const NODE_GAIN_REFERENCE = 400
  * on the dark canvas; a dimmed (alpha 0.3) node emits 3 % and is invisible.
  * This is the "the elements should also be visible" failure. The floor keeps a
  * lit node at least this bright while `1/√N` still damps the aggregate above
- * the reference. It only bites past `NODE_GAIN_REFERENCE / FLOOR²` (~10k
- * nodes), which is already beyond the auto-aggregation threshold, so it cannot
- * re-saturate the everyday cases the `1/√N` falloff exists to fix.
+ * the reference.
+ *
+ * VALUE. 0.2 → 0.3. At 20 000 nodes `√(400/20000)` = 0.141, floored to 0.2. A
+ * disc centre emits (colour·1.658 + 0.22)·gain; against #0f1117 the worst
+ * palette colour (plan #0ea5e9) gives a contrast of 2.27:1 at 0.2 and 3.65:1 at
+ * 0.3 (WCAG ≥ 3:1 needs ≥ ~0.26). TRADE-OFF: the floor now bites from
+ * `400/0.3²` = 4 444 nodes (was 10 000), so between 4.4k and 20k the aggregate
+ * is 1.5× brighter than pure 1/√N — slightly more "milky" where halos overlap.
+ * Accepted: the milk was mostly the LINKS (now faded by density), whereas an
+ * unreadable node is a total loss.
  */
-export const NODE_GAIN_FLOOR = 0.2
+export const NODE_GAIN_FLOOR = 0.3
 
 /**
  * Per-node light gain for a graph of `count` nodes:
@@ -179,6 +242,7 @@ const VERTEX_SHADER = /* glsl */ `
   varying float vAlpha;
   varying float vShape;
   varying float vAct;
+  varying float vSprite;
   void main() {
     vColor = aColor;
     vAlpha = aAlpha;
@@ -193,9 +257,11 @@ const VERTEX_SHADER = /* glsl */ `
     // createNodePoints().setPixelRatio) — otherwise the ratio drop makes every
     // point grow by the factor the renderer lost.
     const float headroom = ${SPRITE_SCALE.toFixed(1)};
-    // Floor 2.5 px, not 1.5: only ~40 % of the sprite is visible shape, so a
-    // smaller sprite would fade the node away entirely.
-    gl_PointSize = clamp(aSize * persp * uPx * headroom * (1.0 + aAct * 1.2), 2.5, 240.0);
+    // Floor = NODE_MIN_SPRITE_PX CSS px (≈ 3 px of visible shape, see
+    // NODE_MIN_SHAPE_PX): a smaller sprite would fade the node away entirely.
+    float sprite = clamp(aSize * persp * uPx * headroom * (1.0 + aAct * 1.2), ${NODE_MIN_SPRITE_PX.toFixed(3)} * uPx, ${NODE_MAX_SPRITE_PX.toFixed(1)} * uPx);
+    gl_PointSize = sprite;
+    vSprite = sprite / uPx;
     gl_Position = projectionMatrix * mv;
   }
 `
@@ -206,6 +272,7 @@ const FRAGMENT_SHADER = /* glsl */ `
   varying float vAlpha;
   varying float vShape;
   varying float vAct;
+  varying float vSprite;
 
   /** Soft annulus of radius r and half-width w, in sprite space (d in 0..1). */
   float ring(float d, float r, float w) {
@@ -221,11 +288,19 @@ const FRAGMENT_SHADER = /* glsl */ `
     // going negative there (a squared negative would bloom INTO the corners).
     float q = max(0.0, 1.0 - d * d);
 
+    // SMALL SPRITES. The halo takes the outer 58 % of the sprite; at 5-8 px that
+    // leaves the shape 1-2 px. Keep the halo's APPARENT radius (it stays in d)
+    // but enlarge shape and core: ps is p seen through a magnifier that grows
+    // from 1 (sprite >= ${SHAPE_GROW_FROM_PX.toFixed(0)} px) to ${SHAPE_GROW_SMALL.toFixed(1)} (sprite <= ${SHAPE_GROW_FULL_PX.toFixed(0)} px).
+    float grow = 1.0 + ${(SHAPE_GROW_SMALL - 1).toFixed(2)} * smoothstep(${SHAPE_GROW_FROM_PX.toFixed(1)}, ${SHAPE_GROW_FULL_PX.toFixed(1)}, vSprite);
+    vec2 ps = p / grow;
+    float ds = length(ps);
+
     // Halo: quadratic falloff — no shoulder, no visible edge, zero at the rim.
     float halo = q * q * 0.62;
     // Core: the hot centre of a light source. Narrower than any shape, so it
     // reads as brightness rather than as an outline.
-    float core = smoothstep(0.26, 0.0, d);
+    float core = smoothstep(0.26, 0.0, ds);
 
     // The four shapes are kept, with a ramp about 1.4× wider than the old
     // hard-edged masks: what used to be a 1-pixel step is now a graded edge that
@@ -233,18 +308,18 @@ const FRAGMENT_SHADER = /* glsl */ `
     float m = 0.0;
     if (vShape < 0.5) {
       // disc
-      m = smoothstep(0.43, 0.29, d) * 1.10;
+      m = smoothstep(0.43, 0.29, ds) * 1.10;
     } else if (vShape < 1.5) {
       // ring (hollow disc) — the outline IS the identity, so the halo steps back
-      m = ring(d, 0.34, 0.12) * 0.95 + core * 0.30;
+      m = ring(ds, 0.34, 0.12) * 0.95 + core * 0.30;
       halo *= 0.40;
     } else if (vShape < 2.5) {
       // diamond — |x|+|y| = 0.46 stays well inside the sprite
-      float dd = abs(p.x) + abs(p.y);
+      float dd = abs(ps.x) + abs(ps.y);
       m = smoothstep(0.53, 0.37, dd) * 0.85 + ring(dd, 0.46, 0.11) * 0.35 + core * 0.55;
     } else {
       // square — max(|x|,|y|) = 0.48, so its corners sit at d = 0.68
-      float sq = max(abs(p.x), abs(p.y));
+      float sq = max(abs(ps.x), abs(ps.y));
       m = smoothstep(0.53, 0.40, sq) * 0.85 + ring(sq, 0.48, 0.10) * 0.35 + core * 0.55;
     }
 
@@ -340,7 +415,7 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
 
   const object = new THREE.Points(geometry, material)
   object.frustumCulled = false
-  object.renderOrder = 1
+  object.renderOrder = NODE_POINTS_RENDER_ORDER
 
   const setPixelRatio = (pixelRatio: number) => {
     const px = Number.isFinite(pixelRatio) && pixelRatio > 0 ? pixelRatio : 1

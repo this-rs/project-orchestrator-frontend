@@ -17,6 +17,7 @@
 
 import * as THREE from 'three'
 import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
+import { LINK_RENDER_ORDER } from './nodePoints'
 
 /** Final per-link style: normalized RGB + alpha (0..1). */
 export interface LinkStyle {
@@ -120,7 +121,9 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
 
   const object = new THREE.LineSegments(geometry, material)
   object.frustumCulled = false
-  object.renderOrder = 10 // draw edges last, like the library's link objects
+  // Edges BEFORE the nodes (see NODE_POINTS_RENDER_ORDER): they were at 10 vs 1
+  // for the nodes, i.e. drawn last and on top of them.
+  object.renderOrder = LINK_RENDER_ORDER
 
   // id → node (live, mutable positions) and the current link list. Both are
   // replaced wholesale on setData; the arrays themselves are never reassigned
