@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Maximize, Minimize, PanelRightClose, PanelRightOpen, Sun } from 'lucide-react'
+import { Maximize, Minimize, PanelRightClose, PanelRightOpen } from 'lucide-react'
 
 import { useWorkspaceIntelligenceGraph } from './useWorkspaceIntelligenceGraph'
 import { NodeInspector } from './NodeInspector'
@@ -11,7 +11,6 @@ import { GraphLoadingProgress } from './GraphLoadingProgress'
 import { graphFloat, graphControl } from './graphSurface'
 import { GraphLegend } from './GraphLegend'
 import { GraphSearchHint } from './GraphSearchHint'
-import { GraphPanel } from './GraphPanel'
 import {
   intelligenceLoadingAtom,
   intelligenceErrorAtom,
@@ -192,36 +191,28 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
 
       {/* Controls toolbar (bottom-right): brightness slider + fullscreen */}
       <div className="absolute bottom-3 right-3 z-40 flex flex-col items-center gap-1.5">
-        {/* Brightness slider (vertical) — collapsible */}
-        <GraphPanel
-          id="brightness"
-          title={t('intelPage.graph.panels.brightness')}
-          icon={<Sun size={11} className="text-[var(--text-tertiary)] shrink-0" aria-hidden="true" />}
-        >
-          <div className="flex flex-col items-center gap-1 p-1">
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={graphBrightness}
-              onChange={(e) => setGraphBrightness(parseFloat(e.target.value))}
-              className="graph-brightness-slider"
-              title={t('intelPage.graph.brightness', { percent: Math.round(graphBrightness * 100) })}
-              aria-label={t('intelPage.graph.brightness', { percent: Math.round(graphBrightness * 100) })}
-              style={{
-                writingMode: 'vertical-lr',
-                direction: 'rtl',
-                width: '14px',
-                height: '80px',
-                appearance: 'none',
-                WebkitAppearance: 'none',
-                background: 'transparent',
-                cursor: 'pointer',
-              }}
-            />
-          </div>
-        </GraphPanel>
+        {/* Brightness slider (vertical) — bare: no title, no panel chrome */}
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={graphBrightness}
+          onChange={(e) => setGraphBrightness(parseFloat(e.target.value))}
+          className="graph-brightness-slider"
+          title={t('intelPage.graph.brightness', { percent: Math.round(graphBrightness * 100) })}
+          aria-label={t('intelPage.graph.brightness', { percent: Math.round(graphBrightness * 100) })}
+          style={{
+            writingMode: 'vertical-lr',
+            direction: 'rtl',
+            width: '14px',
+            height: '80px',
+            appearance: 'none',
+            WebkitAppearance: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+          }}
+        />
         {/* Fullscreen toggle */}
         <div className={`flex items-center ${graphFloat} shadow-[var(--shadow-md)] p-0.5`}>
           <button
