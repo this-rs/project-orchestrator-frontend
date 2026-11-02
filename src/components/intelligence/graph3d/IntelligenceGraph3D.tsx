@@ -40,6 +40,7 @@ import {
   graphScaleAtom,
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel } from './graphAggregation'
+import { characteristicClusterRadius, nextScaleLevel } from './scaleDecision'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { createSuperLinkTubes, TUBE_MAX_EDGES, type SuperLinkTubes } from './superLinkTubes'
 import { FrameAnimator } from './frameAnimator'
@@ -700,30 +701,52 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // ── Multi-scale zoom: the camera distance picks the aggregation step ─────
   // The answer to "millions of single links": above the detail, links are drawn
   // as bundles between groups and zooming IN degroups them a step at a time
-  // (po-graph's semantic zoom). Thresholds are relative to the graph's own
-  // radius so they hold whatever its size, and the gaps between "go up" and
-  // "come back down" are the hysteresis that stops a boundary from flickering.
+  // (po-graph's semantic zoom).
+  //
+  // Thresholds are expressed in a CHARACTERISTIC CLUSTER RADIUS, not in the
+  // graph's own radius. A ratio against the whole graph is the wrong yardstick:
+  // at 1.7× the graph's radius the clusters are still tiny on screen, so the
+  // view degrouped before the user could read the level they were on. Measured
+  // against one cluster, the level only changes when the members are really
+  // distinguishable or really blurred:
+  //
+  //   • DEGROUP_DISTANCE_RATIO = 3 — closer than 3× a cluster radius, the
+  //     members spread over ≈1 cluster radius and become resolvable, so one
+  //     step DOWN is allowed.
+  //   • REGROUP_DISTANCE_RATIO = 6 — further than 6× a cluster radius, the
+  //     cluster is small enough that its internal detail is lost, so one step
+  //     UP is safe.
+  //
+  // The 3×…6× gap is the dead zone (hysteresis): the level holds inside it, so
+  // a boundary never flickers. The decision itself is the pure function
+  // `nextScaleLevel` (scaleDecision.ts), unit-tested without WebGL.
+  //
+  // The characteristic radius is the MEDIAN super-node radius of the current
+  // tier — or of the first aggregated tier while at the detail level, where
+  // there are no super-nodes yet. Median, not mean: one huge catch-all group
+  // ("everything else") must not drag a mean out to its own scale.
+  const clusterRadiusNodes = useMemo<Graph3DNode[]>(() => {
+    if (aggregated) return displayData.nodes
+    if (graphData.nodes.length === 0) return []
+    const res1 = resolutionForLevel(graphData.nodes.length, 1)
+    return res1 > 0 ? buildGroupedGraph(graphData, res1).nodes : []
+  }, [aggregated, displayData.nodes, graphData])
+
   useEffect(() => {
     const fg = graphRef.current
     if (!fg || typeof fg.controls !== 'function') return
     const controls = fg.controls()
     if (!controls || typeof controls.addEventListener !== 'function') return
-    let radius = 1
-    for (const n of graphData.nodes) {
-      radius = Math.max(radius, Math.hypot(n.x, n.y, n.z))
-    }
     const onEnd = () => {
       userInteractingRef.current = false
       const camera = typeof fg.camera === 'function' ? fg.camera() : null
       const target = controls.target
       if (!camera || !target) return
-      const ratio = camera.position.distanceTo(target) / radius
+      const distance = camera.position.distanceTo(target)
+      const radius = characteristicClusterRadius(clusterRadiusNodes)
       setScaleLevel((current) => {
-        if (current === 0 && ratio > 2.2) return 1
-        if (current === 1 && ratio > 3.2) return 2
-        if (current === 2 && ratio < 2.4) return 1
-        if (current === 1 && ratio < 1.7) return 0
-        return current
+        const next = nextScaleLevel(distance, radius, current)
+        return Math.max(0, Math.min(MAX_SCALE, next))
       })
     }
     const onStart = () => {
@@ -735,7 +758,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       controls.removeEventListener('start', onStart)
       controls.removeEventListener('end', onEnd)
     }
-  }, [graphData.nodes, setScaleLevel])
+  }, [clusterRadiusNodes, setScaleLevel])
 
   // ── Data identity: re-frame once per dataset, not once per node count ───
   // `needsRelayout` is a boolean that stays `true` across a dataset swap, and
