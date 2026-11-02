@@ -268,8 +268,15 @@ export function toGraph3DNode(
     z: pos?.z ?? 0,
     communityId,
     communityLabel,
+    // Prefer the community, then the directory, then the (layer, type) pair.
+    // A knowledge note has no path: without this third rung it fell into a grid
+    // cell labelled "2,7,7", which names nothing. "note:knowledge" does.
     groupKey:
-      communityId != null ? `c${communityId}` : path ? `d${directoryOf(path)}` : undefined,
+      communityId != null
+        ? `c${communityId}`
+        : path
+          ? `d${directoryOf(path)}`
+          : `t${layer}:${entityType}`,
     data,
   }
 }

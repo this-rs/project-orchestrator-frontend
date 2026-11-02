@@ -39,7 +39,7 @@ import {
   graphBrightnessAtom,
   graphScaleAtom,
 } from '@/atoms/intelligence'
-import { buildGroupedGraph, groupHullNodes, resolutionForLevel } from './graphAggregation'
+import { buildGroupedGraph, resolutionForLevel } from './graphAggregation'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { createSuperLinkTubes, TUBE_MAX_EDGES, type SuperLinkTubes } from './superLinkTubes'
 import { FrameAnimator } from './frameAnimator'
@@ -599,7 +599,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
       // Aggregated tier: one translucent envelope per capped group, wrapped
       // around the group's REAL members (the super-nodes alone are 24 points).
-      const hullNodes = aggregated ? groupHullNodes(current, scaleResRef.current) : current
+      // No hull at the aggregated step: the fan-triangulated envelope, scaled up
+      // to swallow a whole cluster, covered the entire scene in solid colour
+      // (screenshots of 02/11). A group is read by its size and its label, not
+      // by a translucent volume we cannot draw honestly in 3D yet.
+      const hullNodes = current
 
       // Only build if any node has a communityId
       const hasCommunities = hullNodes.some((n) => n.communityId != null)
