@@ -205,13 +205,14 @@ export const intelligenceCommunitiesAtom = atom<BackendGraphCommunity[]>([])
 // ── Graph node limit ────────────────────────────────────────────────────────
 
 /**
- * Max nodes requested from the API. Raised from 1000 to 5000 so the graph can
- * show more than the old cap; from 2000 up, nodes are drawn as a single
- * THREE.Points (see graph3d/nodePoints.ts) instead of one sprite group per
- * node, which is what makes 5000 drawable. Lower it if the initial payload is
- * too heavy for your backend.
+ * Node budget for the whole graph — split across the categories the API serves
+ * (files, symbols, knowledge, skills, behavioural, pm) because its `limit` is
+ * per category. 20 000 is what a FULL graph needs; the renderer stays light
+ * because above 2 000 nodes they are one `THREE.Points` (graph3d/nodePoints.ts)
+ * and above 4 000 the view opens aggregated. Lower it if the payload is too
+ * heavy for your backend.
  */
-export const graphNodeLimitAtom = atom<number>(5000)
+export const graphNodeLimitAtom = atom<number>(20000)
 
 /**
  * Aggregation scale of the 3D graph. 0 = full detail (individual nodes);

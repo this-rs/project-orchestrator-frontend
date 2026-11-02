@@ -23,7 +23,7 @@ import {
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
 import { createLinkSegments, parseColor, type LinkSegments, type LinkStyle } from './linkSegments'
 import { createNodePoints, shapeForType, sizeForType, type NodePoints, type NodeStyle } from './nodePoints'
-import { buildCommunityHulls, disposeCommunityHulls, type CommunityHullGroup } from './CommunityHulls3D'
+import { buildCommunityHulls, disposeCommunityHulls, type CommunityHull, type CommunityHullGroup } from './CommunityHulls3D'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
   selectedNodeIdAtom,
@@ -1243,12 +1243,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // On thousands of nodes "control" is not orbiting the whole cloud, it is
   // going to one group. Distance scales with the cluster radius, so a big
   // community is framed from further away and a small one from up close.
-  const focusCommunityOf = useCallback(
-    (nodeId: string) => {
+  const focusCommunity = useCallback(
+    (communityId: number | undefined) => {
       const fg = graphRef.current
       if (!fg || typeof fg.cameraPosition !== 'function') return
-      const node = graphData.nodes.find((n) => n.id === nodeId)
-      const focus = communityFocus(graphData.nodes, node?.communityId)
+      const focus = communityFocus(graphData.nodes, communityId)
       if (!focus) return
       const distance = Math.max(120, focus.radius * 2.4)
       try {
@@ -1265,12 +1264,24 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     [graphData.nodes, wake],
   )
 
+  const focusCommunityOf = useCallback(
+    (nodeId: string) => {
+      const node = graphData.nodes.find((n) => n.id === nodeId)
+      focusCommunity(node?.communityId)
+    },
+    [graphData.nodes, focusCommunity],
+  )
+
   // The Points pick lives in an effect with a narrow dependency list; it reads
-  // the latest callback through a ref so a click never frames a stale graph.
+  // the latest callbacks through refs so a click never frames a stale graph.
   const focusCommunityOfRef = useRef(focusCommunityOf)
   useEffect(() => {
     focusCommunityOfRef.current = focusCommunityOf
   }, [focusCommunityOf])
+  const focusCommunityRef = useRef(focusCommunity)
+  useEffect(() => {
+    focusCommunityRef.current = focusCommunity
+  }, [focusCommunity])
 
   const onNodeClick = useCallback((node: Graph3DNode) => {
     const now = Date.now()
@@ -1605,6 +1616,42 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     let rafId = 0
     let pendingEv: PointerEvent | null = null
     let lastHoverId: string | null = null
+    // ── Community hulls are the "faces" ──────────────────────────────────
+    // A hull is a surface, so it deserves the same treatment as a node: hover
+    // raises it so the group reads as a volume, click frames the whole
+    // community. Only when NO node is under the pointer, so a node always wins.
+    const hullMeshes: THREE.Object3D[] = []
+    const raycastHull = (): CommunityHull | null => {
+      const hulls = communityHullsRef.current?.hulls ?? []
+      if (hulls.length === 0) return null
+      hullMeshes.length = 0
+      for (const h of hulls) hullMeshes.push(h.fillMesh)
+      const first = raycaster.intersectObjects(hullMeshes, false)[0]
+      if (!first) return null
+      const id = (first.object.userData as { communityId?: number }).communityId
+      return hulls.find((h) => h.communityId === id) ?? null
+    }
+
+    let hoveredHull: CommunityHull | null = null
+    const setHullHover = (next: CommunityHull | null) => {
+      if (next === hoveredHull) return
+      const restore = (h: CommunityHull) => {
+        const m = h.fillMesh.material as THREE.MeshBasicMaterial
+        const base = h.fillMesh.userData.baseOpacity
+        if (typeof base === 'number') m.opacity = base
+      }
+      if (hoveredHull) restore(hoveredHull)
+      if (next) {
+        const m = next.fillMesh.material as THREE.MeshBasicMaterial
+        if (typeof next.fillMesh.userData.baseOpacity !== 'number') {
+          next.fillMesh.userData.baseOpacity = m.opacity
+        }
+        m.opacity = Math.min(0.4, (m.opacity || 0.08) * 3.5)
+      }
+      hoveredHull = next
+      wake(WAKE_MUTATION_MS)
+    }
+
     const runPick = () => {
       rafId = 0
       if (!pendingEv) return
@@ -1614,9 +1661,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       const np = nodePointsRef.current
       if (!np || !aim(ev)) return
       const hit = np.pick(raycaster)
+      const hull = hit ? null : raycastHull()
+      setHullHover(hull)
       const id = hit?.id ?? null
       if (id !== lastHoverId) { lastHoverId = id; setHoveredNodeId(id) }
-      el.style.cursor = hit ? 'pointer' : 'default'
+      el.style.cursor = hit || hull ? 'pointer' : 'default'
     }
 
     const onMove = (ev: PointerEvent) => {
@@ -1641,7 +1690,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       const np = nodePointsRef.current
       if (!np || !aim(ev)) return
       const hit = np.pick(raycaster)
-      if (!hit) { setSelectedNodeId(null); return }
+      if (!hit) {
+        // No node: a hull face is still a target — frame the whole community.
+        const hull = raycastHull()
+        if (hull) { focusCommunityRef.current(hull.communityId); return }
+        setSelectedNodeId(null)
+        return
+      }
 
       const now = Date.now()
       const last = pointsClickRef.current
