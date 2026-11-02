@@ -271,7 +271,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const brightness = useAtomValue(graphBrightnessAtom)
   const [scaleLevel, setScaleLevel] = useAtom(graphScaleAtom)
 
-  const { transformToGraph3D, savePositions } = useGraph3DLayout()
+  const { transformToGraph3D, savePositions } = useGraph3DLayout(nodes, edges)
 
   // ── Single Points renderer for nodes (overview tier) ──────────────────
   // Declared BEFORE the render loop: the loop's frame budget owns the pixel
