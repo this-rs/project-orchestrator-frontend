@@ -1,3 +1,4 @@
+import { graphControl } from './graphSurface'
 import { memo, useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { atom } from 'jotai'
@@ -226,7 +227,7 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
         <button
           onClick={handleClose}
           aria-label={t('intelDashboard.activation.close')}
-          className="p-1 rounded-md hover:bg-surface-highlight text-[var(--text-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors"
+          className={`p-1 rounded-md text-[var(--text-tertiary)] ${graphControl}`}
         >
           <X size={14} />
         </button>

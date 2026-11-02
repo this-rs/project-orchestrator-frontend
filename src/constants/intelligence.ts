@@ -10,6 +10,7 @@ import type {
   IntelligenceRelationType,
 } from '@/types/intelligence'
 import { tr } from '@/i18n/lazy'
+import { PO_LAYER_COLOR, PO_ENTITY_COLOR } from './graphPalette'
 
 // ============================================================================
 // LAYER CONFIGURATION
@@ -24,7 +25,7 @@ export const LAYERS: Record<IntelligenceLayer, LayerConfig> = {
     get description() {
       return tr('intelConfig.layer.code.description')
     },
-    color: '#3B82F6', // blue-500
+    color: PO_LAYER_COLOR.code,
     enabled: true,
     zIndex: 2,
   },
@@ -36,7 +37,7 @@ export const LAYERS: Record<IntelligenceLayer, LayerConfig> = {
     get description() {
       return tr('intelConfig.layer.pm.description')
     },
-    color: '#10B981', // emerald-500
+    color: PO_LAYER_COLOR.pm,
     enabled: false,
     zIndex: 3,
   },
@@ -48,7 +49,7 @@ export const LAYERS: Record<IntelligenceLayer, LayerConfig> = {
     get description() {
       return tr('intelConfig.layer.knowledge.description')
     },
-    color: '#F59E0B', // amber-500
+    color: PO_LAYER_COLOR.knowledge,
     enabled: true,
     zIndex: 4,
   },
@@ -60,7 +61,7 @@ export const LAYERS: Record<IntelligenceLayer, LayerConfig> = {
     get description() {
       return tr('intelConfig.layer.fabric.description')
     },
-    color: '#94A3B8', // slate-400
+    color: PO_LAYER_COLOR.fabric,
     enabled: true,
     zIndex: 1,
   },
@@ -72,7 +73,7 @@ export const LAYERS: Record<IntelligenceLayer, LayerConfig> = {
     get description() {
       return tr('intelConfig.layer.neural.description')
     },
-    color: '#06B6D4', // cyan-500
+    color: PO_LAYER_COLOR.neural,
     enabled: false,
     zIndex: 5,
   },
@@ -84,7 +85,7 @@ export const LAYERS: Record<IntelligenceLayer, LayerConfig> = {
     get description() {
       return tr('intelConfig.layer.skills.description')
     },
-    color: '#EC4899', // pink-500
+    color: PO_LAYER_COLOR.skills,
     enabled: false,
     zIndex: 7,
   },
@@ -96,7 +97,7 @@ export const LAYERS: Record<IntelligenceLayer, LayerConfig> = {
     get description() {
       return tr('intelConfig.layer.behavioral.description')
     },
-    color: '#F97316', // orange-500
+    color: PO_LAYER_COLOR.behavioral,
     enabled: false,
     zIndex: 6,
   },
@@ -108,7 +109,7 @@ export const LAYERS: Record<IntelligenceLayer, LayerConfig> = {
     get description() {
       return tr('intelConfig.layer.chat.description')
     },
-    color: '#6366F1', // indigo-500
+    color: PO_LAYER_COLOR.chat,
     enabled: false,
     zIndex: 8,
   },
@@ -122,34 +123,8 @@ export const LAYER_ORDER: IntelligenceLayer[] = [
 // ENTITY COLORS (from note edb565a7)
 // ============================================================================
 
-export const ENTITY_COLORS: Record<IntelligenceEntityType, string> = {
-  // Code — maximally distinct hues across the color wheel
-  file: '#3B82F6',       // blue-500
-  function: '#22C55E',   // green-500
-  struct: '#A855F7',     // purple-500
-  trait: '#EF4444',      // red-500
-  enum: '#64748B',       // slate-500
-  // PM (Greens)
-  plan: '#10B981',       // emerald-500
-  task: '#22C55E',       // green-500
-  step: '#BBF7D0',       // green-200
-  milestone: '#F59E0B',  // amber-500
-  release: '#14B8A6',    // teal-500
-  commit: '#84CC16',     // lime-500
-  // Knowledge (Ambers)
-  note: '#F59E0B',       // amber-500
-  decision: '#8B5CF6',   // violet-500
-  constraint: '#DC2626', // red-600
-  // Skills (Pinks)
-  skill: '#EC4899',      // pink-500
-  // Behavioral (Oranges)
-  protocol: '#F97316',        // orange-500
-  protocol_state: '#FB923C',  // orange-400
-  // Chat (Indigo)
-  chat_session: '#6366F1',    // indigo-500
-  // Feature Graphs (Fuchsia — visually distinct from blue code nodes)
-  feature_graph: '#E879F9',   // fuchsia-400
-}
+/** Entity colours: derived from the palette (constants/graphPalette.ts), the only place to change them. */
+export const ENTITY_COLORS: Record<IntelligenceEntityType, string> = PO_ENTITY_COLOR
 
 // ============================================================================
 // RELATION EDGE STYLES (from notes 1c96e215 & edb565a7)

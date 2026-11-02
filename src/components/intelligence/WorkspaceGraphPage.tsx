@@ -8,7 +8,7 @@ import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
 import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActivation'
 import { GraphLoadingProgress } from './GraphLoadingProgress'
-import { ENTITY_COLORS } from '@/constants/intelligence'
+import { entityColor } from '@/constants/graphPalette'
 import {
   intelligenceLoadingAtom,
   intelligenceErrorAtom,
@@ -269,7 +269,7 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
             .filter((group) => visibleLayers.has(group.layer))
             .flatMap((group) => group.types)
             .map((entry) => {
-              const color = ENTITY_COLORS[entry.key as keyof typeof ENTITY_COLORS] ?? '#6B7280'
+              const color = entityColor(entry.key)
               return (
                 <span
                   key={entry.key}

@@ -175,13 +175,6 @@
     "date": "2026-10-08"
   },
   {
-    "path": "src/components/intelligence/LayerControls.tsx",
-    "rule": "uppercase-tracking-wider",
-    "count": 1,
-    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
-    "date": "2026-10-08"
-  },
-  {
     "path": "src/components/intelligence/LearningTimeline.tsx",
     "rule": "filled-pill",
     "count": 1,
@@ -192,13 +185,6 @@
     "path": "src/components/intelligence/LearningTimeline.tsx",
     "rule": "uppercase-tracking-wider",
     "count": 4,
-    "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
-    "date": "2026-10-08"
-  },
-  {
-    "path": "src/components/intelligence/NodeInspector.tsx",
-    "rule": "uppercase-tracking-wider",
-    "count": 6,
     "reason": "Kicker / section labels in `uppercase tracking-wider`: the contract's group header is `text-[11px] font-medium text-gray-500` (`ListGroup`, `Section`). Owner: no pass yet (Build group: a later wave).",
     "date": "2026-10-08"
   },
