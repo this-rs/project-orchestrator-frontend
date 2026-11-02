@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { createNodePoints, shapeForType, sizeForType, nodeGain, NODE_GAIN_REFERENCE, NODE_GAIN_FLOOR } from './nodePoints'
+import {
+  createNodePoints, shapeForType, sizeForType, nodeGain, NODE_GAIN_REFERENCE, NODE_GAIN_FLOOR,
+  NODE_MIN_SHAPE_PX, NODE_MIN_SPRITE_PX, NODE_SHAPE_MID_RADIUS, NODE_SHAPE_FRACTION_SMALL, NODE_POINTS_RENDER_ORDER,
+  LINK_RENDER_ORDER, nodeSpritePx, shapeGrow,
+} from './nodePoints'
+import { entityColor } from '@/constants/graphPalette'
+import { parseColor } from './linkSegments'
 import type { Graph3DNode } from './useGraph3DLayout'
 
 const mk = (id: string, x: number, y: number, z: number): Graph3DNode => ({
@@ -181,7 +187,7 @@ describe('nodePoints material', () => {
     const large = mat(10_000)
     const gain = (m: THREE.ShaderMaterial) => m.uniforms.uGlobal.value as number
     expect(gain(small.material)).toBe(1)
-    expect(gain(large.material)).toBeLessThan(0.3)
+    expect(gain(large.material)).toBeLessThan(0.5)
     small.np.dispose()
     large.np.dispose()
   })
@@ -226,6 +232,82 @@ describe('nodePoints material', () => {
     expect(material.vertexShader).toContain('gl_PointSize')
     expect(material.vertexShader).toMatch(/uPx/)
     expect(material.vertexShader).toMatch(/aAct \* 1\.2/)
+    np.dispose()
+  })
+})
+
+// --- visibility at 20 000 nodes (no GPU: the shader's maths mirrored in JS) ---
+
+const BG = parseColor('#0f1117')
+const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+const lum = (c: number[]) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2])
+const contrast = (a: number[], b: number[]) => {
+  const x = lum(a), y = lum(b)
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+}
+
+describe('minimum on-screen size', () => {
+  it('floors the sprite so the visible shape never drops under NODE_MIN_SHAPE_PX', () => {
+    for (const uPx of [1, 1.5]) {
+      for (const size of [1.5, 2, 4, 6]) {
+        // from close up to far beyond the framing distance of a huge graph
+        for (const depth of [50, 750, 1500, 3000, 6000, 60_000, 1e6]) {
+          const spriteCss = nodeSpritePx(size, depth, uPx) / uPx
+          const shapeCss = spriteCss * NODE_SHAPE_MID_RADIUS * shapeGrow(spriteCss)
+          expect(spriteCss).toBeGreaterThanOrEqual(NODE_MIN_SPRITE_PX - 1e-9)
+          expect(shapeCss).toBeGreaterThanOrEqual(NODE_MIN_SHAPE_PX - 1e-9)
+        }
+      }
+    }
+    // The old floor was 2.5 DEVICE px = 1.67 CSS px at uPx 1.5: shape 0.43·1.67 = 0.7 px.
+    expect(NODE_MIN_SPRITE_PX * NODE_SHAPE_FRACTION_SMALL).toBeCloseTo(NODE_MIN_SHAPE_PX, 6)
+  })
+
+  it('reaches the floor before the node would vanish (commit at 20k-node framing)', () => {
+    // R = 1200 → D = R / sin(25°) · 1.06 ≈ 3010; raw size 1.5·0.299·1.5·2 = 1.35 px
+    const raw = 1.5 * (900 / 3010) * 1.5 * 2
+    expect(raw).toBeLessThan(2)
+    expect(nodeSpritePx(1.5, 3010, 1.5) / 1.5).toBeGreaterThanOrEqual(NODE_MIN_SPRITE_PX)
+  })
+
+  it('grows the shape inside a small sprite and leaves a large one alone', () => {
+    expect(shapeGrow(5.2)).toBeCloseTo(1.6, 6)
+    expect(shapeGrow(30)).toBe(1)
+    expect(shapeGrow(14)).toBeGreaterThan(1)
+    expect(shapeGrow(14)).toBeLessThan(1.6)
+  })
+
+  it('wires the floor and the varying into the shaders', () => {
+    const np = createNodePoints([])
+    const material = np.object.material as THREE.ShaderMaterial
+    expect(material.vertexShader).toContain(NODE_MIN_SPRITE_PX.toFixed(3))
+    expect(material.vertexShader).toContain('vSprite')
+    expect(material.fragmentShader).toContain('vSprite')
+    np.dispose()
+  })
+})
+
+describe('luminance floor at 20 000 nodes', () => {
+  it('keeps the dimmest palette colour at >= 3:1 against the canvas', () => {
+    const gain = nodeGain(20_000)
+    expect(gain).toBeCloseTo(NODE_GAIN_FLOOR, 6) // 1/√N = 0.141 is under the floor
+    // disc centre of the fragment shader: m = 1.10, halo = 0.62·0.9, core adds 0.22 white
+    const centre = 1.1 + 0.62 * 0.9
+    let worst = Infinity
+    for (const t of ['file', 'function', 'struct', 'trait', 'step', 'plan', 'task', 'commit', 'milestone', 'decision']) {
+      const c = parseColor(entityColor(t))
+      const px = [c.r, c.g, c.b].map((v, i) => Math.min(1, [BG.r, BG.g, BG.b][i] + Math.min(4, v * centre + 0.22) * gain))
+      worst = Math.min(worst, contrast(px, [BG.r, BG.g, BG.b]))
+    }
+    expect(worst).toBeGreaterThanOrEqual(3)
+  })
+})
+
+describe('draw order', () => {
+  it('draws the nodes after the links', () => {
+    expect(NODE_POINTS_RENDER_ORDER).toBeGreaterThan(LINK_RENDER_ORDER)
+    const np = createNodePoints([])
+    expect(np.object.renderOrder).toBe(NODE_POINTS_RENDER_ORDER)
     np.dispose()
   })
 })
