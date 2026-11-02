@@ -828,8 +828,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const ACTIVATION_COLOR_EDGE = '#34D399'    // emerald-400 (active synapse edges)
   const INTER_COMMUNITY_COLOR = '#F8FAFC'   // slate-50 (bright white — stands out against dark bg)
 
-  // ── Link styling (hover + selection coexist, AND spreading activation) ──
-  const linkColor = useCallback((link: Graph3DLink) => {
+  // ── Link colour, WITHOUT transient hover ──────────────────────────────
+  // Covers spreading activation, selection (cyan + dim), group highlight and
+  // inter-community edges. The Points-tier LineSegments bulk recolor uses this:
+  // it must NOT depend on hoveredNodeId, or every hover change would rewrite
+  // the whole crate (O(E) per frame). Hover is a separate amber overlay.
+  const baseLinkColor = useCallback((link: Graph3DLink) => {
     const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
     const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
 
@@ -847,15 +851,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       return 'rgba(107, 114, 128, 0.05)'
     }
 
-    // Hover (amber) AND selection (cyan) coexist — hover takes visual priority on shared edges
-    if (hasAnyHighlight) {
-      const isHoverConnected = hoveredNodeId
-        ? (sourceId === hoveredNodeId || targetId === hoveredNodeId)
-        : false
-      const isSelectConnected = selectedNodeId
-        ? (sourceId === selectedNodeId || targetId === selectedNodeId)
-        : false
-      if (isHoverConnected) return HIGHLIGHT_COLOR_HOVER
+    // Selection (persistent focus) — cyan for connected, dim the rest.
+    if (selectedNodeId) {
+      const isSelectConnected = sourceId === selectedNodeId || targetId === selectedNodeId
       if (isSelectConnected) return HIGHLIGHT_COLOR_SELECT
       return 'rgba(107, 114, 128, 0.08)'
     }
@@ -877,15 +875,30 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
 
     return link.color
-  }, [hoveredNodeId, selectedNodeId, hasAnyHighlight, activation, showCommunityHulls, highlightedGroup])
+  }, [selectedNodeId, activation, showCommunityHulls, highlightedGroup])
+
+  // ── Link colour for the sprite path (library cylinders) ───────────────
+  // Hover (amber) takes visual priority over selection on shared edges and
+  // fades the rest. The small-graph path can afford the O(E) the library pays
+  // to re-evaluate accessors on every hover change.
+  const linkColor = useCallback((link: Graph3DLink) => {
+    if (hoveredNodeId) {
+      const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
+      const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
+      const connected = sourceId === hoveredNodeId || targetId === hoveredNodeId
+      if (connected) return HIGHLIGHT_COLOR_HOVER
+      if (!selectedNodeId) return 'rgba(107, 114, 128, 0.08)'
+    }
+    return baseLinkColor(link)
+  }, [hoveredNodeId, selectedNodeId, baseLinkColor])
 
   // ── Per-link style for the optimized LineSegments path ────────────────
-  // Reuses the exact `linkColor` logic above, then extracts RGB + alpha. The
-  // library's material opacity is `linkOpacity * colorAlpha(color)`; we bake the
-  // same number into the per-vertex alpha so the LineSegments matches the old
-  // cylinders' transparency exactly (only their 3D thickness is dropped).
-  const computeLinkStyle = useCallback((link: Graph3DLink): LinkStyle => {
-    const p = parseColor(linkColor(link))
+  // Turns a link colour string into the LineSegments per-vertex RGB + alpha,
+  // baking the same `linkOpacity * colorAlpha(color)` the cylinders use, plus
+  // the weight/family/bridge modulation. Shared by the bulk recolor and the
+  // hover amber overlay so both stay in lockstep.
+  const linkStyleFromColor = useCallback((link: Graph3DLink, color: string): LinkStyle => {
+    const p = parseColor(color)
     // Edge weight drives opacity: weak links fade, strong links stand out, so the
     // structural backbone reads through a dense graph instead of a uniform wash.
     // (1 px WebGL lines can't carry thickness — opacity is the weight channel here;
@@ -901,13 +914,35 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // bridge that does not stand out leaves only a scatter of dots.
     const bridge = link.isInterCommunity ? 1.7 : 1
     return { r: p.r, g: p.g, b: p.b, a: Math.min(1, family * p.a * weightFactor * bridge) }
-  }, [linkColor])
+  }, [])
+
+  const computeLinkStyle = useCallback((link: Graph3DLink): LinkStyle => {
+    return linkStyleFromColor(link, baseLinkColor(link))
+  }, [linkStyleFromColor, baseLinkColor])
+
+  // ── Base node size (before any highlight / dim / hover) ───────────────
+  // Super-nodes scale with the bundle count (area ∝ count); individual nodes
+  // use the per-type size times a degree weight so a hub reads bigger than a
+  // leaf. Extracted from computeNodeStyle so the hover spotlight can re-derive
+  // its "size × 1.6" boost from the BASE size — never from an already-boosted
+  // selection size, which would compound to ×2.56.
+  const baseNodeSize = useCallback((node: Graph3DNode): number => {
+    const count = node.data.count as number | undefined
+    const isSuper = typeof count === 'number' && count > 1
+    if (isSuper) return 3 + 2.6 * Math.sqrt(count)
+    const deg = (node.degree ?? 0) as number
+    const weightGain = 1 + 0.55 * Math.log1p(deg) / Math.log1p(24)
+    return sizeForType(node.entityType) * weightGain
+  }, [])
 
   // ── Per-node style for the overview (Points) tier ─────────────────────
   // This is the Points analogue of the five sprite-mutation effects below
   // (heatmap / legend / project / group / dim): one pure function returning
   // each node's final color, alpha, size, shape and activation. Priority is
-  // the same — activation > hover/selection > legend > project > group > dim.
+  // the same — activation > selection > legend > project > group > dim.
+  // (Hover is NOT part of this function: it is a transient spotlight applied
+  // on top via targeted writes — see the hover effect below — so a hover move
+  // never re-evaluates the whole crate.)
   const computeNodeStyle = useCallback((node: Graph3DNode): NodeStyle => {
     const entityType = node.entityType
     const base = ENTITY_RGB[entityType] ?? DEFAULT_NODE_RGB
@@ -917,11 +952,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const count = node.data.count as number | undefined
     const isSuper = typeof count === 'number' && count > 1
     const shape = isSuper ? 0 : shapeForType(entityType)
-    // Weight drives size in BOTH views (the code map sizes by the same idea):
-    // a hub is visibly bigger than a leaf, so the nebula has relief.
-    const deg = (node.degree ?? 0) as number
-    const weightGain = 1 + 0.55 * Math.log1p(deg) / Math.log1p(24)
-    const size = isSuper ? 3 + 2.6 * Math.sqrt(count) : sizeForType(entityType) * weightGain
+    const size = baseNodeSize(node)
     const energy = Math.min(1, Math.max(0, (node.data.energy as number) ?? 0))
     const isActive = activation.phase !== 'idle' && activation.phase !== 'searching'
 
@@ -953,9 +984,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       return { r: base.r, g: base.g, b: base.b, alpha: 0.12, size: size * 0.7, shape, act: 0 }
     }
 
-    // ── Hover / selection ──
-    if (hoveredNodeId || selectedNodeId) {
-      if (node.id === hoveredNodeId || node.id === selectedNodeId) {
+    // ── Selection (persistent focus: dim the rest, boost the selected) ──
+    // Hover is deliberately NOT here — it is a transient spotlight applied on
+    // top via targeted writes, so a hover move is O(1) instead of O(N).
+    if (selectedNodeId) {
+      if (node.id === selectedNodeId) {
         return { r: base.r, g: base.g, b: base.b, alpha: 1, size: size * 1.6, shape, act: 0.6 }
       }
       return { r: base.r, g: base.g, b: base.b, alpha: 0.3, size, shape, act: 0 }
@@ -985,7 +1018,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
 
     return { r: base.r, g: base.g, b: base.b, alpha: 1, size, shape, act: 0 }
-  }, [energyHeatmap, touchesHeatmap, activation, hoveredNodeId, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes])
+  }, [energyHeatmap, touchesHeatmap, activation, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes, baseNodeSize])
 
   /** Always-current node style fn, so the structure effect can color without re-running on every hover. */
   const computeNodeStyleRef = useRef(computeNodeStyle)
@@ -998,6 +1031,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   useEffect(() => {
     computeLinkStyleRef.current = computeLinkStyle
   }, [computeLinkStyle])
+
+  /** Stable (deps-free) color→style transformer, used by the hover amber overlay. */
+  const linkStyleFromColorRef = useRef(linkStyleFromColor)
+  useEffect(() => {
+    linkStyleFromColorRef.current = linkStyleFromColor
+  }, [linkStyleFromColor])
 
   const linkWidth = useCallback((link: Graph3DLink) => {
     const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
@@ -1769,6 +1808,88 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       nodePointsRef.current?.updateStyles(computeNodeStyle)
     }
   }, [useOptimizedNodes, computeNodeStyle, activeGraphData])
+
+  // ── Hover spotlight (transient, O(1) per move) ────────────────────────
+  // Hover no longer dims the crate (the old `computeNodeStyle` dropped every
+  // non-hovered node to alpha 0.3, which re-evaluated and rewrote all N nodes
+  // on every hover change — the jitter on a 5k-node graph). It only boosts the
+  // hovered node (size ×1.6, act 0.6, alpha 1) and ambers its links, applied
+  // as targeted writes on top of the bulk style above. A hover move touches
+  // exactly two nodes; the `prev === cur` branch re-applies the boost after a
+  // bulk restyle (selection / legend / group / dim / heatmap / activation).
+  const hoverSuppressed = energyHeatmap || touchesHeatmap
+    || (activation.phase !== 'idle' && activation.phase !== 'searching')
+  const hoverSpotlightRef = useRef<string | null>(null)
+
+  const hoverSpotlightStyle = useCallback((node: Graph3DNode, base: NodeStyle): NodeStyle => {
+    // The boost is derived from the BASE size, never from `base.size`, which
+    // may already be a selection/legend boost — that would compound to ×2.56.
+    return { r: base.r, g: base.g, b: base.b, alpha: 1, size: baseNodeSize(node) * 1.6, shape: base.shape, act: 0.6 }
+  }, [baseNodeSize])
+
+  useEffect(() => {
+    if (!useOptimizedNodes) return
+    const np = nodePointsRef.current
+    if (!np) return
+    const cur = hoveredNodeId
+    const prev = hoverSpotlightRef.current
+    hoverSpotlightRef.current = cur
+
+    if (prev === cur) {
+      // Bulk restyle overwrote everything — re-apply the boost if any.
+      if (cur != null && !hoverSuppressed) {
+        const idx = np.indexOf(cur)
+        const node = activeGraphData.nodes.find((n) => n.id === cur)
+        if (idx >= 0 && node) np.updateStyleAt(idx, hoverSpotlightStyle(node, computeNodeStyleRef.current(node)))
+      }
+      return
+    }
+    // Restore the previously boosted node to its bulk style.
+    if (prev != null) {
+      const idx = np.indexOf(prev)
+      const node = activeGraphData.nodes.find((n) => n.id === prev)
+      if (idx >= 0 && node) np.updateStyleAt(idx, computeNodeStyleRef.current(node))
+    }
+    // Boost the newly hovered node.
+    if (cur != null && !hoverSuppressed) {
+      const idx = np.indexOf(cur)
+      const node = activeGraphData.nodes.find((n) => n.id === cur)
+      if (idx >= 0 && node) np.updateStyleAt(idx, hoverSpotlightStyle(node, computeNodeStyleRef.current(node)))
+    }
+  }, [useOptimizedNodes, hoveredNodeId, computeNodeStyle, activeGraphData, hoverSuppressed, hoverSpotlightStyle])
+
+  // ── Hover amber for links (transient, O(degree) per move) ─────────────
+  const activationActive = activation.phase !== 'idle' && activation.phase !== 'searching'
+  const hoverLinkSpotlightRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!useOptimizedLinks) return
+    const seg = linkSegmentsRef.current
+    if (!seg) return
+    const cur = hoveredNodeId
+    const prev = hoverLinkSpotlightRef.current
+
+    if (prev === cur) {
+      // Bulk recolor (selection/group/hulls/activation) overwrote everything.
+      if (cur != null && !activationActive) {
+        seg.updateColorsForNodes([cur], (l) => linkStyleFromColorRef.current(l, HIGHLIGHT_COLOR_HOVER))
+      }
+      return
+    }
+    hoverLinkSpotlightRef.current = cur
+    const ids: string[] = []
+    if (prev != null) ids.push(prev)
+    if (cur != null) ids.push(cur)
+    if (ids.length === 0) return
+    seg.updateColorsForNodes(ids, (l) => {
+      if (activationActive) return computeLinkStyleRef.current(l)
+      const sid = typeof l.source === 'object' ? (l.source as Graph3DNode).id : l.source
+      const tid = typeof l.target === 'object' ? (l.target as Graph3DNode).id : l.target
+      const connected = cur != null && (sid === cur || tid === cur)
+      return connected
+        ? linkStyleFromColorRef.current(l, HIGHLIGHT_COLOR_HOVER)
+        : computeLinkStyleRef.current(l)
+    })
+  }, [useOptimizedLinks, hoveredNodeId, computeLinkStyle, activeGraphData, activationActive])
 
   // ── Overview tier — custom pick for hover / click ─────────────────────
   // With nodeVisibility=false the library has no node objects to raycast, so

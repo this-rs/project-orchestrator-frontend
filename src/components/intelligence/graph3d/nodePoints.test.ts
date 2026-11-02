@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { createNodePoints, shapeForType, sizeForType, nodeGain, NODE_GAIN_REFERENCE } from './nodePoints'
+import { createNodePoints, shapeForType, sizeForType, nodeGain, NODE_GAIN_REFERENCE, NODE_GAIN_FLOOR } from './nodePoints'
 import type { Graph3DNode } from './useGraph3DLayout'
 
 const mk = (id: string, x: number, y: number, z: number): Graph3DNode => ({
@@ -74,6 +74,37 @@ describe('createNodePoints', () => {
     np.dispose()
   })
 
+  it('indexes nodes by id', () => {
+    const nodes = fixture()
+    const np = createNodePoints(nodes)
+    expect(np.indexOf('b')).toBe(1)
+    expect(np.indexOf('missing')).toBe(-1)
+    np.dispose()
+  })
+
+  it('updates one node in place via a ranged upload, leaving neighbours untouched', () => {
+    const nodes = fixture()
+    const np = createNodePoints(nodes)
+    np.updateStyles(() => ({ r: 0, g: 0, b: 1, alpha: 0.5, size: 2, shape: 0, act: 0 }))
+    const g = np.object.geometry
+    const idx = np.indexOf('b')
+    np.updateStyleAt(idx, { r: 1, g: 0, b: 0, alpha: 0.9, size: 5, shape: 1, act: 0.7 })
+    const col = g.getAttribute('aColor').array as Float32Array
+    const alp = g.getAttribute('aAlpha').array as Float32Array
+    const shp = g.getAttribute('aShape').array as Float32Array
+    // node b changed
+    expect([col[3], col[4], col[5]]).toEqual([1, 0, 0])
+    expect(alp[1]).toBeCloseTo(0.9, 6)
+    expect(shp[1]).toBe(1)
+    // node a untouched
+    expect([col[0], col[1], col[2]]).toEqual([0, 0, 1])
+    expect(alp[0]).toBeCloseTo(0.5, 6)
+    // a ranged upload was queued (element units), not a full-buffer rewrite
+    const aColor = g.getAttribute('aColor') as THREE.BufferAttribute
+    expect(aColor.updateRanges).toEqual([{ start: 3, count: 3 }])
+    np.dispose()
+  })
+
   it('picks the node under the raycaster', () => {
     const nodes = fixture()
     // Camera on +Z looking at the origin so node a (0,0,0) projects to NDC (0,0).
@@ -107,16 +138,20 @@ describe('nodeGain', () => {
     expect(nodeGain(NODE_GAIN_REFERENCE)).toBe(1)
   })
 
-  it('falls off as 1/√N above the reference', () => {
+  it('falls off as 1/√N above the reference, then floors at NODE_GAIN_FLOOR', () => {
     expect(nodeGain(NODE_GAIN_REFERENCE * 4)).toBeCloseTo(0.5, 6)
-    expect(nodeGain(NODE_GAIN_REFERENCE * 100)).toBeCloseTo(0.1, 6)
+    // 40k nodes: 1/√N would be 0.1, but the floor keeps a lit node visible.
+    expect(nodeGain(NODE_GAIN_REFERENCE * 100)).toBeCloseTo(NODE_GAIN_FLOOR, 6)
   })
 
-  it('is strictly decreasing, so a denser graph is never brighter', () => {
-    const counts = [400, 1_000, 4_000, 16_000, 64_000]
+  it('never increases as the graph grows, and never drops below the floor', () => {
+    const counts = [400, 1_000, 4_000, 16_000, 64_000, 250_000]
     const gains = counts.map(nodeGain)
     for (let i = 1; i < gains.length; i++) {
-      expect(gains[i]).toBeLessThan(gains[i - 1])
+      expect(gains[i]).toBeLessThanOrEqual(gains[i - 1])
+    }
+    for (const g of gains) {
+      expect(g).toBeGreaterThanOrEqual(NODE_GAIN_FLOOR)
     }
   })
 
