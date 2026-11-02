@@ -175,7 +175,14 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
       if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
     }
     try {
-      const data = cached ?? await intelligenceApi.getGraph(projectSlug, { layers, limit }, signal)
+      // The API applies `limit` PER CATEGORY (files, symbols, knowledge, skills,
+      // behavioural, pm): asking 5000 with six layers can return ~30 000 nodes
+      // and every edge between them. The number the user sets is a TOTAL budget,
+      // so split it across the categories the request covers.
+      const perCategory = Math.max(200, Math.floor(limit / Math.max(1, layers.length)))
+      const data =
+        cached ??
+        await intelligenceApi.getGraph(projectSlug, { layers, limit: perCategory }, signal)
       if (!cached) graphCacheSet(cacheKey, data)
 
       const rfNodes = data.nodes.map(toReactFlowNode)
