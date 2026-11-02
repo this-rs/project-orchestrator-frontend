@@ -340,7 +340,9 @@ export function superNodeName(key: string, communityLabel?: string): string {
     if (gk.startsWith('d')) return gk.slice(1)
     return gk
   }
-  return key ? `Groupe ${key}` : 'Groupe'
+  // A grid cell index ("2,7,7") is not a name a human can use. When the group
+  // comes from the fallback grid, say so instead of inventing a label.
+  return key ? 'Cellule ' + key : 'Cellule'
 }
 
 // ── Render-ready scaled graphs ──────────────────────────────────────────────

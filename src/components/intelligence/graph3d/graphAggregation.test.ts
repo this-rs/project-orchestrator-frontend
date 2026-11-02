@@ -283,8 +283,9 @@ describe('superNodeName', () => {
   it('ignores a blank label and derives from the key', () => {
     expect(superNodeName('g:c7', '   ')).toBe('Communauté 7')
   })
-  it('falls back to Groupe … for a raw grid cell key', () => {
-    expect(superNodeName('3,2,1')).toBe('Groupe 3,2,1')
+  it('never presents a raw grid cell index as a name', () => {
+    // "Groupe 3,2,1" looked like a community to the user; it is a cell index.
+    expect(superNodeName('3,2,1')).toBe('Cellule 3,2,1')
   })
 })
 
