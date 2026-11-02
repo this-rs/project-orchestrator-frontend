@@ -33,6 +33,11 @@ import { Branding } from '@/components/ui'
 import { useT } from '@/i18n'
 import { claimModK } from '@/components/anchors/askHereShortcut'
 
+/** True when a key event came from a text-entry field (search, chat, select). */
+const isEditableTarget = (target: EventTarget | null): boolean =>
+  target instanceof HTMLElement &&
+  (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+
 // Lazy-load the 3D component — Three.js (~300KB gz) only loaded when needed
 const IntelligenceGraph3D = lazy(() => import('./graph3d/IntelligenceGraph3D'))
 
@@ -134,6 +139,19 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [isFullscreen])
+
+  // Escape clears the node selection and closes the inspector. Ignored while
+  // focus is in a text field (search, chat) — there Esc closes the field, not
+  // the selection. No preventDefault, so browser/OS fullscreen exit is intact.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (isEditableTarget(e.target)) return
+      setSelectedNodeId(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [setSelectedNodeId])
 
   // Keyboard shortcut: Ctrl/Cmd+K to open spreading activation search
   useEffect(() => {
