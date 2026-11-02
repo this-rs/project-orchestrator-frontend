@@ -328,10 +328,15 @@ export function deterministicPlacement(
       const rng = mulberry32(hashString(key))
       const phase = rng() * Math.PI * 2
       const radial = ring === 0 ? 0 : ring * (1 - RADIAL_JITTER + 2 * RADIAL_JITTER * rng())
-      const angle =
-        baseAngle + gi * step + (rng() - 0.5) * 2 * ANGLE_JITTER * step
-      const cx = Math.cos(angle) * radial
-      const cy = Math.sin(angle) * radial
+      // A RING put every group in the layer's plane: the graph read as a flat
+      // disc whatever the node count. The centres now sit on a Fibonacci
+      // SPHERE, so z carries as much structure as x and y.
+      const up = keys.length === 1 ? 0 : 1 - (gi / (keys.length - 1)) * 2
+      const around = Math.sqrt(Math.max(0, 1 - up * up))
+      const angle = baseAngle + GOLDEN_SPHERE * gi + (rng() - 0.5) * 2 * ANGLE_JITTER * step
+      const cx = Math.cos(angle) * around * radial
+      const cy = up * radial
+      const cz = Math.sin(angle) * around * radial
       const squashY = 0.5 + 0.35 * rng() // flattened in Y: a disc, not a sphere
       const tilt = (rng() - 0.5) * 1.1
       const cosT = Math.cos(tilt)
@@ -357,7 +362,7 @@ export function deterministicPlacement(
         out.set(ids[k].id, {
           x: cx + x0,
           y: cy + y0 * cosT - z0 * sinT,
-          z: z + y0 * sinT + z0 * cosT,
+          z: z + cz + y0 * sinT + z0 * cosT,
         })
       }
     })
@@ -373,6 +378,8 @@ export function deterministicPlacement(
  * "this is where the mass is" and the spacing works on that, not on the halo.
  */
 const CORE_FRACTION = 0.45
+/** Fibonacci-sphere stride: the group centres spread over a volume, not a circle. */
+const GOLDEN_SPHERE = Math.PI * (3 - Math.sqrt(5))
 /** How far a core may drift along its radius, as a fraction of the ring. */
 const RADIAL_JITTER = 0.1
 /** How far a core may drift in angle, as a fraction of the angular step. */

@@ -126,8 +126,8 @@ describe('communities reach the placement', () => {
     const centroidOf = (g: number) => {
       const pts = Array.from({ length: perGroup }, (_, i) => placed.get(`g${g}n${i}`)!)
       return pts.reduce(
-        (a, p) => ({ x: a.x + p.x / perGroup, y: a.y + p.y / perGroup }),
-        { x: 0, y: 0 },
+        (a, p) => ({ x: a.x + p.x / perGroup, y: a.y + p.y / perGroup, z: a.z + p.z / perGroup }),
+        { x: 0, y: 0, z: 0 },
       )
     }
     const centres = Array.from({ length: groups }, (_, g) => centroidOf(g))
@@ -136,9 +136,15 @@ describe('communities reach the placement', () => {
     let minDistance = Infinity
     for (let i = 0; i < groups; i++) {
       for (let j = i + 1; j < groups; j++) {
+        // 3D on purpose: the centres now live on a sphere, so two groups can
+        // share an (x, y) and still be far apart in depth.
         minDistance = Math.min(
           minDistance,
-          Math.hypot(centres[i].x - centres[j].x, centres[i].y - centres[j].y),
+          Math.hypot(
+            centres[i].x - centres[j].x,
+            centres[i].y - centres[j].y,
+            centres[i].z - centres[j].z,
+          ),
         )
       }
     }
@@ -146,7 +152,7 @@ describe('communities reach the placement', () => {
     // …and the nebula must stay COMPACT: spacing the full radii pushed the
     // clusters apart until the camera pulled back and everything read tiny.
     const furthest = Math.max(
-      ...centres.map((c) => Math.hypot(c.x, c.y)),
+      ...centres.map((c) => Math.hypot(c.x, c.y, c.z - (centres[0].z - centres[0].z))),
     )
     expect(furthest).toBeLessThan(260)
   })
