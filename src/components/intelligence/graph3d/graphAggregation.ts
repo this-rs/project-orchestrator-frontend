@@ -191,22 +191,138 @@ export function aggregateAtResolution(
 const GROUP_KEY_PREFIX = 'g:'
 
 /**
+ * Maximum number of semantic groups an aggregated tier shows. Without this a
+ * project with no GDS communities gets one group per directory (1 285 on a
+ * 20 000-node graph): a regular shell of tiny clumps, unreadable. ~24 lets a few
+ * big clusters dominate with a long tail merged into their parents.
+ */
+export const MAX_AGGREGATE_GROUPS = 24
+
+/** Key of the catch-all group that absorbs what has no path parent to merge into. */
+const OTHER_GROUP_KEY = GROUP_KEY_PREFIX + 'd(autres)'
+
+const DIR_KEY_PREFIX = GROUP_KEY_PREFIX + 'd'
+
+/** Parent of a directory group by path prefix ("g:dsrc/chat/x" → "g:dsrc/chat"), else null. */
+function parentGroupKey(key: string): string | null {
+  if (!key.startsWith(DIR_KEY_PREFIX)) return null
+  const path = key.slice(DIR_KEY_PREFIX.length)
+  const cut = path.lastIndexOf('/')
+  return cut > 0 ? DIR_KEY_PREFIX + path.slice(0, cut) : null
+}
+
+/**
+ * Cap the number of distinct keys at `max`. Deterministic, O(K log K · passes).
+ *  1. Raise a size threshold t = 2, 4, 8, … ; at each pass, groups smaller than
+ *     t (smallest first, key as tie-break) are merged into their path-prefix
+ *     parent, stopping the moment the count reaches `max`.
+ *  2. Whatever has no parent (community / grid keys, top-level directories) is
+ *     folded, smallest first, into one catch-all group.
+ * Returns old key → final key; the sum of counts is preserved by construction.
+ */
+export function capGroups(counts: Map<string, number>, max: number): Map<string, string> {
+  const cur = new Map(counts)
+  const redirect = new Map<string, string>() // merged key → where it went
+  const move = (from: string, to: string) => {
+    while (redirect.has(to)) to = redirect.get(to) as string // parent merged earlier
+    const n = cur.get(from) ?? 0
+    cur.delete(from)
+    cur.set(to, (cur.get(to) ?? 0) + n)
+    redirect.set(from, to)
+  }
+  const bySize = (a: string, b: string) =>
+    (cur.get(a) ?? 0) - (cur.get(b) ?? 0) || (a < b ? -1 : a > b ? 1 : 0)
+  const total = [...counts.values()].reduce((a, b) => a + b, 0)
+  const limit = Math.max(1, Math.floor(max))
+
+  for (let t = 2; cur.size > limit && t <= 2 * total; t *= 2) {
+    let moved = true
+    while (moved && cur.size > limit) {
+      moved = false
+      const small = [...cur.keys()].filter((k) => (cur.get(k) ?? 0) < t).sort(bySize)
+      for (const k of small) {
+        if (cur.size <= limit) break
+        const parent = cur.has(k) ? parentGroupKey(k) : null
+        if (parent === null || (cur.get(k) ?? 0) >= t) continue
+        move(k, parent)
+        moved = true
+      }
+    }
+  }
+
+  if (cur.size > limit) {
+    const order = [...cur.keys()].filter((k) => k !== OTHER_GROUP_KEY).sort(bySize)
+    for (const k of order) {
+      if (cur.size <= limit) break
+      move(k, OTHER_GROUP_KEY)
+    }
+  }
+  const alias = new Map<string, string>()
+  for (const k of counts.keys()) {
+    let f = k
+    while (redirect.has(f)) f = redirect.get(f) as string
+    alias.set(k, f)
+  }
+  return alias
+}
+
+/**
+ * Final group key of every node: its `groupKey` (grid cell when absent), with
+ * the number of groups capped at MAX_AGGREGATE_GROUPS.
+ */
+export function resolveGroupKeys(
+  nodes: Graph3DNode[],
+  res: number,
+  maxGroups: number = MAX_AGGREGATE_GROUPS,
+): string[] {
+  const gridKeyOf = makeGridKeyOf(nodes, res)
+  const raw = nodes.map((n) => {
+    const g = n.groupKey
+    return g != null && g !== '' ? GROUP_KEY_PREFIX + g : gridKeyOf(n)
+  })
+  const counts = new Map<string, number>()
+  for (const k of raw) counts.set(k, (counts.get(k) ?? 0) + 1)
+  if (counts.size <= maxGroups) return raw
+  const alias = capGroups(counts, maxGroups)
+  return raw.map((k) => alias.get(k) ?? k)
+}
+
+/**
  * Aggregate `nodes`/`links` by SEMANTIC GROUP: every node sharing a `groupKey`
  * (e.g. "c7" for community 7, or "dsrc/chat" for a directory) lands in the same
  * super-node regardless of where it sits in space. A node without a `groupKey`
  * falls back to the grid behaviour of `aggregateAtResolution` at the same
- * resolution. O(N + E), deterministic.
+ * resolution. The number of super-nodes is capped at MAX_AGGREGATE_GROUPS by
+ * merging the smallest groups into their path-prefix parent (see capGroups).
+ * Deterministic.
  */
 export function aggregateByGroup(
   nodes: Graph3DNode[],
   links: Graph3DLink[],
   res: number,
 ): AggregatedGraph {
-  const gridKeyOf = makeGridKeyOf(nodes, res)
-  return aggregateByKeys(nodes, links, (n) => {
-    const g = n.groupKey
-    return g != null && g !== '' ? GROUP_KEY_PREFIX + g : gridKeyOf(n)
-  })
+  const keys = resolveGroupKeys(nodes, res)
+  return aggregateByKeys(nodes, links, (_n, i) => keys[i])
+}
+
+/**
+ * Members of each aggregate, re-labelled as numbered "communities" so the
+ * community hull builder can wrap each cluster in a translucent envelope.
+ * Index 0 is the biggest group (colour order stays stable as sizes shift).
+ */
+export function groupHullNodes(nodes: Graph3DNode[], res: number): Graph3DNode[] {
+  const keys = resolveGroupKeys(nodes, res)
+  const counts = new Map<string, number>()
+  for (const k of keys) counts.set(k, (counts.get(k) ?? 0) + 1)
+  const order = [...counts.keys()].sort(
+    (a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0) || (a < b ? -1 : a > b ? 1 : 0),
+  )
+  const idOf = new Map(order.map((k, i) => [k, i]))
+  return nodes.map((n, i) => ({
+    ...n,
+    communityId: idOf.get(keys[i]),
+    communityLabel: superNodeName(keys[i], keys[i].startsWith(GROUP_KEY_PREFIX + 'c') ? n.communityLabel : undefined),
+  }))
 }
 
 /**

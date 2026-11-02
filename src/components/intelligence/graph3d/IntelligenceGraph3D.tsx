@@ -39,7 +39,7 @@ import {
   graphBrightnessAtom,
   graphScaleAtom,
 } from '@/atoms/intelligence'
-import { buildGroupedGraph, resolutionForLevel } from './graphAggregation'
+import { buildGroupedGraph, groupHullNodes, resolutionForLevel } from './graphAggregation'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { createSuperLinkTubes, TUBE_MAX_EDGES, type SuperLinkTubes } from './superLinkTubes'
 import { FrameAnimator } from './frameAnimator'
@@ -570,6 +570,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // The callback reads the CURRENT nodes without depending on their identity.
   const nodesRef = useRef(graphData.nodes)
+  const scaleResRef = useRef(scaleRes)
+  useEffect(() => {
+    scaleResRef.current = scaleRes
+  }, [scaleRes])
   useEffect(() => {
     nodesRef.current = graphData.nodes
   }, [graphData.nodes])
@@ -591,13 +595,21 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       }
 
       const current = nodesRef.current
-      if (!showCommunityHulls || current.length === 0 || aggregated) return
+      if (!showCommunityHulls || current.length === 0) return
+
+      // Aggregated tier: one translucent envelope per capped group, wrapped
+      // around the group's REAL members (the super-nodes alone are 24 points).
+      const hullNodes = aggregated ? groupHullNodes(current, scaleResRef.current) : current
 
       // Only build if any node has a communityId
-      const hasCommunities = current.some((n) => n.communityId != null)
+      const hasCommunities = hullNodes.some((n) => n.communityId != null)
       if (!hasCommunities) return
 
-      const hullGroup = buildCommunityHulls(current, t)
+      const hullGroup = buildCommunityHulls(
+        hullNodes,
+        t,
+        aggregated ? { fillOpacity: 0.08, wireOpacity: 0.03, expand: 12, minMembers: 4 } : {},
+      )
       if (hullGroup.hulls.length > 0) {
         scene.add(hullGroup.group)
         communityHullsRef.current = hullGroup
@@ -613,7 +625,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // and this callback used to change with it — which re-ran the effect below
     // and rebuilt a convex hull plus its label texture per community, on the
     // main thread, for an identical result. That is the "layout blocks".
-  }, [showCommunityHulls, hullSignature, aggregated, wake, t])
+  }, [showCommunityHulls, hullSignature, aggregated, scaleRes, wake, t])
 
   // Rebuild when toggle changes (immediate — user clicked the button)
   useEffect(() => {

@@ -119,10 +119,23 @@ export interface CommunityHullGroup {
 
 // ── Build community hulls from positioned Graph3D nodes ─────────────────────
 
+export interface CommunityHullOptions {
+  /** Fill opacity (default 0.06). */
+  fillOpacity?: number
+  /** Wireframe opacity (default 0.25). */
+  wireOpacity?: number
+  /** Outward expansion of the hull around its members (default 20). */
+  expand?: number
+  /** Minimum members for a hull (default 3). */
+  minMembers?: number
+}
+
 export function buildCommunityHulls(
   nodes: Graph3DNode[],
   t: TFn,
+  options: CommunityHullOptions = {},
 ): CommunityHullGroup {
+  const { fillOpacity = 0.06, wireOpacity = 0.25, expand = 20, minMembers = 3 } = options
   const group = new THREE.Group()
   group.name = 'communityHulls'
   const hulls: CommunityHull[] = []
@@ -145,7 +158,7 @@ export function buildCommunityHulls(
 
     for (const [communityId, { nodes: communityNodes, label }] of communities) {
       // Need at least 3 nodes for a meaningful hull
-      if (communityNodes.length < 3) continue
+      if (communityNodes.length < minMembers) continue
 
       const color = getCommunityColor(communityId)
 
@@ -167,7 +180,7 @@ export function buildCommunityHulls(
         const dir = p.clone().sub(centroid)
         const len = dir.length()
         if (len < 0.01) return p.clone() // don't expand collapsed points
-        return p.clone().add(dir.normalize().multiplyScalar(20))
+        return p.clone().add(dir.normalize().multiplyScalar(expand))
       })
 
       const hullGeo = buildConvexHullGeometry(expanded)
@@ -177,7 +190,7 @@ export function buildCommunityHulls(
       const fillMat = new THREE.MeshBasicMaterial({
         color: new THREE.Color(color),
         transparent: true,
-        opacity: 0.06,
+        opacity: fillOpacity,
         side: THREE.DoubleSide,
         depthWrite: false,
       })
@@ -189,7 +202,7 @@ export function buildCommunityHulls(
       const wireMat = new THREE.MeshBasicMaterial({
         color: new THREE.Color(color),
         transparent: true,
-        opacity: 0.25,
+        opacity: wireOpacity,
         wireframe: true,
       })
       const wireMesh = new THREE.Mesh(hullGeo.clone(), wireMat)
