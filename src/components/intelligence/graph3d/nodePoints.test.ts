@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { createNodePoints, shapeForType, sizeForType } from './nodePoints'
+import { createNodePoints, shapeForType, sizeForType, nodeGain, NODE_GAIN_REFERENCE } from './nodePoints'
 import type { Graph3DNode } from './useGraph3DLayout'
 
 const mk = (id: string, x: number, y: number, z: number): Graph3DNode => ({
@@ -90,6 +90,107 @@ describe('createNodePoints', () => {
     // Aim at the far corner: no point there.
     ray.setFromCamera(new THREE.Vector2(0.99, 0.99), camera)
     expect(np.pick(ray)).toBeNull()
+    np.dispose()
+  })
+})
+
+// ── The look, asserted where it can be ───────────────────────────────────────
+// A test cannot see a glow. What it CAN pin down is everything that made the
+// previous version flat, so a silent revert fails here instead of in the user's
+// eyes: additive emission, a global gain tied to the node count, a halo that
+// reaches the sprite edge, and uPx kept in lockstep with the renderer.
+
+describe('nodeGain', () => {
+  it('leaves a small graph untouched', () => {
+    expect(nodeGain(1)).toBe(1)
+    expect(nodeGain(50)).toBe(1)
+    expect(nodeGain(NODE_GAIN_REFERENCE)).toBe(1)
+  })
+
+  it('falls off as 1/√N above the reference', () => {
+    expect(nodeGain(NODE_GAIN_REFERENCE * 4)).toBeCloseTo(0.5, 6)
+    expect(nodeGain(NODE_GAIN_REFERENCE * 100)).toBeCloseTo(0.1, 6)
+  })
+
+  it('is strictly decreasing, so a denser graph is never brighter', () => {
+    const counts = [400, 1_000, 4_000, 16_000, 64_000]
+    const gains = counts.map(nodeGain)
+    for (let i = 1; i < gains.length; i++) {
+      expect(gains[i]).toBeLessThan(gains[i - 1])
+    }
+  })
+
+  it('survives nonsense counts', () => {
+    expect(nodeGain(0)).toBe(1)
+    expect(nodeGain(-12)).toBe(1)
+    expect(nodeGain(Number.NaN)).toBe(1)
+  })
+})
+
+describe('nodePoints material', () => {
+  const mat = (n: number) => {
+    const np = createNodePoints(Array.from({ length: n }, (_, i) => mk(`n${i}`, i, 0, 0)))
+    return { np, material: np.object.material as THREE.ShaderMaterial }
+  }
+
+  it('emits light additively instead of compositing', () => {
+    const { np, material } = mat(3)
+    expect(material.blending).toBe(THREE.AdditiveBlending)
+    expect(material.transparent).toBe(true)
+    expect(material.depthWrite).toBe(false)
+    np.dispose()
+  })
+
+  it('carries a density gain that shrinks with the node count', () => {
+    const small = mat(100)
+    const large = mat(10_000)
+    const gain = (m: THREE.ShaderMaterial) => m.uniforms.uGlobal.value as number
+    expect(gain(small.material)).toBe(1)
+    expect(gain(large.material)).toBeLessThan(0.3)
+    small.np.dispose()
+    large.np.dispose()
+  })
+
+  it('recomputes the gain when the data changes size', () => {
+    const { np, material } = mat(10)
+    expect(material.uniforms.uGlobal.value).toBe(1)
+    np.setData(Array.from({ length: 4_000 }, (_, i) => mk(`x${i}`, i, 0, 0)))
+    expect(material.uniforms.uGlobal.value).toBeLessThan(0.4)
+    np.dispose()
+  })
+
+  it('keeps uPx equal to the renderer pixel ratio it is given', () => {
+    const { np, material } = mat(2)
+    np.setPixelRatio(1)
+    expect(material.uniforms.uPx.value).toBe(1)
+    np.setPixelRatio(1.5)
+    expect(np.getPixelRatio()).toBe(1.5)
+    // Junk must not blank the points (uPx 0 would collapse gl_PointSize).
+    np.setPixelRatio(0)
+    expect(np.getPixelRatio()).toBe(1)
+    np.dispose()
+  })
+
+  it('keeps the halo, the core and the per-node alpha in the fragment shader', () => {
+    const { np, material } = mat(2)
+    const fs = material.fragmentShader
+    expect(fs).toContain('uGlobal')
+    expect(fs).toContain('vAlpha')
+    expect(fs).toContain('vAct')
+    // halo = q² with q = 1-d²: the smooth radial falloff the flat version lacked
+    expect(fs).toMatch(/float halo = q \* q/)
+    // the four shapes are still there, each with its own footprint
+    expect(fs).toMatch(/vShape < 0\.5/)
+    expect(fs).toMatch(/vShape < 1\.5/)
+    expect(fs).toMatch(/vShape < 2\.5/)
+    np.dispose()
+  })
+
+  it('scales gl_PointSize by uPx and by the activation attribute', () => {
+    const { np, material } = mat(2)
+    expect(material.vertexShader).toContain('gl_PointSize')
+    expect(material.vertexShader).toMatch(/uPx/)
+    expect(material.vertexShader).toMatch(/aAct \* 1\.2/)
     np.dispose()
   })
 })

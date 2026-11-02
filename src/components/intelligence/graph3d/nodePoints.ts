@@ -88,6 +88,71 @@ export function sizeForType(entityType: string): number {
   }
 }
 
+// ============================================================================
+// Shader — a lit point, not a flat polygon (ported from po-graph's nodeMat)
+// ============================================================================
+//
+// WHAT WAS WRONG. The first version drew a hard-edged mask (`smoothstep` of a
+// distance, normal alpha blending, nothing else): a disc of flat colour with a
+// ~1 px ramp. Above ~8 px it reads as a sticker, and a dense graph turns into a
+// milky sheet because every sprite composites its full opacity onto the frame.
+//
+// WHAT REPLACES IT, in po-graph's terms (po-graph.js:461-481):
+//   * ADDITIVE blending — the sprite EMITS light instead of covering pixels, so
+//     overlapping nodes brighten each other (the nebula look) instead of
+//     compositing toward grey;
+//   * a HALO `(1-d²)²` that dies smoothly at the sprite edge, plus a narrow
+//     bright CORE — every node reads as a small light source;
+//   * a GLOBAL GAIN `uGlobal ≈ √(NREF/N)` (po-graph's `uGlobal`, see
+//     po-graph.js:4185: `S.light / sqrt(pt*uN)`): two thousand overlapping
+//     halos at full gain IS the "blanc laiteux" the user reported, so per-node
+//     light falls off as the crate fills up;
+//   * SPRITE_HEADROOM — the visible shape is drawn at ~0.4 of the sprite and the
+//     sprite is twice as large as before, so the halo has a band of its own
+//     outside the core while the node keeps its apparent radius.
+//
+// aAlpha and aAct remain the contract with the caller: aAlpha scales the emitted
+// light (hover / dimming / legend highlighting keep working), aAct enlarges the
+// node (vertex stage) and pushes its core to white (fragment stage).
+
+/**
+ * How much larger the sprite is than the shape drawn inside it.
+ *
+ * The footprints in the fragment shader are expressed in
+ * `p = (gl_PointCoord - 0.5) * 2` space, where 1.0 is the sprite edge, and the
+ * shapes are drawn at about 0.42 of that. Multiplying `gl_PointSize` by 2 gives
+ * the halo the outer 58 % of the sprite to fade through, and keeps the APPARENT
+ * radius of a node where the hard-edged version had it:
+ *
+ *     new: 0.42 (p-space) × (2·S/2) px  =  0.42·S px
+ *     old: 0.80 (uv-space) × (S)   px    =  0.40·S px
+ *
+ * i.e. the same footprint, but soft: the glow reaches exactly where the old hard
+ * edge was, and the visible shape is its middle.
+ */
+const SPRITE_SCALE = 2.0
+
+/**
+ * Node count at which the per-node gain is still 1. A 200-node graph must not
+ * pay for a 4000-node one, so nothing is dimmed below this count.
+ */
+export const NODE_GAIN_REFERENCE = 400
+
+/**
+ * Per-node light gain for a graph of `count` nodes: `min(1, √(NREF/count))`.
+ *
+ * WHY √ AND NOT 1/N. Halo brightness adds linearly in the number of sprites,
+ * but two nodes only overlap when they are close, and d3 spreads them out as
+ * the count grows. 1/N would make a large graph not merely calm but dark; 1/√N
+ * is the compromise po-graph settled on, and it is what stops a 5k-node graph
+ * from saturating to white. It is the same shape of formula as po-graph's
+ * `uGlobal`, normalised so that a small graph is left untouched.
+ */
+export function nodeGain(count: number): number {
+  const n = Number.isFinite(count) && count > 0 ? count : 1
+  return Math.min(1, Math.sqrt(NODE_GAIN_REFERENCE / n))
+}
+
 const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aColor;
   attribute float aAlpha;
@@ -106,39 +171,84 @@ const VERTEX_SHADER = /* glsl */ `
     vAct = aAct;
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     float persp = clamp(900.0 / max(1.0, -mv.z), 0.0, 24.0);
-    gl_PointSize = clamp(aSize * persp * uPx * (1.0 + aAct * 1.2), 1.5, 120.0);
+    // The sprite is SPRITE_SCALE times the size a hard-edged disc of the same
+    // apparent radius needed: the halo lives in the extra room, the shape keeps
+    // its footprint (see SPRITE_SCALE). gl_PointSize is in DEVICE pixels,
+    // therefore uPx must stay in lockstep with the renderer's pixel ratio (see
+    // createNodePoints().setPixelRatio) — otherwise the ratio drop makes every
+    // point grow by the factor the renderer lost.
+    const float headroom = ${SPRITE_SCALE.toFixed(1)};
+    // Floor 2.5 px, not 1.5: only ~40 % of the sprite is visible shape, so a
+    // smaller sprite would fade the node away entirely.
+    gl_PointSize = clamp(aSize * persp * uPx * headroom * (1.0 + aAct * 1.2), 2.5, 240.0);
     gl_Position = projectionMatrix * mv;
   }
 `
 
 const FRAGMENT_SHADER = /* glsl */ `
+  uniform float uGlobal;
   varying vec3 vColor;
   varying float vAlpha;
   varying float vShape;
   varying float vAct;
+
+  /** Soft annulus of radius r and half-width w, in sprite space (d in 0..1). */
+  float ring(float d, float r, float w) {
+    return smoothstep(w, w * 0.25, abs(d - r));
+  }
+
   void main() {
-    vec2 uv = gl_PointCoord - 0.5;
-    float mask = 0.0;
+    // Sprite space: 0 at the centre, 1 on the edge, so the footprints below read
+    // as "radius, as a fraction of the sprite".
+    vec2 p = (gl_PointCoord - 0.5) * 2.0;
+    float d = length(p);
+    // The corners of the square sprite sit at d = √2; max() keeps the halo from
+    // going negative there (a squared negative would bloom INTO the corners).
+    float q = max(0.0, 1.0 - d * d);
+
+    // Halo: quadratic falloff — no shoulder, no visible edge, zero at the rim.
+    float halo = q * q * 0.62;
+    // Core: the hot centre of a light source. Narrower than any shape, so it
+    // reads as brightness rather than as an outline.
+    float core = smoothstep(0.26, 0.0, d);
+
+    // The four shapes are kept, with a ramp about 1.4× wider than the old
+    // hard-edged masks: what used to be a 1-pixel step is now a graded edge that
+    // the halo continues outward.
+    float m = 0.0;
     if (vShape < 0.5) {
       // disc
-      mask = smoothstep(0.5, 0.40, length(uv));
+      m = smoothstep(0.43, 0.29, d) * 1.10;
     } else if (vShape < 1.5) {
-      // ring (hollow disc)
-      float d = length(uv);
-      mask = smoothstep(0.5, 0.40, d) * smoothstep(0.16, 0.24, d);
+      // ring (hollow disc) — the outline IS the identity, so the halo steps back
+      m = ring(d, 0.34, 0.12) * 0.95 + core * 0.30;
+      halo *= 0.40;
     } else if (vShape < 2.5) {
-      // diamond
-      float m = abs(uv.x) + abs(uv.y);
-      mask = smoothstep(0.5, 0.40, m);
+      // diamond — |x|+|y| = 0.46 stays well inside the sprite
+      float dd = abs(p.x) + abs(p.y);
+      m = smoothstep(0.53, 0.37, dd) * 0.85 + ring(dd, 0.46, 0.11) * 0.35 + core * 0.55;
     } else {
-      // square
-      float m = max(abs(uv.x), abs(uv.y));
-      mask = smoothstep(0.5, 0.44, m);
+      // square — max(|x|,|y|) = 0.48, so its corners sit at d = 0.68
+      float sq = max(abs(p.x), abs(p.y));
+      m = smoothstep(0.53, 0.40, sq) * 0.85 + ring(sq, 0.48, 0.10) * 0.35 + core * 0.55;
     }
-    if (mask < 0.02) discard;
-    // Activation brightens the core toward white for a glow feel.
-    vec3 c = mix(vColor, vec3(1.0), vAct * 0.55);
-    gl_FragColor = vec4(c, vAlpha * mask);
+
+    float lum = m + halo * 0.9;
+    // Discard instead of blending a zero: on a 5k-node graph the empty part of
+    // each sprite is most of its fill rate. vAlpha is folded in here because a
+    // dimmed node (legend hover, group dimming: alpha 0.06) contributes nothing
+    // the eye can see, so its whole sprite may be skipped.
+    if (lum * vAlpha < 0.004) discard;
+
+    // Colour × shape, plus a white centre that aAct drives (po-graph does the
+    // same with m*(.08+vAct*.8)), so activation both enlarges and brightens.
+    vec3 c = vColor * lum + vec3(1.0) * (core * 0.22 + m * vAct * 0.75);
+    // uGlobal caps the total emitted light as the node count grows; vAlpha is
+    // the caller's per-node opacity (hover, dimming, legend, activation).
+    c *= vAlpha * uGlobal;
+    // Additive blending: alpha is 1 and the intensity lives in the colour, so
+    // overlapping nodes brighten each other instead of occluding each other.
+    gl_FragColor = vec4(min(c, vec3(4.0)), 1.0);
   }
 `
 
@@ -153,6 +263,16 @@ export interface NodePoints {
    * and throttles the calls (~16/s) — see po-graph's onMove.
    */
   pick: (raycaster: THREE.Raycaster) => Graph3DNode | null
+  /**
+   * Keep the shader's `uPx` equal to the renderer's pixel ratio.
+   *
+   * `gl_PointSize` is expressed in DEVICE pixels, so a renderer that drops from
+   * ratio 1.5 to 1.0 while `uPx` stays at 1.5 makes every point 1.5× larger on
+   * screen. The two must move together — see useRenderLoop's frame budget.
+   */
+  setPixelRatio: (pixelRatio: number) => void
+  /** Current `uPx`, for tests and for wiring a newly created Points. */
+  getPixelRatio: () => number
   dispose: () => void
 }
 
@@ -178,8 +298,17 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
     fragmentShader: FRAGMENT_SHADER,
     transparent: true,
     depthWrite: false,
+    // Additive: the sprites EMIT light, so overlapping nodes brighten each other
+    // (po-graph's nodeMat, po-graph.js:461) instead of compositing into grey.
+    blending: THREE.AdditiveBlending,
     uniforms: {
-      uPx: { value: typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio || 1, 2) },
+      // Device pixels per CSS pixel. gl_PointSize is in DEVICE pixels, so this is
+      // the RENDERER's pixel ratio, never the screen's: the adaptive quality loop
+      // moves both together (see `setPixelRatio` below), otherwise the points
+      // change their on-screen size whenever the ratio changes.
+      uPx: { value: typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio || 1, 1.5) },
+      // Per-node light gain, recomputed from the node count by setData().
+      uGlobal: { value: nodeGain(nodes.length) },
     },
   })
 
@@ -187,8 +316,19 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
   object.frustumCulled = false
   object.renderOrder = 1
 
+  const setPixelRatio = (pixelRatio: number) => {
+    const px = Number.isFinite(pixelRatio) && pixelRatio > 0 ? pixelRatio : 1
+    material.uniforms.uPx.value = px
+  }
+
+  const getPixelRatio = () => material.uniforms.uPx.value as number
+
   const setData = (next: Graph3DNode[]) => {
     nodeList = next
+    // The gain is a property of the crate, not of a node: recompute it here,
+    // once per data change, so a filtered or aggregated graph is not lit like
+    // the full one it came from.
+    material.uniforms.uGlobal.value = nodeGain(next.length)
     if (next.length !== (geometry.getAttribute('position') as THREE.BufferAttribute).count) {
       geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(next.length * 3), 3))
       geometry.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(next.length * 3), 3))
@@ -258,5 +398,5 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
 
   setData(nodes)
 
-  return { object, setData, updatePositions, updateStyles, pick, dispose }
+  return { object, setData, updatePositions, updateStyles, pick, setPixelRatio, getPixelRatio, dispose }
 }

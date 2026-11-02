@@ -32,6 +32,8 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 
+import { initialFrameQuality, observeFrame, type FrameQualityState } from './frameQuality'
+
 // ── Timings ──────────────────────────────────────────────────────────────────
 
 /** Keep rendering this long after a pointer/wheel/controls interaction. */
@@ -88,6 +90,23 @@ export function shouldHeartbeat(i: Pick<RenderLoopInput, 'documentHidden' | 'onS
   return !i.documentHidden && i.onScreen
 }
 
+/** `performance.now()`, with a fallback for a non-browser environment. */
+function nowMs(): number {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now()
+}
+
+/** A pixel ratio must be a positive finite number; anything else means 1. */
+function clampRatio(value: number): number {
+  return Number.isFinite(value) && value > 0 ? value : 1
+}
+
+/** The ratio the renderer holds right now, if it exists yet. */
+function rendererPixelRatio(graphRef: React.RefObject<RenderLoopGraphRef | undefined>): number | undefined {
+  const fg = graphRef.current
+  const renderer = fg && typeof fg.renderer === 'function' ? fg.renderer() : undefined
+  return typeof renderer?.getPixelRatio === 'function' ? renderer.getPixelRatio() : undefined
+}
+
 // ── Ref surface we need from ForceGraph3D ────────────────────────────────────
 
 export interface RenderLoopControls {
@@ -95,10 +114,36 @@ export interface RenderLoopControls {
   removeEventListener?: (type: string, fn: () => void) => void
 }
 
+/**
+ * The two renderer methods the frame budget needs. Typed structurally so this
+ * module keeps zero knowledge of three.js.
+ */
+export interface RenderLoopRenderer {
+  getPixelRatio?: () => number
+  setPixelRatio: (pixelRatio: number) => unknown
+}
+
 export interface RenderLoopGraphRef {
   pauseAnimation?: () => unknown
   resumeAnimation?: () => unknown
   controls?: () => RenderLoopControls | undefined
+  renderer?: () => RenderLoopRenderer | undefined
+}
+
+export interface RenderLoopOptions {
+  /**
+   * Ceiling the budget may raise the pixel ratio back to: the device ratio,
+   * already clamped by the caller. Default 1 (never raise).
+   */
+  maxPixelRatio?: number
+  /** Opening ratio. Defaults to `maxPixelRatio`. */
+  initialPixelRatio?: number
+  /**
+   * Called whenever the ratio changes. The shader's `uPx` MUST follow (it scales
+   * `gl_PointSize`, which is in device pixels): if it does not, every point
+   * grows by exactly the factor the renderer lost.
+   */
+  onPixelRatioChange?: (pixelRatio: number) => void
 }
 
 export interface RenderLoopHandle {
@@ -108,6 +153,15 @@ export interface RenderLoopHandle {
   setEngineRunning: (running: boolean) => void
   /** Report whether animated link particles are currently on screen. */
   setParticlesAnimating: (animating: boolean) => void
+  /** Pixel ratio currently in force (renderer and shader agree on it). */
+  getPixelRatio: () => number
+  /**
+   * Change the ceiling — the screen's own ratio changed (window dragged to
+   * another display). Resets the drop counter: the history belonged to the
+   * previous screen, and po-graph resets `prDrops` for the same reason
+   * (po-graph.js:4141).
+   */
+  setMaxPixelRatio: (pixelRatio: number) => void
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -115,6 +169,7 @@ export interface RenderLoopHandle {
 export function useRenderLoop(
   graphRef: React.RefObject<RenderLoopGraphRef | undefined>,
   containerRef: React.RefObject<HTMLElement | null>,
+  options: RenderLoopOptions = {},
 ): RenderLoopHandle {
   const keepAliveUntilRef = useRef(0)
   const engineRunningRef = useRef(true)
@@ -125,6 +180,88 @@ export function useRenderLoop(
   const loopRunningRef = useRef(true)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const applyRef = useRef<() => void>(() => {})
+
+  // ── Frame budget (pixel ratio) ────────────────────────────────────────────
+  // `qualityRef` is the whole decision state (see frameQuality.ts); the probe
+  // below feeds it one sample per RENDERED frame and applies the ratio it
+  // returns. It only runs while the library's loop runs: a scene at rest must
+  // not keep a rAF chain alive, or this hook would re-create the very heat it
+  // exists to remove.
+  const maxRatioRef = useRef<number>(clampRatio(options.maxPixelRatio ?? options.initialPixelRatio ?? 1))
+  const qualityRef = useRef<FrameQualityState>(
+    initialFrameQuality(clampRatio(options.initialPixelRatio ?? options.maxPixelRatio ?? 1), nowMs()),
+  )
+  const probeRef = useRef<number | null>(null)
+  /**
+   * True once the budget knows which ratio to start from. When the caller gave
+   * no ceiling, the first probe adopts the renderer's own ratio instead of
+   * silently forcing a hook with no options down to 1.
+   */
+  const ratioKnownRef = useRef(options.maxPixelRatio != null || options.initialPixelRatio != null)
+  const onRatioRef = useRef(options.onPixelRatioChange)
+  useEffect(() => {
+    onRatioRef.current = options.onPixelRatioChange
+  }, [options.onPixelRatioChange])
+
+  /** Push a ratio to the renderer AND to the caller (which owns the shader). */
+  const applyPixelRatio = useCallback((ratio: number) => {
+    const fg = graphRef.current
+    const renderer = fg && typeof fg.renderer === 'function' ? fg.renderer() : undefined
+    if (renderer && typeof renderer.setPixelRatio === 'function') {
+      const current = typeof renderer.getPixelRatio === 'function' ? renderer.getPixelRatio() : undefined
+      if (typeof current !== 'number' || Math.abs(current - ratio) > 1e-3) {
+        renderer.setPixelRatio(ratio)
+      }
+    }
+    onRatioRef.current?.(ratio)
+  }, [graphRef])
+
+  const stopProbe = useCallback(() => {
+    if (probeRef.current !== null) {
+      cancelAnimationFrame(probeRef.current)
+      probeRef.current = null
+    }
+    // lastFrameAt = 0 ⇒ the next sample only re-learns the clock instead of
+    // averaging in the whole pause as if it were one slow frame.
+    qualityRef.current = { ...qualityRef.current, lastFrameAt: 0 }
+  }, [])
+
+  const startProbe = useCallback(() => {
+    if (probeRef.current !== null) return
+    if (typeof requestAnimationFrame !== 'function') return
+    if (!ratioKnownRef.current) {
+      // No ceiling was imposed: measure against what the renderer already uses.
+      ratioKnownRef.current = true
+      const ratio = clampRatio(rendererPixelRatio(graphRef) ?? 1)
+      maxRatioRef.current = ratio
+      qualityRef.current = { ...initialFrameQuality(ratio, nowMs()), lastFrameAt: qualityRef.current.lastFrameAt }
+    }
+    // Re-assert the ratio once: the renderer may have just been created at the
+    // device ratio while the budget already decided on a lower one.
+    applyPixelRatio(qualityRef.current.ratio)
+    const step = (now: number) => {
+      probeRef.current = requestAnimationFrame(step)
+      const prev = qualityRef.current
+      const next = observeFrame(prev, {
+        dtMs: now - prev.lastFrameAt,
+        now,
+        maxRatio: maxRatioRef.current,
+      })
+      qualityRef.current = next
+      // Apply on a decision — and re-assert whenever the renderer disagrees.
+      // `three-render-objects` sets `Math.min(2, devicePixelRatio)` when it
+      // CONSTRUCTS the renderer (three-render-objects.mjs:534), which can happen
+      // after the first probe: without this check the measured ratio would never
+      // reach it, and the points would be drawn at the wrong scale.
+      const current = rendererPixelRatio(graphRef)
+      const drifted = typeof current === 'number' && Math.abs(current - next.ratio) > 1e-3
+      if (drifted || Math.abs(next.ratio - prev.ratio) > 1e-6) applyPixelRatio(next.ratio)
+    }
+    probeRef.current = requestAnimationFrame(step)
+    // `maxRatioRef` is listed because the compiler infers it as a dependency of
+    // this callback (it is read and, on first use, adopted). Refs are stable, so
+    // listing it can never re-create the callback.
+  }, [applyPixelRatio, graphRef, maxRatioRef])
 
   const schedule = useCallback((ms: number) => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -157,9 +294,15 @@ export function useRenderLoop(
         fg.resumeAnimation()
         loopRunningRef.current = true
       }
+      // The frame budget can only be measured on frames that are drawn.
+      startProbe()
       schedule(POLL_MS)
       return
     }
+
+    // Nothing is being drawn anymore: stop measuring. Idempotent, and it also
+    // re-seeds the EMA so the pause is not averaged in as one slow frame.
+    stopProbe()
 
     if (loopRunningRef.current) {
       fg.pauseAnimation()
@@ -172,7 +315,7 @@ export function useRenderLoop(
     }
 
     schedule(shouldHeartbeat(input) ? HEARTBEAT_MS : POLL_MS * 4)
-  }, [graphRef, schedule])
+  }, [graphRef, schedule, startProbe, stopProbe])
 
   // `apply` is stable (both deps are stable), so this runs once. It is declared
   // here — before every wake-up effect below and before the caller's own
@@ -199,6 +342,28 @@ export function useRenderLoop(
     particlesRef.current = animating
     applyRef.current()
   }, [])
+
+  // ── Frame budget controls ─────────────────────────────────────────────────
+  const getPixelRatio = useCallback(() => qualityRef.current.ratio, [])
+
+  const setMaxPixelRatio = useCallback((pixelRatio: number) => {
+    const max = clampRatio(pixelRatio)
+    const q = qualityRef.current
+    const ratio = Math.min(q.ratio, max)
+    const otherScreen = Math.abs(max - maxRatioRef.current) > 1e-6
+    maxRatioRef.current = max
+    if (otherScreen) {
+      // Another screen: the drop history and the smoothed interval belonged to
+      // the previous one (po-graph resets `prDrops` on a dpr change,
+      // po-graph.js:4141). Keep the timing so the probe stays seeded.
+      qualityRef.current = { ...initialFrameQuality(ratio, nowMs()), lastFrameAt: q.lastFrameAt }
+    } else if (ratio !== q.ratio) {
+      qualityRef.current = { ...q, ratio, changedAt: nowMs() }
+    }
+    // One writer: the ceiling change reaches the renderer through the same path
+    // the drops use, so the shader's uPx can never lag behind.
+    applyPixelRatio(ratio)
+  }, [applyPixelRatio, maxRatioRef])
 
   // ── Wake-up: camera controls (rotate / zoom / pan) ────────────────────────
   // OrbitControls dispatches 'change' for every camera mutation it performs,
@@ -305,6 +470,8 @@ export function useRenderLoop(
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
       timerRef.current = null
+      // Never leave a rAF chain alive after unmount.
+      stopProbe()
       // Leave the library running so its own destructor behaves as before.
       const fg = graph.current
       if (fg && !loopRunningRef.current && typeof fg.resumeAnimation === 'function') {
@@ -312,9 +479,9 @@ export function useRenderLoop(
         loopRunningRef.current = true
       }
     }
-  }, [graphRef, wake])
+  }, [graphRef, wake, stopProbe])
 
-  return { wake, setEngineRunning, setParticlesAnimating }
+  return { wake, setEngineRunning, setParticlesAnimating, getPixelRatio, setMaxPixelRatio }
 }
 
 // ── Device capability detection (no user-agent sniffing) ─────────────────────
