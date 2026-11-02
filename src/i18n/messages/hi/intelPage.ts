@@ -244,4 +244,13 @@ export default {
     live: 'लाइव',
     liveTitle: 'WebSocket कनेक्टेड — लाइव अपडेट मिल रहे हैं',
   },
+  situation: {
+    aria: 'आप क्या देख रहे हैं',
+    nodes: 'नोड',
+    groups: 'समूह',
+    edges: 'एज',
+    layers: 'परतें',
+    tierDetail: 'विवरण',
+    tierGroups: 'समूह',
+  },
 } satisfies Translation<'intelPage'>

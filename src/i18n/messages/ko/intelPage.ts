@@ -244,4 +244,13 @@ export default {
     live: '실시간',
     liveTitle: 'WebSocket 연결됨 — 실시간 업데이트 수신 중',
   },
+  situation: {
+    aria: '현재 보고 있는 것',
+    nodes: '노드',
+    groups: '그룹',
+    edges: '엣지',
+    layers: '레이어',
+    tierDetail: '상세',
+    tierGroups: '그룹',
+  },
 } satisfies Translation<'intelPage'>

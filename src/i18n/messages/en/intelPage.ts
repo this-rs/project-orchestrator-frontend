@@ -243,4 +243,13 @@ export default {
     live: 'Live',
     liveTitle: 'WebSocket connected — receiving live updates',
   },
+  situation: {
+    aria: 'What you are looking at',
+    nodes: 'nodes',
+    groups: 'groups',
+    edges: 'edges',
+    layers: 'layers',
+    tierDetail: 'detail',
+    tierGroups: 'groups',
+  },
 } as const

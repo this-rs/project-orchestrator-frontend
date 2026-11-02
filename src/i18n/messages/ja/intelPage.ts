@@ -244,4 +244,13 @@ export default {
     live: 'ライブ',
     liveTitle: 'WebSocket 接続中 — ライブ更新を受信しています',
   },
+  situation: {
+    aria: '表示中の内容',
+    nodes: 'ノード',
+    groups: 'グループ',
+    edges: 'エッジ',
+    layers: 'レイヤー',
+    tierDetail: '詳細',
+    tierGroups: 'グループ',
+  },
 } satisfies Translation<'intelPage'>

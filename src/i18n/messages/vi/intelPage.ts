@@ -244,4 +244,13 @@ export default {
     live: 'Trực tiếp',
     liveTitle: 'WebSocket đã kết nối — đang nhận cập nhật trực tiếp',
   },
+  situation: {
+    aria: 'Bạn đang xem gì',
+    nodes: 'nút',
+    groups: 'nhóm',
+    edges: 'cạnh',
+    layers: 'lớp',
+    tierDetail: 'chi tiết',
+    tierGroups: 'nhóm',
+  },
 } satisfies Translation<'intelPage'>

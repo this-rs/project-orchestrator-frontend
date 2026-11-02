@@ -244,4 +244,13 @@ export default {
     live: '实时',
     liveTitle: 'WebSocket 已连接——正在接收实时更新',
   },
+  situation: {
+    aria: '当前视图',
+    nodes: '节点',
+    groups: '分组',
+    edges: '边',
+    layers: '图层',
+    tierDetail: '详细',
+    tierGroups: '分组',
+  },
 } satisfies Translation<'intelPage'>

@@ -12,6 +12,7 @@ import { LayerControls } from './LayerControls'
 import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActivation'
 import { GraphLoadingProgress } from './GraphLoadingProgress'
 import { GraphLegend } from './GraphLegend'
+import { GraphSituation } from './GraphSituation'
 import { GraphSearchHint } from './GraphSearchHint'
 import { graphFloat, graphControl, graphChip } from './graphSurface'
 import {
@@ -19,6 +20,7 @@ import {
   intelligenceErrorAtom,
   selectedNodeIdAtom,
   graphBrightnessAtom,
+  graphScaleAtom,
 } from '@/atoms/intelligence'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -48,6 +50,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const [searchOpen, setSearchOpen] = useAtom(activationSearchOpenAtom)
   const selectedNodeId = useAtomValue(selectedNodeIdAtom)
   const [graphBrightness, setGraphBrightness] = useAtom(graphBrightnessAtom)
+  const graphScale = useAtomValue(graphScaleAtom)
 
   const {
     nodes: layoutedNodes,
@@ -76,6 +79,16 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
     () => allEdges.map((e) => ({ source: e.source, target: e.target, type: e.type as string })),
     [allEdges],
   )
+  // Situation line: one pass over the nodes already loaded, memoised on them
+  const groupCount = useMemo(() => {
+    if (graphScale === 0) return 1
+    const ids = new Set<number>()
+    for (const n of allNodes) {
+      const c = (n.data as { communityId?: number } | undefined)?.communityId
+      if (c != null) ids.add(c)
+    }
+    return Math.max(ids.size, 1)
+  }, [allNodes, graphScale])
   // Custom mode — shows LayerControls panel
   const [showCustomPanel, setShowCustomPanel] = useState(false)
   // Inspector collapsed
@@ -149,6 +162,15 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       ref={containerRef}
       className="relative h-full w-full overflow-hidden bg-surface-base"
     >
+      {/* Situation: what the graph shows (under the title, below the layer presets) */}
+      <GraphSituation
+        nodeCount={allNodes.length}
+        groupCount={groupCount}
+        edgeCount={allEdges.length}
+        layers={Array.from(visibleLayers) as string[]}
+        scale={graphScale}
+      />
+
       {/* Layer controls (top-left overlay) — presets always visible, details in Custom mode */}
       <LayerControls
         visibleLayers={visibleLayers}
