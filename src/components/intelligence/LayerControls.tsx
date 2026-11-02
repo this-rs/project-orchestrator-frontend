@@ -130,7 +130,7 @@ function LayerControlsComponent({
                 aria-selected={selected}
                 onClick={() => selectPreset(tab.id)}
                 title={tab.label}
-                className={`${graphChip} h-auto min-w-0 flex-col gap-0.5 px-1 py-1.5 [&_svg]:size-3.5`}
+                className="inline-flex h-auto min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-[10px] font-medium leading-tight text-[var(--text-tertiary)] transition-colors hover:bg-surface-highlight hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] aria-selected:bg-surface-highlight aria-selected:text-[var(--text-primary)] [&_svg]:size-3.5"
               >
                 {tab.icon}
                 <span className="w-full truncate text-center text-[10px] leading-tight">{tab.label}</span>
