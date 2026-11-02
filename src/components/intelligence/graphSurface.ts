@@ -4,9 +4,19 @@
  * Surfaces and text come from the PO tokens in `index.css`, never from Tailwind greys.
  */
 
-/** A floating panel: one surface family, one radius (`rounded-xl`), one border. Add its own shadow. */
+/**
+ * A floating panel, po-graph grammar: a near-opaque surface, a hairline border (the weakest
+ * border token), one radius (`rounded-xl`). Add its own shadow.
+ */
 export const graphFloat =
-  'rounded-xl border border-border-default bg-surface-popover/95 backdrop-blur-sm'
+  'rounded-xl border border-border-subtle bg-surface-popover/90 backdrop-blur-sm'
+
+/** A compact toggle inside a panel (po-graph "lens" chip): 11px, muted until pressed. */
+export const graphChip =
+  'inline-flex h-8 md:h-7 items-center justify-center gap-1.5 rounded-lg px-2 text-[11px] font-medium whitespace-nowrap text-[var(--text-tertiary)] transition-colors hover:bg-surface-highlight hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] aria-pressed:bg-surface-highlight aria-pressed:text-[var(--text-primary)] aria-selected:bg-surface-highlight aria-selected:text-[var(--text-primary)]'
+
+/** The dot of a legend entry or a layer row: one size, never a coloured box. */
+export const graphDot = 'size-2 shrink-0 rounded-full'
 
 /** A group title inside a panel (level 2): 11px, medium, tertiary — never an uppercase kicker. */
 export const graphGroupTitle = 'text-[11px] font-medium text-[var(--text-tertiary)]'

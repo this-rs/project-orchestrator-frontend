@@ -301,19 +301,19 @@ function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
   const Icon = entityIcons[entityType] ?? Box
 
   return (
-    <div className={`absolute top-14 right-3 z-30 overflow-y-auto ${graphFloat} shadow-[var(--shadow-xl)] max-w-[calc(100vw-1.5rem)] ${
-      isFullscreen ? 'w-96 max-h-[calc(100%-120px)]' : 'w-80 max-h-[calc(100%-124px)]'
+    <div className={`absolute top-14 right-3 z-30 overflow-y-auto ${graphFloat} shadow-[var(--shadow-md)] max-w-[calc(100vw-1.5rem)] ${
+      isFullscreen ? 'w-96 max-h-[calc(100%-120px)]' : 'w-72 max-h-[calc(100%-124px)]'
     }`}>
       {/* Header — title (level 1), then the kind · layer line (level 2) */}
-      <div className="flex items-center gap-2 p-3 border-b border-border-default">
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border-subtle">
         <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          className="size-7 rounded-lg flex items-center justify-center shrink-0"
           style={{ backgroundColor: `${color}20` }}
         >
-          <Icon size={16} color={color} />
+          <Icon size={14} color={color} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-[var(--text-primary)] truncate" title={data.label}>
+          <p className="text-[13px] font-medium text-[var(--text-primary)] truncate" title={data.label}>
             {data.label}
           </p>
           <p className="text-[11px] text-[var(--text-tertiary)] truncate">
@@ -353,7 +353,7 @@ function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
       </div>
 
       {/* Entity ID (footer) */}
-      <div className="px-3 py-2 border-t border-border-default">
+      <div className="px-3 py-1.5 border-t border-border-subtle">
         <p className="text-[10px] font-mono text-[var(--text-tertiary)] truncate" title={data.entityId}>
           {data.entityId}
         </p>

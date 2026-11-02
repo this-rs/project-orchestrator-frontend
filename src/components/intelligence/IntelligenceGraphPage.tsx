@@ -1,8 +1,8 @@
 import { lazy, Suspense, useCallback, useMemo, useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
-import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Maximize, Minimize, PanelRightClose, PanelRightOpen, Search, Sun } from 'lucide-react'
+import { useAtom, useAtomValue } from 'jotai'
+import { Maximize, Minimize, PanelRightClose, PanelRightOpen, Sun } from 'lucide-react'
 
 import { useIntelligenceGraph } from './useIntelligenceGraph'
 import { useGraphWebSocket } from './useGraphWebSocket'
@@ -11,14 +11,14 @@ import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
 import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActivation'
 import { GraphLoadingProgress } from './GraphLoadingProgress'
-import { entityColor } from '@/constants/graphPalette'
-import { graphFloat, graphControl } from './graphSurface'
+import { GraphLegend } from './GraphLegend'
+import { GraphSearchHint } from './GraphSearchHint'
+import { graphFloat, graphControl, graphChip } from './graphSurface'
 import { GraphPanel } from './GraphPanel'
 import {
   intelligenceLoadingAtom,
   intelligenceErrorAtom,
   selectedNodeIdAtom,
-  legendHoveredTypeAtom,
   graphBrightnessAtom,
 } from '@/atoms/intelligence'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -27,43 +27,8 @@ import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
 import { TreemapView } from './treemap/TreemapView'
 import type { TmEdge, TmNode } from './treemap/treemapLayout'
 import { Branding } from '@/components/ui'
-import type { IntelligenceLayer } from '@/types/intelligence'
-import { useT, type MessageKey } from '@/i18n'
+import { useT } from '@/i18n'
 import { claimModK } from '@/components/anchors/askHereShortcut'
-
-// ── Entity legend data ──────────────────────────────────────────────────────
-const ENTITY_LEGEND: { layer: IntelligenceLayer; types: { key: string; label: MessageKey }[] }[] = [
-  { layer: 'code', types: [
-    { key: 'file', label: 'intelPage.graph.legend.file' },
-    { key: 'function', label: 'intelPage.graph.legend.function' },
-    { key: 'struct', label: 'intelPage.graph.legend.struct' },
-    { key: 'trait', label: 'intelPage.graph.legend.trait' },
-    { key: 'enum', label: 'intelPage.graph.legend.enum' },
-    { key: 'feature_graph', label: 'intelPage.graph.legend.featureGraph' },
-  ]},
-  { layer: 'knowledge', types: [
-    { key: 'note', label: 'intelPage.graph.legend.note' },
-    { key: 'decision', label: 'intelPage.graph.legend.decision' },
-    { key: 'constraint', label: 'intelPage.graph.legend.constraint' },
-  ]},
-  { layer: 'skills', types: [
-    { key: 'skill', label: 'intelPage.graph.legend.skill' },
-  ]},
-  { layer: 'behavioral', types: [
-    { key: 'protocol', label: 'intelPage.graph.legend.protocol' },
-    { key: 'protocol_state', label: 'intelPage.graph.legend.state' },
-  ]},
-  { layer: 'pm', types: [
-    { key: 'plan', label: 'intelPage.graph.legend.plan' },
-    { key: 'task', label: 'intelPage.graph.legend.task' },
-    { key: 'step', label: 'intelPage.graph.legend.step' },
-    { key: 'milestone', label: 'intelPage.graph.legend.milestone' },
-    { key: 'release', label: 'intelPage.graph.legend.release' },
-  ]},
-  { layer: 'chat', types: [
-    { key: 'chat_session', label: 'intelPage.graph.legend.chatSession' },
-  ]},
-]
 
 // Lazy-load the 3D component — Three.js (~300KB gz) only loaded when needed
 const IntelligenceGraph3D = lazy(() => import('./graph3d/IntelligenceGraph3D'))
@@ -83,7 +48,6 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const error = useAtomValue(intelligenceErrorAtom)
   const [searchOpen, setSearchOpen] = useAtom(activationSearchOpenAtom)
   const selectedNodeId = useAtomValue(selectedNodeIdAtom)
-  const setLegendHoveredType = useSetAtom(legendHoveredTypeAtom)
   const [graphBrightness, setGraphBrightness] = useAtom(graphBrightnessAtom)
 
   const {
@@ -247,12 +211,12 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       {selectedNodeId && (
         <button
           onClick={() => setInspectorCollapsed((v) => !v)}
-          className={`absolute top-[4.5rem] z-40 flex items-center gap-1 py-2 rounded-l-md text-[10px] font-medium bg-surface-raised/90 backdrop-blur-sm border border-r-0 border-border-default shadow-[var(--shadow-md)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors ${
+          className={`absolute top-[4.5rem] z-40 flex items-center gap-1 py-2 rounded-l-md text-[10px] font-medium bg-surface-popover/90 backdrop-blur-sm border border-r-0 border-border-subtle shadow-[var(--shadow-md)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors ${
             inspectorCollapsed
-              ? 'right-0 px-2 rounded-r-md border-r border-border-default'
+              ? 'right-0 px-2 rounded-r-md border-r border-border-subtle'
               : isFullscreen
                 ? 'right-[24.75rem] px-1.5'
-                : 'right-[20.75rem] px-1.5'
+                : 'right-[18.75rem] px-1.5'
           }`}
           title={inspectorCollapsed ? t('intelPage.graph.showInspector') : t('intelPage.graph.hideInspector')}
           aria-label={inspectorCollapsed ? t('intelPage.graph.showInspector') : t('intelPage.graph.hideInspector')}
@@ -273,7 +237,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
               type="button"
               aria-pressed={graphView === v}
               onClick={() => setGraphView(v)}
-              className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${graphView === v ? 'bg-[var(--color-primary-muted)] text-[color:var(--text-primary)]' : 'text-[color:var(--text-secondary)] hover:text-[color:var(--text-primary)]'}`}
+              className={`${graphChip} h-7 md:h-6 px-2`}
             >
               {v === 'treemap' ? t('graph.unified.treemap') : '3D'}
             </button>
@@ -327,52 +291,13 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       <div className="absolute bottom-3 left-3 z-40 flex flex-col items-start gap-2 pointer-events-none">
         {/* Loading progress — inline, non-blocking */}
         <GraphLoadingProgress />
-        {/* Entity legend — collapsible; a single tap folds it away on mobile */}
-        <GraphPanel
-          id="legend"
-          title={t('intelPage.graph.panels.legend')}
-          className="pointer-events-auto max-w-[min(28rem,calc(100vw-1.5rem))]"
-        >
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-3 py-2">
-            {ENTITY_LEGEND
-              .filter((group) => visibleLayers.has(group.layer))
-              .flatMap((group) => group.types)
-              .map((entry) => {
-                const color = entityColor(entry.key)
-                return (
-                  <span
-                    key={entry.key}
-                    className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors"
-                    onMouseEnter={() => setLegendHoveredType(entry.key)}
-                    onMouseLeave={() => setLegendHoveredType(null)}
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: color }}
-                    />
-                    {t(entry.label)}
-                  </span>
-                )
-              })}
-          </div>
-        </GraphPanel>
+        <GraphLegend visibleLayers={visibleLayers} />
         {/* Branding */}
         <Branding variant="inline" className="pl-1" />
       </div>
 
-      {/* Keyboard shortcut hint (bottom-center) — prominent CTA, hidden when search is open */}
-      {!searchOpen && <button
-        onClick={() => setSearchOpen(true)}
-        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-4 py-2 rounded-full bg-surface-raised/90 backdrop-blur-sm border border-border-strong shadow-[var(--shadow-md)] text-[var(--text-primary)] hover:text-[var(--color-primary-light)] hover:border-[var(--color-primary)]/60 hover:bg-surface-raised hover:shadow-[var(--shadow-lg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-[color,background-color,border-color,box-shadow] group cursor-pointer"
-        aria-label={t('intelPage.graph.spreadingActivation')}
-        aria-keyshortcuts="Meta+K Control+K"
-      >
-        <Search size={14} className="text-[var(--text-secondary)] group-hover:text-[var(--color-primary-light)] transition-colors" aria-hidden="true" />
-        <span className="text-xs font-medium">{t('intelPage.graph.spreadingActivation')}</span>
-        <kbd className="text-[11px] px-1.5 py-0.5 rounded-md bg-surface-highlight border border-border-default font-mono text-[var(--text-secondary)] group-hover:text-[var(--color-primary-light)] group-hover:border-[var(--color-primary)]/40 transition-colors">
-          ⌘K
-        </kbd>
-      </button>}
+      {/* Keyboard shortcut hint (bottom-center), hidden when search is open */}
+      {!searchOpen && <GraphSearchHint onOpen={() => setSearchOpen(true)} />}
     </div>
   )
 

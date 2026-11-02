@@ -1,21 +1,21 @@
 import { lazy, Suspense, useCallback, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Maximize, Minimize, PanelRightClose, PanelRightOpen, Search, Sun } from 'lucide-react'
+import { Maximize, Minimize, PanelRightClose, PanelRightOpen, Sun } from 'lucide-react'
 
 import { useWorkspaceIntelligenceGraph } from './useWorkspaceIntelligenceGraph'
 import { NodeInspector } from './NodeInspector'
 import { LayerControls } from './LayerControls'
 import { SpreadingActivation, activationSearchOpenAtom } from './SpreadingActivation'
 import { GraphLoadingProgress } from './GraphLoadingProgress'
-import { entityColor } from '@/constants/graphPalette'
 import { graphFloat, graphControl } from './graphSurface'
+import { GraphLegend } from './GraphLegend'
+import { GraphSearchHint } from './GraphSearchHint'
 import { GraphPanel } from './GraphPanel'
 import {
   intelligenceLoadingAtom,
   intelligenceErrorAtom,
   selectedNodeIdAtom,
-  legendHoveredTypeAtom,
   hoveredProjectSlugAtom,
   graphBrightnessAtom,
 } from '@/atoms/intelligence'
@@ -23,43 +23,8 @@ import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Graph3DErrorBoundary } from '@/components/ui/Graph3DErrorBoundary'
 import { Branding } from '@/components/ui'
-import type { IntelligenceLayer } from '@/types/intelligence'
-import { useT, type MessageKey } from '@/i18n'
+import { useT } from '@/i18n'
 import { claimModK } from '@/components/anchors/askHereShortcut'
-
-// ── Entity legend ──────────────────────────────────────────────────────────
-const ENTITY_LEGEND: { layer: IntelligenceLayer; types: { key: string; label: MessageKey }[] }[] = [
-  { layer: 'code', types: [
-    { key: 'file', label: 'intelPage.graph.legend.file' },
-    { key: 'function', label: 'intelPage.graph.legend.function' },
-    { key: 'struct', label: 'intelPage.graph.legend.struct' },
-    { key: 'trait', label: 'intelPage.graph.legend.trait' },
-    { key: 'enum', label: 'intelPage.graph.legend.enum' },
-    { key: 'feature_graph', label: 'intelPage.graph.legend.featureGraph' },
-  ]},
-  { layer: 'knowledge', types: [
-    { key: 'note', label: 'intelPage.graph.legend.note' },
-    { key: 'decision', label: 'intelPage.graph.legend.decision' },
-    { key: 'constraint', label: 'intelPage.graph.legend.constraint' },
-  ]},
-  { layer: 'skills', types: [
-    { key: 'skill', label: 'intelPage.graph.legend.skill' },
-  ]},
-  { layer: 'behavioral', types: [
-    { key: 'protocol', label: 'intelPage.graph.legend.protocol' },
-    { key: 'protocol_state', label: 'intelPage.graph.legend.state' },
-  ]},
-  { layer: 'pm', types: [
-    { key: 'plan', label: 'intelPage.graph.legend.plan' },
-    { key: 'task', label: 'intelPage.graph.legend.task' },
-    { key: 'step', label: 'intelPage.graph.legend.step' },
-    { key: 'milestone', label: 'intelPage.graph.legend.milestone' },
-    { key: 'release', label: 'intelPage.graph.legend.release' },
-  ]},
-  { layer: 'chat', types: [
-    { key: 'chat_session', label: 'intelPage.graph.legend.chatSession' },
-  ]},
-]
 
 // Lazy-load the 3D component
 const IntelligenceGraph3D = lazy(() => import('./graph3d/IntelligenceGraph3D'))
@@ -76,7 +41,6 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
   const error = useAtomValue(intelligenceErrorAtom)
   const [searchOpen, setSearchOpen] = useAtom(activationSearchOpenAtom)
   const selectedNodeId = useAtomValue(selectedNodeIdAtom)
-  const setLegendHoveredType = useSetAtom(legendHoveredTypeAtom)
   const setHoveredProjectSlug = useSetAtom(hoveredProjectSlugAtom)
   const [graphBrightness, setGraphBrightness] = useAtom(graphBrightnessAtom)
 
@@ -140,9 +104,9 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
   const graphContent = (
     <div
       ref={containerRef}
-      className={`overflow-hidden bg-[#0f172a] ${
+      className={`overflow-hidden bg-surface-base ${
         isFullscreen
-          ? 'fixed inset-0 z-[9999] bg-slate-950'
+          ? 'fixed inset-0 z-[9999] bg-surface-base'
           : `relative ${embedded ? 'w-full h-[300px] sm:h-[450px] lg:h-[600px]' : '-mx-4 md:-mx-6 -mb-2'}`
       }`}
       style={{
@@ -179,9 +143,9 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
       {/* ── Canvas: 3D only ────────────────────────────────────────────── */}
       <Graph3DErrorBoundary context="Workspace Graph">
         <Suspense fallback={
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-950">
-            <div className="text-slate-500 text-sm flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <div className="absolute inset-0 flex items-center justify-center bg-surface-base">
+            <div className="text-[var(--text-tertiary)] text-sm flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
               {t('intelPage.graph.loading3d')}
             </div>
           </div>
@@ -192,12 +156,12 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
 
       {/* ── Overlay states ── */}
       {showError && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-surface-base/80 backdrop-blur-sm">
           <ErrorState description={error!} onRetry={fetchGraph} />
         </div>
       )}
       {showEmpty && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-surface-base/80 backdrop-blur-sm">
           <EmptyState
             variant="search"
             title={t('intelPage.graph.workspaceNoDataTitle')}
@@ -212,12 +176,12 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
       {selectedNodeId && (
         <button
           onClick={() => setInspectorCollapsed((v) => !v)}
-          className={`absolute top-[4.5rem] z-40 flex items-center gap-1 py-2 rounded-l-md text-[10px] font-medium bg-slate-800/90 backdrop-blur-sm border border-r-0 border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80 transition-colors ${
+          className={`absolute top-[4.5rem] z-40 flex items-center gap-1 py-2 rounded-l-md text-[10px] font-medium bg-surface-popover/90 backdrop-blur-sm border border-r-0 border-border-subtle shadow-[var(--shadow-md)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors ${
             inspectorCollapsed
-              ? 'right-0 px-2 rounded-r-md border-r border-slate-700'
+              ? 'right-0 px-2 rounded-r-md border-r border-border-subtle'
               : isFullscreen
                 ? 'right-[24.75rem] px-1.5'
-                : 'right-[20.75rem] px-1.5'
+                : 'right-[18.75rem] px-1.5'
           }`}
           title={inspectorCollapsed ? t('intelPage.graph.showInspector') : t('intelPage.graph.hideInspector')}
         >
@@ -274,48 +238,13 @@ export default function WorkspaceGraphPage({ workspaceSlug, embedded }: Workspac
       <div className="absolute bottom-3 left-3 z-40 flex flex-col items-start gap-2 pointer-events-none">
         {/* Loading progress — inline, non-blocking */}
         <GraphLoadingProgress />
-        {/* Entity legend — collapsible */}
-        <GraphPanel id="legend" title={t('intelPage.graph.panels.legend')} className="pointer-events-auto max-w-[min(28rem,calc(100vw-1.5rem))]">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2">
-            {ENTITY_LEGEND
-              .filter((group) => visibleLayers.has(group.layer))
-              .flatMap((group) => group.types)
-              .map((entry) => {
-                const color = entityColor(entry.key)
-                return (
-                  <span
-                    key={entry.key}
-                    className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)] cursor-pointer hover:text-[var(--text-primary)] transition-colors"
-                    onMouseEnter={() => setLegendHoveredType(entry.key)}
-                    onMouseLeave={() => setLegendHoveredType(null)}
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: color }}
-                    />
-                    {t(entry.label)}
-                  </span>
-                )
-              })}
-          </div>
-        </GraphPanel>
+        <GraphLegend visibleLayers={visibleLayers} />
         {/* Branding */}
         <Branding variant="inline" className="pl-1" />
       </div>
 
-      {/* Keyboard shortcut hint (bottom-center) */}
-      {!searchOpen && (
-        <button
-          onClick={() => setSearchOpen(true)}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-4 py-2 rounded-full bg-slate-800/90 backdrop-blur-sm border border-slate-600/80 text-slate-300 hover:text-cyan-300 hover:border-cyan-500/50 hover:bg-slate-800 hover:shadow-lg hover:shadow-cyan-500/10 transition-[color,background-color,border-color,box-shadow] group cursor-pointer"
-        >
-          <Search size={14} className="text-slate-400 group-hover:text-cyan-400 transition-colors" />
-          <span className="text-xs font-medium">{t('intelPage.graph.spreadingActivation')}</span>
-          <kbd className="text-[11px] px-1.5 py-0.5 rounded-md bg-slate-700/80 border border-slate-600 font-mono text-slate-400 group-hover:text-cyan-300 group-hover:border-cyan-500/40 transition-colors">
-            ⌘K
-          </kbd>
-        </button>
-      )}
+      {/* Keyboard shortcut hint (bottom-center), hidden when search is open */}
+      {!searchOpen && <GraphSearchHint onOpen={() => setSearchOpen(true)} />}
     </div>
   )
 
