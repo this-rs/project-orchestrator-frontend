@@ -196,7 +196,12 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
       if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
     }
     try {
-      const data = cached ?? await intelligenceApi.getWorkspaceGraph(workspaceSlug, { layers, limit }, signal)
+      // `limit` is per category on the API side (see useIntelligenceGraph): the
+      // number the user sets is a total budget, split across the categories.
+      const perCategory = Math.max(200, Math.floor(limit / Math.max(1, layers.length)))
+      const data =
+        cached ??
+        await intelligenceApi.getWorkspaceGraph(workspaceSlug, { layers, limit: perCategory }, signal)
       if (!cached) graphCacheSet(cacheKey, data)
 
       // Store project metadata

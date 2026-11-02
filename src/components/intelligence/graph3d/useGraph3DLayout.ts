@@ -29,6 +29,9 @@ export interface Graph3DNode {
   // Community membership (Louvain cluster)
   communityId?: number
   communityLabel?: string
+  /// What the placement groups on. Falls back to the file's directory when the
+  /// project has no GDS analytics, so a layer is never ONE anonymous ball.
+  groupKey?: string
   // Original data for rendering
   data: Record<string, unknown>
 }
@@ -134,6 +137,84 @@ const LAYER_Z_OFFSET: Record<string, number> = {
   pm: -80,
 }
 
+function asNumber(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined
+}
+
+/** The file a node belongs to: `file_path` on a symbol, `path` on a file. */
+function asPath(d: Record<string, unknown>): string | undefined {
+  const p = d.file_path ?? d.path
+  return typeof p === 'string' && p.length > 0 ? p : undefined
+}
+
+function asCommunityLabel(d: Record<string, unknown>): string | undefined {
+  const l = d.community_label ?? d.communityLabel
+  return typeof l === 'string' && l.length > 0 ? l : undefined
+}
+
+function directoryOf(path: string): string {
+  const i = path.lastIndexOf('/')
+  return i > 0 ? path.slice(0, i) : '.'
+}
+
+/**
+ * File path → community, read from the nodes that carry one.
+ *
+ * The API names the field in snake_case (`community_id`, `community_label`) on
+ * file nodes and gives a symbol its owning file (`file_path`). Reading only
+ * `communityId` left EVERY node in one anonymous group, so the placement drew
+ * one regular ball per layer and the communities — the very thing the view
+ * exists to show — were invisible.
+ */
+export function communityIndex(
+  nodes: IntelligenceNode[],
+): Map<string, { id: number; label?: string }> {
+  const byPath = new Map<string, { id: number; label?: string }>()
+  for (const node of nodes) {
+    const d = node.data as Record<string, unknown>
+    const id = asNumber(d.community_id ?? d.communityId)
+    if (id == null) continue
+    const path = asPath(d) ?? (d.entityType === 'file' ? node.id : undefined)
+    if (path) byPath.set(path, { id, label: asCommunityLabel(d) })
+  }
+  return byPath
+}
+
+/**
+ * One node, with the community it BELONGS to: its own, or the one of the file
+ * it lives in. `groupKey` is what the placement groups on — the community when
+ * there is one, the file's directory otherwise (a project with no GDS analytics
+ * still gets neighbours together instead of one bucket per layer).
+ */
+export function toGraph3DNode(
+  node: IntelligenceNode,
+  communityByPath: Map<string, { id: number; label?: string }>,
+  pos?: { x: number; y: number; z: number },
+): Graph3DNode {
+  const data = node.data as Record<string, unknown>
+  const entityType = (data.entityType as string) ?? 'file'
+  const layer = (data.layer as string) ?? 'code'
+  const own = asNumber(data.community_id ?? data.communityId)
+  const path = asPath(data) ?? (entityType === 'file' ? node.id : undefined)
+  const inherited = own == null && path ? communityByPath.get(path) : undefined
+  const communityId = own ?? inherited?.id
+  const communityLabel = asCommunityLabel(data) ?? inherited?.label
+  return {
+    id: node.id,
+    label: (data.label as string) ?? node.id,
+    entityType,
+    layer,
+    x: pos?.x ?? 0,
+    y: pos?.y ?? 0,
+    z: pos?.z ?? 0,
+    communityId,
+    communityLabel,
+    groupKey:
+      communityId != null ? `c${communityId}` : path ? `d${directoryOf(path)}` : undefined,
+    data,
+  }
+}
+
 /** Per-layer angular phase for the community ring (keeps layers from overlapping). */
 const LAYER_ANGLE: Record<string, number> = {
   code: 0,
@@ -174,7 +255,7 @@ export function deterministicPlacement(
   // Group by layer + community.
   const groups = new Map<string, Graph3DNode[]>()
   for (const n of nodes) {
-    const key = n.layer + DOUBLE_SEP + (n.communityId ?? 0)
+    const key = n.layer + DOUBLE_SEP + (n.groupKey ?? String(n.communityId ?? 0))
     const g = groups.get(key)
     if (g) g.push(n)
     else groups.set(key, [n])
@@ -193,7 +274,12 @@ export function deterministicPlacement(
   for (const [layer, keys] of layerGroups) {
     const z = LAYER_Z_OFFSET[layer] ?? 0
     const baseAngle = LAYER_ANGLE[layer] ?? 0
-    const ring = keys.length > 1 ? 150 : 0
+    // The ring must hold the groups' circumferences: a fixed 150 px ring put
+    // twenty communities on top of each other, which read as one ball.
+    const radii = keys.map((k) => 14 + 4 * Math.sqrt(groups.get(k)!.length))
+    const ring = keys.length > 1
+      ? Math.max(150, (radii.reduce((a, b) => a + b, 0) * 1.4) / Math.PI)
+      : 0
     keys.forEach((key, gi) => {
       const ids = groups.get(key)!
       const angle = baseAngle + (gi / Math.max(1, keys.length)) * Math.PI * 2
@@ -204,7 +290,7 @@ export function deterministicPlacement(
       ids.sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 
       const n = ids.length
-      const r = 14 + 4 * Math.sqrt(n) // sphere radius grows with group size
+      const r = radii[gi] // sphere radius grows with group size
       for (let k = 0; k < n; k++) {
         const rr = Math.acos(1 - 2 * (k + 0.5) / n) // 0..π, even on the sphere
         const th = k * GOLDEN_ANGLE
@@ -255,24 +341,10 @@ export function useGraph3DLayout() {
     }
 
     // Build 3D nodes (positions filled below from cache or the deterministic layout).
-    const graph3dNodes: Graph3DNode[] = nodes.map((node) => {
-      const data = node.data as Record<string, unknown>
-      const entityType = (data.entityType as string) ?? 'file'
-      const layer = (data.layer as string) ?? 'code'
-      const pos = positionCache.current.get(node.id)
-      return {
-        id: node.id,
-        label: (data.label as string) ?? node.id,
-        entityType,
-        layer,
-        x: pos?.x ?? 0,
-        y: pos?.y ?? 0,
-        z: pos?.z ?? 0,
-        communityId: data.communityId as number | undefined,
-        communityLabel: data.communityLabel as string | undefined,
-        data,
-      }
-    })
+    const communityByPath = communityIndex(nodes)
+    const graph3dNodes: Graph3DNode[] = nodes.map((node) =>
+      toGraph3DNode(node, communityByPath, positionCache.current.get(node.id)),
+    )
 
     // Nodes without a cached position are laid out deterministically in one
     // O(N log N) pass (po-graph's Fermat-spiral-per-community). On a first load

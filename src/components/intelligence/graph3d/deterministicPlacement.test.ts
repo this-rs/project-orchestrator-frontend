@@ -63,3 +63,84 @@ describe('deterministicPlacement', () => {
     expect(maxR).toBeGreaterThan(20)
   })
 })
+
+// ── The communities must reach the placement ─────────────────────────────────
+// A measured defect: the API sends `community_id` (snake_case), the view read
+// `communityId`, so every node fell in one group and the layout drew one
+// regular ball per layer. These tests fail on that code.
+
+import { communityIndex, toGraph3DNode } from './useGraph3DLayout'
+
+const intelNode = (id: string, data: Record<string, unknown>) => ({
+  id,
+  type: 'file',
+  position: { x: 0, y: 0 },
+  data: { entityId: id, entityType: 'file', layer: 'code', ...data },
+}) as unknown as Parameters<typeof toGraph3DNode>[0]
+
+describe('communities reach the placement', () => {
+  it('reads the snake_case community_id the API actually sends', () => {
+    const nodes = [
+      intelNode('src/a.rs', { path: 'src/a.rs', community_id: 7, community_label: 'chat' }),
+      intelNode('src/b.rs', { path: 'src/b.rs', community_id: 7, community_label: 'chat' }),
+    ]
+    const index = communityIndex(nodes)
+    const n = toGraph3DNode(nodes[0], index)
+    expect(n.communityId).toBe(7)
+    expect(n.communityLabel).toBe('chat')
+    expect(n.groupKey).toBe('c7')
+  })
+
+  it('gives a symbol the community of the file it lives in', () => {
+    const nodes = [intelNode('src/a.rs', { path: 'src/a.rs', community_id: 3 })]
+    const index = communityIndex(nodes)
+    const symbol = toGraph3DNode(
+      intelNode('src/a.rs::run', { entityType: 'function', file_path: 'src/a.rs' }),
+      index,
+    )
+    expect(symbol.communityId).toBe(3)
+    expect(symbol.groupKey).toBe('c3')
+  })
+
+  it('falls back to the directory when the project has no analytics', () => {
+    const n = toGraph3DNode(intelNode('src/chat/manager.rs', { path: 'src/chat/manager.rs' }), new Map())
+    expect(n.communityId).toBeUndefined()
+    expect(n.groupKey).toBe('dsrc/chat')
+  })
+
+  it('keeps twenty communities from swallowing each other', () => {
+    // The measured defect: a fixed 150 px ring with twenty groups put their
+    // spheres 47 px apart while each needed ~36 px — one indistinguishable ball.
+    const perGroup = 30
+    const groups = 20
+    const nodes: Graph3DNode[] = []
+    for (let g = 0; g < groups; g++) {
+      for (let i = 0; i < perGroup; i++) {
+        nodes.push({
+          id: `g${g}n${i}`, label: `g${g}n${i}`, entityType: 'file', layer: 'code',
+          x: 0, y: 0, z: 0, communityId: g, groupKey: `c${g}`, data: {},
+        })
+      }
+    }
+    const placed = deterministicPlacement(nodes, [])
+    const centroidOf = (g: number) => {
+      const pts = Array.from({ length: perGroup }, (_, i) => placed.get(`g${g}n${i}`)!)
+      return pts.reduce(
+        (a, p) => ({ x: a.x + p.x / perGroup, y: a.y + p.y / perGroup }),
+        { x: 0, y: 0 },
+      )
+    }
+    const centres = Array.from({ length: groups }, (_, g) => centroidOf(g))
+    const radius = 14 + 4 * Math.sqrt(perGroup)
+    let minDistance = Infinity
+    for (let i = 0; i < groups; i++) {
+      for (let j = i + 1; j < groups; j++) {
+        minDistance = Math.min(
+          minDistance,
+          Math.hypot(centres[i].x - centres[j].x, centres[i].y - centres[j].y),
+        )
+      }
+    }
+    expect(minDistance).toBeGreaterThan(radius * 2)
+  })
+})
