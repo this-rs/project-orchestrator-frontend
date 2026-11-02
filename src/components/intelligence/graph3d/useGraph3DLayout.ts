@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
+import { currentDeviceBudget } from './deviceTier'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -483,6 +484,9 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     // No setState here: the caller keeps the fallback grouping until a result
     // arrives (and an empty graph has nothing to group).
     if (nodes.length === 0) return
+    // Louvain on a very large graph is the worker's whole heap on a low-end device:
+    // above the tier's threshold the fallback grouping stays (never an empty screen).
+    if (nodes.length > currentDeviceBudget().budget.maxNodesForCommunityDetection) return
 
     const worker = getCommunityWorker(communityWorkerRef)
     const serializedNodes = nodes.map((n) => n.id)

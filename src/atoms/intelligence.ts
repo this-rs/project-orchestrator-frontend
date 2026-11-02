@@ -9,6 +9,7 @@ import type {
   BackendGraphCommunity,
 } from '@/types/intelligence'
 import { LAYERS, LAYER_ORDER, ANIMATION, EDGE_RENDER_PRIORITY } from '@/constants/intelligence'
+import { currentDeviceBudget } from '@/components/intelligence/graph3d/deviceTier'
 
 // ============================================================================
 // INTELLIGENCE VISUALIZATION — Jotai Atoms
@@ -207,12 +208,13 @@ export const intelligenceCommunitiesAtom = atom<BackendGraphCommunity[]>([])
 /**
  * Node budget for the whole graph — split across the categories the API serves
  * (files, symbols, knowledge, skills, behavioural, pm) because its `limit` is
- * per category. 20 000 is what a FULL graph needs; the renderer stays light
+ * per category. 20 000 is what a FULL graph needs on a high-tier device (the default
+ * follows the device tier: graph3d/deviceTier.ts, 20 000 / 8 000 / 4 000); the renderer stays light
  * because above 2 000 nodes they are one `THREE.Points` (graph3d/nodePoints.ts)
  * and above 4 000 the view opens aggregated. Lower it if the payload is too
  * heavy for your backend.
  */
-export const graphNodeLimitAtom = atom<number>(20000)
+export const graphNodeLimitAtom = atom<number>(currentDeviceBudget().budget.nodeBudget)
 
 /**
  * Aggregation scale of the 3D graph. 0 = full detail (individual nodes);
