@@ -510,6 +510,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return buildGroupedGraph(graphData, scaleRes)
   }, [aggregated, scaleRes, graphData])
 
+  // A visible trace when the aggregated step yields nothing: one line in the
+  // console says whether the graph is empty, the grouping is empty, or the
+  // resolution collapsed — instead of a black canvas that explains nothing.
+  useEffect(() => {
+    if (!aggregatedEmpty) return
+    console.warn(
+      '[graph] aggregated step returned no node — falling back to detail',
+      { nodes: graphData.nodes.length, links: graphData.links.length, scaleLevel, scaleRes },
+    )
+  }, [aggregatedEmpty, graphData.nodes.length, graphData.links.length, scaleLevel, scaleRes])
+
   // True in the optimized path (minimal quality: ≥500 nodes, particles off):
   // links are drawn as ONE LineSegments instead of one cylinder per link.
   // Aggregated tiers always draw points + segments (few, size-coded super-nodes).
@@ -1733,7 +1744,19 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const emptyGraphData = useMemo(() => ({ nodes: [] as Graph3DNode[], links: [] as Graph3DLink[] }), [])
   // The graph that is actually rendered: aggregated super-nodes/edges when a
   // scale is active, the raw graph otherwise.
-  const activeGraphData = displayData.nodes.length > 0 ? displayData : emptyGraphData
+  // Never show an empty scene when the raw graph HAS nodes: if the aggregated
+  // step comes back empty (a community key that resolved to nothing, a
+  // resolution of 0, a future bug in the grouping), the view falls back to the
+  // detail instead of a black canvas. That is the failure the user reports as
+  // "« Complet » ne s'affiche toujours pas" — and a blank screen tells nobody
+  // which step went wrong.
+  const aggregatedEmpty = aggregated && scaleLevel > 0 && displayData.nodes.length === 0
+  const activeGraphData =
+    displayData.nodes.length > 0
+      ? displayData
+      : graphData.nodes.length > 0 && (aggregatedEmpty || !aggregated)
+        ? graphData
+        : emptyGraphData
 
   // The aggregated tier draws its super-edges as TUBES (see superLinkTubes.ts)
   // while there are few enough of them; beyond TUBE_MAX_EDGES it falls back to
