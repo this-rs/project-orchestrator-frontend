@@ -301,19 +301,23 @@ export function deterministicPlacement(
     const baseAngle = LAYER_ANGLE[layer] ?? 0
     // The ring must hold the groups' circumferences: a fixed 150 px ring put
     // twenty communities on top of each other, which read as one ball.
-    const radii = keys.map((k) => 14 + 4 * Math.sqrt(groups.get(k)!.length))
+    const radii = keys.map((k) => 10 + 3.2 * Math.sqrt(groups.get(k)!.length))
     // Spread the cores so their clouds do not touch. Two constraints, the
     // tighter one wins: the ring must hold the sizes (arc), and it must hold
     // them at the WORST angular gap — the jitter narrows a neighbour pair to
     // `1 - 2·JITTER` of the step, and the radial jitter pulls a core in to
     // `1 - RADIAL`. Sizing on the average gap (or on the nominal one) let two
     // communities land 11 px apart.
+    // Only the CORES must not touch: the halo is meant to interpenetrate, and
+    // spacing the full radii pushed the clusters so far apart that the camera
+    // pulled back and the whole graph read as tiny and distant.
+    const cores = radii.map((r) => r * CORE_FRACTION)
     const step = (Math.PI * 2) / Math.max(1, keys.length)
     const ring = keys.length > 1
       ? Math.max(
-          150,
-          (radii.reduce((a, b) => a + b, 0) * 1.4) / Math.PI,
-          (2 * Math.max(...radii)) / ((1 - RADIAL_JITTER) * 2 * Math.sin((step * (1 - 2 * ANGLE_JITTER)) / 2)),
+          110,
+          (cores.reduce((a, b) => a + b, 0) * 1.2) / Math.PI,
+          (2 * Math.max(...cores)) / ((1 - RADIAL_JITTER) * 2 * Math.sin((step * (1 - 2 * ANGLE_JITTER)) / 2)),
         )
       : 0
     keys.forEach((key, gi) => {
@@ -363,6 +367,12 @@ export function deterministicPlacement(
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
+/**
+ * Share of a group's radius that the dense core occupies. Rank-based placement
+ * (exponent 1.7) puts half the nodes inside ~0.31·R, so 0.45·R is a fair
+ * "this is where the mass is" and the spacing works on that, not on the halo.
+ */
+const CORE_FRACTION = 0.45
 /** How far a core may drift along its radius, as a fraction of the ring. */
 const RADIAL_JITTER = 0.1
 /** How far a core may drift in angle, as a fraction of the angular step. */

@@ -110,8 +110,14 @@ type GraphRef = any // ForceGraph3D ref methods are dynamically extended
 const IS_MOBILE_LIKE = isMobileLikeDevice()
 const RENDERER_CONFIG = { antialias: !IS_MOBILE_LIKE }
 
-/** Same clamp as ActivityHeatmap3D.tsx — see the note at its call site. */
-const MAX_PIXEL_RATIO = 2
+/**
+ * Upper bound on the device pixel ratio, for BOTH the renderer and the Points
+ * shader's `uPx`. po-graph opens with `PR0 = Math.min(1.5, devicePixelRatio)`
+ * (po-graph.js:271): a retina panel asks for 2, i.e. four times the fragments
+ * to shade, for a gain no eye reads on a points cloud. 1.5 removes ~44 % of
+ * them (2² → 1.5²) and is the cheapest win on the canvas.
+ */
+const MAX_PIXEL_RATIO = 1.5
 
 /** Base link transparency — the single LineSegments material bakes this in per-vertex. */
 const LINK_OPACITY = 0.35
@@ -123,6 +129,7 @@ const LINK_OPACITY = 0.35
  * the purpose. Tune here, not at the call site.
  */
 const NODE_POINTS_THRESHOLD = 2000
+
 
 /** Highest aggregation level the scale stepper offers (resolutionForLevel saturates at ~2). */
 const MAX_SCALE = 6
@@ -291,6 +298,32 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // deliberately ignores.
   useEffect(() => {
     wake(1000)
+  }, [dimensions, wake])
+
+  // ── Device pixel ratio, capped like po-graph ─────────────────────────────
+  // po-graph opens with `PR0 = Math.min(1.5, devicePixelRatio)` (po-graph.js:271)
+  // and re-applies it when the screen changes. `three-render-objects` takes the
+  // raw ratio: on a retina panel that is 2, i.e. FOUR times the pixels to shade
+  // for a points cloud, with no readable gain. Capping at 1.5 removes ~44 % of
+  // the fragments (2² → 1.5²) and is the single cheapest win on the canvas.
+  useEffect(() => {
+    const apply = () => {
+      const fg = graphRef.current
+      if (!fg || typeof fg.renderer !== 'function') return
+      const renderer = fg.renderer()
+      if (!renderer) return
+      const pr = Math.min(MAX_PIXEL_RATIO, window.devicePixelRatio || 1)
+      if (Math.abs(renderer.getPixelRatio() - pr) > 1e-3) {
+        renderer.setPixelRatio(pr)
+        wake(WAKE_MUTATION_MS)
+      }
+    }
+    apply()
+    // A window dragged to another screen changes the ratio without a resize:
+    // po-graph watches it through `matchMedia('(resolution: Xdppx)')`.
+    const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
+    mq.addEventListener('change', apply)
+    return () => mq.removeEventListener('change', apply)
   }, [dimensions, wake])
 
   // ── Workaround: three.js OrbitControls + DragControls pointercancel crash ──
