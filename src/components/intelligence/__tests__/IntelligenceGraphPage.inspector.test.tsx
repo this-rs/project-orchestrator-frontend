@@ -98,7 +98,8 @@ describe('IntelligenceGraphPage — the node "fiche" opens', () => {
     fireEvent.click(screen.getByRole('button', { name: '3D' }))
     fireEvent.click(await screen.findByRole('button', { name: '3d-node-a' }))
     // The inspector header (label "a.ts") and footer (entity id) must show.
-    expect(await screen.findByText('a.ts')).toBeTruthy()
+    // The breadcrumb also echoes the selected label, so allow either copy.
+    expect((await screen.findAllByText('a.ts')).length).toBeGreaterThan(0)
     expect(screen.getByText('file:src/a.ts')).toBeTruthy()
   })
 })

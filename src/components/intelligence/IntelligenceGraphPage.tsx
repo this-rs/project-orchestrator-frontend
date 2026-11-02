@@ -14,6 +14,7 @@ import { GraphLoadingProgress } from './GraphLoadingProgress'
 import { GraphLegend } from './GraphLegend'
 import { GraphSituation } from './GraphSituation'
 import { GraphHoverCard } from './GraphHoverCard'
+import { GraphBreadcrumb } from './GraphBreadcrumb'
 import { GraphSearchHint } from './GraphSearchHint'
 import { graphFloat, graphControl, graphChip } from './graphSurface'
 import {
@@ -171,6 +172,9 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
         layers={Array.from(visibleLayers) as string[]}
         scale={graphScale}
       />
+
+      {/* Breadcrumb: where you are, one click back out (under the situation line) */}
+      <GraphBreadcrumb />
 
       {/* Layer controls (top-left overlay) — presets always visible, details in Custom mode */}
       <LayerControls

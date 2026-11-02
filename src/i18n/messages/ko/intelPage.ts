@@ -253,4 +253,9 @@ export default {
     tierDetail: '상세',
     tierGroups: '그룹',
   },
+  breadcrumb: {
+    aria: '그래프 이동 경로',
+    all: '전체 그래프',
+    group: '그룹 {id}',
+  },
 } satisfies Translation<'intelPage'>
