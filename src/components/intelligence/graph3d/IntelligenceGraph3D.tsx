@@ -142,6 +142,32 @@ function readCssColor(name: string, fallback: string): string {
  */
 const AUTO_AGGREGATE_ABOVE = 4000
 
+/**
+ * Opacity budget per relation family. Structure carries the graph, tissue
+ * explains it, everything else is context: the same faint alpha for all of them
+ * made the types unreadable, which is exactly what the user reported.
+ */
+const LINK_FAMILY_ALPHA: Record<string, number> = {
+  // Structure — the skeleton of the code and of the work
+  IMPORTS: 0.55,
+  CALLS: 0.5,
+  EXTENDS: 0.6,
+  IMPLEMENTS: 0.55,
+  CONTAINS: 0.5,
+  HAS_TASK: 0.5,
+  HAS_STEP: 0.45,
+  HAS_DECISION: 0.45,
+  // Tissue — explains why things move together, fainter by design
+  TOUCHES: 0.22,
+  CO_CHANGED: 0.25,
+  CO_CHANGED_TRANSITIVE: 0.18,
+  // Knowledge
+  DISCUSSED: 0.3,
+  AFFECTS: 0.35,
+  SYNAPSE: 0.3,
+  AGGREGATE: 0.4,
+}
+
 /** Base link transparency — the single LineSegments material bakes this in per-vertex. */
 const LINK_OPACITY = 0.35
 
@@ -535,6 +561,38 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (scaleLevel === 0) setScaleLevel(1)
   }, [graphData.nodes.length, scaleLevel, setScaleLevel])
 
+  // ── Multi-scale zoom: the camera distance picks the aggregation step ─────
+  // The answer to "millions of single links": above the detail, links are drawn
+  // as bundles between groups and zooming IN degroups them a step at a time
+  // (po-graph's semantic zoom). Thresholds are relative to the graph's own
+  // radius so they hold whatever its size, and the gaps between "go up" and
+  // "come back down" are the hysteresis that stops a boundary from flickering.
+  useEffect(() => {
+    const fg = graphRef.current
+    if (!fg || typeof fg.controls !== 'function') return
+    const controls = fg.controls()
+    if (!controls || typeof controls.addEventListener !== 'function') return
+    let radius = 1
+    for (const n of graphData.nodes) {
+      radius = Math.max(radius, Math.hypot(n.x, n.y, n.z))
+    }
+    const onEnd = () => {
+      const camera = typeof fg.camera === 'function' ? fg.camera() : null
+      const target = controls.target
+      if (!camera || !target) return
+      const ratio = camera.position.distanceTo(target) / radius
+      setScaleLevel((current) => {
+        if (current === 0 && ratio > 2.2) return 1
+        if (current === 1 && ratio > 3.2) return 2
+        if (current === 2 && ratio < 2.4) return 1
+        if (current === 1 && ratio < 1.7) return 0
+        return current
+      })
+    }
+    controls.addEventListener('end', onEnd)
+    return () => controls.removeEventListener('end', onEnd)
+  }, [graphData.nodes, setScaleLevel])
+
   // ── Frame the graph after every layout ───────────────────────────────────
   // `zoomToFit` lived only in `onEngineStop`. The simulation is FROZEN here
   // (cooldownTicks/TIME/warmup all 0), so that event may never fire: the camera
@@ -725,10 +783,15 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // the small-graph path already maps weight → width via `linkWidth`.)
     const w = Math.max(0, Math.min(1, link.weight ?? 0.5))
     const weightFactor = 0.12 + 0.88 * Math.sqrt(w)
+    // Relation FAMILY drives the base, weight drives the variation. Before
+    // this, every link pooled at one faint alpha, so IMPORTS (structure) and
+    // CO_CHANGED (tissue) were the same grey thread and the types were
+    // indistinguishable. Structure leads; tissue recedes.
+    const family = LINK_FAMILY_ALPHA[link.relationType] ?? 0.30
     // Inter-community links are the filaments between the nebula's cores: a
     // bridge that does not stand out leaves only a scatter of dots.
     const bridge = link.isInterCommunity ? 1.7 : 1
-    return { r: p.r, g: p.g, b: p.b, a: Math.min(1, LINK_OPACITY * p.a * weightFactor * bridge) }
+    return { r: p.r, g: p.g, b: p.b, a: Math.min(1, family * p.a * weightFactor * bridge) }
   }, [linkColor])
 
   // ── Per-node style for the overview (Points) tier ─────────────────────
