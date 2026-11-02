@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateAtResolution, aggregateByGroup, resolutionForLevel } from './graphAggregation'
+import {
+  MAX_AGGREGATE_GROUPS,
+  aggregateAtResolution,
+  aggregateByGroup,
+  groupHullNodes,
+  resolveGroupKeys,
+  resolutionForLevel,
+} from './graphAggregation'
 import type { Graph3DNode, Graph3DLink } from './useGraph3DLayout'
 
 const node = (id: string, x: number, y: number, z: number): Graph3DNode => ({
@@ -278,5 +285,88 @@ describe('superNodeName', () => {
   })
   it('falls back to Groupe … for a raw grid cell key', () => {
     expect(superNodeName('3,2,1')).toBe('Groupe 3,2,1')
+  })
+})
+
+// ── Group cap ────────────────────────────────────────────────────────────────
+
+/** `total` nodes spread over `dirs` directories (`src/mNN/sNNN`), Zipf-ish sizes. */
+function manyDirNodes(total: number, dirs: number): Graph3DNode[] {
+  const weights = Array.from({ length: dirs }, (_, d) => 1 / (d + 1))
+  const sum = weights.reduce((a, b) => a + b, 0)
+  const nodes: Graph3DNode[] = []
+  for (let d = 0; d < dirs && nodes.length < total; d++) {
+    const n = Math.max(1, Math.min(total - nodes.length, Math.round((weights[d] / sum) * total)))
+    const dir = `src/m${String(d % 40).padStart(2, '0')}/s${String(d).padStart(4, '0')}`
+    for (let i = 0; i < n; i++) {
+      nodes.push(groupedNode(`n${nodes.length}`, (d % 37) * 10, (d % 23) * 10, (i % 11) * 10, `d${dir}`))
+    }
+  }
+  while (nodes.length < total) {
+    nodes.push(groupedNode(`n${nodes.length}`, 0, 0, 0, `dsrc/m00/s0000`))
+  }
+  return nodes
+}
+
+describe('group cap', () => {
+  const nodes = manyDirNodes(20000, 1285)
+
+  it('caps 1285 input groups at MAX_AGGREGATE_GROUPS', () => {
+    const distinct = new Set(nodes.map((n) => n.groupKey)).size
+    expect(distinct).toBeGreaterThan(1000)
+    const agg = aggregateByGroup(nodes, [], 4)
+    expect(agg.superNodes.length).toBeLessThanOrEqual(MAX_AGGREGATE_GROUPS)
+    expect(agg.superNodes.length).toBeGreaterThan(1)
+  })
+
+  it('keeps every node (sum of counts = N) and leaves no empty group', () => {
+    const agg = aggregateByGroup(nodes, [], 4)
+    expect(agg.superNodes.reduce((s, n) => s + n.count, 0)).toBe(nodes.length)
+    expect(agg.superNodes.every((n) => n.count > 0)).toBe(true)
+    expect(agg.cellOfNode.size).toBe(nodes.length)
+  })
+
+  it('is deterministic', () => {
+    const a = aggregateByGroup(nodes, [], 4)
+    const b = aggregateByGroup(nodes, [], 4)
+    expect(a.superNodes).toEqual(b.superNodes)
+  })
+
+  it('merges into the path-prefix parent', () => {
+    const ns = [
+      ...Array.from({ length: 30 }, (_, i) => groupedNode(`a${i}`, 0, 0, 0, 'dsrc/chat/manager')),
+      ...Array.from({ length: 2 }, (_, i) => groupedNode(`b${i}`, 1, 1, 1, 'dsrc/chat/x')),
+      ...Array.from({ length: 30 }, (_, i) => groupedNode(`c${i}`, 2, 2, 2, 'dsrc/graph')),
+    ]
+    const keys = resolveGroupKeys(ns, 2, 2)
+    expect(new Set(keys).size).toBe(2)
+    expect(keys[31]).toBe(keys[0]) // src/chat/x joined its chat sibling group
+  })
+
+  it('folds parentless groups (communities) into a catch-all', () => {
+    const ns = Array.from({ length: 100 }, (_, i) => groupedNode(`n${i}`, i, 0, 0, `c${i % 50}`))
+    const agg = aggregateByGroup(ns, [], 2)
+    expect(agg.superNodes.length).toBeLessThanOrEqual(MAX_AGGREGATE_GROUPS)
+    expect(agg.superNodes.reduce((s, n) => s + n.count, 0)).toBe(100)
+  })
+
+  it('does not touch an input already under the cap', () => {
+    const ns = [groupedNode('a', 0, 0, 0, 'c1'), groupedNode('b', 1, 1, 1, 'c2')]
+    expect(aggregateByGroup(ns, [], 2).superNodes.length).toBe(2)
+  })
+
+  it('groupHullNodes numbers the capped groups, biggest first', () => {
+    const hn = groupHullNodes(nodes, 4)
+    const ids = new Set(hn.map((n) => n.communityId))
+    expect(ids.size).toBeLessThanOrEqual(MAX_AGGREGATE_GROUPS)
+    expect(hn.every((n) => n.communityId != null && n.communityLabel)).toBe(true)
+  })
+
+  it('measure: group sizes for 20000 nodes / 1285 dirs', () => {
+    const sizes = aggregateByGroup(nodes, [], 4)
+      .superNodes.map((n) => n.count)
+      .sort((a, b) => b - a)
+    console.log('GROUPS', sizes.length, 'TOP5', sizes.slice(0, 5), 'MIN', sizes[sizes.length - 1])
+    expect(sizes.length).toBeLessThanOrEqual(MAX_AGGREGATE_GROUPS)
   })
 })
