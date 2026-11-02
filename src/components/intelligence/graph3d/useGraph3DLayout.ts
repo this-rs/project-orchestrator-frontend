@@ -76,30 +76,33 @@ const LINK_PARTICLES: Record<string, { particles: number; speed: number }> = {
 }
 
 const LINK_COLORS: Record<string, string> = {
-  IMPORTS: 'rgba(148, 163, 184, 0.35)',
-  CALLS: 'rgba(156, 163, 175, 0.30)',
-  EXTENDS: 'rgba(30, 64, 175, 0.45)',
-  IMPLEMENTS: 'rgba(67, 56, 202, 0.40)',
-  TOUCHES: 'rgba(134, 239, 172, 0.35)',
-  CO_CHANGED: 'rgba(254, 215, 170, 0.30)',
-  CO_CHANGED_TRANSITIVE: 'rgba(253, 186, 116, 0.25)',
-  AFFECTS: 'rgba(168, 85, 247, 0.50)',
-  DISCUSSED: 'rgba(209, 213, 219, 0.25)',
-  LINKED_TO: 'rgba(156, 163, 175, 0.25)',
-  SYNAPSE: 'rgba(34, 211, 238, 0.50)',
-  HAS_MEMBER: 'rgba(249, 168, 212, 0.30)',
-  CONTAINS: 'rgba(16, 185, 129, 0.35)',
-  DEPENDS_ON: 'rgba(245, 158, 11, 0.40)',
-  INFORMED_BY: 'rgba(139, 92, 246, 0.35)',
-  HAS_STATE: 'rgba(249, 115, 22, 0.35)',
-  TRANSITION: 'rgba(234, 88, 12, 0.45)',
-  BELONGS_TO_SKILL: 'rgba(251, 146, 60, 0.30)',
-  INCLUDES_ENTITY: 'rgba(232, 121, 249, 0.30)',
-  // PM plan graph relations
-  HAS_TASK: 'rgba(16, 185, 129, 0.40)',
-  HAS_CONSTRAINT: 'rgba(220, 38, 38, 0.35)',
-  HAS_DECISION: 'rgba(139, 92, 246, 0.40)',
-  HAS_FEATURE_GRAPH: 'rgba(232, 121, 249, 0.40)',
+  // Opaque hues: the rule that fades a family lives in LINK_FAMILY_ALPHA
+  // (IntelligenceGraph3D). Every value used to be a low-alpha grey, so every
+  // link looked like the same white thread — "les liens sont tous blancs".
+  IMPORTS: '#38bdf8',
+  CALLS: '#22d3ee',
+  EXTENDS: '#6366f1',
+  IMPLEMENTS: '#8b5cf6',
+  CONTAINS: '#10b981',
+  DEPENDS_ON: '#f97316',
+  LINKED_TO: '#94a3b8',
+  TOUCHES: '#22c55e',
+  CO_CHANGED: '#f59e0b',
+  CO_CHANGED_TRANSITIVE: '#d97706',
+  AFFECTS: '#a855f7',
+  DISCUSSED: '#ec4899',
+  SYNAPSE: '#06b6d4',
+  HAS_MEMBER: '#f472b6',
+  INFORMED_BY: '#8b5cf6',
+  HAS_TASK: '#0ea5e9',
+  HAS_STEP: '#06b6d4',
+  HAS_DECISION: '#c026d3',
+  HAS_CONSTRAINT: '#ef4444',
+  HAS_STATE: '#f97316',
+  TRANSITION: '#ea580c',
+  BELONGS_TO_SKILL: '#fb923c',
+  INCLUDES_ENTITY: '#e879f9',
+  HAS_FEATURE_GRAPH: '#84cc16',
 }
 
 const LINK_WIDTHS: Record<string, number> = {
