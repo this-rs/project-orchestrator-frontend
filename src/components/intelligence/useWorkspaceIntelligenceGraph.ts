@@ -299,6 +299,9 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     fetchedLayersRef.current.clear()
     setNodes([])
     setEdges([])
+    // A new workspace means the previously selected node no longer exists in the
+    // data: clear it so the inspector never shows an empty "fiche" for a stale id.
+    setSelectedNodeId(null)
     setProjectMetas([])
     setActiveProjectFilters(new Set())
     const layers = Array.from(visibleLayers) as string[]

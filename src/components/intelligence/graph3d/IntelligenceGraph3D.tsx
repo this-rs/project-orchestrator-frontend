@@ -46,7 +46,7 @@ import { FrameAnimator } from './frameAnimator'
 import { useLivePulse } from './useLivePulse'
 import { useAgentMarkers } from './useAgentMarkers'
 import type { AgentMarkers } from './agentMarkers'
-import { communityFocus } from './useGraph3DLayout'
+import { communityFocus, nodeSetSignature } from './useGraph3DLayout'
 import { activationStateAtom } from '../SpreadingActivation'
 import { GraphPanel } from '../GraphPanel'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
@@ -690,6 +690,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (scaleLevel === 0) setScaleLevel(1)
   }, [graphData.nodes.length, scaleLevel, setScaleLevel])
 
+  // ── Manual-interaction guard: an automatic re-frame never fights a gesture ─
+  // OrbitControls fires `start` when the user begins orbiting/panning/zooming
+  // and `end` when the gesture settles. While a gesture is in flight the
+  // framing effect below is skipped, so a re-frame cannot yank the camera
+  // out from under the user's hand.
+  const userInteractingRef = useRef(false)
+
   // ── Multi-scale zoom: the camera distance picks the aggregation step ─────
   // The answer to "millions of single links": above the detail, links are drawn
   // as bundles between groups and zooming IN degroups them a step at a time
@@ -706,6 +713,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       radius = Math.max(radius, Math.hypot(n.x, n.y, n.z))
     }
     const onEnd = () => {
+      userInteractingRef.current = false
       const camera = typeof fg.camera === 'function' ? fg.camera() : null
       const target = controls.target
       if (!camera || !target) return
@@ -718,9 +726,25 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         return current
       })
     }
+    const onStart = () => {
+      userInteractingRef.current = true
+    }
+    controls.addEventListener('start', onStart)
     controls.addEventListener('end', onEnd)
-    return () => controls.removeEventListener('end', onEnd)
+    return () => {
+      controls.removeEventListener('start', onStart)
+      controls.removeEventListener('end', onEnd)
+    }
   }, [graphData.nodes, setScaleLevel])
+
+  // ── Data identity: re-frame once per dataset, not once per node count ───
+  // `needsRelayout` is a boolean that stays `true` across a dataset swap, and
+  // `graphData.nodes.length` does not change when two projects happen to have
+  // the same number of nodes — so a framing effect keyed on those two kept the
+  // camera from the previous view ("trop près / trop loin / nuage coupé"). This
+  // signature flips every time the node set changes, so the effect below
+  // re-frames exactly once per dataset.
+  const nodeSetKey = useMemo(() => nodeSetSignature(graphData.nodes), [graphData.nodes])
 
   // ── Frame the graph after every layout ───────────────────────────────────
   // `zoomToFit` lived only in `onEngineStop`. The simulation is FROZEN here
@@ -733,6 +757,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const fg = graphRef.current
     if (!fg || typeof fg.zoomToFit !== 'function') return
     const id = setTimeout(() => {
+      // A manual orbit/zoom started while we waited: the user's gesture wins.
+      if (userInteractingRef.current) return
       try {
         const camera = fg.camera() as THREE.PerspectiveCamera
         const nodes = graphData.nodes
@@ -798,8 +824,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return () => clearTimeout(id)
     // A fullscreen switch changes the viewport, not the graph: without
     // `dimensions` here the camera kept a framing computed for the old canvas,
-    // so half the cloud fell outside the frame.
-  }, [needsRelayout, dimensions, graphData.nodes.length, wake])
+    // so half the cloud fell outside the frame. The node-set signature (not the
+    // count) is what makes a same-sized new dataset re-frame.
+  }, [nodeSetKey, dimensions, wake])
 
   // ── Save positions when simulation stops ────────────────────────────────
   const onEngineStop = useCallback(() => {

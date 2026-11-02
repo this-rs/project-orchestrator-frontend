@@ -209,6 +209,21 @@ export function communityIndex(
 }
 
 /**
+ * A stable identity of a node set, for re-framing the camera once per dataset.
+ *
+ * A framing effect keyed on the node COUNT (or on the boolean `needsRelayout`,
+ * which stays true) never re-fired when two projects had the same number of
+ * nodes, so the camera kept the previous view's framing. This signature flips
+ * whenever the node set changes — same size or not — because the first and last
+ * id plus the count identify a dataset in O(1). It is deliberately cheap: it is
+ * recomputed on every render of the 3D view.
+ */
+export function nodeSetSignature(nodes: { id: string }[]): string {
+  if (nodes.length === 0) return ''
+  return `${nodes.length}\u0001${nodes[0].id}\u0001${nodes[nodes.length - 1].id}`
+}
+
+/**
  * Where to put the camera to frame one community — the answer to "more control
  * on a big graph": at thousands of nodes you do not orbit the whole cloud, you
  * go to one cluster. Returns the centre, the radius that contains it, and the
