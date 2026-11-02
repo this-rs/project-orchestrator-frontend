@@ -11,7 +11,7 @@ import type {
   ProjectGraphResponse,
 } from '@/types/intelligence'
 import { EDGE_STYLES } from '@/constants/intelligence'
-import { graphCacheKey, graphCacheGet, graphCacheSet } from './graphCache'
+import { streamLayers, replaceLayerById, mergeById } from './graphLayerStream'
 import {
   intelligenceNodesAtom,
   intelligenceEdgesAtom,
@@ -82,14 +82,15 @@ function mapEdgeType(relationType: IntelligenceRelationType): string {
   }
 }
 
-function toReactFlowEdge(edge: BackendGraphEdge, index: number): IntelligenceEdge {
+function toReactFlowEdge(edge: BackendGraphEdge): IntelligenceEdge {
   const relationType = edge.type as IntelligenceRelationType
   const style = EDGE_STYLES[relationType] ?? { color: '#6B7280', strokeWidth: 1 }
   const edgeType = mapEdgeType(relationType)
   const attrs = edge.attributes ?? {}
 
   return {
-    id: `e|${edge.source}|${edge.target}|${index}`,
+    // Stable id (no array index): the same edge returned by two layer requests merges.
+    id: `e|${edge.source}|${edge.target}|${edge.type}`,
     source: edge.source,
     target: edge.target,
     type: edgeType,
@@ -148,93 +149,81 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     setStages((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
   }, [setStages])
 
-  // Fetch graph data — only request the specified layers
+  // Requests in flight (primary + secondary groups run together): the global
+  // loading flag only drops when the last one settles.
+  const pendingRef = useRef(0)
+  const nodeLayerOf = (n: IntelligenceNode) => (n.data as { layer?: string }).layer
+  const edgeLayerOf = (e: IntelligenceEdge) => (e.data as { layer?: string } | undefined)?.layer
+
+  // Fetch graph data — ONE request per layer, in parallel; each layer is
+  // merged into the atoms (by id) the moment it arrives, so the graph fills in
+  // layer after layer instead of waiting for the whole payload.
+  // `budgetLayers` = every layer sharing the node budget (the sum of the
+  // requested limits never exceeds `limit`, even when several groups run at once).
   const fetchGraphForLayers = useCallback(async (
     layers: string[],
     limit: number,
     stageId?: string,
     signal?: AbortSignal,
     force = false,
+    budgetLayers?: string[],
   ) => {
     if (!projectSlug || layers.length === 0) return
-    // Reuse a recently-loaded response for this exact (layers, limit) instead of
-    // hitting the network again — "don't reload a view already loaded".
-    const cacheKey = graphCacheKey('project', projectSlug, layers, limit)
-    const cached = force ? null : (graphCacheGet(cacheKey) as ProjectGraphResponse | null)
     setError(null)
-    // Track per-layer loading state for UI indicators
     setLoadingLayers((prev: Set<string>) => {
       const next = new Set(prev)
       layers.forEach((l) => next.add(l))
       return next
     })
-    // Only flash the loading state (and the stages) when we actually go to the
-    // network; a cache hit resolves synchronously and must not blink a spinner.
-    if (!cached) {
-      setLoading(true)
-      if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
-    }
+    pendingRef.current += 1
+    setLoading(true)
+    if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
+    let total = 0
     try {
-      // The API applies `limit` PER CATEGORY (files, symbols, knowledge, skills,
-      // behavioural, pm): asking 5000 with six layers can return ~30 000 nodes
-      // and every edge between them. The number the user sets is a TOTAL budget,
-      // so split it across the categories the request covers.
-      const perCategory = Math.max(200, Math.floor(limit / Math.max(1, layers.length)))
-      const data =
-        cached ??
-        await intelligenceApi.getGraph(projectSlug, { layers, limit: perCategory }, signal)
-      if (!cached) graphCacheSet(cacheKey, data)
-
-      const rfNodes = data.nodes.map(toReactFlowNode)
-      const rfEdges = data.edges.map(toReactFlowEdge)
-
-      // Store communities from the backend response
-      if (data.communities?.length > 0) {
-        setCommunities(data.communities)
-      }
-
-      if (stageId) {
-        updateStage(stageId, {
-          status: 'done',
-          completedAt: Date.now(),
-          detail: nodesText(tRef.current, rfNodes.length),
-        })
-      }
-
-      // Merge with existing data (for incremental layer loading)
-      // or replace entirely (for initial load / slug change)
-      setNodes((prev) => {
-        if (prev.length === 0) return rfNodes
-        // Remove old nodes from the fetched layers, then add new ones
-        const fetchedLayerSet = new Set(layers)
-        const kept = prev.filter((n) => {
-          const layer = (n.data as { layer?: string }).layer
-          return layer ? !fetchedLayerSet.has(layer) : true
-        })
-        return [...kept, ...rfNodes]
+      const res = await streamLayers<ProjectGraphResponse>({
+        kind: 'project',
+        slug: projectSlug,
+        layers,
+        budgetLayers,
+        limit,
+        signal,
+        force,
+        fetchLayer: (layer, lim, sig) =>
+          intelligenceApi.getGraph(projectSlug, { layers: [layer], limit: lim }, sig),
+        onLayer: (layer, data) => {
+          const rfNodes = data.nodes.map(toReactFlowNode)
+          const rfEdges = data.edges.map(toReactFlowEdge)
+          total += rfNodes.length
+          if (data.communities?.length > 0) {
+            setCommunities((prev) => mergeById(prev, data.communities))
+          }
+          // Same tick → React batches these into a single paint for this layer.
+          setNodes((prev) => replaceLayerById(prev, rfNodes, layer, nodeLayerOf))
+          setEdges((prev) => replaceLayerById(prev, rfEdges, layer, edgeLayerOf))
+          fetchedLayersRef.current.add(layer)
+          setLoadingLayers((prev: Set<string>) => {
+            if (!prev.has(layer)) return prev
+            const next = new Set(prev)
+            next.delete(layer)
+            return next
+          })
+          if (stageId) updateStage(stageId, { detail: nodesText(tRef.current, total) })
+        },
       })
-      setEdges((prev) => {
-        if (prev.length === 0) return rfEdges
-        const fetchedLayerSet = new Set(layers)
-        const kept = prev.filter((e) => {
-          const layer = (e.data as { layer?: string })?.layer
-          return layer ? !fetchedLayerSet.has(layer) : true
-        })
-        return [...kept, ...rfEdges]
-      })
-
-      // Mark these layers as fetched
-      layers.forEach((l) => fetchedLayersRef.current.add(l))
-    } catch (err) {
-      // AbortError is expected when navigating away — silently ignore
-      if (err instanceof DOMException && err.name === 'AbortError') return
       if (signal?.aborted) return
-      console.error('[useIntelligenceGraph] fetch error:', err)
-      setError(err instanceof Error ? err.message : tRef.current('intelPage.graph.loadFailed'))
-      if (stageId) updateStage(stageId, { status: 'error', completedAt: Date.now() })
+      const failed = Object.entries(res.errors)
+      if (failed.length > 0) {
+        console.error('[useIntelligenceGraph] fetch error:', Object.fromEntries(failed))
+        const first = failed[0][1]
+        setError(first instanceof Error ? first.message : tRef.current('intelPage.graph.loadFailed'))
+        if (stageId) updateStage(stageId, { status: 'error', completedAt: Date.now() })
+      } else if (stageId) {
+        updateStage(stageId, { status: 'done', completedAt: Date.now(), detail: nodesText(tRef.current, total) })
+      }
     } finally {
+      pendingRef.current = Math.max(0, pendingRef.current - 1)
       if (!signal?.aborted) {
-        setLoading(false)
+        if (pendingRef.current === 0) setLoading(false)
         setLoadingLayers((prev: Set<string>) => {
           const next = new Set(prev)
           layers.forEach((l) => next.delete(l))
@@ -249,7 +238,7 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     const layers = Array.from(visibleLayers) as string[]
     fetchedLayersRef.current.clear()
     // Explicit refresh (retry button, WebSocket-driven) must bypass the cache.
-    await fetchGraphForLayers(layers, nodeLimit, undefined, undefined, true)
+    await fetchGraphForLayers(layers, nodeLimit, undefined, undefined, true, layers)
   }, [visibleLayers, nodeLimit, fetchGraphForLayers])
 
   // Fetch summary
@@ -304,13 +293,11 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     setStages(stages)
 
     if (primary.length > 0 && rest.length > 0) {
-      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary', signal).then(() => {
-        if (!signal.aborted) {
-          fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary', signal)
-        }
-      })
+      // Both groups start together; they share ONE budget (budgetLayers).
+      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary', signal, false, layers)
+      fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary', signal, false, layers)
     } else {
-      fetchGraphForLayers(layers, nodeLimit, 'fetch_data', signal)
+      fetchGraphForLayers(layers, nodeLimit, 'fetch_data', signal, false, layers)
     }
     fetchSummary(signal)
 
@@ -342,7 +329,7 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
           { id: 'layout', label: tRef.current('intelPage.graph.stage.computeLayout'), status: 'pending' },
         ]
         setStages(stages)
-        fetchGraphForLayers(needed, nodeLimit, stageId)
+        fetchGraphForLayers(needed, nodeLimit, stageId, undefined, false, Array.from(visibleLayers) as string[])
       }
     }, 300)
     return () => {
