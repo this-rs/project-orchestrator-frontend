@@ -609,7 +609,43 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (!fg || typeof fg.zoomToFit !== 'function') return
     const id = setTimeout(() => {
       try {
-        fg.zoomToFit(600, 70)
+        const camera = fg.camera() as THREE.PerspectiveCamera
+        const nodes = graphData.nodes
+        // Bounding sphere of what is actually drawn, not the library's own
+        // estimate: `zoomToFit(padding)` adds SPACE AROUND, so a large padding
+        // shrinks the scene — which is exactly what "la scène est trop petite"
+        // was. The distance is computed from the sphere and the camera's own
+        // FOV, so the cloud fills the viewport whatever its size or the window.
+        let cx = 0
+        let cy = 0
+        let cz = 0
+        for (const n of nodes) {
+          cx += n.x
+          cy += n.y
+          cz += n.z
+        }
+        cx /= nodes.length
+        cy /= nodes.length
+        cz /= nodes.length
+        let radius = 40
+        for (const n of nodes) {
+          radius = Math.max(radius, Math.hypot(n.x - cx, n.y - cy, n.z - cz))
+        }
+        const fov = ((camera?.fov ?? 45) * Math.PI) / 180
+        const distance = (radius / Math.sin(fov / 2)) * 1.06
+        // Keep the current viewing direction so a re-frame never spins the view.
+        const offset = new THREE.Vector3(
+          camera.position.x - cx,
+          camera.position.y - cy,
+          camera.position.z - cz,
+        )
+        if (offset.lengthSq() < 1) offset.set(0, 0.25, 1)
+        offset.normalize().multiplyScalar(distance)
+        fg.cameraPosition(
+          { x: cx + offset.x, y: cy + offset.y, z: cz + offset.z },
+          { x: cx, y: cy, z: cz },
+          600,
+        )
         wake(1200)
       } catch {
         // the library is not fully mounted yet — the next layout will frame it
