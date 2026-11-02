@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import { MemoryRouter } from 'react-router-dom'
 import { useSetAtom } from 'jotai'
 import { selectedNodeIdAtom } from '@/atoms/intelligence'
+import { activationSearchOpenAtom } from '../SpreadingActivation'
 import { graphCacheClear } from '../graphCache'
 
 // jsdom has no layout: give the map a real size so the treemap places tiles,
@@ -101,5 +102,39 @@ describe('IntelligenceGraphPage — the node "fiche" opens', () => {
     // The breadcrumb also echoes the selected label, so allow either copy.
     expect((await screen.findAllByText('a.ts')).length).toBeGreaterThan(0)
     expect(screen.getByText('file:src/a.ts')).toBeTruthy()
+  })
+
+  it('clears the selection when Escape is pressed with a node selected', async () => {
+    const store = createStore()
+    render(
+      <Provider store={store}><MemoryRouter><IntelligenceGraphPage projectSlug="p" /></MemoryRouter></Provider>,
+    )
+    // Select a code-map cell (the default view), then press Escape.
+    fireEvent.click(await screen.findByRole('button', { name: 'Open README.md' }))
+    expect(store.get(selectedNodeIdAtom)).toBe('file:README.md')
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(store.get(selectedNodeIdAtom)).toBeNull()
+    // The inspector closes with the selection.
+    await waitFor(() => expect(screen.queryByText('file:README.md')).toBeNull())
+  })
+
+  it('ignores Escape while focus is in a text field', async () => {
+    const store = createStore()
+    render(
+      <Provider store={store}><MemoryRouter><IntelligenceGraphPage projectSlug="p" /></MemoryRouter></Provider>,
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Open README.md' }))
+    expect(store.get(selectedNodeIdAtom)).toBe('file:README.md')
+
+    // Open the spreading-activation search and focus its input.
+    act(() => store.set(activationSearchOpenAtom, true))
+    const input = await screen.findByRole('textbox')
+    input.focus()
+    expect(document.activeElement).toBe(input)
+
+    // Escape here closes the field — it must NOT clear the selection.
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(store.get(selectedNodeIdAtom)).toBe('file:README.md')
   })
 })

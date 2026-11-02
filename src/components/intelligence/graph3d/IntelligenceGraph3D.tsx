@@ -53,6 +53,11 @@ import { activationStateAtom } from '../SpreadingActivation'
 import { GraphPanel } from '../GraphPanel'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
 
+/** True when a key event came from a text-entry field (search, chat, select). */
+const isEditableTarget = (target: EventTarget | null): boolean =>
+  target instanceof HTMLElement &&
+  (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+
 // ── Heatmap color interpolators (THREE.Color versions) ───────────────────────
 
 /** Energy (0→1) → Red (#EF4444) → Yellow (#F59E0B) → Green (#22C55E) */
@@ -1703,10 +1708,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // ── Keyboard: Esc to deselect ───────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setSelectedNodeId(null)
-        setHoveredNodeId(null)
-      }
+      if (e.key !== 'Escape') return
+      // Never clear the selection while the user is typing in a search/chat
+      // field: there Esc closes the field, not the selection.
+      if (isEditableTarget(e.target)) return
+      setSelectedNodeId(null)
+      setHoveredNodeId(null)
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
