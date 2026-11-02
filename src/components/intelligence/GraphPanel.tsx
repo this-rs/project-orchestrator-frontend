@@ -49,7 +49,7 @@ interface GraphPanelProps {
   children: ReactNode
 }
 
-export function GraphPanel({ id, title, icon, className, defaultOpen = true, children }: GraphPanelProps) {
+export function GraphPanel({ id, title, icon, className, defaultOpen = false, children }: GraphPanelProps) {
   const { t } = useT()
   const isMobile = useIsMobile()
   const [mobileOpenId, setMobileOpenId] = useAtom(mobileOpenPanelAtom)
