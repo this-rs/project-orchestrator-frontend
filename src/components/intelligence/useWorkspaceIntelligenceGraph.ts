@@ -31,7 +31,7 @@ import {
 } from '@/atoms/intelligence'
 import { intelligenceApi } from '@/services/intelligence'
 import { VISIBILITY_PRESETS } from '@/constants/intelligence'
-import { streamLayers, replaceLayerById, mergeById } from './graphLayerStream'
+import { graphCacheKey, graphCacheGet, graphCacheSet } from './graphCache'
 import type { VisibilityMode, WorkspaceGraphResponse } from '@/types/intelligence'
 
 // ── Dagre Web Worker ─────────────────────────────────────────────────────────
@@ -104,15 +104,14 @@ function mapEdgeType(relationType: IntelligenceRelationType): string {
   }
 }
 
-function toReactFlowEdge(edge: BackendGraphEdge): IntelligenceEdge {
+function toReactFlowEdge(edge: BackendGraphEdge, index: number): IntelligenceEdge {
   const relationType = edge.type as IntelligenceRelationType
   const style = EDGE_STYLES[relationType] ?? { color: '#6B7280', strokeWidth: 1 }
   const edgeType = mapEdgeType(relationType)
   const attrs = edge.attributes ?? {}
 
   return {
-    // Stable id (no array index): the same edge returned by two layer requests merges.
-    id: `e|${edge.source}|${edge.target}|${edge.type}`,
+    id: `e|${edge.source}|${edge.target}|${index}`,
     source: edge.source,
     target: edge.target,
     type: edgeType,
@@ -174,82 +173,87 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     setStages((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)))
   }, [setStages])
 
-  // Requests in flight (primary + secondary groups run together): the global
-  // loading flag only drops when the last one settles.
-  const pendingRef = useRef(0)
-  const nodeLayerOf = (n: IntelligenceNode) => (n.data as { layer?: string }).layer
-  const edgeLayerOf = (e: IntelligenceEdge) => (e.data as { layer?: string } | undefined)?.layer
-
-  // Fetch workspace graph data — ONE request per layer, in parallel; each layer is
-  // merged into the atoms (by id) the moment it arrives, so the graph fills in
-  // layer after layer instead of waiting for the whole payload.
-  // `budgetLayers` = every layer sharing the node budget (the sum of the
-  // requested limits never exceeds `limit`, even when several groups run at once).
+  // Fetch workspace graph data — only request the specified layers
   const fetchGraphForLayers = useCallback(async (
     layers: string[],
     limit: number,
     stageId?: string,
     signal?: AbortSignal,
     force = false,
-    budgetLayers?: string[],
   ) => {
     if (!workspaceSlug || layers.length === 0) return
+    // Reuse a recently-loaded workspace response for this exact (layers, limit).
+    const cacheKey = graphCacheKey('workspace', workspaceSlug, layers, limit)
+    const cached = force ? null : (graphCacheGet(cacheKey) as WorkspaceGraphResponse | null)
     setError(null)
     setLoadingLayers((prev: Set<string>) => {
       const next = new Set(prev)
       layers.forEach((l) => next.add(l))
       return next
     })
-    pendingRef.current += 1
-    setLoading(true)
-    if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
-    let total = 0
+    if (!cached) {
+      setLoading(true)
+      if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
+    }
     try {
-      const res = await streamLayers<WorkspaceGraphResponse>({
-        kind: 'workspace',
-        slug: workspaceSlug,
-        layers,
-        budgetLayers,
-        limit,
-        signal,
-        force,
-        fetchLayer: (layer, lim, sig) =>
-          intelligenceApi.getWorkspaceGraph(workspaceSlug, { layers: [layer], limit: lim }, sig),
-        onLayer: (layer, data) => {
-          const rfNodes = data.nodes.map(toReactFlowNode)
-          const rfEdges = [...data.edges, ...data.cross_project_edges].map(toReactFlowEdge)
-          total += rfNodes.length
-          if (data.projects?.length > 0) setProjectMetas(data.projects)
-          if (data.communities?.length > 0) {
-            setCommunities((prev) => mergeById(prev, data.communities))
-          }
-          // Same tick → React batches these into a single paint for this layer.
-          setNodes((prev) => replaceLayerById(prev, rfNodes, layer, nodeLayerOf))
-          setEdges((prev) => replaceLayerById(prev, rfEdges, layer, edgeLayerOf))
-          fetchedLayersRef.current.add(layer)
-          setLoadingLayers((prev: Set<string>) => {
-            if (!prev.has(layer)) return prev
-            const next = new Set(prev)
-            next.delete(layer)
-            return next
-          })
-          if (stageId) updateStage(stageId, { detail: nodesText(tRef.current, total) })
-        },
-      })
-      if (signal?.aborted) return
-      const failed = Object.entries(res.errors)
-      if (failed.length > 0) {
-        console.error('[useWorkspaceIntelligenceGraph] fetch error:', Object.fromEntries(failed))
-        const first = failed[0][1]
-        setError(first instanceof Error ? first.message : tRef.current('intelPage.graph.workspaceLoadFailed'))
-        if (stageId) updateStage(stageId, { status: 'error', completedAt: Date.now() })
-      } else if (stageId) {
-        updateStage(stageId, { status: 'done', completedAt: Date.now(), detail: nodesText(tRef.current, total) })
+      // `limit` is per category on the API side (see useIntelligenceGraph): the
+      // number the user sets is a total budget, split across the categories.
+      const perCategory = Math.max(200, Math.floor(limit / Math.max(1, layers.length)))
+      const data =
+        cached ??
+        await intelligenceApi.getWorkspaceGraph(workspaceSlug, { layers, limit: perCategory }, signal)
+      if (!cached) graphCacheSet(cacheKey, data)
+
+      // Store project metadata
+      setProjectMetas(data.projects)
+
+      // Store communities from the backend response
+      if (data.communities?.length > 0) {
+        setCommunities(data.communities)
       }
+
+      const rfNodes = data.nodes.map(toReactFlowNode)
+      const rfEdges = [...data.edges, ...data.cross_project_edges].map(toReactFlowEdge)
+
+      if (stageId) {
+        updateStage(stageId, {
+          status: 'done',
+          completedAt: Date.now(),
+          detail: nodesText(tRef.current, rfNodes.length),
+        })
+      }
+
+      // Merge with existing data (incremental layer loading)
+      setNodes((prev) => {
+        if (prev.length === 0) return rfNodes
+        const fetchedLayerSet = new Set(layers)
+        const kept = prev.filter((n) => {
+          const layer = (n.data as { layer?: string }).layer
+          return layer ? !fetchedLayerSet.has(layer) : true
+        })
+        return [...kept, ...rfNodes]
+      })
+      setEdges((prev) => {
+        if (prev.length === 0) return rfEdges
+        const fetchedLayerSet = new Set(layers)
+        const kept = prev.filter((e) => {
+          const layer = (e.data as { layer?: string })?.layer
+          return layer ? !fetchedLayerSet.has(layer) : true
+        })
+        return [...kept, ...rfEdges]
+      })
+
+      layers.forEach((l) => fetchedLayersRef.current.add(l))
+    } catch (err) {
+      // AbortError is expected when navigating away — silently ignore
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      if (signal?.aborted) return
+      console.error('[useWorkspaceIntelligenceGraph] fetch error:', err)
+      setError(err instanceof Error ? err.message : tRef.current('intelPage.graph.workspaceLoadFailed'))
+      if (stageId) updateStage(stageId, { status: 'error', completedAt: Date.now() })
     } finally {
-      pendingRef.current = Math.max(0, pendingRef.current - 1)
       if (!signal?.aborted) {
-        if (pendingRef.current === 0) setLoading(false)
+        setLoading(false)
         setLoadingLayers((prev: Set<string>) => {
           const next = new Set(prev)
           layers.forEach((l) => next.delete(l))
@@ -257,13 +261,13 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
         })
       }
     }
-  }, [workspaceSlug, setNodes, setEdges, setLoading, setError, setCommunities, setLoadingLayers, updateStage, setProjectMetas])
+  }, [workspaceSlug, setNodes, setEdges, setLoading, setError, setCommunities, setLoadingLayers, updateStage])
 
   const fetchGraph = useCallback(async () => {
     const layers = Array.from(visibleLayers) as string[]
     fetchedLayersRef.current.clear()
     // Explicit refresh must bypass the cache.
-    await fetchGraphForLayers(layers, nodeLimit, undefined, undefined, true, layers)
+    await fetchGraphForLayers(layers, nodeLimit, undefined, undefined, true)
   }, [visibleLayers, nodeLimit, fetchGraphForLayers])
 
   // Fetch workspace summary (aggregated)
@@ -318,11 +322,13 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     setStages(stages)
 
     if (primary.length > 0 && rest.length > 0) {
-      // Both groups start together; they share ONE budget (budgetLayers).
-      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary', signal, false, layers)
-      fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary', signal, false, layers)
+      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary', signal).then(() => {
+        if (!signal.aborted) {
+          fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary', signal)
+        }
+      })
     } else {
-      fetchGraphForLayers(layers, nodeLimit, 'fetch_data', signal, false, layers)
+      fetchGraphForLayers(layers, nodeLimit, 'fetch_data', signal)
     }
     fetchSummary(signal)
 
@@ -354,7 +360,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
           { id: 'layout', label: tRef.current('intelPage.graph.stage.computeLayout'), status: 'pending' },
         ]
         setStages(stages)
-        fetchGraphForLayers(needed, nodeLimit, stageId, undefined, false, Array.from(visibleLayers) as string[])
+        fetchGraphForLayers(needed, nodeLimit, stageId)
       }
     }, 300)
     return () => {
