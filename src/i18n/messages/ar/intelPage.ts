@@ -244,4 +244,13 @@ export default {
     live: 'مباشر',
     liveTitle: 'WebSocket متصل — تُستلم التحديثات مباشرة',
   },
+  situation: {
+    aria: 'ما تشاهده',
+    nodes: 'عقد',
+    groups: 'مجموعات',
+    edges: 'حواف',
+    layers: 'طبقات',
+    tierDetail: 'تفصيل',
+    tierGroups: 'مجموعات',
+  },
 } satisfies Translation<'intelPage'>

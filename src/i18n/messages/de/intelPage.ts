@@ -245,4 +245,13 @@ export default {
     live: 'Live',
     liveTitle: 'WebSocket verbunden — Live-Aktualisierungen werden empfangen',
   },
+  situation: {
+    aria: 'Was Sie ansehen',
+    nodes: 'Knoten',
+    groups: 'Gruppen',
+    edges: 'Kanten',
+    layers: 'Ebenen',
+    tierDetail: 'Detail',
+    tierGroups: 'Gruppen',
+  },
 } satisfies Translation<'intelPage'>

@@ -244,4 +244,13 @@ export default {
     live: 'Наживо',
     liveTitle: 'WebSocket підключено — отримання оновлень у реальному часі',
   },
+  situation: {
+    aria: 'Що ви бачите',
+    nodes: 'вузлів',
+    groups: 'груп',
+    edges: 'ребер',
+    layers: 'шарів',
+    tierDetail: 'деталі',
+    tierGroups: 'групи',
+  },
 } satisfies Translation<'intelPage'>

@@ -244,4 +244,13 @@ export default {
     live: 'В эфире',
     liveTitle: 'WebSocket подключён — получение обновлений в реальном времени',
   },
+  situation: {
+    aria: 'Что вы видите',
+    nodes: 'узлов',
+    groups: 'групп',
+    edges: 'рёбер',
+    layers: 'слоёв',
+    tierDetail: 'детали',
+    tierGroups: 'группы',
+  },
 } satisfies Translation<'intelPage'>

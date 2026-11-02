@@ -245,4 +245,13 @@ export default {
     live: 'En direct',
     liveTitle: 'WebSocket connecté — mises à jour en direct',
   },
+  situation: {
+    aria: 'Ce que vous regardez',
+    nodes: 'nœuds',
+    groups: 'groupes',
+    edges: 'arêtes',
+    layers: 'couches',
+    tierDetail: 'détail',
+    tierGroups: 'groupes',
+  },
 } satisfies Translation<'intelPage'>
