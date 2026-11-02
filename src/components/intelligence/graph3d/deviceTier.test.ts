@@ -100,6 +100,10 @@ describe('readDeviceSignals / currentDeviceBudget', () => {
   })
 
   it('jsdom (no matchMedia, no deviceMemory) reads as desktop high', () => {
+    // Explicit absence: another test file installs a global matchMedia, and
+    // with vitest's file order it leaked into this one, so the suite passed
+    // locally and failed in CI. Stub it out instead of assuming nothing set it.
+    vi.stubGlobal('matchMedia', undefined)
     resetDeviceBudgetCache()
     expect(readDeviceSignals().coarsePointer).toBe(false)
     expect(currentDeviceBudget().tier).toBe('high')
