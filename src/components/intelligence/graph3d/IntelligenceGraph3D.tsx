@@ -765,11 +765,19 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const onStart = () => {
       userInteractingRef.current = true
     }
+    // uDensK follows the camera distance: one cheap update per controls change
+    // (setCameraDistance only touches the uniform when the factor moves).
+    const onChange = () => {
+      const camera = typeof fg.camera === 'function' ? fg.camera() : null
+      if (camera && controls.target) nodePointsRef.current?.setCameraDistance(camera.position.distanceTo(controls.target))
+    }
     controls.addEventListener('start', onStart)
     controls.addEventListener('end', onEnd)
+    controls.addEventListener('change', onChange)
     return () => {
       controls.removeEventListener('start', onStart)
       controls.removeEventListener('end', onEnd)
+      controls.removeEventListener('change', onChange)
     }
   }, [graphData.nodes, setScaleLevel])
 
@@ -2000,6 +2008,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // the ratio already in force or its points would change size on the next
     // frame (gl_PointSize is in device pixels).
     np.setPixelRatio(pixelRatioRef.current)
+    {
+      // uDensK follows the camera distance: seed it, then refresh on controls 'change' (state change, not per frame).
+      const ctl = typeof fg.controls === 'function' ? fg.controls() : null
+      const cam = typeof fg.camera === 'function' ? fg.camera() : null
+      if (ctl?.target && cam) np.setCameraDistance(cam.position.distanceTo(ctl.target))
+    }
     scene.add(np.object)
     nodePointsRef.current = np
     wake(WAKE_MUTATION_MS)

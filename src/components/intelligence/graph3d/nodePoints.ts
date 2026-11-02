@@ -231,6 +231,38 @@ export function nodeGain(count: number): number {
   return Math.min(1, Math.max(NODE_GAIN_FLOOR, Math.sqrt(NODE_GAIN_REFERENCE / n)))
 }
 
+/** Under this many nodes the density attenuation is exactly 1 (an isolated point keeps its opacity). */
+export const DENS_FREE_COUNT = 1000
+/** Floor of the density factor: a point is never dimmed below 35 % of its alpha. */
+export const DENS_K_MIN = 0.35
+/** Camera distance (to the orbit target) up to which no distance penalty applies, and where it saturates. */
+export const DENS_DIST_NEAR = 300
+export const DENS_DIST_FAR = 1200
+/** Smallest distance factor: far away, alpha is multiplied by at most this much less. */
+export const DENS_DIST_MIN = 0.7
+
+/** Distance factor in [DENS_DIST_MIN, 1]: 1 up close, falling linearly to DENS_DIST_MIN at DENS_DIST_FAR. Never 0, never > 1. */
+export function densityDistanceFactor(distance: number): number {
+  const d = Number.isFinite(distance) && distance > 0 ? distance : 0
+  const t = Math.min(1, Math.max(0, (d - DENS_DIST_NEAR) / (DENS_DIST_FAR - DENS_DIST_NEAR)))
+  return 1 - (1 - DENS_DIST_MIN) * t
+}
+
+/**
+ * Density attenuation `uDensK` applied to the points' alpha (po-graph's uDensK,
+ * which also scales with camera distance):
+ *
+ *     count <= 1000 : 1.0                     (nothing is touched)
+ *     otherwise     : clamp( √(1000/count) × densityDistanceFactor(dist), 0.35, 1 )
+ *
+ * More nodes and a farther camera ⇒ lower alpha, bounded below by 0.35 so the
+ * overview never vanishes. Monotone non-increasing in `count` and `distance`.
+ */
+export function densityAlphaK(count: number, distance: number): number {
+  if (!Number.isFinite(count) || count <= DENS_FREE_COUNT) return 1
+  return Math.min(1, Math.max(DENS_K_MIN, Math.sqrt(DENS_FREE_COUNT / count) * densityDistanceFactor(distance)))
+}
+
 const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aColor;
   attribute float aAlpha;
@@ -268,6 +300,7 @@ const VERTEX_SHADER = /* glsl */ `
 
 const FRAGMENT_SHADER = /* glsl */ `
   uniform float uGlobal;
+  uniform float uDensK;
   varying vec3 vColor;
   varying float vAlpha;
   varying float vShape;
@@ -335,7 +368,7 @@ const FRAGMENT_SHADER = /* glsl */ `
     vec3 c = vColor * lum + vec3(1.0) * (core * 0.22 + m * vAct * 0.75);
     // uGlobal caps the total emitted light as the node count grows; vAlpha is
     // the caller's per-node opacity (hover, dimming, legend, activation).
-    c *= vAlpha * uGlobal;
+    c *= vAlpha * uGlobal * uDensK;
     // Additive blending: alpha is 1 and the intensity lives in the colour, so
     // overlapping nodes brighten each other instead of occluding each other.
     gl_FragColor = vec4(min(c, vec3(4.0)), 1.0);
@@ -370,6 +403,8 @@ export interface NodePoints {
    * screen. The two must move together — see useRenderLoop's frame budget.
    */
   setPixelRatio: (pixelRatio: number) => void
+  /** Feed the camera→target distance; recomputes `uDensK` only when it moves. */
+  setCameraDistance: (distance: number) => void
   /** Current `uPx`, for tests and for wiring a newly created Points. */
   getPixelRatio: () => number
   dispose: () => void
@@ -410,6 +445,8 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
       uPx: { value: typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio || 1, 1.5) },
       // Per-node light gain, recomputed from the node count by setData().
       uGlobal: { value: nodeGain(nodes.length) },
+      // Density attenuation of the alpha (1 = untouched), see densityAlphaK().
+      uDensK: { value: densityAlphaK(nodes.length, 0) },
     },
   })
 
@@ -420,6 +457,14 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
   const setPixelRatio = (pixelRatio: number) => {
     const px = Number.isFinite(pixelRatio) && pixelRatio > 0 ? pixelRatio : 1
     material.uniforms.uPx.value = px
+  }
+
+  let camDistance = 0
+  /** Camera→target distance changed: refresh uDensK (called per state change, never per frame). */
+  const setCameraDistance = (distance: number) => {
+    camDistance = distance
+    const k = densityAlphaK(nodeList.length, distance)
+    if (Math.abs(k - (material.uniforms.uDensK.value as number)) > 0.002) material.uniforms.uDensK.value = k
   }
 
   const getPixelRatio = () => material.uniforms.uPx.value as number
@@ -433,6 +478,7 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
     // once per data change, so a filtered or aggregated graph is not lit like
     // the full one it came from.
     material.uniforms.uGlobal.value = nodeGain(next.length)
+    material.uniforms.uDensK.value = densityAlphaK(next.length, camDistance)
     if (next.length !== (geometry.getAttribute('position') as THREE.BufferAttribute).count) {
       geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(next.length * 3), 3))
       geometry.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(next.length * 3), 3))
@@ -530,5 +576,5 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
 
   setData(nodes)
 
-  return { object, setData, updatePositions, updateStyles, indexOf, updateStyleAt, pick, setPixelRatio, getPixelRatio, dispose }
+  return { object, setData, updatePositions, updateStyles, indexOf, updateStyleAt, pick, setPixelRatio, setCameraDistance, getPixelRatio, dispose }
 }

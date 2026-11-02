@@ -4,6 +4,7 @@ import {
   createNodePoints, shapeForType, sizeForType, nodeGain, NODE_GAIN_REFERENCE, NODE_GAIN_FLOOR,
   NODE_MIN_SHAPE_PX, NODE_MIN_SPRITE_PX, NODE_SHAPE_MID_RADIUS, NODE_SHAPE_FRACTION_SMALL, NODE_POINTS_RENDER_ORDER,
   LINK_RENDER_ORDER, nodeSpritePx, shapeGrow,
+  densityAlphaK, densityDistanceFactor, DENS_K_MIN, DENS_DIST_MIN,
 } from './nodePoints'
 import { entityColor } from '@/constants/graphPalette'
 import { parseColor } from './linkSegments'
@@ -308,6 +309,44 @@ describe('draw order', () => {
     expect(NODE_POINTS_RENDER_ORDER).toBeGreaterThan(LINK_RENDER_ORDER)
     const np = createNodePoints([])
     expect(np.object.renderOrder).toBe(NODE_POINTS_RENDER_ORDER)
+    np.dispose()
+  })
+})
+
+describe('densityAlphaK (uDensK)', () => {
+  it('is exactly 1 at 1000 nodes or fewer, at any distance', () => {
+    for (const n of [0, 1, 500, 1000]) for (const d of [0, 300, 1200, 1e6]) expect(densityAlphaK(n, d)).toBe(1)
+  })
+  it('drops clearly below 1 but stays >= 0.35 at 20 000 nodes', () => {
+    for (const d of [0, 600, 1200, 5000]) {
+      const k = densityAlphaK(20000, d)
+      expect(k).toBeLessThan(0.9)
+      expect(k).toBeGreaterThanOrEqual(DENS_K_MIN)
+    }
+  })
+  it('is monotone non-increasing in the node count and in the distance', () => {
+    const counts = [1000, 1500, 3000, 5000, 10000, 20000, 100000]
+    for (const d of [0, 500, 1500]) {
+      const ks = counts.map((n) => densityAlphaK(n, d))
+      for (let i = 1; i < ks.length; i++) expect(ks[i]).toBeLessThanOrEqual(ks[i - 1])
+    }
+    const dists = [0, 300, 600, 900, 1200, 4000]
+    const kd = dists.map((d) => densityAlphaK(5000, d))
+    for (let i = 1; i < kd.length; i++) expect(kd[i]).toBeLessThanOrEqual(kd[i - 1])
+  })
+  it('distance factor is bounded: never 0, never > 1 (including garbage input)', () => {
+    for (const d of [-5, 0, 1, 300, 800, 1200, 1e9, NaN, Infinity]) {
+      const f = densityDistanceFactor(d)
+      expect(f).toBeGreaterThanOrEqual(DENS_DIST_MIN)
+      expect(f).toBeLessThanOrEqual(1)
+    }
+  })
+  it('createNodePoints exposes uDensK = 1 for a small graph and updates it from the camera distance', () => {
+    const np = createNodePoints([mk('a', 0, 0, 0)])
+    const mat = np.object.material as THREE.ShaderMaterial
+    expect(mat.uniforms.uDensK.value).toBe(1)
+    np.setCameraDistance(5000)
+    expect(mat.uniforms.uDensK.value).toBe(1)
     np.dispose()
   })
 })
