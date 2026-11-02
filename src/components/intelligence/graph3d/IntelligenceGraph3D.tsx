@@ -190,23 +190,23 @@ const AUTO_AGGREGATE_ABOVE = 4000
  */
 const LINK_FAMILY_ALPHA: Record<string, number> = {
   // Structure — the skeleton of the code and of the work
-  IMPORTS: 0.3,
-  CALLS: 0.26,
-  EXTENDS: 0.34,
-  IMPLEMENTS: 0.3,
-  CONTAINS: 0.26,
-  HAS_TASK: 0.26,
-  HAS_STEP: 0.22,
-  HAS_DECISION: 0.22,
+  IMPORTS: 0.15,
+  CALLS: 0.13,
+  EXTENDS: 0.17,
+  IMPLEMENTS: 0.15,
+  CONTAINS: 0.13,
+  HAS_TASK: 0.13,
+  HAS_STEP: 0.11,
+  HAS_DECISION: 0.11,
   // Tissue — explains why things move together, fainter by design
-  TOUCHES: 0.1,
-  CO_CHANGED: 0.11,
-  CO_CHANGED_TRANSITIVE: 0.08,
+  TOUCHES: 0.05,
+  CO_CHANGED: 0.055,
+  CO_CHANGED_TRANSITIVE: 0.04,
   // Knowledge
-  DISCUSSED: 0.14,
-  AFFECTS: 0.16,
-  SYNAPSE: 0.14,
-  AGGREGATE: 0.2,
+  DISCUSSED: 0.07,
+  AFFECTS: 0.08,
+  SYNAPSE: 0.07,
+  AGGREGATE: 0.1,
 }
 
 /**
@@ -219,8 +219,22 @@ const LINK_FAMILY_ALPHA: Record<string, number> = {
  */
 const LINK_DENSITY_REFERENCE = 2000
 
+/**
+ * Ceiling of the density factor. It used to be 1 (a sparse graph drew its links at full
+ * family strength); the user asked for fewer visible links, so even a small graph is
+ * now capped at 70 %.
+ */
+const LINK_DENSITY_CEILING = 0.7
+
+/**
+ * Floor of a link's alpha: below it a link vanishes when one zooms on a node (the weakest
+ * family × the weakest weight used to land near 0.01 and halving would make it nil).
+ * Scaled by the colour's own alpha, so the deliberately dimmed links stay dim.
+ */
+const LINK_ALPHA_FLOOR = 0.04
+
 /** Base link transparency — the single LineSegments material bakes this in per-vertex. */
-const LINK_OPACITY = 0.35
+const LINK_OPACITY = 0.2
 
 /**
  * Node count at or above which nodes are drawn as one THREE.Points (overview
@@ -975,12 +989,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // this, every link pooled at one faint alpha, so IMPORTS (structure) and
     // CO_CHANGED (tissue) were the same grey thread and the types were
     // indistinguishable. Structure leads; tissue recedes.
-    const family = LINK_FAMILY_ALPHA[link.relationType] ?? 0.18
-    const density = Math.min(1, Math.sqrt(LINK_DENSITY_REFERENCE / Math.max(1, graphData.links.length)))
+    const family = LINK_FAMILY_ALPHA[link.relationType] ?? 0.09
+    // A focused link (hover / selection / activation) keeps its full strength: the calm
+    // only applies to the resting web, otherwise the link under the cursor would vanish.
+    const emphasised = color === HIGHLIGHT_COLOR_HOVER || color === HIGHLIGHT_COLOR_SELECT || color === ACTIVATION_COLOR_EDGE
+    const density = Math.min(emphasised ? 1 : LINK_DENSITY_CEILING, Math.sqrt(LINK_DENSITY_REFERENCE / Math.max(1, graphData.links.length)))
     // Inter-community links are the filaments between the nebula's cores: a
     // bridge that does not stand out leaves only a scatter of dots.
     const bridge = link.isInterCommunity ? 1.7 : 1
-    return { r: p.r, g: p.g, b: p.b, a: Math.min(1, family * density * p.a * weightFactor * bridge) }
+    const focus = emphasised ? 2 : 1
+    const a = Math.max(family * focus * density * p.a * weightFactor * bridge, LINK_ALPHA_FLOOR * p.a)
+    return { r: p.r, g: p.g, b: p.b, a: Math.min(1, a) }
   }, [])
 
   const computeLinkStyle = useCallback((link: Graph3DLink): LinkStyle => {
