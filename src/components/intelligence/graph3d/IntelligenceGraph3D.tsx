@@ -40,7 +40,7 @@ import {
   graphScaleAtom,
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel } from './graphAggregation'
-import { characteristicClusterRadius, nextScaleLevel } from './scaleDecision'
+import { nextScaleLevel } from './scaleDecision'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { createSuperLinkTubes, TUBE_MAX_EDGES, type SuperLinkTubes } from './superLinkTubes'
 import { FrameAnimator } from './frameAnimator'
@@ -725,12 +725,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // tier — or of the first aggregated tier while at the detail level, where
   // there are no super-nodes yet. Median, not mean: one huge catch-all group
   // ("everything else") must not drag a mean out to its own scale.
-  const clusterRadiusNodes = useMemo<Graph3DNode[]>(() => {
-    if (aggregated) return displayData.nodes
-    if (graphData.nodes.length === 0) return []
-    const res1 = resolutionForLevel(graphData.nodes.length, 1)
-    return res1 > 0 ? buildGroupedGraph(graphData, res1).nodes : []
-  }, [aggregated, displayData.nodes, graphData])
 
   useEffect(() => {
     const fg = graphRef.current
@@ -743,7 +737,16 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       const target = controls.target
       if (!camera || !target) return
       const distance = camera.position.distanceTo(target)
-      const radius = characteristicClusterRadius(clusterRadiusNodes)
+      // Ladder on the radius of the WHOLE graph, not on a cluster's: the
+      // cluster radius is dragged out by the catch-all group, so the camera
+      // never got close enough to reach the detail level — near and far both
+      // showed few points, and the scale looked inverted. With the graph
+      // radius, zooming in always ends at the detail (most points) and
+      // zooming out at the coarsest (fewest).
+      let radius = 40
+      for (const n of graphData.nodes) {
+        radius = Math.max(radius, Math.hypot(n.x, n.y, n.z))
+      }
       setScaleLevel((current) => {
         const next = nextScaleLevel(distance, radius, current)
         return Math.max(0, Math.min(MAX_SCALE, next))
@@ -758,7 +761,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       controls.removeEventListener('start', onStart)
       controls.removeEventListener('end', onEnd)
     }
-  }, [clusterRadiusNodes, setScaleLevel])
+  }, [graphData.nodes, setScaleLevel])
 
   // ── Data identity: re-frame once per dataset, not once per node count ───
   // `needsRelayout` is a boolean that stays `true` across a dataset swap, and
