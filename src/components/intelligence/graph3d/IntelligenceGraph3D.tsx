@@ -510,17 +510,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return buildGroupedGraph(graphData, scaleRes)
   }, [aggregated, scaleRes, graphData])
 
-  // A visible trace when the aggregated step yields nothing: one line in the
-  // console says whether the graph is empty, the grouping is empty, or the
-  // resolution collapsed — instead of a black canvas that explains nothing.
-  useEffect(() => {
-    if (!aggregatedEmpty) return
-    console.warn(
-      '[graph] aggregated step returned no node — falling back to detail',
-      { nodes: graphData.nodes.length, links: graphData.links.length, scaleLevel, scaleRes },
-    )
-  }, [aggregatedEmpty, graphData.nodes.length, graphData.links.length, scaleLevel, scaleRes])
-
   // True in the optimized path (minimal quality: ≥500 nodes, particles off):
   // links are drawn as ONE LineSegments instead of one cylinder per link.
   // Aggregated tiers always draw points + segments (few, size-coded super-nodes).
@@ -1757,6 +1746,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       : graphData.nodes.length > 0 && (aggregatedEmpty || !aggregated)
         ? graphData
         : emptyGraphData
+
+  // A visible trace when the aggregated step yields nothing: one line in the
+  // console says whether the graph is empty, the grouping is empty, or the
+  // resolution collapsed — instead of a black canvas that explains nothing.
+  useEffect(() => {
+    if (!aggregatedEmpty) return
+    console.warn(
+      '[graph] aggregated step returned no node — falling back to detail',
+      { nodes: graphData.nodes.length, links: graphData.links.length, scaleLevel, scaleRes },
+    )
+  }, [aggregatedEmpty, graphData.nodes.length, graphData.links.length, scaleLevel, scaleRes])
 
   // The aggregated tier draws its super-edges as TUBES (see superLinkTubes.ts)
   // while there are few enough of them; beyond TUBE_MAX_EDGES it falls back to
