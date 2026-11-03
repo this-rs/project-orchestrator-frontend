@@ -41,6 +41,29 @@ describe('layoutGroups', () => {
     const strongDist = dist(positions.get('strong-a')!, positions.get('strong-b')!)
     const weakDist = dist(positions.get('weak-a')!, positions.get('weak-b')!)
     expect(strongDist).toBeLessThan(weakDist)
+    // And it is the ATTRACTION that put it there, not the core floor (the
+    // projection's 0.45·120 + 2 = 56): a strong pair rests at its affinity
+    // target 120·(1 − 0.45·20/22) ≈ 70.9 (the anchor takes 0.5 % off it).
+    // This used to pass with the attraction switched off.
+    expect(strongDist).toBeGreaterThan(70.9 * 0.97)
+    expect(strongDist).toBeLessThan(70.9 * 1.03)
+  })
+
+  it('anchors a pair toward each other, inside its affinity target but above the core floor', () => {
+    // E_anchor pulls each group toward the barycentre of its neighbours; for
+    // a lone pair that is the other group, so the pair rests at
+    // d = t·a / (a + 2·λr) — for a = 0.5, 83 % of its target t ≈ 109.2.
+    // Without the anchor it would rest at t; without the attraction, on the
+    // core floor (56).
+    const groups: RelationalGroup[] = [
+      { id: 'a', radius: 60 },
+      { id: 'b', radius: 60 },
+    ]
+    const positions = layoutGroups(groups, { a: { b: 0.5 } }, { maxIterations: 300 })
+    const d = dist(positions.get('a')!, positions.get('b')!)
+    const target = 120 * (1 - 0.45 * (0.5 / 2.5))
+    expect(d).toBeLessThan(target * 0.92)
+    expect(d).toBeGreaterThan(target * 0.75)
   })
 
   it('keeps a group with no external relation isolated (farther than the envelope sum)', () => {
@@ -133,6 +156,10 @@ describe('layoutGroups', () => {
     const linked = dist(positions.get('a')!, positions.get('b')!)
     const unlinked = dist(positions.get('x')!, positions.get('y')!)
     expect(linked).toBeLessThan(unlinked)
+    // Held by its spring near the affinity target 140·(1 − 0.45/3) = 119, not
+    // dropped onto the core floor (0.45·140 + 2 = 65) — the assertion above
+    // alone stayed green with the attraction removed.
+    expect(linked).toBeGreaterThan(119 * 0.8)
   })
 
   it('resolves 200 groups through the grid, with no overlapping core left', () => {
