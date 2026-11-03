@@ -657,3 +657,36 @@ describe('IntelligenceGraph3D — dynamic scale (HLOD)', () => {
     expect(drawn().nodes.some((n) => isGroup(n.id))).toBe(false)
   })
 })
+
+describe('IntelligenceGraph3D — a late re-placement re-frames, unless the user moved', () => {
+  /** The same nodes, now carrying backend communities: their groups change, they are re-placed. */
+  const withCommunities = (g: { nodes: IntelligenceNode[]; edges: IntelligenceEdge[] }) => ({
+    nodes: g.nodes.map((n, i) => ({ ...n, data: { ...n.data, community_id: i % 3, community_label: `m${i % 3}` } })),
+    edges: g.edges,
+  })
+
+  it('re-frames a compact re-placement when nobody touched the camera', async () => {
+    const g = makeGraph(60)
+    const view = await mountGraph(g)
+    await flush(3000)
+    const framings = lib.fg.cameraPosition.mock.calls.length
+    view.rerender(withCommunities(g))
+    await flush(3000)
+    expect(lib.fg.cameraPosition.mock.calls.length).toBe(framings + 1)
+  })
+
+  it('keeps the user\'s view when the camera was moved before the re-placement', async () => {
+    const g = makeGraph(60)
+    const view = await mountGraph(g)
+    await flush(3000)
+    const controls = lib.fg.controls()
+    act(() => {
+      controls.dispatchEvent({ type: 'start' })
+      controls.dispatchEvent({ type: 'end' })
+    })
+    const framings = lib.fg.cameraPosition.mock.calls.length
+    view.rerender(withCommunities(g))
+    await flush(3000)
+    expect(lib.fg.cameraPosition.mock.calls.length).toBe(framings)
+  })
+})

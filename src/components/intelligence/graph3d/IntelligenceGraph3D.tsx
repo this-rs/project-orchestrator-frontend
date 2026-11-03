@@ -566,7 +566,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   }, [])
 
   // ── Transform data ──────────────────────────────────────────────────────
-  const { data: graphData, needsRelayout } = useMemo(
+  const { data: graphData, needsRelayout, layoutRevision } = useMemo(
     () => transformToGraph3D(nodes, edges),
     [nodes, edges, transformToGraph3D],
   )
@@ -849,6 +849,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // framing effect below is skipped, so a re-frame cannot yank the camera
   // out from under the user's hand.
   const userInteractingRef = useRef(false)
+  /** Set by any gesture, cleared by a framing: a late re-placement must not take the user's view away. */
+  const userMovedSinceFramingRef = useRef(false)
 
   // ── Multi-scale zoom: the camera distance picks the aggregation step ─────
   // The answer to "millions of single links": above the detail, links are drawn
@@ -897,6 +899,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
     const onStart = () => {
       userInteractingRef.current = true
+      userMovedSinceFramingRef.current = true
     }
     // uDensK and the pixel ratio ceiling follow the camera distance.
     // - uDensK: setCameraDistance only touches the uniform when the factor moves.
@@ -962,9 +965,16 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // whatever the last update was: opening the 3D view on loaded data mounts the
   // library after the data, and nothing was framed yet.
   const framedOnceRef = useRef(false)
+  // A RE-placement of the same nodes (detected communities answering late)
+  // makes the scene compact: it re-frames — unless the user has moved the
+  // camera since the last framing, whose view must not be taken away.
+  const framedKeyRef = useRef('')
+  const framedRevisionRef = useRef(-1)
   useEffect(() => {
     if (graphData.nodes.length === 0) return
-    if (!needsRelayout && framedOnceRef.current) return
+    const replacedOnly = framedOnceRef.current && nodeSetKey === framedKeyRef.current && layoutRevision !== framedRevisionRef.current
+    if (replacedOnly && userMovedSinceFramingRef.current) return
+    if (!needsRelayout && framedOnceRef.current && !replacedOnly) return
     const fg = graphRef.current
     if (!fg || typeof fg.cameraPosition !== 'function') return
     const id = setTimeout(() => {
@@ -1032,6 +1042,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           600,
         )
         framedOnceRef.current = true
+        framedKeyRef.current = nodeSetKey
+        framedRevisionRef.current = layoutRevision
+        userMovedSinceFramingRef.current = false
         wake(1200)
       } catch {
         // the library is not fully mounted yet — the next layout will frame it
@@ -1046,7 +1059,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // the projection — the user explicitly asked to keep the same view
     // ("je veux rester sur la même projection").
     // eslint-disable-next-line react-hooks/exhaustive-deps -- needsRelayout and graphData.nodes are read at the time of the key change on purpose
-  }, [nodeSetKey, hasDimensions, wake])
+  }, [nodeSetKey, layoutRevision, hasDimensions, wake])
 
   // ── Save positions when simulation stops ────────────────────────────────
   const onEngineStop = useCallback(() => {
