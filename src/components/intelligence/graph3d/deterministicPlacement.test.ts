@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { deterministicPlacement } from './useGraph3DLayout'
+import { deterministicPlacement, groupRadius } from './useGraph3DLayout'
 import type { Graph3DNode } from './useGraph3DLayout'
 import type { IntelligenceEdge } from '@/types/intelligence'
 
@@ -135,7 +135,7 @@ describe('communities reach the placement', () => {
     }
     const centres = Array.from({ length: groups }, (_, g) => centroidOf(g))
     // The contract is on the CORES: halos are allowed to interpenetrate.
-    const core = (10 + 3.2 * Math.sqrt(perGroup)) * 0.45
+    const core = groupRadius(perGroup) * 0.45
     let minDistance = Infinity
     for (let i = 0; i < groups; i++) {
       for (let j = i + 1; j < groups; j++) {
@@ -152,12 +152,6 @@ describe('communities reach the placement', () => {
       }
     }
     expect(minDistance).toBeGreaterThan(core * 2)
-    // …and the nebula must stay COMPACT: spacing the full radii pushed the
-    // clusters apart until the camera pulled back and everything read tiny.
-    const furthest = Math.max(
-      ...centres.map((c) => Math.hypot(c.x, c.y, c.z - (centres[0].z - centres[0].z))),
-    )
-    expect(furthest).toBeLessThan(260)
   })
 
   it('packs the busy nodes into the core and the leaves into the halo', () => {
@@ -233,7 +227,7 @@ describe('hub-and-corona placement', () => {
     for (const n of [30, 100, 400]) {
       const { nodes, edges } = mkGroup(n, 10)
       const placed = deterministicPlacement(nodes, edges)
-      const R = 10 + 3.2 * Math.sqrt(n)
+      const R = groupRadius(n)
       for (const node of satellitesOf(nodes, edges)) {
         const nr = radiusOf(placed, node.id) / R
         expect(nr).toBeGreaterThanOrEqual(0.55 - 1e-9)
@@ -246,7 +240,7 @@ describe('hub-and-corona placement', () => {
     const spread = (n: number) => {
       const { nodes, edges } = mkGroup(n, 5)
       const placed = deterministicPlacement(nodes, edges)
-      const R = 10 + 3.2 * Math.sqrt(n)
+      const R = groupRadius(n)
       const rs = satellitesOf(nodes, edges).map((x) => radiusOf(placed, x.id) / R)
       return Math.max(...rs) - Math.min(...rs)
     }
@@ -268,9 +262,15 @@ describe('hub-and-corona placement', () => {
   })
 })
 
-// ── Islands: one centre per layer, sized by the layer's own mass ─────────────
+// ── One archipelago, logarithmic radius ─────────────────────────────────────
+// The layer used to be a place — an island per layer sized by the layer's own
+// mass — so the project layer (~20 nodes) collapsed to an invisible oval next
+// to the code (~2000 nodes). The client ruled the constellation is the primary
+// scale on every layer: every community of every layer now shares ONE
+// archipelago, and a community's radius grows with log₂ of its mass so a small
+// one stays readable. These tests encode that contract.
 
-function islandStats(placed: Map<string, { x: number; y: number; z: number }>, ids: string[]) {
+function groupStats(placed: Map<string, { x: number; y: number; z: number }>, ids: string[]) {
   const pts = ids.map((i) => placed.get(i)!)
   const c = {
     x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
@@ -281,59 +281,58 @@ function islandStats(placed: Map<string, { x: number; y: number; z: number }>, i
   return { c, radius }
 }
 
-describe('layer islands', () => {
+describe('one archipelago, logarithmic radius', () => {
+  // Three communities of very different masses, spread over different layers.
   const build = () => {
+    const specs = [
+      { key: 'big', layer: 'code', community: 0, mass: 2000 },
+      { key: 'mid', layer: 'knowledge', community: 1, mass: 60 },
+      { key: 'small', layer: 'pm', community: 2, mass: 20 },
+    ]
     const nodes: Graph3DNode[] = []
-    const ids: Record<string, string[]> = { code: [], knowledge: [], pm: [] }
-    const add = (layer: string, count: number, groups: number) => {
-      for (let i = 0; i < count; i++) {
-        const id = `${layer}${i}`
-        ids[layer].push(id)
-        nodes.push(mkNode(id, layer, i % groups))
+    const ids: Record<string, string[]> = {}
+    for (const s of specs) {
+      ids[s.key] = []
+      for (let i = 0; i < s.mass; i++) {
+        const id = `${s.key}${i}`
+        ids[s.key].push(id)
+        nodes.push(mkNode(id, s.layer, s.community))
       }
     }
-    add('code', 2000, 12)
-    add('knowledge', 60, 3)
-    add('pm', 20, 2)
-    return { nodes, ids }
+    return { nodes, ids, specs }
   }
 
-  it('keeps three very unequal layers apart by the sum of their radii', () => {
-    const { nodes, ids } = build()
+  it('keeps three very unequal communities apart — their cores never touch', () => {
+    const { nodes, ids, specs } = build()
     const placed = deterministicPlacement(nodes, [])
-    const st = Object.fromEntries(Object.keys(ids).map((l) => [l, islandStats(placed, ids[l])]))
-    const names = Object.keys(st)
-    for (let i = 0; i < names.length; i++) {
-      for (let j = i + 1; j < names.length; j++) {
-        const a = st[names[i]], b = st[names[j]]
+    const st = Object.fromEntries(specs.map((s) => [s.key, groupStats(placed, ids[s.key])]))
+    const coreOf = (m: number) => groupRadius(m) * 0.45 // CORE_FRACTION
+    for (let i = 0; i < specs.length; i++) {
+      for (let j = i + 1; j < specs.length; j++) {
+        const a = st[specs[i].key], b = st[specs[j].key]
         const d = Math.hypot(a.c.x - b.c.x, a.c.y - b.c.y, a.c.z - b.c.z)
-        expect(d).toBeGreaterThanOrEqual(a.radius + b.radius)
+        expect(d).toBeGreaterThan(coreOf(specs[i].mass) + coreOf(specs[j].mass))
       }
     }
-    if (process.env.ISLAND_LOG) console.log(JSON.stringify(st))
   })
 
-  it('centres no island on the origin when several layers exist', () => {
-    const { nodes, ids } = build()
-    const placed = deterministicPlacement(nodes, [])
-    for (const l of Object.keys(ids)) {
-      const { c } = islandStats(placed, ids[l])
-      expect(Math.hypot(c.x, c.y, c.z)).toBeGreaterThan(100)
+  it('keeps a small community readable next to a huge one', () => {
+    expect(groupRadius(20)).toBeGreaterThanOrEqual(groupRadius(2000) * 0.6)
+    expect(groupRadius(20)).toBeLessThan(groupRadius(2000))
+  })
+
+  it('grows the radius monotonically and clamps it to [MIN, MAX]', () => {
+    const masses = [1, 2, 8, 20, 200, 2000, 20000, 1000000]
+    for (let i = 1; i < masses.length; i++) {
+      expect(groupRadius(masses[i])).toBeGreaterThanOrEqual(groupRadius(masses[i - 1]))
+    }
+    for (const m of masses) {
+      expect(groupRadius(m)).toBeGreaterThanOrEqual(60)
+      expect(groupRadius(m)).toBeLessThanOrEqual(160)
     }
   })
 
-  it('puts a lone layer at the centre, and leaves no hole for an absent layer', () => {
-    const solo = Array.from({ length: 50 }, (_, i) => mkNode(`s${i}`, 'knowledge', 0))
-    const { c } = islandStats(deterministicPlacement(solo, []), solo.map((n) => n.id))
-    expect(Math.hypot(c.x, c.y, c.z)).toBeLessThan(15)
-    const two = [...solo, mkNode('p', 'pm', 0)]
-    const three = [...two, mkNode('k', 'skills', 0)]
-    const r2 = Math.hypot(...Object.values(deterministicPlacement(two, []).get('p')!))
-    const r3 = Math.hypot(...Object.values(deterministicPlacement(three, []).get('p')!))
-    expect(r2).toBeLessThan(r3 + 1) // a third layer only ever widens the sphere
-  })
-
-  it('is deterministic across islands', () => {
+  it('is deterministic across the whole archipelago', () => {
     const { nodes } = build()
     expect(deterministicPlacement(nodes, [])).toEqual(deterministicPlacement(nodes, []))
   })

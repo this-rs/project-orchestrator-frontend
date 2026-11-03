@@ -289,62 +289,42 @@ export function toGraph3DNode(
   }
 }
 
-/** Per-layer angular phase for the community ring (keeps layers from overlapping). */
-const LAYER_ANGLE: Record<string, number> = {
-  code: 0,
-  fabric: 0.4,
-  pm: 3.1,
-  knowledge: 0.8,
-  neural: 1.4,
-  skills: 2.0,
-  behavioral: 2.6,
-}
-
 const DOUBLE_SEP = '\u0001'
 const GOLDEN_ANGLE = 2.39996
 
 /**
- * Island centres: one per layer, on a Fibonacci sphere around the origin. The
- * sphere's radius is the smallest that keeps every PAIR of islands apart by
- * the sum of their extents (plus a gap), so a heavy code layer and a light
- * knowledge layer never overlap. A single layer sits at the origin.
- * (The old per-layer z offset is gone: layers are separated in space now.)
+ * Radius of a community's sphere, logarithmic in its mass.
+ *
+ * The old `10 + 3.2·√n` followed the mass so closely that a 20-node community
+ * was ~16% of a 2000-node one: a speck next to a planet, and the whole project
+ * layer (≈20 nodes) an invisible oval beside the code (≈2000 nodes). The
+ * client ruled the constellation is the primary scale on every layer — the
+ * layer is now a colour, not a place — so the radius grows with log₂ of the
+ * mass and a small community stays readable:
+ *
+ *   rayon(m) = clamp(RADIUS_BASE + RADIUS_LOG_K · log₂(m), RADIUS_MIN, RADIUS_MAX)
+ *
+ * Measured: rayon(20) ≈ 98.9, rayon(200) ≈ 128.8, rayon(2000) ≈ 158.7 —
+ * so rayon(20) is ≈ 62% of rayon(2000): smaller, but never a speck.
  */
-export function islandCenters(
-  islands: { layer: string; extent: number }[],
-): Map<string, [number, number, number]> {
-  const out = new Map<string, [number, number, number]>()
-  const n = islands.length
-  if (n === 1) {
-    out.set(islands[0].layer, [0, 0, 0])
-    return out
-  }
-  const dirs = islands.map((_, i): [number, number, number] => {
-    const up = 1 - ((i + 0.5) / n) * 2
-    const around = Math.sqrt(Math.max(0, 1 - up * up))
-    const a = GOLDEN_SPHERE * i
-    return [Math.cos(a) * around, up, Math.sin(a) * around]
-  })
-  let R = 0
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const chord = Math.hypot(dirs[i][0] - dirs[j][0], dirs[i][1] - dirs[j][1], dirs[i][2] - dirs[j][2])
-      R = Math.max(R, (islands[i].extent + islands[j].extent + ISLAND_GAP) / chord)
-    }
-  }
-  islands.forEach((isl, i) => out.set(isl.layer, [dirs[i][0] * R, dirs[i][1] * R, dirs[i][2] * R]))
-  return out
-}
+const RADIUS_BASE = 60 // px — radius a 1-node group would have (log₂ 1 = 0)
+const RADIUS_LOG_K = 9 // px added per doubling of the mass
+const RADIUS_MIN = 60 // px — a tiny group is never a point
+const RADIUS_MAX = 160 // px — a giant group stops growing
 
-/** Free space kept between two islands, beyond their extents. */
-const ISLAND_GAP = 80
+export function groupRadius(mass: number): number {
+  const m = Math.max(1, mass)
+  return Math.min(RADIUS_MAX, Math.max(RADIUS_MIN, RADIUS_BASE + RADIUS_LOG_K * Math.log2(m)))
+}
 
 /**
  * Deterministic O(N log N) placement — the po-graph technique.
  *
- * Nodes are grouped by (layer, community) and placed per group on two levels: hubs at
- * the centre, satellites on a corona, the group spheres spread on a ring inside the layer's
- * z-plane. No force simulation: the layout is complete the instant it is
+ * Nodes are grouped by (layer, community) and placed per group on two levels:
+ * hubs at the centre, satellites on a corona. Every group of every layer is
+ * spread over ONE Fibonacci sphere of centres around the origin — the layer is
+ * now a colour, not a place — sized so the group CORES never touch (halos may
+ * brush). No force simulation: the layout is complete the instant it is
  * computed, sorted by degree so the busiest nodes sit near each group's pole.
  * Same input ⇒ same output (stable across refreshes).
  */
@@ -362,7 +342,9 @@ export function deterministicPlacement(
     deg.set(e.target, (deg.get(e.target) ?? 0) + 1)
   }
 
-  // Group by layer + community.
+  // Group by (layer, community). The layer stays in the key so two groups that
+  // share a community id on different layers remain distinct — but it no longer
+  // gets its own island: every group of every layer lives in one archipelago.
   const groups = new Map<string, Graph3DNode[]>()
   for (const n of nodes) {
     const key = n.layer + DOUBLE_SEP + (n.groupKey ?? String(n.communityId ?? 0))
@@ -371,100 +353,78 @@ export function deterministicPlacement(
     else groups.set(key, [n])
   }
 
-  // Per-layer, deterministic ordering of its groups.
-  const layerGroups = new Map<string, string[]>()
-  for (const key of groups.keys()) {
-    const layer = key.split(DOUBLE_SEP)[0]
-    const arr = layerGroups.get(layer)
-    if (arr) arr.push(key)
-    else layerGroups.set(layer, [key])
-  }
-  for (const arr of layerGroups.values()) arr.sort()
+  // ONE archipelago for every group: a single deterministic ordering and a
+  // single ring/sphere of centres, sized so the CORES never touch (the old
+  // per-layer islands are gone — a layer is now just a colour).
+  const keys = [...groups.keys()].sort()
+  const radii = keys.map((k) => groupRadius(groups.get(k)!.length))
+  const cores = radii.map((r) => r * CORE_FRACTION)
+  const step = (Math.PI * 2) / Math.max(1, keys.length)
+  const ring = keys.length > 1
+    ? Math.max(
+        150,
+        (cores.reduce((a, b) => a + b, 0) * 1.9) / Math.PI,
+        (2 * Math.max(...cores)) / ((1 - RADIAL_JITTER) * 2 * Math.sin((step * (1 - 2 * ANGLE_JITTER)) / 2)),
+      )
+    : 0
 
-  // One ISLAND per layer: each layer sizes its own ring from its own mass, so
-  // the islands are measured first, then their centres are spread on a sphere
-  // wide enough that no two overlap. A layer that is absent has no island.
-  const geometry = new Map<string, { radii: number[]; ring: number; extent: number }>()
-  for (const [layer, keys] of layerGroups) {
-    const radii = keys.map((k) => 10 + 3.2 * Math.sqrt(groups.get(k)!.length))
-    const cores = radii.map((r) => r * CORE_FRACTION)
-    const step = (Math.PI * 2) / Math.max(1, keys.length)
-    const ring = keys.length > 1
-      ? Math.max(
-          150,
-          (cores.reduce((a, b) => a + b, 0) * 1.9) / Math.PI,
-          (2 * Math.max(...cores)) / ((1 - RADIAL_JITTER) * 2 * Math.sin((step * (1 - 2 * ANGLE_JITTER)) / 2)),
-        )
-      : 0
-    geometry.set(layer, { radii, ring, extent: ring * (1 + RADIAL_JITTER) + Math.max(...radii) })
-  }
-  const centers = islandCenters(
-    [...layerGroups.keys()].sort().map((layer) => ({ layer, extent: geometry.get(layer)!.extent })),
-  )
+  keys.forEach((key, gi) => {
+    const ids = groups.get(key)!
+    // Every group gets its own deterministic shape: an even spiral on a
+    // sphere is what read as "a ball". A nebula needs an irregular outline,
+    // a dense core and a sparse halo.
+    const rng = mulberry32(hashString(key))
+    const phase = rng() * Math.PI * 2
+    const radial = ring === 0 ? 0 : ring * (1 - RADIAL_JITTER + 2 * RADIAL_JITTER * rng())
+    // A RING put every group in one plane: the graph read as a flat disc
+    // whatever the node count. The centres sit on a Fibonacci SPHERE, so z
+    // carries as much structure as x and y.
+    const up = keys.length === 1 ? 0 : 1 - (gi / (keys.length - 1)) * 2
+    const around = Math.sqrt(Math.max(0, 1 - up * up))
+    const angle = GOLDEN_SPHERE * gi + (rng() - 0.5) * 2 * ANGLE_JITTER * step
+    const cx = Math.cos(angle) * around * radial
+    const cy = up * radial
+    const cz = Math.sin(angle) * around * radial
+    const tilt = (rng() - 0.5) * 1.1
+    const cosT = Math.cos(tilt)
+    const sinT = Math.sin(tilt)
 
-  for (const [layer, keys] of layerGroups) {
-    const { radii, ring } = geometry.get(layer)!
-    const [ox, oy, oz] = centers.get(layer)!
-    const baseAngle = LAYER_ANGLE[layer] ?? 0
-    const step = (Math.PI * 2) / Math.max(1, keys.length)
-    keys.forEach((key, gi) => {
-      const ids = groups.get(key)!
-      // Every group gets its own deterministic shape: an even spiral on a
-      // sphere is what read as "a ball". A nebula needs an irregular outline,
-      // a dense core and a sparse halo.
-      const rng = mulberry32(hashString(key))
-      const phase = rng() * Math.PI * 2
-      const radial = ring === 0 ? 0 : ring * (1 - RADIAL_JITTER + 2 * RADIAL_JITTER * rng())
-      // A RING put every group in the layer's plane: the graph read as a flat
-      // disc whatever the node count. The centres now sit on a Fibonacci
-      // SPHERE, so z carries as much structure as x and y.
-      const up = keys.length === 1 ? 0 : 1 - (gi / (keys.length - 1)) * 2
-      const around = Math.sqrt(Math.max(0, 1 - up * up))
-      const angle = baseAngle + GOLDEN_SPHERE * gi + (rng() - 0.5) * 2 * ANGLE_JITTER * step
-      const cx = Math.cos(angle) * around * radial
-      const cy = up * radial
-      const cz = Math.sin(angle) * around * radial
-      const tilt = (rng() - 0.5) * 1.1
-      const cosT = Math.cos(tilt)
-      const sinT = Math.sin(tilt)
+    // Busiest first: rank 0 is the core, the leaves are the halo.
+    ids.sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 
-      // Busiest first: rank 0 is the core, the leaves are the halo.
-      ids.sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-
-      const n = ids.length
-      const r = radii[gi]
-      // Two levels. HUBS (the most connected ~10 %, at least one) share the
-      // core, within HUB_CORE of the radius. SATELLITES sit on a CORONA between
-      // CORONA_INNER·R and R; the band thins as the group grows, so a big group
-      // reads as a hollow shell around a bright hub, not a filled ball.
-      const hubs = Math.max(1, Math.ceil(n * HUB_SHARE))
-      const sats = n - hubs
-      const band = Math.max(0.12, (1 - CORONA_INNER) / (1 + n / 150))
-      const place = (id: string, radius: number, th: number, el: number) => {
-        const ce = Math.cos(el)
-        const x0 = radius * ce * Math.cos(th)
-        const y0 = radius * Math.sin(el)
-        const z0 = radius * ce * Math.sin(th)
-        out.set(id, {
-          x: ox + cx + x0,
-          y: oy + cy + y0 * cosT - z0 * sinT,
-          z: oz + cz + y0 * sinT + z0 * cosT,
-        })
-      }
-      for (let k = 0; k < hubs; k++) {
-        // A lone node is exactly at the centre; several hubs spiral inside it.
-        const radius = hubs === 1 ? 0 : r * HUB_CORE * Math.sqrt((k + 0.5) / hubs)
-        place(ids[k].id, radius, k * GOLDEN_ANGLE + phase, Math.asin(1 - (2 * (k + 0.5)) / hubs))
-      }
-      for (let j = 0; j < sats; j++) {
-        // Regular angles (golden stride); the radius inside the band follows a
-        // low-discrepancy sequence, so the corona is even and reproducible.
-        const u = (j * 0.6180339887) % 1
-        const w = (j * 0.7548776662 + 0.5) % 1
-        place(ids[hubs + j].id, r * (1 - band * u), j * GOLDEN_ANGLE + phase, (w - 0.5) * CORONA_ELEVATION)
-      }
-    })
-  }
+    const n = ids.length
+    const r = radii[gi]
+    // Two levels. HUBS (the most connected ~10 %, at least one) share the
+    // core, within HUB_CORE of the radius. SATELLITES sit on a CORONA between
+    // CORONA_INNER·R and R; the band thins as the group grows, so a big group
+    // reads as a hollow shell around a bright hub, not a filled ball.
+    const hubs = Math.max(1, Math.ceil(n * HUB_SHARE))
+    const sats = n - hubs
+    const band = Math.max(0.12, (1 - CORONA_INNER) / (1 + n / 150))
+    const place = (id: string, radius: number, th: number, el: number) => {
+      const ce = Math.cos(el)
+      const x0 = radius * ce * Math.cos(th)
+      const y0 = radius * Math.sin(el)
+      const z0 = radius * ce * Math.sin(th)
+      out.set(id, {
+        x: cx + x0,
+        y: cy + y0 * cosT - z0 * sinT,
+        z: cz + y0 * sinT + z0 * cosT,
+      })
+    }
+    for (let k = 0; k < hubs; k++) {
+      // A lone node is exactly at the centre; several hubs spiral inside it.
+      const radius = hubs === 1 ? 0 : r * HUB_CORE * Math.sqrt((k + 0.5) / hubs)
+      place(ids[k].id, radius, k * GOLDEN_ANGLE + phase, Math.asin(1 - (2 * (k + 0.5)) / hubs))
+    }
+    for (let j = 0; j < sats; j++) {
+      // Regular angles (golden stride); the radius inside the band follows a
+      // low-discrepancy sequence, so the corona is even and reproducible.
+      const u = (j * 0.6180339887) % 1
+      const w = (j * 0.7548776662 + 0.5) % 1
+      place(ids[hubs + j].id, r * (1 - band * u), j * GOLDEN_ANGLE + phase, (w - 0.5) * CORONA_ELEVATION)
+    }
+  })
   return out
 }
 
