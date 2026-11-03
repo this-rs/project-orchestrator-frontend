@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
-import { layoutGroups, type AffinityMatrix } from './relationalLayout'
+import { CORE_RATIO, layoutGroups, type AffinityMatrix } from './relationalLayout'
 import { currentDeviceBudget } from './deviceTier'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -512,10 +512,16 @@ export function deterministicPlacement(
 
 /**
  * Share of a group's radius that the dense core occupies. Rank-based placement
- * (exponent 1.7) puts half the nodes inside ~0.31·R, so 0.45·R is a fair
- * "this is where the mass is" and the spacing works on that, not on the halo.
+ * (exponent 1.7) puts half the nodes inside ~0.31·R, so `CORE_RATIO`·R is a
+ * fair "this is where the mass is" and the spacing works on that, not on the
+ * halo.
+ *
+ * It is the SAME constant the layout uses to decide how close two related
+ * groups may sit (`hardDistance`). Two copies of 0.45 would drift one day, and
+ * the symptom would be groups visibly overlapping while the layout believes
+ * they do not.
  */
-const CORE_FRACTION = 0.45
+const CORE_FRACTION = CORE_RATIO
 /** Share of a group kept as hubs at its centre, and how far they spread. */
 const HUB_SHARE = 0.1
 const HUB_CORE = 0.15
