@@ -64,7 +64,7 @@ export interface AgentMarkersHandle {
 }
 
 export function useAgentMarkers(input: AgentMarkersInput): AgentMarkersHandle {
-  const { graphRef, nodePointsRef, markersRef, nodes, animator, enabled = true } = input
+  const { graphRef, nodePointsRef, markersRef, overlayRef, nodes, animator, enabled = true } = input
   const { data } = useLiveAgents()
   const agents = useMemo(() => (enabled ? data?.agents ?? [] : []), [enabled, data])
   const index = useMemo(() => buildPulseIndex(nodes), [nodes])
@@ -115,7 +115,6 @@ export function useAgentMarkers(input: AgentMarkersInput): AgentMarkersHandle {
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
     return activatedNodeStyle(style, agentNodeActivation(p.state, now, p.session_id), { ...agentRgb(p.session_id), k: 0.6 })
   })
-  const overlayRef = input.overlayRef
   useEffect(() => {
     if (!overlayRef) return
     overlayRef.current = overlay
