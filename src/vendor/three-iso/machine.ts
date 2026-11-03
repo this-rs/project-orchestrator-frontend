@@ -1,4 +1,4 @@
-// GENERATED from website@c49f5f220cdb1b250d2fe265c52ca13ec330054a:src/three/iso/machine.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@1db50e5baba8e2e6af3d32dc6c1967fcb1f93c57:src/three/iso/machine.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Une machine de héros : un registre de pièces nommées (groupées, avec un niveau de détail) et une fonction de

@@ -43,6 +43,10 @@ interface GalleryScene {
   data: unknown
 }
 
+// Mode ?live=<slug> : une seule scène, montée par le composant réel (IsoSceneViz → IsoGL), pour vérifier ce qui ne se
+// voit pas sur une image fixe : la tournée des vues, et le fait qu'elle rende la main.
+const liveSlug = new URLSearchParams(location.search).get('live')
+
 const scenes: GalleryScene[] = (window as unknown as { __ISO_GALLERY__?: GalleryScene[] }).__ISO_GALLERY__ ?? []
 
 // compileIsoScene est pur et déterministe : on le calcule UNE fois par scène
@@ -146,6 +150,17 @@ function App() {
     ;(window as unknown as { __ISO_GALLERY_RESULT__?: unknown }).__ISO_GALLERY_RESULT__ = result
     ;(window as unknown as { __ISO_READY__?: boolean }).__ISO_READY__ = true
   }, [])
+  // Mode vivant : une scène, le composant réel. C'est le seul chemin qui joue la tournée des vues et le cycle.
+  if (liveSlug) {
+    const sc = scenes.find((x) => x.slug === liveSlug)
+    if (!sc) return <p>scène inconnue : {liveSlug}</p>
+    return (
+      <div style={{ width: 900, height: 640 }}>
+        <IsoSceneViz data={sc.data as Record<string, unknown>} expanded title={sc.title} />
+      </div>
+    )
+  }
+
   return (
     <div className="gallery">
       <header className="gallery-head">

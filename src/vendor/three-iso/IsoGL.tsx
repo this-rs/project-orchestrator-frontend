@@ -1,4 +1,4 @@
-// GENERATED from website@c49f5f220cdb1b250d2fe265c52ca13ec330054a:src/three/iso/IsoGL.tsx by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@1db50e5baba8e2e6af3d32dc6c1967fcb1f93c57:src/three/iso/IsoGL.tsx by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
 
@@ -498,11 +498,18 @@ export default function IsoGL({ machine: given, live, still = false, drive = 'ti
             clearInterval(tourTimer)
             tourTimer = 0
           }
+          canvas.dataset.view = 'manuel'
         }
         handOver.push(stopTour)
+        // La vue courante est ANNONCÉE dans le DOM : une animation ne se prouve pas sur une image fixe, elle se prouve
+        // par son état. Un contrôle (scripts/iso-tour.mjs) lit dataset.view dans le temps et vérifie que ça tourne puis
+        // que ça s'arrête au premier geste.
+        const announce = () => { canvas.dataset.view = TOUR[ix] }
+        announce()
         tourTimer = window.setInterval(() => {
           ix = (ix + 1) % TOUR.length
           api.current?.preset(TOUR[ix]!)
+          announce()
         }, 3200)
       }
     }
