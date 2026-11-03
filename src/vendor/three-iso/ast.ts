@@ -1,4 +1,4 @@
-// GENERATED from website@8adfc7b6f829d9c60b3045a6922f43b436cf39de:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@33e082ed383c655e3293b66a3e04160d5876eac8:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * PROTOCOLE DE CONSTRUCTION : des objets et des mécaniques décrits comme des DONNÉES (un arbre JSON), compilés en
@@ -70,6 +70,9 @@ export type IsoNode =
   | (Base & { kind: 'ring'; r: number; w?: number; h?: number })
   | (Base & { kind: 'cone'; r: number; h: number; top?: number })
   | (Base & { kind: 'lathe'; profile: readonly (readonly [number, number])[]; seg?: number })
+  /** Extrusion : un polygone FERMÉ du plan (x, y) poussé sur `depth` en z. C'est la primitive qui ouvre les formes
+   * planes arbitraires — équerre, engrenage, plaque, logo — que la boîte et la révolution ne savent pas faire. */
+  | (Base & { kind: 'prism'; profile: readonly (readonly [number, number])[]; depth: number })
   | (Base & { kind: 'capsule'; r: number; h: number; seg?: number })
   | (Base & { kind: 'repeat'; shape: IsoNode; positions: readonly V3[] })
   | (Base & { kind: 'torus'; r: number; t: number; seg?: number })
@@ -100,7 +103,7 @@ const MATS: Readonly<Record<Material, string>> = {
   copper: MAT.copper,
   dark: MAT.dark,
 }
-const KINDS = new Set(['slab', 'puck', 'sphere', 'tube', 'ring', 'cone', 'lathe', 'capsule', 'repeat', 'torus', 'group', 'use'])
+const KINDS = new Set(['slab', 'puck', 'sphere', 'tube', 'ring', 'cone', 'lathe', 'prism', 'capsule', 'repeat', 'torus', 'group', 'use'])
 const MOTIONS = new Set(['spin', 'bob', 'slide', 'pulse', 'orbit', 'path'])
 const TAU = Math.PI * 2
 const deg = (v: number) => (v * Math.PI) / 180
@@ -172,6 +175,15 @@ export function checkAst(root: IsoNode, limits: AstLimits = AST_LIMITS): string[
         num(where, 'h', n.h)
         shapes++
         break
+      case 'prism': {
+        if (!Array.isArray(n.profile) || n.profile.length < 3 || n.profile.length > 32) out.push(`${where} : prism demande un profil fermé de 3 à 32 points [x, y]`)
+        else n.profile.forEach((v, k) => {
+          if (!Array.isArray(v) || v.length !== 2 || typeof v[0] !== 'number' || typeof v[1] !== 'number' || Math.abs(v[0]) > 6 || Math.abs(v[1]) > 6) out.push(`${where} : profil[${k}] doit être [x, y] dans ±6`)
+        })
+        num(where, 'depth', n.depth, 0.01, 6)
+        shapes++
+        break
+      }
       case 'lathe': {
         if (!Array.isArray(n.profile) || n.profile.length < 2 || n.profile.length > 12) out.push(`${where} : lathe demande un profil de 2 à 12 points [r, z]`)
         else n.profile.forEach((v, k) => {
@@ -240,6 +252,21 @@ interface Leaf {
  * Encombrement d'une surface de révolution : le plus grand des diamètres du profil, ou sa hauteur si elle dépasse.
  * (Sans profil, il n'y a rien : la taille vaut 0 et la pièce est écartée par le niveau de détail.)
  */
+/** Étendue d'un profil extrudé : le plus grand côté de sa boîte englobante (sert au cadrage et au tri). */
+function prismExtent(profile: readonly (readonly [number, number])[]): number {
+  let x0 = Infinity
+  let x1 = -Infinity
+  let y0 = Infinity
+  let y1 = -Infinity
+  for (const [x, y] of profile) {
+    x0 = Math.min(x0, x)
+    x1 = Math.max(x1, x)
+    y0 = Math.min(y0, y)
+    y1 = Math.max(y1, y)
+  }
+  return Number.isFinite(x0) ? Math.max(x1 - x0, y1 - y0) : 1
+}
+
 function latheExtent(profile: readonly (readonly [number, number])[]): number {
   let radius = 0
   let lo = Infinity
@@ -279,7 +306,9 @@ function leaves(root: IsoNode): Leaf[] {
               ? (n.r + n.t) * 2
               : n.kind === 'lathe'
                 ? latheExtent(n.profile)
-                : n.r * 2
+                : n.kind === 'prism'
+                  ? prismExtent(n.profile)
+                  : n.r * 2
     out.push({ path: path || n.kind, node: n, depth, size: size * scale })
   }
   walk(root, root.name ?? '', 0, 1)
@@ -406,6 +435,11 @@ function drawTree(root: IsoNode, c: MechCtx, F: Frame, z0: number, sockets: Map<
       case 'lathe':
         sub.lathe(n.profile.map((p) => [p[0], p[1]] as const), c.seg(n.seg ?? 24), o)
         break
+      case 'prism': {
+        const poly = n.profile.map((p) => [p[0], p[1]] as const)
+        sub.loft(poly as never, poly as never, n.depth, o)
+        break
+      }
       case 'capsule':
         sub.capsule([0, 0, 0], n.r, n.h, o, c.seg(n.seg ?? 12), Math.max(4, c.seg(6)))
         break
