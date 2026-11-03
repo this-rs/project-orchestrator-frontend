@@ -221,8 +221,8 @@ const HLOD_BUDGET = isMobileLikeDevice()
 /** Screen tolerance around a link's axis for hover, px: a one-relation conduit is barely wider. */
 const LINK_PICK_TOLERANCE_PX = 6
 
-/** How often the cut follows a moving camera (trailing call), ms. */
-const RECUT_THROTTLE_MS = 200
+/** Quiet time after the last camera move before the cut follows it, ms. */
+const RECUT_SETTLE_MS = 200
 
 /** Same frontier, same graph: a cut that did not move must not rebuild the scene. */
 function sameFrontier(a: ClusterCut | null, b: ClusterCut | null): boolean {
@@ -904,17 +904,20 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     //   so a smooth zoom crosses a few values, and `setZoomPixelRatioCeiling`
     //   is a no-op when it did not move — no canvas resize per frame. It keeps
     //   the budget's drop history: a zoom is the same screen, not a new one.
-    // The cut follows the camera DURING a move too (framing tween, orbit, a long
-    // zoom), at most every RECUT_THROTTLE_MS with a trailing call: the framing
-    // moves the camera without any gesture 'end', and a cut left at the
-    // pre-framing view changed at the next data flush and rebuilt the scene.
+    // The cut follows the camera once it SETTLES (RECUT_SETTLE_MS without a
+    // move): the framing tween and a click's flight move the camera with no
+    // gesture 'end', and a cut left at the pre-move view changed at the next
+    // flush and rebuilt the scene. Not DURING the move: measured at 20 000
+    // nodes, a close-up cut rebuilds the vascular links in ~180 ms — a re-cut
+    // every 200 ms of motion would stutter the whole flight.
     let recutTimer: ReturnType<typeof setTimeout> | null = null
     const scheduleRecut = () => {
-      if (!dynamicScale || recutTimer) return
+      if (!dynamicScale) return
+      if (recutTimer) clearTimeout(recutTimer)
       recutTimer = setTimeout(() => {
         recutTimer = null
         recut()
-      }, RECUT_THROTTLE_MS)
+      }, RECUT_SETTLE_MS)
     }
     const onChange = () => {
       scheduleRecut()

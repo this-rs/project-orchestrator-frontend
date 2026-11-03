@@ -631,6 +631,25 @@ describe('IntelligenceGraph3D — dynamic scale (HLOD)', () => {
     expect(drawn().nodes.some((n) => n.id === target.id)).toBe(false)
   })
 
+  it('a moving camera does not re-cut (no rebuild mid-flight); the cut follows once it settles', async () => {
+    await mountGraph(makeGraph(5000))
+    await flush(3000)
+    const camera = lib.fg.camera()
+    const controls = lib.fg.controls()
+    const target = controls.target.clone()
+    const home = camera.position.clone()
+    const before = lib.props.graphData
+    // a 1 s flight towards the target, one 'change' every 50 ms
+    for (let k = 1; k <= 20; k++) {
+      camera.position.copy(target).add(home.clone().sub(target).multiplyScalar(1 - k * 0.045))
+      act(() => { controls.dispatchEvent({ type: 'change' }) })
+      await flush(50)
+      expect(lib.props.graphData).toBe(before)
+    }
+    await flush(300)
+    expect(lib.props.graphData).not.toBe(before)
+  })
+
   it('a small graph is drawn as is (no tree, no grouping)', async () => {
     await mountGraph(makeGraph(200))
     await flush(3000)
