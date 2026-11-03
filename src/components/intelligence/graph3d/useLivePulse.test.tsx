@@ -8,6 +8,10 @@ import { spriteScaleFor, useLivePulse, writeLinkActivation, writeNodeActivation 
 import { PULSE_MS } from './livePulse'
 import { emitEntityPulse } from '../livePulseBus'
 import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
+import { CURVE_SUBDIVISIONS } from './linkCurve'
+
+/** First vertex index of link index 1's stroke, when the graph is under the curvature budget. */
+const LINK1_FIRST_VERTEX = (CURVE_SUBDIVISIONS - 1) * 2
 
 const mk = (id: string, x = 0): Graph3DNode => ({ id, label: id, entityType: 'note', layer: 'knowledge', x, y: 0, z: 0, data: {} })
 const BASE: NodeStyle = { r: 0.2, g: 0.4, b: 0.6, alpha: 0.7, size: 3, shape: 0, act: 0 }
@@ -107,7 +111,7 @@ describe('writeLinkActivation', () => {
     const alp = seg.object.geometry.getAttribute('aAlpha') as THREE.BufferAttribute
     writeLinkActivation(seg, 'a', 1, baseLink)
     expect(alp.getX(0)).toBeGreaterThan(0.2) // link 0 (a-b), vertex 0
-    expect(alp.getX(2)).toBeCloseTo(0.2) // link 1 (b-c) untouched
+    expect(alp.getX(LINK1_FIRST_VERTEX)).toBeCloseTo(0.2) // link 1 (b-c) untouched
     writeLinkActivation(seg, 'a', 0, baseLink)
     expect(alp.getX(0)).toBeCloseTo(0.2)
     writeLinkActivation(null, 'a', 1, baseLink) // no segments: no-op

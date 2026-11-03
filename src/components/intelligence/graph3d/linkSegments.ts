@@ -18,8 +18,21 @@
 import * as THREE from 'three'
 import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
 import { LINK_RENDER_ORDER } from './nodePoints'
-import { ARROW_VERTICES, arrowsEnabled, computeArrowHead } from './linkArrows'
+import { ARROW_ANCHOR, ARROW_VERTICES, arrowsEnabled, computeArrowHeadAt } from './linkArrows'
 import { isDirectionalRelation } from './linkFamily'
+import {
+  CURVE_SUBDIVISIONS, curveEnabled, linkVolume, pathPointAndTangent,
+  sampleLinkPath as samplePath, type Vec3,
+} from './linkCurve'
+
+/**
+ * Line segments drawn per link's stroke: CURVE_SUBDIVISIONS − 1 bowed
+ * segments when the graph is under the curvature budget, 1 plain straight
+ * segment otherwise. LineSegments needs 2 (disjoint) vertices per segment.
+ */
+function segmentsPerLink(linkCount: number): number {
+  return curveEnabled(linkCount) ? CURVE_SUBDIVISIONS - 1 : 1
+}
 
 /** Final per-link style: normalized RGB + alpha (0..1). */
 export interface LinkStyle {
@@ -104,10 +117,15 @@ export interface LinkSegments {
 }
 
 export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): LinkSegments {
-  // Vertex layout: [0, 2N) the N link strokes (vertex 2i, 2i+1); then, appended,
-  // ARROW_VERTICES per directional link (see linkArrows). arrowSlot[i] is the
-  // first vertex of link i's head, or -1 (bare stroke).
-  let vertexCount = links.length * 2
+  // Vertex layout: [0, strokeVerts*N) the N link strokes (segmentsPerLink(N)
+  // segments × 2 vertices each, link i at offset i*strokeVerts); then,
+  // appended, ARROW_VERTICES per directional link (see linkArrows).
+  // arrowSlot[i] is the first vertex of link i's head, or -1 (bare stroke).
+  // strokeVerts is the same for every link in a given graph (it depends only
+  // on the link count, via segmentsPerLink / curveEnabled) — curved links
+  // all get CURVE_SUBDIVISIONS points, straight ones all get 2.
+  let strokeVerts = segmentsPerLink(links.length) * 2
+  let vertexCount = links.length * strokeVerts
   let arrowSlot = new Int32Array(0)
   const geometry = new THREE.BufferGeometry()
   const positions = new Float32Array(vertexCount * 3)
@@ -160,9 +178,10 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
 
   const setData = (nextNodes: Graph3DNode[], nextLinks: Graph3DLink[]) => {
     linkList = nextLinks
+    strokeVerts = segmentsPerLink(nextLinks.length) * 2
     // Reallocate only when the count changes (graph shape changed).
     const slots = new Int32Array(nextLinks.length).fill(-1)
-    let next = nextLinks.length * 2
+    let next = nextLinks.length * strokeVerts
     if (arrowsEnabled(nextLinks.length)) {
       for (let i = 0; i < nextLinks.length; i++) {
         if (isDirectionalRelation(nextLinks[i].relationType)) { slots[i] = next; next += ARROW_VERTICES }
@@ -183,26 +202,36 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
 
   const updatePositions = () => {
     const pos = (geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array
+    const curved = curveEnabled(linkList.length)
+    const segs = strokeVerts / 2 // number of straight sub-segments drawn for the stroke
     for (let i = 0; i < linkList.length; i++) {
       const link = linkList[i]
-      const s = nodeById.get(endpointId(link.source))
-      const t = nodeById.get(endpointId(link.target))
-      const o = i * 6
-      pos[o] = s?.x ?? 0
-      pos[o + 1] = s?.y ?? 0
-      pos[o + 2] = s?.z ?? 0
-      pos[o + 3] = t?.x ?? 0
-      pos[o + 4] = t?.y ?? 0
-      pos[o + 5] = t?.z ?? 0
+      const sNode = nodeById.get(endpointId(link.source))
+      const tNode = nodeById.get(endpointId(link.target))
+      const s: Vec3 = [sNode?.x ?? 0, sNode?.y ?? 0, sNode?.z ?? 0]
+      const t: Vec3 = [tNode?.x ?? 0, tNode?.y ?? 0, tNode?.z ?? 0]
+      const volume = linkVolume(link)
+      const base = i * strokeVerts // first vertex of this link's stroke
+      // Sample `segs + 1` points along the path (bowed or straight — see
+      // sampleLinkPath), then write each consecutive pair as one disjoint
+      // LineSegments segment: [p0,p1], [p1,p2], …
+      const sampled = samplePath(s, t, volume, endpointId(link.source), endpointId(link.target), segs + 1, curved)
+      for (let j = 0; j < segs; j++) {
+        const p0 = sampled[j], p1 = sampled[j + 1]
+        const o = (base + j * 2) * 3
+        pos[o] = p0[0]; pos[o + 1] = p0[1]; pos[o + 2] = p0[2]
+        pos[o + 3] = p1[0]; pos[o + 4] = p1[1]; pos[o + 5] = p1[2]
+      }
       const slot = arrowSlot[i]
       if (slot >= 0) {
-        const h = computeArrowHead(
-          [pos[o], pos[o + 1], pos[o + 2]], [pos[o + 3], pos[o + 4], pos[o + 5]],
-          link.relationType, linkList.length,
+        const straightLen = Math.hypot(t[0] - s[0], t[1] - s[1], t[2] - s[2])
+        const { point, tangent } = pathPointAndTangent(
+          s, t, volume, endpointId(link.source), endpointId(link.target), ARROW_ANCHOR, curved,
         )
+        const h = computeArrowHeadAt(point, tangent, straightLen, link.relationType, linkList.length)
         // Degenerate link: collapse the head onto the source (zero-length, invisible).
         if (h) pos.set(h, slot * 3)
-        else pos.fill(pos[o], slot * 3, slot * 3 + ARROW_VERTICES * 3)
+        else pos.fill(s[0], slot * 3, slot * 3 + ARROW_VERTICES * 3)
       }
     }
     ;(geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
@@ -219,23 +248,29 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
     }
   }
 
+  /** Paint every vertex of link i's stroke (all `strokeVerts` of them) one colour. */
+  const paintStroke = (i: number, s: LinkStyle, col: Float32Array, alp: Float32Array) => {
+    const base = i * strokeVerts
+    for (let v = 0; v < strokeVerts; v++) {
+      const c = (base + v) * 3
+      col[c] = s.r; col[c + 1] = s.g; col[c + 2] = s.b
+      alp[base + v] = s.a
+    }
+  }
+
   const updateColors = (styleFn: LinkStyleFn) => {
     const col = (geometry.getAttribute('aColor') as THREE.BufferAttribute).array as Float32Array
     const alp = (geometry.getAttribute('aAlpha') as THREE.BufferAttribute).array as Float32Array
     for (let i = 0; i < linkList.length; i++) {
       const s = styleFn(linkList[i])
-      const o = i * 6
-      col[o] = s.r; col[o + 1] = s.g; col[o + 2] = s.b
-      col[o + 3] = s.r; col[o + 4] = s.g; col[o + 5] = s.b
-      const a = i * 2
-      alp[a] = s.a; alp[a + 1] = s.a
+      paintStroke(i, s, col, alp)
       paintArrow(i, s, col, alp)
     }
     ;(geometry.getAttribute('aColor') as THREE.BufferAttribute).needsUpdate = true
     ;(geometry.getAttribute('aAlpha') as THREE.BufferAttribute).needsUpdate = true
   }
 
-  /** Rewrite only the given link indices (two vertices each), with ranged uploads. */
+  /** Rewrite only the given link indices (their whole stroke), with ranged uploads. */
   const updateColorsAt = (indices: number[], styleFn: LinkStyleFn) => {
     if (indices.length === 0) return
     const col = (geometry.getAttribute('aColor') as THREE.BufferAttribute).array as Float32Array
@@ -245,14 +280,10 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
     for (const i of indices) {
       if (i < 0 || i >= linkList.length) continue
       const s = styleFn(linkList[i])
-      const o = i * 6
-      col[o] = s.r; col[o + 1] = s.g; col[o + 2] = s.b
-      col[o + 3] = s.r; col[o + 4] = s.g; col[o + 5] = s.b
-      const a = i * 2
-      alp[a] = s.a; alp[a + 1] = s.a
-      // Two vertices (source + target) per link, in element units.
-      colAttr.addUpdateRange(i * 6, 6)
-      alpAttr.addUpdateRange(i * 2, 2)
+      paintStroke(i, s, col, alp)
+      const base = i * strokeVerts
+      colAttr.addUpdateRange(base * 3, strokeVerts * 3)
+      alpAttr.addUpdateRange(base, strokeVerts)
       paintArrow(i, s, col, alp)
       const slot = arrowSlot[i]
       if (slot >= 0) {
