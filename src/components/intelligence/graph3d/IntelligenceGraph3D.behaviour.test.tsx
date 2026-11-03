@@ -331,7 +331,7 @@ describe('IntelligenceGraph3D — camera listeners', () => {
 })
 
 describe('IntelligenceGraph3D — semantic zoom at the default framing', () => {
-  it.skip('a rotation at the framing distance keeps the aggregated level', async () => {
+  it('a rotation at the framing distance keeps the aggregated level', async () => {
     // > AUTO_AGGREGATE_ABOVE nodes: the view opens one step aggregated.
     const view = await mountGraph(makeGraph(4200))
     await flush(3000)

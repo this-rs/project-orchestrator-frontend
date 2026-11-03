@@ -46,7 +46,7 @@ import {
   drilledCommunityAtom,
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
-import { nextScaleLevel } from './scaleDecision'
+import { nextScaleLevel, scaleYardstick } from './scaleDecision'
 import { zoomAdaptivePixelRatioCeiling } from './pixelRatioZoom'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { currentDeviceBudget } from './deviceTier'
@@ -735,28 +735,14 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // as bundles between groups and zooming IN degroups them a step at a time
   // (po-graph's semantic zoom).
   //
-  // Thresholds are expressed in a CHARACTERISTIC CLUSTER RADIUS, not in the
-  // graph's own radius. A ratio against the whole graph is the wrong yardstick:
-  // at 1.7× the graph's radius the clusters are still tiny on screen, so the
-  // view degrouped before the user could read the level they were on. Measured
-  // against one cluster, the level only changes when the members are really
-  // distinguishable or really blurred:
-  //
-  //   • DEGROUP_DISTANCE_RATIO = 3 — closer than 3× a cluster radius, the
-  //     members spread over ≈1 cluster radius and become resolvable, so one
-  //     step DOWN is allowed.
-  //   • REGROUP_DISTANCE_RATIO = 6 — further than 6× a cluster radius, the
-  //     cluster is small enough that its internal detail is lost, so one step
-  //     UP is safe.
-  //
-  // The 3×…6× gap is the dead zone (hysteresis): the level holds inside it, so
-  // a boundary never flickers. The decision itself is the pure function
-  // `nextScaleLevel` (scaleDecision.ts), unit-tested without WebGL.
-  //
-  // The characteristic radius is the MEDIAN super-node radius of the current
-  // tier — or of the first aggregated tier while at the detail level, where
-  // there are no super-nodes yet. Median, not mean: one huge catch-all group
-  // ("everything else") must not drag a mean out to its own scale.
+  // The decision is the pure `nextScaleLevel` (scaleDecision.ts): one step
+  // DOWN closer than DEGROUP_DISTANCE_RATIO (3) yardsticks, one step UP further
+  // than REGROUP_DISTANCE_RATIO (6), and the 3…6 gap is the dead zone
+  // (hysteresis) where the level holds. The yardstick is `scaleYardstick`:
+  // the framing distance over √18, so the home view sits in the middle of the
+  // dead zone. (A cluster's sprite radius was tried first and never let the
+  // camera degroup; the bare graph radius put the home view under the degroup
+  // threshold, so the first orbit fell to the raw detail.)
 
   useEffect(() => {
     const fg = graphRef.current
@@ -769,18 +755,19 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       const target = controls.target
       if (!camera || !target) return
       const distance = camera.position.distanceTo(target)
-      // Ladder on the radius of the WHOLE graph, not on a cluster's: the
-      // cluster radius is dragged out by the catch-all group, so the camera
-      // never got close enough to reach the detail level — near and far both
-      // showed few points, and the scale looked inverted. With the graph
-      // radius, zooming in always ends at the detail (most points) and
-      // zooming out at the coarsest (fewest).
-      let radius = 40
-      for (const n of graphData.nodes) {
-        radius = Math.max(radius, Math.hypot(n.x, n.y, n.z))
+      // Ladder on the FRAMING distance (∝ the whole graph's radius), not on a
+      // cluster's sprite size — see scaleYardstick: zooming in always ends at
+      // the detail, zooming out at the coarsest, and the home view sits in the
+      // dead zone, so an orbit at the framing distance never changes the level.
+      let yardstick = scaleYardstick(framingDistanceRef.current, 0)
+      if (yardstick <= 0) {
+        // Not framed yet: the graph radius stands in.
+        let radius = 40
+        for (const n of graphData.nodes) radius = Math.max(radius, Math.hypot(n.x, n.y, n.z))
+        yardstick = radius
       }
       setScaleLevel((current) => {
-        const next = nextScaleLevel(distance, radius, current)
+        const next = nextScaleLevel(distance, yardstick, current)
         return Math.max(0, Math.min(MAX_SCALE, next))
       })
     }

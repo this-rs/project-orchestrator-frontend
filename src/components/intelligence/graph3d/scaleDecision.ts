@@ -82,3 +82,31 @@ export function nextScaleLevel(
   if (ratio > REGROUP_DISTANCE_RATIO) return currentLevel + 1
   return currentLevel
 }
+
+/**
+ * Where the default framing sits on the ladder, in yardsticks: the GEOMETRIC
+ * middle of the dead zone (√(3 × 6) ≈ 4.24). The camera opens there, so an
+ * orbit at the framing distance never changes the level; zooming in past
+ * ≈ 0.71 × the framing distance degroups, zooming out past ≈ 1.41 × regroups.
+ */
+export const FRAMING_LADDER_RATIO = Math.sqrt(DEGROUP_DISTANCE_RATIO * REGROUP_DISTANCE_RATIO)
+
+/**
+ * The yardstick `nextScaleLevel` measures the camera distance against.
+ *
+ * It is tied to the FRAMING distance (∝ the whole graph's radius), not to a
+ * cluster's radius: `characteristicClusterRadius` is a super-node's SPRITE
+ * size (3 + 2.6·√count), a few units against a graph hundreds wide, so the
+ * camera never got close enough to degroup (fixed in 1c3c375b by using the
+ * graph radius). But the graph radius put the default framing — R / sin(fov/2)
+ * ≈ 2.5–2.8 R — BELOW the degroup threshold of 3 R: the first orbit dropped a
+ * 20 000-node graph from its aggregated step to the raw detail. Scaling the
+ * yardstick on the framing distance keeps the ladder monotone and the home
+ * view inside the dead zone.
+ *
+ * Before anything is framed (`framingDistance` ≤ 0) the graph radius stands in.
+ */
+export function scaleYardstick(framingDistance: number, graphRadius: number): number {
+  if (Number.isFinite(framingDistance) && framingDistance > 0) return framingDistance / FRAMING_LADDER_RATIO
+  return graphRadius
+}
