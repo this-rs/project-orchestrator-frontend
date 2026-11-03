@@ -1663,12 +1663,34 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       if (!fg || typeof fg.cameraPosition !== 'function') return
       const focus = communityFocus(graphData.nodes, communityId)
       if (!focus) return
-      const distance = Math.max(120, focus.radius * 2.4)
+      // Framing, not "reset": keep the CURRENT viewing direction (a hard-coded
+      // +Z was the "camera gets off-axis" complaint) and never pull back
+      // further than where the user already is (a radius-proportional distance
+      // was the "it zooms out instead of in" complaint).
+      const camera = typeof fg.camera === 'function' ? fg.camera() : null
+      const controls = typeof fg.controls === 'function' ? fg.controls() : null
+      const target = controls?.target ?? { x: focus.x, y: focus.y, z: focus.z }
+      const wanted = Math.max(80, focus.radius * 2.2)
+      let offset = { x: 0, y: 0.25, z: 1 }
+      let current = wanted
+      if (camera) {
+        const ox = camera.position.x - target.x
+        const oy = camera.position.y - target.y
+        const oz = camera.position.z - target.z
+        const len = Math.hypot(ox, oy, oz)
+        if (len > 1e-3) offset = { x: ox / len, y: oy / len, z: oz / len }
+        current = len
+      }
+      const distance = Math.min(Math.max(current, 40), wanted)
       try {
         fg.cameraPosition(
-          { x: focus.x, y: focus.y, z: focus.z + distance },
+          {
+            x: focus.x + offset.x * distance,
+            y: focus.y + offset.y * distance,
+            z: focus.z + offset.z * distance,
+          },
           { x: focus.x, y: focus.y, z: focus.z },
-          800,
+          700,
         )
         wake(1500)
       } catch {
