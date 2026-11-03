@@ -38,10 +38,11 @@ import { braidedOffsets, parallelTransportFrames, type Vec3 } from './linkVascul
 import { flowPositions, strataFor, stratumRadius, type Stratum } from './linkStrata'
 import { communityToken } from './linkRibbon'
 import { LINK_RENDER_ORDER } from './nodePoints'
+import { isMobileLikeDevice } from './useRenderLoop'
 import { buildRanges, bundleAtTriangle } from './linkVascularPicking'
 
 /** Radial segments. Eight reads round at these widths and stays cheap. */
-const TUBE_SEGMENTS = 8
+const TUBE_SEGMENTS = 6
 /** Share of the link length used as the spline's bow. */
 const BOW = 0.16
 /** Hard ceiling on lanes drawn for one trunk. */
@@ -55,7 +56,17 @@ const MAX_STRANDS = 5
  * tournent en hélice lente autour de l'axe, donc la lumière accroche par
  * intermittence, comme dans les références.
  */
-const MICRO_FIBERS = 10
+const MICRO_FIBERS = 5
+/**
+ * Budget réduit sur mobile.
+ *
+ * Un téléphone chauffe sur le SURDESSIN, pas sur le nombre de triangles seul :
+ * des dizaines de couches translucides qui se recouvrent coûtent une passe de
+ * fragment par pixel et par couche. Mesuré côté client : le rendu faisait
+ * chauffer l'appareil. Sur mobile, deux fibres au lieu de cinq et un anneau de
+ * moins : la silhouette reste, le coût par pixel tombe.
+ */
+const MOBILE_LIKE = isMobileLikeDevice()
 /** Rayon d'une fibre, en fraction du rayon du conduit. */
 const MICRO_FIBER_RADIUS = 0.07
 
@@ -103,7 +114,7 @@ const SHEATH_ALPHA = 1.0
  * proportionnellement entre ses couches : plus il a de strates, plus chacune est
  * discrète, et l'ensemble reste dans la plage lisible.
  */
-const CONDUIT_LIGHT_BUDGET = 0.85
+const CONDUIT_LIGHT_BUDGET = 0.8
 
 const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aColor;
@@ -163,6 +174,8 @@ interface Conduit {
   family: string | null
   /** Flowing grain offset, so two conduits never pulse in step. */
   flowPhase: number
+  /** Combien de faisceaux se rejoignent sur ses moyeux — divise sa lumière. */
+  load: number
   /** First vertex of this conduit in the shared buffers. */
   vertexStart: number
   vertexCount: number
@@ -372,6 +385,18 @@ export function createVascularLinks(
       }
     }
 
+    // ── Charge des moyeux ────────────────────────────────────────────────
+    // Combien de faisceaux se rejoignent sur chaque moyeu ? Au centre, vingt et
+    // un troncs se superposent : leur lumière S'ADDITIONNE. C'était le blanc
+    // éblouissant des captures. Chaque conduit divise donc son budget par la
+    // charge de ses deux moyeux — une correction qui vient des données, pas d'un
+    // réglage à l'œil.
+    const hubLoad = new Map<string, number>()
+    for (const c of corridors) {
+      hubLoad.set(c.from, (hubLoad.get(c.from) ?? 0) + 1)
+      hubLoad.set(c.to, (hubLoad.get(c.to) ?? 0) + 1)
+    }
+
     // ── Buffers ──────────────────────────────────────────────────────────
     const bundles: Bundle[] = []
     const position: number[] = []
@@ -392,6 +417,7 @@ export function createVascularLinks(
       // niveau agrégé — donc un corridor de 150 relations portant TROIS familles
       // et cinq canaux était dessiné comme un seul fil. Mesuré sur l'aperçu hors
       // navigateur : vingt et un corridors, cinq courbes visibles.
+      const load = Math.max(1, Math.max(hubLoad.get(corridor.from) ?? 1, hubLoad.get(corridor.to) ?? 1))
       const lanes = Math.min(
         MAX_STRANDS,
         Math.max(1, Math.min(
@@ -402,7 +428,7 @@ export function createVascularLinks(
       const trunkSamples = drawable.samples
       const order = corridor.magnitude.magnitudeOrder
       // Base radius: a share of the scene, growing with the magnitude order.
-      const baseRadius = sceneRadius * 0.024 * (1 + 0.38 * Math.min(9, order))
+      const baseRadius = sceneRadius * 0.02 * (1 + 0.34 * Math.min(9, order))
 
       const conduits: Conduit[] = []
       const vertexStart = position.length / 3
@@ -418,12 +444,13 @@ export function createVascularLinks(
         strata: Stratum[],
         family: string | null,
         flowPhase: number,
+        load: number,
       ) => {
         // One vertex ring per stratum: the tube is CONCENTRIC layers, not one
         // shell. That is what distinguishes a 1 000-relation conduit from a
         // 10 000-relation trunk once the projected width has hit its ceiling.
         // halo + strates + fibres internes (voir fillConduit).
-        const fiberCount = Math.min(MICRO_FIBERS, 4 + strata.length * 3)
+        const fiberCount = MOBILE_LIKE ? 2 : Math.min(MICRO_FIBERS, 1 + strata.length * 2)
         const layers = 1 + Math.max(1, strata.length) + fiberCount
         const count = samples * TUBE_SEGMENTS * layers
         conduits.push({
@@ -436,6 +463,7 @@ export function createVascularLinks(
           strata,
           family,
           flowPhase,
+          load,
           vertexStart: position.length / 3,
           vertexCount: count,
         })
@@ -476,7 +504,7 @@ export function createVascularLinks(
 
       laneFamilies.forEach((family, s) => {
         const lane = laneFamilies.length === 1 ? 0.5 : s / (laneFamilies.length - 1)
-        addConduit(trunkFrom, trunkTo, 1, SHEATH_ALPHA, lane, trunkSamples, strata, family, s * 0.37)
+        addConduit(trunkFrom, trunkTo, 1, SHEATH_ALPHA, lane, trunkSamples, strata, family, s * 0.37, load)
       })
 
       // ── Branches, DEUX niveaux ───────────────────────────────────────────
@@ -490,13 +518,13 @@ export function createVascularLinks(
       const addBranches = (tip: string | undefined, ids: string[]) => {
         for (const id of ids) {
           if (!tip || id === tip) continue
-          addConduit(tip, id, 0.5, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.21)
+          addConduit(tip, id, 0.5, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.21, load)
         }
         // Second level: one sub-branch per level-1 tip, to the next real node.
         const next = ids[1]
         if (next) {
           for (const id of ids.slice(2)) {
-            addConduit(next, id, 0.3, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.13)
+            addConduit(next, id, 0.3, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.13, load)
           }
         }
       }
@@ -563,7 +591,7 @@ export function createVascularLinks(
       const points = sampleCurve(a, c1, c2, b, conduit.samples)
       const frames = parallelTransportFrames(points)
       const order = bundle.corridor.magnitude.magnitudeOrder
-      const thickness = sceneRadius * 0.024 * (1 + 0.38 * Math.min(9, order)) * conduit.radius
+      const thickness = sceneRadius * 0.02 * (1 + 0.34 * Math.min(9, order)) * conduit.radius
       const offsets = braidedOffsets(
         Math.max(1, conduit.lane === 0.5 ? 1 : Math.round(bundle.conduits.length / 2)),
         conduit.samples,
@@ -582,11 +610,11 @@ export function createVascularLinks(
       const cr2 = fam ? fam[0] : (style.r2 ?? style.r)
       const cg2 = fam ? fam[1] : (style.g2 ?? style.g)
       const cb2 = fam ? fam[2] : (style.b2 ?? style.b)
-      const fiberCount = Math.min(MICRO_FIBERS, 4 + conduit.strata.length * 3)
+      const fiberCount = MOBILE_LIKE ? 2 : Math.min(MICRO_FIBERS, 1 + conduit.strata.length * 2)
       const layers = 1 + Math.max(1, conduit.strata.length) + fiberCount
       const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
       // Part de lumière de chaque couche : halo 0,1 puis les strates.
-      const shares = [0.08, ...conduit.strata.map((x) => x.alpha), ...Array.from({ length: fiberCount }, () => 0.5)]
+      const shares = [0.05, ...conduit.strata.map((x) => x.alpha), ...Array.from({ length: fiberCount }, () => 0.5)]
       const shareTotal = shares.reduce((acc, v) => acc + v, 0) || 1
       // Grains du flux : leur motif lumineux court le long de la couche la plus
       // interne. `flowPositions` donne des abscisses régulières ; on s'en sert
@@ -619,10 +647,10 @@ export function createVascularLinks(
         // emprunter l'opacite au repos d'un fil isole (0,05 a 0,28), sinon il
         // s'eteint. On part d'un plancher propre au vaisseau.
         const baseAlpha = Math.max(0.3, style.a)
-        const share = isHalo ? 0.08 : isFiber ? 0.5 : stratum.alpha
+        const share = isHalo ? 0.05 : isFiber ? 0.5 : stratum.alpha
         const layerAlpha = Math.min(
           1,
-          CONDUIT_LIGHT_BUDGET * (share / shareTotal) * conduit.alpha * Math.max(0.55, baseAlpha),
+          (CONDUIT_LIGHT_BUDGET * (share / shareTotal) * conduit.alpha * Math.max(0.55, baseAlpha)) / Math.sqrt(Math.max(1, conduit.load)),
         )
         for (let i = 0; i < conduit.samples; i++) {
           const f = frames[Math.min(i, frames.length - 1)]
