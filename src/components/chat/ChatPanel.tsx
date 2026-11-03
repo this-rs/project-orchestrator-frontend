@@ -18,6 +18,7 @@ import { resumeUnsupportedText } from '@/constants/capabilities'
 import type { BackgroundTaskInfo } from '@/types'
 import { chatApi, switchConversationProvider, switchProviderRefusal } from '@/services/chat'
 import { Plus, X, Menu, Settings, Minimize2, Maximize2, FolderPlus, TreePine, ArrowLeft, ClipboardCopy, Check, Link2, TriangleAlert, Eye } from 'lucide-react'
+import { textToResendAfterUnlock } from './resendAfterUnlock'
 import { ChatMessages } from './ChatMessages'
 import { RefsAnnouncer } from './RefsAnnouncer'
 import { RefDropOverlay, useRefDropTarget } from '@/refs/source/useRefDropTarget'
@@ -338,6 +339,12 @@ export function ChatPanel() {
     }
   }, [isNewConversation, hasContext, projectContext, neutralPlace, selectedProject, allProjectsMode, activeWsSlug, chat.sendMessage, chat.sessionId, store])
 
+  // Resend the last user message after vault unlock (T3 — credentials_locked)
+  // A turn still running is WAITING for the unlock and resumes by itself: no resend then.
+  const handleResend = useCallback(() => {
+    const text = textToResendAfterUnlock(chat.messages, chat.isStreaming)
+    if (text) handleSend(text)
+  }, [chat.messages, chat.isStreaming, handleSend])
 
   // ── Provider state of the composer ────────────────────────────────────
   // Nothing below applies to a backend without provider routes
@@ -1003,6 +1010,7 @@ export function ChatPanel() {
                     onRespondPermission={chat.respondPermission}
                     onRespondInput={chat.respondInput}
                     onContinue={handleContinue}
+                    onResend={handleResend}
                     onQuickAction={handleQuickAction}
                     onSelectSession={handleSelectSession}
                     selectedProject={selectedProject}
@@ -1030,6 +1038,7 @@ export function ChatPanel() {
                       runActions={runActions}
                       work={timelineContext.work}
                       workspaceSlug={activeWsSlug}
+                      onVaultUnlocked={handleResend}
                     />
                   </ComposerDock>
                 </div>
@@ -1255,6 +1264,7 @@ export function ChatPanel() {
               onRespondPermission={chat.respondPermission}
               onRespondInput={chat.respondInput}
               onContinue={handleContinue}
+              onResend={handleResend}
               onQuickAction={handleQuickAction}
               onSelectSession={handleSelectSession}
               selectedProject={selectedProject}
@@ -1282,6 +1292,7 @@ export function ChatPanel() {
                 runActions={runActions}
                 work={timelineContext.work}
                 workspaceSlug={activeWsSlug}
+                onVaultUnlocked={handleResend}
               />
             </ComposerDock>
           </div>

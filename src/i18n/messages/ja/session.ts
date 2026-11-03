@@ -5,6 +5,12 @@ export default {
     neutral: "中立の場所",
     neutralHint: "サーバーが作成した空のフォルダーで、どのプロジェクトにも属さずに実行されます。そこに書き込まれたファイルは会話を閉じると削除されます。",
   },
+  vaultWait: {
+    banner: "金庫がロックされています — {elapsed}待機中",
+    seconds: "{s}秒",
+    minutes: "{m}分{s}秒",
+    unlock: "ロック解除",
+  },
   lockedVault: {
     resent: "保管庫のロックを解除しました：メッセージを再送信しています。",
     fallbacksLabel: "または保管庫なしで続ける：",

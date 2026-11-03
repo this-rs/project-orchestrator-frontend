@@ -178,6 +178,8 @@ interface ChatMessageBubbleProps {
   onRespondPermission: (toolCallId: string, allowed: boolean, scope?: PermissionScope) => boolean | void
   onRespondInput: (requestId: string, response: string) => boolean | void
   onContinue?: () => void
+  /** Resend the last user message (used after vault unlock for credentials_locked errors). */
+  onResend?: () => void
 }
 
 /**
@@ -188,7 +190,7 @@ interface ChatMessageBubbleProps {
  * (useCallback in useChat/ChatPanel) and `isStreaming` is already scoped by
  * ChatMessages to the last assistant bubble only.
  */
-export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isStreaming, onRespondPermission, onRespondInput, onContinue }: ChatMessageBubbleProps) {
+export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isStreaming, onRespondPermission, onRespondInput, onContinue, onResend }: ChatMessageBubbleProps) {
   // What the provider of this transcript can do (full Claude profile outside the chat panel).
   const { t } = useT()
   const caps = useChatCapabilities()
@@ -415,13 +417,37 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
                 />
               )
 
-            case 'result_error':
+            case 'result_error': {
+              // A result_error with a provider_error code renders the actionable card
+              // instead of the generic red error box. E.g. credentials_locked shows
+              // the unlock form, auth_required shows the login command, etc.
+              const resultProviderError = block.metadata?.provider_error as ProviderErrorInfo | undefined
+              if (resultProviderError) {
+                // A replayed notice from history or an already-resolved notice
+                // shows the card without resend action (informative only)
+                // While the turn runs it is WAITING for the unlock and resumes by itself:
+                // the composer's banner unlocks then, and this card offers no resend.
+                const isLiveAndActionable = !!block.metadata?.live_notice && !!onResend && !isStreaming
+                return (
+                  <ProviderStateCard
+                    key={block.id}
+                    error={resultProviderError}
+                    className="my-2"
+                    // Live notices with onResend get the unlock form and resend trigger
+                    {...(isLiveAndActionable ? {
+                      onRetry: onResend,
+                      onUnlocked: onResend,
+                    } : {})}
+                  />
+                )
+              }
               return (
                 <ResultErrorBlock
                   key={block.id}
                   block={block}
                 />
               )
+            }
 
             case 'viz':
               return (

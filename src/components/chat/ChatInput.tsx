@@ -46,6 +46,7 @@ import { MAX_REFS_PER_MESSAGE, type ChatReference, type RefKind } from '@/refs/t
 import type { RefSearchItem } from '@/refs/refsApi'
 import { findRefTokens, refToken } from '@/utils/messageRefs'
 import { useT, type MessageKey } from '@/i18n'
+import { VaultWaitBanner } from './VaultWaitBanner'
 import type { ImagesCause } from '@/atoms/providers'
 import { Button } from '@/components/ui'
 import { panelGlass } from '@/components/ui/panelGlass'
@@ -125,6 +126,8 @@ interface ChatInputProps {
   work?: TimelineWork
   /** Where the plan and task pages of `work` live. */
   workspaceSlug?: string | null
+  /** The vault was unlocked from the "vault locked" banner: send the held message again. */
+  onVaultUnlocked?: () => void
 }
 
 /** A stable empty queue, so a conversation without one does not re-run the effects that read it. */
@@ -144,7 +147,7 @@ const IMAGES_REFUSED_KEYS: Readonly<Record<ImagesCause, MessageKey>> = {
 /** A stable "nothing runs", so an absent prop does not re-render the bar. */
 const NO_ACTIVITY: ReadonlyArray<RunningItem> = []
 
-export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, disabledReason, sessionId, onChangePermissionMode, onChangeModel, onNewConversation, prefill, activity = NO_ACTIVITY, runActions, work, workspaceSlug }: ChatInputProps) {
+export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, disabledReason, sessionId, onChangePermissionMode, onChangeModel, onNewConversation, prefill, activity = NO_ACTIVITY, runActions, work, workspaceSlug, onVaultUnlocked }: ChatInputProps) {
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const isMobile = useIsMobile()
   const hasWork = useMemo(() => deriveWorkInProgress(work) != null, [work])
@@ -1006,6 +1009,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           </button>
         </p>
       )}
+      <VaultWaitBanner sessionId={sessionId} onUnlocked={onVaultUnlocked} />
       {disabled && disabledReason && (
         <p
           id={disabledHelpId}

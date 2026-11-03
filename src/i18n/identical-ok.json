@@ -1196,6 +1196,13 @@
     "zh:providerAdmin.policy.aliasPlaceholder",
     "zh:providers.kind.openai_compatible",
     "zh:taskDetail.commits.title",
-    "zh:tasks.rows.commitSha"
+    "zh:tasks.rows.commitSha",
+    "fr:session.vaultWait.seconds",
+    "es:session.vaultWait.seconds",
+    "pt:session.vaultWait.seconds",
+    "de:session.vaultWait.seconds",
+    "fr:session.vaultWait.minutes",
+    "es:session.vaultWait.minutes",
+    "pt:session.vaultWait.minutes"
   ]
 }

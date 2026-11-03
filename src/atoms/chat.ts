@@ -384,3 +384,18 @@ export interface PendingSwitch {
   refusal: SwitchProviderRefusal | null
 }
 export const chatPendingSwitchAtom = atom<PendingSwitch | null>(null)
+
+/**
+ * The turn of a conversation is held by a locked secrets vault (`credentials_locked`).
+ *
+ * Fed ONLY by a live `provider_notice`; a notice replayed from history never sets
+ * it (a reload must not invent a wait). Cleared by `model_recovered`, a live
+ * `result` and an interrupt. `since` is the browser's clock when the notice
+ * arrived; the composer's banner counts from it. Tagged with its session so it
+ * never follows the user into another conversation.
+ */
+export interface VaultWait {
+  sessionId: string | null
+  since: number
+}
+export const chatVaultWaitAtom = atom<VaultWait | null>(null)

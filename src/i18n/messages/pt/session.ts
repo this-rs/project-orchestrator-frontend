@@ -5,6 +5,12 @@ export default {
     neutral: "Local neutro",
     neutralHint: "É executada em uma pasta vazia criada pelo servidor, fora de qualquer projeto. Os arquivos gravados nela são removidos quando a conversa é fechada.",
   },
+  vaultWait: {
+    banner: "Cofre bloqueado — aguardando há {elapsed}",
+    seconds: "{s} s",
+    minutes: "{m} min {s} s",
+    unlock: "Desbloquear",
+  },
   lockedVault: {
     resent: "Cofre desbloqueado: sua mensagem está sendo enviada novamente.",
     fallbacksLabel: "Ou continuar sem o cofre:",

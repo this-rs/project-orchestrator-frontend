@@ -5,6 +5,12 @@ export default {
     neutral: "Neutraler Ort",
     neutralHint: "Läuft in einem leeren Ordner, den der Server angelegt hat, außerhalb jedes Projekts. Dort geschriebene Dateien werden beim Schließen der Unterhaltung gelöscht.",
   },
+  vaultWait: {
+    banner: "Tresor gesperrt — Wartezeit {elapsed}",
+    seconds: "{s} s",
+    minutes: "{m} Min. {s} s",
+    unlock: "Entsperren",
+  },
   lockedVault: {
     resent: "Tresor entsperrt: Ihre Nachricht wird erneut gesendet.",
     fallbacksLabel: "Oder ohne Tresor fortfahren:",

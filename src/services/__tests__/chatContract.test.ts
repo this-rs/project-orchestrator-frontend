@@ -86,10 +86,10 @@ describe('chat contract — field level', () => {
     expect(checkContract(target!)).toEqual([])
   })
 
-  it('counts 40 event variants and 9 client messages', () => {
-    expect(Object.keys(CHAT_EVENT_FIELDS)).toHaveLength(40)
+  it('counts 41 event variants and 9 client messages', () => {
+    expect(Object.keys(CHAT_EVENT_FIELDS)).toHaveLength(41)
     expect(Object.keys(WS_CLIENT_MESSAGE_TYPES)).toHaveLength(9)
-    expect(new Set(contract.events.map((e) => e.type)).size).toBe(40)
+    expect(new Set(contract.events.map((e) => e.type)).size).toBe(41)
   })
 
   it('no longer treats partial_text and viz_block as events, and knows compaction_recovery and cancel_tools', () => {
@@ -123,8 +123,10 @@ describe('negative controls — the check really fails on a drift', () => {
   })
 
   it('fails on a variant the frontend does not know, and on one the backend stopped sending', () => {
-    const unknown = checkContract({ events: [...contract.events, { type: 'provider_notice', value: {} }] })
-    expect(unknown).toEqual(['unknown event variant `provider_notice` (not in ChatEvent)'])
+    // A name that is deliberately NOT a ChatEvent variant — `provider_notice`
+    // used to serve as the example, until it became one.
+    const unknown = checkContract({ events: [...contract.events, { type: 'not_a_chat_event', value: {} }] })
+    expect(unknown).toEqual(['unknown event variant `not_a_chat_event` (not in ChatEvent)'])
 
     const missing = checkContract({ events: contract.events.filter((e) => e.type !== 'compaction_recovery') })
     expect(missing).toEqual([

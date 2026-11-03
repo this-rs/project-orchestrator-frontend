@@ -387,6 +387,23 @@
       "duration_ms": 4200
     },
     {
+      "type": "provider_notice",
+      "kind": "credentials_locked",
+      "code": "credentials_locked",
+      "message": "the credential vault is locked: the turn resumes when it is unlocked",
+      "severity": "action_required",
+      "data": {
+        "provider_id": "openai",
+        "wait_secs": 930
+      }
+    },
+    {
+      "type": "provider_notice",
+      "kind": "model_retry",
+      "message": "retrying on fallback model",
+      "severity": "latency"
+    },
+    {
       "type": "background_output",
       "source": "Monitor",
       "content": "line",
