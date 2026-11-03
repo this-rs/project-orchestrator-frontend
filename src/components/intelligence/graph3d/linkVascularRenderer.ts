@@ -73,16 +73,19 @@ const BRANCH_SAMPLES = 5
  * inexistante, et une famille est, elle, un fait des données.
  */
 const FAMILY_RGB: Record<string, [number, number, number]> = {
-  IMPORTS: [0.35, 0.85, 0.75],
-  CALLS: [0.45, 0.75, 1.0],
-  IMPLEMENTS: [0.6, 0.55, 1.0],
-  EXTENDS: [0.75, 0.5, 1.0],
-  TOUCHES: [0.95, 0.8, 0.45],
-  CO_CHANGED: [1.0, 0.7, 0.4],
-  CO_CHANGED_TRANSITIVE: [1.0, 0.6, 0.35],
-  DISCUSSED: [0.9, 0.6, 0.9],
-  AFFECTS: [0.95, 0.55, 0.7],
-  UNKNOWN: [0.55, 0.65, 0.75],
+  // Teintes FRANCHES : en additif, une teinte pastel se lave dès que deux
+  // conduits se superposent. Les planches montrent des faisceaux nettement
+  // colorés, pas des pastels.
+  IMPORTS: [0.0, 1.0, 0.62],
+  CALLS: [0.15, 0.55, 1.0],
+  IMPLEMENTS: [0.55, 0.3, 1.0],
+  EXTENDS: [0.8, 0.2, 1.0],
+  TOUCHES: [1.0, 0.75, 0.1],
+  CO_CHANGED: [1.0, 0.42, 0.05],
+  CO_CHANGED_TRANSITIVE: [1.0, 0.28, 0.12],
+  DISCUSSED: [1.0, 0.35, 0.75],
+  AFFECTS: [1.0, 0.2, 0.45],
+  UNKNOWN: [0.45, 0.6, 0.7],
 }
 
 function familyRgb(relation: string | null | undefined): [number, number, number] {
@@ -198,8 +201,21 @@ function norm3(v: Vec3): Vec3 {
 function bowAnchors(a: Vec3, b: Vec3, seed: number): [Vec3, Vec3] {
   const d = sub3(b, a)
   const len = Math.hypot(d[0], d[1], d[2]) || 1
+  const mid = lerp3(a, b, 0.5)
+  // Le ventre est poussé VERS L'EXTÉRIEUR du graphe : les vaisseaux contournent
+  // le centre au lieu de s'y croiser. Vingt et un corridors entre six grappes
+  // faisaient un nœud illisible au milieu ; les planches montrent des arcs qui
+  // enveloppent.
+  const radialLen = Math.hypot(mid[0], mid[1], mid[2])
+  const radial: Vec3 = radialLen > 1e-6 ? [mid[0] / radialLen, mid[1] / radialLen, mid[2] / radialLen] : [0, 1, 0]
   const axis = norm3([d[1] * 0.7 + Math.cos(seed) * 0.3, d[2] * 0.7 + Math.sin(seed) * 0.3, d[0] * 0.7])
-  const perp = norm3(cross3(norm3(d), axis))
+  const tangential = norm3(cross3(norm3(d), axis))
+  // Un peu de tangentiel pour l'irrégularité, beaucoup de radial pour envelopper.
+  const perp = norm3([
+    radial[0] * 0.85 + tangential[0] * 0.35,
+    radial[1] * 0.85 + tangential[1] * 0.35,
+    radial[2] * 0.85 + tangential[2] * 0.35,
+  ])
   const bow = len * BOW
   const c1 = lerp3(a, b, 1 / 3)
   const c2 = lerp3(a, b, 2 / 3)
