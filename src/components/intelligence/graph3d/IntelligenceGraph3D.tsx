@@ -27,6 +27,7 @@ import { createLinkSegments, parseColor, type LinkSegments, type LinkStyle } fro
 import { computeLinkAlpha, linkFamilyAlpha, LINK_OPACITY } from './linkFamily'
 import { createNodePoints, shapeForType, sizeForType, type NodePoints, type NodeStyle } from './nodePoints'
 import { buildCommunityHulls, disposeCommunityHulls, type CommunityHull, type CommunityHullGroup } from './CommunityHulls3D'
+import { buildCommunityRings, disposeCommunityRings, type CommunityRingGroup } from './CommunityRings3D'
 import { ENTITY_COLORS } from '@/constants/intelligence'
 import {
   selectedNodeIdAtom,
@@ -301,6 +302,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // ── Community hulls ref ───────────────────────────────────────────────
   const communityHullsRef = useRef<CommunityHullGroup | null>(null)
+  const communityRingsRef = useRef<CommunityRingGroup | null>(null)
   // Entity id -> community id, rebuilt alongside the hulls (same numbering).
   const communityIndexRef = useRef<Map<string, number>>(new Map())
 
@@ -325,6 +327,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       if (communityHullsRef.current) {
         disposeCommunityHulls(communityHullsRef.current)
         communityHullsRef.current = null
+      }
+      // Dispose community rings if any
+      if (communityRingsRef.current) {
+        disposeCommunityRings(communityRingsRef.current)
+        communityRingsRef.current = null
       }
     }
   }, [])
@@ -578,6 +585,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         disposeCommunityHulls(communityHullsRef.current)
         communityHullsRef.current = null
       }
+      // Remove previous rings
+      if (communityRingsRef.current) {
+        scene.remove(communityRingsRef.current.group)
+        disposeCommunityRings(communityRingsRef.current)
+        communityRingsRef.current = null
+      }
       communityIndexRef.current = new Map()
 
       const current = nodesRef.current
@@ -601,6 +614,14 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         scene.add(hullGroup.group)
         communityHullsRef.current = hullGroup
         communityIndexRef.current = buildCommunityIndex(hullNodes)
+      }
+
+      // Two thin rings per community (p50 core, p90 halo), built once here with
+      // the same member set and bounds as the envelopes — never in the loop.
+      const ringGroup = buildCommunityRings(hullNodes, {})
+      if (ringGroup.rings.length > 0) {
+        scene.add(ringGroup.group)
+        communityRingsRef.current = ringGroup
       }
     } catch (err) {
       console.warn('[IntelligenceGraph3D] community hulls error:', err)
@@ -869,6 +890,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return () => {
       disposeCommunityHulls(communityHullsRef.current)
       communityHullsRef.current = null
+      disposeCommunityRings(communityRingsRef.current)
+      communityRingsRef.current = null
     }
   }, [])
 
