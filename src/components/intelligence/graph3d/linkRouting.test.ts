@@ -26,6 +26,57 @@ const link = (
   targetCommunityId,
 })
 
+describe('phase 9 — fidélité des comptes et des extrémités', () => {
+  it('additionne les MULTIPLICITÉS, pas les objets arête', () => {
+    // Une arête de co-changement de poids 40 représente 40 relations, pas une.
+    const links = [
+      { source: 'a', target: 'b', relationType: 'CO_CHANGED', count: 40, sourceCommunityId: 1, targetCommunityId: 2 },
+      { source: 'a', target: 'b', relationType: 'CO_CHANGED', count: 2, sourceCommunityId: 1, targetCommunityId: 2 },
+      { source: 'a', target: 'b', relationType: 'IMPORTS', sourceCommunityId: 1, targetCommunityId: 2 },
+    ] as never[]
+    const [corridor] = buildCorridors(links)
+    expect(corridor.magnitude.exactCount).toBe(43n)
+    const co = corridor.families.find((f) => f.relation === 'CO_CHANGED')!
+    expect(co.exactCount).toBe(42n)
+    expect(corridor.families.find((f) => f.relation === 'IMPORTS')!.exactCount).toBe(1n)
+  })
+
+  it('un lien sans multiplicité vaut 1, un compte absurde aussi', () => {
+    const links = [
+      { source: 'a', target: 'b', relationType: 'X', sourceCommunityId: 1, targetCommunityId: 2 },
+      { source: 'a', target: 'b', relationType: 'X', count: 0, sourceCommunityId: 1, targetCommunityId: 2 },
+      { source: 'a', target: 'b', relationType: 'X', count: -5, sourceCommunityId: 1, targetCommunityId: 2 },
+      { source: 'a', target: 'b', relationType: 'X', count: Number.NaN, sourceCommunityId: 1, targetCommunityId: 2 },
+    ] as never[]
+    expect(buildCorridors(links)[0].magnitude.exactCount).toBe(4n)
+  })
+
+  it('ne fusionne PAS deux nœuds non groupés dans un groupe artificiel', () => {
+    // Sans identifiant de communauté, le jeton porte l'identité du NŒUD : deux
+    // paires distinctes restent deux corridors distincts.
+    const links = [
+      { source: 'a', target: 'b', relationType: 'X' },
+      { source: 'c', target: 'd', relationType: 'X' },
+    ] as never[]
+    const corridors = buildCorridors(links)
+    expect(corridors).toHaveLength(2)
+    const tokens = corridors.flatMap((c) => [c.from, c.to])
+    expect(new Set(tokens).size).toBe(4)
+    expect(tokens.every((t) => t.startsWith('none:'))).toBe(true)
+  })
+
+  it('deux liens du MÊME nœud non groupé restent ensemble', () => {
+    const links = [
+      { source: 'a', target: 'b', relationType: 'X' },
+      { source: 'a', target: 'c', relationType: 'X' },
+    ] as never[]
+    const corridors = buildCorridors(links)
+    // « a » est une extrémité commune : les deux corridors partagent son jeton.
+    const froms = corridors.map((c) => (c.from.startsWith('none:a') ? c.from : c.to))
+    expect(froms[0]).toBe(froms[1])
+  })
+})
+
 describe('buildCorridors — mutualisation organique sans invention', () => {
   it('fond deux types de relations entre les mêmes extrémités en UN corridor à DEUX familles', () => {
     const corridors = buildCorridors([

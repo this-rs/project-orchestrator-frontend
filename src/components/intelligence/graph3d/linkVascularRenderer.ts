@@ -32,11 +32,11 @@ import * as THREE from 'three'
 import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
 import type { LinkRenderer } from './linkRibbons'
 import type { LinkStyle, LinkStyleFn } from './linkRibbon'
-import { buildCorridors, type Corridor } from './linkRouting'
+import { buildCorridors, endpointToken, type Corridor } from './linkRouting'
 import { buildLinkSystem, fromCorridors, type DrawableBundle, type SystemBudget } from './linkSystem'
 import { braidedOffsets, parallelTransportFrames, type Vec3 } from './linkVascular'
 import { strataFor, type Stratum } from './linkStrata'
-import { communityToken } from './linkRibbon'
+
 import { LINK_RENDER_ORDER } from './nodePoints'
 import { isMobileLikeDevice } from './useRenderLoop'
 import { buildRanges, bundleAtTriangle } from './linkVascularPicking'
@@ -411,13 +411,13 @@ export function createVascularLinks(
       const sNode = nodeById.get(endpointId(link.source))
       const tNode = nodeById.get(endpointId(link.target))
       if (sNode) {
-        const k = communityToken(link.sourceCommunityId)
+        const k = endpointToken(link.sourceCommunityId, endpointId(link.source))
         const acc = hubPoints.get(k) ?? { x: 0, y: 0, z: 0, n: 0 }
         acc.x += sNode.x; acc.y += sNode.y; acc.z += sNode.z; acc.n++
         hubPoints.set(k, acc)
       }
       if (tNode) {
-        const k = communityToken(link.targetCommunityId)
+        const k = endpointToken(link.targetCommunityId, endpointId(link.target))
         const acc = hubPoints.get(k) ?? { x: 0, y: 0, z: 0, n: 0 }
         acc.x += tNode.x; acc.y += tNode.y; acc.z += tNode.z; acc.n++
         hubPoints.set(k, acc)
@@ -427,8 +427,8 @@ export function createVascularLinks(
     const envelopeRadius = new Map<string, number>()
     for (const link of links) {
       for (const [end, token] of [
-        [nodeById.get(endpointId(link.source)), communityToken(link.sourceCommunityId)] as const,
-        [nodeById.get(endpointId(link.target)), communityToken(link.targetCommunityId)] as const,
+        [nodeById.get(endpointId(link.source)), endpointToken(link.sourceCommunityId, endpointId(link.source))] as const,
+        [nodeById.get(endpointId(link.target)), endpointToken(link.targetCommunityId, endpointId(link.target))] as const,
       ]) {
         const acc = hubPoints.get(token)
         if (!end || !acc || acc.n === 0) continue
@@ -489,7 +489,7 @@ export function createVascularLinks(
         const sn = nodeById.get(s)
         const tn = nodeById.get(t)
         if (!sn || !tn) continue
-        if (communityToken(link.sourceCommunityId) === corridor.from) {
+        if (endpointToken(link.sourceCommunityId, endpointId(link.source)) === corridor.from) {
           ax += sn.x; ay += sn.y; az += sn.z; an++
           bx += tn.x; by += tn.y; bz += tn.z; bn++
           sideA.push({ id: s, deg: degree.get(s) ?? 0 })

@@ -29,7 +29,7 @@
 
 import type { Graph3DLink } from './useGraph3DLayout'
 import { describeMagnitude, type Magnitude } from './linkMagnitude'
-import { communityPairKey, communityToken } from './linkRibbon'
+import { communityToken } from './linkRibbon'
 
 /** Nom de la famille explicite des liens sans type de relation. */
 export const UNKNOWN_RELATION = 'UNKNOWN'
@@ -140,11 +140,41 @@ function sortLinks(links: readonly Graph3DLink[]): Graph3DLink[] {
  * Aucune extrémité sans lien réel ne produit de corridor : on ne fabrique
  * jamais de connexion.
  */
+/**
+ * Jeton d'extrémité d'un lien.
+ *
+ * PHASE 9. Un lien sans identifiant de communauté tombait sous le jeton « none »
+ * commun à TOUS : les nœuds non groupés étaient donc fusionnés en un seul
+ * groupe artificiel, ce que la spec interdit explicitement. Sans communauté, le
+ * jeton porte l'identité du NŒUD : deux nœuds non groupés ne se rejoignent
+ * jamais par accident.
+ */
+export function endpointToken(communityId: number | undefined, nodeId: string): string {
+  return communityId === undefined ? `none:${nodeId}` : communityToken(communityId)
+}
+
+/**
+ * Multiplicité exacte d'un lien.
+ *
+ * Un lien peut déjà résumer plusieurs relations (`count`, venu d'un
+ * regroupement côté backend). Compter les OBJETS arête confondrait alors « une
+ * arête de co-changement de poids 40 » avec « une relation » — c'est exactement
+ * la confusion que la phase 9 demande de lever. Un lien sans multiplicité vaut 1.
+ */
+export function linkMultiplicity(link: Graph3DLink): bigint {
+  const raw = link.count
+  if (raw === undefined || raw === null) return 1n
+  if (!Number.isFinite(raw) || raw <= 0) return 1n
+  return BigInt(Math.round(raw))
+}
+
 export function buildCorridors(links: readonly Graph3DLink[]): Corridor[] {
   // 1. Regrouper par paire de communautés (ordre-indépendant).
   const groups = new Map<string, Graph3DLink[]>()
   for (const link of links) {
-    const key = communityPairKey(link.sourceCommunityId, link.targetCommunityId)
+    const xs = endpointToken(link.sourceCommunityId, String(link.source))
+    const ys = endpointToken(link.targetCommunityId, String(link.target))
+    const key = xs <= ys ? `${xs}\u0000${ys}` : `${ys}\u0000${xs}`
     let group = groups.get(key)
     if (!group) {
       group = []
@@ -158,18 +188,21 @@ export function buildCorridors(links: readonly Graph3DLink[]): Corridor[] {
   for (const [key, groupLinks] of groups) {
     // Extrémités : jetons de communauté triés, indépendants du sens du lien.
     const first = groupLinks[0]
-    const a = communityToken(first.sourceCommunityId)
-    const b = communityToken(first.targetCommunityId)
+    const a = endpointToken(first.sourceCommunityId, String(first.source))
+    const b = endpointToken(first.targetCommunityId, String(first.target))
     const from = a <= b ? a : b
     const to = a <= b ? b : a
 
-    // Familles : chaque lien compte pour 1 dans le type de relation qu'il porte.
+    // Familles : chaque lien apporte sa MULTIPLICITÉ, pas 1. Un lien de poids 40
+    // représente quarante relations, pas une arête.
     const byRelation = new Map<string, bigint>()
+    let total = 0n
     for (const link of groupLinks) {
       const relation = link.relationType || UNKNOWN_RELATION
-      byRelation.set(relation, (byRelation.get(relation) ?? 0n) + 1n)
+      const mult = linkMultiplicity(link)
+      byRelation.set(relation, (byRelation.get(relation) ?? 0n) + mult)
+      total += mult
     }
-    const total = BigInt(groupLinks.length)
     const entries = [...byRelation.entries()].sort((x, y) =>
       x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0,
     )
