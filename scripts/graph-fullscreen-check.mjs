@@ -111,7 +111,17 @@ async function launchChrome(profileDir) {
     `--window-size=${VIEWPORT.width},${VIEWPORT.height}`, `--user-data-dir=${profileDir}`, 'about:blank',
   ], { stdio: 'ignore' })
   const http = `http://127.0.0.1:${port}`
-  await waitUp(http + '/json/version')
+  try {
+    await waitUp(http + '/json/version')
+  } catch (error) {
+    // THE LEAK THAT HUNG EVERY LATER RUN. When Chrome does not answer in time,
+    // this used to throw and leave the spawned process running: it kept the
+    // profile locked, so the NEXT run could not start, and so on. Kill it here,
+    // before rethrowing — a bench that leaks a browser is a bench that dies
+    // after one bad day.
+    try { child.kill('SIGKILL') } catch { /* already gone */ }
+    throw error
+  }
   return { http, close: () => child.exitCode === null && child.kill('SIGKILL') }
 }
 async function openTab(chrome) {
@@ -351,16 +361,38 @@ async function run(chrome, base, n) {
 }
 
 let server, chrome
-const cleanup = () => { try { chrome?.close() } catch { /* */ } try { server?.close() } catch { /* */ } }
+let profileDir = null
+const cleanup = () => {
+  try { chrome?.close() } catch { /* */ }
+  try { server?.close() } catch { /* */ }
+  // The profile is per run; leaving it behind means the next launch finds a
+  // locked directory it cannot use.
+  try { if (profileDir) fs.rmSync(profileDir, { recursive: true, force: true }) } catch { /* */ }
+}
+
+// Un banc qui n'annonce pas son propre blocage se termine par un « ça ne marche
+// pas » sans cause. Ce garde-temps rend le diagnostic explicite.
+const WATCHDOG_MS = Number(args.timeout || 180000)
+const watchdog = setTimeout(() => {
+  console.error(`banc bloqué: rien après ${(WATCHDOG_MS / 1000).toFixed(0)} s (Chrome ou preview resté attaché)`)
+  cleanup()
+  process.exit(1)
+}, WATCHDOG_MS)
+if (typeof watchdog.unref === 'function') watchdog.unref()
 process.on('SIGINT', () => { cleanup(); process.exit(130) })
 try {
   if (!args['no-build']) build()
+  const mark = (m) => { if (args.trace) console.error(`[trace] ${m}`) }
   server = await preview()
-  const profileDir = path.join(ROOT, '.graph-fs-profile')
+  mark(`serveur prêt sur ${server.base}`)
+  profileDir = path.join(ROOT, '.graph-fs-profile')
   fs.rmSync(profileDir, { recursive: true, force: true })
   chrome = await launchChrome(profileDir)
+  mark('chrome lancé')
   const n = Number(args.nodes || 5000)
+  mark('page ouverte')
   const result = await run(chrome, server.base, n)
+  mark('run terminé')
   const text = JSON.stringify(result, null, 2)
   if (args.out) fs.writeFileSync(path.resolve(args.out), text)
   console.log(text)
