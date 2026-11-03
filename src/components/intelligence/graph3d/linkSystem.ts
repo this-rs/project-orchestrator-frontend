@@ -24,15 +24,8 @@ import type { Magnitude } from './linkMagnitude'
 import { describeMagnitude } from './linkMagnitude'
 import { type MorphologyShape, morphologyShape } from './linkMorphology'
 import { type LodState, lodFor } from './linkLod'
-import type { Corridor } from './linkRouting'
-import {
-  ARTERY_SAMPLES,
-  CAPILLARIES_PER_SUB_HUB,
-  CAPILLARY_SAMPLES,
-  SUB_HUBS_PER_END,
-  bundleTrianglesCost,
-  layersForChannels,
-} from './linkGeometryCost'
+import { endpointToken, type Corridor } from './linkRouting'
+import { renderedBundleTriangles, trunkLanes } from './linkGeometryCost'
 
 /**
  * The minimum a corridor must expose to be drawn: an identity, its two ends,
@@ -48,11 +41,41 @@ export interface SystemCorridor {
   from: string
   to: string
   magnitude: Magnitude
+  /** Relation families the corridor carries (one trunk lane each). Unknown ⇒ upper bound. */
+  families?: number
+  /** Distinct real endpoints on the `from` and `to` sides (the branch trees). Unknown ⇒ upper bound. */
+  endpoints?: readonly [number, number]
 }
 
-/** Adapt the routed corridors (T6) to the pipeline's input. */
+const endId = (end: unknown): string =>
+  typeof end === 'object' && end !== null ? (end as { id: string }).id : String(end)
+
+/**
+ * Adapt the routed corridors (T6) to the pipeline's input, with the shape the
+ * renderer will draw: its families (trunk lanes) and its distinct endpoints on
+ * each side (branch trees) — the same side rule as the renderer's geometryOf.
+ */
 export function fromCorridors(corridors: readonly Corridor[]): SystemCorridor[] {
-  return corridors.map((c) => ({ key: c.key, from: c.from, to: c.to, magnitude: c.magnitude }))
+  return corridors.map((c) => {
+    const sideA = new Set<string>()
+    const sideB = new Set<string>()
+    for (const link of c.links) {
+      const s = endId(link.source)
+      const t = endId(link.target)
+      if (endpointToken(link.sourceCommunityId, s) === c.from) {
+        sideA.add(s)
+        sideB.add(t)
+      } else {
+        sideA.add(t)
+        sideB.add(s)
+      }
+    }
+    return {
+      key: c.key, from: c.from, to: c.to, magnitude: c.magnitude,
+      families: c.families.length,
+      endpoints: [sideA.size, sideB.size] as const,
+    }
+  })
 }
 
 /** What the renderer may spend, and where the camera stands. */
@@ -63,6 +86,8 @@ export interface SystemBudget {
   maxCorridors: number
   /** Camera distance to the graph centre, for the LOD. */
   cameraDistance: number
+  /** Mobile-like device: the renderer draws 2 channels per conduit. */
+  mobile?: boolean
 }
 
 /** Samples along the spline at depth 0, and the growth per refinement level. */
@@ -80,7 +105,7 @@ export interface DrawableBundle {
   corridor: SystemCorridor
   morphology: MorphologyShape
   lod: LodState
-  /** Strands actually drawn (1 when the bundle is aggregated). */
+  /** Trunk lanes the renderer draws (one per relation family, ≤ 5). */
   strands: number
   /** Rings actually drawn. */
   samples: number
@@ -108,29 +133,30 @@ export interface LinkSystem {
   stats: LinkSystemStats
 }
 
+/** What, besides the LOD and the morphology, decides a bundle's geometry. */
+export interface BundleShape {
+  families?: number
+  endpoints?: readonly [number, number]
+  mobile?: boolean
+}
+
 /**
- * Triangles a bundle costs, from its LOD only — the relation count never enters.
+ * Triangles a bundle costs in the RENDERER — the relation count never enters.
  *
- * PHASE 8 : le coût vient désormais du MODÈLE PARTAGÉ (`linkGeometryCost`), qui
- * compte les gaines, strates, sous-canaux et branches que le renderer produit
- * réellement. L'ancienne formule n'en comptait qu'un tube : le budget autorisait
- * silencieusement cinq à dix fois plus de triangles qu'annoncé.
+ * The shared model (`renderedBundleTriangles`) counts what linkVascularRenderer
+ * builds: one trunk per family lane (≤ 5) at the LOD's samples, then on each
+ * side up to 3 arteries (7 samples) and 3 capillaries each (5 samples), every
+ * conduit with halo + sheath + structure + [2, 5] channels + core (≥ 6 layers).
+ * The previous estimate counted ONE trunk with 1 channel at depth 0, 4 layers
+ * per branch and 5 samples for every branch: 236 k announced for 550 k drawn.
  */
-export function bundleTriangles(lod: LodState, strands: number): number {
-  const samples = SAMPLES_BASE + SAMPLES_PER_DEPTH * lod.depth
-  const channels = lod.depth === 0 ? 1 : Math.max(1, strands)
-  // Arbre à TROIS niveaux (phase 2) : par extrémité, SUB_HUBS artères
-  // secondaires, puis CAPILLARIES capillaires par artère. L'estimateur doit
-  // compter les deux niveaux, sinon il sous-estime d'un ordre de grandeur —
-  // mesuré : 13× d'écart entre budget annoncé et géométrie produite.
-  const arteries = 2 * SUB_HUBS_PER_END
-  const capillaries = 2 * SUB_HUBS_PER_END * CAPILLARIES_PER_SUB_HUB
-  return bundleTrianglesCost({
-    samples,
-    channels,
-    branches: arteries + capillaries,
-    arterySamples: ARTERY_SAMPLES,
-    capillarySamples: CAPILLARY_SAMPLES,
+export function bundleTriangles(lod: LodState, morphologyChannels: number, shape: BundleShape = {}): number {
+  return renderedBundleTriangles({
+    trunkSamples: SAMPLES_BASE + SAMPLES_PER_DEPTH * lod.depth,
+    morphologyChannels,
+    families: shape.families,
+    endpoints: shape.endpoints,
+    mobile: shape.mobile,
   })
 }
 
@@ -177,9 +203,9 @@ export function buildLinkSystem(
     if (bundles.length >= b.maxCorridors) break
     const morphology = morphologyShape(corridor.magnitude)
     const lod = lodFor(corridor.magnitude, b.cameraDistance)
-    const strands = morphology.graphical.channels
-    const cost = bundleTriangles(lod, strands)
-    void layersForChannels
+    const channels = morphology.graphical.channels
+    const shape: BundleShape = { families: corridor.families, endpoints: corridor.endpoints, mobile: b.mobile }
+    const cost = bundleTriangles(lod, channels, shape)
     // The budget is a CEILING, not a target: one oversized bundle must not be
     // drawn "because it is first". It falls back to the aggregate shape, which
     // costs one strand, and is drawn if even that fits.
@@ -189,7 +215,7 @@ export function buildLinkSystem(
     while (cost_ > b.maxTriangles - triangles && depth > 0) {
       depth -= 1
       visible = { ...lod, depth, canRefine: false }
-      cost_ = bundleTriangles(visible, strands)
+      cost_ = bundleTriangles(visible, channels, shape)
     }
     if (cost_ > b.maxTriangles - triangles) continue
     triangles += cost_
@@ -198,7 +224,7 @@ export function buildLinkSystem(
       corridor,
       morphology,
       lod: visible,
-      strands: depth === 0 ? 1 : Math.max(1, strands),
+      strands: trunkLanes(corridor.families ?? Infinity, channels),
       samples: SAMPLES_BASE + SAMPLES_PER_DEPTH * depth,
       triangles: cost_,
     })

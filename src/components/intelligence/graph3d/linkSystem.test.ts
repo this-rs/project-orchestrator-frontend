@@ -105,7 +105,9 @@ describe('determinism and shape', () => {
     const [bundle] = system.bundles
     expect(bundle.lod.depth).toBeGreaterThanOrEqual(0)
     expect(bundle.strands).toBeGreaterThanOrEqual(1)
-    expect(bundle.triangles).toBe(bundleTriangles(bundle.lod, bundle.morphology.graphical.channels < bundle.lod.depth ? bundle.strands : bundle.strands))
+    expect(bundle.triangles).toBe(bundleTriangles(bundle.lod, bundle.morphology.graphical.channels))
+    // a synthetic corridor has no families: the trunk lanes are the upper bound
+    expect(bundle.strands).toBe(Math.min(5, bundle.morphology.graphical.channels))
     expect(bundle.corridor.magnitude.magnitudeOrder).toBe(9)
   })
 
