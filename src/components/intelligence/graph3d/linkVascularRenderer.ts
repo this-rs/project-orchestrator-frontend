@@ -82,6 +82,20 @@ const MICRO_FIBER_RADIUS = 0.16
 /** Rayon de l'orbite des sous-canaux, et son aplatissement (ellipse, pas cercle). */
 const CHANNEL_ORBIT = 0.52
 const CHANNEL_ELLIPSE = 0.78
+/**
+ * Étendue réelle du contenu d'un conduit : l'orbite des canaux plus leur rayon.
+ * Au-delà, il n'y a RIEN à envelopper.
+ */
+export const CHANNEL_EXTENT = CHANNEL_ORBIT + MICRO_FIBER_RADIUS
+/**
+ * Épaisseur d'une peau de membrane, en fraction du rayon du conduit.
+ *
+ * La gaine était posée à 1,0 et le halo à 1,45 autour d'un contenu qui s'arrête
+ * à 0,68 : la membrane faisait plus de deux fois ce qu'elle contient, et se
+ * lisait comme un manchon épais et plat (retour client du 03/11). Une membrane
+ * est une COUCHE FINE collée à ce qu'elle représente : chaque peau ajoute 0,04.
+ */
+export const MEMBRANE_SKIN = 0.04
 
 /**
  * Les cinq identités géométriques d'un conduit (phase 5).
@@ -93,7 +107,7 @@ const CHANNEL_ELLIPSE = 0.78
  *   3..N canaux   — les sous-conduits, répartis AUTOUR de l'axe
  *   N+1 cœur      — le canal de flux, axial et émissif
  */
-interface LayerSpec {
+export interface LayerSpec {
   kind: 'halo' | 'sheath' | 'structure' | 'channel' | 'core'
   radius: number
   alpha: number
@@ -102,14 +116,39 @@ interface LayerSpec {
   channel?: number
 }
 
-function layerSpecs(channelCount: number): LayerSpec[] {
+/**
+ * Déport du CENTRE d'un anneau dans le repère (normale, binormale), en unités
+ * monde. Toutes les couches partagent l'axe de tresse (`braid * thickness`) ;
+ * seuls les canaux s'en écartent, sur leur orbite. Utilisé tel quel par la
+ * boucle de maillage : le tester, c'est tester ce qui est dessiné.
+ */
+export function ringCenterOffset(
+  spec: LayerSpec,
+  braid: readonly [number, number],
+  thickness: number,
+  channelCount: number,
+  u: number,
+): [number, number] {
+  let ox = braid[0] * thickness
+  let oy = braid[1] * thickness
+  if (spec.kind === 'channel') {
+    const angle = ((spec.channel ?? 0) / Math.max(1, channelCount)) * Math.PI * 2 + u * 1.8
+    ox += Math.cos(angle) * thickness * CHANNEL_ORBIT
+    oy += Math.sin(angle) * thickness * CHANNEL_ORBIT * CHANNEL_ELLIPSE
+  }
+  return [ox, oy]
+}
+
+export function layerSpecs(channelCount: number): LayerSpec[] {
   const out: LayerSpec[] = [
     // Couches plus DISCRÈTES : l'empilement de gaines opaques faisait une purée
     // où l'on ne distinguait plus rien. Chaque couche porte maintenant un rôle
     // lisible et une opacité basse ; le contraste vient du cœur, pas du nombre.
-    { kind: 'halo', radius: 1.45, alpha: 0.03, emit: false },
-    { kind: 'sheath', radius: 1.0, alpha: 0.08, emit: false },
-    { kind: 'structure', radius: 0.8, alpha: 0.16, emit: false },
+    // Les trois peaux sont COLLÉES au contenu (CHANNEL_EXTENT) : la structure
+    // l'affleure, la gaine et le halo n'ajoutent chacun qu'une peau fine.
+    { kind: 'halo', radius: CHANNEL_EXTENT + 2 * MEMBRANE_SKIN, alpha: 0.03, emit: false },
+    { kind: 'sheath', radius: CHANNEL_EXTENT + MEMBRANE_SKIN, alpha: 0.08, emit: false },
+    { kind: 'structure', radius: CHANNEL_EXTENT, alpha: 0.16, emit: false },
   ]
   for (let i = 0; i < channelCount; i++) {
     out.push({ kind: 'channel', radius: MICRO_FIBER_RADIUS, alpha: 0.3, emit: false, channel: i })
@@ -922,18 +961,17 @@ export function createVascularLinks(
           // les conduits redevenaient des fils.
           const taper = radiusAt(u, conduit.startRadius, conduit.endRadius, 0.5, { min: 0.05, max: 2 })
           const thicknessAt = thickness * taper
-          const isChannel = spec.kind === 'channel'
-          // Orbite des canaux : ELLIPSE (pas un cercle), avec une vrille lente —
-          // « répartition circulaire, elliptique ou légèrement hélicoïdale ».
-          const channelAngle =
-            ((spec.channel ?? 0) / Math.max(1, channelCount)) * Math.PI * 2 + u * 1.8
-          const orbitX = isChannel ? Math.cos(channelAngle) * thicknessAt * CHANNEL_ORBIT : 0
-          const orbitY = isChannel ? Math.sin(channelAngle) * thicknessAt * CHANNEL_ORBIT * CHANNEL_ELLIPSE : 0
+          // Orbite des canaux : ELLIPSE (pas un cercle), avec une vrille lente.
+          // Le déport de tresse est UN axe commun à toutes les couches. Il était
+          // multiplié par le rayon de CHAQUE couche : le halo (1,45) partait
+          // 1,45 fois plus loin que le cœur, la membrane n'était plus centrée
+          // sur ce qu'elle enveloppe et débordait d'un côté en manchon plat.
           const layerRadius = thicknessAt * spec.radius
           const off = offsets[i] ?? [0, 0, 0]
-          const cx = f.position[0] + f.normal[0] * (off[0] * layerRadius + orbitX) + f.binormal[0] * (off[1] * layerRadius + orbitY)
-          const cy = f.position[1] + f.normal[1] * (off[0] * layerRadius + orbitX) + f.binormal[1] * (off[1] * layerRadius + orbitY)
-          const cz = f.position[2] + f.normal[2] * (off[0] * layerRadius + orbitX) + f.binormal[2] * (off[1] * layerRadius + orbitY)
+          const [ox, oy] = ringCenterOffset(spec, [off[0], off[1]], thicknessAt, channelCount, u)
+          const cx = f.position[0] + f.normal[0] * ox + f.binormal[0] * oy
+          const cy = f.position[1] + f.normal[1] * ox + f.binormal[1] * oy
+          const cz = f.position[2] + f.normal[2] * ox + f.binormal[2] * oy
           // Flux : une brillance périodique le long de la couche porteuse. Sans
           // animation c'est déjà des grains lisibles ; `setFlowTime` les fait
           // défiler (voir le champ exposé plus bas).
