@@ -619,6 +619,24 @@ const ANGLE_JITTER = 0.15
 
 const RELAYOUT_THRESHOLD = 0.2 // 20% change triggers relayout
 
+/**
+ * The detected partition, if it still describes `nodes`: it must cover at
+ * least (1 − RELAYOUT_THRESHOLD) of them. A partition answered for another
+ * data set (another project whose file ids partly coincide, a first load
+ * before the second one) is dropped instead of leaking its communities onto
+ * the homonyms; an incremental refresh keeps it for the nodes it knows until
+ * the new answer lands.
+ */
+export function partitionFor(
+  partition: Map<string, number> | null,
+  nodes: { id: string }[],
+): Map<string, number> | null {
+  if (!partition || nodes.length === 0) return null
+  let known = 0
+  for (const n of nodes) if (partition.has(n.id)) known++
+  return known >= (1 - RELAYOUT_THRESHOLD) * nodes.length ? partition : null
+}
+
 // ── Community detection worker ────────────────────────────────────────────────
 
 /** Give up on a worker answer after this long; the view keeps its fallback grouping. */
@@ -641,6 +659,8 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
 
   // Client-side Louvain communities (computed in a worker). `null` until the
   // first result: nodes keep the directory/(layer, type) fallback meanwhile.
+  // A partition is only used while it still describes the data (see
+  // `partitionFor`): switching data set never shows the previous one's.
   const [detectedCommunities, setDetectedCommunities] = useState<Map<string, number> | null>(null)
   const communityVersionRef = useRef(0)
   const communityWorkerRef = useRef<Worker | null>(null)
@@ -666,6 +686,11 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
       weight: e.data?.weight,
     }))
 
+    // The worker is shared: answers to older requests may still arrive, in
+    // order, after this one was posted. Only the answer carrying THIS request
+    // id is ours — an older one is ignored without unsubscribing, or our own
+    // answer would be lost when it lands.
+    const requestId = version
     let settled = false
 
     function cleanup(): void {
@@ -676,14 +701,13 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
       clearTimeout(timeoutId)
     }
 
-    function handler(event: MessageEvent<{ type?: string; communities?: Record<string, number> }>): void {
+    function handler(
+      event: MessageEvent<{ type?: string; requestId?: number; communities?: Record<string, number> }>,
+    ): void {
       if (settled) return
-      if (version !== communityVersionRef.current) {
-        cleanup()
-        return
-      }
-      if (event.data?.type !== 'result') return
+      if (event.data?.type !== 'result' || event.data.requestId !== requestId) return
       cleanup()
+      if (version !== communityVersionRef.current) return
       setDetectedCommunities(new Map(Object.entries(event.data.communities ?? {})))
     }
 
@@ -695,7 +719,7 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     const timeoutId = setTimeout(cleanup, COMMUNITY_DETECT_TIMEOUT_MS)
     worker.addEventListener('message', handler)
     worker.addEventListener('error', onError)
-    worker.postMessage({ nodes: serializedNodes, edges: serializedEdges })
+    worker.postMessage({ requestId, nodes: serializedNodes, edges: serializedEdges })
 
     return cleanup
   }, [nodes, edges])
@@ -735,8 +759,9 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
 
     // Build 3D nodes (positions filled below from cache or the deterministic layout).
     const communityByPath = communityIndex(nodes)
+    const detected = partitionFor(detectedCommunities, nodes)
     const graph3dNodes: Graph3DNode[] = nodes.map((node) =>
-      toGraph3DNode(node, communityByPath, positionCache.current.get(node.id), detectedCommunities),
+      toGraph3DNode(node, communityByPath, positionCache.current.get(node.id), detected),
     )
 
     // Weight, shared by both views: the size of a node and its place in the
