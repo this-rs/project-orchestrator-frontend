@@ -60,7 +60,7 @@ export type IsoCompile =
 export const MAX_DATA_CHARS = 32_000
 const MAX_LABEL = 60
 const TONES = Object.keys(LAMP) as ToneName[]
-const SCENE_KEYS = new Set(['title', 'caption', 'layout', 'stations', 'angles', 'home', 'stepSeconds', 'build', 'ast', 'tone', 'label', 'focal', 'frame', 'bare', 'parts'])
+const SCENE_KEYS = new Set(['title', 'caption', 'layout', 'stations', 'angles', 'home', 'stepSeconds', 'build', 'ast', 'tone', 'label', 'focal', 'frame', 'bare', 'parts', 'v', 'frames', 'frameMs', 'sdf'])
 const STATION_KEYS = new Set(['mech', 'ast', 'tone', 'label', 'after'])
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -177,7 +177,27 @@ function compileSdfScene(data: Record<string, unknown>): IsoCompile {
 }
 
 /** Check and build an `iso_scene`. Never throws: a refusal carries the list of corrections. */
+/**
+ * VERSION DU CONTRAT `iso_scene`. Un bloc écrit par un agent déclare `v` ; le front REFUSE proprement une version
+ * qu'il ne connaît pas, avec un message qui dit quoi faire — il ne casse jamais sur un champ qu'il ignore.
+ *
+ * RÈGLE DE GARANTIE : ajouter un champ au contrat NE CHANGE PAS cette version (le front ignore ce qu'il ne connaît pas
+ * et le dit). On n'incrémente que pour un changement INCOMPATIBLE : un bloc v1 ne doit plus vouloir dire la même chose.
+ */
+export const ISO_SCENE_VERSION = 1
+
 export function compileIsoScene(data: unknown): IsoCompile {
+  // Contrôle de version AVANT toute autre chose : un bloc trop récent doit être refusé en le nommant, pas échouer sur
+  // un champ inconnu qui n'est que la conséquence de la version.
+  const declared = isObj(data) ? Number((data as { v?: unknown }).v ?? ISO_SCENE_VERSION) : ISO_SCENE_VERSION
+  if (Number.isFinite(declared) && declared > ISO_SCENE_VERSION) {
+    return {
+      ok: false,
+      problems: [
+        `bloc écrit pour iso_scene v${declared} — cette version de l'interface comprend v${ISO_SCENE_VERSION} et antérieur. Le bloc reste lisible : demandez une interface à jour, ou régénérez-le en v${ISO_SCENE_VERSION}.`,
+      ],
+    }
+  }
   // FRAMES : un bloc peut porter les versions successives du même objet — c'est ainsi qu'un travail de 45 minutes se
   // regarde en 45 minutes : chaque version est reconstruite par les ouvriers avant la suivante.
   if (isObj(data) && Array.isArray(data.frames)) {
