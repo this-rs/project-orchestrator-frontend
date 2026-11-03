@@ -101,8 +101,16 @@ describe('scaleYardstick', () => {
   })
 
   it('degroups well inside the framing, regroups well outside it', () => {
-    expect(nextScaleLevel(framing * 0.6, yard, 1)).toBe(0)
-    expect(nextScaleLevel(framing * 1.6, yard, 1)).toBe(2)
+    // Bounds derived from the thresholds, not copied: retuning them must not
+    // silently break the ladder around the home framing.
+    const degroupAt = (DEGROUP_DISTANCE_RATIO / FRAMING_LADDER_RATIO) * framing
+    const regroupAt = (REGROUP_DISTANCE_RATIO / FRAMING_LADDER_RATIO) * framing
+    expect(nextScaleLevel(degroupAt * 0.95, yard, 1)).toBe(0)
+    expect(nextScaleLevel(degroupAt * 1.05, yard, 1)).toBe(1)
+    expect(nextScaleLevel(regroupAt * 1.05, yard, 1)).toBe(2)
+    expect(nextScaleLevel(regroupAt * 0.95, yard, 1)).toBe(1)
+    // Regrouping must stay reachable before OrbitControls.maxDistance (3 × framing).
+    expect(regroupAt).toBeLessThan(3 * framing)
   })
 
   it('falls back to the graph radius before anything is framed', () => {
