@@ -1,4 +1,4 @@
-// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/shading.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@33e082ed383c655e3293b66a3e04160d5876eac8:src/three/iso/shading.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Éclairage des machines, partagé : les constantes du rendu WebGL (`litRenderer.ts`) et sa formule, portée en JS pour
@@ -7,13 +7,13 @@
  *
  * Module PUR (imports relatifs seulement) : lu par Node au prérendu et dans les tests.
  */
-import { LIGHT, MAT, type Face, type Vec3 } from './iso.ts'
+import { LIGHT, MAT, MAT_NEUTRAL, type Face, type Vec3 } from './iso.ts'
 
 /** Lumières (linéaires) : réglées pour le fond sombre des héros. */
 export const LIGHTS = {
-  key: [3.0, 2.86, 2.64] as Vec3,
-  sky: [0.32, 0.36, 0.56] as Vec3,
-  ground: [0.08, 0.075, 0.07] as Vec3,
+  key: [1.45, 1.38, 1.28] as Vec3,
+  sky: [0.12, 0.14, 0.22] as Vec3,
+  ground: [0.03, 0.03, 0.03] as Vec3,
   rim: [0.08, 0.09, 0.18] as Vec3,
 }
 
@@ -23,7 +23,7 @@ export const ROUGHNESS: Readonly<Record<string, number>> = {
   [MAT.steel]: 0.55, [MAT.steelL]: 0.4, [MAT.brass]: 0.5, [MAT.brassL]: 0.42,
   [MAT.copper]: 0.5, [MAT.rail]: 0.6, [MAT.iron]: 0.6, [MAT.plate]: 0.7,
   [MAT.bevel]: 0.6, [MAT.wood]: 0.8, [MAT.ballast]: 0.7, [MAT.glass]: 0.2,
-  [MAT.ghost]: 0.5, [MAT.dark]: 0.6,
+  [MAT.ghost]: 0.5, [MAT.dark]: 0.6, [MAT_NEUTRAL]: 0.7,
 }
 
 /** Métallicité par matière (0 = diélectrique, 1 = métal). */
@@ -34,10 +34,10 @@ export const METALLIC: Readonly<Record<string, number>> = {
 }
 
 /** Gain du terme spéculaire Cook-Torrance (à ajuster au cadrage visuel). */
-export const SPEC_GAIN = 4
+export const SPEC_GAIN = 2.5
 
 /** Multiplicateur des faces émissives (lampes). */
-export const EMIT_GAIN = 2.6
+export const EMIT_GAIN = 1.0
 
 const lin = (c: number) => Math.pow(c, 2.2)
 export function linearRgb(hex: string): Vec3 {
@@ -64,9 +64,12 @@ const grain3 = (x: number, y: number, z: number): number => {
 }
 
 /** Couleur sRGB d'une face éclairée comme au rendu WebGL (normale moyenne de la face, sans ombre portée). */
-export function litColor(f: Face): string {
+export const litColor = (f: Face): string => toHex(litLinear(f))
+
+/** Radiance LINÉAIRE d'une face, avant mappage de tons : ce qu'ACES reçoit (le test de plage la lit ici, pas sur l'hex). */
+export function litLinear(f: Face): Vec3 {
   let c = linearRgb(f.emit ?? f.col)
-  if (f.emit) return toHex([c[0] * EMIT_GAIN, c[1] * EMIT_GAIN, c[2] * EMIT_GAIN])
+  if (f.emit) return [c[0] * EMIT_GAIN, c[1] * EMIT_GAIN, c[2] * EMIT_GAIN]
   // Grain procédural (bruit 3D au centroïde de la face) : casse les aplats.
   let gx = 0
   let gy = 0
@@ -132,5 +135,5 @@ export function litColor(f: Face): string {
     const env = ENV_SKY[k]! + (ENV_ZEN[k]! - ENV_SKY[k]!) * et + ENV_SUN[k]! * es
     out.push(c[k]! * (LIGHTS.key[k]! * ndl * (1 - 0.35 * metallic) + hemi) + LIGHTS.key[k]! * spec + LIGHTS.rim[k]! * rim + env * metallic * (1 - rough) * 0.5)
   }
-  return toHex(out as unknown as Vec3)
+  return out as unknown as Vec3
 }

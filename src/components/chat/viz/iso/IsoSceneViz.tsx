@@ -20,6 +20,7 @@ import { toView } from '@/vendor/three-iso/compose'
 import { contentBox } from '@/vendor/three-iso/fit'
 import { litColor } from '@/vendor/three-iso/shading'
 import type { MachineDef } from '@/vendor/three-iso/machine'
+import { applyParts } from '@/vendor/three-iso/parts'
 import type { LiveScene } from '@/vendor/three-iso/live'
 import type { VizBlockProps } from '../registry'
 import { compileIsoScene, type LegendEntry } from './compile'
@@ -51,7 +52,7 @@ function IsoSvg({ machine }: { machine: MachineDef }) {
   return (
     <svg viewBox={`${b.x} ${b.y} ${b.w} ${b.h}`} preserveAspectRatio="xMidYMid meet" className="absolute inset-0 h-full w-full" focusable="false" data-testid="iso-scene-svg">
       <g strokeWidth="0.6" strokeLinejoin="round">
-        {machine.build(machine.t0, 1).map((f, i) => {
+        {applyParts(machine.build(machine.t0, 1), machine, machine.partsView).map((f, i) => {
           const pts = f.pts.map((p) => {
             const v = toView(machine, p)
             return `${v[0].toFixed(1)},${v[1].toFixed(1)}`
@@ -125,6 +126,7 @@ export function IsoStage({ machine, expanded, label, live }: { machine: MachineD
             {...(live ? { live } : {})}
             still={reduced}
             drive="time"
+            tour
             transparent
             controls
             className="absolute inset-0 block h-full w-full"
@@ -155,12 +157,38 @@ export function IsoStage({ machine, expanded, label, live }: { machine: MachineD
   )
 }
 
+/**
+ * Plusieurs VERSIONS d'un même objet : on les rejoue l'une après l'autre, et chaque rejeu REMONTE le rendu — donc la
+ * construction repart de zéro, avec les ouvriers. C'est ainsi qu'un travail se regarde : on voit la pièce se refaire à
+ * chaque itération, pas seulement le résultat final.
+ */
+function IsoFrames({ frames, frameMs, expanded, label }: { frames: MachineDef[]; frameMs: number; expanded: boolean; label: string }) {
+  const [i, setI] = useState(0)
+  useEffect(() => {
+    if (frames.length < 2) return
+    const id = window.setInterval(() => setI((n) => (n + 1) % frames.length), frameMs)
+    return () => clearInterval(id)
+  }, [frames.length, frameMs])
+  return (
+    <div data-testid="iso-scene" data-frame={i} data-frames={frames.length}>
+      <IsoStage key={i} machine={frames[i]!} expanded={expanded} label={`${label} · version ${i + 1}/${frames.length}`} />
+      <p className="mt-1 text-center text-[11px] tabular-nums text-slate-500">
+        {i + 1} / {frames.length}
+      </p>
+    </div>
+  )
+}
+
 export default function IsoSceneViz({ data, fallbackText, expanded = false, title }: VizBlockProps) {
   const result = useMemo(() => compileIsoScene(data), [data])
   if (!result.ok) return <IsoSceneRefusal problems={result.problems} fallbackText={fallbackText} />
+  const label = title ?? result.title ?? fallbackText
+  if (result.frames && result.frames.length > 1) {
+    return <IsoFrames frames={result.frames} frameMs={result.frameMs ?? 6000} expanded={expanded} label={label} />
+  }
   return (
     <div data-testid="iso-scene">
-      <IsoStage machine={result.machine} expanded={expanded} label={title ?? result.title ?? fallbackText} />
+      <IsoStage machine={result.machine} expanded={expanded} label={label} />
       <Legend entries={result.legend} />
     </div>
   )

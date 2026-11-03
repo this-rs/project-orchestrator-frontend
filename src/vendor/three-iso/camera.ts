@@ -1,4 +1,4 @@
-// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/camera.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@33e082ed383c655e3293b66a3e04160d5876eac8:src/three/iso/camera.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Caméra orbitale du rendu WebGL (`litRenderer.ts`) : une matrice vue-projection au lieu de la projection isométrique

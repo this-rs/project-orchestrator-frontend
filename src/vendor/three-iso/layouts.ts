@@ -1,4 +1,4 @@
-// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/layouts.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@33e082ed383c655e3293b66a3e04160d5876eac8:src/three/iso/layouts.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Dispositions des machines de héros : OÙ poser les postes et la voie qui les relie, selon ce que l'en-tête veut dire.
@@ -54,6 +54,66 @@ export interface Layout {
 
 const CX = 600
 const CY = 372
+
+/** Demi-axes de l'anneau (pixels du viewBox) pour `n` postes. Voir `ringCap` pour la taille des postes. */
+export function ringShape(n: number): { rx: number; ry: number } {
+  const o = (globalThis as any).__ring; if (o) return o(n)
+  // t = 0 à six postes et plus (la forme historique, mesurée), 1 à deux postes et moins : l'anneau se resserre.
+  const t = Math.min(1, Math.max(0, (RING_FULL_N - n) / (RING_FULL_N - RING_TIGHT_N)))
+  return { rx: RING_RX + (RING_TIGHT_RX - RING_RX) * t, ry: RING_RY + (RING_TIGHT_RY - RING_RY) * t }
+}
+/** Six postes et plus : demi-axes de l'anneau historique, 452 × 250 px (l'anneau qui entoure la zone de texte). */
+const RING_FULL_N = 6
+const RING_RX = 452
+const RING_RY = 250
+/** Deux postes et moins : l'anneau le plus serré.
+ *  – ry = 204 = 182 × 1,12 : le demi-axe vertical de la zone de texte protégée (`compose.SAFE`, 182 px, ellipse centrée en
+ *    y = 350) gonflé de 12 % ; l'anneau est centré en y = 372, donc le poste du haut est à 168 et reste hors de l'ellipse.
+ *  – rx = 435, MESURÉ et non dérivé : à 417 (372 × 1,12) la machine de scene.test (consent-gate sur le poste de flanc, quatre
+ *    postes) voit une pièce passer sous le texte, car la pièce la plus large d'un poste de flanc s'étend d'environ 70 px vers
+ *    l'intérieur (x = 964 < 972, bord droit de l'ellipse) ; à 435 la scène passe, 452 est l'anneau historique. */
+const RING_TIGHT_N = 2
+const RING_TIGHT_RX = 435
+const RING_TIGHT_RY = Math.round(182 * 1.12)
+/**
+ * Forme de l'arche pour `n` postes : demi-ellipse de centre (CX, cy), demi-axes (rx, ry), de 270° − phi à 270° + phi
+ * (degrés écran). À six postes et plus : l'arche historique (centre (600, 455), 490 × 330, phi = 108°, extrémités à 557 et
+ * sommet à 125). À trois postes et moins : l'arche SERRÉE, dont chaque nombre vient de la zone de texte `compose.SAFE`
+ * (ellipse de demi-axes 372 × 182 centrée en (600, 350) : 700 × (0,24 + 0,76) / 2 ; aucun centre de poste ne doit y tomber) :
+ *   – sommet à 350 − 182 = 168 : le poste du sommet est TANGENT au haut de l'ellipse (sa mécanique, dont le centre de masse est au-dessus du socle, sort de l'ellipse de ≈ 4 px) ;
+ *   – extrémités à x = 600 ± 430 : MESURÉ. À ±400 la scène chain-arch-3 de la galerie (stair-procedure en bout, échelle 3,3) est
+ *     refusée, une pièce à x = 954 passant dans l'ellipse (bord droit : 972) : la pièce la plus large d'un poste d'extrémité
+ *     s'étend de 46 px vers l'intérieur, d'où x_poste ≥ 972 + 46 = 1018, soit ±418 ; 430 ajoute 12 px de jeu. Les extrémités
+ *     sont à y = 430, 80 px sous le centre du texte ;
+ * Entre trois et six postes, interpolation linéaire de chaque nombre (la forme se resserre progressivement).
+ */
+export function archShape(n: number): { rx: number; ry: number; cy: number; phi: number } {
+  const o = (globalThis as any).__arch; if (o) return o(n)
+  const t = Math.min(1, Math.max(0, (ARCH_FULL_N - n) / (ARCH_FULL_N - ARCH_TIGHT_N)))
+  const mix = (a: number, b: number) => a + (b - a) * t
+  return { rx: mix(490, ARCH_TIGHT_RX), ry: mix(330, ARCH_TIGHT_CY - ARCH_TIGHT_APEX), cy: mix(455, ARCH_TIGHT_CY), phi: mix(108, 90) }
+}
+const ARCH_FULL_N = 6
+const ARCH_TIGHT_N = 3
+const ARCH_TIGHT_APEX = 350 - 182
+const ARCH_TIGHT_RX = 430
+const ARCH_TIGHT_CY = 430
+/**
+ * Plafond d'échelle des postes d'une arche : 3,0 (`POST_SCALE`, la valeur historique) à six postes et plus, + 0,1 par poste
+ * en moins, au plus 3,4. Le plafond de 3,4 vient de la hauteur : le poste du sommet est à y = 168 (`archShape`) et le
+ * plus haut objet de la bibliothèque (knowledge-graph, h = 3,35) monte de 13 × (0,62 + 3,35) × 3,4 = 175 px au-dessus,
+ * soit un sommet à y ≈ −7 : au-delà de 3,0 c'est la clause de contenance de stations.ts (échelle bornée par le viewBox)
+ * qui réduit l'échelle de CE poste-là ; le plafond ne fait que borner les autres.
+ */
+export function archCap(n: number): number {
+  return Math.min(3.4, 3.0 + 0.1 * Math.max(0, 6 - n))
+}
+/** Plafond d'échelle des postes d'un anneau : plus il y en a peu, plus chacun grossit (2,3 à six postes + 0,45 par poste en moins,
+ * au plus 3,6). Inchangé : relevé à 2,7 il fait entrer une pièce de flanc dans l'ellipse de texte SAFE (essayé et refusé par
+ * scene.test, x = 960 < 972). */
+export function ringCap(n: number): number {
+  return Math.min(3.6, 2.3 + 0.45 * Math.max(0, 6 - n))
+}
 
 /** Polyligne d'une ellipse de a0 à a1 (degrés écran, 0 = droite, 90 = bas). */
 function ellipse(rx: number, ry: number, a0: number, a1: number, n: number, cx = CX, cy = CY): Vec2[] {
@@ -137,21 +197,113 @@ function ellipseStops(tr: Track, rx: number, ry: number, degs: readonly number[]
 }
 
 /** Angles d'écran de `n` arrêts répartis autour d'un anneau, en laissant libre le bas-centre (repère de défilement). */
-export function ringAngles(n: number, gap = 64): number[] {
+export function ringAngles(n: number, gap = 64, rx?: number, ry?: number): number[] {
   // De 90 + gap/2 à 90 + 360 − gap/2, dans le sens horaire de l'écran.
   const a0 = 90 + gap / 2
   const span = 360 - gap
-  return Array.from({ length: n }, (_, i) => a0 + (span * (i + 0.5)) / n)
+  if (rx === undefined || ry === undefined) return Array.from({ length: n }, (_, i) => a0 + (span * (i + 0.5)) / n)
+  // Demi-axes connus : les arrêts sont à ARC égal (et non à angle égal). À angle égal, un pas vaut ≈ ry·Δ sur les flancs
+  // et ≈ rx·Δ en haut : les deux postes de chaque flanc se retrouvent empilés l'un sur l'autre (l'empreinte d'un poste est
+  // bien plus haute que large), c'est eux qui bornaient l'échelle (2,11 à six postes). L'arc est intégré par pas de 0,25°.
+  const STEP = 0.25
+  const m = Math.round(span / STEP)
+  const cum = [0]
+  for (let k = 1; k <= m; k++) {
+    const a = ((a0 + (k - 0.5) * STEP) * Math.PI) / 180
+    cum.push(cum[k - 1]! + Math.hypot(rx * Math.sin(a), ry * Math.cos(a)) * ((STEP * Math.PI) / 180))
+  }
+  const tot = cum[m]!
+  return Array.from({ length: n }, (_, i) => {
+    const want = (tot * (i + 0.5)) / n
+    let k = 1
+    while (k < m && cum[k]! < want) k++
+    const f = (want - cum[k - 1]!) / (cum[k]! - cum[k - 1]! || 1)
+    return a0 + (k - 1 + f) * STEP
+  })
+}
+
+/**
+ * Empreinte projetée d'un poste, MESURÉE (pixels du viewBox 1200 × 700) : `hx` la demi-largeur, `hy` la demi-hauteur du
+ * rectangle qu'un poste occupe réellement à l'écran (le socle, plus son objet qui monte au-dessus). C'est la boîte que
+ * `fit.stationBoxes` rend pour un poste, ramenée au viewBox (hx = demi-largeur, hy = demi-hauteur du rectangle) — une
+ * mesure, pas une constante devinée.
+ */
+export interface PostBox {
+  hx: number
+  hy: number
+}
+
+/**
+ * Marge NOMÉE (pixels du viewBox) exigée entre deux empreintes de postes voisines : le jour qu'on veut voir entre deux
+ * postes, quel que soit leur contenu. C'est LE nombre de la règle « fix collisions with a number » : on n'éloigne pas la
+ * caméra, on impose cet écart dans la disposition.
+ */
+export const POST_MARGIN = 24
+
+/** Écart minimal entre deux centres de postes voisins — horizontal dans un rang, vertical entre deux rangs — pour que
+ * deux empreintes `box` ne se touchent pas, avec la marge `margin`. Le calcul vient de la mesure, pas d'une devinette. */
+export function spacingFor(box: PostBox, margin = POST_MARGIN): { dx: number; dy: number } {
+  return { dx: 2 * box.hx + margin, dy: 2 * box.hy + margin }
+}
+
+/**
+ * Constantes de repli (pixels du viewBox) pour les deux dispositions SANS trou de texte (`compact`, `phone`), dont
+ * l'écartement est libre. Elles étaient devinées historiquement ; elles ne servent PLUS QUE lorsque l'empreinte réelle
+ * d'un poste n'est pas encore mesurable au moment de construire la disposition (voir `makeLayout`).
+ */
+const FALLBACK: Readonly<Record<'compact' | 'phone', { dx: number; dy: number }>> = {
+  compact: { dx: 240, dy: 200 },
+  phone: { dx: 230, dy: 190 },
+}
+
+/** Écartement d'un rang : dérivé de l'empreinte mesurée quand elle est fournie, sinon du repli deviné. */
+function spacing(kind: 'compact' | 'phone', box: PostBox | undefined, margin: number): { dx: number; dy: number } {
+  return box ? spacingFor(box, margin) : FALLBACK[kind]
 }
 
 /**
  * Disposition `kind` pour `n` postes. `degs` (anneau seulement) impose des angles d'écran. `sx` (≥ 1) étire la disposition
  * en largeur autour du centre, pour un cadre plus large que haut (les objets, eux, ne sont jamais déformés).
+ *
+ * ÉCARTEMENT : cette variante emploie les constantes de repli, car l'empreinte réelle d'un poste n'est PAS mesurable ici
+ * — elle dépend de l'échelle du poste, qui est choisie dans `stations.ts` À PARTIR de cet écartement (cercle vicieux).
+ * Pour imposer un écart dérivé d'une empreinte MESURÉE, appeler `makeLayoutSpaced` avec la boîte du poste.
  */
 export function makeLayout(kind: LayoutKind, n: number, degs?: readonly number[], sx = 1, sy = 1): Layout {
+  return layout(kind, n, degs, sx, sy, undefined, POST_MARGIN)
+}
+
+/**
+ * Comme `makeLayout`, mais l'écartement des postes est DÉRIVÉ de `box` (l'empreinte projetée mesurée d'un poste) avec la
+ * marge nommée `margin`, au lieu des constantes devinées. Ne concerne que `compact` et `phone` (les seules dispositions
+ * sans trou de texte, où l'écart est libre) ; les autres gardent leur géométrie, qui est fixée par le trou du texte et
+ * n'a pas d'écart « deviné » à corriger. L'appelant doit fournir une boîte mesurée (ex. `fit.stationBoxes` ramené au
+ * viewBox) ; si la mesure n'existe pas encore, garder `makeLayout`.
+ */
+export function makeLayoutSpaced(
+  kind: LayoutKind,
+  n: number,
+  box: PostBox,
+  margin = POST_MARGIN,
+  degs?: readonly number[],
+  sx = 1,
+  sy = 1,
+): Layout {
+  return layout(kind, n, degs, sx, sy, box, margin)
+}
+
+function layout(
+  kind: LayoutKind,
+  n: number,
+  degs: readonly number[] | undefined,
+  sx: number,
+  sy: number,
+  box: PostBox | undefined,
+  margin: number,
+): Layout {
   // Téléphone : `sy` écarte les deux blocs (l'espace du texte grandit), sans étirer les blocs eux-mêmes.
-  if (kind === 'phone') return build(kind, n, degs, sy)
-  const L = build(kind, n, degs, sx)
+  if (kind === 'phone') return build(kind, n, degs, sy, box, margin)
+  const L = build(kind, n, degs, sx, box, margin)
   if (sy === 1) return L
   // Étirement vertical autour du centre de l'espace libre : plus de place pour un texte haut ; objets non déformés.
   const cy = L.hole[1]
@@ -162,13 +314,12 @@ function stretch(pts: Vec2[], sx: number): Vec2[] {
   return sx === 1 ? pts : pts.map((p) => [CX + (p[0] - CX) * sx, p[1]] as const)
 }
 
-function build(kind: LayoutKind, n: number, degs: readonly number[] | undefined, sx: number): Layout {
+function build(kind: LayoutKind, n: number, degs: readonly number[] | undefined, sx: number, box: PostBox | undefined, margin: number): Layout {
   switch (kind) {
     case 'ring': {
-      const RX = 452
-      const RY = 250
+      const { rx: RX, ry: RY } = ringShape(n)
       const tr: Track = { pts: ellipse(RX * sx, RY, 0, 360, 96).slice(0, -1), closed: true }
-      return { kind, tracks: [tr], stops: ellipseStops(tr, RX * sx, RY, degs ?? ringAngles(n)), hole: [CX, CY] }
+      return { kind, tracks: [tr], stops: ellipseStops(tr, RX * sx, RY, degs ?? ringAngles(n, 64, RX * sx, RY)), hole: [CX, CY] }
     }
     case 'stadium': {
       const tr: Track = { pts: roundRect(CX - 450 * sx, 122, CX + 450 * sx, 668, 150, 12), closed: true }
@@ -185,7 +336,8 @@ function build(kind: LayoutKind, n: number, degs: readonly number[] | undefined,
     }
     case 'arch': {
       // Une arche ∩ : du bas-gauche au bas-droit en passant au-dessus du texte.
-      const tr: Track = { pts: stretch(ellipse(490, 330, 162, 378, 90, CX, 455), sx), closed: false }
+      const A = archShape(n)
+      const tr: Track = { pts: stretch(ellipse(A.rx, A.ry, 270 - A.phi, 270 + A.phi, 90, CX, A.cy), sx), closed: false }
       return { kind, tracks: [tr], stops: openStops(n).map((t) => ({ track: 0, t })), hole: [CX, 400] }
     }
     case 'wings': {
@@ -204,19 +356,20 @@ function build(kind: LayoutKind, n: number, degs: readonly number[] | undefined,
       // Pas de texte au centre : un serpentin serré, au plus 4 postes par rang (3 si n ≤ 6), rangs alternés.
       const per = n <= 4 ? n : n <= 6 ? 3 : 4
       const rows = Math.ceil(n / per)
-      const DX = 240
-      const ROW = 200
+      // Écartement dérivé de l'empreinte MESURÉE d'un poste (avec sa marge nommée) quand elle est fournie, sinon du repli.
+      const { dx, dy } = spacing('compact', box, margin)
+      const AMORCE = 120 // courte amorce de voie avant le premier poste et après le dernier (chemin, pas un écart de postes)
       const pts: Vec2[] = []
       const at: Vec2[] = []
       for (let r = 0; r < rows; r++) {
         const cnt = Math.min(per, n - r * per)
-        const y = CY + (r - (rows - 1) / 2) * ROW
-        const xs = Array.from({ length: cnt }, (_, i) => CX + (i - (per - 1) / 2) * DX)
+        const y = CY + (r - (rows - 1) / 2) * dy
+        const xs = Array.from({ length: cnt }, (_, i) => CX + (i - (per - 1) / 2) * dx)
         const ltr = r % 2 === 0
         const ordered = ltr ? xs : [...xs].reverse()
-        const edge = CX + ((per - 1) / 2) * DX + 120
-        const from = r === 0 ? (ltr ? xs[0]! - 120 : xs[xs.length - 1]! + 120) : ltr ? CX - edge + CX : edge
-        const to = r === rows - 1 ? (ltr ? xs[xs.length - 1]! + 120 : xs[0]! - 120) : ltr ? edge : CX - (edge - CX)
+        const edge = CX + ((per - 1) / 2) * dx + AMORCE
+        const from = r === 0 ? (ltr ? xs[0]! - AMORCE : xs[xs.length - 1]! + AMORCE) : ltr ? CX - edge + CX : edge
+        const to = r === rows - 1 ? (ltr ? xs[xs.length - 1]! + AMORCE : xs[0]! - AMORCE) : ltr ? edge : CX - (edge - CX)
         pts.push([from, y], [to, y])
         for (const x of ordered) at.push([x, y])
       }
@@ -230,29 +383,32 @@ function build(kind: LayoutKind, n: number, degs: readonly number[] | undefined,
       const bottom = n - top
       // Demi-hauteur de l'espace laissé au texte (unités du viewBox) ; `sx` l'agrandit quand le texte de la page est haut.
       const GAP = 420 * sx
-      const ROW = 190
+      // Écartement dérivé de l'empreinte MESURÉE d'un poste (avec sa marge nommée) quand elle est fournie, sinon du repli.
+      const { dx, dy } = spacing('phone', box, margin)
+      const AMORCE = 120 // courte amorce de voie avant le premier poste (chemin, pas un écart de postes)
+      const TURN = 330 // écart du virage (chemin du serpentin, pas un écart de postes)
       const snake = (k: number, y0: number, dir: 1 | -1): { tr: Track; stops: number[] } => {
         const rows: number[] = []
         for (let left = k; left > 0; left -= 3) rows.push(Math.min(3, left))
         const pts: Vec2[] = []
         const at: Vec2[] = []
         rows.forEach((cnt, r) => {
-          const y = y0 + dir * r * ROW
+          const y = y0 + dir * r * dy
           const ltr = r % 2 === 0
-          const xs = Array.from({ length: cnt }, (_, i) => CX + ((i - (cnt - 1) / 2) * 230))
+          const xs = Array.from({ length: cnt }, (_, i) => CX + ((i - (cnt - 1) / 2) * dx))
           const ordered = ltr ? xs : [...xs].reverse()
           // Le rang va du premier poste (avec une courte amorce) jusqu'au virage, toujours du même côté.
-          const lo = Math.min(...xs) - 120
-          const turn = r % 2 === 0 ? CX + 330 : CX - 330
-          const from = r === 0 ? (ltr ? lo : Math.max(...xs) + 120) : r % 2 === 0 ? CX - 330 : CX + 330
-          const to = r === rows.length - 1 ? (ltr ? Math.max(...xs) + 120 : lo) : turn
+          const lo = Math.min(...xs) - AMORCE
+          const turn = r % 2 === 0 ? CX + TURN : CX - TURN
+          const from = r === 0 ? (ltr ? lo : Math.max(...xs) + AMORCE) : r % 2 === 0 ? CX - TURN : CX + TURN
+          const to = r === rows.length - 1 ? (ltr ? Math.max(...xs) + AMORCE : lo) : turn
           pts.push([from, y], [to, y])
           for (const x of ordered) at.push([x, y])
         })
         const tr: Track = { pts, closed: false }
         return { tr, stops: at.map((q) => nearestT(tr, q)) }
       }
-      const a = snake(top, CY - GAP - ROW * (Math.ceil(top / 3) - 1), 1)
+      const a = snake(top, CY - GAP - dy * (Math.ceil(top / 3) - 1), 1)
       const b = snake(bottom, CY + GAP, 1)
       const stops: Stop[] = [...a.stops.map((t) => ({ track: 0, t })), ...b.stops.map((t) => ({ track: 1, t }))]
       return { kind, tracks: bottom ? [a.tr, b.tr] : [a.tr], stops, hole: [CX, CY] }

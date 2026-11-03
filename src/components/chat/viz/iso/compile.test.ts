@@ -69,14 +69,19 @@ describe('compileIsoScene — a scene the model wrote', () => {
     expect(spec?.stations.map((s) => s.tone)).toEqual(['green', 'indigo'])
   })
 
-  it('frames a chat scene without a central hole by default, keeps an explicit layout', () => {
+  it('frames a chat scene without a central hole, whatever the layout asked', () => {
     const stations = Array.from({ length: 6 }, () => ({ mech: 'drawers' }))
     const r = compileIsoScene({ stations })
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.machine.anchor).toBeUndefined()
+    // Une disposition explicite ne réserve plus le trou du texte : un bloc de conversation n'a pas de texte au milieu,
+    // et ce trou laissait la moitié basse d'une arche vide (0,088 de cadre occupé, mesuré sur la planche). Le site, lui,
+    // garde le cadrage par défaut — c'est ce que vérifie scripts/tests/iso-frame.test.mjs côté site.
     const arch = compileIsoScene({ layout: 'arch', stations })
     expect(arch.ok).toBe(true)
-    if (arch.ok) expect(arch.machine.anchor).toBeDefined()
+    if (arch.ok) expect(arch.machine.anchor).toBeUndefined()
+    // Le cadrage demandé est bien celui du chat : la spec envoyée au moteur porte frame = 'tight'.
+    expect(toSceneSpec({ layout: 'arch', stations }).spec).toMatchObject({ frame: 'tight' })
     expect(ISO_VOCABULARY.layouts).toContain('compact')
   })
 })
@@ -140,5 +145,39 @@ describe('compileIsoScene — refusals: a list of corrections, never a throw', (
     expect(ISO_VOCABULARY.mechanisms).toContain('dependency-graph')
     expect(ISO_VOCABULARY.objects()).toContain('agent')
     expect(ISO_VOCABULARY.layouts).toContain('solo')
+  })
+})
+
+describe('frames — les versions successives d’un même travail', () => {
+  const robot = { kind: 'sphere', r: 0.5, at: [0, 0, 0.5] }
+
+  it('compile chaque version et garde l’ordre', () => {
+    const r = compileIsoScene({
+      title: 'Pièce',
+      frameMs: 3000,
+      frames: [
+        { ast: robot },
+        { ast: { kind: 'group', children: [robot, { kind: 'slab', size: [1, 0.4, 0.4], at: [0, 0, 0.2] }] } },
+      ],
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.frames?.length).toBe(2)
+      expect(r.frameMs).toBe(3000)
+      expect(r.title).toBe('Pièce')
+    }
+  })
+
+  it('refuse en nommant la version fautive', () => {
+    const r = compileIsoScene({ frames: [{ ast: robot }, { ast: { kind: 'bogus' } }] })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.problems[0]).toContain('version 2')
+  })
+
+  it('borne la durée d’une version et refuse une liste vide', () => {
+    const a = compileIsoScene({ frames: [{ ast: robot }], frameMs: 999_999 })
+    expect(a.ok && a.frameMs).toBe(120_000)
+    const b = compileIsoScene({ frames: [] })
+    expect(b.ok).toBe(false)
   })
 })

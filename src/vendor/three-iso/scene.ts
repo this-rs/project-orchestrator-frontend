@@ -1,4 +1,4 @@
-// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/scene.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@33e082ed383c655e3293b66a3e04160d5876eac8:src/three/iso/scene.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * API SÛRE pour décrire une scène isométrique (en-tête ou bloc de page) : `defineScene`.
@@ -64,6 +64,13 @@ export interface SceneSpec {
    * l'échelle du gros plan ; le budget de faces du repli SVG est celui d'un héros. Pour UNE grande machine composée
    * (le tout comme un seul objet), pas une piste de postes. */
   bare?: boolean | undefined
+  /** Cadrage. `text` (défaut) réserve le trou du texte au centre et cadre SYMÉTRIQUEMENT autour de lui : c'est le
+   * besoin d'un en-tête de page, où le titre occupe le milieu. `tight` cadre la scène sur ses seules bornes : un bloc
+   * dans une conversation n'a pas de texte à contourner, et une arche ou un anneau perdaient la moitié de leur cadre
+   * à cause de ce trou. */
+  frame?: 'text' | 'tight' | undefined
+  /** Lecture des pièces : `isolate` (noms à garder, le reste en fantôme) et `explode` (0 à 1). */
+  parts?: import('./parts.ts').PartsView | undefined
 }
 
 export interface Scene {
@@ -121,6 +128,8 @@ function checkSpec(spec: SceneSpec): string[] {
   if (spec.home !== undefined && (spec.home < 0 || spec.home >= spec.stations.length)) out.push(`home ${spec.home} : hors des postes`)
   if (spec.stepSeconds !== undefined && (spec.stepSeconds < 0.6 || spec.stepSeconds > 10)) out.push(`stepSeconds ${spec.stepSeconds} : de 0,6 à 10 s`)
   if (spec.focal !== undefined && (spec.focal < 0 || spec.focal > 0.25)) out.push(`focal ${spec.focal} : de 0 à 0,25`)
+  if (spec.parts?.explode !== undefined && !(spec.parts.explode >= 0 && spec.parts.explode <= 1)) out.push(`parts.explode ${String(spec.parts.explode)} : de 0 à 1`)
+  if (spec.frame !== undefined && spec.frame !== 'text' && spec.frame !== 'tight') out.push(`frame « ${String(spec.frame)} » inconnu (text, tight)`)
   if (spec.bare && spec.layout !== 'solo') out.push('bare : seulement sur la disposition « solo » (une machine nue, sans voie ni socle)')
   // Chorégraphie : dépendances valides et sans cycle, réglages dans leurs plages.
   spec.stations.forEach((st, i) => {
@@ -174,6 +183,8 @@ export function stationDefOf(spec: SceneSpec): StationMachineDef {
     stepS: spec.stepSeconds,
     focal: spec.focal,
     bare: spec.bare,
+    frame: spec.frame,
+    partsView: spec.parts,
     deps: spec.stations.map((s) => s.after ?? []),
     build: spec.build,
   }

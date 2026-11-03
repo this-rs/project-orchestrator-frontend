@@ -1,4 +1,4 @@
-// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/catalog.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@33e082ed383c655e3293b66a3e04160d5876eac8:src/three/iso/catalog.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Catalogue d'OBJETS tout faits, décrits avec le protocole `ast.ts` : des briques qu'une mécanique (d'une page ou d'un
@@ -12,14 +12,36 @@
 import { CATALOG, type IsoNode } from './ast.ts'
 
 export const OBJECTS: Readonly<Record<string, IsoNode>> = {
-  /** Un agent : corps clair, cœur lumineux, anneau qui tourne. Accroche : `beam` (sous lui). */
+  /**
+   * Un agent : un petit robot, pas une bille cerclée. Repris du prototype V2 du graphe (« drone constructeur »), qui
+   * n'avait jamais été REGARDÉ : corps + visière + deux rotors + antenne. Ce qui le fait lire à 340 px, dans l'ordre :
+   * une tête (sphère haute), un VISAGE (la visière lumineuse, seul accent), deux rotors qui tournent (le mouvement),
+   * une antenne qui le hausse au-dessus de sa propre silhouette. La jupe conique sous le corps remplace le flottement :
+   * elle donne un dessous au robot et pose le socle de sustentation, sans lui ajouter de jambes.
+   * Accroche : `beam` (sous lui).
+   */
   agent: {
     kind: 'group',
     sockets: { beam: [0, 0, -0.3] },
     children: [
-      { kind: 'sphere', name: 'corps', r: 0.32, at: [0, 0, 0.32] },
-      { kind: 'sphere', name: 'cœur', r: 0.15, at: [0, -0.2, 0.34], tone: 'indigo', glow: true, motion: { kind: 'pulse', period: 3 } },
-      { kind: 'ring', name: 'anneau', r: 0.52, w: 0.07, at: [0, 0, 0.3], mat: 'steelL', motion: { kind: 'spin', period: 2 } },
+      // Corps : une sphère posée haut (elle fait la tête ET le corps), 0,60 de diamètre pour 0,72 de haut.
+      { kind: 'sphere', name: 'corps', r: 0.27, at: [0, 0, 0.27] },
+      // Le visage : une bande SOMBRE (elle creuse la face dans le corps blanc) et, dedans, une fente lumineuse — le
+      // seul accent de l'objet. Sans la bande, une barre claire sur un corps blanc ne se lit pas.
+      { kind: 'slab', name: 'visière', size: [0.26, 0.06, 0.1], at: [0, -0.23, 0.31], mat: 'dark' },
+      { kind: 'slab', name: 'fente', size: [0.18, 0.025, 0.025], at: [0, -0.275, 0.31], tone: 'indigo', glow: true },
+      // Deux rotors : anneau + pale, à 0,36 du corps, en haut et en arrière — le mouvement dit « vivant ».
+      { kind: 'group', name: 'rotor-G', at: [-0.34, 0.2, 0.36], children: [
+        { kind: 'ring', name: 'anneau', r: 0.15, w: 0.035, mat: 'steelL', motion: { kind: 'spin', period: 2 } },
+        { kind: 'slab', name: 'pale', size: [0.27, 0.045, 0.015], mat: 'graphite', detail: true, motion: { kind: 'spin', period: 2 } },
+      ] },
+      { kind: 'group', name: 'rotor-D', at: [0.34, 0.2, 0.36], children: [
+        { kind: 'ring', name: 'anneau', r: 0.15, w: 0.035, mat: 'steelL', motion: { kind: 'spin', period: 2, phase: 0.5 } },
+        { kind: 'slab', name: 'pale', size: [0.27, 0.045, 0.015], mat: 'graphite', detail: true, motion: { kind: 'spin', period: 2, phase: 0.5 } },
+      ] },
+      // Antenne : elle dépasse de 0,12 le sommet du corps et porte le témoin qui pulse — ce qui reste visible en petit.
+      { kind: 'tube', name: 'antenne', at: [0, 0, 0.52], to: [0, 0, 0.62], r: 0.011, mat: 'steelL', detail: true },
+      { kind: 'sphere', name: 'témoin', r: 0.028, at: [0, 0, 0.64], tone: 'indigo', glow: true, motion: { kind: 'pulse', period: 3 } },
     ],
   },
   /** Un écran sur pied, face au lecteur. Accroche : `top`. */

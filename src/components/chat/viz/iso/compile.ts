@@ -44,14 +44,23 @@ export interface LegendEntry {
 }
 
 export type IsoCompile =
-  | { ok: true; machine: MachineDef; title?: string; legend: LegendEntry[] }
+  | {
+      ok: true
+      machine: MachineDef
+      title?: string
+      legend: LegendEntry[]
+      /** Versions successives d'un même travail : le bloc les rejoue, chaque version RECONSTRUITE par les ouvriers. */
+      frames?: MachineDef[]
+      /** Durée d'affichage d'une version avant la suivante. */
+      frameMs?: number
+    }
   | { ok: false; problems: string[] }
 
 /** Above this many characters of JSON the data is refused before the engine sees it. */
 export const MAX_DATA_CHARS = 32_000
 const MAX_LABEL = 60
 const TONES = Object.keys(LAMP) as ToneName[]
-const SCENE_KEYS = new Set(['title', 'caption', 'layout', 'stations', 'angles', 'home', 'stepSeconds', 'build', 'ast', 'tone', 'label', 'focal'])
+const SCENE_KEYS = new Set(['title', 'caption', 'layout', 'stations', 'angles', 'home', 'stepSeconds', 'build', 'ast', 'tone', 'label', 'focal', 'frame', 'bare', 'parts'])
 const STATION_KEYS = new Set(['mech', 'ast', 'tone', 'label', 'after'])
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -129,13 +138,21 @@ export function toSceneSpec(data: unknown): { spec?: SceneSpec; title?: string; 
   if (!LAYOUTS.some((l) => l.kind === layout)) {
     return { title, legend, problems: [`layout « ${String(layout)} » unknown (${LAYOUTS.map((l) => l.kind).join(', ')})`] }
   }
+  // Un bloc de conversation n'a pas de texte au milieu : la scène se cadre sur ses seules bornes (sans quoi une
+  // arche laisse sa moitié basse vide et un anneau son centre). Le site garde le cadrage par défaut, autour du texte.
   const body = {
+    frame: 'tight' as const,
     layout,
     stations,
     ...(scene.angles !== undefined ? { angles: scene.angles } : {}),
     ...(scene.home !== undefined ? { home: scene.home } : {}),
     ...(scene.stepSeconds !== undefined ? { stepSeconds: scene.stepSeconds } : {}),
     ...(scene.focal !== undefined ? { focal: scene.focal } : {}),
+    // `bare` : l'objet seul, posé sur le sol, SANS socle ni piste — le cas « je rends librement ce que je veux ».
+    // Le moteur refuse la combinaison hors disposition `solo`, avec un message qui dit quoi corriger.
+    ...(scene.bare !== undefined ? { bare: scene.bare } : {}),
+    // Lecture des pièces : { isolate: ['…'], explode: 0..1 }. Le moteur valide et refuse les noms inconnus à l'usage.
+    ...(scene.parts !== undefined ? { parts: scene.parts } : {}),
     ...(scene.build !== undefined ? { build: scene.build } : {}),
   }
   const spec = { id: `chat-${hash(JSON.stringify(body))}`, ...body } as unknown as SceneSpec
@@ -161,6 +178,22 @@ function compileSdfScene(data: Record<string, unknown>): IsoCompile {
 
 /** Check and build an `iso_scene`. Never throws: a refusal carries the list of corrections. */
 export function compileIsoScene(data: unknown): IsoCompile {
+  // FRAMES : un bloc peut porter les versions successives du même objet — c'est ainsi qu'un travail de 45 minutes se
+  // regarde en 45 minutes : chaque version est reconstruite par les ouvriers avant la suivante.
+  if (isObj(data) && Array.isArray(data.frames)) {
+    const list = data.frames
+    if (!list.length || list.length > 24) return { ok: false, problems: ['frames doit contenir 1 à 24 versions'] }
+    const machines: MachineDef[] = []
+    for (let i = 0; i < list.length; i++) {
+      const one = compileIsoScene(list[i])
+      if (!one.ok) return { ok: false, problems: one.problems.map((p) => `version ${i + 1} : ${p}`) }
+      machines.push(one.machine)
+    }
+    const raw = Number(data.frameMs ?? 6000)
+    const frameMs = Math.min(120_000, Math.max(800, Number.isFinite(raw) ? raw : 6000))
+    const title = typeof data.title === 'string' ? data.title : undefined
+    return { ok: true, machine: machines[0]!, frames: machines, frameMs, ...(title ? { title } : {}), legend: [] }
+  }
   if (isObj(data) && data.sdf !== undefined) {
     try {
       return compileSdfScene(data)
