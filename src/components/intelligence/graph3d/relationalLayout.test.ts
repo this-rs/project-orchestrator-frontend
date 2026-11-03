@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { layoutGroups, CORE_RATIO } from './relationalLayout'
+import { layoutGroups, separateGroups, CORE_RATIO } from './relationalLayout'
 import type { RelationalGroup, AffinityMatrix, OrganicPoint } from './relationalLayout'
 
 function dist(a: OrganicPoint, b: OrganicPoint): number {
@@ -172,6 +172,60 @@ describe('layoutGroups', () => {
         expect(dist(positions.get(gi)!, positions.get(gj)!)).toBeGreaterThanOrEqual(floor)
       }
     }
+  })
+
+  it('separation keeps every push of a pass: a group pressed on all sides converges', () => {
+    // 500 unrelated groups piled into a ball far too small for them, every one
+    // pressed by many neighbours at once. The projection used to read a group's
+    // position ONCE per visit and write each push from that stale value, so
+    // only the last push of a pass survived: on this pile it spent 78 passes
+    // and still left 0.19 px of overlap (2 000 groups: 400 of 400 passes, 2.6 px).
+    const N = 500
+    const ids: string[] = []
+    const pos = new Map<string, OrganicPoint>()
+    const radiusOf = new Map<string, number>()
+    for (let k = 0; k < N; k++) {
+      const id = `n${String(k).padStart(3, '0')}`
+      const up = 1 - (2 * (k + 0.5)) / N
+      const around = Math.sqrt(1 - up * up)
+      const angle = 2.39996 * k
+      const r = 200 * Math.cbrt((k + 0.5) / N)
+      ids.push(id)
+      radiusOf.set(id, 60)
+      pos.set(id, { x: Math.cos(angle) * around * r, y: up * r, z: Math.sin(angle) * around * r })
+    }
+    const passes = separateGroups(ids, pos, radiusOf, {}, 400)
+    let worst = 0
+    for (let i = 0; i < N; i++) {
+      for (let j = i + 1; j < N; j++) {
+        worst = Math.max(worst, 120 - dist(pos.get(ids[i])!, pos.get(ids[j])!))
+      }
+    }
+    // The constraint is envelope + 2 px margin: no envelope may overlap at all.
+    expect(worst).toBeLessThanOrEqual(0)
+    expect(passes).toBeLessThan(40)
+  })
+
+  it('reads only the affinities that exist: no all-pairs sweep', () => {
+    // The pre-pass used to ask `affinities[g][h]` for every one of the G²/2
+    // pairs: 801 directory groups cost 320 000 lookups before the descent even
+    // started. A relation that does not exist must cost nothing.
+    const groups: RelationalGroup[] = Array.from({ length: 1500 }, (_, i) => ({
+      id: `g${String(i).padStart(4, '0')}`,
+      radius: 60,
+    }))
+    let reads = 0
+    const counted = new Proxy<AffinityMatrix>(
+      { g0000: { g0001: 1 }, g0002: { g0003: 2 } },
+      {
+        get(target, key, receiver) {
+          reads++
+          return Reflect.get(target, key, receiver)
+        },
+      },
+    )
+    layoutGroups(groups, counted, { maxIterations: 1 })
+    expect(reads).toBeLessThan(10 * groups.length)
   })
 
   it('pulls the result toward supplied previous positions (stability)', () => {
