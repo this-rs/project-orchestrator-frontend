@@ -344,7 +344,14 @@ export function createVascularLinks(
       }
     }
 
-    const fillAll = (styleOf: (bundle: Bundle, strand: Strand) => LinkStyle) => {
+    /**
+     * Rebuild the geometry of every strand (positions, frames, tubes).
+     *
+     * EXPENSIVE on purpose-isolated: it runs parallel transport per strand, so it
+     * is reserved for the two moments where positions actually change — the
+     * first paint and a layout update.
+     */
+    const fillGeometry = (styleOf: (bundle: Bundle, strand: Strand) => LinkStyle) => {
       for (const bundle of bundles) {
         bundle.strands.forEach((strand, i) => fillStrand(bundle, strand, i, styleOf(bundle, strand)))
       }
@@ -353,22 +360,55 @@ export function createVascularLinks(
       alphaAttr.needsUpdate = true
     }
 
-    // First paint: neutral colour, the caller's style function replaces it at once.
-    fillAll((b) => b.color)
+    /**
+     * Rewrite ONLY the colours, vertex by vertex.
+     *
+     * It used to call `fillGeometry`, i.e. re-run the parallel transport of every
+     * strand on every hover and every style change — the page went unresponsive
+     * at a few thousand links, the browser bench stopped answering and looked
+     * like a hang. A colour change is a write into one Float32Array; it must cost
+     * that, and nothing more.
+     */
+    const fillColors = (styleOf: (bundle: Bundle, strand: Strand) => LinkStyle) => {
+      const col = colorAttr.array as Float32Array
+      const alp = alphaAttr.array as Float32Array
+      for (const bundle of bundles) {
+        const samples = bundle.drawable.samples
+        bundle.strands.forEach((strand, strandIndex) => {
+          const style = styleOf(bundle, strand)
+          const base = bundle.vertexStart + strandIndex * samples * TUBE_SEGMENTS
+          for (let i = 0; i < samples; i++) {
+            const u = samples === 1 ? 0 : i / (samples - 1)
+            for (let k = 0; k < TUBE_SEGMENTS; k++) {
+              const vi = (base + i * TUBE_SEGMENTS + k) * 3
+              col[vi] = style.r + ((style.r2 ?? style.r) - style.r) * u
+              col[vi + 1] = style.g + ((style.g2 ?? style.g) - style.g) * u
+              col[vi + 2] = style.b + ((style.b2 ?? style.b) - style.b) * u
+              alp[base + i * TUBE_SEGMENTS + k] = Math.min(1, style.a * 2.2)
+            }
+          }
+        })
+      }
+      colorAttr.needsUpdate = true
+      alphaAttr.needsUpdate = true
+    }
+
+    // First paint: geometry + neutral colour; the caller's style function
+    // replaces the colours at once, for the price of a buffer write.
+    fillGeometry((b) => b.color)
     geometry.computeBoundingSphere()
 
     return {
       object: group,
-      updatePositions: () => fillAll((b) => b.color),
+      // Positions moved: the tubes must be rebuilt.
+      updatePositions: () => fillGeometry((b) => b.color),
+      // Style changed: colours only, never the geometry.
       updateColors: (styleFn: LinkStyleFn) => {
-        fillAll((bundle) => {
-          const link = bundle.corridor.links[0]
-          return styleFn(link)
-        })
+        fillColors((bundle) => styleFn(bundle.corridor.links[0]))
       },
       updateColorsForNodes: (nodeIds: readonly string[], styleFn: LinkStyleFn) => {
         const set = new Set(nodeIds)
-        fillAll((bundle) => {
+        fillColors((bundle) => {
           const link = bundle.corridor.links[0]
           const touches = set.has(endpointId(link.source)) || set.has(endpointId(link.target))
           return touches ? styleFn(link) : bundle.color
