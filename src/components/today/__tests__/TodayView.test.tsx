@@ -126,6 +126,30 @@ describe('TodayView: an empty section is one soft line', () => {
   })
 })
 
+describe('TodayView: the self-core slot', () => {
+  const data = fixture('four_bands')
+  const selfCore = <section aria-label="Core of the self" data-testid="selfcore" />
+
+  it('sits at the top of the right column, above the plans that run, and never above the queue', () => {
+    view(data, { selfCoreSlot: selfCore })
+    const side = screen.getByTestId('sections-side')
+    const card = screen.getByTestId('selfcore')
+    expect(side.contains(card)).toBe(true)
+    // after the queue in DOM order (= phone order): "Waiting for you" comes first
+    const queue = screen.getByRole('region', { name: BAND_TEXT.waiting.title })
+    expect(queue.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // the durable declaration sits above the plans that run in its column
+    const running = screen.getByRole('region', { name: BAND_TEXT.running.title })
+    expect(side.firstElementChild).toBe(card)
+    expect(card.compareDocumentPosition(running) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('draws nothing extra when no slot is given', () => {
+    view(data)
+    expect(screen.getByTestId('sections-side').querySelector('[data-testid="selfcore"]')).toBeNull()
+  })
+})
+
 describe('TodayView: the live agents slot', () => {
   const data = fixture('four_bands')
 

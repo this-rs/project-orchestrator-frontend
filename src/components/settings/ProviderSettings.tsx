@@ -16,6 +16,7 @@ import { ProviderInstances } from './ProviderInstances'
 import { ProviderRoles } from './ProviderRoles'
 import { ProviderWizard } from './ProviderWizard'
 import { RoutingSettings } from './RoutingSettings'
+import { SelfCorePanel } from './SelfCorePanel'
 
 const SECTIONS = [
   { id: 'instances', title: 'providerAdmin.settings.sectionInstances' },
@@ -23,6 +24,7 @@ const SECTIONS = [
   { id: 'network-tools', title: 'networkTools.sectionTitle' },
   { id: 'routing', title: 'routing.settings.title' },
   { id: 'auto-models', title: 'routing.autoModels.title' },
+  { id: 'self-core', title: 'selfCore.title' },
   { id: 'advanced', title: 'providerAdmin.settings.sectionAdvanced' },
 ] as const satisfies readonly { id: string; title: MessageKey }[]
 
@@ -118,6 +120,9 @@ export function ProviderSettings() {
       </Section>
       <Section id="auto-models" title={t('routing.autoModels.title')}>
         <AutoModelsSettings />
+      </Section>
+      <Section id="self-core" title={t('selfCore.title')}>
+        <SelfCorePanel />
       </Section>
       <Section
         id="advanced"

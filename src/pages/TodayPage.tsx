@@ -16,6 +16,7 @@ import { WorkDashboard } from '@/components/today/work/WorkDashboard'
 import { LiveAgents } from '@/components/today/live/LiveAgents'
 import { goToSection } from '@/components/today/TodaySummary'
 import { AskBar } from '@/components/today/AskBar'
+import { SelfCoreCard } from '@/components/today/SelfCoreCard'
 
 /** Query parameter holding the lane filter on the cross-workspace entry. */
 export const LANE_PARAM = 'workspace'
@@ -157,6 +158,7 @@ export function TodayPage() {
         renderDiscussions={renderDiscussions}
         renderAttach={renderAttach}
         liveSlot={<LiveAgents shownSessionIds={waitingSessions} onGoToWaiting={goToWaiting} />}
+        selfCoreSlot={<SelfCoreCard />}
         askSlot={<AskBar lane={lane} hasWorkspace={workspaces.length > 0} plannedTasks={plannedTasks} waitingRequests={waitingRequests} />}
         daySlot={
           <section aria-label={DAY_REGION} data-testid="today-day" className="min-w-0">
