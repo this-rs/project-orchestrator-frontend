@@ -51,7 +51,7 @@ export type IsoCompile =
 export const MAX_DATA_CHARS = 32_000
 const MAX_LABEL = 60
 const TONES = Object.keys(LAMP) as ToneName[]
-const SCENE_KEYS = new Set(['title', 'caption', 'layout', 'stations', 'angles', 'home', 'stepSeconds', 'build', 'ast', 'tone', 'label', 'focal'])
+const SCENE_KEYS = new Set(['title', 'caption', 'layout', 'stations', 'angles', 'home', 'stepSeconds', 'build', 'ast', 'tone', 'label', 'focal', 'frame', 'bare', 'parts'])
 const STATION_KEYS = new Set(['mech', 'ast', 'tone', 'label', 'after'])
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -129,13 +129,21 @@ export function toSceneSpec(data: unknown): { spec?: SceneSpec; title?: string; 
   if (!LAYOUTS.some((l) => l.kind === layout)) {
     return { title, legend, problems: [`layout « ${String(layout)} » unknown (${LAYOUTS.map((l) => l.kind).join(', ')})`] }
   }
+  // Un bloc de conversation n'a pas de texte au milieu : la scène se cadre sur ses seules bornes (sans quoi une
+  // arche laisse sa moitié basse vide et un anneau son centre). Le site garde le cadrage par défaut, autour du texte.
   const body = {
+    frame: 'tight' as const,
     layout,
     stations,
     ...(scene.angles !== undefined ? { angles: scene.angles } : {}),
     ...(scene.home !== undefined ? { home: scene.home } : {}),
     ...(scene.stepSeconds !== undefined ? { stepSeconds: scene.stepSeconds } : {}),
     ...(scene.focal !== undefined ? { focal: scene.focal } : {}),
+    // `bare` : l'objet seul, posé sur le sol, SANS socle ni piste — le cas « je rends librement ce que je veux ».
+    // Le moteur refuse la combinaison hors disposition `solo`, avec un message qui dit quoi corriger.
+    ...(scene.bare !== undefined ? { bare: scene.bare } : {}),
+    // Lecture des pièces : { isolate: ['…'], explode: 0..1 }. Le moteur valide et refuse les noms inconnus à l'usage.
+    ...(scene.parts !== undefined ? { parts: scene.parts } : {}),
     ...(scene.build !== undefined ? { build: scene.build } : {}),
   }
   const spec = { id: `chat-${hash(JSON.stringify(body))}`, ...body } as unknown as SceneSpec

@@ -20,6 +20,7 @@ import { toView } from '@/vendor/three-iso/compose'
 import { contentBox } from '@/vendor/three-iso/fit'
 import { litColor } from '@/vendor/three-iso/shading'
 import type { MachineDef } from '@/vendor/three-iso/machine'
+import { applyParts } from '@/vendor/three-iso/parts'
 import type { LiveScene } from '@/vendor/three-iso/live'
 import type { VizBlockProps } from '../registry'
 import { compileIsoScene, type LegendEntry } from './compile'
@@ -51,7 +52,7 @@ function IsoSvg({ machine }: { machine: MachineDef }) {
   return (
     <svg viewBox={`${b.x} ${b.y} ${b.w} ${b.h}`} preserveAspectRatio="xMidYMid meet" className="absolute inset-0 h-full w-full" focusable="false" data-testid="iso-scene-svg">
       <g strokeWidth="0.6" strokeLinejoin="round">
-        {machine.build(machine.t0, 1).map((f, i) => {
+        {applyParts(machine.build(machine.t0, 1), machine, machine.partsView).map((f, i) => {
           const pts = f.pts.map((p) => {
             const v = toView(machine, p)
             return `${v[0].toFixed(1)},${v[1].toFixed(1)}`
@@ -125,6 +126,7 @@ export function IsoStage({ machine, expanded, label, live }: { machine: MachineD
             {...(live ? { live } : {})}
             still={reduced}
             drive="time"
+            tour
             transparent
             controls
             className="absolute inset-0 block h-full w-full"

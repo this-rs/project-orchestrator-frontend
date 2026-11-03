@@ -54,6 +54,7 @@ const FILES = [
   'litRenderer.ts',
   'live.ts',
   'machine.ts',
+  'parts.ts',
   'meaning.ts',
   'mechanisms.ts',
   'pins.ts',

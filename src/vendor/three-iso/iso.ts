@@ -1,4 +1,4 @@
-// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/iso.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@c49f5f220cdb1b250d2fe265c52ca13ec330054a:src/three/iso/iso.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Moteur isométrique des machines de héros : des solides pleins (lofts, boîtes, cylindres, poutres, tubes) rendus en
@@ -609,7 +609,7 @@ export const MAT = {
   ghost: '#7a7f95',
   dark: '#1b1e2b',
   /** v3 : porcelaine (papier, cartes, corps clairs), satin (socles), graphite (corps sombres). */
-  porcelain: '#dfe3ee',
+  porcelain: '#a0a5b4',
   satin: '#272c3c',
   graphite: '#3a4055',
 } as const
@@ -619,3 +619,44 @@ export const ISO_BG = '#0f1117'
 
 /** Lampes de statut : exactement les couleurs du produit (hero/art/tokens.ts). */
 export const LAMP = { green: '#34d399', indigo: '#818cf8', amber: '#fbbf24', red: '#f87171', violet: '#a78bfa', sky: '#38bdf8' } as const
+
+/**
+ * Chemin NEUTRE : un ton sans teinte (saturation HSL ≈ 8 %), de la même clarté que les lampes. Une scène qui l'emploie
+ * partout ne montre aucune couleur : la valeur seule doit suffire à lire la mécanique, et l'accent reste libre pour la
+ * seule pièce qui travaille. Hors de `LAMP` exprès : `LAMP` est itéré (palette, rotation des postes) et ne doit pas gagner
+ * une septième « couleur ».
+ */
+export const NEUTRAL = '#c3c7d4'
+
+/** Matière neutre de valeur moyenne, entre `iron` (sombre) et `steel` (clair) : le corps des mécaniques en neutre. */
+export const MAT_NEUTRAL = '#585e75'
+
+/** Retire la teinte d'un ton en gardant sa clarté HSL (saturation ramenée à 8 %, teinte froide fixe 230°). */
+export function neutralize(hex: string): string {
+  const [, , l] = hexHsl(hex)
+  const s = 0.08
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+  const p = 2 * l - q
+  const ch = (t: number) => {
+    const u = t < 0 ? t + 1 : t > 1 ? t - 1 : t
+    const v = u < 1 / 6 ? p + (q - p) * 6 * u : u < 1 / 2 ? q : u < 2 / 3 ? p + (q - p) * (2 / 3 - u) * 6 : p
+    return Math.round(v * 255).toString(16).padStart(2, '0')
+  }
+  const h = 230 / 360
+  return `#${ch(h + 1 / 3)}${ch(h)}${ch(h - 1 / 3)}`
+}
+
+/** UN accent : la couleur demandée pour la pièce qui travaille, le neutre pour tout le reste. */
+export const accentOnly = (col: string, working: boolean): string => (working ? col : neutralize(col))
+
+/**
+ * Ton d'une pièce « éteinte » : sans teinte, et la VALEUR dit l'état (0 = coulée dans le corps sombre, 1 = claire). Une
+ * pièce qui ne travaille pas ne perd pas seulement sa couleur : elle garde un écart de clarté avec ses voisines, sinon la
+ * monotonie de teinte deviendrait une monotonie de valeur. `MAT_NEUTRAL` (mi-sombre) → clair, clarté mélangée en sRGB.
+ */
+export function restTone(on: number): string {
+  const t = Math.max(0, Math.min(1, on))
+  const a = [0x58, 0x5e, 0x75]
+  const b = [0xe4, 0xe7, 0xf0]
+  return `#${a.map((v, i) => Math.round(v + (b[i]! - v) * t).toString(16).padStart(2, '0')).join('')}`
+}
