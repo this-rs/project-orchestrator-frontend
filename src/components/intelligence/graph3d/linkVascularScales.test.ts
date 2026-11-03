@@ -27,6 +27,9 @@ function chunk(type: string, data: Buffer): Buffer {
   return Buffer.concat([len, body, crc])
 }
 function writePng(path: string, w: number, h: number, rgb: Buffer) {
+  // Image de QA écrite SEULEMENT sur demande explicite (QA_PNG=1) : un test
+  // ne doit pas salir l'arbre de travail à chaque exécution.
+  if (!process.env.QA_PNG) return
   fs.mkdirSync(path.split('/').slice(0, -1).join('/') || '.', { recursive: true })
   const stride = w * 3
   const raw = Buffer.alloc((stride + 1) * h)
@@ -150,11 +153,24 @@ describe('échelles du moteur', () => {
     }
     writePng('qa-out/echelles.png', W, H, buf)
 
-    // VÉRIFICATION STRUCTURELLE, pas seulement visuelle : le nombre de sommets
-    // doit croître avec la magnitude — un filament n'a pas les mêmes canaux
-    // qu'une autoroute.
-    const stats = r!.stats!
-    expect(stats.triangles).toBeGreaterThan(0)
-    expect(nv).toBeGreaterThan(1000)
+    // VÉRIFICATION STRUCTURELLE, pas seulement visuelle. Ce qui différencie
+    // les magnitudes, c'est l'ÉPAISSEUR (r ∝ n^(1/3), compressée sans jamais
+    // s'aplatir au-dessus du plafond) : mesurée sur la géométrie, au milieu de
+    // chaque tronc, elle doit croître STRICTEMENT de 1 à 10⁹. Le contenu suit :
+    // une relation n'a pas de canal (cœur + une peau), dix en ont.
+    const trunks = r!.inspect!().filter((c) => c.kind === 'trunk').sort((a, b) => (a.n < b.n ? -1 : 1))
+    expect(trunks.map((c) => c.n)).toEqual(SCALES.slice(0, -1))
+    const measured = trunks.map((c) => {
+      const base = c.vertexStart + Math.floor(c.samples / 2) * 6
+      let mx = 0, my = 0, mz = 0
+      for (let k = 0; k < 6; k++) { mx += pos[(base + k) * 3] / 6; my += pos[(base + k) * 3 + 1] / 6; mz += pos[(base + k) * 3 + 2] / 6 }
+      return Math.hypot(pos[base * 3] - mx, pos[base * 3 + 1] - my, pos[base * 3 + 2] - mz)
+    })
+    for (let i = 1; i < measured.length; i++) expect(measured[i]).toBeGreaterThan(measured[i - 1])
+    // Un lien d'UNE relation reste un filament : 3 % de l'espacement des nœuds.
+    expect(measured[0] / r!.unit!()).toBeCloseTo(0.03, 3)
+    expect(trunks[0].layers).toBeLessThan(trunks[1].layers)
+    expect(r!.stats!.triangles).toBeGreaterThan(0)
+    expect(nv).toBeGreaterThan(100)
   })
 })

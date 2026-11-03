@@ -32,31 +32,38 @@ export const ARTERY_SAMPLES = BRANCH_SAMPLES + 2
 /** Capillaire (sous-moyeu → nœud réel) : BRANCH_SAMPLES. */
 export const CAPILLARY_SAMPLES = BRANCH_SAMPLES
 
-/** Voies (une par famille de relation) d'un tronc, au plus. Renderer : MAX_STRANDS. */
+/** Voies (une par famille de relation) d'un tronc, au plus. */
 export const MAX_TRUNK_LANES = 5
-/** Canaux d'un conduit : au moins 2, au plus 5 (renderer : MICRO_FIBERS), 2 sur mobile. */
-export const MIN_CONDUIT_CHANNELS = 2
+/** Canaux d'un conduit : au plus 5, 2 sur mobile. */
 export const MAX_CONDUIT_CHANNELS = 5
 export const MOBILE_CONDUIT_CHANNELS = 2
+/** Échantillons d'une capsule de jonction (pôles fermés). */
+export const JUNCTION_SAMPLES = 5
 
-/** Nombre de couches d'un conduit : halo + gaine + structure + N canaux + cœur. */
+/**
+ * Nombre de couches d'un conduit : halo + gaine + structure + N canaux + cœur ;
+ * sans canal (une relation), le cœur et une seule peau.
+ */
 export function layersForChannels(channels: number): number {
-  return 3 + Math.max(0, channels) + 1
+  if (channels <= 0) return 2
+  return 3 + channels + 1
 }
 
 /**
- * Canaux qu'un conduit dessine VRAIMENT pour une morphologie de `channels`
- * canaux : borné [2, 5] sur ordinateur, 2 sur mobile. TOUS les conduits d'un
- * faisceau (troncs, artères, capillaires) ont ce nombre de canaux.
+ * Canaux d'un conduit selon ce qu'il PORTE (loi d'échelle) : une relation
+ * n'a pas de canal (cœur + une peau) ; au-delà, un canal de plus à chaque
+ * doublement, borné par le nombre de familles réellement présentes et par
+ * MAX_CONDUIT_CHANNELS (2 sur mobile).
  */
-export function conduitChannels(morphologyChannels: number, mobile = false): number {
-  if (mobile) return MOBILE_CONDUIT_CHANNELS
-  return Math.max(MIN_CONDUIT_CHANNELS, Math.min(MAX_CONDUIT_CHANNELS, Math.floor(morphologyChannels) || 0))
+export function conduitChannels(n: number, families: number, mobile = false): number {
+  if (!(n > 1)) return 0
+  const cap = mobile ? MOBILE_CONDUIT_CHANNELS : MAX_CONDUIT_CHANNELS
+  return Math.max(1, Math.min(cap, Math.max(1, Math.floor(families) || 0), 1 + Math.floor(Math.log2(n))))
 }
 
-/** Couches d'un conduit du renderer : layersForChannels(conduitChannels(…)) — jamais moins de 6. */
-export function conduitLayers(morphologyChannels: number, mobile = false): number {
-  return layersForChannels(conduitChannels(morphologyChannels, mobile))
+/** Couches d'un conduit qui porte n relations de `families` familles. */
+export function conduitLayers(n: number, families: number, mobile = false): number {
+  return layersForChannels(conduitChannels(n, families, mobile))
 }
 
 /** Voies d'un tronc : une par famille, bornée par les canaux et MAX_TRUNK_LANES. */
@@ -68,22 +75,18 @@ export function trunkLanes(families: number, morphologyChannels: number): number
 }
 
 /**
- * L'arbre d'UN côté d'un faisceau, pour `endpoints` extrémités distinctes :
- * découpe en paquets contigus de ⌈n / SUB_HUBS_PER_END⌉ (une artère chacun),
- * au plus CAPILLARIES_PER_SUB_HUB capillaires par paquet — exactement la
- * découpe du renderer.
+ * BORNE HAUTE de l'arbre d'UN côté, pour `endpoints` extrémités distinctes
+ * et sans les positions : au plus SUB_HUBS_PER_END artères (une par paquet
+ * spatial), au plus CAPILLARIES_PER_SUB_HUB capillaires chacune, et jamais
+ * plus de capillaires que d'extrémités. Le compte EXACT dépend du
+ * regroupement spatial : il vient de `treeShape` (linkVascularTree.ts).
  */
 export function sideTree(endpoints: number): { arteries: number; capillaries: number } {
   const n = Math.max(0, Math.floor(endpoints))
-  if (n === 0) return { arteries: 0, capillaries: 0 }
-  const per = Math.max(1, Math.ceil(n / SUB_HUBS_PER_END))
-  let arteries = 0
-  let capillaries = 0
-  for (let i = 0; i < n; i += per) {
-    arteries++
-    capillaries += Math.min(CAPILLARIES_PER_SUB_HUB, Math.min(per, n - i))
+  return {
+    arteries: Math.min(SUB_HUBS_PER_END, n),
+    capillaries: n <= 1 ? 0 : Math.min(n, SUB_HUBS_PER_END * CAPILLARIES_PER_SUB_HUB),
   }
-  return { arteries, capillaries }
 }
 
 /** Ce que le renderer dessine pour un faisceau. */
@@ -92,28 +95,54 @@ export interface RenderedBundleShape {
   trunkSamples: number
   /** Canaux de la morphologie (morphology.graphical.channels). */
   morphologyChannels: number
+  /** Relations portées par le faisceau (borne du contenu de chaque conduit). */
+  n?: number
   /** Familles de relations du corridor ; inconnu ⇒ borne haute (MAX_TRUNK_LANES). */
   families?: number
   /** Extrémités distinctes de chaque côté ; inconnu ⇒ arbre complet (borne haute). */
   endpoints?: readonly [number, number]
-  /** Appareil « mobile » : 2 canaux par conduit. */
+  /** Appareil « mobile » : 2 canaux au plus par conduit. */
   mobile?: boolean
+  /**
+   * Forme EXACTE, calculée sur les positions (linkVascularTree.treeShape) :
+   * couches de chaque voie, et triangles de tout le reste (artères,
+   * capillaires, capsules). Quand elle est donnée, c'est elle qui compte.
+   */
+  exact?: ExactShape | null
+}
+
+/** Forme exacte d'un faisceau, hors échantillons du tronc (qui dépendent du LOD). */
+export interface ExactShape {
+  laneLayers: number[]
+  treeTriangles: number
 }
 
 /**
- * Triangles qu'un faisceau coûte DANS LE RENDERER : voies × tronc, puis, de
- * chaque côté, artères (ARTERY_SAMPLES) et capillaires (CAPILLARY_SAMPLES), tous
- * à conduitLayers couches. Sans `families`/`endpoints`, c'est une borne haute.
+ * Triangles qu'un faisceau coûte DANS LE RENDERER.
+ *
+ * Avec `exact` : au triangle près. Sans : une BORNE HAUTE — chaque conduit
+ * au contenu du faisceau entier (un enfant porte au plus ce que porte son
+ * parent), l'arbre complet de chaque côté, une capsule par port et par
+ * sous-moyeu.
  */
 export function renderedBundleTriangles(shape: RenderedBundleShape): number {
-  const layers = conduitLayers(shape.morphologyChannels, shape.mobile)
-  const lanes = trunkLanes(shape.families ?? MAX_TRUNK_LANES, shape.morphologyChannels)
+  if (shape.exact) {
+    let total = shape.exact.treeTriangles
+    for (const l of shape.exact.laneLayers) total += conduitTriangles(shape.trunkSamples, l)
+    return total
+  }
+  if (shape.exact === null) return 0
+  const n = shape.n ?? Number.MAX_SAFE_INTEGER
+  const families = shape.families ?? MAX_TRUNK_LANES
+  const layers = conduitLayers(n, families, shape.mobile)
+  const lanes = trunkLanes(families, shape.morphologyChannels)
   const full = SUB_HUBS_PER_END * CAPILLARIES_PER_SUB_HUB
   const [ea, eb] = shape.endpoints ?? [full, full]
   let total = lanes * conduitTriangles(shape.trunkSamples, layers)
   for (const side of [sideTree(ea), sideTree(eb)]) {
     total += side.arteries * conduitTriangles(ARTERY_SAMPLES, layers)
     total += side.capillaries * conduitTriangles(CAPILLARY_SAMPLES, layers)
+    total += (1 + side.arteries) * conduitTriangles(JUNCTION_SAMPLES, layersForChannels(0))
   }
   return total
 }

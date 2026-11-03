@@ -6,6 +6,9 @@ import {
   confluenceHolds,
   parentRadius,
   radiusAt,
+  linkRadiusFor,
+  nearestNeighbourScale,
+  softCap,
 } from './linkRadius'
 
 describe('loi de confluence r_parent^γ ≈ Σ r_child^γ', () => {
@@ -96,5 +99,54 @@ describe('profil de rayon le long d’une branche', () => {
     for (const s of [0, 0.13, 0.5, 0.87, 1]) {
       expect(radiusAt(s, 0.7, 0.2)).toBe(radiusAt(s, 0.7, 0.2))
     }
+  })
+})
+
+describe('loi d’échelle r(n) = 0,03 · d0 · n^(1/3)', () => {
+  it('une relation fait 3 % de d0, et r est STRICTEMENT croissant en n', () => {
+    expect(linkRadiusFor(1, 50)).toBeCloseTo(1.5, 12)
+    let prev = 0
+    for (const n of [1, 2, 3, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e9]) {
+      const r = linkRadiusFor(n, 1)
+      expect(r).toBeGreaterThan(prev)
+      prev = r
+    }
+    expect(linkRadiusFor(0, 1)).toBe(0)
+    expect(linkRadiusFor(NaN, 1)).toBe(0)
+  })
+
+  it('γ = 3 : Murray exact quand les n s’additionnent', () => {
+    const kids = [1, 7, 30, 400]
+    const parent = linkRadiusFor(kids.reduce((a, b) => a + b, 0), 3)
+    expect(confluenceHolds(parent, kids.map((n) => linkRadiusFor(n, 3)), 3, 1e-9)).toBe(true)
+  })
+
+  it('le plafond doux est continu, strictement croissant, et ne dépasse jamais rMax', () => {
+    const rMax = 2
+    let prev = -1
+    for (let r = 0; r <= 400; r += 0.05) {
+      const v = softCap(r, rMax)
+      expect(v).toBeGreaterThan(prev)
+      expect(v).toBeLessThan(rMax)
+      prev = v
+    }
+    expect(softCap(0.7, rMax)).toBe(0.7) // sous le genou : inchangé
+    expect(softCap(1 + 1e-9, rMax) - softCap(1, rMax)).toBeLessThan(1e-8) // continu au genou
+    expect(softCap(linkRadiusFor(1e6, 100), 2)).toBeGreaterThan(softCap(linkRadiusFor(1e5, 100), 2))
+  })
+
+  it('d0 par grille = d0 brut, et suit l’échelle des positions', () => {
+    let seed = 3
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+    const pts = Array.from({ length: 900 }, () => ({ x: rnd() * 500, y: rnd() * 300, z: rnd() * 50 }))
+    const brute = pts.map((p, i) => {
+      let best = Infinity
+      pts.forEach((q, j) => { if (i !== j) best = Math.min(best, Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z)) })
+      return best
+    }).sort((a, b) => a - b)[pts.length >> 1]
+    expect(nearestNeighbourScale(pts)).toBeCloseTo(brute, 9)
+    const scaled = pts.map((p) => ({ x: p.x * 10 + 7, y: p.y * 10, z: p.z * 10 }))
+    expect(nearestNeighbourScale(scaled) / nearestNeighbourScale(pts)).toBeCloseTo(10, 6)
+    expect(nearestNeighbourScale([{ x: 0, y: 0, z: 0 }])).toBe(0)
   })
 })
