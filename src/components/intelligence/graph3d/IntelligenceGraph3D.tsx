@@ -41,6 +41,7 @@ import {
   dimmedEntityTypesAtom,
   graphBrightnessAtom,
   graphScaleAtom,
+  drilledCommunityAtom,
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
 import { nextScaleLevel } from './scaleDecision'
@@ -249,6 +250,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const dimmedEntityTypes = useAtomValue(dimmedEntityTypesAtom)
   const brightness = useAtomValue(graphBrightnessAtom)
   const [scaleLevel, setScaleLevel] = useAtom(graphScaleAtom)
+  // A community opened by a click: its members replace the super-nodes until
+  // the breadcrumb closes it.
+  const [drilledCommunity, setDrilledCommunity] = useAtom(drilledCommunityAtom)
 
   const { transformToGraph3D, savePositions } = useGraph3DLayout(nodes, edges)
 
@@ -495,9 +499,22 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const aggregated = scaleLevel > 0
   const scaleRes = aggregated ? resolutionForLevel(graphData.nodes.length, scaleLevel) : 0
   const displayData = useMemo(() => {
+    // An opened community wins over the aggregation step: it shows its real
+    // members, so a click inside it reaches an actual element (its fiche, its
+    // framing) instead of the community blob.
+    if (drilledCommunity != null) {
+      const members = graphData.nodes.filter((n) => n.communityId === drilledCommunity)
+      if (members.length > 0) {
+        const ids = new Set(members.map((n) => n.id))
+        return {
+          nodes: members,
+          links: graphData.links.filter((l) => ids.has(l.source) && ids.has(l.target)),
+        }
+      }
+    }
     if (!aggregated || scaleRes <= 0 || graphData.nodes.length === 0) return graphData
     return buildGroupedGraph(graphData, scaleRes)
-  }, [aggregated, scaleRes, graphData])
+  }, [aggregated, scaleRes, graphData, drilledCommunity])
 
   // True in the optimized path (minimal quality: ≥500 nodes, particles off):
   // links are drawn as ONE LineSegments instead of one cylinder per link.
@@ -2360,6 +2377,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       const np = nodePointsRef.current
       if (!np || !aim(ev)) return
       const hit = np.pick(raycaster)
+      // A super-node IS a community: clicking it opens it (drill-down) instead
+      // of selecting a blob the user cannot inspect.
+      const sup = hit?.data as { count?: number } | undefined
+      if (hit && typeof sup?.count === 'number' && sup.count > 1 && hit.communityId != null) {
+        setDrilledCommunity(hit.communityId)
+        return
+      }
       if (!hit) {
         // No node: a hull face is still a target — frame the whole community.
         const hull = raycastHull()

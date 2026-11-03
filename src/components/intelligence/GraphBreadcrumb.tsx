@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from 'jotai'
 import { useT } from '@/i18n'
-import { graphScaleAtom, selectedNodeAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
+import { drilledCommunityAtom, graphScaleAtom, selectedNodeAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
 
 function text(v: unknown): string | null {
   if (typeof v === 'string' && v.trim() !== '') return v
@@ -20,15 +20,22 @@ export function GraphBreadcrumb() {
   const selected = useAtomValue(selectedNodeAtom)
   const setScale = useSetAtom(graphScaleAtom)
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom)
+  const drilled = useAtomValue(drilledCommunityAtom)
+  const setDrilled = useSetAtom(drilledCommunityAtom)
 
-  if (scale < 1 && !selected) return null
+  if (scale < 1 && !selected && drilled == null) return null
 
   const data = (selected?.data ?? {}) as Record<string, unknown>
   const name = selected
     ? (text(data.label) ?? selected.id)
-    : t('intelPage.breadcrumb.group', { id: scale })
+    : drilled != null
+      ? t('intelPage.breadcrumb.group', { id: drilled })
+      : t('intelPage.breadcrumb.group', { id: scale })
 
   const reset = () => {
+    // Closing an opened community is the same gesture as going back up: the
+    // aggregated view comes back with its super-nodes.
+    setDrilled(null)
     setScale(0)
     setSelectedNodeId(null)
   }

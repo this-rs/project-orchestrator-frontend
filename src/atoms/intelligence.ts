@@ -81,6 +81,9 @@ export const intelligenceErrorAtom = atom<string | null>(null)
 // ── Selection ────────────────────────────────────────────────────────────────
 
 /** Currently selected node ID */
+/** Community opened by a click on a super-node (aggregated view). null = closed. */
+export const drilledCommunityAtom = atom<number | null>(null)
+
 export const selectedNodeIdAtom = atom<string | null>(null)
 
 /** Derived: selected node object */
