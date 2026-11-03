@@ -235,16 +235,30 @@ export function nodeGain(count: number): number {
 export const DENS_FREE_COUNT = 1000
 /** Floor of the density factor: a point is never dimmed below 35 % of its alpha. */
 export const DENS_K_MIN = 0.35
-/** Camera distance (to the orbit target) up to which no distance penalty applies, and where it saturates. */
-export const DENS_DIST_NEAR = 300
-export const DENS_DIST_FAR = 1200
-/** Smallest distance factor: far away, alpha is multiplied by at most this much less. */
+/** Smallest distance factor: far away, alpha is multiplied by at most this much less. Never 0. */
 export const DENS_DIST_MIN = 0.7
+/** Near-bound fallback (scene units) used before the frame pass has measured the cloud. */
+export const DENS_DIST_FALLBACK_NEAR = 300
+/** The far bound is this many × the framing distance; the factor reaches DENS_DIST_MIN there. */
+export const DENS_DIST_FAR_RATIO = 4
 
-/** Distance factor in [DENS_DIST_MIN, 1]: 1 up close, falling linearly to DENS_DIST_MIN at DENS_DIST_FAR. Never 0, never > 1. */
-export function densityDistanceFactor(distance: number): number {
+/**
+ * Distance factor in [DENS_DIST_MIN, 1].
+ *
+ * The near bound is the FRAMING distance — the camera distance at which the
+ * cloud fills the viewport. At that distance or closer the factor is exactly
+ * 1.0: what is near the viewer stays sharp ("si je me rapproche d'un ensemble
+ * de nœuds, je veux que ce soit plus net"), never faded by the distance. Only
+ * beyond it does the factor decay, linearly, to DENS_DIST_MIN at
+ * `framingDistance × DENS_DIST_FAR_RATIO` — so at 3× the framing distance it
+ * is already below 1 (the far cloud melts into the background). Never 0, never
+ * > 1.
+ */
+export function densityDistanceFactor(distance: number, framingDistance: number): number {
+  const near = Number.isFinite(framingDistance) && framingDistance > 0 ? framingDistance : DENS_DIST_FALLBACK_NEAR
+  const far = near * DENS_DIST_FAR_RATIO
   const d = Number.isFinite(distance) && distance > 0 ? distance : 0
-  const t = Math.min(1, Math.max(0, (d - DENS_DIST_NEAR) / (DENS_DIST_FAR - DENS_DIST_NEAR)))
+  const t = Math.min(1, Math.max(0, (d - near) / (far - near)))
   return 1 - (1 - DENS_DIST_MIN) * t
 }
 
@@ -253,14 +267,14 @@ export function densityDistanceFactor(distance: number): number {
  * which also scales with camera distance):
  *
  *     count <= 1000 : 1.0                     (nothing is touched)
- *     otherwise     : clamp( √(1000/count) × densityDistanceFactor(dist), 0.35, 1 )
+ *     otherwise     : clamp( √(1000/count) × densityDistanceFactor(dist, framing), 0.35, 1 )
  *
  * More nodes and a farther camera ⇒ lower alpha, bounded below by 0.35 so the
  * overview never vanishes. Monotone non-increasing in `count` and `distance`.
  */
-export function densityAlphaK(count: number, distance: number): number {
+export function densityAlphaK(count: number, distance: number, framingDistance: number): number {
   if (!Number.isFinite(count) || count <= DENS_FREE_COUNT) return 1
-  return Math.min(1, Math.max(DENS_K_MIN, Math.sqrt(DENS_FREE_COUNT / count) * densityDistanceFactor(distance)))
+  return Math.min(1, Math.max(DENS_K_MIN, Math.sqrt(DENS_FREE_COUNT / count) * densityDistanceFactor(distance, framingDistance)))
 }
 
 const VERTEX_SHADER = /* glsl */ `
@@ -405,6 +419,8 @@ export interface NodePoints {
   setPixelRatio: (pixelRatio: number) => void
   /** Feed the camera→target distance; recomputes `uDensK` only when it moves. */
   setCameraDistance: (distance: number) => void
+  /** Feed the framing distance (bounding sphere → camera): the near bound of the distance factor. */
+  setFramingDistance: (framingDistance: number) => void
   /** Current `uPx`, for tests and for wiring a newly created Points. */
   getPixelRatio: () => number
   dispose: () => void
@@ -446,7 +462,7 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
       // Per-node light gain, recomputed from the node count by setData().
       uGlobal: { value: nodeGain(nodes.length) },
       // Density attenuation of the alpha (1 = untouched), see densityAlphaK().
-      uDensK: { value: densityAlphaK(nodes.length, 0) },
+      uDensK: { value: densityAlphaK(nodes.length, 0, 0) },
     },
   })
 
@@ -460,10 +476,17 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
   }
 
   let camDistance = 0
+  let camFramingDistance = 0
   /** Camera→target distance changed: refresh uDensK (called per state change, never per frame). */
   const setCameraDistance = (distance: number) => {
     camDistance = distance
-    const k = densityAlphaK(nodeList.length, distance)
+    const k = densityAlphaK(nodeList.length, distance, camFramingDistance)
+    if (Math.abs(k - (material.uniforms.uDensK.value as number)) > 0.002) material.uniforms.uDensK.value = k
+  }
+  /** Framing distance changed (once per dataset): refresh uDensK with the new near bound. */
+  const setFramingDistance = (framingDistance: number) => {
+    camFramingDistance = framingDistance
+    const k = densityAlphaK(nodeList.length, camDistance, framingDistance)
     if (Math.abs(k - (material.uniforms.uDensK.value as number)) > 0.002) material.uniforms.uDensK.value = k
   }
 
@@ -478,7 +501,7 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
     // once per data change, so a filtered or aggregated graph is not lit like
     // the full one it came from.
     material.uniforms.uGlobal.value = nodeGain(next.length)
-    material.uniforms.uDensK.value = densityAlphaK(next.length, camDistance)
+    material.uniforms.uDensK.value = densityAlphaK(next.length, camDistance, camFramingDistance)
     if (next.length !== (geometry.getAttribute('position') as THREE.BufferAttribute).count) {
       geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(next.length * 3), 3))
       geometry.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(next.length * 3), 3))
@@ -576,5 +599,5 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
 
   setData(nodes)
 
-  return { object, setData, updatePositions, updateStyles, indexOf, updateStyleAt, pick, setPixelRatio, setCameraDistance, getPixelRatio, dispose }
+  return { object, setData, updatePositions, updateStyles, indexOf, updateStyleAt, pick, setPixelRatio, setCameraDistance, setFramingDistance, getPixelRatio, dispose }
 }

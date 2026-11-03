@@ -4,7 +4,7 @@ import {
   createNodePoints, shapeForType, sizeForType, nodeGain, NODE_GAIN_REFERENCE, NODE_GAIN_FLOOR,
   NODE_MIN_SHAPE_PX, NODE_MIN_SPRITE_PX, NODE_SHAPE_MID_RADIUS, NODE_SHAPE_FRACTION_SMALL, NODE_POINTS_RENDER_ORDER,
   LINK_RENDER_ORDER, nodeSpritePx, shapeGrow,
-  densityAlphaK, densityDistanceFactor, DENS_K_MIN, DENS_DIST_MIN,
+  densityAlphaK, densityDistanceFactor, DENS_K_MIN, DENS_DIST_MIN, DENS_DIST_FALLBACK_NEAR,
 } from './nodePoints'
 import { entityColor } from '@/constants/graphPalette'
 import { parseColor } from './linkSegments'
@@ -314,32 +314,53 @@ describe('draw order', () => {
 })
 
 describe('densityAlphaK (uDensK)', () => {
-  it('is exactly 1 at 1000 nodes or fewer, at any distance', () => {
-    for (const n of [0, 1, 500, 1000]) for (const d of [0, 300, 1200, 1e6]) expect(densityAlphaK(n, d)).toBe(1)
+  const FRAME = 1200 // a representative framing distance, in scene units
+
+  it('is exactly 1 at 1000 nodes or fewer, at any distance and framing', () => {
+    for (const n of [0, 1, 500, 1000]) for (const d of [0, 300, FRAME, 1e6]) for (const f of [0, FRAME, 4000]) {
+      expect(densityAlphaK(n, d, f)).toBe(1)
+    }
   })
   it('drops clearly below 1 but stays >= 0.35 at 20 000 nodes', () => {
-    for (const d of [0, 600, 1200, 5000]) {
-      const k = densityAlphaK(20000, d)
+    for (const d of [0, 600, FRAME, 5000]) {
+      const k = densityAlphaK(20000, d, FRAME)
       expect(k).toBeLessThan(0.9)
       expect(k).toBeGreaterThanOrEqual(DENS_K_MIN)
     }
   })
   it('is monotone non-increasing in the node count and in the distance', () => {
     const counts = [1000, 1500, 3000, 5000, 10000, 20000, 100000]
-    for (const d of [0, 500, 1500]) {
-      const ks = counts.map((n) => densityAlphaK(n, d))
+    for (const d of [0, 500, FRAME]) {
+      const ks = counts.map((n) => densityAlphaK(n, d, FRAME))
       for (let i = 1; i < ks.length; i++) expect(ks[i]).toBeLessThanOrEqual(ks[i - 1])
     }
-    const dists = [0, 300, 600, 900, 1200, 4000]
-    const kd = dists.map((d) => densityAlphaK(5000, d))
+    const dists = [0, 300, 600, 900, FRAME, 4000]
+    const kd = dists.map((d) => densityAlphaK(5000, d, FRAME))
     for (let i = 1; i < kd.length; i++) expect(kd[i]).toBeLessThanOrEqual(kd[i - 1])
   })
   it('distance factor is bounded: never 0, never > 1 (including garbage input)', () => {
-    for (const d of [-5, 0, 1, 300, 800, 1200, 1e9, NaN, Infinity]) {
-      const f = densityDistanceFactor(d)
+    for (const d of [-5, 0, 1, FRAME, FRAME * 2, FRAME * 5, 1e9, NaN, Infinity]) {
+      const f = densityDistanceFactor(d, FRAME)
       expect(f).toBeGreaterThanOrEqual(DENS_DIST_MIN)
       expect(f).toBeLessThanOrEqual(1)
     }
+  })
+  it('is exactly 1 at the framing distance and closer, and already < 1 at 3× the framing distance', () => {
+    // The client: near things stay sharp — at the framing distance or less the
+    // distance factor is 1.0, and it only decays once the camera pulls away.
+    for (const d of [0, FRAME * 0.25, FRAME * 0.5, FRAME]) {
+      expect(densityDistanceFactor(d, FRAME)).toBe(1)
+    }
+    const at3x = densityDistanceFactor(FRAME * 3, FRAME)
+    expect(at3x).toBeLessThan(1)
+    expect(at3x).toBeGreaterThan(0)
+  })
+  it('falls back to a sensible near bound when the framing distance is not yet known', () => {
+    // Before the frame pass, framingDistance is 0/NaN/negative → the fixed fallback.
+    expect(densityDistanceFactor(0, 0)).toBe(1)
+    expect(densityDistanceFactor(DENS_DIST_FALLBACK_NEAR, 0)).toBe(1)
+    expect(densityDistanceFactor(DENS_DIST_FALLBACK_NEAR, NaN)).toBe(1)
+    expect(densityDistanceFactor(DENS_DIST_FALLBACK_NEAR * 3, 0)).toBeLessThan(1)
   })
   it('createNodePoints exposes uDensK = 1 for a small graph and updates it from the camera distance', () => {
     const np = createNodePoints([mk('a', 0, 0, 0)])
@@ -347,6 +368,17 @@ describe('densityAlphaK (uDensK)', () => {
     expect(mat.uniforms.uDensK.value).toBe(1)
     np.setCameraDistance(5000)
     expect(mat.uniforms.uDensK.value).toBe(1)
+    np.dispose()
+  })
+  it('createNodePoints tracks the framing distance as the near bound of the distance factor', () => {
+    const nodes = Array.from({ length: 5000 }, (_, i) => mk('n' + i, i, 0, 0))
+    const np = createNodePoints(nodes)
+    const mat = np.object.material as THREE.ShaderMaterial
+    np.setFramingDistance(100)
+    np.setCameraDistance(100) // at the framing distance → factor 1
+    expect(mat.uniforms.uDensK.value).toBeCloseTo(densityAlphaK(5000, 100, 100), 6)
+    np.setCameraDistance(400) // 4× the framing distance → far, factor < 1
+    expect(mat.uniforms.uDensK.value).toBeCloseTo(densityAlphaK(5000, 400, 100), 6)
     np.dispose()
   })
 })

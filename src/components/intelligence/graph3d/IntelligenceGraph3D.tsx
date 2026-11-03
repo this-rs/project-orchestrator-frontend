@@ -23,6 +23,7 @@ import {
 } from './useRenderLoop'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
 import { createLinkSegments, parseColor, type LinkSegments, type LinkStyle } from './linkSegments'
+import { computeLinkAlpha, linkFamilyAlpha, LINK_OPACITY } from './linkFamily'
 import { createNodePoints, shapeForType, sizeForType, type NodePoints, type NodeStyle } from './nodePoints'
 import { buildCommunityHulls, disposeCommunityHulls, type CommunityHull, type CommunityHullGroup } from './CommunityHulls3D'
 import { ENTITY_COLORS } from '@/constants/intelligence'
@@ -192,58 +193,9 @@ function readCssColor(name: string, fallback: string): string {
  */
 const AUTO_AGGREGATE_ABOVE = 4000
 
-/**
- * Opacity budget per relation family. Structure carries the graph, tissue
- * explains it, everything else is context: the same faint alpha for all of them
- * made the types unreadable, which is exactly what the user reported.
- */
-const LINK_FAMILY_ALPHA: Record<string, number> = {
-  // Structure — the skeleton of the code and of the work
-  IMPORTS: 0.15,
-  CALLS: 0.13,
-  EXTENDS: 0.17,
-  IMPLEMENTS: 0.15,
-  CONTAINS: 0.13,
-  HAS_TASK: 0.13,
-  HAS_STEP: 0.11,
-  HAS_DECISION: 0.11,
-  // Tissue — explains why things move together, fainter by design
-  TOUCHES: 0.05,
-  CO_CHANGED: 0.055,
-  CO_CHANGED_TRANSITIVE: 0.04,
-  // Knowledge
-  DISCUSSED: 0.07,
-  AFFECTS: 0.08,
-  SYNAPSE: 0.07,
-  AGGREGATE: 0.1,
-}
-
-/**
- * How many links one screen area has to swallow before they stop being faint.
- * With "all edges" on, twenty thousand saturated strands cross the middle of
- * the nebula and every pixel receives dozens of layers: the picture turns into
- * a white ball and the nodes disappear under it. The alpha therefore follows
- * the edge count, not the taste — 2 000 links at full strength is the
- * reference, beyond it everything fades as 1/√E.
- */
-const LINK_DENSITY_REFERENCE = 2000
-
-/**
- * Ceiling of the density factor. It used to be 1 (a sparse graph drew its links at full
- * family strength); the user asked for fewer visible links, so even a small graph is
- * now capped at 70 %.
- */
-const LINK_DENSITY_CEILING = 0.7
-
-/**
- * Floor of a link's alpha: below it a link vanishes when one zooms on a node (the weakest
- * family × the weakest weight used to land near 0.01 and halving would make it nil).
- * Scaled by the colour's own alpha, so the deliberately dimmed links stay dim.
- */
-const LINK_ALPHA_FLOOR = 0.04
-
-/** Base link transparency — the single LineSegments material bakes this in per-vertex. */
-const LINK_OPACITY = 0.2
+// Link opacity policy — the per-family budget (LINK_FAMILY_ALPHA), the density
+// reference/ceiling, the alpha floor, the library-path base (LINK_OPACITY) and
+// computeLinkAlpha — all live in linkFamily.ts (imported at the top of this file).
 
 /**
  * Node count at or above which nodes are drawn as one THREE.Points (overview
@@ -300,6 +252,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // Declared BEFORE the render loop: the loop's frame budget owns the pixel
   // ratio, and the Points shader must be told about every change.
   const nodePointsRef = useRef<NodePoints | null>(null)
+  /** Framing distance of the current dataset (bounding sphere → camera), the near bound of the density distance factor. */
+  const framingDistanceRef = useRef(0)
 
   /**
    * Pixel ratio currently in force, shared by the renderer and the Points
@@ -826,6 +780,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         }
         const fov = ((camera?.fov ?? 45) * Math.PI) / 180
         const distance = (radius / Math.sin(fov / 2)) * 1.06
+        // This is the FRAMING distance: what is nearer than it stays sharp, so
+        // the density distance factor uses it as its near bound (see nodePoints).
+        framingDistanceRef.current = distance
+        nodePointsRef.current?.setFramingDistance(distance)
         // A fixed far plane clips the cloud as soon as you back away far enough
         // to see it whole — the user's « je ne peux pas reculer assez pour voir
         // tous les points ». The frustum and the controls' own limit follow the
@@ -1048,28 +1006,22 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // hover amber overlay so both stay in lockstep.
   const linkStyleFromColor = useCallback((link: Graph3DLink, color: string): LinkStyle => {
     const p = parseColor(color)
-    // Edge weight drives opacity: weak links fade, strong links stand out, so the
-    // structural backbone reads through a dense graph instead of a uniform wash.
-    // (1 px WebGL lines can't carry thickness — opacity is the weight channel here;
-    // the small-graph path already maps weight → width via `linkWidth`.)
-    const w = Math.max(0, Math.min(1, link.weight ?? 0.5))
-    const weightFactor = 0.12 + 0.88 * Math.sqrt(w)
-    // Relation FAMILY drives the base, weight drives the variation. Before
-    // this, every link pooled at one faint alpha, so IMPORTS (structure) and
-    // CO_CHANGED (tissue) were the same grey thread and the types were
-    // indistinguishable. Structure leads; tissue recedes.
-    const family = LINK_FAMILY_ALPHA[link.relationType] ?? 0.09
-    // A focused link (hover / selection / activation) keeps its full strength: the calm
-    // only applies to the resting web, otherwise the link under the cursor would vanish.
+    // Edge weight drives opacity (weak links fade, strong links stand out) and
+    // the relation FAMILY drives the base (structure > knowledge > tissue) —
+    // see linkFamily.ts. A focused link (hover / selection / activation) keeps
+    // its full strength: the calm only applies to the resting web, otherwise
+    // the link under the cursor would vanish.
     const emphasised = color === HIGHLIGHT_COLOR_HOVER || color === HIGHLIGHT_COLOR_SELECT || color === ACTIVATION_COLOR_EDGE
-    const density = Math.min(emphasised ? 1 : LINK_DENSITY_CEILING, Math.sqrt(LINK_DENSITY_REFERENCE / Math.max(1, graphData.links.length)))
-    // Inter-community links are the filaments between the nebula's cores: a
-    // bridge that does not stand out leaves only a scatter of dots.
-    const bridge = link.isInterCommunity ? 1.7 : 1
-    const focus = emphasised ? 2 : 1
-    const a = Math.max(family * focus * density * p.a * weightFactor * bridge, LINK_ALPHA_FLOOR * p.a)
-    return { r: p.r, g: p.g, b: p.b, a: Math.min(1, a) }
-  }, [])
+    const a = computeLinkAlpha({
+      familyAlpha: linkFamilyAlpha(link.relationType),
+      weight: link.weight ?? 0.5,
+      colorAlpha: p.a,
+      linkCount: graphData.links.length,
+      isInterCommunity: link.isInterCommunity,
+      emphasised,
+    })
+    return { r: p.r, g: p.g, b: p.b, a }
+  }, [graphData.links.length])
 
   const computeLinkStyle = useCallback((link: Graph3DLink): LinkStyle => {
     return linkStyleFromColor(link, baseLinkColor(link))
@@ -2007,7 +1959,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // frame (gl_PointSize is in device pixels).
     np.setPixelRatio(pixelRatioRef.current)
     {
-      // uDensK follows the camera distance: seed it, then refresh on controls 'change' (state change, not per frame).
+      // uDensK follows the camera distance AND the framing distance: seed both,
+      // then refresh on controls 'change' (state change, not per frame).
+      np.setFramingDistance(framingDistanceRef.current)
       const ctl = typeof fg.controls === 'function' ? fg.controls() : null
       const cam = typeof fg.camera === 'function' ? fg.camera() : null
       if (ctl?.target && cam) np.setCameraDistance(cam.position.distanceTo(ctl.target))
