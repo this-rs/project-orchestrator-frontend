@@ -1,4 +1,4 @@
-// GENERATED from website@1db50e5baba8e2e6af3d32dc6c1967fcb1f93c57:src/three/iso/parts.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@8adfc7b6f829d9c60b3045a6922f43b436cf39de:src/three/iso/parts.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Lire une pièce dans une scène : l'ISOLER (ne garder qu'elle, le reste en fantôme) et l'ÉCLATER (écarter les pièces
@@ -29,7 +29,7 @@ const EXPLODE_MAX = 1.6
  * Découpe un polygone convexe par un demi-espace `coord <= at` (Sutherland–Hodgman), en gardant son ordre de sommets :
  * un triangle coupé devient un quadrilatère, jamais un décalage de faces. Les coordonnées sont celles de la machine.
  */
-function clipPolygon(pts: readonly Vec3[], axis: 0 | 1 | 2, at: number): Vec3[] {
+function clipPolygon(pts: readonly Vec3[], axis: 0 | 1 | 2, at: number, cutPts: Vec3[] = []): Vec3[] {
   const out: Vec3[] = []
   for (let i = 0; i < pts.length; i++) {
     const a = pts[i]!
@@ -39,13 +39,58 @@ function clipPolygon(pts: readonly Vec3[], axis: 0 | 1 | 2, at: number): Vec3[] 
     if (da <= 0) out.push(a)
     if ((da < 0 && db > 0) || (da > 0 && db < 0)) {
       const k = da / (da - db)
-      out.push([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k])
+      const q: Vec3 = [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]
+      out.push(q)
+      cutPts.push(q)
     }
   }
   return out
 }
 
 const AXIS = { x: 0, y: 1, z: 2 } as const
+
+/** Couleur de la matière coupée : la section doit se lire comme une SECTION, pas comme une face de plus. */
+const CUT_COL = '#f0b27a'
+
+/** Enveloppe convexe (monotone chain) de points 2D. */
+function hull2(points: readonly (readonly [number, number])[]): (readonly [number, number])[] {
+  const p = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1])
+  if (p.length < 3) return p
+  const cross = (o: readonly [number, number], a: readonly [number, number], b: readonly [number, number]) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+  const lower: (readonly [number, number])[] = []
+  for (const q of p) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2]!, lower[lower.length - 1]!, q) <= 0) lower.pop()
+    lower.push(q)
+  }
+  const upper: (readonly [number, number])[] = []
+  for (let i = p.length - 1; i >= 0; i--) {
+    const q = p[i]!
+    while (upper.length >= 2 && cross(upper[upper.length - 2]!, upper[upper.length - 1]!, q) <= 0) upper.pop()
+    upper.push(q)
+  }
+  lower.pop()
+  upper.pop()
+  return [...lower, ...upper]
+}
+
+/** Le capuchon d'une pièce coupée : éventail de triangles sur le plan, à la couleur de la matière coupée. */
+function capOf(cutPts: readonly Vec3[], axis: 0 | 1 | 2, at: number, part: number): Face[] {
+  if (cutPts.length < 3) return []
+  const u = (axis + 1) % 3
+  const v = (axis + 2) % 3
+  const h = hull2(cutPts.map((q) => [q[u]!, q[v]!] as const))
+  if (h.length < 3) return []
+  const pt = (q: readonly [number, number]): Vec3 => {
+    const r: [number, number, number] = [0, 0, 0]
+    r[axis] = at
+    r[u] = q[0]
+    r[v] = q[1]
+    return r
+  }
+  // UN polygone, pas un éventail : le moteur dessine les n-gones, et un éventail laissait des rayons visibles au
+  // milieu de la section (mesuré au rendu).
+  return [{ pts: h.map((q) => pt(q)), col: CUT_COL, alpha: 1, part } as Face]
+}
 
 const centroid = (f: Face): Vec3 => {
   let x = 0
@@ -100,10 +145,19 @@ export function applyParts(input: readonly Face[], m: MachineDef, view: PartsVie
   if (cut) {
     const ax = AXIS[cut.axis]
     const kept: Face[] = []
+    const perPart = new Map<number, Vec3[]>()
     for (const f of faces) {
-      const pts = clipPolygon(f.pts, ax, cut.at)
+      const cuts: Vec3[] = []
+      const pts = clipPolygon(f.pts, ax, cut.at, cuts)
       if (pts.length >= 3) kept.push({ ...f, pts })
+      if (cuts.length) {
+        const list = perPart.get(f.part) ?? []
+        for (const q of cuts) list.push(q)
+        perPart.set(f.part, list)
+      }
     }
+    // Capuchons : sans eux la section reste creuse et on voit l'intérieur de la coque.
+    for (const [part, list] of perPart) for (const cap of capOf(list, ax, cut.at, part)) kept.push(cap)
     faces = kept
   }
   const centre = amount ? centreOf(faces) : [0, 0, 0]

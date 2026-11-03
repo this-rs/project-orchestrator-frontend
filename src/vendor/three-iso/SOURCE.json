@@ -1,7 +1,7 @@
 {
   "repo": "website",
   "path": "src/three/iso",
-  "commit": "1db50e5baba8e2e6af3d32dc6c1967fcb1f93c57",
+  "commit": "8adfc7b6f829d9c60b3045a6922f43b436cf39de",
   "branch": "feat/iso-teardown",
   "sources": {
     "ast.ts": "c6111c2f2be1f15b30303ded75de6d4dd50c73c40a2575de4667f52c1612ee09",
@@ -19,7 +19,7 @@
     "litRenderer.ts": "ca77f21c0c267f52799475f49af2fdb2b34fa4e68e75626cfb2266091322ca0f",
     "live.ts": "1ddc2e3deb79eb9370923cdc21bcf212d2eaad8e9871e683fa1e95632bc998c3",
     "machine.ts": "3f6a6b47a161285f8003275adfb4f072a0bef6c6b8386a1528417533dc776c40",
-    "parts.ts": "57b79ad498e5b8d9962714b9c53858ddfca1c80a17b804e5845349d99e5c269a",
+    "parts.ts": "d6641dec9988d10f98ebf9ab4492f59130206ca354a0839d8887d26635952993",
     "meaning.ts": "4341749b0c72bc99de07d642bc0ae54363479b447e94486b6d1641b87f769658",
     "mechanisms.ts": "d1546601464d7f3abc5032e4aefa9e940c691386ccd3263464a654341be1d626",
     "pins.ts": "1fdd97f66fd9e9291135cd01fa6f16c7028cf7c9aa217b6ee44221340cb92af0",
