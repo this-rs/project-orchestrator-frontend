@@ -55,6 +55,7 @@ const FILES = [
   'live.ts',
   'machine.ts',
   'parts.ts',
+  'polygon.ts',
   'meaning.ts',
   'mechanisms.ts',
   'pins.ts',
