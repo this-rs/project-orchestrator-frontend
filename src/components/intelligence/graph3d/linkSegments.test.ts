@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { createLinkSegments, parseColor } from './linkSegments'
+import { createLinkRenderer, createLinkSegments, parseColor } from './linkSegments'
 import type { Graph3DNode, Graph3DLink } from './useGraph3DLayout'
 import { ARROW_VERTICES } from './linkArrows'
 import { CURVE_MAX_LINKS, CURVE_SUBDIVISIONS, linkVolume, pathPointAndTangent } from './linkCurve'
@@ -227,5 +227,23 @@ describe('createLinkSegments', () => {
     expect([col[link0Last], col[link0Last + 1], col[link0Last + 2]]).toEqual([1, 1, 0]) // link 0, last vertex
     expect([col[link1Base], col[link1Base + 1], col[link1Base + 2]]).toEqual([0, 0, 0]) // link 1 (b-c) untouched
     seg.dispose()
+  })
+})
+
+describe('createLinkRenderer — aggregated bundles always get the scale law', () => {
+  it('a few hundred bundles carrying many relations are drawn by the vascular layer', () => {
+    const nodes = Array.from({ length: 40 }, (_, i) => ({
+      id: `g${i}`, label: `g${i}`, entityType: 'file', layer: 'code',
+      x: Math.cos(i) * 400, y: Math.sin(i * 1.7) * 400, z: Math.cos(i * 0.3) * 400,
+      communityId: i, data: { count: 50 },
+    })) as never[]
+    const links = Array.from({ length: 300 }, (_, k) => ({
+      source: `g${k % 40}`, target: `g${(k * 7 + 3) % 40}`, relationType: 'AGGREGATE', layer: 'fabric',
+      count: 5 + (k % 40), color: '#fff', width: 1, particles: 0, particleSpeed: 0, isInterCommunity: true,
+    })).filter((l) => l.source !== l.target) as never[]
+    const r = createLinkRenderer(nodes, links)
+    // the vascular renderer is the only one exposing its picking by screen distance
+    expect(typeof (r as { pickAt?: unknown }).pickAt).toBe('function')
+    r.dispose()
   })
 })

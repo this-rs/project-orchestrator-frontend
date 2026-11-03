@@ -105,3 +105,32 @@ describe('graphFromCut', () => {
     expect(a.nodes.map((n) => n.id)).toEqual(b.nodes.map((n) => n.id))
   })
 })
+
+describe('graphFromCut — a part of a community is named by what it holds', () => {
+  // one community, 140 files: 70 in components/chat (left), 70 in components/graph (right)
+  const nodes: Graph3DNode[] = Array.from({ length: 140 }, (_, i) => {
+    const chat = i < 70
+    return {
+      id: `f${i}`, label: `f${i}`, entityType: 'file', layer: 'code',
+      x: (chat ? -500 : 500) + (i % 7) * 10, y: (i % 5) * 10, z: (i % 3) * 10,
+      communityId: 4, communityLabel: 'frontend/src/components', groupKey: 'c4',
+      data: { path: `frontend/src/components/${chat ? 'chat' : 'graph'}/f${i}.tsx` },
+    }
+  })
+  const tree = buildClusterTree(nodes, [])
+  const parts = tree.nodes.filter((t) => t.kind === 'split' && tree.nodes[t.parent].kind === 'community')
+  const cut = {
+    frontier: parts.map((t) => t.index).sort((a, b) => a - b),
+    open: new Set(tree.nodes.filter((t) => t.kind !== 'leaf' && t.kind !== 'split').map((t) => t.index)),
+    links: [],
+    internal: new Map(),
+  }
+
+  it('says the sub-directory, not the community again', () => {
+    const names = graphFromCut(tree, cut, nodes, []).nodes.map((n) => n.label)
+    expect(names.length).toBeGreaterThan(1)
+    expect(names.some((n) => n === 'components/chat')).toBe(true)
+    expect(names.some((n) => n === 'components/graph')).toBe(true)
+    expect(names.every((n) => !n.endsWith('· partie'))).toBe(true)
+  })
+})

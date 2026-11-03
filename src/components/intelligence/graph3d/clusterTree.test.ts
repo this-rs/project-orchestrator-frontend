@@ -340,3 +340,29 @@ describe('cost at 20 000 nodes / 40 000 links', () => {
     expect(accounted(tree, cut)).toBe(40000 - tree.skippedLinks)
   })
 })
+
+describe('cutForView — a group opens only when its children can be told apart', () => {
+  // 64 files in one community, spread over a ball of radius 100.
+  let seed = 11
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  const nodes: Graph3DNode[] = Array.from({ length: 64 }, (_, i) => ({
+    id: `f${i}`, label: `f${i}`, entityType: 'file', layer: 'code',
+    x: (rnd() - 0.5) * 140, y: (rnd() - 0.5) * 140, z: (rnd() - 0.5) * 140,
+    communityId: 1, groupKey: 'c1', data: {},
+  }))
+  const tree = buildClusterTree(nodes, [])
+  const community = tree.nodes.find((t) => t.kind === 'community')!
+  const at = (px: number) => {
+    // distance at which the community's radius projects to `px` (fov 45°, 900 px)
+    const d = (community.radius * 450) / (px * Math.tan((22.5 * Math.PI) / 180))
+    return cutForView(tree, view(community.x, community.y, community.z + d), BIG)
+  }
+
+  it('stays one group at 40 px: 64 children would sit ~5 px apart', () => {
+    expect(at(40).frontier).toContain(community.index)
+  })
+
+  it('opens once its children are ~12 px apart', () => {
+    expect(at(12 * Math.sqrt(community.children.length) * 1.1).open.has(community.index)).toBe(true)
+  })
+})

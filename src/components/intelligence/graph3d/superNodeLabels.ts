@@ -17,8 +17,18 @@ import type { Graph3DNode } from './useGraph3DLayout'
 /** Maximum number of on-screen name labels at the aggregated tier. */
 export const SUPER_NODE_LABEL_LIMIT = 40
 
-/** Text height of a super-node name label, world units. */
-const LABEL_TEXT_HEIGHT = 5
+/**
+ * A label is read on the SCREEN, so its size is a screen size: about
+ * LABEL_SCREEN_PX tall whatever the distance (sizeAttenuation off). Measured in
+ * a real browser: at 5 world units the names were microscopic in a scene a few
+ * thousand units wide.
+ *
+ * With sizeAttenuation off, three cancels the perspective divide, so a sprite of
+ * height h covers h·P11·H/2 px (P11 = 1/tan(fov/2)); at the reference view
+ * (fov 45°, H 900) that is h × 1 086 px.
+ */
+export const LABEL_SCREEN_PX = 12
+const LABEL_TEXT_HEIGHT = LABEL_SCREEN_PX / (450 / Math.tan((22.5 * Math.PI) / 180))
 /** Fixed vertical gap between the super-node disc and its label, world units. */
 const LABEL_OFFSET_BASE = 5
 
@@ -63,8 +73,10 @@ export function createSuperNodeLabels(nodes: Graph3DNode[], limit = SUPER_NODE_L
     sprite.textHeight = LABEL_TEXT_HEIGHT
     sprite.color = 'rgba(248, 250, 252, 0.94)'
     sprite.backgroundColor = 'rgba(10, 12, 18, 0.66)'
-    sprite.padding = [8, 4]
-    sprite.borderRadius = 5
+    // padding and radius are in the same (screen) units as the text height
+    sprite.padding = [LABEL_TEXT_HEIGHT * 0.5, LABEL_TEXT_HEIGHT * 0.25]
+    sprite.borderRadius = LABEL_TEXT_HEIGHT * 0.3
+    ;(sprite.material as THREE.SpriteMaterial).sizeAttenuation = false
     group.add(sprite)
     sprites.push(sprite)
   }
@@ -73,8 +85,10 @@ export function createSuperNodeLabels(nodes: Graph3DNode[], limit = SUPER_NODE_L
     for (let i = 0; i < labeled.length; i++) {
       const node = labeled[i]
       const count = (node.data.count as number) ?? 1
-      // Same mass formula as baseNodeSize (3 + 2.6·√count): the label clears the disc.
-      const offset = LABEL_OFFSET_BASE + (3 + 2.6 * Math.sqrt(count)) * 0.5
+      // Above the disc: a group of the dynamic scale is drawn at its territory
+      // (its cluster radius), an older super-node by its mass (3 + 2.6·√count).
+      const r = node.data.clusterRadius as number | undefined
+      const offset = LABEL_OFFSET_BASE + (typeof r === 'number' && r > 0 ? r * 0.5 : (3 + 2.6 * Math.sqrt(count)) * 0.5)
       sprites[i].position.set(node.x ?? 0, (node.y ?? 0) + offset, node.z ?? 0)
     }
   }

@@ -35,11 +35,44 @@ function pairKey(a: string, b: string): string {
   return a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`
 }
 
+/** The file path a node carries, when it has one. */
+function pathOf(node: Graph3DNode): string | null {
+  const d = node.data as { path?: unknown; file_path?: unknown } | undefined
+  const p = d?.path ?? d?.file_path
+  return typeof p === 'string' && p ? p : null
+}
+
+/**
+ * The name of what a PART of a community holds: the directory most of its files
+ * live in, said relative to the community (`components/chat`), not the
+ * community's name again. Measured on the real import graph: eight parts of
+ * `frontend/src/components` all read « frontend/src/components · partie » and
+ * their labels piled up on screen, saying nothing.
+ */
+function partName(base: string, members: readonly Graph3DNode[]): string {
+  const dirs = new Map<string, number>()
+  for (const m of members) {
+    const p = pathOf(m)
+    if (!p) continue
+    const dir = p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''
+    dirs.set(dir, (dirs.get(dir) ?? 0) + 1)
+  }
+  let dom = ''
+  let domN = 0
+  for (const [d, n] of dirs) if (n > domN || (n === domN && d < dom)) [dom, domN] = [d, n]
+  const tail = (s: string, k: number) => s.split('/').filter(Boolean).slice(-k).join('/')
+  if (dom && dom !== base && !base.endsWith(dom)) return tail(dom, 2)
+  // Every file sits in the community's own directory: name the part by its
+  // first file, alphabetically — stable, and tells two parts apart.
+  const first = members.map((m) => pathOf(m) ?? m.label).filter(Boolean).sort()[0]
+  return first ? `${tail(base, 1)} · ${tail(first, 1)}…` : `${base} · partie`
+}
+
 function groupName(t: ClusterNode, members: readonly Graph3DNode[]): string {
   if (t.kind === 'layer') return `Couche ${members[0]?.layer ?? ''}`.trim()
   const label = members.find((m) => m.communityLabel)?.communityLabel?.trim()
   const base = label || (members[0]?.communityId != null ? `Communauté ${members[0].communityId}` : 'Groupe')
-  return t.kind === 'split' ? `${base} · partie` : base
+  return t.kind === 'split' ? partName(base, members) : base
 }
 
 function superNode(tree: ClusterTree, index: number, source: readonly Graph3DNode[]): Graph3DNode {

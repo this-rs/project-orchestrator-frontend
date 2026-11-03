@@ -27,7 +27,7 @@ import { createLinkRenderer, parseColor, type LinkRenderer, type LinkStyle } fro
 import { computeLinkAlpha, linkFamilyAlpha, LINK_OPACITY } from './linkFamily'
 import { classifyLinkScale, linkScaleAlpha } from './linkScale'
 import { LINK_FOCUS_GAIN, classifyLinkFocus, countLinksByFocus } from './linkFocus'
-import { createNodePoints, shapeForType, sizeForType, type NodePoints, type NodeStyle } from './nodePoints'
+import { TERRITORY_SIZE_PER_RADIUS, createNodePoints, shapeForType, sizeForType, type NodePoints, type NodeStyle } from './nodePoints'
 import { buildCommunityHulls, disposeCommunityHulls, type CommunityHull, type CommunityHullGroup } from './CommunityHulls3D'
 import { buildCommunityRings, disposeCommunityRings, type CommunityRingGroup } from './CommunityRings3D'
 import { ENTITY_COLORS } from '@/constants/intelligence'
@@ -217,6 +217,9 @@ const AUTO_AGGREGATE_ABOVE = 4000
 const HLOD_BUDGET = isMobileLikeDevice()
   ? { maxNodes: 1200, maxLinks: 2500 }
   : { maxNodes: 3000, maxLinks: 6000 }
+
+/** Intensity of a closed group's territory sprite (additive): overlapping modules must not sum to white. */
+const TERRITORY_ALPHA = 0.35
 
 /** Screen tolerance around a link's axis for hover, px: a one-relation conduit is barely wider. */
 const LINK_PICK_TOLERANCE_PX = 6
@@ -1337,7 +1340,14 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const baseNodeSize = useCallback((node: Graph3DNode): number => {
     const count = node.data.count as number | undefined
     const isSuper = typeof count === 'number' && count > 1
-    if (isSuper) return 3 + 2.6 * Math.sqrt(count)
+    if (isSuper) {
+      // A closed group of the dynamic scale is drawn at its real extent: its
+      // sprite covers its territory, so a 300-file module reads bigger than a
+      // 10-file one at any distance (see TERRITORY_SIZE_PER_RADIUS).
+      const r = node.data.clusterRadius as number | undefined
+      const bySize = 3 + 2.6 * Math.sqrt(count)
+      return typeof r === 'number' && r > 0 ? Math.max(sizeForType(node.entityType) * 1.5, r * TERRITORY_SIZE_PER_RADIUS) : bySize
+    }
     const deg = (node.degree ?? 0) as number
     const weightGain = 1 + 0.55 * Math.log1p(deg) / Math.log1p(24)
     return sizeForType(node.entityType) * weightGain
@@ -1427,7 +1437,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       return { r: base.r, g: base.g, b: base.b, alpha: 0.25, size: size * 0.6, shape, act: 0 }
     }
 
-    return { r: base.r, g: base.g, b: base.b, alpha: 1, size, shape, act: 0 }
+    // A territory (closed group of the dynamic scale) is a big ADDITIVE sprite:
+    // at full intensity, overlapping modules summed to a white blob in the
+    // middle of the real graph (seen in the browser). It glows at
+    // TERRITORY_ALPHA; its real nodes, once opened, are at full intensity.
+    const isTerritory = dynamicScale && isSuper && typeof node.data.clusterRadius === 'number'
+    return { r: base.r, g: base.g, b: base.b, alpha: isTerritory ? TERRITORY_ALPHA : 1, size, shape, act: 0 }
   }, [energyHeatmap, touchesHeatmap, activation, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes, baseNodeSize, aggregated, dynamicScale])
 
   /** Always-current node style fn, so the structure effect can color without re-running on every hover. */

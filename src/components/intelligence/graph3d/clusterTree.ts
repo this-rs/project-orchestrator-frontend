@@ -40,6 +40,20 @@ const SPLIT_CUTS = 3
 export const DEFAULT_OPEN_PX = 24
 /** An OPEN node only closes below DEFAULT_OPEN_PX / CUT_HYSTERESIS. */
 export const CUT_HYSTERESIS = 1.5
+/**
+ * Opening a group shows its CHILDREN: it is only worth it when they will be
+ * told apart on screen. k children spread over a projected radius R sit about
+ * R/√k apart, so a group opens once R ≥ CHILD_SPACING_PX·√k (and ≥ τ). Measured
+ * in a real browser on the real import graph (2 851 files): with τ alone a
+ * 100-file group opened at 24 px into a clump of dots tied by thousands of
+ * one-pixel threads — the structure (groups, the trunks between them) was lost.
+ */
+export const CHILD_SPACING_PX = 12
+
+/** Projected radius, px, above which a node with `childCount` children opens. */
+export function openThresholdPx(tau: number, childCount: number): number {
+  return Math.max(tau, CHILD_SPACING_PX * Math.sqrt(Math.max(1, childCount)))
+}
 
 export type ClusterKind = 'root' | 'layer' | 'community' | 'split' | 'leaf'
 
@@ -515,7 +529,8 @@ export function cutForView(
   const consider = (i: number) => {
     if (nodes[i].children.length === 0) return
     const px = pxOf(i)
-    const threshold = previous?.open.has(i) ? tau / CUT_HYSTERESIS : tau
+    const base = openThresholdPx(tau, nodes[i].children.length)
+    const threshold = previous?.open.has(i) ? base / CUT_HYSTERESIS : base
     if (px >= threshold) heap.push({ px, i })
   }
   consider(tree.root)

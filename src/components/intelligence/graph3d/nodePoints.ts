@@ -134,6 +134,20 @@ export function sizeForType(entityType: string): number {
 const SPRITE_SCALE = 2.0
 
 /**
+ * aSize per world unit of radius for a node that stands for a TERRITORY (a
+ * closed group of the dynamic scale), so its sprite covers its real extent.
+ *
+ * The vertex shader sizes a sprite as aSize × (900 / depth) × SPRITE_SCALE; a
+ * sphere of radius r projects to 2r·(H/2)/(depth·tan(fov/2)) px — 2 173·r/depth
+ * at the reference view (fov 45°, H 900). Asking the sprite for 0.9 of that
+ * (its visible disc is about half the sprite: the core of the territory)
+ * gives aSize = 0.9 × 2 173 / (900 × SPRITE_SCALE) ≈ 1.086 per unit of radius.
+ * Measured in a real browser: groups sized by member count alone came out the
+ * size of a single file once the 5 px floor lifted the files.
+ */
+export const TERRITORY_SIZE_PER_RADIUS = (0.9 * (2 * 450) / Math.tan((22.5 * Math.PI) / 180)) / (900 * SPRITE_SCALE)
+
+/**
  * Smallest ON-SCREEN size of a node's visible shape, in CSS pixels.
  *
  * Measured on a 20 000-node graph framed by the camera (fov 50, uPx 1.5): a

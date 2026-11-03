@@ -380,7 +380,15 @@ export function createLinkRenderer(nodes: Graph3DNode[], links: Graph3DLink[]): 
   // earns its keep: corridors, exact magnitudes, per-bundle morphology and LOD,
   // vascular strands — one batched geometry whose cost depends on the number of
   // corridors, not on how many relations they summarise.
-  const vascular = links.length > VASCULAR_MIN_LINKS ? createVascularLinks(nodes, links) : null
+  //
+  // Bundles that already carry several relations (the dynamic scale's
+  // aggregates, count > 1) ARE magnitudes: they go to the vascular layer
+  // whatever their number, so the link law (r ∝ n^(1/3)) draws them. Measured
+  // in a real browser on the real import graph: the overview drew ~600 bundles,
+  // fell under the 3 000-link threshold, and the trunks between modules came
+  // out as one-pixel threads — the scale law never applied where it matters.
+  const carriesAggregates = links.some((l) => (l.count ?? 1) > 1)
+  const vascular = links.length > VASCULAR_MIN_LINKS || carriesAggregates ? createVascularLinks(nodes, links) : null
   if (vascular) return vascular
   // Then the ribbon renderer, then the LineSegments of last resort. Each step is
   // a strict fallback: the graph never disappears because a path could not build.
