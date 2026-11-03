@@ -528,22 +528,48 @@ export function layoutGroups(
     }
   }
 
-  // ── Separation projection ────────────────────────────────────────────────
-  // The descent above leaves overlaps (see SEPARATION_ITERATIONS). This pass
-  // removes them by construction: it visits the penetrating pairs in canonical
-  // order and moves each apart by half the penetration, until a full pass finds
-  // nothing to do or the budget is spent. Positions are read from the live map
-  // (Gauss-Seidel), and every visit is deterministic, so the output stays
-  // independent of the caller's array order.
+  separateGroups(ids, pos, radiusOf, affinities)
+
+  for (const id of ids) {
+    const p = pos.get(id)!
+    result.set(id, {
+      x: Number.isFinite(p.x) ? p.x : 0,
+      y: Number.isFinite(p.y) ? p.y : 0,
+      z: Number.isFinite(p.z) ? p.z : 0,
+    })
+  }
+  return result
+}
+
+/**
+ * Separation projection, exported for its own tests.
+ *
+ * The descent leaves overlaps (see SEPARATION_ITERATIONS). This pass removes
+ * them by construction: it visits the penetrating pairs in canonical order and
+ * moves each apart, until a full pass finds nothing to do or the budget is
+ * spent. Positions are read from the live map (Gauss-Seidel), and every visit
+ * is deterministic, so the output stays independent of the caller's array
+ * order. `ids` must be sorted. Returns the number of passes it ran.
+ */
+export function separateGroups(
+  ids: string[],
+  pos: Map<string, OrganicPoint>,
+  radiusOf: Map<string, number>,
+  affinities: AffinityMatrix,
+  maxPasses: number = SEPARATION_ITERATIONS,
+): number {
+  const n = ids.length
+  const maxRadius = ids.reduce((m, id) => Math.max(m, radiusOf.get(id)!), 0)
   const sepCell = 2 * maxRadius + OVERLAP_MARGIN
-  for (let pass = 0; pass < SEPARATION_ITERATIONS; pass++) {
+  let pass = 0
+  for (; pass < maxPasses; pass++) {
     const cell = sepCell
     const buckets = buildGrid(ids, pos, cell)
     let moved = 0
     let maxPush = 0
     for (let i = 0; i < n; i++) {
       const g = ids[i]
-      const pg = pos.get(g)!
+      let pg = pos.get(g)!
       const gx = Math.floor(pg.x / cell)
       const gy = Math.floor(pg.y / cell)
       const gz = Math.floor(pg.z / cell)
@@ -574,7 +600,10 @@ export function layoutGroups(
               const uz = dist > EPSILON ? dz / dist : 0
               const push = overlap * 0.75
               if (push > maxPush) maxPush = push
-              pos.set(g, { x: pg.x + ux * push, y: pg.y + uy * push, z: pg.z + uz * push })
+              // Re-read through `pg`: a group pressed by several neighbours in
+              // one pass must accumulate every push, not keep only the last.
+              pg = { x: pg.x + ux * push, y: pg.y + uy * push, z: pg.z + uz * push }
+              pos.set(g, pg)
               pos.set(h, { x: ph.x - ux * push, y: ph.y - uy * push, z: ph.z - uz * push })
               moved++
             }
@@ -589,14 +618,5 @@ export function layoutGroups(
     // magnitude.
     if (moved === 0 || maxPush < SEPARATION_TOLERANCE) break
   }
-
-  for (const id of ids) {
-    const p = pos.get(id)!
-    result.set(id, {
-      x: Number.isFinite(p.x) ? p.x : 0,
-      y: Number.isFinite(p.y) ? p.y : 0,
-      z: Number.isFinite(p.z) ? p.z : 0,
-    })
-  }
-  return result
+  return Math.min(pass + 1, maxPasses)
 }
