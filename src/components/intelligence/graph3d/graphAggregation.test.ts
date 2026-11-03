@@ -480,12 +480,14 @@ describe('super-edge width and weight follow the magnitude of the bundle', () =>
     }
   })
 
-  it('grows by one constant step per decade (a log law, not a clamp)', () => {
-    const [w1, w10, w100, w1000] = bundles([1, 10, 100, 1000])
+  it('width follows count^(1/3), relative to one relation (no world unit, no ceiling)', () => {
+    const [w1, w8, w1000, w27000] = bundles([1, 8, 1000, 27000])
       .sort((x, y) => (x.count ?? 0) - (y.count ?? 0))
       .map((e) => e.width)
-    expect(w10 - w1).toBeCloseTo(w100 - w10, 6)
-    expect(w1000 - w100).toBeCloseTo(w100 - w10, 6)
+    expect(w1).toBeCloseTo(1, 9)
+    expect(w8).toBeCloseTo(2, 9)
+    expect(w1000).toBeCloseTo(10, 9)
+    expect(w27000).toBeCloseTo(30, 9)
   })
 
   it('keeps weight in (0, 1], the biggest bundle of the tier at 1', () => {
@@ -493,5 +495,19 @@ describe('super-edge width and weight follow the magnitude of the bundle', () =>
     const weights = edges.map((e) => e.weight as number)
     expect(Math.max(...weights)).toBe(1)
     expect(Math.min(...weights)).toBeGreaterThan(0)
+  })
+})
+
+describe('super-edge weight', () => {
+  it('is log1p(count) / log1p(tier max), and the count stays exact', () => {
+    const nodes = [groupedNode('a', 0, 0, 0, 'c1'), groupedNode('b', 9, 0, 0, 'c2'), groupedNode('c', 0, 9, 0, 'c3')]
+    const links: Graph3DLink[] = []
+    for (let k = 0; k < 294; k++) links.push(link('a', 'b'))
+    for (let k = 0; k < 14; k++) links.push(link('a', 'c'))
+    const edges = buildGroupedGraph({ nodes, links }, 16).links
+    const small = edges.find((e) => e.count === 14)!
+    const big = edges.find((e) => e.count === 294)!
+    expect(big.weight).toBe(1)
+    expect(small.weight).toBeCloseTo(Math.log1p(14) / Math.log1p(294), 12)
   })
 })

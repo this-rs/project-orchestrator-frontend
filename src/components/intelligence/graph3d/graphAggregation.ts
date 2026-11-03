@@ -22,7 +22,6 @@
 // ============================================================================
 
 import type { Graph3DNode, Graph3DLink } from './useGraph3DLayout'
-import { magnitudeMantissaOf, magnitudeOrderOf } from './linkMagnitude'
 
 export interface SuperNode {
   /** Aggregate key — stable id (a grid cell or a semantic group). */
@@ -516,40 +515,27 @@ export function resolutionForLevel(nodeCount: number, level: number): number {
   return Math.max(2, Math.round(Math.cbrt(targetCells)))
 }
 
-/** Width a super-edge gains per decade of bundled relations. */
-export const SUPER_EDGE_WIDTH_PER_DECADE = 1.25
-/** Width of a one-relation super-edge. */
-export const SUPER_EDGE_BASE_WIDTH = 0.5
-
 /**
- * Continuous decimal magnitude of a bundle count: log10(count), read from the
- * exact order and mantissa of linkMagnitude (0 for one relation, 2 for 100,
- * 2.37 for 232). 0 for a count below 1.
- */
-export function bundleDecades(count: number): number {
-  if (!(count >= 1)) return 0
-  const n = BigInt(Math.floor(count))
-  const order = magnitudeOrderOf(n)
-  return order + Math.log10(magnitudeMantissaOf(n, order))
-}
-
-/**
- * Width of a super-edge: one constant step per decade, never clamped.
+ * Relative width of a super-edge: `count^(1/3)`, i.e. 1 for a single relation,
+ * 10 for 1 000 — dimensionless, NOT a world unit. The world radius is the
+ * shared link law (`linkRadiusFor(n, d0)` in linkRadius.ts, r = 0.03·d0·n^(1/3)),
+ * which the renderers apply to `count`; this keeps the same exponent so the
+ * two never disagree on the ORDER of two bundles.
  * The old `min(4, 0.5 + 0.25·count)` saturated at 14 relations, so a bundle of
  * 14 and one of 294 were drawn the same.
  */
 export function superEdgeWidth(count: number): number {
-  return SUPER_EDGE_BASE_WIDTH + SUPER_EDGE_WIDTH_PER_DECADE * bundleDecades(count)
+  return Math.cbrt(Math.max(1, count))
 }
 
 /**
- * Importance (0, 1] of a super-edge inside its tier: its magnitude against the
- * tier's biggest bundle, on the same log scale — the biggest is 1, a single
- * relation still > 0. The old `min(1, count/8)` was 1 from 8 relations on.
+ * Importance (0, 1] of a super-edge inside its tier:
+ * log1p(count) / log1p(tierMaxCount) — the biggest bundle of the tier is 1, a
+ * single relation stays > 0. The old `min(1, count/8)` was 1 from 8 relations on.
  */
 export function superEdgeWeight(count: number, tierMaxCount: number): number {
-  const top = 1 + bundleDecades(Math.max(count, tierMaxCount))
-  return (1 + bundleDecades(count)) / top
+  const c = Math.max(1, count)
+  return Math.log1p(c) / Math.log1p(Math.max(c, tierMaxCount))
 }
 
 /**
@@ -623,8 +609,9 @@ function buildScaledGraphFrom(
     target: e.target,
     relationType: 'AGGREGATE',
     layer: 'fabric',
-    // Importance of a bundle = the MAGNITUDE of what it carries → renderer maps
-    // to opacity (LineSegments) / width (cylinders). Log law, no saturation.
+    // Importance of a bundle = how much it carries, without an early ceiling.
+    // `count` stays exact: the world-space radius comes from the shared link
+    // law (linkRadius.ts); width/weight are relative, monotone, unclamped.
     weight: superEdgeWeight(e.count, tierMax),
     count: e.count,
     color: 'rgba(148, 163, 184, 0.4)',
