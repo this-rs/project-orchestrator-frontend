@@ -807,7 +807,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       controls.removeEventListener('end', onEnd)
       controls.removeEventListener('change', onChange)
     }
-  }, [graphData.nodes, setScaleLevel, setZoomPixelRatioCeiling, zoomedPixelRatioCeiling])
+    // hasDimensions: the library mounts only once the container is measured.
+    // When the data is already there (3D opened from the code map) this effect
+    // first runs with no ForceGraph3D, and nothing else re-runs it: no scale
+    // decision, no density factor, no sharper close-up — for the whole session.
+  }, [graphData.nodes, setScaleLevel, setZoomPixelRatioCeiling, zoomedPixelRatioCeiling, hasDimensions])
 
   // ── Data identity: re-frame once per dataset, not once per node count ───
   // `needsRelayout` is a boolean that stays `true` across a dataset swap, and

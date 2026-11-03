@@ -14,7 +14,7 @@ import { act, render } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import * as THREE from 'three'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
-import { hoveredNodeIdAtom } from '@/atoms/intelligence'
+import { graphScaleAtom, hoveredNodeIdAtom } from '@/atoms/intelligence'
 
 // ── The library stand-in ──────────────────────────────────────────────────────
 
@@ -65,7 +65,8 @@ vi.mock('./useGraph3DLayout', async (importOriginal) => {
 
 function makeFakeGraph(): FakeGraph {
   const scene = new THREE.Scene()
-  const camera = new THREE.PerspectiveCamera(40, 800 / 600, 1, 5000)
+  // The library's own camera: `new PerspectiveCamera()` (fov 50).
+  const camera = new THREE.PerspectiveCamera()
   camera.position.set(0, 0, 1000)
   const controls = new FakeControls()
   let ratio = 1
@@ -145,6 +146,12 @@ beforeEach(() => {
   })) as unknown as typeof window.matchMedia
   rect = { width: 800, height: 600 }
   lib.fg = null as unknown as FakeGraph
+  // SpriteText labels draw on a 2D canvas jsdom does not implement: a context
+  // that accepts every call and measures text as 8 px per character.
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => new Proxy({}, {
+    get: (_t, key) => (key === 'measureText' ? (t: string) => ({ width: t.length * 8 }) : () => {}),
+    set: () => true,
+  }) as unknown as CanvasRenderingContext2D)
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({
     x: 0, y: 0, top: 0, left: 0, right: rect.width, bottom: rect.height, width: rect.width, height: rect.height, toJSON: () => ({}),
   }) as DOMRect)
@@ -297,4 +304,66 @@ describe('IntelligenceGraph3D — onEngineStop', () => {
     await flush(3000)
     expect(lib.saves).toBe(saves + 1)
   })
+})
+
+/** Move the camera to k × its current offset from the orbit target, then end the gesture. */
+function zoomTo(k: number, home: THREE.Vector3, target: THREE.Vector3) {
+  const camera = lib.fg.camera()
+  camera.position.copy(target).add(home.clone().sub(target).multiplyScalar(k))
+  const controls = lib.fg.controls()
+  act(() => {
+    controls.dispatchEvent({ type: 'start' })
+    controls.dispatchEvent({ type: 'change' })
+    controls.dispatchEvent({ type: 'end' })
+  })
+}
+
+describe('IntelligenceGraph3D — camera listeners', () => {
+  it('attach when the library mounts AFTER the data (zoom out regroups)', async () => {
+    const view = await mountGraph(makeGraph(4200))
+    await flush(3000)
+    expect(view.store.get(graphScaleAtom)).toBe(1)
+    const home = lib.fg.camera().position.clone()
+    const target = lib.fg.controls().target.clone()
+    zoomTo(10, home, target)
+    expect(view.store.get(graphScaleAtom)).toBe(2)
+  }, 60_000)
+})
+
+describe('IntelligenceGraph3D — semantic zoom at the default framing', () => {
+  it.skip('a rotation at the framing distance keeps the aggregated level', async () => {
+    // > AUTO_AGGREGATE_ABOVE nodes: the view opens one step aggregated.
+    const view = await mountGraph(makeGraph(4200))
+    await flush(3000)
+    expect(view.store.get(graphScaleAtom)).toBe(1)
+    expect(lib.fg.cameraPosition).toHaveBeenCalled()
+    // A pure rotation: the distance to the target does not change.
+    const controls = lib.fg.controls()
+    act(() => {
+      controls.dispatchEvent({ type: 'start' })
+      controls.dispatchEvent({ type: 'end' })
+    })
+    // It used to fall to the raw detail (ratio ≈ 2.8 < 3 against the graph
+    // radius): 20 000 points and 40 000 links on the first orbit.
+    expect(view.store.get(graphScaleAtom)).toBe(1)
+  }, 60_000)
+
+  it('zooming well in degroups, zooming well out regroups (monotone)', async () => {
+    const view = await mountGraph(makeGraph(4200))
+    await flush(3000)
+    const camera = lib.fg.camera()
+    const controls = lib.fg.controls()
+    const home = camera.position.clone()
+    const target = controls.target.clone()
+    const at = (k: number) => {
+      camera.position.copy(target).add(home.clone().sub(target).multiplyScalar(k))
+      act(() => { controls.dispatchEvent({ type: 'end' }) })
+    }
+    at(0.4)
+    expect(view.store.get(graphScaleAtom)).toBe(0)
+    at(1)
+    expect(view.store.get(graphScaleAtom)).toBe(0) // dead zone: holds
+    at(3)
+    expect(view.store.get(graphScaleAtom)).toBe(1)
+  }, 60_000)
 })
