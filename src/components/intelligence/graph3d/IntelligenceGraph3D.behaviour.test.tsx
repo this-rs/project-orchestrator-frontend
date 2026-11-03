@@ -367,3 +367,50 @@ describe('IntelligenceGraph3D — semantic zoom at the default framing', () => {
     expect(view.store.get(graphScaleAtom)).toBe(1)
   }, 60_000)
 })
+
+describe('IntelligenceGraph3D — a WebSocket flush does not rebuild the scene', () => {
+  const sceneObjects = () => new Set(lib.fg.scene().children)
+  /** Everything the component added (the library's lights excluded). */
+  const drawn = () => [...sceneObjects()].filter((o) => !(o instanceof THREE.Light))
+  /** Which of `before` were replaced (identity), named for the failure message. */
+  const replaced = (before: Set<THREE.Object3D>) => {
+    const after = sceneObjects()
+    return [...before].filter((o) => !after.has(o)).map((o) => o.name || o.type)
+  }
+
+  it('detail tier: same entities → the same Points and link objects, updated in place', async () => {
+    const g = makeGraph(2500)
+    const view = await mountGraph(g)
+    await flush(3000)
+    const before = sceneObjects()
+    // Points + links + the (empty) agent-marker group. The links must be there
+    // although the library mounted after the data.
+    expect(drawn().map((o) => o.type)).toEqual(expect.arrayContaining(['Points']))
+    expect(drawn().length).toBeGreaterThanOrEqual(3)
+    view.rerender(refresh(g))
+    await flush(3000)
+    expect(replaced(before)).toEqual([])
+    expect(sceneObjects().size).toBe(before.size)
+  }, 60_000)
+
+  it('aggregated tier: same groups → the same labels / tubes / points', async () => {
+    const g = makeGraph(4200)
+    const view = await mountGraph(g)
+    await flush(3000)
+    const before = sceneObjects()
+    view.rerender(refresh(g))
+    await flush(3000)
+    expect(replaced(before)).toEqual([])
+    expect(sceneObjects().size).toBe(before.size)
+  }, 60_000)
+
+  it('a real change of the node set still rebuilds', async () => {
+    const view = await mountGraph(makeGraph(2500))
+    await flush(3000)
+    const before = sceneObjects()
+    view.rerender(makeGraph(2500, 'm'))
+    await flush(3000)
+    const after = sceneObjects()
+    expect([...after].some((o) => !before.has(o))).toBe(true)
+  }, 60_000)
+})

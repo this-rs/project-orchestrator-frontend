@@ -58,6 +58,7 @@ import { buildCommunityIndex } from './communityActivity'
 import { useAgentMarkers } from './useAgentMarkers'
 import type { AgentMarkers } from './agentMarkers'
 import { communityFocus, nodeSetSignature } from './useGraph3DLayout'
+import { labelStructureKey, linkStructureKey, nodeStructureKey } from './graphStructureKey'
 import { activationStateAtom } from '../SpreadingActivation'
 import { GraphPanel } from '../GraphPanel'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
@@ -589,11 +590,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // so we rebuild hulls on engine stop (positions final) and on toggle change.
   const hullNeedsRebuildRef = useRef(false)
 
-  // Mark for rebuild when toggle changes or data changes
-  useEffect(() => {
-    hullNeedsRebuildRef.current = true
-  }, [showCommunityHulls, graphData.nodes])
-
   // A cheap, stable signature of "which communities exist and how big they are".
   // Positions are deterministic per node set, so this is all the hulls depend on.
   const hullSignature = useMemo(() => {
@@ -611,6 +607,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     for (const [id, c] of [...counts].sort((a, b) => a[0] - b[0])) seen += `${id}:${c},`
     return `${total}|${seen}`
   }, [graphData.nodes, aggregated, scaleRes])
+
+  // Mark for rebuild when the toggle flips or the hulls' inputs change — the
+  // group sizes (hullSignature) or the positions (nodeLayoutKey), not the
+  // identity of a node array every flush recreates.
+  const nodeLayoutKey = useMemo(
+    () => (aggregated ? nodeStructureKey(graphData.nodes) : ''),
+    [aggregated, graphData.nodes],
+  )
+  useEffect(() => {
+    hullNeedsRebuildRef.current = true
+  }, [showCommunityHulls, hullSignature, nodeLayoutKey])
 
   // The callback reads the CURRENT nodes without depending on their identity.
   const nodesRef = useRef(graphData.nodes)
@@ -1975,6 +1982,24 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         ? graphData
         : emptyGraphData
 
+  // ── What the scene objects are BUILT from (graphStructureKey.ts) ──────
+  // Every WebSocket flush hands over a new `activeGraphData` — new arrays, new
+  // node objects — even when nothing structural moved. The creation effects
+  // below key on these strings, not on that identity, so a flush no longer
+  // rebuilds the links, the Points, the tubes and the labels (a canvas texture
+  // each); what changed is applied in place (Points.setData + restyle).
+  const activeNodeKey = useMemo(() => nodeStructureKey(activeGraphData.nodes), [activeGraphData.nodes])
+  const activeLinkKey = useMemo(() => linkStructureKey(activeGraphData.links), [activeGraphData.links])
+  const activeLabelKey = useMemo(
+    () => (aggregated ? labelStructureKey(activeGraphData.nodes) : ''),
+    [aggregated, activeGraphData.nodes],
+  )
+  /** The data the creation effects build from, read when their KEY changes. */
+  const activeGraphDataRef = useRef(activeGraphData)
+  useEffect(() => {
+    activeGraphDataRef.current = activeGraphData
+  }, [activeGraphData])
+
   // A visible trace when the aggregated step yields nothing: one line in the
   // console says whether the graph is empty, the grouping is empty, or the
   // resolution collapsed — instead of a black canvas that explains nothing.
@@ -2036,9 +2061,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       linkSegmentsRef.current = null
     }
 
-    if (!useOptimizedLinks || useTubes || activeGraphData.links.length === 0) return
+    const data = activeGraphDataRef.current
+    if (!useOptimizedLinks || useTubes || data.links.length === 0) return
 
-    const seg = createLinkRenderer(activeGraphData.nodes, activeGraphData.links)
+    const seg = createLinkRenderer(data.nodes, data.links)
     seg.updateColors(computeLinkStyleRef.current)
     scene.add(seg.object)
     linkSegmentsRef.current = seg
@@ -2052,7 +2078,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         linkSegmentsRef.current = null
       }
     }
-  }, [useOptimizedLinks, useTubes, activeGraphData, wake])
+    // Keyed on the STRUCTURE, not on activeGraphData's identity (see above).
+    // hasDimensions: the library mounts after the data when the 3D view opens
+    // on a loaded graph; without it the links waited for the next flush.
+  }, [useOptimizedLinks, useTubes, activeNodeKey, activeLinkKey, wake, hasDimensions])
 
   // ── Aggregated tier — super-edges as tubes ────────────────────────────
   // At scaleLevel ≥ 1 the super-edges are few enough (≤ TUBE_MAX_EDGES) to
@@ -2073,7 +2102,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
     if (!useTubes) return
 
-    const tubes = createSuperLinkTubes(activeGraphData.nodes, activeGraphData.links)
+    const tubes = createSuperLinkTubes(activeGraphDataRef.current.nodes, activeGraphDataRef.current.links)
     if (!tubes) return
     scene.add(tubes.group)
     superLinkTubesRef.current = tubes
@@ -2086,7 +2115,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         superLinkTubesRef.current = null
       }
     }
-  }, [useTubes, activeGraphData, wake])
+  }, [useTubes, activeNodeKey, activeLinkKey, wake, hasDimensions])
 
   // ── Recolor links when highlight state changes ────────────────────────
   // linkColor (and thus computeLinkStyle) depends on hover / selection /
@@ -2100,6 +2129,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   }, [useOptimizedLinks, computeLinkStyle, activeGraphData])
 
   // ── Overview tier — one THREE.Points for all nodes ────────────────────
+  /** The node array the Points currently indexes (in-place refresh below). */
+  const pointsNodesRef = useRef<Graph3DNode[] | null>(null)
   // Above NODE_POINTS_THRESHOLD the library's per-node sprite objects are
   // suppressed (`nodeVisibility`) and a single Points draws every node as a
   // coloured shape. Built/removed on mode or graph change.
@@ -2115,9 +2146,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       nodePointsRef.current = null
     }
 
-    if (!useOptimizedNodes || activeGraphData.nodes.length === 0) return
+    const nodesNow = activeGraphDataRef.current.nodes
+    if (!useOptimizedNodes || nodesNow.length === 0) return
 
-    const np = createNodePoints(activeGraphData.nodes)
+    const np = createNodePoints(nodesNow)
+    pointsNodesRef.current = nodesNow
     np.updateStyles(computeNodeStyleRef.current)
     // The loop only reports CHANGES, so a Points built after a drop must adopt
     // the ratio already in force or its points would change size on the next
@@ -2145,7 +2178,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // hasDimensions: the library mounts only once the container is measured. If the
     // graph data arrives first, this effect runs with no ForceGraph3D yet and must run
     // again when it mounts — otherwise the Points are never created above the threshold.
-  }, [useOptimizedNodes, activeGraphData, wake, hasDimensions])
+  }, [useOptimizedNodes, activeNodeKey, wake, hasDimensions])
 
   // ── Aggregated tier — named super-nodes (billboard SpriteText) ────────
   // The Points above draws every super-node as a bare shape; the N largest get
@@ -2163,11 +2196,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       superNodeLabelsRef.current = null
     }
 
-    if (!aggregated || activeGraphData.nodes.length === 0) return
+    const labelNodes = activeGraphDataRef.current.nodes
+    if (!aggregated || labelNodes.length === 0) return
     // One canvas texture per label: skipped on a device whose tier says the graph is too big for them.
     if (graphData.nodes.length > DEVICE_BUDGET.maxNodesForLabels) return
 
-    const labels = createSuperNodeLabels(activeGraphData.nodes, DEVICE_BUDGET.labelLimit)
+    const labels = createSuperNodeLabels(labelNodes, DEVICE_BUDGET.labelLimit)
     if (labels.count === 0) return
     scene.add(labels.group)
     superNodeLabelsRef.current = labels
@@ -2180,13 +2214,20 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         superNodeLabelsRef.current = null
       }
     }
-  }, [aggregated, activeGraphData, wake, hasDimensions, graphData.nodes.length])
+  }, [aggregated, activeLabelKey, wake, hasDimensions, graphData.nodes.length])
 
   // Recolor points when any highlight/activation/heatmap state changes.
+  // Same structure, new objects (a flush): point the Points at the new array
+  // first — O(N), no GPU reallocation — so styles read the fresh node data.
   useEffect(() => {
-    if (useOptimizedNodes) {
-      nodePointsRef.current?.updateStyles(computeNodeStyle)
+    if (!useOptimizedNodes) return
+    const np = nodePointsRef.current
+    if (!np) return
+    if (pointsNodesRef.current !== activeGraphData.nodes) {
+      np.setData(activeGraphData.nodes)
+      pointsNodesRef.current = activeGraphData.nodes
     }
+    np.updateStyles(computeNodeStyle)
   }, [useOptimizedNodes, computeNodeStyle, activeGraphData])
 
   // ── Hover spotlight (transient, O(1) per move) ────────────────────────
