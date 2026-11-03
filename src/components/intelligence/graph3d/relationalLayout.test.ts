@@ -299,6 +299,35 @@ describe('layoutGroups', () => {
     expect(ratios[Math.floor(G / 2)]).toBeLessThan(1.25)
   })
 
+  it('keeps fixed centres exactly and places the new groups around them', () => {
+    // Twenty groups already on screen; three arrive: one related to f05, two
+    // related to nothing.
+    const fixed = new Map<string, OrganicPoint>()
+    const first = layoutGroups(
+      Array.from({ length: 20 }, (_, i) => ({ id: `f${String(i).padStart(2, '0')}`, radius: 80 })),
+      {},
+    )
+    for (const [id, q] of first) fixed.set(id, q)
+    const groups: RelationalGroup[] = [
+      ...[...fixed.keys()].map((id) => ({ id, radius: 80 })),
+      { id: 'n-linked', radius: 70 },
+      { id: 'n-free-1', radius: 70 },
+      { id: 'n-free-2', radius: 70 },
+    ]
+    const out = layoutGroups(groups, { 'n-linked': { f05: 3 } }, { fixedPositions: fixed })
+    for (const [id, q] of fixed) expect(out.get(id)).toEqual(q)
+    for (const id of ['n-linked', 'n-free-1', 'n-free-2']) {
+      for (const f of fixed.keys()) {
+        const floor = id === 'n-linked' && f === 'f05' ? (70 + 80) * CORE_RATIO : 70 + 80
+        expect(dist(out.get(id)!, out.get(f)!)).toBeGreaterThanOrEqual(floor)
+      }
+    }
+    // The related newcomer sits against f05, closer to it than to any other.
+    const toF05 = dist(out.get('n-linked')!, out.get('f05')!)
+    expect(toF05).toBeLessThan(150)
+    for (const f of fixed.keys()) if (f !== 'f05') expect(toF05).toBeLessThan(dist(out.get('n-linked')!, out.get(f)!))
+  })
+
   it('pulls the result toward supplied previous positions (stability)', () => {
     const groups: RelationalGroup[] = [
       { id: 'a', radius: 60 },

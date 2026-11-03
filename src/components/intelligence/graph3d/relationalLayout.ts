@@ -100,6 +100,13 @@ export interface LayoutOptions {
   /** Previous centres, e.g. from the last computed layout — pulls the result
    *  toward continuity across incremental graph updates (E_stability). */
   previousPositions?: Map<string, OrganicPoint>
+  /**
+   * Centres that must not move: groups already on screen when new ones
+   * arrive. They are returned unchanged; the other groups are placed around
+   * them (next to their related fixed groups, else just outside the scene)
+   * and pushed off them, never the reverse.
+   */
+  fixedPositions?: Map<string, OrganicPoint>
 }
 
 // ── Energy weights (all > 0) ─────────────────────────────────────────────────
@@ -253,6 +260,8 @@ function affinityTarget(rg: number, rh: number, a: number): number {
 interface Prepared {
   ids: string[]
   n: number
+  /** 1 for a group whose centre is given and must not move (`fixedPositions`). */
+  fixed: Uint8Array
   radius: Float64Array
   /** Affine pairs, canonical (i < j, sorted by i then j). */
   pairI: Int32Array
@@ -331,7 +340,7 @@ function prepare(
     adj[fill[j]] = i
     adjA[fill[j]++] = pairA[k]
   }
-  return { ids, n, radius, pairI, pairJ, pairA, adjStart, adj, adjA, maxRadius }
+  return { ids, n, fixed: new Uint8Array(n), radius, pairI, pairJ, pairA, adjStart, adj, adjA, maxRadius }
 }
 
 /** Affinity of a pair, 0 when unrelated. A binary search in i's neighbour
@@ -498,7 +507,7 @@ function contactSweep(
   by: Float64Array,
   bz: Float64Array,
 ): number {
-  const { n, radius } = p
+  const { n, radius, fixed } = p
   fillGrid(grid, n, x, y, z)
   if (!live) {
     bx.fill(0)
@@ -535,22 +544,28 @@ function contactSweep(
         const ux = dist > EPSILON ? dx / dist : 1
         const uy = dist > EPSILON ? dy / dist : 0
         const uz = dist > EPSILON ? dz / dist : 0
+        // A fixed group does not move: the other one takes the whole push.
+        const fi = fixed[i]
+        const fj = fixed[j]
+        if (fi && fj) continue
         const push = overlap * relax
         if (push > maxPush) maxPush = push
+        const pi = fi ? 0 : fj ? 2 * push : push
+        const pj = fj ? 0 : fi ? 2 * push : push
         if (live) {
-          x[i] += ux * push
-          y[i] += uy * push
-          z[i] += uz * push
-          x[j] -= ux * push
-          y[j] -= uy * push
-          z[j] -= uz * push
+          x[i] += ux * pi
+          y[i] += uy * pi
+          z[i] += uz * pi
+          x[j] -= ux * pj
+          y[j] -= uy * pj
+          z[j] -= uz * pj
         } else {
-          bx[i] += ux * push
-          by[i] += uy * push
-          bz[i] += uz * push
-          bx[j] -= ux * push
-          by[j] -= uy * push
-          bz[j] -= uz * push
+          bx[i] += ux * pi
+          by[i] += uy * pi
+          bz[i] += uz * pi
+          bx[j] -= ux * pj
+          by[j] -= uy * pj
+          bz[j] -= uz * pj
         }
       }
     }
@@ -861,50 +876,167 @@ function buildComponent(
   return bound
 }
 
-/** Initial centres: every component built, then the components packed in shells. */
-function constructPlacement(p: Prepared, x: Float64Array, y: Float64Array, z: Float64Array): void {
-  const { order, start } = components(p)
-  const placed = new Uint8Array(p.n)
-  const scratch = { v: new Float64Array(256), t0: new Float64Array(64), t1: new Float64Array(64) }
-  const count = start.length - 1
-  const bound = new Float64Array(count)
-  for (let c = 0; c < count; c++) {
-    bound[c] = buildComponent(p, order, start[c], start[c + 1], x, y, z, placed, scratch)
+/**
+ * Pack the balls `comps` (component index → bound) shell after shell around
+ * `centre`, from radius `outer`; with `firstAtCentre`, the largest one takes
+ * the centre itself. Writes each component's offset.
+ */
+function packShells(
+  comps: number[],
+  bound: Float64Array,
+  centre: OrganicPoint,
+  outer: number,
+  firstAtCentre: boolean,
+  off: { x: Float64Array; y: Float64Array; z: Float64Array },
+): void {
+  let q = 0
+  if (firstAtCentre && comps.length > 0) {
+    off.x[comps[0]] = centre.x
+    off.y[comps[0]] = centre.y
+    off.z[comps[0]] = centre.z
+    outer = bound[comps[0]]
+    q = 1
   }
-  // Largest ball first; ties by the component's first group (deterministic).
-  const byBound = Array.from({ length: count }, (_, c) => c).sort(
-    (a, b) => bound[b] - bound[a] || order[start[a]] - order[start[b]],
-  )
-  const offX = new Float64Array(count)
-  const offY = new Float64Array(count)
-  const offZ = new Float64Array(count)
-  let outer = bound[byBound[0]]
-  let q = 1
-  while (q < count) {
+  while (q < comps.length) {
     // One shell: its balls are the next ones in size order, so they are all
     // at most as big as the first; it sits right outside the previous one.
-    const r = bound[byBound[q]]
+    const r = bound[comps[q]]
     const rho = outer + r + OVERLAP_MARGIN
     const capacity = Math.max(1, Math.floor((SHELL_FILL * 4 * rho * rho) / (r * r)))
-    const inShell = Math.min(capacity, count - q)
+    const inShell = Math.min(capacity, comps.length - q)
     for (let k = 0; k < inShell; k++) {
-      const c = byBound[q + k]
+      const c = comps[q + k]
       const up = inShell === 1 ? 1 : 1 - (2 * (k + 0.5)) / inShell
       const around = Math.sqrt(Math.max(0, 1 - up * up))
       const angle = GOLDEN_ANGLE * k
-      offX[c] = Math.cos(angle) * around * rho
-      offY[c] = up * rho
-      offZ[c] = Math.sin(angle) * around * rho
+      off.x[c] = centre.x + Math.cos(angle) * around * rho
+      off.y[c] = centre.y + up * rho
+      off.z[c] = centre.z + Math.sin(angle) * around * rho
     }
     q += inShell
     outer = rho + r
   }
+}
+
+/**
+ * Initial centres. Without fixed groups: every component built on its own,
+ * then the components packed in shells. With fixed groups (already on screen,
+ * `p.fixed`): a component that holds one grows around it in the scene's own
+ * frame, every new group at the free spot nearest to its placed neighbours
+ * (or to its component's fixed groups); the components that touch nothing
+ * fixed are built on their own and packed in shells just outside the scene —
+ * never laid out as a second archipelago over the first.
+ */
+function constructPlacement(p: Prepared, x: Float64Array, y: Float64Array, z: Float64Array): void {
+  const { order, start } = components(p)
+  const { fixed, radius, adjStart, adj, adjA } = p
+  const placed = new Uint8Array(p.n)
+  const scratch = { v: new Float64Array(256), t0: new Float64Array(64), t1: new Float64Array(64) }
+  const count = start.length - 1
+
+  let fixedCount = 0
+  let sx = 0
+  let sy = 0
+  let sz = 0
+  const grid = new PlacementGrid(maxHardDistance(p))
+  for (let i = 0; i < p.n; i++) {
+    if (!fixed[i]) continue
+    placed[i] = 1
+    grid.insert(i, x[i], y[i], z[i])
+    sx += x[i]
+    sy += y[i]
+    sz += z[i]
+    fixedCount++
+  }
+
+  const bound = new Float64Array(count)
+  const free: number[] = []
   for (let c = 0; c < count; c++) {
+    let anchors = 0
+    let ax = 0
+    let ay = 0
+    let az = 0
     for (let k = start[c]; k < start[c + 1]; k++) {
       const g = order[k]
-      x[g] += offX[c]
-      y[g] += offY[c]
-      z[g] += offZ[c]
+      if (!fixed[g]) continue
+      anchors++
+      ax += x[g]
+      ay += y[g]
+      az += z[g]
+    }
+    if (anchors === 0) {
+      bound[c] = buildComponent(p, order, start[c], start[c + 1], x, y, z, placed, scratch)
+      free.push(c)
+      continue
+    }
+    // Grows in the scene's frame, around its fixed groups.
+    for (let k = start[c]; k < start[c + 1]; k++) {
+      const g = order[k]
+      if (placed[g]) continue
+      let tx = 0
+      let ty = 0
+      let tz = 0
+      let wsum = 0
+      for (let e = adjStart[g]; e < adjStart[g + 1]; e++) {
+        const h = adj[e]
+        if (!placed[h]) continue
+        tx += x[h] * adjA[e]
+        ty += y[h] * adjA[e]
+        tz += z[h] * adjA[e]
+        wsum += adjA[e]
+      }
+      if (wsum > 0) {
+        tx /= wsum
+        ty /= wsum
+        tz /= wsum
+      } else {
+        tx = ax / anchors
+        ty = ay / anchors
+        tz = az / anchors
+      }
+      const total = fixedCount > 0 ? fixedCount : 1
+      const spot = nearestFreeSpot(p, g, x, y, z, grid, tx, ty, tz, sx / total, sy / total, sz / total, scratch)
+      if (spot) {
+        x[g] = spot.x
+        y[g] = spot.y
+        z[g] = spot.z
+        grid.insert(g, spot.x, spot.y, spot.z)
+      } else {
+        const o = 3 * (g % RAY_DIRECTION_COUNT)
+        x[g] = tx + RAY_DIRECTIONS[o] * radius[g]
+        y[g] = ty + RAY_DIRECTIONS[o + 1] * radius[g]
+        z[g] = tz + RAY_DIRECTIONS[o + 2] * radius[g]
+      }
+      placed[g] = 1
+    }
+  }
+
+  // Largest ball first; ties by the component's first group (deterministic).
+  free.sort((a, b) => bound[b] - bound[a] || order[start[a]] - order[start[b]])
+  const off = { x: new Float64Array(count), y: new Float64Array(count), z: new Float64Array(count) }
+  if (fixedCount === 0) {
+    packShells(free, bound, { x: 0, y: 0, z: 0 }, 0, true, off)
+  } else {
+    // Outside everything already in the scene, around the fixed groups' centroid.
+    const centre = { x: sx / fixedCount, y: sy / fixedCount, z: sz / fixedCount }
+    const isFree = new Uint8Array(count)
+    for (const c of free) isFree[c] = 1
+    let outer = 0
+    for (let c = 0; c < count; c++) {
+      if (isFree[c]) continue
+      for (let k = start[c]; k < start[c + 1]; k++) {
+        const g = order[k]
+        outer = Math.max(outer, vecLen(x[g] - centre.x, y[g] - centre.y, z[g] - centre.z) + radius[g])
+      }
+    }
+    packShells(free, bound, centre, outer, false, off)
+  }
+  for (const c of free) {
+    for (let k = start[c]; k < start[c + 1]; k++) {
+      const g = order[k]
+      x[g] += off.x[c]
+      y[g] += off.y[c]
+      z[g] += off.z[c]
     }
   }
 }
@@ -940,6 +1072,19 @@ export function layoutGroups(
   const x = new Float64Array(n)
   const y = new Float64Array(n)
   const z = new Float64Array(n)
+  const fixedPositions = options.fixedPositions
+  let anyFixed = false
+  if (fixedPositions) {
+    for (let i = 0; i < n; i++) {
+      const q = fixedPositions.get(ids[i])
+      if (!q) continue
+      p.fixed[i] = 1
+      x[i] = q.x
+      y[i] = q.y
+      z[i] = q.z
+      anyFixed = true
+    }
+  }
   constructPlacement(p, x, y, z)
 
   const prevX = new Float64Array(n)
@@ -1039,7 +1184,7 @@ export function layoutGroups(
     const alpha = STEP_FRACTION_0 * (1 - iter / maxIterations)
     let stepMax = 0
     for (let i = 0; i < n; i++) {
-      if (stiffness[i] <= 0) continue
+      if (stiffness[i] <= 0 || p.fixed[i]) continue
       const lr = alpha / stiffness[i]
       let dx = lr * fx[i]
       let dy = lr * fy[i]
@@ -1070,9 +1215,9 @@ export function layoutGroups(
   separate(p, x, y, z, grid, SEPARATION_ITERATIONS)
 
   // Centre the cloud on the origin (the construction grows it from its first
-  // group). Not when previous positions were given: the result must stay in
-  // their frame.
-  if (!previous) {
+  // group). Not when previous or fixed positions were given: the result must
+  // stay in their frame.
+  if (!previous && !anyFixed) {
     let mx = 0
     let my = 0
     let mz = 0

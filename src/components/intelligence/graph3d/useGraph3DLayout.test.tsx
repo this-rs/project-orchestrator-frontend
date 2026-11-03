@@ -155,3 +155,61 @@ describe('useGraph3DLayout — community worker', () => {
     expect(FifoWorker.last!.queue[0].nodes).toEqual(notes.map((n) => n.id))
   })
 })
+
+// ── Placement across updates ─────────────────────────────────────────────────
+
+type P = { x: number; y: number; z: number }
+const centroidOf = (ps: P[]): P => ({
+  x: ps.reduce((s, p) => s + p.x, 0) / ps.length,
+  y: ps.reduce((s, p) => s + p.y, 0) / ps.length,
+  z: ps.reduce((s, p) => s + p.z, 0) / ps.length,
+})
+const gap = (a: P, b: P) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+const radiusOf = (ps: P[]) => {
+  const c = centroidOf(ps)
+  return Math.max(...ps.map((p) => gap(p, c)))
+}
+
+describe('useGraph3DLayout — placement across updates', () => {
+  it('places a new node inside the group it joins, not at the origin', () => {
+    const nodes = Array.from({ length: 500 }, (_, i) => inCommunity(`src/c${Math.floor(i / 50)}/f${i}.ts`, Math.floor(i / 50)))
+    const { result } = renderHook(() => useGraph3DLayout(nodes, NO_EDGES))
+    const first = result.current.transformToGraph3D(nodes, NO_EDGES).data.nodes
+    const c5 = centroidOf(first.filter((n) => n.communityId === 5))
+    const r5 = radiusOf(first.filter((n) => n.communityId === 5))
+    expect(gap(c5, { x: 0, y: 0, z: 0 })).toBeGreaterThan(r5) // c5 is not the central group
+
+    const grown = [...nodes, inCommunity('src/c5/new.ts', 5)]
+    const second = result.current.transformToGraph3D(grown, NO_EDGES).data.nodes
+    const added = second.find((n) => n.id === 'src/c5/new.ts')!
+    expect(gap(added, c5)).toBeLessThan(r5 * 1.1)
+    // …and nobody else moved.
+    for (const n of first) expect(second.find((m) => m.id === n.id)).toMatchObject({ x: n.x, y: n.y, z: n.z })
+  })
+
+  it('places a second batch of groups next to the first, never inside it', () => {
+    // Batch A: 40 code communities of 100. Batch B arrives later: 10 knowledge
+    // groups of 50. B used to be laid out on its own — an independent
+    // archipelago around the same origin, its envelopes overlapping A's.
+    const A = Array.from({ length: 4000 }, (_, i) => inCommunity(`src/c${Math.floor(i / 100)}/f${i}.ts`, Math.floor(i / 100)))
+    const B = Array.from({ length: 500 }, (_, i) =>
+      ({
+        id: `note${i}`,
+        type: 'note',
+        position: { x: 0, y: 0 },
+        data: { entityType: 'note', layer: 'knowledge', community_id: 100 + Math.floor(i / 50) },
+      }) as unknown as IntelligenceNode,
+    )
+    const { result } = renderHook(() => useGraph3DLayout(A, NO_EDGES))
+    const first = result.current.transformToGraph3D(A, NO_EDGES).data.nodes
+    const second = result.current.transformToGraph3D([...A, ...B], NO_EDGES).data.nodes
+    const groups = (ns: typeof second, prefix: string) => {
+      const m = new Map<number, P[]>()
+      for (const n of ns) if (n.id.startsWith(prefix)) m.set(n.communityId!, [...(m.get(n.communityId!) ?? []), n])
+      return [...m.values()].map((ps) => ({ c: centroidOf(ps), r: radiusOf(ps) }))
+    }
+    const a = groups(first, 'src/')
+    const b = groups(second, 'note')
+    for (const gb of b) for (const ga of a) expect(gap(ga.c, gb.c)).toBeGreaterThan(ga.r + gb.r)
+  })
+})

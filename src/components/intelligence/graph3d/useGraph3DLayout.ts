@@ -395,8 +395,31 @@ export function deterministicPlacement(
   nodes: Graph3DNode[],
   edges: IntelligenceEdge[],
 ): Map<string, { x: number; y: number; z: number }> {
+  return placeGroups(nodes, edges).positions
+}
+
+/** The group a node is placed in: its layer and its group key. */
+export function placementKey(n: Graph3DNode): string {
+  return n.layer + DOUBLE_SEP + (n.groupKey ?? String(n.communityId ?? 0))
+}
+
+/**
+ * `deterministicPlacement`, with the group centres it chose, and optionally
+ * some centres imposed: a group whose key is in `fixedCentres` keeps that
+ * centre exactly (it is already on screen), and the other groups are placed
+ * around it — next to the groups they relate to, else just outside the scene.
+ */
+export function placeGroups(
+  nodes: Graph3DNode[],
+  edges: IntelligenceEdge[],
+  fixedCentres?: Map<string, { x: number; y: number; z: number }>,
+): {
+  positions: Map<string, { x: number; y: number; z: number }>
+  centres: Map<string, { x: number; y: number; z: number }>
+} {
   const out = new Map<string, { x: number; y: number; z: number }>()
-  if (nodes.length === 0) return out
+  const centresOut = new Map<string, { x: number; y: number; z: number }>()
+  if (nodes.length === 0) return { positions: out, centres: centresOut }
 
   // Degree (importance proxy) straight from the edges.
   const deg = new Map<string, number>()
@@ -410,7 +433,7 @@ export function deterministicPlacement(
   // gets its own island: every group of every layer lives in one archipelago.
   const groups = new Map<string, Graph3DNode[]>()
   for (const n of nodes) {
-    const key = n.layer + DOUBLE_SEP + (n.groupKey ?? String(n.communityId ?? 0))
+    const key = placementKey(n)
     const g = groups.get(key)
     if (g) g.push(n)
     else groups.set(key, [n])
@@ -452,7 +475,7 @@ export function deterministicPlacement(
   const centres = layoutGroups(
     keys.map((k, i) => ({ id: k, radius: radii[i] })),
     affinities,
-    { maxIterations: 60 },
+    { maxIterations: 60, fixedPositions: fixedCentres },
   )
 
   keys.forEach((key, gi) => {
@@ -469,11 +492,13 @@ export function deterministicPlacement(
     const up = keys.length === 1 ? 0 : 1 - (gi / (keys.length - 1)) * 2
     const around = Math.sqrt(Math.max(0, 1 - up * up))
     const angle = GOLDEN_SPHERE * gi + (rng() - 0.5) * 2 * ANGLE_JITTER * step
-    // A lone group stays at the origin, as before: there is nothing to relate it to.
-    const placed = keys.length > 1 ? centres.get(key) : undefined
+    // A lone group stays at the origin, as before: there is nothing to relate
+    // it to — unless it is already on screen somewhere else.
+    const placed = keys.length > 1 || fixedCentres?.has(key) ? centres.get(key) : undefined
     const cx = placed ? placed.x : Math.cos(angle) * around * radial
     const cy = placed ? placed.y : up * radial
     const cz = placed ? placed.z : Math.sin(angle) * around * radial
+    centresOut.set(key, { x: cx, y: cy, z: cz })
     // Full 3D orientation, not a small roll.
     //
     // This used to be a single tilt of ±31° around X, so every group's cloud
@@ -587,7 +612,7 @@ export function deterministicPlacement(
       place(satellites[j].id, radius, j * GOLDEN_ANGLE + phase, (w - 0.5) * CORONA_ELEVATION, satellites[j].entityType)
     }
   })
-  return out
+  return { positions: out, centres: centresOut }
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -708,6 +733,11 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
   // Cache positions for stable refresh
   const positionCache = useRef<Map<string, { x: number; y: number; z: number }>>(new Map())
   const previousNodeIds = useRef<Set<string>>(new Set())
+  // The group each cached position was computed in, and every group's centre:
+  // a node whose group changed is placed again, a group still on screen keeps
+  // its centre and new groups are placed around it.
+  const placedGroupOf = useRef<Map<string, string>>(new Map())
+  const groupCentres = useRef<Map<string, { x: number; y: number; z: number }>>(new Map())
 
   // Client-side Louvain communities (computed in a worker). `null` until the
   // first result: nodes keep the directory/(layer, type) fallback meanwhile.
@@ -814,6 +844,7 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     // Remove cached positions for removed nodes
     for (const id of removed) {
       positionCache.current.delete(id)
+      placedGroupOf.current.delete(id)
     }
 
     // Build 3D nodes (positions filled below from cache or the deterministic layout).
@@ -833,22 +864,37 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     }
     for (const n of graph3dNodes) n.degree = degree.get(n.id) ?? 0
 
-    // Nodes without a cached position are laid out deterministically in one
-    // O(N log N) pass (po-graph's Fermat-spiral-per-community). On a first load
-    // that is every node → the layout is complete immediately, no force
-    // settling. Cached positions win so refreshes and drags stay stable.
-    const uncached = graph3dNodes.filter((n) => !positionCache.current.has(n.id))
-    if (uncached.length > 0) {
-      const placed = deterministicPlacement(uncached, edges)
-      for (const n of uncached) {
-        const p = placed.get(n.id)
-        if (p) {
-          n.x = p.x
-          n.y = p.y
-          n.z = p.z
-          positionCache.current.set(n.id, p)
-        }
+    // A node is placed when it has no cached position. Everything else keeps
+    // its cached position, so refreshes and drags stay stable.
+    //
+    // The placement sees the WHOLE graph, not only the nodes to place: a group
+    // with cached members keeps its centre (fixed), a node joining it lands
+    // inside it, and new groups are laid out around the existing ones — not
+    // as a second archipelago on top of the first.
+    const keyOf = new Map(graph3dNodes.map((n) => [n.id, placementKey(n)]))
+    const unsettled = graph3dNodes.filter(
+      (n) => !positionCache.current.has(n.id),
+    )
+    if (unsettled.length > 0) {
+      const toPlace = new Set(unsettled.map((n) => n.id))
+      const fixed = new Map<string, { x: number; y: number; z: number }>()
+      for (const n of graph3dNodes) {
+        if (toPlace.has(n.id)) continue
+        const key = keyOf.get(n.id)!
+        const centre = groupCentres.current.get(key)
+        if (centre) fixed.set(key, centre)
       }
+      const { positions, centres } = placeGroups(graph3dNodes, edges, fixed)
+      for (const n of unsettled) {
+        const p = positions.get(n.id)
+        if (!p) continue
+        n.x = p.x
+        n.y = p.y
+        n.z = p.z
+        positionCache.current.set(n.id, p)
+        placedGroupOf.current.set(n.id, keyOf.get(n.id)!)
+      }
+      groupCentres.current = centres
     }
 
     // Build community lookup for inter-community edge detection
@@ -912,6 +958,8 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
   const resetPositions = useCallback(() => {
     positionCache.current.clear()
     previousNodeIds.current.clear()
+    placedGroupOf.current.clear()
+    groupCentres.current.clear()
   }, [])
 
   return {
