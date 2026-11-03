@@ -18,6 +18,8 @@
 import * as THREE from 'three'
 import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
 import { LINK_RENDER_ORDER } from './nodePoints'
+import { ARROW_VERTICES, arrowsEnabled, computeArrowHead } from './linkArrows'
+import { isDirectionalRelation } from './linkFamily'
 
 /** Final per-link style: normalized RGB + alpha (0..1). */
 export interface LinkStyle {
@@ -102,11 +104,15 @@ export interface LinkSegments {
 }
 
 export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): LinkSegments {
-  let segmentCount = links.length
+  // Vertex layout: [0, 2N) the N link strokes (vertex 2i, 2i+1); then, appended,
+  // ARROW_VERTICES per directional link (see linkArrows). arrowSlot[i] is the
+  // first vertex of link i's head, or -1 (bare stroke).
+  let vertexCount = links.length * 2
+  let arrowSlot = new Int32Array(0)
   const geometry = new THREE.BufferGeometry()
-  const positions = new Float32Array(segmentCount * 2 * 3)
-  const colors = new Float32Array(segmentCount * 2 * 3)
-  const alphas = new Float32Array(segmentCount * 2)
+  const positions = new Float32Array(vertexCount * 3)
+  const colors = new Float32Array(vertexCount * 3)
+  const alphas = new Float32Array(vertexCount)
 
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3))
@@ -155,12 +161,19 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
   const setData = (nextNodes: Graph3DNode[], nextLinks: Graph3DLink[]) => {
     linkList = nextLinks
     // Reallocate only when the count changes (graph shape changed).
-    const newSegments = nextLinks.length
-    if (newSegments !== segmentCount) {
-      segmentCount = newSegments
-      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(newSegments * 2 * 3), 3))
-      geometry.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(newSegments * 2 * 3), 3))
-      geometry.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(newSegments * 2), 1))
+    const slots = new Int32Array(nextLinks.length).fill(-1)
+    let next = nextLinks.length * 2
+    if (arrowsEnabled(nextLinks.length)) {
+      for (let i = 0; i < nextLinks.length; i++) {
+        if (isDirectionalRelation(nextLinks[i].relationType)) { slots[i] = next; next += ARROW_VERTICES }
+      }
+    }
+    arrowSlot = slots
+    if (next !== vertexCount) {
+      vertexCount = next
+      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(next * 3), 3))
+      geometry.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(next * 3), 3))
+      geometry.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(next), 1))
     }
     rebuildIndex(nextNodes)
     rebuildAdjacency(nextLinks)
@@ -181,8 +194,29 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
       pos[o + 3] = t?.x ?? 0
       pos[o + 4] = t?.y ?? 0
       pos[o + 5] = t?.z ?? 0
+      const slot = arrowSlot[i]
+      if (slot >= 0) {
+        const h = computeArrowHead(
+          [pos[o], pos[o + 1], pos[o + 2]], [pos[o + 3], pos[o + 4], pos[o + 5]],
+          link.relationType, linkList.length,
+        )
+        // Degenerate link: collapse the head onto the source (zero-length, invisible).
+        if (h) pos.set(h, slot * 3)
+        else pos.fill(pos[o], slot * 3, slot * 3 + ARROW_VERTICES * 3)
+      }
     }
     ;(geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
+  }
+
+  /** Give link i's head (if any) the same colour and alpha as its stroke. */
+  const paintArrow = (i: number, s: LinkStyle, col: Float32Array, alp: Float32Array) => {
+    const slot = arrowSlot[i]
+    if (slot < 0) return
+    for (let v = 0; v < ARROW_VERTICES; v++) {
+      const c = (slot + v) * 3
+      col[c] = s.r; col[c + 1] = s.g; col[c + 2] = s.b
+      alp[slot + v] = s.a
+    }
   }
 
   const updateColors = (styleFn: LinkStyleFn) => {
@@ -195,6 +229,7 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
       col[o + 3] = s.r; col[o + 4] = s.g; col[o + 5] = s.b
       const a = i * 2
       alp[a] = s.a; alp[a + 1] = s.a
+      paintArrow(i, s, col, alp)
     }
     ;(geometry.getAttribute('aColor') as THREE.BufferAttribute).needsUpdate = true
     ;(geometry.getAttribute('aAlpha') as THREE.BufferAttribute).needsUpdate = true
@@ -218,6 +253,12 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
       // Two vertices (source + target) per link, in element units.
       colAttr.addUpdateRange(i * 6, 6)
       alpAttr.addUpdateRange(i * 2, 2)
+      paintArrow(i, s, col, alp)
+      const slot = arrowSlot[i]
+      if (slot >= 0) {
+        colAttr.addUpdateRange(slot * 3, ARROW_VERTICES * 3)
+        alpAttr.addUpdateRange(slot, ARROW_VERTICES)
+      }
     }
     colAttr.needsUpdate = true
     alpAttr.needsUpdate = true

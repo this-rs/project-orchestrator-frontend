@@ -43,11 +43,32 @@ describe('createLinkSegments', () => {
     return { nodes, links }
   }
 
-  it('builds 2 vertices per link', () => {
+  it('builds 2 vertices per link, +4 for the head of a directional link', () => {
     const { nodes, links } = makeFixture()
     const seg = createLinkSegments(nodes, links)
     const pos = seg.object.geometry.getAttribute('position') as THREE.BufferAttribute
-    expect(pos.count).toBe(2)
+    expect(pos.count).toBe(6)
+    seg.dispose()
+  })
+
+  it('adds no head for a tissue link', () => {
+    const { nodes, links } = makeFixture()
+    const seg = createLinkSegments(nodes, [{ ...links[0], relationType: 'CO_CHANGED' }])
+    expect((seg.object.geometry.getAttribute('position') as THREE.BufferAttribute).count).toBe(2)
+    seg.dispose()
+  })
+
+  it('moves the head with the nodes and colours it like its stroke', () => {
+    const { nodes, links } = makeFixture()
+    const seg = createLinkSegments(nodes, links)
+    seg.updateColors(() => ({ r: 1, g: 0.5, b: 0.25, a: 0.8 }))
+    nodes[1].x = 110
+    seg.updatePositions()
+    const pos = seg.object.geometry.getAttribute('position').array as Float32Array
+    expect(pos[6]).toBeCloseTo(1 + (110 - 1) * 0.75, 3)
+    const alp = seg.object.geometry.getAttribute('aAlpha').array as Float32Array
+    expect(alp[2]).toBeCloseTo(0.8, 5)
+    expect(alp[5]).toBeCloseTo(0.8, 5)
     seg.dispose()
   })
 

@@ -5,8 +5,8 @@
 // Colour already separates the relation TYPES (LINK_COLORS in useGraph3DLayout);
 // this module adds the FAMILY axis the client asked for — "des directions ou
 // affichage différents en fonction des types". A 1 px WebGL line carries no
-// thickness and, here, no new geometry (no arrows, no curves), so OPACITY is
-// the channel that tells the three layers apart:
+// thickness, so OPACITY is
+// the channel (direction is carried separately by arrow heads, see linkArrows) that tells the three layers apart:
 //
 //   structure  the skeleton of code and work (IMPORTS, CALLS, EXTENDS,
 //              IMPLEMENTS, CONTAINS, HAS_*). Full-strength strokes, the most
@@ -83,6 +83,15 @@ export function linkFamilyOf(relationType: string): LinkFamily {
   if (STRUCTURE_TYPES.has(t)) return 'structure'
   if (KNOWLEDGE_TYPES.has(t)) return 'knowledge'
   return 'tissue'
+}
+
+/**
+ * Directional relations carry a sense (A imports B): they get an arrow head.
+ * Only the structure family qualifies; knowledge and tissue links (CO_CHANGED,
+ * TOUCHES…) are symmetric associations and stay bare strokes.
+ */
+export function isDirectionalRelation(relationType: string): boolean {
+  return linkFamilyOf(relationType) === 'structure'
 }
 
 /** Fallback for a relation type the table does not list: tissue, the quietest. */
