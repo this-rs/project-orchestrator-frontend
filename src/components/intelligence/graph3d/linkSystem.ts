@@ -25,6 +25,7 @@ import { describeMagnitude } from './linkMagnitude'
 import { type MorphologyShape, morphologyShape } from './linkMorphology'
 import { type LodState, lodFor } from './linkLod'
 import type { Corridor } from './linkRouting'
+import { bundleTrianglesCost, layersForChannels } from './linkGeometryCost'
 
 /**
  * The minimum a corridor must expose to be drawn: an identity, its two ends,
@@ -57,8 +58,6 @@ export interface SystemBudget {
   cameraDistance: number
 }
 
-/** The geometry cost model: rings × segments × 2 triangles per quad. */
-export const RING_SEGMENTS = 6
 /** Samples along the spline at depth 0, and the growth per refinement level. */
 export const SAMPLES_BASE = 8
 export const SAMPLES_PER_DEPTH = 6
@@ -102,11 +101,21 @@ export interface LinkSystem {
   stats: LinkSystemStats
 }
 
-/** Triangles a bundle costs, from its LOD only — the relation count never enters. */
+/**
+ * Triangles a bundle costs, from its LOD only — the relation count never enters.
+ *
+ * PHASE 8 : le coût vient désormais du MODÈLE PARTAGÉ (`linkGeometryCost`), qui
+ * compte les gaines, strates, sous-canaux et branches que le renderer produit
+ * réellement. L'ancienne formule n'en comptait qu'un tube : le budget autorisait
+ * silencieusement cinq à dix fois plus de triangles qu'annoncé.
+ */
 export function bundleTriangles(lod: LodState, strands: number): number {
   const samples = SAMPLES_BASE + SAMPLES_PER_DEPTH * lod.depth
-  const drawnStrands = lod.depth === 0 ? 1 : Math.max(1, strands)
-  return samples * RING_SEGMENTS * 2 * drawnStrands
+  const channels = lod.depth === 0 ? 1 : Math.max(1, strands)
+  // Branches : jusqu'à 3 par extrémité, deux niveaux, moins une qui devient le
+  // tronc lui-même — même règle que le renderer.
+  const branches = 2 * Math.min(3, Math.max(1, channels))
+  return bundleTrianglesCost({ samples, channels, branches })
 }
 
 /**
@@ -154,6 +163,7 @@ export function buildLinkSystem(
     const lod = lodFor(corridor.magnitude, b.cameraDistance)
     const strands = morphology.graphical.channels
     const cost = bundleTriangles(lod, strands)
+    void layersForChannels
     // The budget is a CEILING, not a target: one oversized bundle must not be
     // drawn "because it is first". It falls back to the aggregate shape, which
     // costs one strand, and is drawn if even that fits.

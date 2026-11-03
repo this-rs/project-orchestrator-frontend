@@ -34,6 +34,30 @@ function materialOf(renderer: ReturnType<typeof createVascularLinks>) {
   return group.children[0].material
 }
 
+describe('cycle de vie du renderer — pas de fantômes', () => {
+  it('dispose DÉTACHE le groupe de la scène, sinon il continue d’être dessiné', async () => {
+    const THREE = await import('three')
+    const { nodes, links } = synth(150)
+    const r = createVascularLinks(nodes, links)!
+    const scene = new THREE.Scene()
+    scene.add(r.object as unknown as import('three').Object3D)
+    expect(scene.children.length).toBe(1)
+    r.dispose()
+    // Un groupe laissé attaché resterait « imprimé » après le remplacement du
+    // renderer : c'est le fantôme qui ne part plus.
+    expect(scene.children.length).toBe(0)
+  })
+
+  it('dispose vide le groupe et libère la géométrie', async () => {
+    const { nodes, links } = synth(120)
+    const r = createVascularLinks(nodes, links)!
+    const group = r.object as unknown as { children: unknown[] }
+    expect(group.children.length).toBeGreaterThan(0)
+    r.dispose()
+    expect(group.children.length).toBe(0)
+  })
+})
+
 describe('flux animé (phase 7)', () => {
   it('setFlowTime ne touche QUE l’uniforme — ni positions, ni couleurs, ni indices', () => {
     const { nodes, links } = synth(300)

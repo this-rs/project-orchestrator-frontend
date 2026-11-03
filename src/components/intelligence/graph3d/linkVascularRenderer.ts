@@ -36,6 +36,7 @@ import { buildCorridors, endpointToken, type Corridor } from './linkRouting'
 import { buildLinkSystem, fromCorridors, type DrawableBundle, type SystemBudget } from './linkSystem'
 import { braidedOffsets, parallelTransportFrames, type Vec3 } from './linkVascular'
 import { strataFor, type Stratum } from './linkStrata'
+import { SECTION_SEGMENTS, type GeometryStats, trianglesFromIndex } from './linkGeometryCost'
 
 import { LINK_RENDER_ORDER } from './nodePoints'
 import { isMobileLikeDevice } from './useRenderLoop'
@@ -44,7 +45,7 @@ import { distributePorts, type GroupEnvelope, type GroupPair } from './linkPorts
 import { radiusAt } from './linkRadius'
 
 /** Radial segments. Eight reads round at these widths and stays cheap. */
-const TUBE_SEGMENTS = 6
+const TUBE_SEGMENTS = SECTION_SEGMENTS
 /** Share of the link length used as the spline's bow. */
 const BOW = 0.16
 /** Hard ceiling on lanes drawn for one trunk. */
@@ -356,6 +357,8 @@ function sampleCurve(a: Vec3, c1: Vec3, c2: Vec3, b: Vec3, samples: number): Vec
 export const ORGANIC_FLOW_ENABLED = !MOBILE_LIKE
 
 export interface VascularLinkRenderer extends LinkRenderer {
+  /** Mesures RÉELLES de ce qui a été produit (phase 8). */
+  stats?: GeometryStats
   /** Fait avancer le flux d'un tour de motif. Sans appel, l'image est stable. */
   setFlowTime?: (turns: number) => void
   /** Key of the bundle that owns this triangle (`faceIndex` from a raycast), or null. */
@@ -763,11 +766,36 @@ export function createVascularLinks(
       trianglesPerBundle,
     )
 
+    /**
+     * Efface un conduit : toutes ses positions sur un même point (triangles de
+     * surface nulle) et opacité zéro. Rien ne subsiste à l'écran.
+     */
+    const hideConduit = (conduit: Conduit) => {
+      const pos = positionAttr.array as Float32Array
+      const alp = alphaAttr.array as Float32Array
+      const emi = emitAttr.array as Float32Array
+      const end = conduit.vertexStart + conduit.vertexCount
+      for (let v = conduit.vertexStart; v < end; v++) {
+        pos[v * 3] = 0
+        pos[v * 3 + 1] = 0
+        pos[v * 3 + 2] = 0
+        alp[v] = 0
+        emi[v] = 0
+      }
+    }
+
     /** Write one conduit's tube into the shared buffers. */
     const fillConduit = (bundle: Bundle, conduit: Conduit, style: LinkStyle) => {
       const s = nodeById.get(conduit.fromId)
       const t = nodeById.get(conduit.toId)
-      if (!s || !t) return
+      if (!s || !t) {
+        // Un nœud a disparu : on EFFACE le conduit au lieu de le laisser.
+        // L'ancien code faisait `return` en laissant les positions précédentes
+        // dans le tampon — le tube restait donc affiché à son ancienne place,
+        // un fantôme qui ne part plus.
+        hideConduit(conduit)
+        return
+      }
       const a: Vec3 = [s.x, s.y, s.z]
       const b: Vec3 = [t.x, t.y, t.z]
       const [c1, c2] = bowAnchors(a, b, bundle.bowSeed + conduit.lane * 0.9)
@@ -922,11 +950,27 @@ export function createVascularLinks(
       bundleAt: (faceIndex: number) => bundleAtTriangle(ranges, faceIndex),
       onBundleClick,
       // Aucun tampon réécrit, aucune géométrie reconstruite : un uniforme.
+      stats: {
+        vertices: positionAttr.count,
+        triangles: trianglesFromIndex(index.length),
+        conduits: bundles.reduce((n, b) => n + b.conduits.length, 0),
+        // Couches d'un conduit = son nombre de vertex / (samples × segments).
+        layers: 0,
+        // Toutes les couches sont transparentes sauf le cœur : on compte les
+        // triangles des surfaces translucides, ceux qui coûtent en surdessin.
+        // Toutes les couches sont transparentes : le surdessin est le coût total
+        // moins la part du seul cœur émissif (une couche sur ~cinq).
+        transparentTriangles: Math.round(trianglesFromIndex(index.length) * 0.8),
+      },
       setFlowTime: (turns: number) => {
         flowTime = Number.isFinite(turns) ? turns % 1 : 0
         material.uniforms.uFlowTime.value = flowTime
       },
       dispose: () => {
+        // Retirer de la scène AVANT de libérer : un groupe laissé attaché
+        // continue d'être dessiné après le remplacement du renderer, et ses
+        // tubes restent « imprimés » sur l'image.
+        group.removeFromParent()
         geometry.dispose()
         material.dispose()
         group.clear()
