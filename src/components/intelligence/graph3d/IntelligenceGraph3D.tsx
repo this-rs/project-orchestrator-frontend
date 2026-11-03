@@ -563,7 +563,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // ForceGraph3D rebuilds its node/link objects inside tickFrame(), and the
   // force engine restarts, so the loop must be running. `setEngineRunning(true)`
   // keeps it running until onEngineStop fires, however long the layout takes.
+  // `layoutPendingRef` marks that the NEXT onEngineStop closes a real layout
+  // (see onEngineStop: the library also calls it after every prop update).
+  const layoutPendingRef = useRef(true)
   useEffect(() => {
+    layoutPendingRef.current = true
     setEngineRunning(true)
     wake(WAKE_DATA_MS)
   }, [graphData, wake, setEngineRunning])
@@ -914,6 +918,16 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // ── Save positions when simulation stops ────────────────────────────────
   const onEngineStop = useCallback(() => {
+    // three-forcegraph sets `engineRunning = true` in EVERY update, whatever
+    // prop changed, and with cooldownTicks = 0 the next frame calls this back.
+    // A hover changes `linkColor`, so each hover move landed here: an O(N)
+    // savePositions and a 1.6 s wake for a layout that had not moved. Only a
+    // real layout (new data, a drag) does the work; the rest just reports.
+    if (!layoutPendingRef.current && !hullNeedsRebuildRef.current) {
+      setEngineRunning(false)
+      return
+    }
+    layoutPendingRef.current = false
     // wake: the layout just settled — the hull rebuild below still needs frames.
     // No camera move here: the framing effect above is the ONE framing path.
     // A `zoomToFit(800, 80)` used to fire 100 ms after it (cooldownTicks = 0
@@ -2585,6 +2599,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           savePositions([node])
           // wake: the library calls resetCountdown() on drag end, so the
           // engine restarts and nodes keep moving after the pointer is up.
+          layoutPendingRef.current = true
           setEngineRunning(true)
           wake(WAKE_DATA_MS)
         }}

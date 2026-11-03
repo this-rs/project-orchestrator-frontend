@@ -14,6 +14,7 @@ import { act, render } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import * as THREE from 'three'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
+import { hoveredNodeIdAtom } from '@/atoms/intelligence'
 
 // ── The library stand-in ──────────────────────────────────────────────────────
 
@@ -41,7 +42,26 @@ const lib = vi.hoisted(() => ({
   fg: null as unknown as FakeGraph,
   props: {} as Record<string, unknown>,
   engineStops: 0,
+  saves: 0,
 }))
+
+// savePositions, counted: it is the O(N) cost an idle onEngineStop must not pay.
+vi.mock('./useGraph3DLayout', async (importOriginal) => {
+  const React = await import('react')
+  const m = await importOriginal<typeof import('./useGraph3DLayout')>()
+  return {
+    ...m,
+    useGraph3DLayout: (...args: Parameters<typeof m.useGraph3DLayout>) => {
+      const r = m.useGraph3DLayout(...args)
+      const inner = r.savePositions
+      const savePositions = React.useCallback((nodes: Parameters<typeof inner>[0]) => {
+        lib.saves++
+        inner(nodes)
+      }, [inner])
+      return { ...r, savePositions }
+    },
+  }
+})
 
 function makeFakeGraph(): FakeGraph {
   const scene = new THREE.Scene()
@@ -105,6 +125,7 @@ class NoWorker {
 beforeEach(() => {
   vi.useFakeTimers()
   lib.engineStops = 0
+  lib.saves = 0
   ;(globalThis as { Worker?: unknown }).Worker = NoWorker
   ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
     observe() {}
@@ -247,5 +268,33 @@ describe('IntelligenceGraph3D — first framing', () => {
     // zoomToFit(800, 80) is the padding-80 framing the comments call a bug: it
     // used to land 100 ms after the computed framing and win.
     expect(lib.fg.zoomToFit).not.toHaveBeenCalled()
+  })
+})
+
+describe('IntelligenceGraph3D — onEngineStop', () => {
+  it('a hover re-fires onEngineStop (library) but costs no savePositions pass', async () => {
+    const view = await mountGraph(makeGraph(60))
+    await flush(3000)
+    const saves = lib.saves
+    const stops = lib.engineStops
+    expect(saves).toBeGreaterThan(0) // the real layout was saved once
+    act(() => { view.store.set(hoveredNodeIdAtom, 'n3') })
+    await flush(100)
+    act(() => { view.store.set(hoveredNodeIdAtom, 'n4') })
+    await flush(100)
+    act(() => { view.store.set(hoveredNodeIdAtom, null) })
+    await flush(100)
+    expect(lib.engineStops).toBeGreaterThan(stops) // the library did call back
+    expect(lib.saves).toBe(saves)
+  })
+
+  it('still saves once a new layout lands', async () => {
+    const g = makeGraph(60)
+    const view = await mountGraph(g)
+    await flush(3000)
+    const saves = lib.saves
+    view.rerender(makeGraph(80))
+    await flush(3000)
+    expect(lib.saves).toBe(saves + 1)
   })
 })
