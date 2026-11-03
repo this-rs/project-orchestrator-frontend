@@ -135,6 +135,26 @@ function asNumber(v: unknown): number | undefined {
   return typeof v === 'number' && Number.isFinite(v) ? v : undefined
 }
 
+/**
+ * Creation timestamp (milliseconds) of a node, read from `data.created_at` or
+ * `data.createdAt`. Accepts an RFC 3339 / ISO date string and a Unix timestamp
+ * in seconds OR milliseconds. `undefined` when the field is missing, blank or
+ * unreadable — the placement then falls back to degree rank (the documented
+ * behaviour for nodes that carry no date).
+ */
+function createdAtMs(d: Record<string, unknown>): number | undefined {
+  const v = d.created_at ?? d.createdAt
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    // A Unix timestamp: seconds (below ~year 5138) or milliseconds.
+    return v > 1e12 ? v : v * 1000
+  }
+  if (typeof v === 'string' && v.length > 0) {
+    const t = Date.parse(v)
+    return Number.isFinite(t) ? t : undefined
+  }
+  return undefined
+}
+
 /** The file a node belongs to: `file_path` on a symbol, `path` on a file. */
 function asPath(d: Record<string, unknown>): string | undefined {
   const p = d.file_path ?? d.path
@@ -325,7 +345,9 @@ export function groupRadius(mass: number): number {
  * spread over ONE Fibonacci sphere of centres around the origin — the layer is
  * now a colour, not a place — sized so the group CORES never touch (halos may
  * brush). No force simulation: the layout is complete the instant it is
- * computed, sorted by degree so the busiest nodes sit near each group's pole.
+ * computed. Hubs (the busiest ~10 %) sit near each group's pole; the satellites
+ * wrap outward by creation date — the oldest nearest the centre, the newest at
+ * the rim — falling back to degree rank when a group carries no readable dates.
  * Same input ⇒ same output (stable across refreshes).
  */
 export function deterministicPlacement(
@@ -417,12 +439,27 @@ export function deterministicPlacement(
       const radius = hubs === 1 ? 0 : r * HUB_CORE * Math.sqrt((k + 0.5) / hubs)
       place(ids[k].id, radius, k * GOLDEN_ANGLE + phase, Math.asin(1 - (2 * (k + 0.5)) / hubs))
     }
+    // Satellites: INNER turns are the OLDEST nodes, OUTER turns the NEWEST. The
+    // order is by creation date (oldest first, ties broken by id for strict
+    // determinism); a group whose dates are missing or unreadable falls back to
+    // degree rank — the ids array is already sorted by degree above. The radius
+    // follows t^RADIAL_EXPONENT (t = normalised temporal rank), and each node
+    // advances the angle by one GOLDEN_ANGLE, so the number of turns grows with
+    // the mass: a big old group is a tight spiral, a small new one a loose ring.
+    const satellites = ids.slice(hubs)
+    const allDated = satellites.every((x) => createdAtMs(x.data) !== undefined)
+    if (allDated) {
+      satellites.sort((a, b) => {
+        const ta = createdAtMs(a.data)!
+        const tb = createdAtMs(b.data)!
+        return ta - tb || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+      })
+    }
     for (let j = 0; j < sats; j++) {
-      // Regular angles (golden stride); the radius inside the band follows a
-      // low-discrepancy sequence, so the corona is even and reproducible.
-      const u = (j * 0.6180339887) % 1
+      const t = sats <= 1 ? 0 : j / (sats - 1)
+      const radius = r * CORONA_OUTER * ((1 - band) + band * Math.pow(t, RADIAL_EXPONENT))
       const w = (j * 0.7548776662 + 0.5) % 1
-      place(ids[hubs + j].id, r * (1 - band * u), j * GOLDEN_ANGLE + phase, (w - 0.5) * CORONA_ELEVATION)
+      place(satellites[j].id, radius, j * GOLDEN_ANGLE + phase, (w - 0.5) * CORONA_ELEVATION)
     }
   })
   return out
@@ -442,6 +479,24 @@ const HUB_CORE = 0.15
 /** Corona: inner edge as a share of the group radius, and its vertical spread (rad). */
 const CORONA_INNER = 0.55
 const CORONA_ELEVATION = 0.6
+/**
+ * The corona's outer edge, as a share of the group radius. The 3D shell's
+ * vertical spread (elevation + the group tilt) gives the outer turn a small
+ * z-component, so an outer edge of exactly 1·R could read a touch PAST the
+ * group radius when measured from the core's plane. Capping just inside keeps
+ * the measured crown within [CORONA_INNER, 1.0] while the age still pushes the
+ * newest nodes to the rim.
+ */
+const CORONA_OUTER = 0.98
+/**
+ * Radial law of a satellite's corona, `t^RADIAL_EXPONENT` with `t` the
+ * normalised temporal rank (0 = oldest, 1 = newest). An exponent > 1 packs the
+ * old nodes tight near the inner edge and spreads the recent ones toward the
+ * rim: the inner turns read dense, the outer turns airy. Combined with the
+ * fixed GOLDEN_ANGLE stride, the number of turns grows with the group's mass —
+ * a big old group is a tight spiral, a small new one a loose ring.
+ */
+const RADIAL_EXPONENT = 1.7
 /** Fibonacci-sphere stride: the group centres spread over a volume, not a circle. */
 const GOLDEN_SPHERE = Math.PI * (3 - Math.sqrt(5))
 /** How far a core may drift along its radius, as a fraction of the ring. */

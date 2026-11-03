@@ -337,3 +337,98 @@ describe('one archipelago, logarithmic radius', () => {
     expect(deterministicPlacement(nodes, [])).toEqual(deterministicPlacement(nodes, []))
   })
 })
+
+// ── Age-ordered corona: inner turns = oldest, outer turns = newest ──────────
+// The client reported "les spirales ont toutes la même forme": a node's radius
+// in its group must now encode its CREATION DATE (oldest nearest the centre,
+// newest at the rim), not just its degree rank. Without a readable date the
+// placement falls back to degree rank. These tests encode that contract.
+
+const dist = (p: { x: number; y: number; z: number }) => Math.hypot(p.x, p.y, p.z)
+
+// One dated group on the code layer. Zero-padded ids keep the string tie-break
+// aligned with the numeric order; dates grow with i, one day apart.
+const datedGroup = (n: number): Graph3DNode[] => {
+  const base = Date.UTC(2020, 0, 1)
+  return Array.from({ length: n }, (_, i) => ({
+    id: `a${String(i).padStart(3, '0')}`,
+    label: `a${i}`,
+    entityType: 'file',
+    layer: 'code',
+    x: 0,
+    y: 0,
+    z: 0,
+    communityId: 1,
+    groupKey: 'c1',
+    data: { created_at: new Date(base + i * 86_400_000).toISOString() },
+  }))
+}
+
+describe('age-ordered corona', () => {
+  it('places an old node nearer the centre than a recent node of the same group', () => {
+    const nodes = datedGroup(40)
+    const placed = deterministicPlacement(nodes, [])
+    const R = groupRadius(40)
+    const hubCount = Math.ceil(40 * 0.1) // 4 degree hubs sit at the centre
+    // Skip the hubs (they ignore age) and compare the oldest satellite with the
+    // newest, normalised by the group radius.
+    const oldSat = nodes[hubCount]
+    const newSat = nodes[nodes.length - 1]
+    const rOld = dist(placed.get(oldSat.id)!) / R
+    const rNew = dist(placed.get(newSat.id)!) / R
+    expect(rOld).toBeLessThan(rNew)
+  })
+
+  it('orders satellite radii by creation date across 20 dated nodes', () => {
+    const nodes = datedGroup(20)
+    const placed = deterministicPlacement(nodes, [])
+    const hubCount = Math.ceil(20 * 0.1) // 2
+    const sats = nodes.slice(hubCount) // a002..a019, already date-ordered
+    const radii = sats.map((n) => dist(placed.get(n.id)!))
+    for (let i = 1; i < radii.length; i++) {
+      expect(radii[i]).toBeGreaterThan(radii[i - 1])
+    }
+  })
+
+  it('falls back to degree rank when created_at is absent', () => {
+    const n = 100
+    const nodes: Graph3DNode[] = Array.from({ length: n }, (_, i) => ({
+      id: `f${String(i).padStart(3, '0')}`,
+      label: `f${i}`,
+      entityType: 'file',
+      layer: 'code',
+      x: 0,
+      y: 0,
+      z: 0,
+      communityId: 1,
+      groupKey: 'c1',
+      data: {},
+    }))
+    const edges: IntelligenceEdge[] = []
+    for (let j = 1; j <= 50; j++) edges.push(mkEdge('f000', `f${String(j).padStart(3, '0')}`))
+    const placed = deterministicPlacement(nodes, edges)
+    // f010 has degree 1 (a satellite), f099 degree 0: the busier one sits nearer.
+    const rHigh = dist(placed.get('f010')!)
+    const rLow = dist(placed.get('f099')!)
+    expect(rHigh).toBeLessThan(rLow)
+  })
+
+  it('breaks equal dates by id and stays deterministic', () => {
+    const base = Date.UTC(2021, 5, 1)
+    const nodes: Graph3DNode[] = Array.from({ length: 30 }, (_, i) => ({
+      id: `e${String(i).padStart(3, '0')}`,
+      label: `e${i}`,
+      entityType: 'file',
+      layer: 'code',
+      x: 0,
+      y: 0,
+      z: 0,
+      communityId: 1,
+      groupKey: 'c1',
+      data: { created_at: new Date(base).toISOString() }, // every node the same date
+    }))
+    const a = deterministicPlacement(nodes, [])
+    const b = deterministicPlacement(nodes, [])
+    for (const n of nodes) expect(b.get(n.id)).toEqual(a.get(n.id))
+  })
+})
