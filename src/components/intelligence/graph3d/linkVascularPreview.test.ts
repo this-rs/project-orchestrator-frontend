@@ -83,6 +83,8 @@ describe('aperçu vasculaire', () => {
     const alp = g.attributes.aAlpha.array
     const nrm = g.attributes.aNormal.array
     const emi = g.attributes.aEmit.array
+    const cur = g.attributes.aU.array
+    const pha = g.attributes.aPhase.array
     const idx = g.index.array
 
     const W = 900, H = 620
@@ -124,6 +126,11 @@ describe('aperçu vasculaire', () => {
       const L = [0.45, 0.8, 0.6]
       const diff = Math.max(0, (nx * L[0] + ny * L[1] + nz * L[2]) / nlen)
       const em = (emi[i0] + emi[i1] + emi[i2]) / 3
+      // Impulsion du flux, comme le shader (à t = 0 : image stable).
+      const uu = (cur[i0] + cur[i1] + cur[i2]) / 3
+      const pp = pha[i0]
+      const wave = ((uu * 6 - 0 + pp) % 1 + 1) % 1
+      const pulse = 0.55 + 0.75 * Math.min(1, Math.max(0, wave / 0.35)) * Math.min(1, Math.max(0, (1 - wave) / 0.35))
       const minX = Math.max(0, Math.floor(Math.min(p0.sx, p1.sx, p2.sx)))
       const maxX = Math.min(W - 1, Math.ceil(Math.max(p0.sx, p1.sx, p2.sx)))
       const minY = Math.max(0, Math.floor(Math.min(p0.sy, p1.sy, p2.sy)))
@@ -140,7 +147,7 @@ describe('aperçu vasculaire', () => {
           // Composition ALPHA (le matériau n'est plus additif) + éclairage.
           const o = y * W + x
           const surf = 0.22 + 0.78 * diff
-          const e = 1 - Math.exp(-2.0 * em * a0)
+          const e = (1 - Math.exp(-2.0 * em * a0)) * (em > 0.5 ? pulse : 1)
           const cr = c0[0] * (surf * (1 - em) + e)
           const cg = c0[1] * (surf * (1 - em) + e)
           const cb = c0[2] * (surf * (1 - em) + e)

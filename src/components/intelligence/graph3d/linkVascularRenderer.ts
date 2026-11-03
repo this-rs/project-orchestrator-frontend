@@ -35,7 +35,7 @@ import type { LinkStyle, LinkStyleFn } from './linkRibbon'
 import { buildCorridors, type Corridor } from './linkRouting'
 import { buildLinkSystem, fromCorridors, type DrawableBundle, type SystemBudget } from './linkSystem'
 import { braidedOffsets, parallelTransportFrames, type Vec3 } from './linkVascular'
-import { flowPositions, strataFor, type Stratum } from './linkStrata'
+import { strataFor, type Stratum } from './linkStrata'
 import { communityToken } from './linkRibbon'
 import { LINK_RENDER_ORDER } from './nodePoints'
 import { isMobileLikeDevice } from './useRenderLoop'
@@ -164,11 +164,15 @@ const VERTEX_SHADER = /* glsl */ `
   attribute float aAlpha;
   attribute vec3 aNormal;
   attribute float aEmit;
+  attribute float aU;
+  attribute float aPhase;
   varying vec3 vColor;
   varying float vAlpha;
   varying vec3 vNormal;
   varying float vEmit;
   varying vec3 vView;
+  varying float vU;
+  varying float vPhase;
   void main() {
     vec4 wp = modelMatrix * vec4(position, 1.0);
     // Normale de SURFACE : sans elle, un tube n'est qu'une tache de couleur et
@@ -178,17 +182,22 @@ const VERTEX_SHADER = /* glsl */ `
     vColor = aColor;
     vAlpha = aAlpha;
     vEmit = aEmit;
+    vU = aU;
+    vPhase = aPhase;
     gl_Position = projectionMatrix * viewMatrix * wp;
   }
 `
 
 const FRAGMENT_SHADER = /* glsl */ `
   uniform vec3 uLightDir;
+  uniform float uFlowTime;
   varying vec3 vColor;
   varying float vAlpha;
   varying vec3 vNormal;
   varying float vEmit;
   varying vec3 vView;
+  varying float vU;
+  varying float vPhase;
   void main() {
     vec3 N = normalize(vNormal);
     if (!gl_FrontFacing) N = -N;
@@ -199,7 +208,15 @@ const FRAGMENT_SHADER = /* glsl */ `
     vec3 surface = vColor * (0.32 + 0.68 * diff) + vColor * rim * 0.55;
     // L'emission est un SUPPLEMENT, borne par une courbe compressive : deux
     // dizaines de couches ne peuvent plus saturer le meme pixel.
-    float e = 1.0 - exp(-2.0 * vEmit * vAlpha);
+    // LE FLUX VIT ICI. Impulsions fines, décalées par conduit, qui avancent avec
+    // uFlowTime : la géométrie et les couleurs ne bougent jamais pendant
+    // l'animation — c'est la phase 7 du plan.
+    float pulse = 1.0;
+    if (vEmit > 0.5) {
+      float wave = fract(vU * 6.0 - uFlowTime + vPhase);
+      pulse = 0.55 + 0.75 * smoothstep(0.0, 0.35, wave) * smoothstep(1.0, 0.65, wave);
+    }
+    float e = (1.0 - exp(-2.0 * vEmit * vAlpha)) * pulse;
     vec3 col = surface * (1.0 - vEmit) + vColor * e;
     float a = clamp(vAlpha * (1.0 - vEmit) * 1.0 + e, 0.0, 1.0);
     gl_FragColor = vec4(col, a);
@@ -328,6 +345,15 @@ function sampleCurve(a: Vec3, c1: Vec3, c2: Vec3, b: Vec3, samples: number): Vec
   }
   return out
 }
+
+/**
+ * Le flux animé est-il autorisé sur cet appareil ?
+ *
+ * PHASE 7 : « ne pas activer automatiquement l'animation continue sur mobile
+ * tant que les mesures thermiques ne sont pas satisfaisantes ». Désactivé par
+ * défaut sur mobile, activable par l'appelant après mesure.
+ */
+export const ORGANIC_FLOW_ENABLED = !MOBILE_LIKE
 
 export interface VascularLinkRenderer extends LinkRenderer {
   /** Fait avancer le flux d'un tour de motif. Sans appel, l'image est stable. */
@@ -519,6 +545,8 @@ export function createVascularLinks(
     const alpha: number[] = []
     const normal: number[] = []
     const emit: number[] = []
+    const curv: number[] = []
+    const phase: number[] = []
     const index: number[] = []
     const trianglesPerBundle: number[] = []
 
@@ -595,6 +623,8 @@ export function createVascularLinks(
           alpha.push(0)
           normal.push(0, 1, 0)
           emit.push(0)
+          curv.push(0)
+          phase.push(0)
         }
         const base = position.length / 3 - count
         for (let layer = 0; layer < layers; layer++) {
@@ -689,16 +719,22 @@ export function createVascularLinks(
     const alphaAttr = new THREE.BufferAttribute(new Float32Array(alpha), 1)
     const normalAttr = new THREE.BufferAttribute(new Float32Array(normal), 3)
     const emitAttr = new THREE.BufferAttribute(new Float32Array(emit), 1)
+    const curvAttr = new THREE.BufferAttribute(new Float32Array(curv), 1)
+    const phaseAttr = new THREE.BufferAttribute(new Float32Array(phase), 1)
     positionAttr.setUsage(THREE.DynamicDrawUsage)
     colorAttr.setUsage(THREE.DynamicDrawUsage)
     alphaAttr.setUsage(THREE.DynamicDrawUsage)
     normalAttr.setUsage(THREE.DynamicDrawUsage)
     emitAttr.setUsage(THREE.DynamicDrawUsage)
+    curvAttr.setUsage(THREE.DynamicDrawUsage)
+    phaseAttr.setUsage(THREE.DynamicDrawUsage)
     geometry.setAttribute('position', positionAttr)
     geometry.setAttribute('aColor', colorAttr)
     geometry.setAttribute('aAlpha', alphaAttr)
     geometry.setAttribute('aNormal', normalAttr)
     geometry.setAttribute('aEmit', emitAttr)
+    geometry.setAttribute('aU', curvAttr)
+    geometry.setAttribute('aPhase', phaseAttr)
     geometry.setIndex(index)
 
     const material = new THREE.ShaderMaterial({
@@ -710,7 +746,10 @@ export function createVascularLinks(
       // alpha normale empêche l'empilement de gaines de virer au blanc, et
       // l'émission est bornée dans le fragment.
       blending: THREE.NormalBlending,
-      uniforms: { uLightDir: { value: new THREE.Vector3(0.45, 0.8, 0.6).normalize() } },
+      uniforms: {
+        uLightDir: { value: new THREE.Vector3(0.45, 0.8, 0.6).normalize() },
+        uFlowTime: { value: 0 },
+      },
     })
 
     const mesh = new THREE.Mesh(geometry, material)
@@ -747,6 +786,8 @@ export function createVascularLinks(
       const alp = alphaAttr.array as Float32Array
       const nrm = normalAttr.array as Float32Array
       const emi = emitAttr.array as Float32Array
+      const crv = curvAttr.array as Float32Array
+      const pha = phaseAttr.array as Float32Array
       // Couleur de la voie : celle de SA famille quand elle en porte une, pour
       // que deux familles du même corridor restent distinguables à l'œil.
       const fam = conduit.family ? familyRgb(conduit.family) : null
@@ -760,8 +801,6 @@ export function createVascularLinks(
       const specs = layerSpecs(channelCount)
       const layers = specs.length
       const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
-      // Grains du flux : leur motif lumineux court sur le canal axial.
-      const grains = flowPositions(6, 0, conduit.flowPhase)
       const base = conduit.vertexStart
       const baseAlpha = Math.max(0.3, style.a)
       for (let layer = 0; layer < layers; layer++) {
@@ -798,13 +837,10 @@ export function createVascularLinks(
           // Flux : une brillance périodique le long de la couche porteuse. Sans
           // animation c'est déjà des grains lisibles ; `setFlowTime` les fait
           // défiler (voir le champ exposé plus bas).
-          let flowGain = 1
-          if (spec.emit && grains.length > 0) {
-            const period = grains.length
-            const pos = (u * period + flowTime + conduit.flowPhase) % 1
-            const nearest = Math.abs(pos - Math.round(pos))
-            flowGain = 0.45 + 0.85 * Math.max(0, 1 - nearest * 3.2)
-          }
+          // La couleur ne porte PLUS le flux : elle est stable, et c'est le
+          // shader qui anime. Sans cette séparation, `setFlowTime` devait
+          // réécrire les tampons de couleur à chaque image.
+          const flowGain = 1
           for (let k = 0; k < TUBE_SEGMENTS; k++) {
             const ang = (k / TUBE_SEGMENTS) * Math.PI * 2
             const nx = Math.cos(ang)
@@ -826,6 +862,9 @@ export function createVascularLinks(
             alp[vi1] = Math.min(1, layerAlpha * g)
             // Seule la couche qui porte le flux émet ; tout le reste est surface.
             emi[vi1] = spec.emit ? 1 : 0
+            // Position curviligne et phase : le shader en fait une impulsion.
+            crv[vi1] = u
+            pha[vi1] = conduit.flowPhase
           }
         }
       }
@@ -882,9 +921,10 @@ export function createVascularLinks(
       },
       bundleAt: (faceIndex: number) => bundleAtTriangle(ranges, faceIndex),
       onBundleClick,
+      // Aucun tampon réécrit, aucune géométrie reconstruite : un uniforme.
       setFlowTime: (turns: number) => {
         flowTime = Number.isFinite(turns) ? turns % 1 : 0
-        fillColors((b) => b.lastStyle)
+        material.uniforms.uFlowTime.value = flowTime
       },
       dispose: () => {
         geometry.dispose()
