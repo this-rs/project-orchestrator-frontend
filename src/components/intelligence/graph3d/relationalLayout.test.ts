@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { layoutGroups } from './relationalLayout'
+import { layoutGroups, CORE_RATIO } from './relationalLayout'
 import type { RelationalGroup, AffinityMatrix, OrganicPoint } from './relationalLayout'
 
 function dist(a: OrganicPoint, b: OrganicPoint): number {
@@ -78,7 +78,7 @@ describe('layoutGroups', () => {
     }
   })
 
-  it('respects the iteration budget and leaves no overlapping envelopes at convergence', () => {
+  it('never lets envelopes of UNRELATED groups touch, and cores of related ones', () => {
     const groups: RelationalGroup[] = Array.from({ length: 10 }, (_, i) => ({
       id: `g${i}`,
       radius: 60 + (i % 3) * 20,
@@ -97,7 +97,79 @@ describe('layoutGroups', () => {
         const gi = groups[i]
         const gj = groups[j]
         const d = dist(positions.get(gi.id)!, positions.get(gj.id)!)
-        expect(d).toBeGreaterThanOrEqual(gi.radius + gj.radius)
+        // Related pair: only the CORES must stay apart — sharing a halo is the
+        // point. Unrelated pair: the envelopes must never touch.
+        const related = affinities[gi.id]?.[gj.id] !== undefined
+        const floor = related
+          ? (gi.radius + gj.radius) * CORE_RATIO
+          : gi.radius + gj.radius
+        expect(d).toBeGreaterThanOrEqual(floor)
+      }
+    }
+  })
+
+  it('lets a strongly-related pair share its halo, and only its halo', () => {
+    const groups: RelationalGroup[] = [
+      { id: 'a', radius: 80 },
+      { id: 'b', radius: 80 },
+    ]
+    const positions = layoutGroups(groups, { a: { b: 40 } }, { maxIterations: 300 })
+    const d = dist(positions.get('a')!, positions.get('b')!)
+    // Closer than the envelope sum (the halos interpenetrate) but never inside
+    // the two cores (which would be one group drawn twice).
+    expect(d).toBeLessThan(80 + 80)
+    expect(d).toBeGreaterThanOrEqual((80 + 80) * CORE_RATIO)
+  })
+
+  it('rests a linked pair closer than an unlinked one, of equal radius', () => {
+    const groups: RelationalGroup[] = [
+      { id: 'a', radius: 70 },
+      { id: 'b', radius: 70 },
+      { id: 'x', radius: 70 },
+      { id: 'y', radius: 70 },
+    ]
+    // a—b is one real link; x and y are independent of everything.
+    const positions = layoutGroups(groups, { a: { b: 1 } }, { maxIterations: 300 })
+    const linked = dist(positions.get('a')!, positions.get('b')!)
+    const unlinked = dist(positions.get('x')!, positions.get('y')!)
+    expect(linked).toBeLessThan(unlinked)
+  })
+
+  it('resolves 200 groups through the grid, with no overlapping core left', () => {
+    // Guards both the contract and the cost: the projection used to sweep every
+    // pair (O(n²) per pass, 2 827 ms at 500 groups) and to spend its whole
+    // budget on sub-pixel corrections. This fixture is the size the layout has
+    // to stay correct at, not the size it has to stay fast at — the timing is
+    // measured in the commit message, not asserted here (a wall-clock assertion
+    // would be a flaky test on a shared CI runner).
+    const groups: RelationalGroup[] = Array.from({ length: 200 }, (_, i) => ({
+      id: `g${i}`,
+      radius: 60 + (i % 5) * 10,
+    }))
+    const affinities: AffinityMatrix = {}
+    for (let i = 0; i < groups.length; i++) {
+      for (let k = 1; k <= 3; k++) {
+        const j = (i * 7 + k * 13) % groups.length
+        if (j === i) continue
+        const a = `g${i}`
+        const b = `g${j}`
+        const [x, y] = a < b ? [a, b] : [b, a]
+        affinities[x] ??= {}
+        affinities[x][y] = (affinities[x][y] ?? 0) + 1
+      }
+    }
+    const positions = layoutGroups(groups, affinities, { maxIterations: 200 })
+    expect(positions.size).toBe(groups.length)
+    const byId = new Map(groups.map((g) => [g.id, g.radius]))
+    for (let i = 0; i < groups.length; i++) {
+      for (let j = i + 1; j < groups.length; j++) {
+        const gi = groups[i].id
+        const gj = groups[j].id
+        const related = affinities[gi]?.[gj] !== undefined
+        const floor = related
+          ? (byId.get(gi)! + byId.get(gj)!) * CORE_RATIO
+          : byId.get(gi)! + byId.get(gj)!
+        expect(dist(positions.get(gi)!, positions.get(gj)!)).toBeGreaterThanOrEqual(floor)
       }
     }
   })

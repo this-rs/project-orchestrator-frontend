@@ -223,29 +223,37 @@ describe('hub-and-corona placement', () => {
     expect(radiusOf(placed, 'q0')).toBeLessThan(median * 0.3)
   })
 
-  it('spreads satellites on a corona between 0.55 and 1.0 of the group radius', () => {
+  it('FILLS each group: satellites span the whole radius, not a shell', () => {
+    // The regression this guards: the radius was
+    //   (1-band) + band·t^k,  band = (1-0.55)/(1+n/150)
+    // so at 500 nodes every satellite sat between 0.86R and 0.98R — a hollow
+    // bubble with a bright hub inside, which is what read as "a ball with a
+    // regular arrangement". A nebula has mass near the centre.
     for (const n of [30, 100, 400]) {
       const { nodes, edges } = mkGroup(n, 10)
       const placed = deterministicPlacement(nodes, edges)
       const R = groupRadius(n)
-      for (const node of satellitesOf(nodes, edges)) {
-        const nr = radiusOf(placed, node.id) / R
-        expect(nr).toBeGreaterThanOrEqual(0.55 - 1e-9)
-        expect(nr).toBeLessThanOrEqual(1 + 1e-9)
-      }
+      const rs = satellitesOf(nodes, edges).map((x) => radiusOf(placed, x.id) / R)
+      // Every satellite stays inside the group…
+      expect(Math.max(...rs)).toBeLessThanOrEqual(1 + 1e-9)
+      // …and the innermost ones reach the core instead of stopping at a rim.
+      expect(Math.min(...rs)).toBeLessThan(0.25)
     }
   })
 
-  it('thins the corona as the group grows', () => {
-    const spread = (n: number) => {
+  it('concentrates the mass toward the core whatever the group size', () => {
+    // Half the satellites must sit inside ~0.32R (t^1.7 at t = 0.5). A uniform
+    // ball would put them at 0.5^(1/3) ≈ 0.79R; a shell at ~0.9R.
+    for (const n of [40, 200, 800]) {
       const { nodes, edges } = mkGroup(n, 5)
       const placed = deterministicPlacement(nodes, edges)
       const R = groupRadius(n)
-      const rs = satellitesOf(nodes, edges).map((x) => radiusOf(placed, x.id) / R)
-      return Math.max(...rs) - Math.min(...rs)
+      const rs = satellitesOf(nodes, edges)
+        .map((x) => radiusOf(placed, x.id) / R)
+        .sort((a, b) => a - b)
+      const median = rs[Math.floor(rs.length / 2)]
+      expect(median).toBeLessThan(0.45)
     }
-    expect(spread(800)).toBeLessThan(spread(20))
-    expect(spread(800)).toBeLessThan(0.15)
   })
 
   it('is strictly deterministic', () => {

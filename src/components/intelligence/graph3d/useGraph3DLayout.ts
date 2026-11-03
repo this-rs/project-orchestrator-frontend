@@ -430,9 +430,19 @@ export function deterministicPlacement(
     const cx = placed ? placed.x : Math.cos(angle) * around * radial
     const cy = placed ? placed.y : up * radial
     const cz = placed ? placed.z : Math.sin(angle) * around * radial
-    const tilt = (rng() - 0.5) * 1.1
+    // Full 3D orientation, not a small roll.
+    //
+    // This used to be a single tilt of ±31° around X, so every group's cloud
+    // lay in a plane almost parallel to XZ: the whole graph read as a stack of
+    // plates, i.e. "flat" even though the centres were genuinely spread in
+    // three dimensions. A yaw in [0, 2π) on top of the tilt gives each group a
+    // freely oriented shape, so the cloud reads as a volume.
+    const tilt = (rng() - 0.5) * Math.PI
+    const yaw = rng() * Math.PI * 2
     const cosT = Math.cos(tilt)
     const sinT = Math.sin(tilt)
+    const cosY = Math.cos(yaw)
+    const sinY = Math.sin(yaw)
 
     // Busiest first: rank 0 is the core, the leaves are the halo.
     ids.sort((a, b) => (deg.get(b.id) ?? 0) - (deg.get(a.id) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
@@ -445,16 +455,18 @@ export function deterministicPlacement(
     // reads as a hollow shell around a bright hub, not a filled ball.
     const hubs = Math.max(1, Math.ceil(n * HUB_SHARE))
     const sats = n - hubs
-    const band = Math.max(0.12, (1 - CORONA_INNER) / (1 + n / 150))
     const place = (id: string, radius: number, th: number, el: number) => {
       const ce = Math.cos(el)
       const x0 = radius * ce * Math.cos(th)
       const y0 = radius * Math.sin(el)
       const z0 = radius * ce * Math.sin(th)
+      // Rotate around X (tilt), then around Y (yaw) — a different plane per group.
+      const yt = y0 * cosT - z0 * sinT
+      const zt = y0 * sinT + z0 * cosT
       out.set(id, {
-        x: cx + x0,
-        y: cy + y0 * cosT - z0 * sinT,
-        z: cz + y0 * sinT + z0 * cosT,
+        x: cx + x0 * cosY + zt * sinY,
+        y: cy + yt,
+        z: cz - x0 * sinY + zt * cosY,
       })
     }
     for (let k = 0; k < hubs; k++) {
@@ -479,8 +491,16 @@ export function deterministicPlacement(
       })
     }
     for (let j = 0; j < sats; j++) {
-      const t = sats <= 1 ? 0 : j / (sats - 1)
-      const radius = r * CORONA_OUTER * ((1 - band) + band * Math.pow(t, RADIAL_EXPONENT))
+      const t = (j + 0.5) / sats
+      // FILL the group, do not shell it.
+      //
+      // This used to be `(1-band) + band·t^k` with band shrinking as the group
+      // grew: at 500 nodes every satellite sat between 0.86r and 0.98r, i.e.
+      // an empty bubble with a bright hub inside. That is what read as "a ball
+      // with a regular arrangement" and as "no relief". The radius now spans
+      // the whole group, t^k concentrating the mass toward the core: half the
+      // satellites of a group sit inside 0.32·r, the rest form the halo.
+      const radius = r * CORONA_OUTER * Math.pow(t, RADIAL_EXPONENT)
       const w = (j * 0.7548776662 + 0.5) % 1
       place(satellites[j].id, radius, j * GOLDEN_ANGLE + phase, (w - 0.5) * CORONA_ELEVATION)
     }
@@ -499,9 +519,16 @@ const CORE_FRACTION = 0.45
 /** Share of a group kept as hubs at its centre, and how far they spread. */
 const HUB_SHARE = 0.1
 const HUB_CORE = 0.15
-/** Corona: inner edge as a share of the group radius, and its vertical spread (rad). */
-const CORONA_INNER = 0.55
-const CORONA_ELEVATION = 0.6
+/**
+ * Latitude span of a group's satellites, in radians (full sphere = π).
+ *
+ * It was 0.6, i.e. ±17° around the group's equator: every constellation was a
+ * thin lens, and since the lenses were also nearly parallel (see the tilt note
+ * in `deterministicPlacement`), the graph read as flat. A full span makes each
+ * group a real shell — hubs in the core, satellites around them in every
+ * direction.
+ */
+const CORONA_ELEVATION = Math.PI
 /**
  * The corona's outer edge, as a share of the group radius. The 3D shell's
  * vertical spread (elevation + the group tilt) gives the outer turn a small
