@@ -386,34 +386,53 @@ function norm3(v: Vec3): Vec3 {
   return [v[0] / len, v[1] / len, v[2] / len]
 }
 
-/** A bowed pair of control points between two anchors: the trunk never runs straight. */
-function bowAnchors(a: Vec3, b: Vec3, seed: number): [Vec3, Vec3] {
-  const d = sub3(b, a)
-  const len = Math.hypot(d[0], d[1], d[2]) || 1
-  const mid = lerp3(a, b, 0.5)
-  // Le ventre est poussé VERS L'EXTÉRIEUR du graphe : les vaisseaux contournent
-  // le centre au lieu de s'y croiser. Vingt et un corridors entre six grappes
-  // faisaient un nœud illisible au milieu ; les planches montrent des arcs qui
-  // enveloppent.
-  const radialLen = Math.hypot(mid[0], mid[1], mid[2])
-  const radial: Vec3 = radialLen > 1e-6 ? [mid[0] / radialLen, mid[1] / radialLen, mid[2] / radialLen] : [0, 1, 0]
-  const axis = norm3([d[1] * 0.7 + Math.cos(seed) * 0.3, d[2] * 0.7 + Math.sin(seed) * 0.3, d[0] * 0.7])
-  const tangential = norm3(cross3(norm3(d), axis))
-  // Un peu de tangentiel pour l'irrégularité, beaucoup de radial pour envelopper.
-  const perp = norm3([
-    radial[0] * 0.85 + tangential[0] * 0.35,
-    radial[1] * 0.85 + tangential[1] * 0.35,
-    radial[2] * 0.85 + tangential[2] * 0.35,
-  ])
-  const bow = len * BOW
+/** Amplitude de la petite S posée sur l'arc, en part du ventre. */
+const S_TWIST = 0.35
+
+/**
+ * Deux points de contrôle qui CINTRENT le tronc vers l'extérieur du graphe.
+ *
+ * Les vaisseaux contournent le centre au lieu de s'y croiser : vingt et un
+ * corridors entre six grappes faisaient un nœud illisible au milieu ; les
+ * planches montrent des arcs qui enveloppent.
+ *
+ * Les deux contrôles étaient poussés de part et d'autre (+ventre / −ventre) :
+ * B(0,5) retombait EXACTEMENT au milieu de la corde, le ventre vers
+ * l'extérieur s'annulait et tous les troncs traversaient le centre. Ils sont
+ * maintenant du MÊME côté (arc sortant, B(0,5) = milieu + ¾·ventre) ; une
+ * petite S tangentielle, de signe dicté par la graine, garde l'irrégularité.
+ *
+ * Le ventre est une part de la longueur — rien d'absolu : une corde nulle n'a
+ * pas de ventre. L'extérieur se mesure depuis `center` (le centre du graphe),
+ * pas depuis l'origine du monde.
+ */
+export function bowAnchors(a: Vec3, b: Vec3, seed: number, center: Vec3 = [0, 0, 0]): [Vec3, Vec3] {
   const c1 = lerp3(a, b, 1 / 3)
   const c2 = lerp3(a, b, 2 / 3)
-  // Les deux contrôles partent de part et d'autre : une S, pas un arc. Un arc
-  // unique donnait des cordes tendues d'un point à l'autre — « de simples fils »
-  // entre les nœuds, exactement ce que le client refuse.
+  const d = sub3(b, a)
+  const len = Math.hypot(d[0], d[1], d[2])
+  if (!(len > 1e-9)) return [c1, c2]
+  const dir: Vec3 = [d[0] / len, d[1] / len, d[2] / len]
+  const mid = lerp3(a, b, 0.5)
+  // Direction radiale, rendue perpendiculaire à la corde.
+  let r = sub3(mid, center)
+  const along = r[0] * dir[0] + r[1] * dir[1] + r[2] * dir[2]
+  r = [r[0] - dir[0] * along, r[1] - dir[1] * along, r[2] - dir[2] * along]
+  if (Math.hypot(r[0], r[1], r[2]) < 1e-6 * len) {
+    // La corde passe par le centre : une direction perpendiculaire choisie
+    // par la graine, déterministe.
+    const helper: Vec3 = Math.abs(dir[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]
+    const p = norm3(cross3(dir, helper))
+    const q = cross3(dir, p)
+    r = [p[0] * Math.cos(seed) + q[0] * Math.sin(seed), p[1] * Math.cos(seed) + q[1] * Math.sin(seed), p[2] * Math.cos(seed) + q[2] * Math.sin(seed)]
+  }
+  const radial = norm3(r)
+  const tangential = norm3(cross3(dir, radial))
+  const bow = len * BOW
+  const twist = bow * S_TWIST * Math.cos(seed)
   return [
-    [c1[0] + perp[0] * bow, c1[1] + perp[1] * bow, c1[2] + perp[2] * bow],
-    [c2[0] - perp[0] * bow, c2[1] - perp[1] * bow, c2[2] - perp[2] * bow],
+    [c1[0] + radial[0] * bow + tangential[0] * twist, c1[1] + radial[1] * bow + tangential[1] * twist, c1[2] + radial[2] * bow + tangential[2] * twist],
+    [c2[0] + radial[0] * bow - tangential[0] * twist, c2[1] + radial[1] * bow - tangential[1] * twist, c2[2] + radial[2] * bow - tangential[2] * twist],
   ]
 }
 
@@ -523,8 +542,16 @@ export function createVascularLinks(
 
     // Bounding radius of the graph: every thickness is a share of what is on screen.
     let sceneRadius = 1
+    /** Centre du graphe : les troncs se cintrent vers l'extérieur DE LUI. */
+    const sceneCenter: Vec3 = [0, 0, 0]
     const recomputeHubs = () => {
       sceneRadius = 1
+      let gx = 0, gy = 0, gz = 0
+      for (const n of nodes) { gx += n.x; gy += n.y; gz += n.z }
+      const count = Math.max(1, nodes.length)
+      sceneCenter[0] = gx / count
+      sceneCenter[1] = gy / count
+      sceneCenter[2] = gz / count
       for (const n of nodes) {
         const d = Math.hypot(n.x, n.y, n.z)
         if (Number.isFinite(d) && d > sceneRadius) sceneRadius = d
@@ -1036,7 +1063,7 @@ export function createVascularLinks(
       }
       const a: Vec3 = [s.x, s.y, s.z]
       const b: Vec3 = [t.x, t.y, t.z]
-      const [c1, c2] = bowAnchors(a, b, bundle.bowSeed + conduit.lane * 0.9)
+      const [c1, c2] = bowAnchors(a, b, bundle.bowSeed + conduit.lane * 0.9, sceneCenter)
       const points = sampleCurve(a, c1, c2, b, conduit.samples)
       const frames = parallelTransportFrames(points)
       const order = bundle.corridor.magnitude.magnitudeOrder
