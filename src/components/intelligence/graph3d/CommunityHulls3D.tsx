@@ -1,104 +1,38 @@
 // ============================================================================
-// CommunityHulls3D — Convex hull overlays for community clusters in 3D graph
+// CommunityHulls3D — real convex-hull envelopes for community clusters
 // ============================================================================
 //
-// Renders semi-transparent convex hull meshes around nodes that share the same
-// communityId. Each hull gets a unique color, a wireframe border, and a floating
-// label at the centroid.
+// Draws a translucent CONVEX HULL (three's ConvexGeometry) around the members
+// of each community at the aggregated tier, so a cluster reads as a volume
+// without swallowing the nodes inside it.
 //
-// Safety: all geometry construction is wrapped in try-catch to prevent
-// Three.js errors from crashing the entire graph component.
+// This replaces an earlier fan-triangulated "hull" (a triangle fan from the
+// centroid, projected onto XZ) that scaled up to cover a whole cluster and
+// turned the scene into an opaque blob (screenshots of 02/11). The real hull
+// is the smallest convex surface enclosing the members, inflated outward by a
+// small fraction of the community's radius (see communityHullPrep.ts).
+//
+// The selection of which communities to wrap (min size, max count, expansion)
+// lives in the pure `prepareCommunityHulls`; this module only turns its output
+// into three.js meshes. Fill and wireframe are deliberately faint
+// (fillOpacity 0.05–0.08, wire 0.03) and `depthWrite: false`, and they render
+// BEFORE the nodes (renderOrder < nodes), so the nodes always stay in front.
 // ============================================================================
 
 import * as THREE from 'three'
-import SpriteText from 'three-spritetext'
+import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js'
+import { entityColor } from '@/constants/graphPalette'
+import {
+  prepareCommunityHulls,
+  type CommunityHullPrepOptions,
+  type PreparedCommunityHull,
+} from './communityHullPrep'
 import type { Graph3DNode } from './useGraph3DLayout'
-import type { TFn } from './nodeObjects'
 
-// ── Community colors — 12 distinct hues ──────────────────────────────────────
-
-const COMMUNITY_COLORS = [
-  '#3B82F6', // blue
-  '#22C55E', // green
-  '#F59E0B', // amber
-  '#EC4899', // pink
-  '#8B5CF6', // violet
-  '#06B6D4', // cyan
-  '#EF4444', // red
-  '#14B8A6', // teal
-  '#F97316', // orange
-  '#A855F7', // purple
-  '#84CC16', // lime
-  '#E879F9', // fuchsia
-]
-
-function getCommunityColor(communityId: number): string {
-  return COMMUNITY_COLORS[communityId % COMMUNITY_COLORS.length]
-}
-
-// ── Convex Hull geometry (fan triangulation from centroid) ────────────────────
-
-function buildConvexHullGeometry(positions: THREE.Vector3[]): THREE.BufferGeometry | null {
-  if (positions.length < 3) return null
-
-  // Check for degenerate case: all points too close together
-  const center = new THREE.Vector3()
-  positions.forEach((p) => center.add(p))
-  center.divideScalar(positions.length)
-
-  const maxDist = Math.max(...positions.map((p) => p.distanceTo(center)))
-  if (maxDist < 1) return null // all points collapsed — skip
-
-  if (positions.length === 3) {
-    const geo = new THREE.BufferGeometry()
-    const verts = new Float32Array(9)
-    positions.forEach((p, i) => {
-      verts[i * 3] = p.x
-      verts[i * 3 + 1] = p.y
-      verts[i * 3 + 2] = p.z
-    })
-    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3))
-    geo.setIndex([0, 1, 2, 2, 1, 0]) // double-sided triangle
-    geo.computeVertexNormals()
-    return geo
-  }
-
-  try {
-    const vertices: number[] = []
-    const indices: number[] = []
-
-    // Vertex 0 = centroid
-    vertices.push(center.x, center.y, center.z)
-
-    // Add all hull points
-    for (const p of positions) {
-      vertices.push(p.x, p.y, p.z)
-    }
-
-    // Sort points by angle relative to centroid (projected onto XZ plane)
-    const sorted = positions.map((p, i) => ({
-      idx: i + 1,
-      angle: Math.atan2(p.z - center.z, p.x - center.x),
-    })).sort((a, b) => a.angle - b.angle)
-
-    // Fan triangles from centroid
-    for (let i = 0; i < sorted.length; i++) {
-      const next = (i + 1) % sorted.length
-      indices.push(0, sorted[i].idx, sorted[next].idx)
-    }
-
-    if (indices.length === 0) return null
-
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-    geo.setIndex(indices)
-    geo.computeVertexNormals()
-    return geo
-  } catch (err) {
-    console.warn('[CommunityHulls3D] geometry error:', err)
-    return null
-  }
-}
+// ── Render order ────────────────────────────────────────────────────────────
+// Nodes (THREE.Points) render at NODE_POINTS_RENDER_ORDER = 10; links at 1.
+// The envelope is a backdrop, so it must come first. Anything below 1 works.
+export const HULL_RENDER_ORDER = 0
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,10 +40,10 @@ export interface CommunityHull {
   communityId: number
   label: string
   nodeCount: number
+  dominantType: string
   color: string
   fillMesh: THREE.Mesh
   wireMesh: THREE.Mesh
-  labelSprite: THREE.Object3D
 }
 
 export interface CommunityHullGroup {
@@ -117,142 +51,101 @@ export interface CommunityHullGroup {
   hulls: CommunityHull[]
 }
 
-// ── Build community hulls from positioned Graph3D nodes ─────────────────────
-
-export interface CommunityHullOptions {
-  /** Fill opacity (default 0.06). */
+export interface CommunityHullOptions extends CommunityHullPrepOptions {
+  /** Fill opacity (default 0.06 — within the required 0.05–0.08 band). */
   fillOpacity?: number
-  /** Wireframe opacity (default 0.25). */
+  /** Wireframe opacity (default 0.03). */
   wireOpacity?: number
-  /** Outward expansion of the hull around its members (default 20). */
-  expand?: number
-  /** Minimum members for a hull (default 3). */
-  minMembers?: number
 }
+
+// ── Geometry ─────────────────────────────────────────────────────────────────
+
+/**
+ * Inflate a member point outward from the centroid by `expansion`, keeping the
+ * hull just larger than the point cloud so node sprites are not clipped by the
+ * surface. A point sitting exactly on the centroid cannot be pushed outward —
+ * it is returned unchanged.
+ */
+function inflatePoint(p: { x: number; y: number; z: number }, centroid: { x: number; y: number; z: number }, expansion: number): THREE.Vector3 {
+  const dx = p.x - centroid.x
+  const dy = p.y - centroid.y
+  const dz = p.z - centroid.z
+  const len = Math.sqrt(dx * dx + dy * dy + dz * dz)
+  if (len < 1e-6) return new THREE.Vector3(p.x, p.y, p.z)
+  const s = (len + expansion) / len
+  return new THREE.Vector3(centroid.x + dx * s, centroid.y + dy * s, centroid.z + dz * s)
+}
+
+/** Convex hull of the inflated points, or null when the point set is degenerate. */
+function buildHullGeometry(prepared: PreparedCommunityHull): THREE.BufferGeometry | null {
+  const points = prepared.points.map((p) => inflatePoint(p, prepared.centroid, prepared.expansion))
+  if (points.length < 4) return null
+  try {
+    return new ConvexGeometry(points)
+  } catch (err) {
+    console.warn('[CommunityHulls3D] ConvexGeometry error:', err)
+    return null
+  }
+}
+
+// ── Build ────────────────────────────────────────────────────────────────────
 
 export function buildCommunityHulls(
   nodes: Graph3DNode[],
-  t: TFn,
   options: CommunityHullOptions = {},
 ): CommunityHullGroup {
-  const { fillOpacity = 0.06, wireOpacity = 0.25, expand = 20, minMembers = 3 } = options
+  const { fillOpacity = 0.06, wireOpacity = 0.03 } = options
   const group = new THREE.Group()
   group.name = 'communityHulls'
   const hulls: CommunityHull[] = []
 
-  try {
-    // Group nodes by communityId
-    const communities = new Map<number, { nodes: Graph3DNode[]; label: string }>()
+  const prepared = prepareCommunityHulls(nodes, options)
 
-    for (const node of nodes) {
-      if (node.communityId == null) continue
+  for (const p of prepared) {
+    const color = entityColor(p.dominantType)
+    const hullGeo = buildHullGeometry(p)
+    if (!hullGeo) continue
 
-      if (!communities.has(node.communityId)) {
-        communities.set(node.communityId, {
-          nodes: [],
-          label: node.communityLabel ?? t('intelGraph.communityFallback', { id: String(node.communityId) }),
-        })
-      }
-      communities.get(node.communityId)!.nodes.push(node)
-    }
+    // Semi-transparent fill — the volume of the cluster, kept faint.
+    const fillMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(color),
+      transparent: true,
+      opacity: fillOpacity,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+    const fillMesh = new THREE.Mesh(hullGeo, fillMat)
+    fillMesh.renderOrder = HULL_RENDER_ORDER
+    fillMesh.userData = { communityId: p.communityId }
+    group.add(fillMesh)
 
-    for (const [communityId, { nodes: communityNodes, label }] of communities) {
-      // Need at least 3 nodes for a meaningful hull
-      if (communityNodes.length < minMembers) continue
+    // Wireframe border — the silhouette of the hull, even fainter.
+    const wireMat = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(color),
+      transparent: true,
+      opacity: wireOpacity,
+      wireframe: true,
+      depthWrite: false,
+    })
+    const wireMesh = new THREE.Mesh(hullGeo, wireMat)
+    wireMesh.renderOrder = HULL_RENDER_ORDER
+    group.add(wireMesh)
 
-      const color = getCommunityColor(communityId)
-
-      // Collect 3D positions — skip nodes with no valid position
-      const positions = communityNodes
-        .filter((n) => isFinite(n.x) && isFinite(n.y) && isFinite(n.z))
-        .map((n) => new THREE.Vector3(n.x, n.y, n.z))
-
-      if (positions.length < 3) continue
-
-      // Compute centroid
-      const centroid = new THREE.Vector3()
-      positions.forEach((p) => centroid.add(p))
-      centroid.divideScalar(positions.length)
-
-      // Expand hull outward for visual breathing room
-      // Guard against zero-length direction vectors (node exactly at centroid)
-      const expanded = positions.map((p) => {
-        const dir = p.clone().sub(centroid)
-        const len = dir.length()
-        if (len < 0.01) return p.clone() // don't expand collapsed points
-        return p.clone().add(dir.normalize().multiplyScalar(expand))
-      })
-
-      const hullGeo = buildConvexHullGeometry(expanded)
-      if (!hullGeo) continue
-
-      // Semi-transparent fill
-      const fillMat = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: fillOpacity,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      })
-      const fillMesh = new THREE.Mesh(hullGeo, fillMat)
-      fillMesh.userData = { communityId }
-      group.add(fillMesh)
-
-      // Wireframe border
-      const wireMat = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(color),
-        transparent: true,
-        opacity: wireOpacity,
-        wireframe: true,
-      })
-      const wireMesh = new THREE.Mesh(hullGeo.clone(), wireMat)
-      group.add(wireMesh)
-
-      // Label at centroid
-      try {
-        const labelSprite = new SpriteText(label)
-        labelSprite.color = color
-        labelSprite.textHeight = 8
-        labelSprite.backgroundColor = 'rgba(15, 23, 42, 0.75)'
-        labelSprite.padding = [2, 1]
-        labelSprite.borderRadius = 3
-        labelSprite.borderWidth = 0.5
-        labelSprite.borderColor = color
-        labelSprite.position.copy(centroid)
-        labelSprite.position.y += 25
-        group.add(labelSprite as unknown as THREE.Object3D)
-
-        hulls.push({
-          communityId,
-          label,
-          nodeCount: communityNodes.length,
-          color,
-          fillMesh,
-          wireMesh,
-          labelSprite: labelSprite as unknown as THREE.Object3D,
-        })
-      } catch (err) {
-        console.warn('[CommunityHulls3D] SpriteText error:', err)
-        // Still add the hull meshes without a label
-        hulls.push({
-          communityId,
-          label,
-          nodeCount: communityNodes.length,
-          color,
-          fillMesh,
-          wireMesh,
-          labelSprite: new THREE.Object3D(), // placeholder
-        })
-      }
-    }
-  } catch (err) {
-    console.error('[CommunityHulls3D] buildCommunityHulls error:', err)
+    hulls.push({
+      communityId: p.communityId,
+      label: p.label,
+      nodeCount: p.nodeCount,
+      dominantType: p.dominantType,
+      color,
+      fillMesh,
+      wireMesh,
+    })
   }
 
   return { group, hulls }
 }
 
-// ── Cleanup helper ──────────────────────────────────────────────────────────
+// ── Cleanup ──────────────────────────────────────────────────────────────────
 
 export function disposeCommunityHulls(hullGroup: CommunityHullGroup | null) {
   if (!hullGroup) return
@@ -260,7 +153,7 @@ export function disposeCommunityHulls(hullGroup: CommunityHullGroup | null) {
     for (const hull of hullGroup.hulls) {
       hull.fillMesh.geometry.dispose()
       if (hull.fillMesh.material instanceof THREE.Material) hull.fillMesh.material.dispose()
-      hull.wireMesh.geometry.dispose()
+      // wireMesh shares fillMesh.geometry — dispose the material, not the same geometry twice.
       if (hull.wireMesh.material instanceof THREE.Material) hull.wireMesh.material.dispose()
     }
     while (hullGroup.group.children.length > 0) {

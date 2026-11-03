@@ -39,7 +39,7 @@ import {
   graphBrightnessAtom,
   graphScaleAtom,
 } from '@/atoms/intelligence'
-import { buildGroupedGraph, resolutionForLevel } from './graphAggregation'
+import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
 import { nextScaleLevel } from './scaleDecision'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { currentDeviceBudget } from './deviceTier'
@@ -579,17 +579,20 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // A cheap, stable signature of "which communities exist and how big they are".
   // Positions are deterministic per node set, so this is all the hulls depend on.
   const hullSignature = useMemo(() => {
+    // Hulls exist only at the aggregated tier, where the "communities" are the
+    // capped semantic groups (community / directory), not the raw Louvain ids.
+    if (!aggregated || scaleRes <= 0) return ''
     let total = 0
     let seen = ''
     const counts = new Map<number, number>()
-    for (const node of graphData.nodes) {
+    for (const node of groupHullNodes(graphData.nodes, scaleRes)) {
       if (node.communityId == null) continue
       total++
       counts.set(node.communityId, (counts.get(node.communityId) ?? 0) + 1)
     }
     for (const [id, c] of [...counts].sort((a, b) => a[0] - b[0])) seen += `${id}:${c},`
     return `${total}|${seen}`
-  }, [graphData.nodes])
+  }, [graphData.nodes, aggregated, scaleRes])
 
   // The callback reads the CURRENT nodes without depending on their identity.
   const nodesRef = useRef(graphData.nodes)
@@ -618,27 +621,22 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       }
 
       const current = nodesRef.current
-      // Halos are one convex hull + one label texture per community: past the tier's
-      // node threshold (low-end phones) they are skipped, whatever the toggle says.
+      // Halos are one convex hull per community: past the tier's node threshold
+      // (low-end phones) they are skipped, whatever the toggle says.
       if (!showCommunityHulls || current.length === 0 || current.length > DEVICE_BUDGET.maxNodesForHulls) return
 
-      // Aggregated tier: one translucent envelope per capped group, wrapped
-      // around the group's REAL members (the super-nodes alone are 24 points).
-      // No hull at the aggregated step: the fan-triangulated envelope, scaled up
-      // to swallow a whole cluster, covered the entire scene in solid colour
-      // (screenshots of 02/11). A group is read by its size and its label, not
-      // by a translucent volume we cannot draw honestly in 3D yet.
-      const hullNodes = current
+      // Hulls exist ONLY at the aggregated tier, where the "communities" are the
+      // capped semantic groups (community / directory). At the detail tier every
+      // node is its own cluster, so an envelope would swallow the graph — the
+      // fan-triangulated hull of 02/11 covered the whole scene in solid colour.
+      if (!aggregated || scaleRes <= 0) return
 
-      // Only build if any node has a communityId
-      const hasCommunities = hullNodes.some((n) => n.communityId != null)
-      if (!hasCommunities) return
+      // Wrap each capped group's REAL members (the super-nodes alone are 24
+      // points): `groupHullNodes` renumbers the groups biggest-first so the
+      // envelope selection is stable and size-ordered.
+      const hullNodes = groupHullNodes(current, scaleRes)
 
-      const hullGroup = buildCommunityHulls(
-        hullNodes,
-        t,
-        aggregated ? { fillOpacity: 0.08, wireOpacity: 0.03, expand: 12, minMembers: 4 } : {},
-      )
+      const hullGroup = buildCommunityHulls(hullNodes, {})
       if (hullGroup.hulls.length > 0) {
         scene.add(hullGroup.group)
         communityHullsRef.current = hullGroup
@@ -646,15 +644,15 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     } catch (err) {
       console.warn('[IntelligenceGraph3D] community hulls error:', err)
     } finally {
-      // wake: hull meshes/labels were added to or removed from the scene.
+      // wake: hull meshes were added to or removed from the scene.
       wake(WAKE_MUTATION_MS)
     }
     // Memoised on the SIGNATURE, not on the array identity: the transform
     // recreates `graphData.nodes` on every update (WebSocket event, cache hit),
     // and this callback used to change with it — which re-ran the effect below
-    // and rebuilt a convex hull plus its label texture per community, on the
+    // and rebuilt a convex hull per community, on the
     // main thread, for an identical result. That is the "layout blocks".
-  }, [showCommunityHulls, hullSignature, aggregated, scaleRes, wake, t])
+  }, [showCommunityHulls, hullSignature, aggregated, scaleRes, wake])
 
   // Rebuild when toggle changes (immediate — user clicked the button)
   useEffect(() => {
