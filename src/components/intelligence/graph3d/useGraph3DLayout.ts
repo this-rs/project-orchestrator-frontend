@@ -405,10 +405,14 @@ export function deterministicPlacement(
     affinities[a] ??= {}
     affinities[a][b] = (affinities[a][b] ?? 0) + 1
   }
+  // 60 iterations: the layout starts from a constructive placement that is
+  // already free of overlap and relational, so the descent only refines it
+  // (measured at 801 groups: 200 iterations cost 2× more for the same
+  // compactness, and affine pairs 0.87 vs 0.88 of their envelope).
   const centres = layoutGroups(
     keys.map((k, i) => ({ id: k, radius: radii[i] })),
     affinities,
-    { maxIterations: 200 },
+    { maxIterations: 60 },
   )
 
   keys.forEach((key, gi) => {

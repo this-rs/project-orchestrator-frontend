@@ -165,7 +165,8 @@ describe('layoutGroups', () => {
       for (let j = i + 1; j < groups.length; j++) {
         const gi = groups[i].id
         const gj = groups[j].id
-        const related = affinities[gi]?.[gj] !== undefined
+        // Keys are stored in string order ("g12" < "g5"), so both directions.
+        const related = affinities[gi]?.[gj] !== undefined || affinities[gj]?.[gi] !== undefined
         const floor = related
           ? (byId.get(gi)! + byId.get(gj)!) * CORE_RATIO
           : byId.get(gi)! + byId.get(gj)!
@@ -226,6 +227,49 @@ describe('layoutGroups', () => {
     )
     layoutGroups(groups, counted, { maxIterations: 1 })
     expect(reads).toBeLessThan(10 * groups.length)
+  })
+
+  it('packs the groups: the cloud stays near the compact sphere and unrelated neighbours touch', () => {
+    // The layout used to inflate the whole cloud by the worst pair's ratio,
+    // which always hit its ×4 cap: the final radius was 3.45× the compact
+    // sphere and the nearest unrelated neighbour of a group sat 1.6–2.2× its
+    // envelope away — "les clusters sont beaucoup trop éloignés".
+    const G = 200
+    const groups: RelationalGroup[] = Array.from({ length: G }, (_, i) => ({
+      id: `g${String(i).padStart(3, '0')}`,
+      radius: 60 + (i % 7) * 15,
+    }))
+    const affinities: AffinityMatrix = {}
+    for (let i = 0; i < G; i++) {
+      for (const k of [1, 3]) {
+        const j = i + k
+        if (j >= G || (i * 7 + k) % 3 === 0) continue
+        affinities[groups[i].id] ??= {}
+        affinities[groups[i].id][groups[j].id] = 1 + (i % 4)
+      }
+    }
+    const positions = layoutGroups(groups, affinities)
+    const pts = groups.map((g) => positions.get(g.id)!)
+    const c = pts.reduce((s, q) => ({ x: s.x + q.x / G, y: s.y + q.y / G, z: s.z + q.z / G }), { x: 0, y: 0, z: 0 })
+    let extent = 0
+    groups.forEach((g, i) => { extent = Math.max(extent, dist(pts[i], c) + g.radius) })
+    // The tightest random packing of the envelopes (≈ 0.64 of a sphere).
+    const compact = Math.cbrt(groups.reduce((s, g) => s + g.radius ** 3, 0) / 0.64)
+    expect(extent / compact).toBeLessThan(1.6)
+
+    const related = (a: string, b: string) =>
+      affinities[a]?.[b] !== undefined || affinities[b]?.[a] !== undefined
+    const ratios: number[] = []
+    for (let i = 0; i < G; i++) {
+      let best = Infinity
+      for (let j = 0; j < G; j++) {
+        if (i === j || related(groups[i].id, groups[j].id)) continue
+        best = Math.min(best, dist(pts[i], pts[j]) / (groups[i].radius + groups[j].radius))
+      }
+      ratios.push(best)
+    }
+    ratios.sort((a, b) => a - b)
+    expect(ratios[Math.floor(G / 2)]).toBeLessThan(1.25)
   })
 
   it('pulls the result toward supplied previous positions (stability)', () => {
