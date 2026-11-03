@@ -25,6 +25,34 @@ describe('the GPU cost does not follow the relation count', () => {
     expect(large.stats.exactRelations).toBe(50n * 1_000_000_000n)
   })
 
+  it('…and at EVERY camera distance, from the framing to deep inside the graph', () => {
+    // The test above runs at the default distance, where every bundle sits at
+    // depth 0: a cost that grew with the count only once refined went unseen.
+    // Here the LOD is relative to a 20 000-node scene (R ≈ 976) and the camera
+    // walks from the framing distance (2.77 R) to deep inside (0.3 R).
+    const R = 976
+    const depths = new Set<number>()
+    for (const k of [2.77, 1.5, 0.8, 0.3]) {
+      const budget = { cameraDistance: k * R, sceneRadius: R }
+      const small = buildLinkSystem(corridorSet(50, 1_000_000n), budget)
+      const large = buildLinkSystem(corridorSet(50, 1_000_000_000n), budget)
+      expect(large.stats.triangles).toBe(small.stats.triangles)
+      expect(large.stats.drawn).toBe(small.stats.drawn)
+      for (const b of small.bundles) depths.add(b.lod.depth)
+    }
+    // the walk really visited refined depths, or the equality above proves nothing
+    expect(depths.has(0)).toBe(true)
+    expect(Math.max(...depths)).toBeGreaterThanOrEqual(2)
+  })
+
+  it('the LOD follows the scene radius: zoomed inside a large graph, bundles refine', () => {
+    const R = 976
+    const inside = buildLinkSystem([syntheticCorridor('a', 'x', 'y', 1_000_000n)], { cameraDistance: 0.8 * R, sceneRadius: R })
+    const framing = buildLinkSystem([syntheticCorridor('a', 'x', 'y', 1_000_000n)], { cameraDistance: 2.77 * R, sceneRadius: R })
+    expect(inside.bundles[0].lod.depth).toBe(2)
+    expect(framing.bundles[0].lod.depth).toBe(0)
+  })
+
   it('one corridor of 10^12 costs what one corridor of 10^3 costs', () => {
     const tiny = buildLinkSystem([syntheticCorridor('a', 'x', 'y', 1_000n)])
     const huge = buildLinkSystem([syntheticCorridor('a', 'x', 'y', 1_000_000_000_000n)])

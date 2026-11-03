@@ -23,7 +23,7 @@
 import type { Magnitude } from './linkMagnitude'
 import { describeMagnitude } from './linkMagnitude'
 import { type MorphologyShape, morphologyShape } from './linkMorphology'
-import { type LodState, lodFor } from './linkLod'
+import { type LodState, lodFor, lodOptionsForScene } from './linkLod'
 import { endpointToken, type Corridor } from './linkRouting'
 import { renderedBundleTriangles, trunkLanes } from './linkGeometryCost'
 
@@ -86,6 +86,13 @@ export interface SystemBudget {
   maxCorridors: number
   /** Camera distance to the graph centre, for the LOD. */
   cameraDistance: number
+  /**
+   * Radius of the scene (graph bounding radius). When given, the LOD
+   * thresholds are relative to it (lodOptionsForScene): 2 R / 3 R. Without it
+   * the absolute DEFAULT_LOD_OPTIONS (400 / 600) apply — which never refine on
+   * a real scene, framed at 2.77 R ≥ 900.
+   */
+  sceneRadius?: number
   /** Mobile-like device: the renderer draws 2 channels per conduit. */
   mobile?: boolean
 }
@@ -185,6 +192,8 @@ export function buildLinkSystem(
     throw new RangeError('the system budget must be non-negative')
   }
 
+  const lodOptions = b.sceneRadius !== undefined ? lodOptionsForScene(b.sceneRadius) : undefined
+
   const ordered = [...corridors].sort((x, y) => {
     if (x.magnitude.exactCount !== y.magnitude.exactCount) {
       return x.magnitude.exactCount > y.magnitude.exactCount ? -1 : 1
@@ -202,7 +211,7 @@ export function buildLinkSystem(
   for (const corridor of ordered) {
     if (bundles.length >= b.maxCorridors) break
     const morphology = morphologyShape(corridor.magnitude)
-    const lod = lodFor(corridor.magnitude, b.cameraDistance)
+    const lod = lodFor(corridor.magnitude, b.cameraDistance, lodOptions)
     const channels = morphology.graphical.channels
     const shape: BundleShape = { families: corridor.families, endpoints: corridor.endpoints, mobile: b.mobile }
     const cost = bundleTriangles(lod, channels, shape)

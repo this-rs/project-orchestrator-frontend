@@ -66,6 +66,35 @@ export const DEFAULT_LOD_OPTIONS: LodOptions = {
 }
 
 /**
+ * Seuils RELATIFS à la scène, en rayons de scène. Le cadrage place la caméra à
+ * ≈ 2,77 R (FRAMING_DISTANCE_RATIO, scaleDecision.ts) : 905 pour 2 000 nœuds,
+ * 2 703 pour 20 000. Les seuils absolus 400 / 600 laissaient donc le LOD à 0
+ * sur toute scène réelle, même zoomé dans le graphe.
+ *
+ * Avec 2 R / 3 R : au cadrage on voit l'ensemble (profondeur 0, et 2,77 R est
+ * dans la zone morte [2 R, 3 R] de la profondeur 1 : pas de clignotement) ;
+ * sous 2 R (on entre dans le nuage) profondeur 1, sous R profondeur 2, sous
+ * R / 2 les relations réelles.
+ */
+export const LOD_REFINE_SCENE_RATIO = 2
+export const LOD_COLLAPSE_SCENE_RATIO = 3
+
+/**
+ * Options de LOD pour une scène de rayon `sceneRadius` : mêmes rapports
+ * distance / rayon ⇒ même profondeur, à toute échelle. Pure.
+ */
+export function lodOptionsForScene(sceneRadius: number, maxDepth = LOD_MAX_STRUCTURAL_DEPTH): LodOptions {
+  if (!Number.isFinite(sceneRadius) || sceneRadius <= 0) {
+    throw new RangeError(`sceneRadius doit être un nombre fini > 0, reçu ${sceneRadius}`)
+  }
+  return {
+    refineBelow: LOD_REFINE_SCENE_RATIO * sceneRadius,
+    collapseAbove: LOD_COLLAPSE_SCENE_RATIO * sceneRadius,
+    maxDepth,
+  }
+}
+
+/**
  * Fusionne et VALIDE les options. Refus (RangeError) plutôt que normalisation
  * silencieuse : `refineBelow >= collapseAbove` fait osciller le LOD, et on
  * préfère le dire à l'appelant. `maxDepth` est arrondi vers le bas et borné à [0, 3].
