@@ -45,6 +45,18 @@ const SERVER_TREE = {
 
 export const SCENES = [
   {
+    slug: 'free-robot',
+    title: 'Robot composé librement (aucun objet du catalogue)',
+    intent:
+      "Le même petit robot, mais écrit en ARBRE : pas de use/agent, aucune pièce prédéfinie. Ce que le chat doit accepter quand je compose librement.",
+    expect: 'ok',
+    data: {
+      title: 'Robot',
+      bare: true,
+      ast: {"kind":"group","children":[{"kind":"sphere","name":"corps","r":0.78,"at":[0,0,0.78]},{"kind":"slab","name":"visière","size":[0.75,0.17,0.29],"at":[0,-0.67,0.9],"mat":"dark"},{"kind":"slab","name":"fente","size":[0.52,0.07,0.07],"at":[0,-0.8,0.9],"tone":"indigo","glow":true},{"kind":"group","name":"rotor-G","at":[-0.99,0.58,1.04],"children":[{"kind":"ring","name":"anneau","r":0.44,"w":0.1,"mat":"steelL","motion":{"kind":"spin","period":2}},{"kind":"slab","name":"pale","size":[0.78,0.13,0.04],"mat":"graphite","detail":true,"motion":{"kind":"spin","period":2}}]},{"kind":"group","name":"rotor-D","at":[0.99,0.58,1.04],"children":[{"kind":"ring","name":"anneau","r":0.44,"w":0.1,"mat":"steelL","motion":{"kind":"spin","period":2,"phase":0.5}},{"kind":"slab","name":"pale","size":[0.78,0.13,0.04],"mat":"graphite","detail":true,"motion":{"kind":"spin","period":2,"phase":0.5}}]},{"kind":"tube","name":"antenne","at":[0,0,1.51],"to":[0,0,1.8],"r":0.03,"mat":"steelL","detail":true},{"kind":"sphere","name":"témoin","r":0.08,"at":[0,0,1.86],"tone":"indigo","glow":true,"motion":{"kind":"pulse","period":3}}]},
+    },
+  },
+  {
     slug: 'robot-agent',
     title: 'Un agent — le petit robot du catalogue',
     intent:
