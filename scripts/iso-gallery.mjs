@@ -58,6 +58,24 @@ export const SCENES = [
     },
   },
   {
+    slug: 'free-prism',
+    title: 'Extrusion : engrenage et équerre (aucune primitive boîte)',
+    intent:
+      "Deux formes planes arbitraires poussées en épaisseur : un engrenage de 24 sommets et une équerre concave. C'est ce que la boîte (slab) et la révolution (lathe) ne savent pas faire.",
+    expect: 'ok',
+    data: {
+      title: 'Extrusion',
+      bare: true,
+      ast: {
+        kind: 'group',
+        children: [
+          { kind: 'prism', name: 'engrenage', profile: [[1,0],[0.753,0.202],[0.866,0.5],[0.552,0.552],[0.5,0.866],[0.202,0.753],[0,1],[-0.202,0.753],[-0.5,0.866],[-0.552,0.552],[-0.866,0.5],[-0.753,0.202],[-1,0],[-0.753,-0.202],[-0.866,-0.5],[-0.552,-0.552],[-0.5,-0.866],[-0.202,-0.753],[0,-1],[0.202,-0.753],[0.5,-0.866],[0.552,-0.552],[0.866,-0.5],[0.753,-0.202]], depth: 0.5, at: [-1.4, 0, 0.1], tone: 'indigo' },
+          { kind: 'prism', name: 'équerre', profile: [[0,0],[1.4,0],[1.4,0.5],[0.5,0.5],[0.5,1.2],[0,1.2]], depth: 1.2, at: [1.0, 0.4, 0.1], mat: 'steelL' },
+        ],
+      },
+    },
+  },
+  {
     slug: 'free-robot',
     title: 'Robot composé librement (aucun objet du catalogue)',
     intent:
