@@ -26,12 +26,13 @@ describe('recoloration vasculaire', () => {
     const { nodes, links } = synthGraph(3001)
     const r = createVascularLinks(nodes, links)!
     r.updateColors(highlight)
-    const specs = layerSpecs(5)
-    const halo = specs[0].alpha
-    const core = specs[specs.length - 1].alpha
+    // Couche externe : le halo (0,03) quand le conduit a des canaux, la peau
+    // unique (0,08) quand il ne porte qu'une relation.
+    const outer = Math.max(layerSpecs(5)[0].alpha, layerSpecs(0)[0].alpha)
+    const core = layerSpecs(5)[layerSpecs(5).length - 1].alpha
     for (let i = 0; i < r.inspect!().length; i += 7) {
       const al = layerAlphas(r, i)
-      expect(al[0]).toBeLessThanOrEqual(halo + 1e-6)
+      expect(al[0]).toBeLessThanOrEqual(outer + 1e-6)
       expect(al[al.length - 1]).toBeGreaterThan(al[0] * 5)
       expect(al[al.length - 1]).toBeLessThanOrEqual(core + 1e-6)
     }

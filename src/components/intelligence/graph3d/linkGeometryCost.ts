@@ -28,9 +28,13 @@ export const CAPILLARIES_PER_SUB_HUB = 3
 export const ARTERY_SAMPLES = 7
 export const CAPILLARY_SAMPLES = 5
 
-/** Nombre de couches d'un conduit : halo + gaine + structure + N canaux + cœur. */
+/**
+ * Nombre de couches d'un conduit : halo + gaine + structure + N canaux + cœur ;
+ * sans canal (une relation), le cœur et une seule peau.
+ */
 export function layersForChannels(channels: number): number {
-  return 3 + Math.max(0, channels) + 1
+  if (channels <= 0) return 2
+  return 3 + channels + 1
 }
 
 /** Triangles d'un tronçon de tube : (samples−1) anneaux × segments × 2, par couche. */

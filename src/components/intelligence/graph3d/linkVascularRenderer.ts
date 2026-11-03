@@ -35,14 +35,22 @@ import type { LinkStyle, LinkStyleFn } from './linkRibbon'
 import { buildCorridors, endpointId, endpointToken, type Corridor } from './linkRouting'
 import { buildLinkSystem, fromCorridors, type DrawableBundle, type SystemBudget } from './linkSystem'
 import { braidedOffsets, parallelTransportFrames, type Vec3 } from './linkVascular'
-import { strataFor, type Stratum } from './linkStrata'
-import { SECTION_SEGMENTS, type GeometryStats, trianglesFromIndex } from './linkGeometryCost'
+import {
+  ARTERY_SAMPLES,
+  CAPILLARIES_PER_SUB_HUB,
+  CAPILLARY_SAMPLES,
+  SECTION_SEGMENTS,
+  SUB_HUBS_PER_END,
+  type GeometryStats,
+  trianglesFromIndex,
+} from './linkGeometryCost'
 
 import { LINK_RENDER_ORDER } from './nodePoints'
 import { isMobileLikeDevice } from './useRenderLoop'
 import { buildRanges, bundleAtTriangle } from './linkVascularPicking'
 import { distributePorts, placePort, type GroupEnvelope, type GroupPair } from './linkPorts'
-import { radiusAt } from './linkRadius'
+import { linkRadiusFor, nearestNeighbourScale, softCap } from './linkRadius'
+import { linkMultiplicity } from './linkRouting'
 
 /** Radial segments. Eight reads round at these widths and stays cheap. */
 const TUBE_SEGMENTS = SECTION_SEGMENTS
@@ -139,7 +147,19 @@ export function ringCenterOffset(
   return [ox, oy]
 }
 
+/** Rayon du cœur, en unités d'épaisseur. */
+const CORE_RADIUS = 0.16
+
 export function layerSpecs(channelCount: number): LayerSpec[] {
+  // UNE relation (aucun canal) : le cœur et une seule peau collée à lui. Trois
+  // membranes autour d'un fil, c'était trois fois plus de surface que de
+  // contenu.
+  if (channelCount <= 0) {
+    return [
+      { kind: 'sheath', radius: CORE_RADIUS + MEMBRANE_SKIN, alpha: 0.08, emit: false },
+      { kind: 'core', radius: CORE_RADIUS, alpha: 0.7, emit: true },
+    ]
+  }
   const out: LayerSpec[] = [
     // Couches plus DISCRÈTES : l'empilement de gaines opaques faisait une purée
     // où l'on ne distinguait plus rien. Chaque couche porte maintenant un rôle
@@ -153,7 +173,7 @@ export function layerSpecs(channelCount: number): LayerSpec[] {
   for (let i = 0; i < channelCount; i++) {
     out.push({ kind: 'channel', radius: MICRO_FIBER_RADIUS, alpha: 0.3, emit: false, channel: i })
   }
-  out.push({ kind: 'core', radius: 0.16, alpha: 0.7, emit: true })
+  out.push({ kind: 'core', radius: CORE_RADIUS, alpha: 0.7, emit: true })
   return out
 }
 
@@ -165,10 +185,7 @@ export function layerSpecs(channelCount: number): LayerSpec[] {
  * et les branches se regroupent par PROXIMITÉ SPATIALE des extrémités réelles,
  * pas par identifiant de communauté.
  */
-const SUB_HUBS_PER_END = 3
-const CAPILLARIES_PER_SUB_HUB = 3
-/** Samples along a branch (shorter than a trunk, so fewer). */
-const BRANCH_SAMPLES = 5
+
 /**
  * Couleur par famille de relation.
  *
@@ -223,6 +240,9 @@ const VERTEX_SHADER = /* glsl */ `
   attribute float aEmit;
   attribute float aU;
   attribute float aPhase;
+  attribute vec3 aAxis;
+  uniform float uViewportH;
+  uniform float uPxFloor;
   varying vec3 vColor;
   varying float vAlpha;
   varying vec3 vNormal;
@@ -231,7 +251,21 @@ const VERTEX_SHADER = /* glsl */ `
   varying float vU;
   varying float vPhase;
   void main() {
-    vec4 wp = modelMatrix * vec4(position, 1.0);
+    vec3 p = position;
+    // PLANCHER ÉCRAN DU CŒUR : un lien d'une relation fait 3 % de l'espacement
+    // des nœuds, soit moins d'un pixel au cadrage. Le cœur (et lui seul — la
+    // membrane garde son rayon monde) est élargi jusqu'à uPxFloor pixels autour
+    // de son axe, pour rester lisible sans grossir le reste.
+    if (aEmit > 0.5 && uViewportH > 0.0) {
+      vec4 axisView = modelViewMatrix * vec4(aAxis, 1.0);
+      float depth = max(1e-6, -axisView.z);
+      float worldPerPx = 2.0 * depth / (projectionMatrix[1][1] * uViewportH);
+      vec3 radial = position - aAxis;
+      float len = length(radial);
+      float floorR = uPxFloor * worldPerPx;
+      if (len > 1e-9 && len < floorR) p = aAxis + radial * (floorR / len);
+    }
+    vec4 wp = modelMatrix * vec4(p, 1.0);
     // Normale de SURFACE : sans elle, un tube n'est qu'une tache de couleur et
     // seul l'additif peut le faire exister — d'ou l'eblouissement.
     vNormal = normalize(mat3(modelMatrix) * aNormal);
@@ -300,42 +334,53 @@ function hashKey(key: string): number {
 }
 
 /** Niveau d'un conduit dans l'arbre vasculaire. */
-export type ConduitKind = 'trunk' | 'artery' | 'capillary'
+export type ConduitKind = 'trunk' | 'artery' | 'capillary' | 'junction'
 
-/** One drawn conduit: a trunk lane or a branch, as a sheath + a core. */
+/** One drawn conduit: a trunk lane, a branch, or a junction capsule. */
 interface Conduit {
+  /** Indice global (ordre de `inspect()`). */
+  id: number
   kind: ConduitKind
   fromId: string
   toId: string
-  /** Radius multiplier applied to the bundle's base radius. */
+  /** Côté du corridor (a = `from`, b = `to`) ; null pour une voie de tronc. */
+  side: 'a' | 'b' | null
+  /** Relations RÉELLES portées au départ, et encore portées à l'arrivée. */
+  n: bigint
+  nEnd: bigint
+  /** Rayons monde (après plafond), recalculés avec l'échelle. */
   radius: number
-  /** Alpha multiplier applied to the style's alpha. */
-  alpha: number
-  /** Braid lane (only for trunk lanes). */
+  endRadius: number
+  /** Indice de voie dans la tresse, et nombre de voies (1 hors tronc). */
   lane: number
+  strands: number
   samples: number
-  /** Concentric layers of this conduit, outermost first. Empty = single tube. */
-  strata: Stratum[]
   /** Relation family this lane carries (null for branches: they inherit). */
   family: string | null
   /** Flowing grain offset, so two conduits never pulse in step. */
   flowPhase: number
-  /** Combien de faisceaux se rejoignent sur ses moyeux — divise sa lumière. */
-  load: number
-  /** Multiplicateurs de rayon au départ et à l'arrivée : le conduit s'affine. */
-  startRadius: number
-  endRadius: number
+  /** Couches de CE conduit (le contenu dépend de n). */
+  specs: LayerSpec[]
   /** First vertex of this conduit in the shared buffers. */
   vertexStart: number
   vertexCount: number
-  /** Couches (anneaux concentriques) de ce conduit. */
   layers: number
+  /** Conduit parent dans l'arbre (-1 = aucun). */
+  parent: number
+  /** Jonction : ancre vers laquelle pointe l'axe de la capsule. */
+  toward: string | null
+  /** Axe courant (centres des anneaux), pour le picking écran. */
+  axis: Float32Array
+  /** Gain de survol (1 = repos). */
+  glow: number
 }
 
 /** Ce que `inspect()` expose d'un conduit : de quoi mesurer la géométrie. */
 export interface ConduitInfo {
+  id: number
   key: string
   kind: ConduitKind
+  side: 'a' | 'b' | null
   fromId: string
   toId: string
   /** Position COURANTE des deux ancres. */
@@ -346,6 +391,25 @@ export interface ConduitInfo {
   layers: number
   lane: number
   family: string | null
+  /** Nombre EXACT de relations portées (infobulle). */
+  n: bigint
+  /** Relations encore portées à l'arrivée (artère : ses capillaires dessinés). */
+  nEnd: bigint
+  parent: number
+  radius: number
+  endRadius: number
+  /** Plafond de cohérence du faisceau. */
+  rMax: number
+}
+
+/** Résultat d'un picking écran. */
+export interface ConduitPick {
+  id: number
+  key: string
+  kind: ConduitKind
+  n: bigint
+  /** Distance écran à l'axe, en pixels. */
+  distancePx: number
 }
 
 /** Un point qui a une position : un nœud réel, ou une ancre calculée. */
@@ -361,10 +425,16 @@ interface Bundle {
   color: LinkStyle
   /** Dernier style appliqué : le tick suivant du layout repeint avec lui. */
   lastStyle: LinkStyle
-  /** Couches de chaque conduit du faisceau (même nombre de canaux partout). */
-  specs: LayerSpec[]
   bowSeed: number
   conduits: Conduit[]
+  /** Groupes touchés (pour le plafond). */
+  hubA: string
+  hubB: string
+  /** Extrémités du tronc (pour sa longueur). */
+  trunkFrom: string
+  trunkTo: string
+  /** Plafond de cohérence courant. */
+  rMax: number
   vertexStart: number
   vertexCount: number
 }
@@ -471,6 +541,38 @@ export interface VascularLinkRenderer extends LinkRenderer {
   onBundleClick?: (key: string) => void
   /** Conduits dessinés et position courante de leurs ancres (tests, diagnostics). */
   inspect?: () => ConduitInfo[]
+  /** Unité d'échelle courante d0 (distance médiane au plus proche voisin). */
+  unit?: () => number
+  /**
+   * Conduit le plus proche du pointeur, en distance ÉCRAN le long des axes
+   * (un capillaire fin ne se rate plus au lancer de rayon). `ndc` en [-1, 1].
+   */
+  pickAt?: (ndcX: number, ndcY: number, camera: THREE.Camera, viewportHeightPx: number, tolerancePx?: number) => ConduitPick | null
+  /** Conduits allumés quand on survole `id` : ancêtres jusqu'au tronc, et descendants. */
+  pathOf?: (id: number) => number[]
+  /** Allume le chemin de `id` (null = éteint). */
+  highlightConduit?: (id: number | null) => void
+}
+
+/** Plancher de rayon ÉCRAN du cœur, en pixels : un lien d'une relation reste visible. */
+export const CORE_SCREEN_FLOOR_PX = 0.6
+/** Gain d'opacité d'un chemin survolé. */
+const GLOW_GAIN = 2.2
+/** Échantillons d'une capsule de jonction (pôles fermés). */
+const JUNCTION_SAMPLES = 5
+/** Plafond : part du rayon du plus petit groupe touché, et de la longueur du tronc. */
+export const CAP_GROUP_SHARE = 0.15
+export const CAP_TRUNK_SHARE = 0.06
+
+/**
+ * Canaux internes d'un conduit selon ce qu'il porte : une relation n'a pas de
+ * canaux (cœur + une peau), puis un canal de plus à chaque doublement, borné
+ * par le nombre de familles réellement présentes.
+ */
+export function channelsFor(n: number, families: number): number {
+  if (!(n > 1)) return 0
+  const cap = MOBILE_LIKE ? 2 : MICRO_FIBERS
+  return Math.max(1, Math.min(cap, Math.max(1, families), 1 + Math.floor(Math.log2(n))))
 }
 
 /**
@@ -500,23 +602,14 @@ export function createVascularLinks(
     const corridorByKey = new Map(corridors.map((c) => [c.key, c]))
 
     // ── MOYEUX : un point d'union par ensemble ──────────────────────────────
-    // Un tronc partait d'un NŒUD arbitraire de l'ensemble : rien ne pouvait donc
-    // s'unir, et vingt et un corridors dessinaient vingt et un faisceaux
-    // indépendants qui se croisaient. Chaque ensemble reçoit un moyeu — le
-    // centre de ses nœuds — et TOUS les troncs qui le touchent y convergent :
-    // ils fusionnent là, puis se divisent vers leur destination. C'est la
-    // demande : « des formes évoluées pour connecter les ensembles quand ils
-    // s'unissent, et les redviser automatiquement ».
+    // Chaque ensemble reçoit un moyeu — le centre de ses extrémités — et les
+    // troncs qui le touchent partent de PORTS posés sur son enveloppe.
     //
     // ── ANCRES VIVANTES ─────────────────────────────────────────────────
     // Moyeux, ports et sous-moyeux ne sont PAS des nœuds : ce sont des points
-    // calculés depuis les nœuds réels. Ils étaient copiés une fois, à la
-    // construction, puis figés : le layout déplaçait les nœuds, troncs et
-    // artères restaient sur place (mesuré : 47 078 sommets immobiles après un
-    // déplacement de +1000). Chaque ancre garde maintenant ses SOURCES — des
-    // références vers les nœuds réels — et se recalcule, sans allocation, à
-    // chaque `updatePositions`. Seule la TOPOLOGIE (qui appartient à quel port,
-    // à quel sous-moyeu) est figée à la construction.
+    // calculés depuis les nœuds réels, recalculés sans allocation à chaque
+    // `updatePositions`. Seule la TOPOLOGIE (qui appartient à quel port, à quel
+    // sous-moyeu) est figée à la construction.
     interface Hub {
       token: string
       /** Extrémités réelles, avec leur multiplicité (une par lien). */
@@ -540,22 +633,42 @@ export function createVascularLinks(
       if (tNode) hubOf(endpointToken(link.targetCommunityId, endpointId(link.target))).members.push(tNode)
     }
 
-    // Bounding radius of the graph: every thickness is a share of what is on screen.
-    let sceneRadius = 1
-    /** Centre du graphe : les troncs se cintrent vers l'extérieur DE LUI. */
+    // ── ÉCHELLE ─────────────────────────────────────────────────────────
+    // L'unité est d0, la distance médiane d'un nœud à son plus proche voisin
+    // (linkRadius.ts). Elle n'est recalculée que si l'étendue du graphe a
+    // changé de plus de 10 % : une translation ne la change pas, un zoom du
+    // layout (positions × k) la multiplie par k.
+    let d0 = 1
+    let d0Extent = -1
     const sceneCenter: Vec3 = [0, 0, 0]
-    const recomputeHubs = () => {
-      sceneRadius = 1
+    const recomputeScale = () => {
+      let minX = Infinity, minY = Infinity, minZ = Infinity
+      let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
       let gx = 0, gy = 0, gz = 0
-      for (const n of nodes) { gx += n.x; gy += n.y; gz += n.z }
+      for (const n of nodes) {
+        gx += n.x; gy += n.y; gz += n.z
+        if (n.x < minX) minX = n.x
+        if (n.y < minY) minY = n.y
+        if (n.z < minZ) minZ = n.z
+        if (n.x > maxX) maxX = n.x
+        if (n.y > maxY) maxY = n.y
+        if (n.z > maxZ) maxZ = n.z
+      }
       const count = Math.max(1, nodes.length)
       sceneCenter[0] = gx / count
       sceneCenter[1] = gy / count
       sceneCenter[2] = gz / count
-      for (const n of nodes) {
-        const d = Math.hypot(n.x, n.y, n.z)
-        if (Number.isFinite(d) && d > sceneRadius) sceneRadius = d
+      const extent = Math.hypot(maxX - minX, maxY - minY, maxZ - minZ)
+      if (d0Extent < 0 || Math.abs(extent - d0Extent) > 0.1 * d0Extent) {
+        const d = nearestNeighbourScale(nodes)
+        // Graphe dégénéré (tous les nœuds confondus) : une unité tirée de
+        // l'étendue, ou 1 à défaut — jamais zéro.
+        d0 = d > 0 ? d : extent > 0 ? extent / Math.max(1, Math.cbrt(nodes.length)) : 1
+        d0Extent = extent
       }
+    }
+
+    const recomputeHubs = () => {
       for (const h of hubs.values()) {
         const count = h.members.length
         if (count === 0) continue
@@ -564,16 +677,16 @@ export function createVascularLinks(
         h.center[0] = x / count
         h.center[1] = y / count
         h.center[2] = z / count
-        // Rayon de l'ensemble : écart moyen de ses extrémités à son centre.
+        // Rayon de l'ensemble : écart moyen de ses extrémités à son centre,
+        // jamais moins que l'espacement d'un nœud (d0) — un groupe d'un seul
+        // nœud occupe quand même sa place.
         let sum = 0
         for (const m of h.members) sum += Math.hypot(m.x - h.center[0], m.y - h.center[1], m.z - h.center[2])
-        h.radius = Math.max(8, sum / count)
+        h.radius = Math.max(d0, sum / count)
       }
     }
+    recomputeScale()
     recomputeHubs()
-    const envelopeRadius = {
-      get: (token: string): number | undefined => hubs.get(token)?.radius,
-    }
 
     const envelopes: GroupEnvelope[] = []
     for (const h of hubs.values()) {
@@ -586,9 +699,6 @@ export function createVascularLinks(
     const { ports, pairPorts } = distributePorts(envelopes, groupPairs)
 
     // Les ports sont des points de ROUTAGE : ils n'ont ni compte ni relation.
-    // On les enregistre comme ancres pour que les conduits puissent s'y
-    // accrocher, avec les groupes vers lesquels ils regardent : c'est ce qui
-    // permet de les reposer quand les groupes bougent.
     interface PortRec {
       anchor: Point3
       hub: Hub
@@ -657,118 +767,84 @@ export function createVascularLinks(
       }
     }
     const recomputeAnchors = () => {
+      recomputeScale()
       recomputeHubs()
       recomputePorts()
       recomputeSubs()
     }
 
-    /** Centroids of a corridor's two sides, plus the branch targets on each side. */
+    /** Ce que porte une extrémité réelle d'un côté du corridor. */
+    interface EndLoad {
+      id: string
+      deg: number
+      n: bigint
+      families: Set<string>
+    }
+    /** Extrémités réelles des deux côtés d'un corridor, groupées en sous-moyeux. */
     const geometryOf = (corridor: Corridor) => {
-      let ax = 0, ay = 0, az = 0, an = 0
-      let bx = 0, by = 0, bz = 0, bn = 0
-      const sideA: { id: string; deg: number }[] = []
-      const sideB: { id: string; deg: number }[] = []
-      const degree = new Map<string, number>()
-      for (const link of corridor.links) {
-        const s = endpointId(link.source)
-        const t = endpointId(link.target)
-        degree.set(s, (degree.get(s) ?? 0) + 1)
-        degree.set(t, (degree.get(t) ?? 0) + 1)
+      const sideA = new Map<string, EndLoad>()
+      const sideB = new Map<string, EndLoad>()
+      const add = (side: Map<string, EndLoad>, id: string, link: Graph3DLink) => {
+        let e = side.get(id)
+        if (!e) {
+          e = { id, deg: 0, n: 0n, families: new Set() }
+          side.set(id, e)
+        }
+        e.deg++
+        e.n += linkMultiplicity(link)
+        e.families.add(link.relationType || 'UNKNOWN')
       }
       for (const link of corridor.links) {
         const s = endpointId(link.source)
         const t = endpointId(link.target)
-        const sn = nodeById.get(s)
-        const tn = nodeById.get(t)
-        if (!sn || !tn) continue
-        if (endpointToken(link.sourceCommunityId, endpointId(link.source)) === corridor.from) {
-          ax += sn.x; ay += sn.y; az += sn.z; an++
-          bx += tn.x; by += tn.y; bz += tn.z; bn++
-          sideA.push({ id: s, deg: degree.get(s) ?? 0 })
-          sideB.push({ id: t, deg: degree.get(t) ?? 0 })
+        if (!nodeById.has(s) || !nodeById.has(t)) continue
+        if (endpointToken(link.sourceCommunityId, s) === corridor.from) {
+          add(sideA, s, link)
+          add(sideB, t, link)
         } else {
-          ax += tn.x; ay += tn.y; az += tn.z; an++
-          bx += sn.x; by += sn.y; bz += sn.z; bn++
-          sideA.push({ id: t, deg: degree.get(t) ?? 0 })
-          sideB.push({ id: s, deg: degree.get(s) ?? 0 })
+          add(sideA, t, link)
+          add(sideB, s, link)
         }
       }
-      if (an === 0 || bn === 0) return null
+      if (sideA.size === 0 || sideB.size === 0) return null
       /**
        * Regroupe les extrémités RÉELLES d'un côté en sous-moyeux spatiaux.
        *
        * Tri par angle autour du centre du côté, puis découpe en autant de
-       * paquets que de sous-moyeux autorisés : deux nœuds voisins tombent dans
-       * le même paquet, deux nœuds opposés non. C'est le clustering que la
-       * phase 2 demande, réduit à ce qui se calcule en O(n log n).
+       * paquets que de sous-moyeux autorisés. Chaque paquet garde TOUS ses
+       * membres (ils comptent dans ce que porte l'artère) et désigne ceux qui
+       * reçoivent un capillaire (les mieux connectés).
        */
-      const pick = (list: { id: string; deg: number }[]) => {
-        const seen = new Set<string>()
-        const unique = [...list]
-          .sort((p, q) => q.deg - p.deg || (p.id < q.id ? -1 : 1))
-          .filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)))
-        if (unique.length === 0) return [] as string[][]
-        // Centre du côté, puis angle de chaque extrémité autour de ce centre.
-        let cx = 0, cy = 0, _cz = 0
+      const pick = (side: Map<string, EndLoad>) => {
+        const unique = [...side.values()].sort((p, q) => q.deg - p.deg || (p.id < q.id ? -1 : 1))
+        let cx = 0, cy = 0
         const pts = unique.map((x) => {
           const n = nodeById.get(x.id)!
-          cx += n.x; cy += n.y; _cz += n.z
-          return { id: x.id, deg: x.deg, n }
+          cx += n.x; cy += n.y
+          return { e: x, n }
         })
         cx /= pts.length; cy /= pts.length
-        const angle = (p: { n: { x: number; y: number; z: number } }) =>
-          Math.atan2(p.n.y - cy, p.n.x - cx)
-        const byAngle = [...pts].sort((a, b) => angle(a) - angle(b) || (a.id < b.id ? -1 : 1))
-        const groups: string[][] = []
+        const angle = (p: { n: Point3 }) => Math.atan2(p.n.y - cy, p.n.x - cx)
+        const byAngle = [...pts].sort((a, b) => angle(a) - angle(b) || (a.e.id < b.e.id ? -1 : 1))
+        const groups: { all: EndLoad[]; drawn: EndLoad[] }[] = []
         const per = Math.max(1, Math.ceil(byAngle.length / SUB_HUBS_PER_END))
         for (let i = 0; i < byAngle.length; i += per) {
-          groups.push(
-            byAngle
-              .slice(i, i + per)
-              .sort((a, b) => b.deg - a.deg || (a.id < b.id ? -1 : 1))
-              .slice(0, CAPILLARIES_PER_SUB_HUB)
-              .map((x) => x.id),
-          )
+          const all = byAngle.slice(i, i + per).map((p) => p.e)
+          const drawn = [...all].sort((a, b) => b.deg - a.deg || (a.id < b.id ? -1 : 1)).slice(0, CAPILLARIES_PER_SUB_HUB)
+          if (all.length > 0) groups.push({ all, drawn })
         }
-        return groups.filter((g) => g.length > 0)
+        return { groups, ranked: unique }
       }
-      return {
-        a: [ax / an, ay / an, az / an] as Vec3,
-        b: [bx / bn, by / bn, bz / bn] as Vec3,
-        branchA: pick(sideA),
-        branchB: pick(sideB),
-      }
-    }
-
-    // ── Charge des moyeux ────────────────────────────────────────────────
-    // Combien de faisceaux se rejoignent sur chaque moyeu ? Au centre, vingt et
-    // un troncs se superposent : leur lumière S'ADDITIONNE. C'était le blanc
-    // éblouissant des captures. Chaque conduit divise donc son budget par la
-    // charge de ses deux moyeux — une correction qui vient des données, pas d'un
-    // réglage à l'œil.
-    const hubLoad = new Map<string, number>()
-    // Masse exacte portée par chaque ensemble : c'est elle qui décide de la
-    // section du parent dans la loi de confluence.
-    const hubMass = new Map<string, number>()
-    for (const c of corridors) {
-      const n = Number(c.magnitude.exactCount)
-      hubLoad.set(c.from, (hubLoad.get(c.from) ?? 0) + 1)
-      hubLoad.set(c.to, (hubLoad.get(c.to) ?? 0) + 1)
-      hubMass.set(c.from, (hubMass.get(c.from) ?? 0) + n)
-      hubMass.set(c.to, (hubMass.get(c.to) ?? 0) + n)
+      return { a: pick(sideA), b: pick(sideB) }
     }
 
     // ── Buffers ──────────────────────────────────────────────────────────
     const bundles: Bundle[] = []
+    const allConduits: Conduit[] = []
     const position: number[] = []
-    const color: number[] = []
-    const alpha: number[] = []
-    const normal: number[] = []
-    const emit: number[] = []
-    const curv: number[] = []
-    const phase: number[] = []
     const index: number[] = []
     const trianglesPerBundle: number[] = []
+    let coreTriangles = 0
 
     for (const drawable of system.bundles) {
       const corridor = corridorByKey.get(drawable.corridor.key)
@@ -776,13 +852,8 @@ export function createVascularLinks(
       const geo = geometryOf(corridor)
       if (!geo) continue
 
-      // Le nombre de VOIES vient de la structure, pas du LOD.
-      //
-      // Il valait `drawable.strands`, c'est-à-dire 1 dès que le LOD est au
-      // niveau agrégé — donc un corridor de 150 relations portant TROIS familles
-      // et cinq canaux était dessiné comme un seul fil. Mesuré sur l'aperçu hors
-      // navigateur : vingt et un corridors, cinq courbes visibles.
-      const load = Math.max(1, Math.max(hubLoad.get(corridor.from) ?? 1, hubLoad.get(corridor.to) ?? 1))
+      // Le nombre de VOIES vient de la structure (familles), borné par la
+      // morphologie et MAX_STRANDS.
       const lanes = Math.min(
         MAX_STRANDS,
         Math.max(1, Math.min(
@@ -791,81 +862,62 @@ export function createVascularLinks(
         )),
       )
       const trunkSamples = drawable.samples
-      const order = corridor.magnitude.magnitudeOrder
-      // ÉPAISSEUR = f(nombre) × f(CE QUI EST CONNECTÉ).
-      //
-      // Le rayon ne dépendait que du nombre de relations. Deux ensembles
-      // minuscules reliés par 10 000 relations dessinaient donc le même tronc
-      // que deux ensembles immenses reliés par le même nombre. La taille des
-      // ensembles connectés entre maintenant dans le calcul : un vaisseau qui
-      // relie de grands territoires est plus gros, à quantité égale.
-      const extFrom = envelopeRadius.get(corridor.from) ?? 0
-      const extTo = envelopeRadius.get(corridor.to) ?? 0
-      const territory = Math.min(1.8, 0.55 + (extFrom + extTo) / Math.max(1, sceneRadius))
-      const baseRadius = sceneRadius * 0.005 * (1 + 0.30 * Math.min(9, order)) * territory
 
       const conduits: Conduit[] = []
       const vertexStart = position.length / 3
-      let trianglesBefore = index.length / 3
+      const trianglesBefore = index.length / 3
 
-      const addConduit = (
-        kind: ConduitKind,
-        fromId: string,
-        toId: string,
-        radius: number,
-        alphaMul: number,
-        lane: number,
-        samples: number,
-        strata: Stratum[],
-        family: string | null,
-        flowPhase: number,
-        load: number,
-        startRadius: number,
-        endRadius: number,
-      ) => {
-        // One vertex ring per stratum: the tube is CONCENTRIC layers, not one
-        // shell. That is what distinguishes a 1 000-relation conduit from a
-        // 10 000-relation trunk once the projected width has hit its ceiling.
-        // Les couches ont maintenant des IDENTITÉS fixes (phase 5), pas un
-        // empilement de coques : halo, gaine, structure, canaux, cœur.
-        // La gamme vient de la MORPHOLOGIE, pas d'une constante : 10⁴ et 10⁹
-        // doivent porter des faisceaux différents. Bornée pour le surdessin.
-        const channelCount = MOBILE_LIKE
-          ? 2
-          : Math.max(2, Math.min(MICRO_FIBERS, drawable.morphology.graphical.channels))
-        const layers = layerSpecs(channelCount).length
-        const count = samples * TUBE_SEGMENTS * layers
-        conduits.push({
-          kind,
-          layers,
-          fromId,
-          toId,
-          radius,
-          alpha: alphaMul,
-          lane,
-          samples,
-          strata,
-          family,
-          flowPhase,
-          load,
-          startRadius,
-          endRadius,
+      const addConduit = (c: {
+        kind: ConduitKind
+        fromId: string
+        toId: string
+        side: 'a' | 'b' | null
+        n: bigint
+        nEnd?: bigint
+        families: number
+        lane?: number
+        strands?: number
+        samples: number
+        family?: string | null
+        flowPhase: number
+        parent?: number
+        toward?: string | null
+      }): Conduit => {
+        const nNum = Number(c.n)
+        const specs = c.kind === 'junction' ? layerSpecs(0) : layerSpecs(channelsFor(nNum, c.families))
+        const layers = specs.length
+        const count = c.samples * TUBE_SEGMENTS * layers
+        const conduit: Conduit = {
+          id: allConduits.length,
+          kind: c.kind,
+          fromId: c.fromId,
+          toId: c.toId,
+          side: c.side,
+          n: c.n,
+          nEnd: c.nEnd ?? c.n,
+          radius: 0,
+          endRadius: 0,
+          lane: c.lane ?? 0,
+          strands: c.strands ?? 1,
+          samples: c.samples,
+          family: c.family ?? null,
+          flowPhase: c.flowPhase,
+          specs,
           vertexStart: position.length / 3,
           vertexCount: count,
-        })
-        for (let i = 0; i < count; i++) {
-          position.push(0, 0, 0)
-          color.push(0.4, 0.8, 0.7)
-          alpha.push(0)
-          normal.push(0, 1, 0)
-          emit.push(0)
-          curv.push(0)
-          phase.push(0)
+          layers,
+          parent: c.parent ?? -1,
+          toward: c.toward ?? null,
+          axis: new Float32Array(c.samples * 3),
+          glow: 1,
         }
-        const base = position.length / 3 - count
+        conduits.push(conduit)
+        allConduits.push(conduit)
+        for (let i = 0; i < count; i++) position.push(0, 0, 0)
+        const base = conduit.vertexStart
         for (let layer = 0; layer < layers; layer++) {
-          const layerBase = base + layer * samples * TUBE_SEGMENTS
-          for (let i = 0; i < samples - 1; i++) {
+          const layerBase = base + layer * c.samples * TUBE_SEGMENTS
+          for (let i = 0; i < c.samples - 1; i++) {
             for (let k = 0; k < TUBE_SEGMENTS; k++) {
               const a0 = layerBase + i * TUBE_SEGMENTS + k
               const a1 = layerBase + i * TUBE_SEGMENTS + ((k + 1) % TUBE_SEGMENTS)
@@ -874,128 +926,144 @@ export function createVascularLinks(
               index.push(a0, b0, a1, a1, b0, b1)
             }
           }
+          if (specs[layer].emit) coreTriangles += (c.samples - 1) * TUBE_SEGMENTS * 2
         }
+        return conduit
       }
 
       // ── Voies = FAMILLES de relations (une vraie partition) ──────────────
-      // Le brief : « un même corridor peut transporter plusieurs familles de
-      // relations, qui restent distinguables et comptabilisées séparément ».
-      // Une voie par famille, colorée par elle : ce n'est pas une métaphore,
-      // c'est la composition réelle du corridor.
+      // Une voie par famille, colorée par elle, qui porte le NOMBRE EXACT de
+      // relations de sa famille. Les familles au-delà des voies dessinables
+      // rejoignent la dernière voie : la somme des voies vaut le corridor.
       const families = [...corridor.families]
         .sort((x, y) => (y.exactCount === x.exactCount ? (x.relation < y.relation ? -1 : 1) : y.exactCount > x.exactCount ? 1 : -1))
+      const laneDefs: { family: string | null; n: bigint; families: number }[] = families
         .slice(0, lanes)
-      const laneFamilies = families.length > 0 ? families.map((f) => f.relation) : [null]
-      // Nombre de strates AUTORISÉ par la morphologie : elle seule décide, et
-      // `strataFor` n'en dessine jamais davantage.
-      const strata = strataFor(Math.max(0, Math.min(6, drawable.morphology.graphical.strata)), order)
-      // Le tronc va d'un PORT à un PORT : deux corridors qui partent dans des
-      // directions différentes quittent l'ensemble par des points différents.
+        .map((f) => ({ family: f.relation, n: f.exactCount, families: 1 }))
+      for (const f of families.slice(lanes)) {
+        const last = laneDefs[laneDefs.length - 1]
+        last.n += f.exactCount
+        last.families++
+      }
+      if (laneDefs.length === 0) laneDefs.push({ family: null, n: corridor.magnitude.exactCount, families: 1 })
+
+      // Le tronc va d'un PORT à un PORT ; un corridor interne (même groupe des
+      // deux côtés) relie deux extrémités réelles distinctes — jamais un nœud
+      // à lui-même.
       const assigned = pairPorts.get(corridor.key)
-      // Part de ce corridor dans la masse de chacun de ses deux moyeux, en
-      // racine cubique : c'est la loi de confluence appliquée au port.
-      const pairCount = Number(corridor.magnitude.exactCount)
-      const massFrom = Math.max(pairCount, hubMass.get(corridor.from) ?? pairCount)
-      const massTo = Math.max(pairCount, hubMass.get(corridor.to) ?? pairCount)
-      const shareFrom = Math.cbrt(pairCount / massFrom)
-      const shareTo = Math.cbrt(pairCount / massTo)
-      // Gonflement de confluence : un ensemble où se rejoignent dix corridors
-      // porte plus qu'un ensemble où il n'en arrive qu'un.
-      const hubSwellFrom = Math.cbrt(Math.max(1, hubLoad.get(corridor.from) ?? 1)) / 2
-      const hubSwellTo = Math.cbrt(Math.max(1, hubLoad.get(corridor.to) ?? 1)) / 2
-      const trunkFrom = assigned?.from ?? (geo.branchA[0]?.[0] ?? endpointId(corridor.links[0].source))
-      // Corridor interne (même groupe des deux côtés) : pas de port, le tronc
-      // relie deux extrémités réelles — et jamais un nœud à lui-même, ce qui
-      // donnait un tube de longueur nulle par famille.
-      const trunkTo = assigned?.to ??
-        (geo.branchB.flat().find((id) => id !== trunkFrom) ?? endpointId(corridor.links[0].target))
+      const trunkFrom = assigned?.from || (geo.a.ranked[0]?.id ?? endpointId(corridor.links[0].source))
+      const trunkTo = assigned?.to ||
+        (geo.b.ranked.find((e) => e.id !== trunkFrom)?.id ?? endpointId(corridor.links[0].target))
+      const hasTrunk = trunkFrom !== trunkTo
 
-      if (trunkFrom !== trunkTo) laneFamilies.forEach((family, s) => {
-        const lane = laneFamilies.length === 1 ? 0.5 : s / (laneFamilies.length - 1)
-        addConduit('trunk', trunkFrom, trunkTo, 1, SHEATH_ALPHA, lane, trunkSamples, strata, family, s * 0.37, load, 0.85 + 0.5 * shareFrom + hubSwellFrom, 0.85 + 0.5 * shareTo + hubSwellTo)
-      })
-
-      const branchStrata = strata.slice(-1)
+      const laneIds: number[] = []
+      if (hasTrunk) {
+        laneDefs.forEach((def, s) => {
+          const lane = addConduit({
+            kind: 'trunk', fromId: trunkFrom, toId: trunkTo, side: null, n: def.n, families: def.families,
+            lane: s, strands: laneDefs.length, samples: trunkSamples, family: def.family, flowPhase: s * 0.37,
+          })
+          laneIds.push(lane.id)
+        })
+      }
 
       /**
-       * ARBRE A TROIS NIVEAUX (phase 2).
+       * ARBRE A TROIS NIVEAUX : port → artère (sous-moyeu) → capillaire.
        *
-       *   moyeu -> sous-moyeux (centre d'un groupe d'extremites voisines)
-       *         -> capillaire (un noeud reel du groupe)
-       *
-       * Les sous-moyeux sont des points de ROUTAGE : aucun compte, aucune
-       * relation. Ils existent parce que plusieurs extremites reelles passent par
-       * le meme coude - c'est ce que dessine un arbre vasculaire, et ce qui
-       * manquait : un tronc unique qui s'arretait net.
+       * Chaque conduit porte son VRAI nombre de relations : un capillaire, les
+       * relations du corridor qui touchent son nœud ; une artère, la somme de
+       * son paquet. Une capsule ferme chaque jonction (port, sous-moyeu).
        */
-      const addTree = (hub: string, groups: string[][], tag: string, share: number) => {
-        groups.forEach((members, gi) => {
-          if (members.length === 0) return
-          const pts: Point3[] = []
-          for (const id of members) {
-            const nd = nodeById.get(id)
-            if (nd) pts.push(nd)
-          }
-          if (pts.length === 0) return
-          // Un groupe d'UNE extrémité : le sous-moyeu serait le nœud lui-même,
-          // et son capillaire un tube de longueur nulle (des triangles
-          // dégénérés, comptés et dessinés pour rien). L'artère rejoint alors
-          // directement le nœud réel.
-          const realIds = members.filter((id) => nodeById.has(id))
-          if (realIds.length === 1) {
-            addConduit('artery', hub, realIds[0], 0.62, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES + 2, branchStrata, null, 0.31, load, 0.9 + 0.4 * share, 0.5)
+      const addTree = (hub: string, side: 'a' | 'b', groups: { all: EndLoad[]; drawn: EndLoad[] }[], tag: string) => {
+        if (groups.length === 0) return
+        const trunkParent = laneIds[0] ?? -1
+        // Capsule du port : rayon du tronc entier (toutes voies confondues).
+        if (hasTrunk) {
+          addConduit({
+            kind: 'junction', fromId: hub, toId: hub, side, n: corridor.magnitude.exactCount, families: 1,
+            samples: JUNCTION_SAMPLES, flowPhase: 0, parent: trunkParent, toward: side === 'a' ? trunkTo : trunkFrom,
+          })
+        }
+        groups.forEach((group, gi) => {
+          const total = group.all.reduce((acc, e) => acc + e.n, 0n)
+          const drawnN = group.drawn.reduce((acc, e) => acc + e.n, 0n)
+          const fams = new Set<string>()
+          for (const e of group.all) for (const f of e.families) fams.add(f)
+          // Un paquet d'UNE extrémité : pas de sous-moyeu (il serait le nœud
+          // lui-même) ; l'artère rejoint directement le nœud réel.
+          if (group.all.length === 1) {
+            const e = group.all[0]
+            addConduit({
+              kind: 'artery', fromId: hub, toId: e.id, side, n: e.n, families: e.families.size,
+              samples: ARTERY_SAMPLES, flowPhase: 0.31, parent: trunkParent,
+            })
             return
           }
           const subId = `sub:${tag}:${gi}`
-          const sub: SubRec = { anchor: { x: 0, y: 0, z: 0 }, members: pts }
+          const sub: SubRec = { anchor: { x: 0, y: 0, z: 0 }, members: group.drawn.map((e) => nodeById.get(e.id)!) }
           subRecs.push(sub)
           nodeById.set(subId, sub.anchor)
-          recomputeSubs()
-          // Artere secondaire : epaisse, elle se detache du tronc.
-          addConduit('artery', hub, subId, 0.62, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES + 2, branchStrata, null, 0.31, load, 0.9 + 0.4 * share, 0.5)
-          // Capillaires : fins, ils rejoignent les noeuds REELS du groupe.
-          for (const id of realIds) {
-            addConduit('capillary', subId, id, 0.3, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.13, load, 0.45, 0.12)
+          // L'artère porte tout son paquet au départ, et seulement ce que ses
+          // capillaires dessinés emportent à l'arrivée : elle s'affine en route
+          // (les extrémités non dessinées). Murray tient aux DEUX jonctions.
+          const artery = addConduit({
+            kind: 'artery', fromId: hub, toId: subId, side, n: total, nEnd: drawnN, families: fams.size,
+            samples: ARTERY_SAMPLES, flowPhase: 0.31, parent: trunkParent,
+          })
+          if (group.drawn.length > 1) {
+            addConduit({
+              kind: 'junction', fromId: subId, toId: subId, side, n: drawnN, families: 1,
+              samples: JUNCTION_SAMPLES, flowPhase: 0, parent: artery.id, toward: hub,
+            })
+          }
+          for (const e of group.drawn) {
+            addConduit({
+              kind: 'capillary', fromId: subId, toId: e.id, side, n: e.n, families: e.families.size,
+              samples: CAPILLARY_SAMPLES, flowPhase: 0.13, parent: artery.id,
+            })
           }
         })
       }
-      addTree(trunkFrom, geo.branchA, `${corridor.key}:a`, shareFrom)
-      addTree(trunkTo, geo.branchB, `${corridor.key}:b`, shareTo)
+      addTree(trunkFrom, 'a', geo.a.groups, `${corridor.key}:a`)
+      addTree(trunkTo, 'b', geo.b.groups, `${corridor.key}:b`)
 
+      if (conduits.length === 0) continue
       const vertexCount = position.length / 3 - vertexStart
       trianglesPerBundle.push(index.length / 3 - trianglesBefore)
-      trianglesBefore = index.length / 3
       bundles.push({
         corridor,
         drawable,
         color: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.3 },
         lastStyle: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.3 },
         bowSeed: hashKey(corridor.key),
-        specs: layerSpecs(MOBILE_LIKE ? 2 : Math.max(2, Math.min(MICRO_FIBERS, drawable.morphology.graphical.channels))),
         conduits,
+        hubA: corridor.from,
+        hubB: corridor.to,
+        trunkFrom,
+        trunkTo,
+        rMax: Infinity,
         vertexStart,
         vertexCount,
       })
-      void baseRadius
     }
 
     if (bundles.length === 0) return null
 
+    const vertexTotal = position.length / 3
     const geometry = new THREE.BufferGeometry()
-    const positionAttr = new THREE.BufferAttribute(new Float32Array(position), 3)
-    const colorAttr = new THREE.BufferAttribute(new Float32Array(color), 3)
-    const alphaAttr = new THREE.BufferAttribute(new Float32Array(alpha), 1)
-    const normalAttr = new THREE.BufferAttribute(new Float32Array(normal), 3)
-    const emitAttr = new THREE.BufferAttribute(new Float32Array(emit), 1)
-    const curvAttr = new THREE.BufferAttribute(new Float32Array(curv), 1)
-    const phaseAttr = new THREE.BufferAttribute(new Float32Array(phase), 1)
-    positionAttr.setUsage(THREE.DynamicDrawUsage)
-    colorAttr.setUsage(THREE.DynamicDrawUsage)
-    alphaAttr.setUsage(THREE.DynamicDrawUsage)
-    normalAttr.setUsage(THREE.DynamicDrawUsage)
-    emitAttr.setUsage(THREE.DynamicDrawUsage)
-    curvAttr.setUsage(THREE.DynamicDrawUsage)
-    phaseAttr.setUsage(THREE.DynamicDrawUsage)
+    const dyn = (arr: Float32Array, size: number) => {
+      const attr = new THREE.BufferAttribute(arr, size)
+      attr.setUsage(THREE.DynamicDrawUsage)
+      return attr
+    }
+    const positionAttr = dyn(new Float32Array(position), 3)
+    const colorAttr = dyn(new Float32Array(vertexTotal * 3), 3)
+    const alphaAttr = dyn(new Float32Array(vertexTotal), 1)
+    const normalAttr = dyn(new Float32Array(vertexTotal * 3), 3)
+    const emitAttr = dyn(new Float32Array(vertexTotal), 1)
+    const curvAttr = dyn(new Float32Array(vertexTotal), 1)
+    const phaseAttr = dyn(new Float32Array(vertexTotal), 1)
+    const axisAttr = dyn(new Float32Array(vertexTotal * 3), 3)
     geometry.setAttribute('position', positionAttr)
     geometry.setAttribute('aColor', colorAttr)
     geometry.setAttribute('aAlpha', alphaAttr)
@@ -1003,6 +1071,7 @@ export function createVascularLinks(
     geometry.setAttribute('aEmit', emitAttr)
     geometry.setAttribute('aU', curvAttr)
     geometry.setAttribute('aPhase', phaseAttr)
+    geometry.setAttribute('aAxis', axisAttr)
     geometry.setIndex(index)
 
     const material = new THREE.ShaderMaterial({
@@ -1017,12 +1086,20 @@ export function createVascularLinks(
       uniforms: {
         uLightDir: { value: new THREE.Vector3(0.45, 0.8, 0.6).normalize() },
         uFlowTime: { value: 0 },
+        uViewportH: { value: 0 },
+        uPxFloor: { value: CORE_SCREEN_FLOOR_PX },
       },
     })
 
     const mesh = new THREE.Mesh(geometry, material)
     mesh.renderOrder = LINK_RENDER_ORDER
     mesh.frustumCulled = false
+    // Le plancher écran du cœur a besoin de la hauteur réelle du tampon.
+    const drawSize = new THREE.Vector2()
+    mesh.onBeforeRender = (renderer) => {
+      renderer.getDrawingBufferSize(drawSize)
+      material.uniforms.uViewportH.value = drawSize.y
+    }
     const group = new THREE.Group()
     group.add(mesh)
 
@@ -1030,6 +1107,25 @@ export function createVascularLinks(
       bundles.map((b) => b.corridor.key),
       trianglesPerBundle,
     )
+
+    /** Rayons de chaque conduit : la loi r(n), puis le plafond du faisceau. */
+    const recomputeRadii = () => {
+      for (const b of bundles) {
+        const ha = hubs.get(b.hubA)
+        const hb = hubs.get(b.hubB)
+        const smallest = Math.min(ha?.radius ?? Infinity, hb?.radius ?? Infinity)
+        const s = nodeById.get(b.trunkFrom)
+        const t = nodeById.get(b.trunkTo)
+        const trunkLen = s && t ? Math.hypot(t.x - s.x, t.y - s.y, t.z - s.z) : Infinity
+        let rMax = Math.min(CAP_GROUP_SHARE * smallest, trunkLen > 0 ? CAP_TRUNK_SHARE * trunkLen : Infinity)
+        if (!Number.isFinite(rMax)) rMax = CAP_GROUP_SHARE * d0
+        b.rMax = rMax
+        for (const c of b.conduits) {
+          c.radius = softCap(linkRadiusFor(Number(c.n), d0), rMax)
+          c.endRadius = softCap(linkRadiusFor(Number(c.nEnd), d0), rMax)
+        }
+      }
+    }
 
     /**
      * Efface un conduit : toutes ses positions sur un même point (triangles de
@@ -1047,6 +1143,97 @@ export function createVascularLinks(
         alp[v] = 0
         emi[v] = 0
       }
+      conduit.axis.fill(NaN)
+    }
+
+    /** Écrit les anneaux d'un conduit le long de `points`, rayon `rAt(u)`. */
+    const writeRings = (
+      conduit: Conduit,
+      points: Vec3[],
+      rAt: (u: number) => number,
+      braid: Vec3[] | null,
+      braidScale: number,
+    ) => {
+      const frames = parallelTransportFrames(points)
+      const pos = positionAttr.array as Float32Array
+      const nrm = normalAttr.array as Float32Array
+      const emi = emitAttr.array as Float32Array
+      const crv = curvAttr.array as Float32Array
+      const pha = phaseAttr.array as Float32Array
+      const axs = axisAttr.array as Float32Array
+      const specs = conduit.specs
+      const channelCount = specs.filter((s) => s.kind === 'channel').length
+      const outer = specs[0].radius
+      const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
+      for (let i = 0; i < conduit.samples; i++) {
+        const f = frames[Math.min(i, frames.length - 1)]
+        if (!f) continue
+        conduit.axis[i * 3] = f.position[0]
+        conduit.axis[i * 3 + 1] = f.position[1]
+        conduit.axis[i * 3 + 2] = f.position[2]
+      }
+      for (let layer = 0; layer < specs.length; layer++) {
+        const spec = specs[layer]
+        const layerBase = conduit.vertexStart + layer * samplesPerLayer
+        for (let i = 0; i < conduit.samples; i++) {
+          const f = frames[Math.min(i, frames.length - 1)]
+          if (!f) continue
+          const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
+          // Le rayon VISIBLE (couche externe) vaut r ; les couches sont des
+          // fractions de lui.
+          const thicknessAt = rAt(u) / outer
+          const layerRadius = thicknessAt * spec.radius
+          // Tresse : un axe commun à toutes les couches de la voie, exprimé en
+          // unités d'épaisseur pour ringCenterOffset.
+          const off = braid ? braid[i] : null
+          const bx = off && thicknessAt > 0 ? (off[0] * braidScale) / thicknessAt : 0
+          const by = off && thicknessAt > 0 ? (off[1] * braidScale) / thicknessAt : 0
+          const [ox, oy] = ringCenterOffset(spec, [bx, by], thicknessAt, channelCount, u)
+          const cx = f.position[0] + f.normal[0] * ox + f.binormal[0] * oy
+          const cy = f.position[1] + f.normal[1] * ox + f.binormal[1] * oy
+          const cz = f.position[2] + f.normal[2] * ox + f.binormal[2] * oy
+          for (let k = 0; k < TUBE_SEGMENTS; k++) {
+            const ang = (k / TUBE_SEGMENTS) * Math.PI * 2
+            const nx = Math.cos(ang)
+            const ny = Math.sin(ang)
+            const v = layerBase + i * TUBE_SEGMENTS + k
+            const vi = v * 3
+            pos[vi] = cx + f.normal[0] * nx * layerRadius + f.binormal[0] * ny * layerRadius
+            pos[vi + 1] = cy + f.normal[1] * nx * layerRadius + f.binormal[1] * ny * layerRadius
+            pos[vi + 2] = cz + f.normal[2] * nx * layerRadius + f.binormal[2] * ny * layerRadius
+            axs[vi] = cx
+            axs[vi + 1] = cy
+            axs[vi + 2] = cz
+            nrm[vi] = f.normal[0] * nx + f.binormal[0] * ny
+            nrm[vi + 1] = f.normal[1] * nx + f.binormal[1] * ny
+            nrm[vi + 2] = f.normal[2] * nx + f.binormal[2] * ny
+            // Seule la couche qui porte le flux émet ; tout le reste est surface.
+            emi[v] = spec.emit ? 1 : 0
+            crv[v] = u
+            pha[v] = conduit.flowPhase
+          }
+        }
+      }
+    }
+
+    /** Tresse de chaque voie, calculée une fois : elle ne dépend que de la topologie. */
+    const braidCache = new Map<Conduit, Vec3[]>()
+    const braidOf = (conduit: Conduit): Vec3[] | null => {
+      if (conduit.kind !== 'trunk' || conduit.strands < 2) return null
+      let b = braidCache.get(conduit)
+      if (!b) {
+        // Le brin PROPRE de la voie, et une enveloppe sin(πu) : décalage nul
+        // aux deux extrémités, les voies convergent exactement sur le port.
+        const all = braidedOffsets(conduit.strands, conduit.samples, 1.4, 1)
+        const own = all[conduit.lane] ?? []
+        b = own.map((o, i) => {
+          const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
+          const env = Math.sin(Math.PI * u)
+          return [o[0] * env, o[1] * env, 0] as Vec3
+        })
+        braidCache.set(conduit, b)
+      }
+      return b
     }
 
     /** Write one conduit's tube into the shared buffers. */
@@ -1055,114 +1242,73 @@ export function createVascularLinks(
       const t = nodeById.get(conduit.toId)
       if (!s || !t) {
         // Un nœud a disparu : on EFFACE le conduit au lieu de le laisser.
-        // L'ancien code faisait `return` en laissant les positions précédentes
-        // dans le tampon — le tube restait donc affiché à son ancienne place,
-        // un fantôme qui ne part plus.
         hideConduit(conduit)
+        return
+      }
+      if (conduit.kind === 'junction') {
+        // Capsule fermée : un tronçon droit de ±R autour de l'ancre, dont les
+        // anneaux suivent un profil de sphère (pôles fermés). Elle bouche la
+        // jonction : ni trou, ni marche entre le parent et ses enfants.
+        const w = nodeById.get(conduit.toward ?? '')
+        const R = conduit.radius
+        let dx = 0, dy = 1, dz = 0
+        if (w) {
+          const ex = w.x - s.x, ey = w.y - s.y, ez = w.z - s.z
+          const len = Math.hypot(ex, ey, ez)
+          if (len > 1e-9) { dx = ex / len; dy = ey / len; dz = ez / len }
+        }
+        const points: Vec3[] = []
+        for (let i = 0; i < conduit.samples; i++) {
+          const x = (2 * i) / (conduit.samples - 1) - 1
+          points.push([s.x + dx * R * x, s.y + dy * R * x, s.z + dz * R * x])
+        }
+        writeRings(conduit, points, (u) => R * Math.sqrt(Math.max(0, 1 - (2 * u - 1) ** 2)), null, 0)
+        paintConduit(conduit, style)
         return
       }
       const a: Vec3 = [s.x, s.y, s.z]
       const b: Vec3 = [t.x, t.y, t.z]
-      const [c1, c2] = bowAnchors(a, b, bundle.bowSeed + conduit.lane * 0.9, sceneCenter)
+      // Toutes les voies d'un tronc partagent la MÊME courbe ; seule la tresse
+      // les sépare (et elle s'annule aux ports).
+      const [c1, c2] = bowAnchors(a, b, bundle.bowSeed, sceneCenter)
       const points = sampleCurve(a, c1, c2, b, conduit.samples)
-      const frames = parallelTransportFrames(points)
-      const order = bundle.corridor.magnitude.magnitudeOrder
-      const thickness = sceneRadius * 0.005 * (1 + 0.30 * Math.min(9, order)) * conduit.radius
-      const offsets = braidedOffsets(
-        Math.max(1, conduit.lane === 0.5 ? 1 : Math.round(bundle.conduits.length / 2)),
-        conduit.samples,
-        1.4,
-        0.5,
-      )[0] ?? []
-      const pos = positionAttr.array as Float32Array
-      const nrm = normalAttr.array as Float32Array
-      const emi = emitAttr.array as Float32Array
-      const crv = curvAttr.array as Float32Array
-      const pha = phaseAttr.array as Float32Array
-      const specs = bundle.specs
-      const channelCount = specs.length - 4
-      const layers = specs.length
-      const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
-      const base = conduit.vertexStart
-      for (let layer = 0; layer < layers; layer++) {
-        const spec = specs[layer]
-        const layerBase = base + layer * samplesPerLayer
-        for (let i = 0; i < conduit.samples; i++) {
-          const f = frames[Math.min(i, frames.length - 1)]
-          if (!f) continue
-          const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
-          // Le rayon VARIE le long du conduit : gonflement a la confluence,
-          // amincissement vers le capillaire, sans cassure (smoothstep).
-          // Le profil porte sur le RATIO, pas sur le rayon absolu : radiusAt
-          // borne ses résultats à l'échelle d'un rayon relatif (0,05 à 2), et
-          // lui passer des unités monde (plusieurs unités) écrasait tout à 1 —
-          // les conduits redevenaient des fils.
-          const taper = radiusAt(u, conduit.startRadius, conduit.endRadius, 0.5, { min: 0.05, max: 2 })
-          const thicknessAt = thickness * taper
-          // Orbite des canaux : ELLIPSE (pas un cercle), avec une vrille lente.
-          // Le déport de tresse est UN axe commun à toutes les couches. Il était
-          // multiplié par le rayon de CHAQUE couche : le halo (1,45) partait
-          // 1,45 fois plus loin que le cœur, la membrane n'était plus centrée
-          // sur ce qu'elle enveloppe et débordait d'un côté en manchon plat.
-          const layerRadius = thicknessAt * spec.radius
-          const off = offsets[i] ?? [0, 0, 0]
-          const [ox, oy] = ringCenterOffset(spec, [off[0], off[1]], thicknessAt, channelCount, u)
-          const cx = f.position[0] + f.normal[0] * ox + f.binormal[0] * oy
-          const cy = f.position[1] + f.normal[1] * ox + f.binormal[1] * oy
-          const cz = f.position[2] + f.normal[2] * ox + f.binormal[2] * oy
-          // La couleur ne porte PAS le flux : elle est stable, et c'est le
-          // shader qui anime (`setFlowTime` ne réécrit aucun tampon).
-          for (let k = 0; k < TUBE_SEGMENTS; k++) {
-            const ang = (k / TUBE_SEGMENTS) * Math.PI * 2
-            const nx = Math.cos(ang)
-            const ny = Math.sin(ang)
-            const vi = (layerBase + i * TUBE_SEGMENTS + k) * 3
-            pos[vi] = cx + f.normal[0] * nx * layerRadius + f.binormal[0] * ny * layerRadius
-            pos[vi + 1] = cy + f.normal[1] * nx * layerRadius + f.binormal[1] * ny * layerRadius
-            pos[vi + 2] = cz + f.normal[2] * nx * layerRadius + f.binormal[2] * ny * layerRadius
-            // Normale de surface : la direction radiale du repère de transport.
-            // C'est elle qui donne du volume à la rotation, émission coupée.
-            nrm[vi] = f.normal[0] * nx + f.binormal[0] * ny
-            nrm[vi + 1] = f.normal[1] * nx + f.binormal[1] * ny
-            nrm[vi + 2] = f.normal[2] * nx + f.binormal[2] * ny
-            const vi1 = layerBase + i * TUBE_SEGMENTS + k
-            // Seule la couche qui porte le flux émet ; tout le reste est surface.
-            emi[vi1] = spec.emit ? 1 : 0
-            // Position curviligne et phase : le shader en fait une impulsion.
-            crv[vi1] = u
-            pha[vi1] = conduit.flowPhase
-          }
-        }
-      }
-      paintConduit(bundle, conduit, style)
+      const r0 = conduit.radius
+      const r1 = conduit.endRadius
+      // Rayon du tronc entier : la tresse tourne dans son enveloppe.
+      const trunkR = conduit.kind === 'trunk'
+        ? softCap(linkRadiusFor(Number(bundle.corridor.magnitude.exactCount), d0), bundle.rMax)
+        : 0
+      writeRings(
+        conduit,
+        points,
+        (u) => r0 + (r1 - r0) * u * u * (3 - 2 * u),
+        braidOf(conduit),
+        trunkR * 0.5,
+      )
+      paintConduit(conduit, style)
     }
 
     /**
      * Couleur et opacité de TOUTES les couches d'un conduit.
      *
-     * Une seule fonction, partagée par le maillage et la recoloration. La
-     * recoloration ne repeignait que la couche 0 (le halo) avec `style.a` brut :
-     * le halo devenait dix fois trop opaque, portait seul la couleur de
-     * surbrillance, et le tick suivant du layout remettait tout à l'ancienne
-     * couleur — un clignotement.
-     *
-     * Chaque couche garde SON opacité (spec × style × conduit). La couleur
-     * d'une voie reste celle de sa famille : la surbrillance la TEINTE, elle ne
-     * la remplace pas.
+     * Une seule fonction, partagée par le maillage et la recoloration. Chaque
+     * couche garde SON opacité (spec × style × conduit). La couleur d'une voie
+     * reste celle de sa famille : la surbrillance la TEINTE, elle ne la
+     * remplace pas. Un conduit survolé (`glow`) gagne en opacité et s'éclaircit.
      */
-    const paintConduit = (bundle: Bundle, conduit: Conduit, style: LinkStyle) => {
+    const paintConduit = (conduit: Conduit, style: LinkStyle) => {
       const col = colorAttr.array as Float32Array
       const alp = alphaAttr.array as Float32Array
       const fam = conduit.family ? familyRgb(conduit.family) : null
       const sr = style.r, sg = style.g, sb = style.b
       const sr2 = style.r2 ?? sr, sg2 = style.g2 ?? sg, sb2 = style.b2 ?? sb
-      const specs = bundle.specs
+      const specs = conduit.specs
       const baseAlpha = Math.max(0.6, Math.max(0.3, style.a))
+      const glow = conduit.glow
+      const lift = glow > 1 ? 0.35 : 0
       const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
       for (let layer = 0; layer < specs.length; layer++) {
-        // Opacité propre à l'identité de la couche, pas une part d'un budget
-        // commun : chaque strate garde une identité CLAIRE.
-        const layerAlpha = Math.min(1, specs[layer].alpha * baseAlpha * conduit.alpha)
+        const layerAlpha = Math.min(1, specs[layer].alpha * baseAlpha * SHEATH_ALPHA * glow)
         const layerBase = conduit.vertexStart + layer * samplesPerLayer
         for (let i = 0; i < conduit.samples; i++) {
           const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
@@ -1174,6 +1320,9 @@ export function createVascularLinks(
             g = fam[1] + (g - fam[1]) * FAMILY_TINT
             b = fam[2] + (b - fam[2]) * FAMILY_TINT
           }
+          r += (1 - r) * lift
+          g += (1 - g) * lift
+          b += (1 - b) * lift
           for (let k = 0; k < TUBE_SEGMENTS; k++) {
             const v = layerBase + i * TUBE_SEGMENTS + k
             col[v * 3] = r
@@ -1186,6 +1335,7 @@ export function createVascularLinks(
     }
 
     const fillGeometry = () => {
+      recomputeRadii()
       for (const bundle of bundles) {
         for (const conduit of bundle.conduits) fillConduit(bundle, conduit, bundle.lastStyle)
       }
@@ -1194,6 +1344,9 @@ export function createVascularLinks(
       alphaAttr.needsUpdate = true
       normalAttr.needsUpdate = true
       emitAttr.needsUpdate = true
+      curvAttr.needsUpdate = true
+      phaseAttr.needsUpdate = true
+      axisAttr.needsUpdate = true
       geometry.computeBoundingSphere()
     }
 
@@ -1208,7 +1361,7 @@ export function createVascularLinks(
         bundle.lastStyle = style
         for (const conduit of bundle.conduits) {
           if (!nodeById.has(conduit.fromId) || !nodeById.has(conduit.toId)) continue
-          paintConduit(bundle, conduit, style)
+          paintConduit(conduit, style)
         }
       }
       colorAttr.needsUpdate = true
@@ -1227,39 +1380,124 @@ export function createVascularLinks(
         }
       }
     }
+    const bundleOfConduit = new Map<number, Bundle>()
+    for (const b of bundles) for (const c of b.conduits) bundleOfConduit.set(c.id, b)
 
+    /**
+     * Chemin allumé au survol d'un conduit : ses ancêtres jusqu'au tronc (avec
+     * les capsules traversées), et tous ses descendants. Survoler une voie de
+     * tronc allume donc tout l'arbre du corridor.
+     */
+    const pathOf = (id: number): number[] => {
+      const start = allConduits[id]
+      const bundle = bundleOfConduit.get(id)
+      if (!start || !bundle) return []
+      const out = new Set<number>([id])
+      if (start.kind === 'trunk') {
+        for (const c of bundle.conduits) out.add(c.id)
+        return [...out]
+      }
+      // Descendants.
+      const stack = [id]
+      while (stack.length > 0) {
+        const cur = stack.pop()!
+        for (const c of bundle.conduits) {
+          if (c.parent === cur && !out.has(c.id)) { out.add(c.id); stack.push(c.id) }
+        }
+      }
+      // Ancêtres : jusqu'au tronc, qui compte toutes ses voies.
+      let p = start.parent
+      while (p >= 0) {
+        const pc = allConduits[p]
+        out.add(p)
+        if (pc.kind === 'trunk') {
+          for (const c of bundle.conduits) if (c.kind === 'trunk') out.add(c.id)
+          break
+        }
+        p = pc.parent
+      }
+      // Capsules traversées : celle du port de ce côté, celle du sous-moyeu.
+      for (const c of bundle.conduits) {
+        if (c.kind !== 'junction') continue
+        if (out.has(c.parent) && (c.side === start.side || start.side === null)) out.add(c.id)
+      }
+      return [...out]
+    }
+
+    let glowing: number[] = []
+    const highlightConduit = (id: number | null) => {
+      const touched = new Set<Bundle>()
+      for (const g of glowing) {
+        allConduits[g].glow = 1
+        const b = bundleOfConduit.get(g)
+        if (b) touched.add(b)
+      }
+      glowing = id === null ? [] : pathOf(id)
+      for (const g of glowing) {
+        allConduits[g].glow = GLOW_GAIN
+        const b = bundleOfConduit.get(g)
+        if (b) touched.add(b)
+      }
+      fillColors(touched, (b) => b.lastStyle)
+    }
+
+    const projected = new THREE.Vector3()
+    const pickAt = (
+      ndcX: number,
+      ndcY: number,
+      camera: THREE.Camera,
+      viewportHeightPx: number,
+      tolerancePx = 6,
+    ): ConduitPick | null => {
+      if (!(viewportHeightPx > 0)) return null
+      // Pixels par unité NDC : la moitié de la hauteur (l'aspect est absorbé
+      // par la projection ; une distance en x est comptée à la même échelle,
+      // ce qui reste une tolérance de l'ordre du pixel).
+      const half = viewportHeightPx / 2
+      let best: ConduitPick | null = null
+      let px = 0, py = 0, pvalid = false
+      for (const c of allConduits) {
+        if (c.kind === 'junction') continue
+        pvalid = false
+        for (let i = 0; i < c.samples; i++) {
+          const x = c.axis[i * 3]
+          if (!Number.isFinite(x)) { pvalid = false; continue }
+          projected.set(x, c.axis[i * 3 + 1], c.axis[i * 3 + 2]).project(camera)
+          const inFront = projected.z >= -1 && projected.z <= 1
+          const qx = projected.x * half
+          const qy = projected.y * half
+          if (inFront && pvalid) {
+            // Distance du pointeur au segment écran [p, q].
+            const mx = ndcX * half, my = ndcY * half
+            const sx = qx - px, sy = qy - py
+            const l2 = sx * sx + sy * sy
+            const t = l2 > 0 ? Math.max(0, Math.min(1, ((mx - px) * sx + (my - py) * sy) / l2)) : 0
+            const d = Math.hypot(mx - (px + sx * t), my - (py + sy * t))
+            if (d <= tolerancePx && (!best || d < best.distancePx)) {
+              const bundle = bundleOfConduit.get(c.id)!
+              best = { id: c.id, key: bundle.corridor.key, kind: c.kind, n: c.n, distancePx: d }
+            }
+          }
+          px = qx; py = qy; pvalid = inFront
+        }
+      }
+      return best
+    }
+
+    recomputeSubs()
     fillGeometry()
 
+    const totalTriangles = trianglesFromIndex(index.length)
     return {
       object: group,
       updatePositions: () => {
         recomputeAnchors()
         fillGeometry()
       },
-      inspect: () => {
-        const out: ConduitInfo[] = []
-        const at = (id: string): Vec3 => {
-          const p = nodeById.get(id)
-          return p ? [p.x, p.y, p.z] : [NaN, NaN, NaN]
-        }
-        for (const b of bundles) {
-          for (const c of b.conduits) {
-            out.push({
-              key: b.corridor.key, kind: c.kind, fromId: c.fromId, toId: c.toId,
-              from: at(c.fromId), to: at(c.toId), vertexStart: c.vertexStart,
-              samples: c.samples, layers: c.layers, lane: c.lane, family: c.family,
-            })
-          }
-        }
-        return out
-      },
       updateColors: (styleFn: LinkStyleFn) => fillColors(bundles, (b) => styleFn(b.corridor.links[0])),
       updateColorsForNodes: (nodeIds: readonly string[], styleFn: LinkStyleFn) => {
-        // Seuls les faisceaux qui touchent ces nœuds sont repeints ; les autres
-        // GARDENT leur style courant (ils étaient remis à la couleur de
-        // construction, ce qui effaçait la sélection en cours).
-        // Le style est évalué sur un lien du corridor qui touche VRAIMENT l'un
-        // de ces nœuds (le premier lien du corridor peut ne pas le toucher).
+        // Seuls les faisceaux qui touchent ces nœuds sont repeints ; le style
+        // est évalué sur un lien du corridor qui touche VRAIMENT l'un d'eux.
         const set = new Set(nodeIds)
         const touched = new Map<Bundle, Graph3DLink>()
         for (const id of nodeIds) {
@@ -1273,18 +1511,36 @@ export function createVascularLinks(
       },
       bundleAt: (faceIndex: number) => bundleAtTriangle(ranges, faceIndex),
       onBundleClick,
-      // Aucun tampon réécrit, aucune géométrie reconstruite : un uniforme.
+      inspect: () => {
+        const at = (id: string): Vec3 => {
+          const p = nodeById.get(id)
+          return p ? [p.x, p.y, p.z] : [NaN, NaN, NaN]
+        }
+        const out: ConduitInfo[] = []
+        for (const b of bundles) {
+          for (const c of b.conduits) {
+            out.push({
+              id: c.id, key: b.corridor.key, kind: c.kind, side: c.side, fromId: c.fromId, toId: c.toId,
+              from: at(c.fromId), to: at(c.toId), vertexStart: c.vertexStart,
+              samples: c.samples, layers: c.layers, lane: c.lane, family: c.family,
+              n: c.n, nEnd: c.nEnd, parent: c.parent, radius: c.radius, endRadius: c.endRadius, rMax: b.rMax,
+            })
+          }
+        }
+        return out
+      },
+      unit: () => d0,
+      pickAt,
+      pathOf,
+      highlightConduit,
       stats: {
         vertices: positionAttr.count,
-        triangles: trianglesFromIndex(index.length),
-        conduits: bundles.reduce((n, b) => n + b.conduits.length, 0),
-        // Couches d'un conduit = son nombre de vertex / (samples × segments).
-        layers: 0,
-        // Toutes les couches sont transparentes sauf le cœur : on compte les
-        // triangles des surfaces translucides, ceux qui coûtent en surdessin.
-        // Toutes les couches sont transparentes : le surdessin est le coût total
-        // moins la part du seul cœur émissif (une couche sur ~cinq).
-        transparentTriangles: Math.round(trianglesFromIndex(index.length) * 0.8),
+        triangles: totalTriangles,
+        conduits: allConduits.length,
+        // Couches du conduit le plus riche (elles varient avec n).
+        layers: allConduits.reduce((m, c) => Math.max(m, c.layers), 0),
+        // Tout est translucide sauf le cœur émissif : compté sur l'index réel.
+        transparentTriangles: totalTriangles - coreTriangles,
       },
       setFlowTime: (turns: number) => {
         flowTime = Number.isFinite(turns) ? turns % 1 : 0
@@ -1292,8 +1548,7 @@ export function createVascularLinks(
       },
       dispose: () => {
         // Retirer de la scène AVANT de libérer : un groupe laissé attaché
-        // continue d'être dessiné après le remplacement du renderer, et ses
-        // tubes restent « imprimés » sur l'image.
+        // continue d'être dessiné après le remplacement du renderer.
         group.removeFromParent()
         geometry.dispose()
         material.dispose()

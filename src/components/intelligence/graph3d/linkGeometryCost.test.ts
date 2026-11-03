@@ -8,7 +8,7 @@ import {
 } from './linkGeometryCost'
 import { buildLinkSystem, fromCorridors } from './linkSystem'
 import { buildCorridors } from './linkRouting'
-import { createVascularLinks } from './linkVascularRenderer'
+import { createVascularLinks, layerSpecs } from './linkVascularRenderer'
 
 function synth(n: number, groups: number) {
   let seed = 3
@@ -32,8 +32,11 @@ function synth(n: number, groups: number) {
 
 describe('modèle de coût géométrique', () => {
   it('compte les couches que le renderer produit vraiment', () => {
-    // halo + gaine + structure + N canaux + cœur
-    expect(layersForChannels(0)).toBe(4)
+    // halo + gaine + structure + N canaux + cœur ; sans canal : cœur + une peau
+    expect(layersForChannels(0)).toBe(2)
+    expect(layersForChannels(0)).toBe(layerSpecs(0).length)
+    expect(layersForChannels(3)).toBe(layerSpecs(3).length)
+
     expect(layersForChannels(3)).toBe(7)
     expect(layersForChannels(8)).toBe(12)
   })

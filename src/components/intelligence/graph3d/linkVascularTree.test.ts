@@ -17,17 +17,18 @@ describe('arbre vasculaire', () => {
     const nodes = [node('a', -100, 0, 0, 0), node('b', 100, 0, 0, 1)]
     const r = createVascularLinks(nodes, [link('a', 'b', 0, 1)])!
     const info = r.inspect!()
-    // Un tronc, deux artères qui rejoignent directement les nœuds réels.
+    // Un tronc, deux artères qui rejoignent directement les nœuds réels (et
+    // les deux capsules qui ferment les ports).
     expect(info.filter((c) => c.kind === 'capillary')).toHaveLength(0)
-    expect(info.map((c) => c.kind).sort()).toEqual(['artery', 'artery', 'trunk'])
-    expect(r.stats!.conduits).toBe(3)
+    expect(info.filter((c) => c.kind !== 'junction').map((c) => c.kind).sort()).toEqual(['artery', 'artery', 'trunk'])
   })
 
   it('sur un vrai graphe, aucun conduit ne relie deux points confondus', () => {
     const { nodes, links } = synthGraph(3001)
     const r = createVascularLinks(nodes, links)!
+    // Les capsules de jonction sont, par construction, centrées sur un point.
     const degenerate = r.inspect!().filter(
-      (c) => Math.hypot(c.to[0] - c.from[0], c.to[1] - c.from[1], c.to[2] - c.from[2]) < 1e-6,
+      (c) => c.kind !== 'junction' && Math.hypot(c.to[0] - c.from[0], c.to[1] - c.from[1], c.to[2] - c.from[2]) < 1e-6,
     )
     expect(degenerate).toHaveLength(0)
   })
