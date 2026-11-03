@@ -686,16 +686,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return () => clearTimeout(timer)
   }, [showCommunityHulls, rebuildCommunityHulls])
 
-  // ── Auto-zoom: fit graph on first load ──────────────────────────────────
-  const hasAutoZoomedRef = useRef(false)
-
-  // Reset auto-zoom flag when data changes significantly (new graph loaded)
-  useEffect(() => {
-    if (needsRelayout) {
-      hasAutoZoomedRef.current = false
-    }
-  }, [needsRelayout])
-
   // ── Force-layout lifecycle → render loop ────────────────────────────────
   // onEngineTick fires on every simulation tick: node positions are moving, so
   // the loop must keep running. onEngineStop releases that keep-alive.
@@ -908,8 +898,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // ── Save positions when simulation stops ────────────────────────────────
   const onEngineStop = useCallback(() => {
-    // wake: the layout just settled — zoomToFit tween (800 ms, fired 100 ms
-    // from now) plus the hull rebuild below still need frames.
+    // wake: the layout just settled — the hull rebuild below still needs frames.
+    // No camera move here: the framing effect above is the ONE framing path.
+    // A `zoomToFit(800, 80)` used to fire 100 ms after it (cooldownTicks = 0
+    // stops the engine on the first frame), tween over it and end on the
+    // padding-80 framing that made the scene too small.
     setEngineRunning(false)
     wake(1600)
 
@@ -921,17 +914,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         rebuildCommunityHulls()
       }
 
-      // Auto-zoom to fit all nodes on first layout completion
-      if (!hasAutoZoomedRef.current) {
-        hasAutoZoomedRef.current = true
-        const fg = graphRef.current
-        if (fg && typeof fg.zoomToFit === 'function') {
-          // Small delay to let positions finalize
-          setTimeout(() => {
-            fg.zoomToFit(800, 80) // 800ms transition, 80px padding
-          }, 100)
-        }
-      }
     }
   }, [graphData.nodes, savePositions, rebuildCommunityHulls, wake, setEngineRunning])
 
