@@ -162,8 +162,29 @@ export function useLivePulse(input: LivePulseInput): LivePulseHandle {
     return unsubscribe
   }, [enabled, index, animator, job])
 
-  // The graph changed (new buffers, new nodes): pulses in flight point at the
-  // previous crate. Drop them — the creation effects rewrite every style.
+  // The graph changed. A WebSocket flush hands over NEW node objects for (mostly)
+  // the SAME ids — and the event that pulses a node is the very one that
+  // triggers that flush, so clearing every pulse on a new array killed them
+  // after about one frame. Pulses are keyed by id and the writers resolve the
+  // buffer slot by id (`indexOf`), so a pulse survives a refresh: re-point it
+  // at the node object of the new set, and drop only the ones whose entity
+  // left the graph (their slot is gone; the creation effects rewrite styles).
+  useEffect(() => {
+    const clock = clockRef.current
+    const targets = targetsRef.current
+    for (const id of [...targets.keys()]) {
+      const node = index.get(id)
+      if (node) {
+        targets.set(id, node)
+      } else {
+        targets.delete(id)
+        clock.forget(id)
+      }
+    }
+    if (clock.size === 0) animator.remove(job)
+  }, [index, animator, job])
+
+  // Unmount (or a new animator): nothing may keep writing into the scene.
   useEffect(() => {
     const clock = clockRef.current
     const targets = targetsRef.current
@@ -172,7 +193,7 @@ export function useLivePulse(input: LivePulseInput): LivePulseHandle {
       targets.clear()
       animator.remove(job)
     }
-  }, [index, animator, job])
+  }, [animator, job])
 
   return { clockRef }
 }
