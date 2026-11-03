@@ -57,6 +57,7 @@ import { useCommunityActivity } from './useCommunityActivity'
 import { buildCommunityIndex } from './communityActivity'
 import { useAgentMarkers } from './useAgentMarkers'
 import type { AgentMarkers } from './agentMarkers'
+import type { NodeStyleOverlay } from './useAgentMarkers'
 import { communityFocus, nodeSetSignature } from './useGraph3DLayout'
 import { labelStructureKey, linkStructureKey, nodeStructureKey } from './graphStructureKey'
 import { activationStateAtom } from '../SpreadingActivation'
@@ -352,6 +353,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // Live agents' labels (useAgentMarkers fills it; declared here so the
   // engine-tick callback below can re-anchor them like the other overlays).
   const agentMarkersRef = useRef<AgentMarkers | null>(null)
+  // The live agents' lit nodes, applied on top of every BULK node restyle
+  // (useAgentMarkers fills it): a steady waiting_input state is drawn once, so
+  // without this a selection / legend / heatmap restyle erased it.
+  const agentOverlayRef = useRef<NodeStyleOverlay>((_node, style) => style)
 
   // ── Cleanup cached Three.js resources on unmount ────────────────────────
   useEffect(() => {
@@ -2184,7 +2189,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
     const np = createNodePoints(nodesNow)
     pointsNodesRef.current = nodesNow
-    np.updateStyles(computeNodeStyleRef.current)
+    np.updateStyles((n) => agentOverlayRef.current(n, computeNodeStyleRef.current(n)))
     // The loop only reports CHANGES, so a Points built after a drop must adopt
     // the ratio already in force or its points would change size on the next
     // frame (gl_PointSize is in device pixels).
@@ -2263,7 +2268,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       np.setData(activeGraphData.nodes)
       pointsNodesRef.current = activeGraphData.nodes
     }
-    np.updateStyles(computeNodeStyle)
+    np.updateStyles((n) => agentOverlayRef.current(n, computeNodeStyle(n)))
   }, [useOptimizedNodes, computeNodeStyle, activeGraphData])
 
   // ── Hover spotlight (transient, O(1) per move) ────────────────────────
@@ -2301,11 +2306,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       }
       return
     }
-    // Restore the previously boosted node to its bulk style.
+    // Restore the previously boosted node to its bulk style (agents included).
     if (prev != null) {
       const idx = np.indexOf(prev)
       const node = activeGraphData.nodes.find((n) => n.id === prev)
-      if (idx >= 0 && node) np.updateStyleAt(idx, computeNodeStyleRef.current(node))
+      if (idx >= 0 && node) np.updateStyleAt(idx, agentOverlayRef.current(node, computeNodeStyleRef.current(node)))
     }
     // Boost the newly hovered node.
     if (cur != null && !hoverSuppressed) {
@@ -2381,12 +2386,19 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return computeLinkStyleRef.current(l)
   }, [HIGHLIGHT_COLOR_HOVER])
 
+  // A pulse returns to the live base PLUS the agents' overlay, so a pulse ending
+  // on a node an agent lights gives the agent's colour back, not the bulk.
+  const pulseBaseNodeStyle = useCallback(
+    (node: Graph3DNode): NodeStyle => agentOverlayRef.current(node, liveBaseNodeStyle(node)),
+    [liveBaseNodeStyle],
+  )
+
   // Entity pulses: ids published by useGraphWebSocket (graph + CRUD channels).
   useLivePulse({
     nodePointsRef,
     linkSegmentsRef,
     nodes: activeGraphData.nodes,
-    baseNodeStyle: liveBaseNodeStyle,
+    baseNodeStyle: pulseBaseNodeStyle,
     baseLinkStyle: liveBaseLinkStyle,
     animator,
     enabled: hasDimensions,
@@ -2412,6 +2424,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     baseNodeStyle: liveBaseNodeStyle,
     animator,
     enabled: hasDimensions && !aggregated,
+    overlayRef: agentOverlayRef,
   })
 
   // ── Overview tier — custom pick for hover / click ─────────────────────

@@ -40,6 +40,23 @@ export function spriteScaleFor(act: number): number {
   return 1 + 0.6 * Math.min(1, Math.max(0, act))
 }
 
+/** A node's style at activation `act`, optionally tinted toward a colour while active. */
+export function activatedNodeStyle(
+  base: NodeStyle,
+  act: number,
+  tint?: { r: number; g: number; b: number; k: number },
+): NodeStyle {
+  const style = pulsedNodeStyle(base, act)
+  if (!tint || !(tint.k > 0) || !(act > 0)) return style
+  const k = Math.min(1, tint.k)
+  return {
+    ...style,
+    r: style.r + (tint.r - style.r) * k,
+    g: style.g + (tint.g - style.g) * k,
+    b: style.b + (tint.b - style.b) * k,
+  }
+}
+
 /**
  * Write one node's activation. Points tier: a targeted style write. Sprite
  * tier: scale the node's Object3D on top of its current scale (restored at
@@ -56,17 +73,7 @@ export function writeNodeActivation(
   if (np) {
     const idx = np.indexOf(node.id)
     if (idx < 0) return false
-    let style = pulsedNodeStyle(baseStyle(node), act)
-    if (tint && tint.k > 0 && act > 0) {
-      const k = Math.min(1, tint.k)
-      style = {
-        ...style,
-        r: style.r + (tint.r - style.r) * k,
-        g: style.g + (tint.g - style.g) * k,
-        b: style.b + (tint.b - style.b) * k,
-      }
-    }
-    np.updateStyleAt(idx, style)
+    np.updateStyleAt(idx, activatedNodeStyle(baseStyle(node), act, tint))
     return true
   }
   const obj = (node as NodeWithObject).__threeObj

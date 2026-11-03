@@ -14,7 +14,7 @@ import { act, render } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import * as THREE from 'three'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
-import { graphScaleAtom, hoveredNodeIdAtom } from '@/atoms/intelligence'
+import { graphScaleAtom, hoveredNodeIdAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
 
 // ── The library stand-in ──────────────────────────────────────────────────────
 
@@ -43,6 +43,12 @@ const lib = vi.hoisted(() => ({
   props: {} as Record<string, unknown>,
   engineStops: 0,
   saves: 0,
+  agents: [] as Array<Record<string, unknown>>,
+}))
+
+// The live agents, as GET /api/agents/live would list them.
+vi.mock('@/hooks/useLiveAgents', () => ({
+  useLiveAgents: () => ({ data: { agents: lib.agents }, status: 'ready', stale: false }),
 }))
 
 // savePositions, counted: it is the O(N) cost an idle onEngineStop must not pay.
@@ -127,6 +133,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   lib.engineStops = 0
   lib.saves = 0
+  lib.agents = []
   ;(globalThis as { Worker?: unknown }).Worker = NoWorker
   ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
     observe() {}
@@ -448,5 +455,25 @@ describe('IntelligenceGraph3D — a kept scene follows a drag after a flush', ()
     dragged.z = far.z
     act(() => { (lib.props.onNodeDrag as (n: unknown) => void)(dragged) })
     expect(drawnNear(far)).toBe(true)
+  }, 60_000)
+})
+
+describe('IntelligenceGraph3D — an agent waiting on the user stays lit', () => {
+  const actOf = (index: number) => {
+    const points = lib.fg.scene().children.find((o) => o instanceof THREE.Points) as THREE.Points
+    return (points.geometry.getAttribute('aAct') as THREE.BufferAttribute).getX(index)
+  }
+
+  it('a bulk restyle (selection) keeps the waiting_input activation on its node', async () => {
+    lib.agents = [{ session_id: 'n7', title: 'agent', state: 'waiting_input' }]
+    const view = await mountGraph(makeGraph(2500))
+    await flush(3000)
+    expect(actOf(7)).toBeGreaterThan(0.4)
+    act(() => { view.store.set(selectedNodeIdAtom, 'n3') })
+    await flush(500)
+    expect(actOf(7)).toBeGreaterThan(0.4)
+    act(() => { view.store.set(selectedNodeIdAtom, null) })
+    await flush(500)
+    expect(actOf(7)).toBeGreaterThan(0.4)
   }, 60_000)
 })
