@@ -34,6 +34,15 @@ import { buildLinkSystem, fromCorridors, type DrawableBundle, type SystemBudget 
 import { braidedOffsets, parallelTransportFrames, type Vec3 } from './linkVascular'
 import { communityToken } from './linkRibbon'
 import { LINK_RENDER_ORDER } from './nodePoints'
+import { buildRanges, bundleAtTriangle } from './linkVascularPicking'
+
+/** `LinkRenderer` + capacité de picking (champs optionnels, additifs). */
+export interface VascularLinkRenderer extends LinkRenderer {
+  /** Clé du bundle qui possède ce triangle (`faceIndex` du raycast), ou null. */
+  bundleAt?: (faceIndex: number) => string | null
+  /** Rappel de clic transmis aux options ; à invoquer par le câblage externe. */
+  onBundleClick?: (key: string) => void
+}
 
 /** Radial segments of a strand's tube. Six reads round at these widths and stays cheap. */
 const TUBE_SEGMENTS = 6
@@ -145,7 +154,9 @@ export function createVascularLinks(
   nodes: Graph3DNode[],
   links: Graph3DLink[],
   budget: Partial<SystemBudget> = {},
-): LinkRenderer | null {
+  /** Rappel optionnel : le câblage DOM appelle `bundleAt` puis ce rappel ailleurs. */
+  onBundleClick?: (key: string) => void,
+): VascularLinkRenderer | null {
   try {
     if (!Array.isArray(nodes) || !Array.isArray(links) || links.length === 0) return null
     for (const n of nodes) {
@@ -430,8 +441,17 @@ export function createVascularLinks(
     fillGeometry((b) => b.color)
     geometry.computeBoundingSphere()
 
+    // Plages de triangles par bundle, dans l'ordre d'écriture de l'index :
+    // (samples-1) anneaux × TUBE_SEGMENTS × 2 triangles × brins.
+    const ranges = buildRanges(
+      bundles.map((b) => b.corridor.key),
+      bundles.map((b) => (b.drawable.samples - 1) * TUBE_SEGMENTS * 2 * b.strands.length),
+    )
+
     return {
       object: group,
+      bundleAt: (faceIndex: number) => bundleAtTriangle(ranges, faceIndex),
+      onBundleClick,
       // Positions moved: the tubes must be rebuilt.
       updatePositions: () => fillGeometry((b) => b.color),
       // Style changed: colours only, never the geometry.
