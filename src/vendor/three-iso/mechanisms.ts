@@ -1,4 +1,4 @@
-// GENERATED from website@9936a71e24d72e5ccccf091211456dc379253605:src/three/iso/mechanisms.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@b91eb36fd983b29cf89d74c404f12578321655c2:src/three/iso/mechanisms.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Bibliothèque de MÉCANIQUES : de petites machines qui montrent une logique (pas une icône), à poser sur un poste de
@@ -214,7 +214,9 @@ const RAW: Readonly<Record<MechId, Mechanism>> = {
       // par un fil en permanence. Avant : une plaque blanche à +1,4 au-dessus de sa place, sans lien tant que 'grow' = 0.
       // Chute 1,4 → 0,5 : au plus haut la plaque culmine à z + 2,05, sous le sommet du graphe (note 4 : 1,7 + 0,3).
       const drop = served ? g : cyc(1.2, 0.3)
-      const land: Vec3 = [-1.0, -0.5, z + 1.55] // x −1,05 → −1,0 : le bord de la plaque (−1,28) reste dans ±1,29
+      // x −1,05 → −0,85 : la plaque chevauche la silhouette du graphe au lieu de flotter à côté (elle lisait comme une
+      // pièce orpheline sur la planche de revue) ; son bord (−1,13) reste dans ±1,29.
+      const land: Vec3 = [-0.85, -0.5, z + 1.55]
       const fall = ease(span(drop, 0, 0.5))
       const CARD_H = 0.4
       const cardZ = land[2] + 0.5 * (1 - fall)
@@ -223,7 +225,7 @@ const RAW: Readonly<Record<MechId, Mechanism>> = {
       B.slab(land[0] - 0.28, land[1] - 0.04, cardZ, 0.56, 0.08, CARD_H, 0.03, o(id('card'), MAT.porcelain))
       // Fil permanent plaque → décision (même pièce 'grow') : sombre au repos, la couleur du pilier le parcourt ensuite.
       const from: Vec3 = [land[0], land[1], cardZ + CARD_H / 2]
-      B.tube(from, C, 0.05, o(id('grow'), MAT.steelL), seg(8))
+      B.tube(from, C, 0.07, o(id('grow'), MAT.steelL), seg(8)) // 0,05 → 0,07 : le fil doit se lire, c'est ce qui rattache la plaque
       const grow = ease(span(drop, 0.5, 0.9))
       if (grow > 0.02) B.tube(from, L3(from, C, grow), 0.07, glow(id('grow'), 1), seg(8))
       const [pa, pb] = L[Math.floor(cyc(10) * L.length)]!
