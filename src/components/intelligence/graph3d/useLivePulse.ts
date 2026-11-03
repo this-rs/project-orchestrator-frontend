@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type * as THREE from 'three'
 import type { NodePoints, NodeStyle } from './nodePoints'
-import type { LinkSegments, LinkStyle } from './linkSegments'
+import type { LinkRenderer, LinkStyle } from './linkSegments'
 import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
 import type { FrameAnimator } from './frameAnimator'
 import {
@@ -77,7 +77,7 @@ export function writeNodeActivation(
 
 /** Write the links of one node at activation `act` (Points/segments tier only). */
 export function writeLinkActivation(
-  seg: LinkSegments | null,
+  seg: LinkRenderer | null,
   nodeId: string,
   act: number,
   baseStyle: (link: Graph3DLink) => LinkStyle,
@@ -88,7 +88,7 @@ export function writeLinkActivation(
 
 export interface LivePulseInput {
   nodePointsRef: React.RefObject<NodePoints | null>
-  linkSegmentsRef: React.RefObject<LinkSegments | null>
+  linkSegmentsRef: React.RefObject<LinkRenderer | null>
   /** The nodes on screen (the aggregated set when a scale is active). */
   nodes: readonly Graph3DNode[]
   /** Base node style, hover-aware. Read through a ref: may change identity freely. */

@@ -25,6 +25,8 @@ import {
   sampleLinkPath as samplePath, type Vec3,
 } from './linkCurve'
 import { classifyLinkScale, interpolateRgb, linkScaleCurvature } from './linkScale'
+import type { LinkStyle, LinkStyleFn } from './linkRibbon'
+import { createLinkRibbons, type LinkRenderer } from './linkRibbons'
 
 /**
  * Line segments drawn per link's stroke: CURVE_SUBDIVISIONS − 1 bowed
@@ -36,23 +38,12 @@ function segmentsPerLink(linkCount: number): number {
 }
 
 /**
- * Final per-link style: normalized RGB + alpha (0..1). `r2/g2/b2` are the
- * colour of the target endpoint; when omitted the colour is uniform along the
- * link (used by the highlight overlay). The stroke interpolates from
- * (r,g,b) to (r2,g2,b2) per vertex, so the direction reads without an arrow.
+ * Final per-link style (gradient source→target + alpha) — defined in
+ * linkRibbon.ts (pure module) and re-exported here so existing importers
+ * (livePulse, useLivePulse, IntelligenceGraph3D) keep working unchanged.
  */
-export interface LinkStyle {
-  r: number
-  g: number
-  b: number
-  r2?: number
-  g2?: number
-  b2?: number
-  a: number
-}
-
-/** A style provider evaluated for every link whenever highlight state changes. */
-export type LinkStyleFn = (link: Graph3DLink) => LinkStyle
+export type { LinkStyle, LinkStyleFn } from './linkRibbon'
+export type { LinkRenderer } from './linkRibbons'
 
 /** Parse a `#hex` or `rgba(r,g,b,a)` color into normalized components. */
 export function parseColor(color: string): { r: number; g: number; b: number; a: number } {
@@ -363,4 +354,16 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
   setData(nodes, links)
 
   return { object, setData, updatePositions, updateColors, updateColorsForNodes, dispose }
+}
+
+/**
+ * The production entry point: build RIBBONS when the data allows, and fall
+ * back to the LineSegments renderer above on any failure (invalid data, a
+ * non-finite position, or an allocation throw). The graph never disappears:
+ * the fallback is the exact renderer that predates the ribbon work.
+ */
+export function createLinkRenderer(nodes: Graph3DNode[], links: Graph3DLink[]): LinkRenderer {
+  const ribbons = createLinkRibbons(nodes, links)
+  if (ribbons) return ribbons
+  return createLinkSegments(nodes, links)
 }

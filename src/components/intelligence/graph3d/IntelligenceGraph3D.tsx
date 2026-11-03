@@ -23,7 +23,7 @@ import {
 } from './useRenderLoop'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
 import { layerRgb, resolveNodeBaseRgb } from './layerColors'
-import { createLinkSegments, parseColor, type LinkSegments, type LinkStyle } from './linkSegments'
+import { createLinkRenderer, parseColor, type LinkRenderer, type LinkStyle } from './linkSegments'
 import { computeLinkAlpha, linkFamilyAlpha, LINK_OPACITY } from './linkFamily'
 import { classifyLinkScale, linkScaleAlpha } from './linkScale'
 import { createNodePoints, shapeForType, sizeForType, type NodePoints, type NodeStyle } from './nodePoints'
@@ -312,7 +312,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const communityIndexRef = useRef<Map<string, number>>(new Map())
 
   // ── Single LineSegments renderer for links (optimized path) ───────────
-  const linkSegmentsRef = useRef<LinkSegments | null>(null)
+  const linkSegmentsRef = useRef<LinkRenderer | null>(null)
 
   // ── Aggregated tier: tube links + named super-nodes ───────────────────
   // At scaleLevel ≥ 1 the super-edges become tubes and the largest super-nodes
@@ -1976,7 +1976,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
     if (!useOptimizedLinks || useTubes || activeGraphData.links.length === 0) return
 
-    const seg = createLinkSegments(activeGraphData.nodes, activeGraphData.links)
+    const seg = createLinkRenderer(activeGraphData.nodes, activeGraphData.links)
     seg.updateColors(computeLinkStyleRef.current)
     scene.add(seg.object)
     linkSegmentsRef.current = seg
