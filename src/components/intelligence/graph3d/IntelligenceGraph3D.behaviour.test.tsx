@@ -145,11 +145,17 @@ beforeEach(() => {
     unobserve() {}
     disconnect() {}
   }
+  mediaListeners.clear()
   window.matchMedia = ((query: string) => ({
     matches: false,
     media: query,
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    addEventListener: (_type: string, fn: () => void) => {
+      if (!mediaListeners.has(query)) mediaListeners.set(query, new Set())
+      mediaListeners.get(query)!.add(fn)
+    },
+    removeEventListener: (_type: string, fn: () => void) => {
+      mediaListeners.get(query)?.delete(fn)
+    },
   })) as unknown as typeof window.matchMedia
   rect = { width: 800, height: 600 }
   lib.fg = null as unknown as FakeGraph
@@ -163,6 +169,10 @@ beforeEach(() => {
     x: 0, y: 0, top: 0, left: 0, right: rect.width, bottom: rect.height, width: rect.width, height: rect.height, toJSON: () => ({}),
   }) as DOMRect)
 })
+
+/** Live matchMedia 'change' listeners, by query. */
+const mediaListeners = new Map<string, Set<() => void>>()
+const armed = (query: string) => mediaListeners.get(query)?.size ?? 0
 
 /** The container's size, as getBoundingClientRect reports it. */
 let rect = { width: 800, height: 600 }
@@ -476,4 +486,20 @@ describe('IntelligenceGraph3D — an agent waiting on the user stays lit', () =>
     await flush(500)
     expect(actOf(7)).toBeGreaterThan(0.4)
   }, 60_000)
+})
+
+describe('IntelligenceGraph3D — screen changes', () => {
+  it('re-arms the resolution watch after a DPR change (a second move is still seen)', async () => {
+    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 2 })
+    await mountGraph(makeGraph(60))
+    await flush(500)
+    expect(armed('(resolution: 2dppx)')).toBe(1)
+    // The window is dragged to a 1× screen: the 2dppx query stops matching.
+    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1 })
+    act(() => { [...mediaListeners.get('(resolution: 2dppx)')!].forEach((fn) => fn()) })
+    // The watch now follows the NEW ratio; the old one is released.
+    expect(armed('(resolution: 1dppx)')).toBe(1)
+    expect(armed('(resolution: 2dppx)')).toBe(0)
+    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1 })
+  })
 })

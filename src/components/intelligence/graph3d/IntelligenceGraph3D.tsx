@@ -486,15 +486,24 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   useEffect(() => {
     // The zoom-adapted ceiling, not the bare one: a resize while zoomed in must
     // not throw the close-up back to the overview's sharpness.
-    const max = zoomedPixelRatioCeiling()
-    const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
+    //
+    // The query names ONE ratio: once the window has left it, a further move
+    // (1× → 1.5×, or back) would never fire again. Re-arm on the new ratio at
+    // every change.
+    let mq: MediaQueryList | null = null
     const onChange = () => {
+      arm()
       setMaxPixelRatio(zoomedPixelRatioCeiling())
       wake(WAKE_MUTATION_MS)
     }
-    setMaxPixelRatio(max)
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
+    const arm = () => {
+      mq?.removeEventListener('change', onChange)
+      mq = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
+      mq.addEventListener('change', onChange)
+    }
+    setMaxPixelRatio(zoomedPixelRatioCeiling())
+    arm()
+    return () => mq?.removeEventListener('change', onChange)
   }, [dimensions, setMaxPixelRatio, zoomedPixelRatioCeiling, wake])
 
   // ── Workaround: three.js OrbitControls + DragControls pointercancel crash ──
