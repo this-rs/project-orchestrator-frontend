@@ -101,6 +101,11 @@ export class PulseClock {
     return { active, ended }
   }
 
+  /** Forget one pulse (its entity left the graph). Returns whether it was pulsing. */
+  forget(id: string): boolean {
+    return this.starts.delete(id)
+  }
+
   /** Forget every pulse; returns the ids the caller must restore. */
   clear(): string[] {
     const ids = [...this.starts.keys()]

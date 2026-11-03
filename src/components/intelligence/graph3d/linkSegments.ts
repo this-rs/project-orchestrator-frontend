@@ -16,6 +16,7 @@
 // ============================================================================
 
 import * as THREE from 'three'
+import { markFullUpload, markRangeUpload } from './bufferUpload'
 import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
 import { LINK_RENDER_ORDER } from './nodePoints'
 import { ARROW_ANCHOR, ARROW_VERTICES, arrowsEnabled, computeArrowHeadAt } from './linkArrows'
@@ -307,8 +308,9 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
       paintStroke(i, s, col, alp)
       paintArrow(i, s, col, alp)
     }
-    ;(geometry.getAttribute('aColor') as THREE.BufferAttribute).needsUpdate = true
-    ;(geometry.getAttribute('aAlpha') as THREE.BufferAttribute).needsUpdate = true
+    // A full upload: it must beat any ranged update queued in the same frame.
+    markFullUpload(geometry.getAttribute('aColor') as THREE.BufferAttribute)
+    markFullUpload(geometry.getAttribute('aAlpha') as THREE.BufferAttribute)
   }
 
   /** Rewrite only the given link indices (their whole stroke), with ranged uploads. */
@@ -323,17 +325,15 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
       const s = styleFn(linkList[i])
       paintStroke(i, s, col, alp)
       const base = i * strokeVerts
-      colAttr.addUpdateRange(base * 3, strokeVerts * 3)
-      alpAttr.addUpdateRange(base, strokeVerts)
+      markRangeUpload(colAttr, base * 3, strokeVerts * 3)
+      markRangeUpload(alpAttr, base, strokeVerts)
       paintArrow(i, s, col, alp)
       const slot = arrowSlot[i]
       if (slot >= 0) {
-        colAttr.addUpdateRange(slot * 3, ARROW_VERTICES * 3)
-        alpAttr.addUpdateRange(slot, ARROW_VERTICES)
+        markRangeUpload(colAttr, slot * 3, ARROW_VERTICES * 3)
+        markRangeUpload(alpAttr, slot, ARROW_VERTICES)
       }
     }
-    colAttr.needsUpdate = true
-    alpAttr.needsUpdate = true
   }
 
   const updateColorsForNodes = (nodeIds: readonly string[], styleFn: LinkStyleFn) => {

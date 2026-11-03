@@ -17,6 +17,7 @@
 // ============================================================================
 
 import * as THREE from 'three'
+import { markFullUpload, markRangeUpload } from './bufferUpload'
 import type { Graph3DNode } from './useGraph3DLayout'
 
 /** Final per-node appearance the shader consumes. */
@@ -537,8 +538,9 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
       shp[i] = s.shape
       act[i] = s.act
     }
+    // A full upload: it must beat any ranged update queued in the same frame.
     for (const name of ['aColor', 'aAlpha', 'aSize', 'aShape', 'aAct']) {
-      ;(geometry.getAttribute(name) as THREE.BufferAttribute).needsUpdate = true
+      markFullUpload(geometry.getAttribute(name) as THREE.BufferAttribute)
     }
   }
 
@@ -556,18 +558,14 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
     siz.setX(index, s.size)
     shp.setX(index, s.shape)
     act.setX(index, s.act)
-    // Single-vertex GPU upload. `addUpdateRange` is counted in ELEMENTS, so a
-    // vec3 attribute spans `itemSize` elements per vertex; scalars span one.
-    col.addUpdateRange(index * col.itemSize, col.itemSize)
-    alp.addUpdateRange(index, 1)
-    siz.addUpdateRange(index, 1)
-    shp.addUpdateRange(index, 1)
-    act.addUpdateRange(index, 1)
-    col.needsUpdate = true
-    alp.needsUpdate = true
-    siz.needsUpdate = true
-    shp.needsUpdate = true
-    act.needsUpdate = true
+    // Single-vertex GPU upload. Ranges are counted in ELEMENTS, so a vec3
+    // attribute spans `itemSize` elements per vertex; scalars span one. A full
+    // restyle still pending wins (bufferUpload.ts): the range is then dropped.
+    markRangeUpload(col, index * col.itemSize, col.itemSize)
+    markRangeUpload(alp, index, 1)
+    markRangeUpload(siz, index, 1)
+    markRangeUpload(shp, index, 1)
+    markRangeUpload(act, index, 1)
   }
 
   // A large, static bounding sphere so Points.raycast never early-rejects on a

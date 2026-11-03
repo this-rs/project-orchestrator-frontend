@@ -46,7 +46,8 @@ import {
   drilledCommunityAtom,
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
-import { nextScaleLevel } from './scaleDecision'
+import { nextScaleLevel, scaleYardstick } from './scaleDecision'
+import { zoomAdaptivePixelRatioCeiling } from './pixelRatioZoom'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { currentDeviceBudget } from './deviceTier'
 import { createSuperLinkTubes, TUBE_MAX_EDGES, type SuperLinkTubes } from './superLinkTubes'
@@ -237,6 +238,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const graphRef = useRef<GraphRef>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
+  // Don't render ForceGraph3D until we have real container dimensions —
+  // passing width=0/height=0 causes Three.js to create a degenerate renderer
+  // that can produce layout artifacts when resized later. Every effect that
+  // needs the library's scene/camera must also re-run when this flips.
+  const hasDimensions = dimensions.width > 0 && dimensions.height > 0
 
   const selectedNodeId = useAtomValue(selectedNodeIdAtom)
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom)
@@ -296,7 +302,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // replaces the fixed 1.5 cap: the same guarantee on the worst device, no
   // penalty on the best one.
   const initialPixelRatio = pixelRatioRef.current
-  const { wake, setEngineRunning, setParticlesAnimating, setMaxPixelRatio } = useRenderLoop(
+  const { wake, setEngineRunning, setParticlesAnimating, setMaxPixelRatio, setZoomPixelRatioCeiling } = useRenderLoop(
     graphRef,
     containerRef,
     {
@@ -305,6 +311,27 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       onPixelRatioChange: applyPixelRatio,
     },
   )
+
+  // ── Zoom-adaptive pixel ratio ceiling ─────────────────────────────────
+  // Closer than the framing distance, fewer nodes fill the viewport, so the GPU
+  // can afford more pixels: the sampling ceiling follows the zoom. The rule is
+  // the pure `zoomAdaptivePixelRatioCeiling` (pixelRatioZoom.ts, tested); this
+  // reads the camera as it stands and returns the ceiling to hand the budget.
+  // The base ceiling when nothing is framed yet or the library is not mounted.
+  const zoomedPixelRatioCeiling = useCallback((): number => {
+    const base = pixelRatioCeiling()
+    const fg = graphRef.current
+    const camera = fg && typeof fg.camera === 'function' ? fg.camera() : null
+    const controls = fg && typeof fg.controls === 'function' ? fg.controls() : null
+    if (!camera || !controls?.target) return base
+    const deviceRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+    return zoomAdaptivePixelRatioCeiling(
+      camera.position.distanceTo(controls.target),
+      framingDistanceRef.current,
+      base,
+      deviceRatio,
+    )
+  }, [])
 
   // ── Community hulls ref ───────────────────────────────────────────────
   const communityHullsRef = useRef<CommunityHullGroup | null>(null)
@@ -451,16 +478,18 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // another display changes the ratio without a resize, which po-graph watches
   // through `matchMedia('(resolution: Xdppx)')`.
   useEffect(() => {
-    const max = pixelRatioCeiling()
+    // The zoom-adapted ceiling, not the bare one: a resize while zoomed in must
+    // not throw the close-up back to the overview's sharpness.
+    const max = zoomedPixelRatioCeiling()
     const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
     const onChange = () => {
-      setMaxPixelRatio(pixelRatioCeiling())
+      setMaxPixelRatio(zoomedPixelRatioCeiling())
       wake(WAKE_MUTATION_MS)
     }
     setMaxPixelRatio(max)
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
-  }, [dimensions, setMaxPixelRatio, wake])
+  }, [dimensions, setMaxPixelRatio, zoomedPixelRatioCeiling, wake])
 
   // ── Workaround: three.js OrbitControls + DragControls pointercancel crash ──
   // When DragControls dispatches pointercancel, OrbitControls.onPointerUp tries
@@ -534,7 +563,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // ForceGraph3D rebuilds its node/link objects inside tickFrame(), and the
   // force engine restarts, so the loop must be running. `setEngineRunning(true)`
   // keeps it running until onEngineStop fires, however long the layout takes.
+  // `layoutPendingRef` marks that the NEXT onEngineStop closes a real layout
+  // (see onEngineStop: the library also calls it after every prop update).
+  const layoutPendingRef = useRef(true)
   useEffect(() => {
+    layoutPendingRef.current = true
     setEngineRunning(true)
     wake(WAKE_DATA_MS)
   }, [graphData, wake, setEngineRunning])
@@ -662,16 +695,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return () => clearTimeout(timer)
   }, [showCommunityHulls, rebuildCommunityHulls])
 
-  // ── Auto-zoom: fit graph on first load ──────────────────────────────────
-  const hasAutoZoomedRef = useRef(false)
-
-  // Reset auto-zoom flag when data changes significantly (new graph loaded)
-  useEffect(() => {
-    if (needsRelayout) {
-      hasAutoZoomedRef.current = false
-    }
-  }, [needsRelayout])
-
   // ── Force-layout lifecycle → render loop ────────────────────────────────
   // onEngineTick fires on every simulation tick: node positions are moving, so
   // the loop must keep running. onEngineStop releases that keep-alive.
@@ -712,28 +735,14 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // as bundles between groups and zooming IN degroups them a step at a time
   // (po-graph's semantic zoom).
   //
-  // Thresholds are expressed in a CHARACTERISTIC CLUSTER RADIUS, not in the
-  // graph's own radius. A ratio against the whole graph is the wrong yardstick:
-  // at 1.7× the graph's radius the clusters are still tiny on screen, so the
-  // view degrouped before the user could read the level they were on. Measured
-  // against one cluster, the level only changes when the members are really
-  // distinguishable or really blurred:
-  //
-  //   • DEGROUP_DISTANCE_RATIO = 3 — closer than 3× a cluster radius, the
-  //     members spread over ≈1 cluster radius and become resolvable, so one
-  //     step DOWN is allowed.
-  //   • REGROUP_DISTANCE_RATIO = 6 — further than 6× a cluster radius, the
-  //     cluster is small enough that its internal detail is lost, so one step
-  //     UP is safe.
-  //
-  // The 3×…6× gap is the dead zone (hysteresis): the level holds inside it, so
-  // a boundary never flickers. The decision itself is the pure function
-  // `nextScaleLevel` (scaleDecision.ts), unit-tested without WebGL.
-  //
-  // The characteristic radius is the MEDIAN super-node radius of the current
-  // tier — or of the first aggregated tier while at the detail level, where
-  // there are no super-nodes yet. Median, not mean: one huge catch-all group
-  // ("everything else") must not drag a mean out to its own scale.
+  // The decision is the pure `nextScaleLevel` (scaleDecision.ts): one step
+  // DOWN closer than DEGROUP_DISTANCE_RATIO (3) yardsticks, one step UP further
+  // than REGROUP_DISTANCE_RATIO (6), and the 3…6 gap is the dead zone
+  // (hysteresis) where the level holds. The yardstick is `scaleYardstick`:
+  // the framing distance over √18, so the home view sits in the middle of the
+  // dead zone. (A cluster's sprite radius was tried first and never let the
+  // camera degroup; the bare graph radius put the home view under the degroup
+  // threshold, so the first orbit fell to the raw detail.)
 
   useEffect(() => {
     const fg = graphRef.current
@@ -746,29 +755,36 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       const target = controls.target
       if (!camera || !target) return
       const distance = camera.position.distanceTo(target)
-      // Ladder on the radius of the WHOLE graph, not on a cluster's: the
-      // cluster radius is dragged out by the catch-all group, so the camera
-      // never got close enough to reach the detail level — near and far both
-      // showed few points, and the scale looked inverted. With the graph
-      // radius, zooming in always ends at the detail (most points) and
-      // zooming out at the coarsest (fewest).
-      let radius = 40
-      for (const n of graphData.nodes) {
-        radius = Math.max(radius, Math.hypot(n.x, n.y, n.z))
+      // Ladder on the FRAMING distance (∝ the whole graph's radius), not on a
+      // cluster's sprite size — see scaleYardstick: zooming in always ends at
+      // the detail, zooming out at the coarsest, and the home view sits in the
+      // dead zone, so an orbit at the framing distance never changes the level.
+      let yardstick = scaleYardstick(framingDistanceRef.current, 0)
+      if (yardstick <= 0) {
+        // Not framed yet: the graph radius stands in.
+        let radius = 40
+        for (const n of graphData.nodes) radius = Math.max(radius, Math.hypot(n.x, n.y, n.z))
+        yardstick = radius
       }
       setScaleLevel((current) => {
-        const next = nextScaleLevel(distance, radius, current)
+        const next = nextScaleLevel(distance, yardstick, current)
         return Math.max(0, Math.min(MAX_SCALE, next))
       })
     }
     const onStart = () => {
       userInteractingRef.current = true
     }
-    // uDensK follows the camera distance: one cheap update per controls change
-    // (setCameraDistance only touches the uniform when the factor moves).
+    // uDensK and the pixel ratio ceiling follow the camera distance.
+    // - uDensK: setCameraDistance only touches the uniform when the factor moves.
+    // - Ceiling: closer = sharper. The ceiling is stepped (ZOOM_RATIO_QUANTUM),
+    //   so a smooth zoom crosses a few values, and `setZoomPixelRatioCeiling`
+    //   is a no-op when it did not move — no canvas resize per frame. It keeps
+    //   the budget's drop history: a zoom is the same screen, not a new one.
     const onChange = () => {
       const camera = typeof fg.camera === 'function' ? fg.camera() : null
-      if (camera && controls.target) nodePointsRef.current?.setCameraDistance(camera.position.distanceTo(controls.target))
+      if (!camera || !controls.target) return
+      nodePointsRef.current?.setCameraDistance(camera.position.distanceTo(controls.target))
+      setZoomPixelRatioCeiling(zoomedPixelRatioCeiling())
     }
     controls.addEventListener('start', onStart)
     controls.addEventListener('end', onEnd)
@@ -778,7 +794,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       controls.removeEventListener('end', onEnd)
       controls.removeEventListener('change', onChange)
     }
-  }, [graphData.nodes, setScaleLevel])
+    // hasDimensions: the library mounts only once the container is measured.
+    // When the data is already there (3D opened from the code map) this effect
+    // first runs with no ForceGraph3D, and nothing else re-runs it: no scale
+    // decision, no density factor, no sharper close-up — for the whole session.
+  }, [graphData.nodes, setScaleLevel, setZoomPixelRatioCeiling, zoomedPixelRatioCeiling, hasDimensions])
 
   // ── Data identity: re-frame once per dataset, not once per node count ───
   // `needsRelayout` is a boolean that stays `true` across a dataset swap, and
@@ -795,10 +815,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // stayed at the library's default distance and the graph read as tiny and far
   // away — the user's « c'est très très éloigné ». A layout that actually moved
   // nodes re-frames, with a tight padding so the cloud fills the viewport.
+  // Whether this mount of the library has been framed once. A node set that
+  // arrives with `needsRelayout = false` (a small WebSocket update) does not
+  // re-frame — but the FIRST framing of a freshly mounted canvas must happen
+  // whatever the last update was: opening the 3D view on loaded data mounts the
+  // library after the data, and nothing was framed yet.
+  const framedOnceRef = useRef(false)
   useEffect(() => {
-    if (!needsRelayout || graphData.nodes.length === 0) return
+    if (graphData.nodes.length === 0) return
+    if (!needsRelayout && framedOnceRef.current) return
     const fg = graphRef.current
-    if (!fg || typeof fg.zoomToFit !== 'function') return
+    if (!fg || typeof fg.cameraPosition !== 'function') return
     const id = setTimeout(() => {
       // A manual orbit/zoom started while we waited: the user's gesture wins.
       if (userInteractingRef.current) return
@@ -863,22 +890,40 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           { x: cx, y: cy, z: cz },
           600,
         )
+        framedOnceRef.current = true
         wake(1200)
       } catch {
         // the library is not fully mounted yet — the next layout will frame it
       }
     }, 120)
     return () => clearTimeout(id)
-    // A fullscreen switch changes the viewport, not the graph: without
-    // `dimensions` here the camera kept a framing computed for the old canvas,
-    // so half the cloud fell outside the frame. The node-set signature (not the
-    // count) is what makes a same-sized new dataset re-frame.
-  }, [nodeSetKey, dimensions, wake])
+    // FULLSCREEN STABILITY: this effect re-frames on a DATA change (nodeSetKey)
+    // and when the library MOUNTS (hasDimensions flips once), never on a size
+    // change (dimensions). The aspect ratio is handled by the "Force renderer
+    // resize on fullscreen transitions" effect above, which updates
+    // camera.aspect without repositioning. A fullscreen toggle must NOT reset
+    // the projection — the user explicitly asked to keep the same view
+    // ("je veux rester sur la même projection").
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- needsRelayout and graphData.nodes are read at the time of the key change on purpose
+  }, [nodeSetKey, hasDimensions, wake])
 
   // ── Save positions when simulation stops ────────────────────────────────
   const onEngineStop = useCallback(() => {
-    // wake: the layout just settled — zoomToFit tween (800 ms, fired 100 ms
-    // from now) plus the hull rebuild below still need frames.
+    // three-forcegraph sets `engineRunning = true` in EVERY update, whatever
+    // prop changed, and with cooldownTicks = 0 the next frame calls this back.
+    // A hover changes `linkColor`, so each hover move landed here: an O(N)
+    // savePositions and a 1.6 s wake for a layout that had not moved. Only a
+    // real layout (new data, a drag) does the work; the rest just reports.
+    if (!layoutPendingRef.current && !hullNeedsRebuildRef.current) {
+      setEngineRunning(false)
+      return
+    }
+    layoutPendingRef.current = false
+    // wake: the layout just settled — the hull rebuild below still needs frames.
+    // No camera move here: the framing effect above is the ONE framing path.
+    // A `zoomToFit(800, 80)` used to fire 100 ms after it (cooldownTicks = 0
+    // stops the engine on the first frame), tween over it and end on the
+    // padding-80 framing that made the scene too small.
     setEngineRunning(false)
     wake(1600)
 
@@ -890,17 +935,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         rebuildCommunityHulls()
       }
 
-      // Auto-zoom to fit all nodes on first layout completion
-      if (!hasAutoZoomedRef.current) {
-        hasAutoZoomedRef.current = true
-        const fg = graphRef.current
-        if (fg && typeof fg.zoomToFit === 'function') {
-          // Small delay to let positions finalize
-          setTimeout(() => {
-            fg.zoomToFit(800, 80) // 800ms transition, 80px padding
-          }, 100)
-        }
-      }
     }
   }, [graphData.nodes, savePositions, rebuildCommunityHulls, wake, setEngineRunning])
 
@@ -1958,11 +1992,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // mutually exclusive: never draw the same bundle twice.
   const useTubes = aggregated && activeGraphData.links.length > 0 && activeGraphData.links.length <= TUBE_MAX_EDGES
 
-  // Don't render ForceGraph3D until we have real container dimensions —
-  // passing width=0/height=0 causes Three.js to create a degenerate renderer
-  // that can produce layout artifacts when resized later.
-  const hasDimensions = dimensions.width > 0 && dimensions.height > 0
-
   // ── Quality-adaptive render settings ──────────────────────────────────
   const quality = getNodeQuality()
   const nodeResolution = quality === 'minimal' ? 6 : quality === 'low' ? 8 : 12
@@ -2561,6 +2590,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           savePositions([node])
           // wake: the library calls resetCountdown() on drag end, so the
           // engine restarts and nodes keep moving after the pointer is up.
+          layoutPendingRef.current = true
           setEngineRunning(true)
           wake(WAKE_DATA_MS)
         }}

@@ -212,4 +212,40 @@ describe('useLivePulse', () => {
     expect(animator.isRunning).toBe(false)
     np.dispose()
   })
+
+  it('a data refresh with the same ids keeps the pulse running to its end', () => {
+    // The WebSocket event that pulses a node is also the one that refreshes the
+    // graph: the flush hands over NEW node objects for the SAME ids. The pulse
+    // used to be cleared on that identity change — it lived about one frame.
+    const nodesA = [mk('a'), mk('b', 10)]
+    const np = createNodePoints(nodesA)
+    np.updateStyles(baseNode)
+    const s = manualScheduler()
+    const animator = new FrameAnimator(() => {}, s.scheduler)
+    vi.spyOn(performance, 'now').mockReturnValue(1000)
+    const { result, rerender } = renderHook(({ nodes }) =>
+      useLivePulse({
+        nodePointsRef: { current: np },
+        linkSegmentsRef: { current: null },
+        nodes,
+        baseNodeStyle: baseNode,
+        baseLinkStyle: baseLink,
+        animator,
+      }),
+      { initialProps: { nodes: nodesA } },
+    )
+    act(() => emitEntityPulse(['b']))
+    rerender({ nodes: [mk('a'), mk('b', 10)] })
+    expect(result.current.clockRef.current.size).toBe(1)
+    expect(animator.isRunning).toBe(true)
+    act(() => s.step(1000 + PULSE_MS * 0.25))
+    expect(actAt(np, 1)).toBeGreaterThan(0.5)
+    // A refresh that ADDS a node keeps the pulses whose node is still there.
+    rerender({ nodes: [mk('a'), mk('b', 10), mk('c', 20)] })
+    expect(result.current.clockRef.current.size).toBe(1)
+    act(() => s.step(1000 + PULSE_MS))
+    expect(actAt(np, 1)).toBe(0)
+    expect(animator.isRunning).toBe(false)
+    np.dispose()
+  })
 })

@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
   DEGROUP_DISTANCE_RATIO,
   REGROUP_DISTANCE_RATIO,
+  FRAMING_LADDER_RATIO,
   characteristicClusterRadius,
   nextScaleLevel,
+  scaleYardstick,
   superNodeRadius,
 } from './scaleDecision'
 import type { Graph3DNode } from './useGraph3DLayout'
@@ -85,5 +87,26 @@ describe('characteristicClusterRadius', () => {
   it('is 0 when there are no real clusters', () => {
     expect(characteristicClusterRadius([plain('a'), plain('b')])).toBe(0)
     expect(characteristicClusterRadius([])).toBe(0)
+  })
+})
+
+describe('scaleYardstick', () => {
+  const framing = 900
+  const yard = scaleYardstick(framing, 300)
+
+  it('puts the default framing inside the dead zone, whatever the level', () => {
+    expect(FRAMING_LADDER_RATIO).toBeGreaterThan(DEGROUP_DISTANCE_RATIO)
+    expect(FRAMING_LADDER_RATIO).toBeLessThan(REGROUP_DISTANCE_RATIO)
+    for (const level of [0, 1, 2]) expect(nextScaleLevel(framing, yard, level)).toBe(level)
+  })
+
+  it('degroups well inside the framing, regroups well outside it', () => {
+    expect(nextScaleLevel(framing * 0.6, yard, 1)).toBe(0)
+    expect(nextScaleLevel(framing * 1.6, yard, 1)).toBe(2)
+  })
+
+  it('falls back to the graph radius before anything is framed', () => {
+    expect(scaleYardstick(0, 300)).toBe(300)
+    expect(scaleYardstick(Number.NaN, 300)).toBe(300)
   })
 })

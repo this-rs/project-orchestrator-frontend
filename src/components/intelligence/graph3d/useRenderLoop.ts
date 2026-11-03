@@ -162,6 +162,15 @@ export interface RenderLoopHandle {
    * (po-graph.js:4141).
    */
   setMaxPixelRatio: (pixelRatio: number) => void
+  /**
+   * Change the ceiling because the camera zoomed (pixelRatioZoom.ts) — the
+   * SAME screen. Unlike `setMaxPixelRatio` it keeps the drop history: a zoom
+   * must not erase the proof that this machine cannot hold a higher ratio.
+   * While the budget has never dropped, the ratio follows a raised ceiling at
+   * once (a close-up gets sharp now, not after 600 fast frames); after a drop
+   * it stays where the budget put it. A lowered ceiling always caps the ratio.
+   */
+  setZoomPixelRatioCeiling: (pixelRatio: number) => void
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -365,6 +374,20 @@ export function useRenderLoop(
     applyPixelRatio(ratio)
   }, [applyPixelRatio, maxRatioRef])
 
+  const setZoomPixelRatioCeiling = useCallback((pixelRatio: number) => {
+    const max = clampRatio(pixelRatio)
+    if (Math.abs(max - maxRatioRef.current) < 1e-6) return
+    maxRatioRef.current = max
+    const q = qualityRef.current
+    // Never dropped → follow the ceiling both ways; dropped → only cap it.
+    const ratio = q.drops === 0 ? max : Math.min(q.ratio, max)
+    if (Math.abs(ratio - q.ratio) < 1e-6) return
+    // `changedAt` restarts the drop cooldown: a machine that cannot hold the
+    // sharper close-up still drops back, and that drop then sticks.
+    qualityRef.current = { ...q, ratio, changedAt: nowMs() }
+    applyPixelRatio(ratio)
+  }, [applyPixelRatio, maxRatioRef])
+
   // ── Wake-up: camera controls (rotate / zoom / pan) ────────────────────────
   // OrbitControls dispatches 'change' for every camera mutation it performs,
   // which is the authoritative signal — more reliable than guessing which DOM
@@ -481,7 +504,7 @@ export function useRenderLoop(
     }
   }, [graphRef, wake, stopProbe])
 
-  return { wake, setEngineRunning, setParticlesAnimating, getPixelRatio, setMaxPixelRatio }
+  return { wake, setEngineRunning, setParticlesAnimating, getPixelRatio, setMaxPixelRatio, setZoomPixelRatioCeiling }
 }
 
 // ── Device capability detection (no user-agent sniffing) ─────────────────────
