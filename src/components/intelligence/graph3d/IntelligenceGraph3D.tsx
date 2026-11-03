@@ -238,6 +238,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const graphRef = useRef<GraphRef>(undefined)
   const containerRef = useRef<HTMLDivElement>(null)
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 })
+  // Don't render ForceGraph3D until we have real container dimensions —
+  // passing width=0/height=0 causes Three.js to create a degenerate renderer
+  // that can produce layout artifacts when resized later. Every effect that
+  // needs the library's scene/camera must also re-run when this flips.
+  const hasDimensions = dimensions.width > 0 && dimensions.height > 0
 
   const selectedNodeId = useAtomValue(selectedNodeIdAtom)
   const setSelectedNodeId = useSetAtom(selectedNodeIdAtom)
@@ -815,10 +820,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // stayed at the library's default distance and the graph read as tiny and far
   // away — the user's « c'est très très éloigné ». A layout that actually moved
   // nodes re-frames, with a tight padding so the cloud fills the viewport.
+  // Whether this mount of the library has been framed once. A node set that
+  // arrives with `needsRelayout = false` (a small WebSocket update) does not
+  // re-frame — but the FIRST framing of a freshly mounted canvas must happen
+  // whatever the last update was: opening the 3D view on loaded data mounts the
+  // library after the data, and nothing was framed yet.
+  const framedOnceRef = useRef(false)
   useEffect(() => {
-    if (!needsRelayout || graphData.nodes.length === 0) return
+    if (graphData.nodes.length === 0) return
+    if (!needsRelayout && framedOnceRef.current) return
     const fg = graphRef.current
-    if (!fg || typeof fg.zoomToFit !== 'function') return
+    if (!fg || typeof fg.cameraPosition !== 'function') return
     const id = setTimeout(() => {
       // A manual orbit/zoom started while we waited: the user's gesture wins.
       if (userInteractingRef.current) return
@@ -883,18 +895,22 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           { x: cx, y: cy, z: cz },
           600,
         )
+        framedOnceRef.current = true
         wake(1200)
       } catch {
         // the library is not fully mounted yet — the next layout will frame it
       }
     }, 120)
     return () => clearTimeout(id)
-    // FULLSCREEN STABILITY: this effect re-frames only on DATA change (nodeSetKey),
-    // never on viewport change (dimensions). The aspect ratio is handled by the
-    // "Force renderer resize on fullscreen transitions" effect above, which
-    // updates camera.aspect without repositioning. A fullscreen toggle must NOT reset the projection — the user
-    // explicitly asked to keep the same view ("je veux rester sur la même projection").
-  }, [nodeSetKey, wake])
+    // FULLSCREEN STABILITY: this effect re-frames on a DATA change (nodeSetKey)
+    // and when the library MOUNTS (hasDimensions flips once), never on a size
+    // change (dimensions). The aspect ratio is handled by the "Force renderer
+    // resize on fullscreen transitions" effect above, which updates
+    // camera.aspect without repositioning. A fullscreen toggle must NOT reset
+    // the projection — the user explicitly asked to keep the same view
+    // ("je veux rester sur la même projection").
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- needsRelayout and graphData.nodes are read at the time of the key change on purpose
+  }, [nodeSetKey, hasDimensions, wake])
 
   // ── Save positions when simulation stops ────────────────────────────────
   const onEngineStop = useCallback(() => {
@@ -1970,11 +1986,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // the single LineSegments (cheap for thousands of 1-px lines). The two are
   // mutually exclusive: never draw the same bundle twice.
   const useTubes = aggregated && activeGraphData.links.length > 0 && activeGraphData.links.length <= TUBE_MAX_EDGES
-
-  // Don't render ForceGraph3D until we have real container dimensions —
-  // passing width=0/height=0 causes Three.js to create a degenerate renderer
-  // that can produce layout artifacts when resized later.
-  const hasDimensions = dimensions.width > 0 && dimensions.height > 0
 
   // ── Quality-adaptive render settings ──────────────────────────────────
   const quality = getNodeQuality()

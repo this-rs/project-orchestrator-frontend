@@ -122,10 +122,25 @@ beforeEach(() => {
     addEventListener: () => {},
     removeEventListener: () => {},
   })) as unknown as typeof window.matchMedia
-  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
-    x: 0, y: 0, top: 0, left: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}),
-  } as DOMRect)
+  rect = { width: 800, height: 600 }
+  lib.fg = null as unknown as FakeGraph
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({
+    x: 0, y: 0, top: 0, left: 0, right: rect.width, bottom: rect.height, width: rect.width, height: rect.height, toJSON: () => ({}),
+  }) as DOMRect)
 })
+
+/** The container's size, as getBoundingClientRect reports it. */
+let rect = { width: 800, height: 600 }
+
+/** Mount with a 0×0 container (layout not done yet); `measure()` gives it a size. */
+async function mountGraphUnmeasured(g: { nodes: IntelligenceNode[]; edges: IntelligenceEdge[] }) {
+  rect = { width: 0, height: 0 }
+  return mountGraph(g)
+}
+function measure() {
+  rect = { width: 800, height: 600 }
+  act(() => { window.dispatchEvent(new Event('resize')) })
+}
 
 afterEach(() => {
   vi.useRealTimers()
@@ -189,13 +204,38 @@ export const flush = (ms = 2000) => act(() => { vi.advanceTimersByTime(ms) })
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('IntelligenceGraph3D — first framing', () => {
-  it.skip('frames a graph whose data was there before the canvas was measured', async () => {
+  it('frames a graph whose data was there before the canvas was measured', async () => {
     // Opening the 3D view from the code map: the data is already loaded, the
     // library mounts only once the container has a size. The framing effect
     // must run on that mount, not only on a data change.
     await mountGraph(makeGraph(60))
     await flush(3000)
     expect(lib.fg.cameraPosition).toHaveBeenCalledTimes(1)
+  })
+
+  it('frames on mount even when the last update was a small one (needsRelayout = false)', async () => {
+    // Loaded, then a WebSocket update adding one node (< 20 %: no relayout),
+    // THEN the canvas gets its size: the view must still be framed once.
+    const g = makeGraph(60)
+    const view = await mountGraphUnmeasured(g)
+    const grown = makeGraph(61)
+    view.rerender(grown)
+    await flush(500)
+    expect(lib.fg).toBeNull()
+    measure()
+    await flush(3000)
+    expect(lib.fg.cameraPosition).toHaveBeenCalledTimes(1)
+  })
+
+  it('a fullscreen toggle keeps the projection (no re-frame on a size change)', async () => {
+    await mountGraph(makeGraph(60))
+    await flush(3000)
+    lib.fg.cameraPosition.mockClear()
+    rect = { width: 1600, height: 1000 }
+    await act(async () => { document.dispatchEvent(new Event('fullscreenchange')) })
+    await flush(3000)
+    expect(lib.fg.cameraPosition).not.toHaveBeenCalled()
+    expect(lib.fg.camera().aspect).toBeCloseTo(1.6)
   })
 
   it('frames the graph with ONE camera move, never a second zoomToFit tween', async () => {
