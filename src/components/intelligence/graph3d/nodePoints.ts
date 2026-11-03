@@ -142,7 +142,7 @@ const SPRITE_SCALE = 2.0
  * simply not there. Below this size a node stops shrinking: the overview needs
  * to see every point, even when the camera is far.
  */
-export const NODE_MIN_SHAPE_PX = 3
+export const NODE_MIN_SHAPE_PX = 4
 
 /**
  * Diameter of the visible shape as a fraction of the sprite, at the small end.
@@ -234,7 +234,7 @@ export function nodeGain(count: number): number {
 /** Under this many nodes the density attenuation is exactly 1 (an isolated point keeps its opacity). */
 export const DENS_FREE_COUNT = 1000
 /** Floor of the density factor: a point is never dimmed below 35 % of its alpha. */
-export const DENS_K_MIN = 0.35
+export const DENS_K_MIN = 0.6
 /** Smallest distance factor: far away, alpha is multiplied by at most this much less. Never 0. */
 export const DENS_DIST_MIN = 0.7
 /** Near-bound fallback (scene units) used before the frame pass has measured the cloud. */
