@@ -1,4 +1,4 @@
-// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@61bdfbc616afa37a57e9f9d3e9ab8a02324e5460:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Fabrique de MACHINES À POSTES : une disposition (`layouts.ts`), une voie tracée le long de ses tracés, une navette
@@ -11,8 +11,8 @@
  */
 import { annulus, ease, Frame, LAMP, MAT, Rz, span, type Face, type Vec3 } from './iso.ts'
 import { LodScene, Registry, type MachineDef } from './machine.ts'
-import { fromView } from './compose.ts'
-import { makeLayout, type Layout, type LayoutKind, type Track } from './layouts.ts'
+import { fromView, H as VIEW_H, toView, W as VIEW_W } from './compose.ts'
+import { archCap, makeLayout, makeLayoutSpaced, POST_MARGIN, ringCap, type Layout, type LayoutKind, type PostBox, type Track } from './layouts.ts'
 import { MECHANISMS, type MechCtx, type MechId, type Mechanism } from './mechanisms.ts'
 import { planBuild, type BuildSpec } from './choreography.ts'
 
@@ -28,6 +28,41 @@ const POST_SCALE = 3.0
 /** Demi-largeur de la voie (unités monde). */
 const TRACK_W = 1.7
 const TAU = Math.PI * 2
+/** cos 30° : projection isométrique d'une longueur au sol sur l'axe x de l'écran. */
+const COS30 = Math.cos(Math.PI / 6)
+
+/**
+ * EMPREINTE MESURÉE de chaque mécanique (unités locales du poste, `bare`, sur un cycle complet — voir
+ * scripts/tests/iso-layout.test.mjs, qui REFAIT la mesure et échoue si la table dérive) :
+ *   rest  rayon du plus petit cercle (autour de l'axe du poste) qui contient la mécanique AU REPOS ;
+ *   env   le même, geste compris (un tiroir qui sort, un coffre qui s'ouvre) ;
+ *   h     hauteur maximale au-dessus de la base de la mécanique.
+ */
+export const MECH_FOOT: Readonly<Record<MechId, { rest: number; env: number; h: number }>> = {
+  'drawers': { rest: 1.47, env: 1.85, h: 3.12 },
+  'dependency-graph': { rest: 1.98, env: 1.98, h: 2.02 },
+  'parallel-lanes': { rest: 2.05, env: 2.05, h: 1.11 },
+  'knowledge-graph': { rest: 1.45, env: 1.45, h: 3.35 },
+  'local-vault': { rest: 1.57, env: 2.1, h: 1.68 },
+  'skill-cartridge': { rest: 1.8, env: 1.8, h: 2.73 },
+  'stair-procedure': { rest: 1.6, env: 1.6, h: 2.24 },
+  'consent-gate': { rest: 1.47, env: 1.47, h: 1.55 },
+  'model-selector': { rest: 1.45, env: 1.45, h: 0.76 },
+  'reach-devices': { rest: 1.66, env: 1.66, h: 2.67 },
+}
+/** Empreinte d'une mécanique compilée depuis un arbre (non mesurée ici) : la médiane de la bibliothèque. */
+const UNKNOWN_FOOT = { rest: 1.6, env: 1.8, h: 2.5 }
+/**
+ * Part du cercle d'un socle que la mécanique occupe, visée à ~64 % : une mécanique remplit en moyenne ~0,7 de son
+ * cercle circonscrit (un carré inscrit dans un cercle en prend 0,64, un disque 1) ; avec un socle de rayon
+ * 1,05 × rayon moyen au repos : 0,7 / 1,05² ≈ 0,63.
+ */
+const PAD_RIM = 1.05
+/** Bornes du rayon de socle (unités locales) : jamais plus grand que l'ancien 1,95, jamais sous 1,5. */
+const PAD_MIN = 1.5
+const PAD_MAX = 1.95
+/** Jeu (pixels du viewBox) entre l'empreinte d'un poste d'anneau ou d'arche et le bord du viewBox : 0 = tenir dedans. */
+const VIEW_EDGE = 0
 
 export interface StationDef {
   /** Une mécanique de la bibliothèque, ou une mécanique compilée depuis un arbre (`ast.ts`). */
@@ -200,6 +235,34 @@ function buildTrack(s: LodScene, g: GroundTrack, k: number, TP: TrackParts, fine
   }
 }
 
+/** Empreinte d'une mécanique (mesurée si c'est une mécanique de la bibliothèque). */
+const footOf = (m: MechId | Mechanism) => (typeof m === 'string' ? MECH_FOOT[m] : (MECH_FOOT as Record<string, typeof UNKNOWN_FOOT>)[m.id] ?? UNKNOWN_FOOT)
+
+/** Rayon du socle d'une machine : suit la moyenne des empreintes au repos de ses mécaniques. */
+export function padRadiusOf(def: Pick<StationMachineDef, 'stations'>): number {
+  const mean = def.stations.reduce((s, st) => s + footOf(st.mech).rest, 0) / Math.max(1, def.stations.length)
+  return Math.min(PAD_MAX, Math.max(PAD_MIN, PAD_RIM * mean))
+}
+
+/**
+ * Empreinte projetée (pixels du viewBox) d'un poste à l'échelle `scale` — la boîte que la disposition doit respecter :
+ * demi-largeur = celle de l'ellipse du socle (`√2 · cos30° · U · r`), hauteur = du bas de cette ellipse (`U · r / √2`)
+ * au sommet de la mécanique la plus haute (`U · (PAD_H + h)`), le tout × `scale`.
+ */
+export function postBoxPx(def: Pick<StationMachineDef, 'stations'>, scale: number): PostBox {
+  const pad = padRadiusOf(def)
+  let r = pad
+  let h = 0
+  for (const st of def.stations) {
+    const f = footOf(st.mech)
+    r = Math.max(r, f.env)
+    h = Math.max(h, f.h)
+  }
+  const down = (U * pad * scale) / Math.SQRT2
+  const up = U * (PAD_H + h) * scale
+  return { hx: Math.SQRT2 * COS30 * U * r * scale, hy: (down + up) / 2 }
+}
+
 export interface StationVariant {
   machine: MachineDef
   layout: Layout
@@ -273,15 +336,54 @@ export function makeStationMachine(def: StationMachineDef, kind: LayoutKind = de
   const n = def.stations.length
   const home = def.home ?? 0
   const stepS = def.stepS ?? 1.5
-  const layout = makeLayout(kind, n, kind === 'ring' ? def.degs : undefined, kind === 'phone' ? 1 : sx, kind === 'phone' ? sx : sy)
+  const caps: Partial<Record<LayoutKind, number>> = { ring: ringCap(n), arch: archCap(n), wings: 2.0, phone: 2.6, compact: 2.6, ...def.caps }
+  const cap = caps[kind] ?? POST_SCALE
+  const padR = padRadiusOf(def)
+  const reach = def.stations.map((st) => Math.max(padR, footOf(st.mech).env))
+  const lx = kind === 'phone' ? 1 : sx
+  const ly = kind === 'phone' ? sx : sy
+  const degs = kind === 'ring' ? def.degs : undefined
+  // `compact` et `phone` n'ont pas de trou de texte : leur écartement est LIBRE, donc dérivé de l'empreinte mesurée du
+  // poste à l'échelle visée (pas de cercle vicieux : l'échelle est le plafond, l'écart en découle). Les autres
+  // dispositions ont une géométrie fixée par le texte ; leur échelle est bornée par la place (plus bas).
+  const spaced = kind === 'compact' || kind === 'phone'
+  const layout = spaced
+    ? makeLayoutSpaced(kind, n, postBoxPx(def, Math.max(1.3, cap)), POST_MARGIN, degs, lx, ly)
+    : makeLayout(kind, n, degs, lx, ly)
   const tracks = layout.tracks.map(groundTrack)
   const posts = layout.stops.map((st) => along(tracks[st.track]!, st.t).p)
   // Taille des postes : la plus grande qui laisse un jour entre deux socles voisins (au plus le plafond de la disposition).
-  let dmin = posts.length > 1 ? Infinity : 99
+  // Pour chaque paire de postes, la plus grande échelle où leurs empreintes PROJETÉES (rectangles de `postBoxPx`, chacun
+  // linéaire en l'échelle) restent séparées de `POST_MARGIN` : en largeur (|Δx| ≥ (hx_a + hx_b)·s + marge) OU en
+  // hauteur (|Δy| ≥ (bas du socle + sommet de la mécanique du poste le plus bas)·s + marge). Deux rectangles ne se
+  // coupent pas si l'un des deux axes les sépare : c'est exact, pas une devinette.
+  const feet = def.stations.map((st, i) => {
+    const f = footOf(st.mech)
+    return { hx: Math.SQRT2 * COS30 * U * reach[i]!, down: (U * padR) / Math.SQRT2, up: U * (PAD_H + f.h) }
+  })
+  let room = Infinity
   for (let a = 0; a < posts.length; a++)
-    for (let b = a + 1; b < posts.length; b++) dmin = Math.min(dmin, Math.hypot(posts[a]![0] - posts[b]![0], posts[a]![1] - posts[b]![1]))
-  const caps: Partial<Record<LayoutKind, number>> = { ring: 2.3, wings: 2.0, phone: 2.6, compact: 2.6, ...def.caps }
-  const scale = Math.max(1.3, Math.min(caps[kind] ?? POST_SCALE, dmin / (2 * 1.95 * 1.06)))
+    for (let b = a + 1; b < posts.length; b++) {
+      const dwx = posts[a]![0] - posts[b]![0]
+      const dwy = posts[a]![1] - posts[b]![1]
+      const vx = Math.abs(dwx - dwy) * COS30 * U
+      const dy = (dwx + dwy) * 0.5 * U // > 0 : a est plus bas à l'écran que b
+      const lower = dy > 0 ? a : b
+      const upper = dy > 0 ? b : a
+      const sHor = (vx - POST_MARGIN) / (feet[a]!.hx + feet[b]!.hx)
+      const sVer = (Math.abs(dy) - POST_MARGIN) / (feet[upper]!.down + feet[lower]!.up)
+      room = Math.min(room, Math.max(sHor, sVer))
+    }
+  // Anneau et arche : la machine ENTIÈRE doit tenir dans le viewBox (la caméra ne recule pas — règle « corriger par un
+  // nombre »). Pour chaque poste, la plus grande échelle où son empreinte (socle en bas, mécanique la plus haute en haut,
+  // demi-largeur de la plus large) reste dans [0, 1200] × [0, 700] : linéaire en l'échelle, donc exact.
+  if (kind === 'ring' || kind === 'arch')
+    posts.forEach((p, i) => {
+      const v = toView(CAM, [p[0], p[1], Z_TOP])
+      const f = feet[i]!
+      room = Math.min(room, (v[1] - VIEW_EDGE) / f.up, (VIEW_H - VIEW_EDGE - v[1]) / f.down, (v[0] - VIEW_EDGE) / f.hx, (VIEW_W - VIEW_EDGE - v[0]) / f.hx)
+    })
+  const scale = Math.max(1.3, Math.min(cap, room))
   let fine = true
   const seg = (k: number) => (fine ? k : Math.max(6, Math.round(k / 3)))
 
@@ -321,8 +423,8 @@ export function makeStationMachine(def: StationMachineDef, kind: LayoutKind = de
     const glow: MechCtx['glow'] = (part, on, base = 0.25) => ({ part, col, emit: col, alpha: base + (1 - base) * on })
     // Socle satiné, cercle de couleur sur son biseau (vif quand le poste est servi).
     if (!bare) {
-      B.puck(0, 0, 0, 1.95, PAD_H, 0.16, o(r.pad, MAT.satin), seg(28))
-      B.loft(annulus(1.62, 1.8, 0, TAU, seg(28)), annulus(1.62, 1.8, 0, TAU, seg(28)), 0.03, { ...glow(r.ring, Math.max(lit, 0.15 * breathe(st.u, 2, i))), at: [0, 0, PAD_H - 0.005] })
+      B.puck(0, 0, 0, padR, PAD_H, 0.16, o(r.pad, MAT.satin), seg(28))
+      B.loft(annulus(padR * 0.83, padR * 0.92, 0, TAU, seg(28)), annulus(padR * 0.83, padR * 0.92, 0, TAU, seg(28)), 0.03, { ...glow(r.ring, Math.max(lit, 0.15 * breathe(st.u, 2, i))), at: [0, 0, PAD_H - 0.005] })
     }
     mechOf(sd.mech).build({
       B,
@@ -369,7 +471,7 @@ export function makeStationMachine(def: StationMachineDef, kind: LayoutKind = de
     // Gros plan : pas de texte à centrer, on cadre la mécanique elle-même.
     anchor: kind === 'solo' || kind === 'compact' ? undefined : layout.hole,
     // Points d'interaction : le centre de chaque poste, à mi-hauteur de son objet ; rayon = celui du socle.
-    hotspots: { at: posts.map((q) => [q[0], q[1], Z_TOP + 1.4 * scale] as const), radius: 1.95 * scale },
+    hotspots: { at: posts.map((q) => [q[0], q[1], Z_TOP + 1.4 * scale] as const), radius: Math.max(...reach) * scale },
     // Repère de l'arbre de chaque poste (= celui de `drawTree` : le cadre du poste, relevé de `z` ; pas de lévitation).
     treeFrames: posts.map((q) => ({ pos: [q[0], q[1], def.bare && kind === 'solo' ? 0 : Z_TOP + PAD_H * scale] as const, rot: FACE, k: scale })),
     buildPlan: planBuild(n, def.deps ?? [], def.build),

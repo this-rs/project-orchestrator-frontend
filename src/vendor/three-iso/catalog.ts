@@ -1,4 +1,4 @@
-// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/catalog.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@61bdfbc616afa37a57e9f9d3e9ab8a02324e5460:src/three/iso/catalog.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Catalogue d'OBJETS tout faits, décrits avec le protocole `ast.ts` : des briques qu'une mécanique (d'une page ou d'un

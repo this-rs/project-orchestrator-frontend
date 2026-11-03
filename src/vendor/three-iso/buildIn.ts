@@ -1,4 +1,4 @@
-// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/buildIn.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@61bdfbc616afa37a57e9f9d3e9ab8a02324e5460:src/three/iso/buildIn.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Apparition « en construction » d'une machine : PO la CONÇOIT puis la BÂTIT sous les yeux du lecteur, avec un
@@ -20,7 +20,7 @@
  * Module PUR (imports relatifs seulement) : lu par Node dans les tests.
  */
 import { fromView, toView } from './compose.ts'
-import { annulus, ease, Frame, LAMP, MAT, Rx, Scene, withHiddenFaces, type Face, type Vec3 } from './iso.ts'
+import { annulus, ease, Frame, LAMP, MAT, NEUTRAL, restTone, Rx, Scene, withHiddenFaces, type Face, type Vec3 } from './iso.ts'
 import type { MachineDef } from './machine.ts'
 import { BUILD_DEFAULTS, planBuild, type BuildPlan } from './choreography.ts'
 
@@ -199,7 +199,7 @@ export function worker(s: Scene, at: Vec3, work: Vec3 | null, alpha: number, t: 
     const f = (((t * 9 + k / 5) % 1) + 1) % 1
     const ang = k * 1.256 + Math.floor(t * 9 + k / 5) * 2.1
     const q: Vec3 = [work[0] + Math.cos(ang) * 0.55 * f, work[1] + Math.sin(ang) * 0.55 * f, work[2] + 0.5 * f - 0.6 * f * f]
-    W.sphere(q, 0.06 * (1 - f) + 0.015, { part: part - 7 - k, col: LAMP.amber, emit: '#fde68a', alpha: alpha * (1 - f) }, 6, 4)
+    W.sphere(q, 0.06 * (1 - f) + 0.015, { part: part - 7 - k, col: LAMP.indigo, emit: '#c7d2fe', alpha: alpha * (1 - f) }, 6, 4)
   }
 }
 
@@ -221,7 +221,7 @@ export function orchestrator(s: Scene, at: Vec3, p: number, alpha: number, busy:
       ],
       3.4,
     )
-    r.loft(annulus(0.85, 0.93, 0, Math.PI * 2, 24), annulus(0.85, 0.93, 0, Math.PI * 2, 24), 0.04, { part: -52 - k, col: k ? LAMP.violet : LAMP.indigo, emit: k ? LAMP.violet : LAMP.indigo, alpha: 0.85 * alpha })
+    r.loft(annulus(0.85, 0.93, 0, Math.PI * 2, 24), annulus(0.85, 0.93, 0, Math.PI * 2, 24), 0.04, { part: -52 - k, ...(k ? { col: restTone(0.8) } : { col: LAMP.indigo, emit: LAMP.indigo }), alpha: 0.85 * alpha })
   }
 }
 
@@ -349,7 +349,7 @@ export function assemble(m: MachineDef, faces: readonly Face[], p: number): Face
       for (const l of busy) link(S, hub, l.at, p + l.a * 0.13, 0.9 * show * l.alpha, -3000 - l.a * 10, LAMP.indigo)
       for (const [i, st] of sc.sites.entries()) {
         const t = (p - (st.start + st.dur)) / 0.06
-        if (t > 0 && t < 1) link(S, [st.c[0], st.c[1], st.top + 1], hub, t / 5, show * Math.sin(t * Math.PI), -4000 - i * 10, LAMP.green)
+        if (t > 0 && t < 1) link(S, [st.c[0], st.c[1], st.top + 1], hub, t / 5, show * Math.sin(t * Math.PI), -4000 - i * 10, NEUTRAL)
       }
     }
     return S.faces
