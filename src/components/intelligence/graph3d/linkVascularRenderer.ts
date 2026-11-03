@@ -677,12 +677,13 @@ export function createVascularLinks(
         h.center[0] = x / count
         h.center[1] = y / count
         h.center[2] = z / count
-        // Rayon de l'ensemble : écart moyen de ses extrémités à son centre,
-        // jamais moins que l'espacement d'un nœud (d0) — un groupe d'un seul
-        // nœud occupe quand même sa place.
+        // Rayon de l'ensemble : écart moyen de ses extrémités à son centre.
+        // Plancher RELATIF (un dixième de d0, plus de 8 unités monde) : un groupe
+        // d'un seul nœud pose ses ports tout près de lui, sans les faire
+        // traverser jusqu'au voisin.
         let sum = 0
         for (const m of h.members) sum += Math.hypot(m.x - h.center[0], m.y - h.center[1], m.z - h.center[2])
-        h.radius = Math.max(d0, sum / count)
+        h.radius = Math.max(0.1 * d0, sum / count)
       }
     }
     recomputeScale()
@@ -1148,7 +1149,8 @@ export function createVascularLinks(
       for (const b of bundles) {
         const ha = hubs.get(b.hubA)
         const hb = hubs.get(b.hubB)
-        const smallest = Math.min(ha?.radius ?? Infinity, hb?.radius ?? Infinity)
+        // Pour le plafond, un groupe occupe au moins l'espacement d'un nœud.
+        const smallest = Math.max(d0, Math.min(ha?.radius ?? Infinity, hb?.radius ?? Infinity))
         const s = nodeById.get(b.trunkFrom)
         const t = nodeById.get(b.trunkTo)
         const trunkLen = s && t ? Math.hypot(t.x - s.x, t.y - s.y, t.z - s.z) : Infinity

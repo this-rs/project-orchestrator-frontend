@@ -129,7 +129,7 @@ export function linkRadiusFor(n: number, d0: number): number {
 /**
  * Plafond de cohérence, appliqué en compression DOUCE.
  *
- * Sous le genou (rMax / 2) le rayon est inchangé ; au-dessus il tend vers rMax
+ * Sous le genou (¾ · rMax) le rayon est inchangé ; au-dessus il tend vers rMax
  * sans jamais l'atteindre : x = r − genou devient L·x / (x + L), avec
  * L = rMax − genou. Continue, de dérivée 1 au genou, et STRICTEMENT croissante
  * — 10⁶ reste plus épais que 10⁵. Pas d'exponentielle : 1 − e^(−x/L) sature
@@ -141,7 +141,7 @@ export function linkRadiusFor(n: number, d0: number): number {
  */
 export function softCap(r: number, rMax: number): number {
   if (!(rMax > 0) || !Number.isFinite(rMax)) return r
-  const knee = rMax / 2
+  const knee = 0.75 * rMax
   if (r <= knee) return r
   const span = rMax - knee
   const x = r - knee
