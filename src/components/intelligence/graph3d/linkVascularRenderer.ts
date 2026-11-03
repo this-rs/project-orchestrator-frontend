@@ -285,6 +285,43 @@ export function createVascularLinks(
 
     const corridorByKey = new Map(corridors.map((c) => [c.key, c]))
 
+    // ── MOYEUX : un point d'union par ensemble ──────────────────────────────
+    // Un tronc partait d'un NŒUD arbitraire de l'ensemble : rien ne pouvait donc
+    // s'unir, et vingt et un corridors dessinaient vingt et un faisceaux
+    // indépendants qui se croisaient. Chaque ensemble reçoit un moyeu — le
+    // centre de ses nœuds — et TOUS les troncs qui le touchent y convergent :
+    // ils fusionnent là, puis se divisent vers leur destination. C'est la
+    // demande : « des formes évoluées pour connecter les ensembles quand ils
+    // s'unissent, et les redviser automatiquement ».
+    const hubId = (token: string) => `hub:${token}`
+    const hubPoints = new Map<string, { x: number; y: number; z: number; n: number }>()
+    for (const link of links) {
+      const sNode = nodeById.get(endpointId(link.source))
+      const tNode = nodeById.get(endpointId(link.target))
+      if (sNode) {
+        const k = communityToken(link.sourceCommunityId)
+        const acc = hubPoints.get(k) ?? { x: 0, y: 0, z: 0, n: 0 }
+        acc.x += sNode.x; acc.y += sNode.y; acc.z += sNode.z; acc.n++
+        hubPoints.set(k, acc)
+      }
+      if (tNode) {
+        const k = communityToken(link.targetCommunityId)
+        const acc = hubPoints.get(k) ?? { x: 0, y: 0, z: 0, n: 0 }
+        acc.x += tNode.x; acc.y += tNode.y; acc.z += tNode.z; acc.n++
+        hubPoints.set(k, acc)
+      }
+    }
+    for (const [token, acc] of hubPoints) {
+      if (acc.n === 0) continue
+      nodeById.set(hubId(token), {
+        id: hubId(token),
+        label: '',
+        x: acc.x / acc.n,
+        y: acc.y / acc.n,
+        z: acc.z / acc.n,
+      } as unknown as Graph3DNode)
+    }
+
     /** Centroids of a corridor's two sides, plus the branch targets on each side. */
     const geometryOf = (corridor: Corridor) => {
       let ax = 0, ay = 0, az = 0, an = 0
@@ -434,8 +471,8 @@ export function createVascularLinks(
       // Nombre de strates AUTORISÉ par la morphologie : elle seule décide, et
       // `strataFor` n'en dessine jamais davantage.
       const strata = strataFor(Math.max(0, Math.min(6, drawable.morphology.graphical.strata)), order)
-      const trunkFrom = geo.branchA[0] ?? endpointId(corridor.links[0].source)
-      const trunkTo = geo.branchB[0] ?? endpointId(corridor.links[0].target)
+      const trunkFrom = nodeById.has(hubId(corridor.from)) ? hubId(corridor.from) : (geo.branchA[0] ?? endpointId(corridor.links[0].source))
+      const trunkTo = nodeById.has(hubId(corridor.to)) ? hubId(corridor.to) : (geo.branchB[0] ?? endpointId(corridor.links[0].target))
 
       laneFamilies.forEach((family, s) => {
         const lane = laneFamilies.length === 1 ? 0.5 : s / (laneFamilies.length - 1)
@@ -453,7 +490,7 @@ export function createVascularLinks(
       const addBranches = (tip: string | undefined, ids: string[]) => {
         for (const id of ids) {
           if (!tip || id === tip) continue
-          addConduit(tip, id, 0.55, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.21)
+          addConduit(tip, id, 0.5, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.21)
         }
         // Second level: one sub-branch per level-1 tip, to the next real node.
         const next = ids[1]
