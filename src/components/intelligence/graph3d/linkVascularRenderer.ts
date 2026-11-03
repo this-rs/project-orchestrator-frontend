@@ -33,14 +33,18 @@ import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
 import type { LinkRenderer } from './linkRibbons'
 import type { LinkStyle, LinkStyleFn } from './linkRibbon'
 import { buildCorridors, endpointId, endpointToken, type Corridor } from './linkRouting'
-import { buildLinkSystem, fromCorridors, type DrawableBundle, type SystemBudget } from './linkSystem'
+import { buildLinkSystem, DEFAULT_SYSTEM_BUDGET, fromCorridors, type DrawableBundle, type SystemBudget } from './linkSystem'
+import {
+  bundleCorridor,
+  corridorTree,
+  forEachTreeConduit,
+  treeConduitLayers,
+  treeConduitSamples,
+  vascularShapeOf,
+} from './linkVascularTree'
 import { braidedOffsets, parallelTransportFrames, type Vec3 } from './linkVascular'
 import {
-  ARTERY_SAMPLES,
-  CAPILLARIES_PER_SUB_HUB,
-  CAPILLARY_SAMPLES,
   SECTION_SEGMENTS,
-  SUB_HUBS_PER_END,
   type GeometryStats,
   trianglesFromIndex,
 } from './linkGeometryCost'
@@ -50,14 +54,12 @@ import { isMobileLikeDevice } from './useRenderLoop'
 import { buildRanges, bundleAtTriangle } from './linkVascularPicking'
 import { distributePorts, pairDirection, placePort, type GroupEnvelope, type GroupPair } from './linkPorts'
 import { linkRadiusFor, nearestNeighbourScale, softCap } from './linkRadius'
-import { linkMultiplicity } from './linkRouting'
+
 
 /** Radial segments. Eight reads round at these widths and stays cheap. */
 const TUBE_SEGMENTS = SECTION_SEGMENTS
 /** Share of the link length used as the spline's bow. */
 const BOW = 0.16
-/** Hard ceiling on lanes drawn for one trunk. */
-const MAX_STRANDS = 5
 /**
  * Fibres internes d'un conduit.
  *
@@ -65,9 +67,9 @@ const MAX_STRANDS = 5
  * translucide dans laquelle on voit courir des dizaines de fibres parallèles.
  * C'est cette structure interne qui fait lire « vaisseau » et non « fil ». Elles
  * tournent en hélice lente autour de l'axe, donc la lumière accroche par
- * intermittence, comme dans les références.
+ * intermittence, comme dans les références. Au plus MAX_CONDUIT_CHANNELS
+ * (linkGeometryCost), selon ce que porte le conduit (conduitChannels).
  */
-const MICRO_FIBERS = 5
 /**
  * Budget réduit sur mobile.
  *
@@ -558,21 +560,34 @@ export interface VascularLinkRenderer extends LinkRenderer {
 export const CORE_SCREEN_FLOOR_PX = 0.6
 /** Gain d'opacité d'un chemin survolé. */
 const GLOW_GAIN = 2.2
-/** Échantillons d'une capsule de jonction (pôles fermés). */
-const JUNCTION_SAMPLES = 5
 /** Plafond : part du rayon du plus petit groupe touché, et de la longueur du tronc. */
 export const CAP_GROUP_SHARE = 0.15
 export const CAP_TRUNK_SHARE = 0.06
 
 /**
- * Canaux internes d'un conduit selon ce qu'il porte : une relation n'a pas de
- * canaux (cœur + une peau), puis un canal de plus à chaque doublement, borné
- * par le nombre de familles réellement présentes.
+ * Le budget EXACT du renderer vasculaire : la forme de chaque faisceau
+ * calculée sur les positions (vascularShapeOf), le rayon de la scène mesuré
+ * depuis son CENTRE (pour le LOD, lodOptionsForScene) et le type d'appareil.
+ * Le renderer s'en sert ; un test qui veut l'estimation exacte aussi.
  */
-export function channelsFor(n: number, families: number): number {
-  if (!(n > 1)) return 0
-  const cap = MOBILE_LIKE ? 2 : MICRO_FIBERS
-  return Math.max(1, Math.min(cap, Math.max(1, families), 1 + Math.floor(Math.log2(n))))
+export function vascularBudget(
+  nodes: readonly { id: string; x: number; y: number; z: number }[],
+  corridors: readonly Corridor[],
+  budget: Partial<SystemBudget> = {},
+): Partial<SystemBudget> {
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+  let cx = 0, cy = 0, cz = 0
+  for (const n of nodes) { cx += n.x; cy += n.y; cz += n.z }
+  const count = Math.max(1, nodes.length)
+  cx /= count; cy /= count; cz /= count
+  let sceneRadius = 0
+  for (const n of nodes) sceneRadius = Math.max(sceneRadius, Math.hypot(n.x - cx, n.y - cy, n.z - cz))
+  return {
+    ...budget,
+    ...(sceneRadius > 0 ? { sceneRadius } : {}),
+    mobile: MOBILE_LIKE,
+    shapeOf: vascularShapeOf((id) => byId.get(id), corridors, MOBILE_LIKE),
+  }
 }
 
 /**
@@ -596,7 +611,7 @@ export function createVascularLinks(
     const corridors = buildCorridors(links)
     if (corridors.length === 0) return null
 
-    const system = buildLinkSystem(fromCorridors(corridors), budget)
+    const system = buildLinkSystem(fromCorridors(corridors), vascularBudget(nodes, corridors, budget))
     if (system.bundles.length === 0) return null
 
     const corridorByKey = new Map(corridors.map((c) => [c.key, c]))
@@ -774,106 +789,6 @@ export function createVascularLinks(
       recomputeSubs()
     }
 
-    /** Ce que porte une extrémité réelle d'un côté du corridor. */
-    interface EndLoad {
-      id: string
-      deg: number
-      n: bigint
-      families: Set<string>
-    }
-    /** Extrémités réelles des deux côtés d'un corridor, groupées en sous-moyeux. */
-    const geometryOf = (corridor: Corridor) => {
-      const sideA = new Map<string, EndLoad>()
-      const sideB = new Map<string, EndLoad>()
-      const add = (side: Map<string, EndLoad>, id: string, link: Graph3DLink) => {
-        let e = side.get(id)
-        if (!e) {
-          e = { id, deg: 0, n: 0n, families: new Set() }
-          side.set(id, e)
-        }
-        e.deg++
-        e.n += linkMultiplicity(link)
-        e.families.add(link.relationType || 'UNKNOWN')
-      }
-      for (const link of corridor.links) {
-        const s = endpointId(link.source)
-        const t = endpointId(link.target)
-        if (!nodeById.has(s) || !nodeById.has(t)) continue
-        if (endpointToken(link.sourceCommunityId, s) === corridor.from) {
-          add(sideA, s, link)
-          add(sideB, t, link)
-        } else {
-          add(sideA, t, link)
-          add(sideB, s, link)
-        }
-      }
-      if (sideA.size === 0 || sideB.size === 0) return null
-      /**
-       * Regroupe les extrémités RÉELLES d'un côté en sous-moyeux spatiaux.
-       *
-       * En TROIS dimensions : chaque extrémité est une direction sur la sphère
-       * autour du centre du côté. Le tri par atan2(y, x) ignorait z — deux
-       * nœuds l'un au-dessus de l'autre tombaient dans le même paquet, deux
-       * nœuds voisins pouvaient être séparés. Graines par point le plus
-       * éloigné (déterministe), puis chaque extrémité rejoint la graine la plus
-       * proche en angle. Chaque paquet garde TOUS ses membres (ils comptent
-       * dans ce que porte l'artère) et désigne ceux qui reçoivent un
-       * capillaire (les mieux connectés).
-       */
-      const pick = (side: Map<string, EndLoad>) => {
-        const unique = [...side.values()].sort((p, q) => q.deg - p.deg || (p.id < q.id ? -1 : 1))
-        let cx = 0, cy = 0, cz = 0
-        for (const x of unique) {
-          const n = nodeById.get(x.id)!
-          cx += n.x; cy += n.y; cz += n.z
-        }
-        cx /= unique.length; cy /= unique.length; cz /= unique.length
-        const dirs = unique.map((x) => {
-          const n = nodeById.get(x.id)!
-          const dx = n.x - cx, dy = n.y - cy, dz = n.z - cz
-          const len = Math.hypot(dx, dy, dz)
-          return len > 1e-9 ? [dx / len, dy / len, dz / len] as Vec3 : null
-        })
-        const dot = (a: Vec3 | null, b: Vec3 | null) => (a && b ? a[0] * b[0] + a[1] * b[1] + a[2] * b[2] : 1)
-        // Graines : la première direction définie (le mieux connecté), puis à
-        // chaque fois celle qui est la plus loin de toutes les graines.
-        const seeds: number[] = []
-        const first = dirs.findIndex((d) => d !== null)
-        if (first >= 0) seeds.push(first)
-        while (seeds.length > 0 && seeds.length < SUB_HUBS_PER_END) {
-          let best = -1, bestSim = Infinity
-          dirs.forEach((d, i) => {
-            if (!d || seeds.includes(i)) return
-            const sim = Math.max(...seeds.map((s) => dot(d, dirs[s])))
-            if (sim < bestSim - 1e-12) { bestSim = sim; best = i }
-          })
-          // Plus aucune direction vraiment distincte : pas de graine de plus.
-          if (best < 0 || bestSim > 1 - 1e-9) break
-          seeds.push(best)
-        }
-        const buckets: EndLoad[][] = seeds.map(() => [])
-        unique.forEach((e, i) => {
-          if (seeds.length === 0) return
-          let g = 0, gSim = -Infinity
-          seeds.forEach((s, k) => {
-            const sim = dot(dirs[i], dirs[s])
-            if (sim > gSim + 1e-12) { gSim = sim; g = k }
-          })
-          buckets[g].push(e)
-        })
-        // Extrémités toutes au centre (aucune direction) : un seul paquet.
-        if (seeds.length === 0) buckets.push([...unique])
-        const groups: { all: EndLoad[]; drawn: EndLoad[] }[] = []
-        for (const all of buckets) {
-          if (all.length === 0) continue
-          const drawn = [...all].sort((a, b) => b.deg - a.deg || (a.id < b.id ? -1 : 1)).slice(0, CAPILLARIES_PER_SUB_HUB)
-          groups.push({ all, drawn })
-        }
-        return { groups, ranked: unique }
-      }
-      return { a: pick(sideA), b: pick(sideB) }
-    }
-
     // ── Buffers ──────────────────────────────────────────────────────────
     const bundles: Bundle[] = []
     const allConduits: Conduit[] = []
@@ -881,22 +796,16 @@ export function createVascularLinks(
     const index: number[] = []
     const trianglesPerBundle: number[] = []
     let coreTriangles = 0
+    const positionOf = (id: string) => nodeById.get(id)
 
     for (const drawable of system.bundles) {
-      const corridor = corridorByKey.get(drawable.corridor.key)
+      // Un faisceau AGRÉGÉ (drawable.members) est dessiné comme un corridor
+      // synthétique : la paire de son plus gros membre, la somme exacte de ses
+      // membres, leurs liens réels. Le budget l'a compté de la même façon.
+      const corridor = bundleCorridor(drawable.corridor, drawable.members, corridorByKey)
       if (!corridor) continue
-      const geo = geometryOf(corridor)
-      if (!geo) continue
-
-      // Le nombre de VOIES vient de la structure (familles), borné par la
-      // morphologie et MAX_STRANDS.
-      const lanes = Math.min(
-        MAX_STRANDS,
-        Math.max(1, Math.min(
-          Math.max(1, corridor.families.length),
-          Math.max(1, drawable.morphology.graphical.channels),
-        )),
-      )
+      const tree = corridorTree(corridor, positionOf, drawable.morphology.graphical.channels)
+      if (!tree) continue
       const trunkSamples = drawable.samples
 
       const conduits: Conduit[] = []
@@ -910,7 +819,7 @@ export function createVascularLinks(
         side: 'a' | 'b' | null
         n: bigint
         nEnd?: bigint
-        families: number
+        layers: number
         lane?: number
         strands?: number
         samples: number
@@ -919,8 +828,7 @@ export function createVascularLinks(
         parent?: number
         toward?: string | null
       }): Conduit => {
-        const nNum = Number(c.n)
-        const specs = c.kind === 'junction' ? layerSpecs(0) : layerSpecs(channelsFor(nNum, c.families))
+        const specs = layerSpecs(c.layers <= 2 ? 0 : c.layers - 4)
         const layers = specs.length
         const count = c.samples * TUBE_SEGMENTS * layers
         const conduit: Conduit = {
@@ -967,101 +875,85 @@ export function createVascularLinks(
         return conduit
       }
 
-      // ── Voies = FAMILLES de relations (une vraie partition) ──────────────
-      // Une voie par famille, colorée par elle, qui porte le NOMBRE EXACT de
-      // relations de sa famille. Les familles au-delà des voies dessinables
-      // rejoignent la dernière voie : la somme des voies vaut le corridor.
-      const families = [...corridor.families]
-        .sort((x, y) => (y.exactCount === x.exactCount ? (x.relation < y.relation ? -1 : 1) : y.exactCount > x.exactCount ? 1 : -1))
-      const laneDefs: { family: string | null; n: bigint; families: number }[] = families
-        .slice(0, lanes)
-        .map((f) => ({ family: f.relation, n: f.exactCount, families: 1 }))
-      for (const f of families.slice(lanes)) {
-        const last = laneDefs[laneDefs.length - 1]
-        last.n += f.exactCount
-        last.families++
+      // Le tronc va d'un PORT à un PORT (ceux de la paire du corridor — pour
+      // un agrégat, ceux de son plus gros membre) ; un corridor interne relie
+      // deux extrémités réelles distinctes.
+      const assigned = pairPorts.get(corridor.key) ?? (drawable.members ? pairPorts.get(drawable.members[0]) : undefined)
+      let trunkFrom = tree.a.ranked[0].id
+      let trunkTo = tree.b.ranked[0].id
+      if (tree.trunk?.kind === 'ports' && assigned?.from && assigned.to) {
+        trunkFrom = assigned.from
+        trunkTo = assigned.to
+      } else if (tree.trunk?.kind === 'nodes') {
+        trunkFrom = tree.trunk.from
+        trunkTo = tree.trunk.to
       }
-      if (laneDefs.length === 0) laneDefs.push({ family: null, n: corridor.magnitude.exactCount, families: 1 })
 
-      // Le tronc va d'un PORT à un PORT ; un corridor interne (même groupe des
-      // deux côtés) relie deux extrémités réelles distinctes — jamais un nœud
-      // à lui-même.
-      const assigned = pairPorts.get(corridor.key)
-      const trunkFrom = assigned?.from || (geo.a.ranked[0]?.id ?? endpointId(corridor.links[0].source))
-      const trunkTo = assigned?.to ||
-        (geo.b.ranked.find((e) => e.id !== trunkFrom)?.id ?? endpointId(corridor.links[0].target))
-      const hasTrunk = trunkFrom !== trunkTo
-
+      // ── Construction, dans l'ordre EXACT de l'énumération partagée ──────
+      // Voies = FAMILLES (une vraie partition, chacune son n exact) ; puis de
+      // chaque côté : capsule du port, et par paquet son artère, la capsule
+      // du sous-moyeu et ses capillaires. Le budget compte la même liste.
       const laneIds: number[] = []
-      if (hasTrunk) {
-        laneDefs.forEach((def, s) => {
+      let currentArtery = -1
+      let currentSub = ''
+      forEachTreeConduit(tree, (tc) => {
+        const layers = treeConduitLayers(tc, MOBILE_LIKE)
+        const samples = treeConduitSamples(tc, trunkSamples)
+        if (tc.kind === 'trunk') {
           const lane = addConduit({
-            kind: 'trunk', fromId: trunkFrom, toId: trunkTo, side: null, n: def.n, families: def.families,
-            lane: s, strands: laneDefs.length, samples: trunkSamples, family: def.family, flowPhase: s * 0.37,
+            kind: 'trunk', fromId: trunkFrom, toId: trunkTo, side: null, n: tc.def.n, layers,
+            lane: tc.lane, strands: tree.lanes.length, samples, family: tc.def.family, flowPhase: tc.lane * 0.37,
           })
           laneIds.push(lane.id)
-        })
-      }
-
-      /**
-       * ARBRE A TROIS NIVEAUX : port → artère (sous-moyeu) → capillaire.
-       *
-       * Chaque conduit porte son VRAI nombre de relations : un capillaire, les
-       * relations du corridor qui touchent son nœud ; une artère, la somme de
-       * son paquet. Une capsule ferme chaque jonction (port, sous-moyeu).
-       */
-      const addTree = (hub: string, side: 'a' | 'b', groups: { all: EndLoad[]; drawn: EndLoad[] }[], tag: string) => {
-        if (groups.length === 0) return
-        const trunkParent = laneIds[0] ?? -1
-        // Capsule du port : rayon du tronc entier (toutes voies confondues).
-        if (hasTrunk) {
-          addConduit({
-            kind: 'junction', fromId: hub, toId: hub, side, n: corridor.magnitude.exactCount, families: 1,
-            samples: JUNCTION_SAMPLES, flowPhase: 0, parent: trunkParent, toward: side === 'a' ? trunkTo : trunkFrom,
-          })
+          return
         }
-        groups.forEach((group, gi) => {
-          const total = group.all.reduce((acc, e) => acc + e.n, 0n)
-          const drawnN = group.drawn.reduce((acc, e) => acc + e.n, 0n)
-          const fams = new Set<string>()
-          for (const e of group.all) for (const f of e.families) fams.add(f)
-          // Un paquet d'UNE extrémité : pas de sous-moyeu (il serait le nœud
-          // lui-même) ; l'artère rejoint directement le nœud réel.
-          if (group.all.length === 1) {
-            const e = group.all[0]
+        const hub = tc.side === 'a' ? trunkFrom : trunkTo
+        const other = tc.side === 'a' ? trunkTo : trunkFrom
+        const trunkParent = laneIds[0] ?? -1
+        if (tc.kind === 'junction' && tc.at === 'port') {
+          // Capsule du port : rayon du tronc entier (toutes voies confondues).
+          addConduit({
+            kind: 'junction', fromId: hub, toId: hub, side: tc.side, n: tc.n, layers,
+            samples, flowPhase: 0, parent: trunkParent, toward: other,
+          })
+          return
+        }
+        if (tc.kind === 'artery') {
+          if (tc.direct) {
+            // Un paquet d'UNE extrémité : pas de sous-moyeu (il serait le
+            // nœud lui-même) ; l'artère rejoint directement le nœud réel.
             addConduit({
-              kind: 'artery', fromId: hub, toId: e.id, side, n: e.n, families: e.families.size,
-              samples: ARTERY_SAMPLES, flowPhase: 0.31, parent: trunkParent,
+              kind: 'artery', fromId: hub, toId: tc.direct.id, side: tc.side, n: tc.n, layers,
+              samples, flowPhase: 0.31, parent: trunkParent,
             })
             return
           }
-          const subId = `sub:${tag}:${gi}`
+          const group = tree[tc.side].groups[tc.group]
+          currentSub = `sub:${corridor.key}:${tc.side}:${tc.group}`
           const sub: SubRec = { anchor: { x: 0, y: 0, z: 0 }, members: group.drawn.map((e) => nodeById.get(e.id)!) }
           subRecs.push(sub)
-          nodeById.set(subId, sub.anchor)
+          nodeById.set(currentSub, sub.anchor)
           // L'artère porte tout son paquet au départ, et seulement ce que ses
           // capillaires dessinés emportent à l'arrivée : elle s'affine en route
           // (les extrémités non dessinées). Murray tient aux DEUX jonctions.
-          const artery = addConduit({
-            kind: 'artery', fromId: hub, toId: subId, side, n: total, nEnd: drawnN, families: fams.size,
-            samples: ARTERY_SAMPLES, flowPhase: 0.31, parent: trunkParent,
+          currentArtery = addConduit({
+            kind: 'artery', fromId: hub, toId: currentSub, side: tc.side, n: tc.n, nEnd: tc.nEnd, layers,
+            samples, flowPhase: 0.31, parent: trunkParent,
+          }).id
+          return
+        }
+        if (tc.kind === 'junction') {
+          addConduit({
+            kind: 'junction', fromId: currentSub, toId: currentSub, side: tc.side, n: tc.n, layers,
+            samples, flowPhase: 0, parent: currentArtery, toward: hub,
           })
-          if (group.drawn.length > 1) {
-            addConduit({
-              kind: 'junction', fromId: subId, toId: subId, side, n: drawnN, families: 1,
-              samples: JUNCTION_SAMPLES, flowPhase: 0, parent: artery.id, toward: hub,
-            })
-          }
-          for (const e of group.drawn) {
-            addConduit({
-              kind: 'capillary', fromId: subId, toId: e.id, side, n: e.n, families: e.families.size,
-              samples: CAPILLARY_SAMPLES, flowPhase: 0.13, parent: artery.id,
-            })
-          }
+          return
+        }
+        addConduit({
+          kind: 'capillary', fromId: currentSub, toId: tc.end.id, side: tc.side, n: tc.end.n, layers,
+          samples, flowPhase: 0.13, parent: currentArtery,
         })
-      }
-      addTree(trunkFrom, 'a', geo.a.groups, `${corridor.key}:a`)
-      addTree(trunkTo, 'b', geo.b.groups, `${corridor.key}:b`)
+      })
 
       if (conduits.length === 0) continue
       const vertexCount = position.length / 3 - vertexStart
@@ -1081,6 +973,27 @@ export function createVascularLinks(
         vertexStart,
         vertexCount,
       })
+    }
+
+    // PLAFOND DUR. Le modèle de coût partagé rend l'estimation exacte ; si un
+    // écart réapparaissait (un bug du modèle), le budget reste un plafond : on
+    // retire les plus petits faisceaux (fin de liste) jusqu'à rentrer dedans.
+    const maxTriangles = budget.maxTriangles ?? DEFAULT_SYSTEM_BUDGET.maxTriangles
+    if (index.length / 3 > maxTriangles) {
+      if (import.meta.env?.DEV) {
+        console.warn(`[linkVascular] ${index.length / 3} triangles produits pour un budget de ${maxTriangles} : troncature`)
+      }
+      while (bundles.length > 0 && index.length / 3 > maxTriangles) {
+        const last = bundles.pop()!
+        trianglesPerBundle.pop()
+
+        const firstTriangle = trianglesPerBundle.reduce((s, t) => s + t, 0)
+        index.length = firstTriangle * 3
+        position.length = last.vertexStart * 3
+        allConduits.length -= last.conduits.length
+        coreTriangles = 0
+        for (const b of bundles) for (const c of b.conduits) for (const s of c.specs) if (s.emit) coreTriangles += (c.samples - 1) * TUBE_SEGMENTS * 2
+      }
     }
 
     if (bundles.length === 0) return null

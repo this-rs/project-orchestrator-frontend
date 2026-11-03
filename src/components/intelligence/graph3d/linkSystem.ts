@@ -25,7 +25,7 @@ import { describeMagnitude } from './linkMagnitude'
 import { type MorphologyShape, morphologyShape } from './linkMorphology'
 import { type LodState, lodFor, lodOptionsForScene } from './linkLod'
 import { endpointToken, type Corridor } from './linkRouting'
-import { renderedBundleTriangles, trunkLanes } from './linkGeometryCost'
+import { type ExactShape, renderedBundleTriangles, trunkLanes } from './linkGeometryCost'
 
 /**
  * The minimum a corridor must expose to be drawn: an identity, its two ends,
@@ -104,6 +104,13 @@ export interface SystemBudget {
   sceneRadius?: number
   /** Mobile-like device: the renderer draws 2 channels per conduit. */
   mobile?: boolean
+  /**
+   * EXACT shape of a bundle as the renderer will build it (it depends on the
+   * node positions: spatial sub-hubs, per-conduit content). `members` lists
+   * the corridors an aggregate carries. Without it, the cost model takes its
+   * upper bound. `null` = the renderer will draw nothing for this bundle.
+   */
+  shapeOf?: (corridor: SystemCorridor, members?: readonly string[]) => ExactShape | null
 }
 
 /** Samples along the spline at depth 0, and the growth per refinement level. */
@@ -157,28 +164,35 @@ export interface LinkSystem {
 
 /** What, besides the LOD and the morphology, decides a bundle's geometry. */
 export interface BundleShape {
+  /** Relations carried (bounds every conduit's content). */
+  n?: number
   families?: number
   endpoints?: readonly [number, number]
   mobile?: boolean
+  /** Exact shape from the positions (see SystemBudget.shapeOf). */
+  exact?: ExactShape | null
 }
 
 /**
- * Triangles a bundle costs in the RENDERER — the relation count never enters.
+ * Triangles a bundle costs in the RENDERER.
  *
  * The shared model (`renderedBundleTriangles`) counts what linkVascularRenderer
  * builds: one trunk per family lane (≤ 5) at the LOD's samples, then on each
- * side up to 3 arteries (7 samples) and 3 capillaries each (5 samples), every
- * conduit with halo + sheath + structure + [2, 5] channels + core (≥ 6 layers).
- * The previous estimate counted ONE trunk with 1 channel at depth 0, 4 layers
- * per branch and 5 samples for every branch: 236 k announced for 550 k drawn.
+ * side its arteries (7 samples), capillaries (5) and closing capsules (5),
+ * every conduit with the layers its OWN content earns (scale law: one
+ * relation = core + one skin; then 1 + ⌊log2 n⌋ channels, ≤ families, ≤ 5).
+ * With `shape.exact` (computed on the positions) it is exact to the triangle;
+ * without, an upper bound.
  */
 export function bundleTriangles(lod: LodState, morphologyChannels: number, shape: BundleShape = {}): number {
   return renderedBundleTriangles({
     trunkSamples: SAMPLES_BASE + SAMPLES_PER_DEPTH * lod.depth,
     morphologyChannels,
+    n: shape.n,
     families: shape.families,
     endpoints: shape.endpoints,
     mobile: shape.mobile,
+    exact: shape.exact,
   })
 }
 
@@ -271,7 +285,13 @@ export function buildLinkSystem(
   const unitOf = (corridor: SystemCorridor, members?: string[]): Unit => {
     const morphology = morphologyShape(corridor.magnitude)
     const channels = morphology.graphical.channels
-    const shape: BundleShape = { families: corridor.families, endpoints: corridor.endpoints, mobile: b.mobile }
+    const shape: BundleShape = {
+      n: Number(corridor.magnitude.exactCount),
+      families: corridor.families,
+      endpoints: corridor.endpoints,
+      mobile: b.mobile,
+      exact: b.shapeOf ? b.shapeOf(corridor, members) : undefined,
+    }
     return { corridor, members, shape, channels, morphology, minCost: bundleTriangles(LOD_ZERO, channels, shape) }
   }
   const singles = ordered.map((c) => unitOf(c))
