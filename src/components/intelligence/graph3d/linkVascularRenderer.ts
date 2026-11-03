@@ -877,9 +877,13 @@ export function createVascularLinks(
       const hubSwellFrom = Math.cbrt(Math.max(1, hubLoad.get(corridor.from) ?? 1)) / 2
       const hubSwellTo = Math.cbrt(Math.max(1, hubLoad.get(corridor.to) ?? 1)) / 2
       const trunkFrom = assigned?.from ?? (geo.branchA[0]?.[0] ?? endpointId(corridor.links[0].source))
-      const trunkTo = assigned?.to ?? (geo.branchB[0]?.[0] ?? endpointId(corridor.links[0].target))
+      // Corridor interne (même groupe des deux côtés) : pas de port, le tronc
+      // relie deux extrémités réelles — et jamais un nœud à lui-même, ce qui
+      // donnait un tube de longueur nulle par famille.
+      const trunkTo = assigned?.to ??
+        (geo.branchB.flat().find((id) => id !== trunkFrom) ?? endpointId(corridor.links[0].target))
 
-      laneFamilies.forEach((family, s) => {
+      if (trunkFrom !== trunkTo) laneFamilies.forEach((family, s) => {
         const lane = laneFamilies.length === 1 ? 0.5 : s / (laneFamilies.length - 1)
         addConduit('trunk', trunkFrom, trunkTo, 1, SHEATH_ALPHA, lane, trunkSamples, strata, family, s * 0.37, load, 0.85 + 0.5 * shareFrom + hubSwellFrom, 0.85 + 0.5 * shareTo + hubSwellTo)
       })
@@ -906,6 +910,15 @@ export function createVascularLinks(
             if (nd) pts.push(nd)
           }
           if (pts.length === 0) return
+          // Un groupe d'UNE extrémité : le sous-moyeu serait le nœud lui-même,
+          // et son capillaire un tube de longueur nulle (des triangles
+          // dégénérés, comptés et dessinés pour rien). L'artère rejoint alors
+          // directement le nœud réel.
+          const realIds = members.filter((id) => nodeById.has(id))
+          if (realIds.length === 1) {
+            addConduit('artery', hub, realIds[0], 0.62, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES + 2, branchStrata, null, 0.31, load, 0.9 + 0.4 * share, 0.5)
+            return
+          }
           const subId = `sub:${tag}:${gi}`
           const sub: SubRec = { anchor: { x: 0, y: 0, z: 0 }, members: pts }
           subRecs.push(sub)
@@ -914,7 +927,7 @@ export function createVascularLinks(
           // Artere secondaire : epaisse, elle se detache du tronc.
           addConduit('artery', hub, subId, 0.62, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES + 2, branchStrata, null, 0.31, load, 0.9 + 0.4 * share, 0.5)
           // Capillaires : fins, ils rejoignent les noeuds REELS du groupe.
-          for (const id of members) {
+          for (const id of realIds) {
             addConduit('capillary', subId, id, 0.3, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.13, load, 0.45, 0.12)
           }
         })
