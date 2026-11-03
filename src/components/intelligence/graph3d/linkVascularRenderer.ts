@@ -78,6 +78,16 @@ function familyRgb(relation: string | null | undefined): [number, number, number
 
 /** Sheath alpha, and how much brighter the core is. */
 const SHEATH_ALPHA = 1.0
+/**
+ * Budget de lumière d'un conduit, réparti entre ses couches.
+ *
+ * Chaque couche ajoutait son opacité à la précédente (halo + gaine + strates +
+ * cœur) : la somme dépassait 1 et le tronc virait au blanc plein — le rendu
+ * additif sature. Un conduit a désormais un budget FIXE, partagé
+ * proportionnellement entre ses couches : plus il a de strates, plus chacune est
+ * discrète, et l'ensemble reste dans la plage lisible.
+ */
+const CONDUIT_LIGHT_BUDGET = 0.85
 
 const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aColor;
@@ -343,7 +353,8 @@ export function createVascularLinks(
         // One vertex ring per stratum: the tube is CONCENTRIC layers, not one
         // shell. That is what distinguishes a 1 000-relation conduit from a
         // 10 000-relation trunk once the projected width has hit its ceiling.
-        const layers = Math.max(1, strata.length)
+        // +1 : la couche de HALO, dessinée avant les strates (voir fillConduit).
+        const layers = Math.max(1, strata.length) + 1
         const count = samples * TUBE_SEGMENTS * layers
         conduits.push({
           fromId,
@@ -501,22 +512,35 @@ export function createVascularLinks(
       const cr2 = fam ? fam[0] : (style.r2 ?? style.r)
       const cg2 = fam ? fam[1] : (style.g2 ?? style.g)
       const cb2 = fam ? fam[2] : (style.b2 ?? style.b)
-      const layers = Math.max(1, conduit.strata.length)
+      const layers = Math.max(1, conduit.strata.length) + 1
       const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
+      // Part de lumière de chaque couche : halo 0,1 puis les strates.
+      const shares = [0.1, ...conduit.strata.map((x) => x.alpha)]
+      const shareTotal = shares.reduce((acc, v) => acc + v, 0) || 1
       // Grains du flux : leur motif lumineux court le long de la couche la plus
       // interne. `flowPositions` donne des abscisses régulières ; on s'en sert
       // comme d'une période pour moduler la brillance.
       const grains = flowPositions(6, 0, conduit.flowPhase)
       const base = conduit.vertexStart
       for (let layer = 0; layer < layers; layer++) {
-        const stratum = conduit.strata[layer] ?? { radius: 1, alpha: 1, carriesFlow: false }
-        const layerRadius = stratumRadius(stratum, thickness)
+        // Couche 0 : le HALO — une enveloppe large et tres faible qui diffuse
+        // autour du vaisseau. C'est la lueur des planches, obtenue sans
+        // compositeur de post-traitement : un bloom de geometrie, paye une fois.
+        const isHalo = layer === 0
+        const stratum = isHalo
+          ? { radius: 1.6, alpha: 0.1, carriesFlow: false }
+          : (conduit.strata[layer - 1] ?? { radius: 1, alpha: 1, carriesFlow: false })
+        const layerRadius = isHalo ? thickness * 1.6 : stratumRadius(stratum, thickness)
         const layerBase = base + layer * samplesPerLayer
         // Un tronc represente des CENTAINES de relations : il ne peut pas
         // emprunter l'opacite au repos d'un fil isole (0,05 a 0,28), sinon il
         // s'eteint. On part d'un plancher propre au vaisseau.
         const baseAlpha = Math.max(0.3, style.a)
-        const layerAlpha = Math.min(1, baseAlpha * stratum.alpha * conduit.alpha * 2.2)
+        const share = isHalo ? 0.1 : stratum.alpha
+        const layerAlpha = Math.min(
+          1,
+          CONDUIT_LIGHT_BUDGET * (share / shareTotal) * conduit.alpha * Math.max(0.55, baseAlpha),
+        )
         for (let i = 0; i < conduit.samples; i++) {
           const f = frames[Math.min(i, frames.length - 1)]
           if (!f) continue

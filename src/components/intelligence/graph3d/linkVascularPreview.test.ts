@@ -86,7 +86,6 @@ describe('aperçu vasculaire', () => {
     const W = 900, H = 620
     const buf = Buffer.alloc(W * H * 3)
     for (let i = 0; i < W * H; i++) { buf[i * 3] = 4; buf[i * 3 + 1] = 4; buf[i * 3 + 2] = 10 }
-    const zbuf = new Float32Array(W * H).fill(Infinity)
 
     // Caméra simple : perspective depuis +Z, recentrée sur l'étendue réelle.
     let cx = 0, cy = 0, cz = 0
@@ -127,10 +126,11 @@ describe('aperçu vasculaire', () => {
           const w1 = ((p2.sx - x) * (p0.sy - y) - (p0.sx - x) * (p2.sy - y)) / area
           const w2 = 1 - w0 - w1
           if (w0 < 0 || w1 < 0 || w2 < 0) continue
-          const depth = w0 * p0.depth + w1 * p1.depth + w2 * p2.depth
+          // AUCUN test de profondeur : le matériau réel est additif et
+          // n'écrit pas la profondeur (`depthWrite: false`). Trier les couches
+          // ferait gagner le halo externe, qui masquerait le cœur — l'aperçu
+          // montrait alors des traits fins et pointillés au lieu de volumes.
           const o = y * W + x
-          if (depth >= zbuf[o]) continue
-          zbuf[o] = depth
           // additif, comme le matériau réel
           buf[o * 3] = Math.min(255, buf[o * 3] + c0[0] * a0 * 255)
           buf[o * 3 + 1] = Math.min(255, buf[o * 3 + 1] + c0[1] * a0 * 255)
