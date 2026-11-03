@@ -29,13 +29,13 @@ export const COMMUNITY_ACTIVITY_DECAY_MS = 2500
 export const COMMUNITY_ACTIVITY_MAX = 1
 
 /** Rest opacity of a community hull's fill (also the build default). */
-export const COMMUNITY_FILL_OPACITY_REST = 0.06
+export const COMMUNITY_FILL_OPACITY_REST = 0.022
 
 /** Peak opacity of a community hull's fill at full intensity. */
 export const COMMUNITY_FILL_OPACITY_PEAK = 0.2
 
 /** Rest opacity of a community hull's wireframe (also the build default). */
-export const COMMUNITY_WIRE_OPACITY_REST = 0.03
+export const COMMUNITY_WIRE_OPACITY_REST = 0.012
 
 /** Peak opacity of a community hull's wireframe at full intensity. */
 export const COMMUNITY_WIRE_OPACITY_PEAK = 0.1

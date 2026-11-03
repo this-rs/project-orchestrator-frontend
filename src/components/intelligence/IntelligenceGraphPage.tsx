@@ -91,7 +91,13 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
     if (graphScale === 0) return 1
     const ids = new Set<number>()
     for (const n of allNodes) {
-      const c = (n.data as { communityId?: number } | undefined)?.communityId
+      // `community_id` is what the backend sends (snake_case, straight from
+      // its attributes); `communityId` is the camelCase the placement writes
+      // once it has resolved one. Reading only the camelCase made this line
+      // announce "1 groups" for a graph of six communities — measured on the
+      // browser bench, whose fixture sets the snake_case field.
+      const data = n.data as { community_id?: number; communityId?: number } | undefined
+      const c = data?.community_id ?? data?.communityId
       if (c != null) ids.add(c)
     }
     return Math.max(ids.size, 1)

@@ -41,13 +41,41 @@ function makeGraph(n) {
   const TYPES = [['file', 'code'], ['function', 'code'], ['struct', 'code'], ['note', 'knowledge'], ['decision', 'knowledge'], ['task', 'pm'], ['skill', 'skills']]
   const nodes = Array.from({ length: n }, (_, i) => {
     const [type, layer] = TYPES[Math.floor(r() * TYPES.length)]
-    return { id: `n${i}`, type, label: `${type} ${i}`, layer, attributes: { community: i % 6, pagerank: +(r() * 0.02).toFixed(5), risk_score: +r().toFixed(2), status: 'todo' } }
+    // `community_id` and `path` are the field names the client actually reads
+    // (snake_case, straight out of the backend's attributes). The fixture used
+    // to set `community`, a name nothing reads: every node landed in ONE group,
+    // so the whole multi-group placement — the thing this bench exists to look
+    // at — was never exercised, and the picture was a single green blob.
+    const community = i % 6
+    return {
+      id: `n${i}`,
+      type,
+      label: `${type} ${i}`,
+      layer,
+      attributes: {
+        community_id: community,
+        community_label: `module ${community}`,
+        path: `src/mod${community}/${type}${i}.${type === 'file' ? 'tsx' : 'ts'}`,
+        pagerank: +(r() * 0.02).toFixed(5),
+        risk_score: +r().toFixed(2),
+        churn_score: +r().toFixed(2),
+        status: 'todo',
+      },
+    }
   })
   const edges = []
+  const inCommunity = (i) => Math.floor(i) % 6
   for (let i = 0; i < n * 2; i++) {
-    const a = Math.floor(r() * n), b = Math.floor(r() * n)
-    if (a !== b) edges.push({ source: `n${a}`, target: `n${b}`, type: 'IMPORTS', layer: 'code', attributes: { weight: +r().toFixed(3) } })
+    const a = Math.floor(r() * n)
+    // Real graphs are not uniformly wired: most links stay inside a module.
+    // Without that ratio every group is equally affine to every other and the
+    // relational layout has nothing to separate.
+    const b = r() < 0.75
+      ? a - (a % 6) + Math.floor(r() * Math.min(6, n - (a - (a % 6)))) || Math.floor(r() * n)
+      : Math.floor(r() * n)
+    if (a !== b && b >= 0 && b < n) edges.push({ source: `n${a}`, target: `n${b}`, type: 'IMPORTS', layer: 'code', attributes: { weight: +r().toFixed(3) } })
   }
+  void inCommunity
   return {
     nodes, edges,
     communities: Array.from({ length: 6 }, (_, k) => ({ id: k, label: `c${k}`, file_count: Math.round(n / 6) })),
