@@ -81,6 +81,8 @@ describe('aperçu vasculaire', () => {
     const pos = g.attributes.position.array
     const col = g.attributes.aColor.array
     const alp = g.attributes.aAlpha.array
+    const nrm = g.attributes.aNormal.array
+    const emi = g.attributes.aEmit.array
     const idx = g.index.array
 
     const W = 900, H = 620
@@ -113,6 +115,15 @@ describe('aperçu vasculaire', () => {
       const p0 = project(pos[i0 * 3], pos[i0 * 3 + 1], pos[i0 * 3 + 2])
       const p1 = project(pos[i1 * 3], pos[i1 * 3 + 1], pos[i1 * 3 + 2])
       const p2 = project(pos[i2 * 3], pos[i2 * 3 + 1], pos[i2 * 3 + 2])
+      // Approximation FIDÈLE du fragment shader : diffusion + bord + émission
+      // bornée, puis composition alpha (le matériau n'est plus additif).
+      const nx = (nrm[i0 * 3] + nrm[i1 * 3] + nrm[i2 * 3]) / 3
+      const ny = (nrm[i0 * 3 + 1] + nrm[i1 * 3 + 1] + nrm[i2 * 3 + 1]) / 3
+      const nz = (nrm[i0 * 3 + 2] + nrm[i1 * 3 + 2] + nrm[i2 * 3 + 2]) / 3
+      const nlen = Math.hypot(nx, ny, nz) || 1
+      const L = [0.45, 0.8, 0.6]
+      const diff = Math.max(0, (nx * L[0] + ny * L[1] + nz * L[2]) / nlen)
+      const em = (emi[i0] + emi[i1] + emi[i2]) / 3
       const minX = Math.max(0, Math.floor(Math.min(p0.sx, p1.sx, p2.sx)))
       const maxX = Math.min(W - 1, Math.ceil(Math.max(p0.sx, p1.sx, p2.sx)))
       const minY = Math.max(0, Math.floor(Math.min(p0.sy, p1.sy, p2.sy)))
@@ -126,15 +137,17 @@ describe('aperçu vasculaire', () => {
           const w1 = ((p2.sx - x) * (p0.sy - y) - (p0.sx - x) * (p2.sy - y)) / area
           const w2 = 1 - w0 - w1
           if (w0 < 0 || w1 < 0 || w2 < 0) continue
-          // AUCUN test de profondeur : le matériau réel est additif et
-          // n'écrit pas la profondeur (`depthWrite: false`). Trier les couches
-          // ferait gagner le halo externe, qui masquerait le cœur — l'aperçu
-          // montrait alors des traits fins et pointillés au lieu de volumes.
+          // Composition ALPHA (le matériau n'est plus additif) + éclairage.
           const o = y * W + x
-          // additif, comme le matériau réel
-          buf[o * 3] = Math.min(255, buf[o * 3] + c0[0] * a0 * 255)
-          buf[o * 3 + 1] = Math.min(255, buf[o * 3 + 1] + c0[1] * a0 * 255)
-          buf[o * 3 + 2] = Math.min(255, buf[o * 3 + 2] + c0[2] * a0 * 255)
+          const surf = 0.22 + 0.78 * diff
+          const e = 1 - Math.exp(-2.0 * em * a0)
+          const cr = c0[0] * (surf * (1 - em) + e)
+          const cg = c0[1] * (surf * (1 - em) + e)
+          const cb = c0[2] * (surf * (1 - em) + e)
+          const a = Math.min(1, a0 * (1 - em) * 0.85 + e)
+          buf[o * 3] = Math.min(255, buf[o * 3] * (1 - a) + cr * a * 255)
+          buf[o * 3 + 1] = Math.min(255, buf[o * 3 + 1] * (1 - a) + cg * a * 255)
+          buf[o * 3 + 2] = Math.min(255, buf[o * 3 + 2] * (1 - a) + cb * a * 255)
         }
       }
     }

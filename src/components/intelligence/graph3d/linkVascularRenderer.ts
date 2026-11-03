@@ -115,25 +115,52 @@ const SHEATH_ALPHA = 1.0
  * proportionnellement entre ses couches : plus il a de strates, plus chacune est
  * discrète, et l'ensemble reste dans la plage lisible.
  */
-const CONDUIT_LIGHT_BUDGET = 0.8
+const CONDUIT_LIGHT_BUDGET = 1.9
 
 const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aColor;
   attribute float aAlpha;
+  attribute vec3 aNormal;
+  attribute float aEmit;
   varying vec3 vColor;
   varying float vAlpha;
+  varying vec3 vNormal;
+  varying float vEmit;
+  varying vec3 vView;
   void main() {
+    vec4 wp = modelMatrix * vec4(position, 1.0);
+    // Normale de SURFACE : sans elle, un tube n'est qu'une tache de couleur et
+    // seul l'additif peut le faire exister — d'ou l'eblouissement.
+    vNormal = normalize(mat3(modelMatrix) * aNormal);
+    vView = normalize(cameraPosition - wp.xyz);
     vColor = aColor;
     vAlpha = aAlpha;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vEmit = aEmit;
+    gl_Position = projectionMatrix * viewMatrix * wp;
   }
 `
 
 const FRAGMENT_SHADER = /* glsl */ `
+  uniform vec3 uLightDir;
   varying vec3 vColor;
   varying float vAlpha;
+  varying vec3 vNormal;
+  varying float vEmit;
+  varying vec3 vView;
   void main() {
-    gl_FragColor = vec4(vColor * vAlpha, 1.0);
+    vec3 N = normalize(vNormal);
+    if (!gl_FrontFacing) N = -N;
+    float diff = max(dot(N, normalize(uLightDir)), 0.0);
+    float rim = pow(1.0 - max(dot(N, normalize(vView)), 0.0), 2.0);
+    // La surface existe PAR ELLE-MEME : diffusion + bord. Elle reste lisible
+    // meme emission coupee (critere de la phase 4).
+    vec3 surface = vColor * (0.32 + 0.68 * diff) + vColor * rim * 0.55;
+    // L'emission est un SUPPLEMENT, borne par une courbe compressive : deux
+    // dizaines de couches ne peuvent plus saturer le meme pixel.
+    float e = 1.0 - exp(-2.0 * vEmit * vAlpha);
+    vec3 col = surface * (1.0 - vEmit) + vColor * e;
+    float a = clamp(vAlpha * (1.0 - vEmit) * 1.0 + e, 0.0, 1.0);
+    gl_FragColor = vec4(col, a);
   }
 `
 
@@ -439,6 +466,8 @@ export function createVascularLinks(
     const position: number[] = []
     const color: number[] = []
     const alpha: number[] = []
+    const normal: number[] = []
+    const emit: number[] = []
     const index: number[] = []
     const trianglesPerBundle: number[] = []
 
@@ -508,6 +537,8 @@ export function createVascularLinks(
           position.push(0, 0, 0)
           color.push(0.4, 0.8, 0.7)
           alpha.push(0)
+          normal.push(0, 1, 0)
+          emit.push(0)
         }
         const base = position.length / 3 - count
         for (let layer = 0; layer < layers; layer++) {
@@ -593,12 +624,18 @@ export function createVascularLinks(
     const positionAttr = new THREE.BufferAttribute(new Float32Array(position), 3)
     const colorAttr = new THREE.BufferAttribute(new Float32Array(color), 3)
     const alphaAttr = new THREE.BufferAttribute(new Float32Array(alpha), 1)
+    const normalAttr = new THREE.BufferAttribute(new Float32Array(normal), 3)
+    const emitAttr = new THREE.BufferAttribute(new Float32Array(emit), 1)
     positionAttr.setUsage(THREE.DynamicDrawUsage)
     colorAttr.setUsage(THREE.DynamicDrawUsage)
     alphaAttr.setUsage(THREE.DynamicDrawUsage)
+    normalAttr.setUsage(THREE.DynamicDrawUsage)
+    emitAttr.setUsage(THREE.DynamicDrawUsage)
     geometry.setAttribute('position', positionAttr)
     geometry.setAttribute('aColor', colorAttr)
     geometry.setAttribute('aAlpha', alphaAttr)
+    geometry.setAttribute('aNormal', normalAttr)
+    geometry.setAttribute('aEmit', emitAttr)
     geometry.setIndex(index)
 
     const material = new THREE.ShaderMaterial({
@@ -606,7 +643,11 @@ export function createVascularLinks(
       fragmentShader: FRAGMENT_SHADER,
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending,
+      // PLUS D'ADDITIF : c'est lui qui saturait le centre. La composition
+      // alpha normale empêche l'empilement de gaines de virer au blanc, et
+      // l'émission est bornée dans le fragment.
+      blending: THREE.NormalBlending,
+      uniforms: { uLightDir: { value: new THREE.Vector3(0.45, 0.8, 0.6).normalize() } },
     })
 
     const mesh = new THREE.Mesh(geometry, material)
@@ -641,6 +682,8 @@ export function createVascularLinks(
       const pos = positionAttr.array as Float32Array
       const col = colorAttr.array as Float32Array
       const alp = alphaAttr.array as Float32Array
+      const nrm = normalAttr.array as Float32Array
+      const emi = emitAttr.array as Float32Array
       // Couleur de la voie : celle de SA famille quand elle en porte une, pour
       // que deux familles du même corridor restent distinguables à l'œil.
       const fam = conduit.family ? familyRgb(conduit.family) : null
@@ -690,7 +733,7 @@ export function createVascularLinks(
         const share = isHalo ? 0.05 : isFiber ? 0.5 : stratum.alpha
         const layerAlpha = Math.min(
           1,
-          (CONDUIT_LIGHT_BUDGET * (share / shareTotal) * conduit.alpha * Math.max(0.55, baseAlpha)) / Math.sqrt(Math.max(1, conduit.load)),
+          (CONDUIT_LIGHT_BUDGET * (share / shareTotal) * conduit.alpha * Math.max(0.55, baseAlpha)),
         )
         for (let i = 0; i < conduit.samples; i++) {
           const f = frames[Math.min(i, frames.length - 1)]
@@ -726,7 +769,15 @@ export function createVascularLinks(
             col[vi] = (cr + (cr2 - cr) * u) * g
             col[vi + 1] = (cg + (cg2 - cg) * u) * g
             col[vi + 2] = (cb + (cb2 - cb) * u) * g
-            alp[layerBase + i * TUBE_SEGMENTS + k] = Math.min(1, layerAlpha * g)
+            // Normale de surface : la direction radiale du repère de transport.
+            // C'est elle qui donne du volume à la rotation, émission coupée.
+            nrm[vi] = f.normal[0] * nx + f.binormal[0] * ny
+            nrm[vi + 1] = f.normal[1] * nx + f.binormal[1] * ny
+            nrm[vi + 2] = f.normal[2] * nx + f.binormal[2] * ny
+            const vi1 = layerBase + i * TUBE_SEGMENTS + k
+            alp[vi1] = Math.min(1, layerAlpha * g)
+            // Seule la couche qui porte le flux émet ; tout le reste est surface.
+            emi[vi1] = !isHalo && stratum.carriesFlow ? 1 : 0
           }
         }
       }
@@ -739,6 +790,8 @@ export function createVascularLinks(
       positionAttr.needsUpdate = true
       colorAttr.needsUpdate = true
       alphaAttr.needsUpdate = true
+      normalAttr.needsUpdate = true
+      emitAttr.needsUpdate = true
       geometry.computeBoundingSphere()
     }
 
