@@ -256,6 +256,45 @@ describe('hub-and-corona placement', () => {
     }
   })
 
+  it('gathers each entity type into its own lobe inside the group', () => {
+    // Without the organelle anchoring, a group mixes its types uniformly: the
+    // mean angular closeness of two nodes of the SAME type equals that of two
+    // nodes of DIFFERENT types. With it, the same-type pairs are markedly closer
+    // on the unit sphere around the group's centre.
+    const types = ['file', 'note', 'task']
+    const nodes = types.flatMap((type, t) =>
+      Array.from({ length: 40 }, (_, i) => ({
+        id: `${type}${i}`,
+        label: `${type}${i}`,
+        entityType: type,
+        layer: 'code',
+        x: 0, y: 0, z: 0,
+        groupKey: 'G',
+        data: { created_at: new Date(1600000000000 + (t * 40 + i) * 1000).toISOString() },
+      })),
+    ) as never[]
+    const placed = deterministicPlacement(nodes, [])
+
+    // Centre of the group, then each node's unit direction around it.
+    const dirs = nodes.map((n) => {
+      const p = placed.get((n as { id: string }).id)!
+      const len = Math.hypot(p.x, p.y, p.z) || 1
+      return { type: (n as { entityType: string }).entityType, u: [p.x / len, p.y / len, p.z / len] }
+    })
+    const dot = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+    let sameSum = 0, sameN = 0, diffSum = 0, diffN = 0
+    for (let i = 0; i < dirs.length; i++) {
+      for (let j = i + 1; j < dirs.length; j++) {
+        const d = dot(dirs[i].u, dirs[j].u)
+        if (dirs[i].type === dirs[j].type) { sameSum += d; sameN++ } else { diffSum += d; diffN++ }
+      }
+    }
+    const same = sameSum / sameN
+    const diff = diffSum / diffN
+    // Same-type pairs point the same way; different-type pairs do not.
+    expect(same).toBeGreaterThan(diff + 0.15)
+  })
+
   it('is strictly deterministic', () => {
     const { nodes, edges } = mkGroup(150, 20)
     const a = deterministicPlacement(nodes, edges)

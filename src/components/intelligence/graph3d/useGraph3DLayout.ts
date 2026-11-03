@@ -455,11 +455,49 @@ export function deterministicPlacement(
     // reads as a hollow shell around a bright hub, not a filled ball.
     const hubs = Math.max(1, Math.ceil(n * HUB_SHARE))
     const sats = n - hubs
-    const place = (id: string, radius: number, th: number, el: number) => {
+    // ── Organelles: one lobe per entity type inside the group ──────────────
+    // The REAL partition (a node has exactly one entity type), ordered by mass
+    // so the biggest organelle takes the first direction. Nothing invented: a
+    // type that is not in the group simply has no lobe.
+    const byType = new Map<string, number>()
+    for (const n of ids) {
+      const t = n.entityType || 'unknown'
+      byType.set(t, (byType.get(t) ?? 0) + 1)
+    }
+    const organelleTypes = [...byType.entries()]
+      .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+      .map(([type]) => type)
+    const organelleDir = new Map<string, [number, number, number]>()
+    if (organelleTypes.length > 1) {
+      organelleTypes.forEach((type, i) => {
+        const up = 1 - (2 * (i + 0.5)) / organelleTypes.length
+        const around = Math.sqrt(Math.max(0, 1 - up * up))
+        const angle = GOLDEN_ANGLE * i
+        organelleDir.set(type, [Math.cos(angle) * around, up, Math.sin(angle) * around])
+      })
+    }
+
+    const place = (id: string, radius: number, th: number, el: number, type?: string) => {
       const ce = Math.cos(el)
-      const x0 = radius * ce * Math.cos(th)
-      const y0 = radius * Math.sin(el)
-      const z0 = radius * ce * Math.sin(th)
+      let x0 = radius * ce * Math.cos(th)
+      let y0 = radius * Math.sin(el)
+      let z0 = radius * ce * Math.sin(th)
+      // Pull the direction toward the node's organelle, then put it back on the
+      // sphere of the same radius: the lobe moves, the nebula's profile does not.
+      const lobe = type ? organelleDir.get(type) : undefined
+      if (lobe && radius > 1e-6) {
+        const inv = 1 / radius
+        let ux = x0 * inv
+        let uy = y0 * inv
+        let uz = z0 * inv
+        ux = ux * (1 - ORGANELLE_BLEND) + lobe[0] * ORGANELLE_BLEND
+        uy = uy * (1 - ORGANELLE_BLEND) + lobe[1] * ORGANELLE_BLEND
+        uz = uz * (1 - ORGANELLE_BLEND) + lobe[2] * ORGANELLE_BLEND
+        const len = Math.hypot(ux, uy, uz) || 1
+        x0 = (ux / len) * radius
+        y0 = (uy / len) * radius
+        z0 = (uz / len) * radius
+      }
       // Rotate around X (tilt), then around Y (yaw) — a different plane per group.
       const yt = y0 * cosT - z0 * sinT
       const zt = y0 * sinT + z0 * cosT
@@ -472,7 +510,7 @@ export function deterministicPlacement(
     for (let k = 0; k < hubs; k++) {
       // A lone node is exactly at the centre; several hubs spiral inside it.
       const radius = hubs === 1 ? 0 : r * HUB_CORE * Math.sqrt((k + 0.5) / hubs)
-      place(ids[k].id, radius, k * GOLDEN_ANGLE + phase, Math.asin(1 - (2 * (k + 0.5)) / hubs))
+      place(ids[k].id, radius, k * GOLDEN_ANGLE + phase, Math.asin(1 - (2 * (k + 0.5)) / hubs), ids[k].entityType)
     }
     // Satellites: INNER turns are the OLDEST nodes, OUTER turns the NEWEST. The
     // order is by creation date (oldest first, ties broken by id for strict
@@ -502,7 +540,7 @@ export function deterministicPlacement(
       // satellites of a group sit inside 0.32·r, the rest form the halo.
       const radius = r * CORONA_OUTER * Math.pow(t, RADIAL_EXPONENT)
       const w = (j * 0.7548776662 + 0.5) % 1
-      place(satellites[j].id, radius, j * GOLDEN_ANGLE + phase, (w - 0.5) * CORONA_ELEVATION)
+      place(satellites[j].id, radius, j * GOLDEN_ANGLE + phase, (w - 0.5) * CORONA_ELEVATION, satellites[j].entityType)
     }
   })
   return out
@@ -555,6 +593,21 @@ const CORONA_OUTER = 0.98
 const RADIAL_EXPONENT = 1.7
 /** Fibonacci-sphere stride: the group centres spread over a volume, not a circle. */
 const GOLDEN_SPHERE = Math.PI * (3 - Math.sqrt(5))
+/**
+ * How strongly a node is pulled toward its own organelle (its entity type)
+ * inside its group, 0 = none, 1 = fully.
+ *
+ * Without it, a group mixes files, notes, tasks and skills in one powder: the
+ * eye sees a cloud, not a body. Blending the DIRECTION while keeping the RADIUS
+ * clusters same-type nodes into lobes without touching the radial profile the
+ * nebula is built on (core dense, halo sparse) — so the group reads as an
+ * organelle-bearing organism instead of a bag of points.
+ *
+ * A group that holds a single entity type is NOT blended: a single organelle
+ * direction would collapse the whole group onto one axis.
+ */
+const ORGANELLE_BLEND = 0.55
+
 /** How far a core may drift along its radius, as a fraction of the ring. */
 const RADIAL_JITTER = 0.1
 /** How far a core may drift in angle, as a fraction of the angular step. */
