@@ -147,3 +147,37 @@ describe('compileIsoScene — refusals: a list of corrections, never a throw', (
     expect(ISO_VOCABULARY.layouts).toContain('solo')
   })
 })
+
+describe('frames — les versions successives d’un même travail', () => {
+  const robot = { kind: 'sphere', r: 0.5, at: [0, 0, 0.5] }
+
+  it('compile chaque version et garde l’ordre', () => {
+    const r = compileIsoScene({
+      title: 'Pièce',
+      frameMs: 3000,
+      frames: [
+        { ast: robot },
+        { ast: { kind: 'group', children: [robot, { kind: 'slab', size: [1, 0.4, 0.4], at: [0, 0, 0.2] }] } },
+      ],
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.frames?.length).toBe(2)
+      expect(r.frameMs).toBe(3000)
+      expect(r.title).toBe('Pièce')
+    }
+  })
+
+  it('refuse en nommant la version fautive', () => {
+    const r = compileIsoScene({ frames: [{ ast: robot }, { ast: { kind: 'bogus' } }] })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.problems[0]).toContain('version 2')
+  })
+
+  it('borne la durée d’une version et refuse une liste vide', () => {
+    const a = compileIsoScene({ frames: [{ ast: robot }], frameMs: 999_999 })
+    expect(a.ok && a.frameMs).toBe(120_000)
+    const b = compileIsoScene({ frames: [] })
+    expect(b.ok).toBe(false)
+  })
+})

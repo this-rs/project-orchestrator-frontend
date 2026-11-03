@@ -44,7 +44,16 @@ export interface LegendEntry {
 }
 
 export type IsoCompile =
-  | { ok: true; machine: MachineDef; title?: string; legend: LegendEntry[] }
+  | {
+      ok: true
+      machine: MachineDef
+      title?: string
+      legend: LegendEntry[]
+      /** Versions successives d'un même travail : le bloc les rejoue, chaque version RECONSTRUITE par les ouvriers. */
+      frames?: MachineDef[]
+      /** Durée d'affichage d'une version avant la suivante. */
+      frameMs?: number
+    }
   | { ok: false; problems: string[] }
 
 /** Above this many characters of JSON the data is refused before the engine sees it. */
@@ -169,6 +178,22 @@ function compileSdfScene(data: Record<string, unknown>): IsoCompile {
 
 /** Check and build an `iso_scene`. Never throws: a refusal carries the list of corrections. */
 export function compileIsoScene(data: unknown): IsoCompile {
+  // FRAMES : un bloc peut porter les versions successives du même objet — c'est ainsi qu'un travail de 45 minutes se
+  // regarde en 45 minutes : chaque version est reconstruite par les ouvriers avant la suivante.
+  if (isObj(data) && Array.isArray(data.frames)) {
+    const list = data.frames
+    if (!list.length || list.length > 24) return { ok: false, problems: ['frames doit contenir 1 à 24 versions'] }
+    const machines: MachineDef[] = []
+    for (let i = 0; i < list.length; i++) {
+      const one = compileIsoScene(list[i])
+      if (!one.ok) return { ok: false, problems: one.problems.map((p) => `version ${i + 1} : ${p}`) }
+      machines.push(one.machine)
+    }
+    const raw = Number(data.frameMs ?? 6000)
+    const frameMs = Math.min(120_000, Math.max(800, Number.isFinite(raw) ? raw : 6000))
+    const title = typeof data.title === 'string' ? data.title : undefined
+    return { ok: true, machine: machines[0]!, frames: machines, frameMs, ...(title ? { title } : {}), legend: [] }
+  }
   if (isObj(data) && data.sdf !== undefined) {
     try {
       return compileSdfScene(data)
