@@ -96,8 +96,8 @@ function exactShare(numerator: bigint, denominator: bigint): number {
  */
 function linkSortKey(link: Graph3DLink): string {
   return [
-    link.source,
-    link.target,
+    endpointId(link.source),
+    endpointId(link.target),
     link.relationType || UNKNOWN_RELATION,
     link.layer,
     communityToken(link.sourceCommunityId),
@@ -149,6 +149,22 @@ function sortLinks(links: readonly Graph3DLink[]): Graph3DLink[] {
  * jeton porte l'identité du NŒUD : deux nœuds non groupés ne se rejoignent
  * jamais par accident.
  */
+/**
+ * Identifiant d'une extrémité de lien.
+ *
+ * d3-force REMPLACE `source`/`target` par les objets nœuds une fois la
+ * simulation lancée. `String(objet)` donnait « [object Object] » : tous les
+ * liens sans communauté tombaient dans le MÊME jeton `none:[object Object]` et
+ * le routage inventait des corridors entre des nœuds sans relation. Même
+ * résolution que le renderer, partagée.
+ */
+export function endpointId(end: unknown): string {
+  if (typeof end === 'string') return end
+  if (typeof end === 'number') return String(end)
+  if (end && typeof end === 'object' && 'id' in end) return String((end as { id: unknown }).id)
+  return ''
+}
+
 export function endpointToken(communityId: number | undefined, nodeId: string): string {
   return communityId === undefined ? `none:${nodeId}` : communityToken(communityId)
 }
@@ -172,8 +188,8 @@ export function buildCorridors(links: readonly Graph3DLink[]): Corridor[] {
   // 1. Regrouper par paire de communautés (ordre-indépendant).
   const groups = new Map<string, Graph3DLink[]>()
   for (const link of links) {
-    const xs = endpointToken(link.sourceCommunityId, String(link.source))
-    const ys = endpointToken(link.targetCommunityId, String(link.target))
+    const xs = endpointToken(link.sourceCommunityId, endpointId(link.source))
+    const ys = endpointToken(link.targetCommunityId, endpointId(link.target))
     const key = xs <= ys ? `${xs}\u0000${ys}` : `${ys}\u0000${xs}`
     let group = groups.get(key)
     if (!group) {
@@ -188,8 +204,8 @@ export function buildCorridors(links: readonly Graph3DLink[]): Corridor[] {
   for (const [key, groupLinks] of groups) {
     // Extrémités : jetons de communauté triés, indépendants du sens du lien.
     const first = groupLinks[0]
-    const a = endpointToken(first.sourceCommunityId, String(first.source))
-    const b = endpointToken(first.targetCommunityId, String(first.target))
+    const a = endpointToken(first.sourceCommunityId, endpointId(first.source))
+    const b = endpointToken(first.targetCommunityId, endpointId(first.target))
     const from = a <= b ? a : b
     const to = a <= b ? b : a
 

@@ -196,3 +196,22 @@ describe('buildCorridors — mutualisation organique sans invention', () => {
     expect(corridor.families[0].share + corridor.families[1].share).toBeCloseTo(1, 12)
   })
 })
+
+describe('extrémités résolues par d3-force (objets nœuds)', () => {
+  it('un lien dont source/target sont des OBJETS donne les mêmes corridors qu’avec des identifiants', () => {
+    // Sans communauté : le jeton porte l'identité du nœud. Avec String(objet),
+    // tous ces liens tombaient sous « none:[object Object] » — un seul corridor
+    // inventé, qui reliait des nœuds sans relation.
+    const ids = [link('a', 'b'), link('c', 'd'), link('e', 'f', 'CALLS')]
+    const objs = ids.map((l) => ({
+      ...l,
+      source: { id: l.source as string } as unknown as Graph3DLink['source'],
+      target: { id: l.target as string } as unknown as Graph3DLink['target'],
+    }))
+    const byId = buildCorridors(ids)
+    const byObj = buildCorridors(objs)
+    expect(byObj.length).toBe(3)
+    expect(byObj.map((c) => [c.key, c.from, c.to])).toEqual(byId.map((c) => [c.key, c.from, c.to]))
+    for (const c of byObj) expect(c.key).not.toContain('[object Object]')
+  })
+})

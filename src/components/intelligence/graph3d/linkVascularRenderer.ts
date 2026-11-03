@@ -32,7 +32,7 @@ import * as THREE from 'three'
 import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
 import type { LinkRenderer } from './linkRibbons'
 import type { LinkStyle, LinkStyleFn } from './linkRibbon'
-import { buildCorridors, endpointToken, type Corridor } from './linkRouting'
+import { buildCorridors, endpointId, endpointToken, type Corridor } from './linkRouting'
 import { buildLinkSystem, fromCorridors, type DrawableBundle, type SystemBudget } from './linkSystem'
 import { braidedOffsets, parallelTransportFrames, type Vec3 } from './linkVascular'
 import { strataFor, type Stratum } from './linkStrata'
@@ -279,8 +279,6 @@ const FRAGMENT_SHADER = /* glsl */ `
     gl_FragColor = vec4(col, a);
   }
 `
-
-const endpointId = (e: string | { id: string }): string => (typeof e === 'string' ? e : e.id)
 
 /**
  * Avancement du flux, en tours de motif.
