@@ -247,3 +247,21 @@ describe('useGraph3DLayout — placement across updates', () => {
     for (const gb of b) for (const ga of a) expect(gap(ga.c, gb.c)).toBeGreaterThan(ga.r + gb.r)
   })
 })
+
+describe('useGraph3DLayout — layout revision', () => {
+  it('changes when nodes are (re)placed, and only then', () => {
+    // The camera frames once per node SET; when the detected communities
+    // re-place the same nodes, the set is unchanged and the scene shrinks out
+    // of frame. The revision is what a framing effect can key on.
+    const nodes = Array.from({ length: 40 }, (_, i) => file(`src/d${i % 4}/f${i}.ts`))
+    const edges = nodes.slice(1).map((n, i) => link(nodes[i].id, n.id))
+    const { result } = renderHook(() => useGraph3DLayout(nodes, edges))
+    const r1 = result.current.transformToGraph3D(nodes, edges).layoutRevision
+    const r2 = result.current.transformToGraph3D(nodes, edges).layoutRevision
+    expect(r2).toBe(r1)
+    const partition = detectCommunities(FifoWorker.last!.queue[0].nodes, edges.map((e) => ({ source: e.source, target: e.target })))
+    act(() => FifoWorker.last!.answerNext((id) => partition.get(id)))
+    const r3 = result.current.transformToGraph3D(nodes, edges).layoutRevision
+    expect(r3).not.toBe(r2)
+  })
+})

@@ -739,6 +739,8 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
   // its centre and new groups are placed around it.
   const placedGroupOf = useRef<Map<string, string>>(new Map())
   const groupCentres = useRef<Map<string, { x: number; y: number; z: number }>>(new Map())
+  // Bumped every time a placement writes positions (see `layoutRevision`).
+  const layoutRevision = useRef(0)
 
   // Client-side Louvain communities (computed in a worker). `null` until the
   // first result: nodes keep the directory/(layer, type) fallback meanwhile.
@@ -829,7 +831,7 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
   const transformToGraph3D = useCallback((
     nodes: IntelligenceNode[],
     edges: IntelligenceEdge[],
-  ): { data: Graph3DData; needsRelayout: boolean } => {
+  ): { data: Graph3DData; needsRelayout: boolean; layoutRevision: number } => {
     const currentIds = new Set(nodes.map((n) => n.id))
     const prevIds = previousNodeIds.current
 
@@ -899,6 +901,7 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
         placedGroupOf.current.set(n.id, keyOf.get(n.id)!)
       }
       groupCentres.current = centres
+      layoutRevision.current++
     }
 
     // Build community lookup for inter-community edge detection
@@ -941,6 +944,11 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     return {
       data: { nodes: graph3dNodes, links: graph3dLinks },
       needsRelayout,
+      // Changes whenever positions were (re)computed — including when the
+      // detected communities re-place the SAME node set, which neither
+      // `needsRelayout` nor a node-set signature sees. A framing effect keyed
+      // on it re-frames the scene after such a re-placement.
+      layoutRevision: layoutRevision.current,
     }
   }, [detectedCommunities])
 
