@@ -206,6 +206,28 @@ describe('layoutGroups', () => {
     expect(passes).toBeLessThan(40)
   })
 
+  it('reads only the affinities that exist: no all-pairs sweep', () => {
+    // The pre-pass used to ask `affinities[g][h]` for every one of the G²/2
+    // pairs: 801 directory groups cost 320 000 lookups before the descent even
+    // started. A relation that does not exist must cost nothing.
+    const groups: RelationalGroup[] = Array.from({ length: 1500 }, (_, i) => ({
+      id: `g${String(i).padStart(4, '0')}`,
+      radius: 60,
+    }))
+    let reads = 0
+    const counted = new Proxy<AffinityMatrix>(
+      { g0000: { g0001: 1 }, g0002: { g0003: 2 } },
+      {
+        get(target, key, receiver) {
+          reads++
+          return Reflect.get(target, key, receiver)
+        },
+      },
+    )
+    layoutGroups(groups, counted, { maxIterations: 1 })
+    expect(reads).toBeLessThan(10 * groups.length)
+  })
+
   it('pulls the result toward supplied previous positions (stability)', () => {
     const groups: RelationalGroup[] = [
       { id: 'a', radius: 60 },

@@ -215,13 +215,6 @@ function mulberry32(seed: number): () => number {
 
 const GOLDEN_ANGLE = 2.39996
 
-/** Deterministic affinity lookup, symmetric: the larger of the two directions
- *  when both are populated, 0 when the pair has no edge at all. */
-function affinityOf(affinities: AffinityMatrix, g: string, h: string): number {
-  const ab = affinities[g]?.[h] ?? 0
-  const ba = affinities[h]?.[g] ?? 0
-  return Math.max(ab, ba)
-}
 
 function vecLen(x: number, y: number, z: number): number {
   return Math.sqrt(x * x + y * y + z * z)
@@ -244,64 +237,162 @@ function affinityTarget(rg: number, rh: number, a: number): number {
   return Math.max(hardDistance(rg, rh, a), envelope * (1 - shared))
 }
 
-// ── Uniform grid over the centres ───────────────────────────────────────────
-// Every pairwise interaction here is exactly zero beyond
-// `2·maxRadius + OVERLAP_MARGIN`: an affinity spring does not exist between
-// unconnected groups, and a repulsion does not exist between envelopes that do
-// not touch. Bucketing the centres with that cell size therefore makes each
-// query examine only the 27 neighbouring cells, turning the O(n²) per-iteration
-// sweep into O(n·k). Measured on the previous all-pairs loop: 2 827 ms for 500
-// groups, which is the "layout step" that blocked the page.
+// ── Prepared problem: dense indices, typed arrays, sparse affinities ────────
+// Everything below works on indices into the SORTED id list and on typed
+// arrays. The previous version kept `Map<string, {x,y,z}>` and allocated a new
+// object per move — 2 000 groups × 400 passes of allocation was most of the
+// 16 s the reviewer measured.
+
+interface Prepared {
+  ids: string[]
+  n: number
+  radius: Float64Array
+  /** Affine pairs, canonical (i < j, sorted by i then j). */
+  pairI: Int32Array
+  pairJ: Int32Array
+  pairA: Float64Array
+  /** CSR adjacency of the affine pairs: neighbours of i are adj[adjStart[i]..adjStart[i+1]). */
+  adjStart: Int32Array
+  adj: Int32Array
+  adjA: Float64Array
+  /** i·n + j (i < j) → affinity, for the contact pairs the grid finds. */
+  affinityByPair: Map<number, number>
+  maxRadius: number
+}
+
 /**
- * Numeric cell key. A template string was measurably too slow here: the grid is
- * rebuilt once per descent iteration plus once per separation pass, and each
- * rebuild asks for 27 keys per group — 2.7 million string allocations at 500
- * groups. Three odd multipliers XORed give a well-spread integer that a Map
- * takes directly.
+ * Index the problem. The affinity matrix is read SPARSELY: only the rows and
+ * cells that exist are visited, never the G² pairs. Iteration order of the
+ * caller's object is irrelevant — pairs are sorted by their canonical key.
  */
-function cellKey(cx: number, cy: number, cz: number): number {
-  return (Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663) ^ Math.imul(cz, 83492791)) | 0
-}
-
-function buildGrid(
-  ids: string[],
-  pos: Map<string, { x: number; y: number; z: number }>,
-  cell: number,
-): Map<number, string[]> {
-  const buckets = new Map<number, string[]>()
-  for (const id of ids) {
-    const p = pos.get(id)!
-    const k = cellKey(
-      Math.floor(p.x / cell),
-      Math.floor(p.y / cell),
-      Math.floor(p.z / cell),
-    )
-    const bucket = buckets.get(k)
-    if (bucket) bucket.push(id)
-    else buckets.set(k, [id])
+function prepare(
+  radiusOf: Map<string, number>,
+  affinities: AffinityMatrix,
+): Prepared {
+  const ids = [...radiusOf.keys()].sort()
+  const n = ids.length
+  const index = new Map<string, number>()
+  ids.forEach((id, i) => index.set(id, i))
+  const radius = new Float64Array(n)
+  let maxRadius = 0
+  for (let i = 0; i < n; i++) {
+    radius[i] = radiusOf.get(ids[i])!
+    if (radius[i] > maxRadius) maxRadius = radius[i]
   }
-  return buckets
+
+  const affinityByPair = new Map<number, number>()
+  for (const g of Object.keys(affinities)) {
+    const i = index.get(g)
+    if (i === undefined) continue
+    const row = affinities[g]
+    if (!row) continue
+    for (const h of Object.keys(row)) {
+      const j = index.get(h)
+      if (j === undefined || j === i) continue
+      const a = row[h]
+      if (!(a > 0) || !Number.isFinite(a)) continue
+      // Symmetric: the larger of the two directions when both are given.
+      const key = i < j ? i * n + j : j * n + i
+      const prev = affinityByPair.get(key)
+      if (prev === undefined || a > prev) affinityByPair.set(key, a)
+    }
+  }
+  const keys = [...affinityByPair.keys()].sort((a, b) => a - b)
+  const m = keys.length
+  const pairI = new Int32Array(m)
+  const pairJ = new Int32Array(m)
+  const pairA = new Float64Array(m)
+  const degree = new Int32Array(n + 1)
+  for (let k = 0; k < m; k++) {
+    const key = keys[k]
+    const i = Math.floor(key / n)
+    const j = key - i * n
+    pairI[k] = i
+    pairJ[k] = j
+    pairA[k] = affinityByPair.get(key)!
+    degree[i]++
+    degree[j]++
+  }
+  const adjStart = new Int32Array(n + 1)
+  for (let i = 0; i < n; i++) adjStart[i + 1] = adjStart[i] + degree[i]
+  const fill = adjStart.slice(0, n)
+  const adj = new Int32Array(2 * m)
+  const adjA = new Float64Array(2 * m)
+  for (let k = 0; k < m; k++) {
+    const i = pairI[k]
+    const j = pairJ[k]
+    adj[fill[i]] = j
+    adjA[fill[i]++] = pairA[k]
+    adj[fill[j]] = i
+    adjA[fill[j]++] = pairA[k]
+  }
+  return { ids, n, radius, pairI, pairJ, pairA, adjStart, adj, adjA, affinityByPair, maxRadius }
 }
 
-/** The buckets a point can interact with: its own cell and the 26 around it. */
-function neighboursOf(
-  buckets: Map<number, string[]>,
-  p: { x: number; y: number; z: number },
-  cell: number,
-): string[][] {
-  const cx = Math.floor(p.x / cell)
-  const cy = Math.floor(p.y / cell)
-  const cz = Math.floor(p.z / cell)
-  const out: string[][] = []
+function pairAffinity(p: Prepared, i: number, j: number): number {
+  return p.affinityByPair.get(i < j ? i * p.n + j : j * p.n + i) ?? 0
+}
+
+// ── Hashed uniform grid over the centres ────────────────────────────────────
+// Every interaction the grid serves is exactly zero beyond
+// `2·maxRadius + OVERLAP_MARGIN` (a contact does not exist between envelopes
+// that do not touch), so with that cell size a query only examines the 27
+// neighbouring cells. The cells are hashed into a power-of-two table of
+// linked lists held in two Int32Arrays: no Map, no string, no allocation per
+// rebuild. Two cells that share a slot only cost extra distance checks — the
+// distance test is exact either way.
+
+interface Grid {
+  cell: number
+  mask: number
+  head: Int32Array
+  next: Int32Array
+  slots: Int32Array
+}
+
+function makeGrid(n: number, cell: number): Grid {
+  let size = 16
+  while (size < 2 * n) size <<= 1
+  return { cell, mask: size - 1, head: new Int32Array(size), next: new Int32Array(n), slots: new Int32Array(27) }
+}
+
+function slotOf(g: Grid, cx: number, cy: number, cz: number): number {
+  return (Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663) ^ Math.imul(cz, 83492791)) & g.mask
+}
+
+function fillGrid(g: Grid, n: number, x: Float64Array, y: Float64Array, z: Float64Array): void {
+  g.head.fill(-1)
+  // Descending insert → every chain lists its indices in ascending order, so
+  // the visit order is a function of the positions only.
+  for (let i = n - 1; i >= 0; i--) {
+    const s = slotOf(g, Math.floor(x[i] / g.cell), Math.floor(y[i] / g.cell), Math.floor(z[i] / g.cell))
+    g.next[i] = g.head[s]
+    g.head[s] = i
+  }
+}
+
+/** The distinct slots around a point, written into `g.slots`; returns their count. */
+function slotsAround(g: Grid, px: number, py: number, pz: number): number {
+  const cx = Math.floor(px / g.cell)
+  const cy = Math.floor(py / g.cell)
+  const cz = Math.floor(pz / g.cell)
+  let count = 0
   for (let ox = -1; ox <= 1; ox++) {
     for (let oy = -1; oy <= 1; oy++) {
       for (let oz = -1; oz <= 1; oz++) {
-        const bucket = buckets.get(cellKey(cx + ox, cy + oy, cz + oz))
-        if (bucket) out.push(bucket)
+        const s = slotOf(g, cx + ox, cy + oy, cz + oz)
+        let seen = false
+        for (let k = 0; k < count; k++) {
+          if (g.slots[k] === s) {
+            seen = true
+            break
+          }
+        }
+        if (!seen) g.slots[count++] = s
       }
     }
   }
-  return out
+  return count
 }
 
 /**
@@ -326,143 +417,120 @@ export function layoutGroups(
 
   // Canonical order: never the caller's array order, always sorted ids — this
   // is what makes the result independent of how `groups` was listed.
-  const radiusOf = new Map(groups.map((g) => [g.id, g.radius]))
-  const ids = [...radiusOf.keys()].sort()
-  const n = ids.length
-
-  // Precompute, once, the pairs that carry a real affinity edge (a(g,h) > 0),
-  // and each group's neighbour list for the anchor term — both built strictly
-  // from `ids` order, never from `groups` order.
-  const affinityPairs: Array<{ g: string; h: string; a: number }> = []
-  const neighbors = new Map<string, Array<{ h: string; a: number }>>()
-  for (const id of ids) neighbors.set(id, [])
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      const g = ids[i]
-      const h = ids[j]
-      const a = affinityOf(affinities, g, h)
-      if (a > 0) {
-        affinityPairs.push({ g, h, a })
-        neighbors.get(g)!.push({ h, a })
-        neighbors.get(h)!.push({ h: g, a })
-      }
-    }
-  }
+  const p = prepare(new Map(groups.map((g) => [g.id, g.radius])), affinities)
+  const { ids, n, radius, pairI, pairJ, pairA, adjStart, adj, adjA } = p
 
   // Deterministic initial placement: a VOLUME, not a shell.
   //
   // The previous init put every centre at `spreadRadius · jitter` — i.e. ON a
   // sphere of constant radius. Every group therefore sat at the same distance
   // from the origin, which is why the graph read as a hollow ball with
-  // unrelated groups arbitrarily far apart: nothing but the affinity springs
-  // could ever bring two unconnected groups closer, and they had no reason to.
+  // unrelated groups arbitrarily far apart.
   //
   // The radius now follows cbrt(rank) (uniform density in a volume), and the
   // outer radius is the tightest sphere that can hold the envelopes at a given
-  // packing fraction, so the initial cloud is already as compact as geometry
-  // allows and the descent only has to arrange it.
-  const totalVolume = ids.reduce((s, id) => {
-    const r = radiusOf.get(id)!
-    return s + (4 / 3) * Math.PI * r * r * r
-  }, 0)
-  const spreadRadius = Math.max(
-    1,
-    Math.cbrt(totalVolume / (PACKING_FRACTION * (4 / 3) * Math.PI)),
-  )
-  const pos = new Map<string, { x: number; y: number; z: number }>()
-  ids.forEach((id, i) => {
-    const rng = mulberry32(hashString(id))
+  // packing fraction.
+  let totalVolume = 0
+  for (let i = 0; i < n; i++) totalVolume += (4 / 3) * Math.PI * radius[i] ** 3
+  const spreadRadius = Math.max(1, Math.cbrt(totalVolume / (PACKING_FRACTION * (4 / 3) * Math.PI)))
+  const x = new Float64Array(n)
+  const y = new Float64Array(n)
+  const z = new Float64Array(n)
+  for (let i = 0; i < n; i++) {
+    const rng = mulberry32(hashString(ids[i]))
     const up = n === 1 ? 0 : 1 - (2 * (i + 0.5)) / n
     const around = Math.sqrt(Math.max(0, 1 - up * up))
     const angle = GOLDEN_ANGLE * i + rng() * Math.PI * 2 * 0.05
     const r = spreadRadius * Math.cbrt((i + 0.5) / n)
-    pos.set(id, {
-      x: Math.cos(angle) * around * r,
-      y: up * r,
-      z: Math.sin(angle) * around * r,
-    })
-  })
+    x[i] = Math.cos(angle) * around * r
+    y[i] = up * r
+    z[i] = Math.sin(angle) * around * r
+  }
 
-  const maxRadius = ids.reduce((m, id) => Math.max(m, radiusOf.get(id)!), 0)
-  const force = new Map<string, { x: number; y: number; z: number }>()
-
-  for (let iter = 0; iter < maxIterations; iter++) {
-    for (const id of ids) force.set(id, { x: 0, y: 0, z: 0 })
-
-    const addForce = (id: string, fx: number, fy: number, fz: number) => {
-      const f = force.get(id)!
-      f.x += fx
-      f.y += fy
-      f.z += fz
+  const prevX = new Float64Array(n)
+  const prevY = new Float64Array(n)
+  const prevZ = new Float64Array(n)
+  const hasPrev = new Uint8Array(n)
+  if (previous) {
+    for (let i = 0; i < n; i++) {
+      const q = previous.get(ids[i])
+      if (!q) continue
+      hasPrev[i] = 1
+      prevX[i] = q.x
+      prevY[i] = q.y
+      prevZ[i] = q.z
     }
+  }
+
+  const fx = new Float64Array(n)
+  const fy = new Float64Array(n)
+  const fz = new Float64Array(n)
+  for (let iter = 0; iter < maxIterations; iter++) {
+    fx.fill(0)
+    fy.fill(0)
+    fz.fill(0)
 
     // E_affinity: spring toward the affinity-scaled target distance.
-    for (const { g, h, a } of affinityPairs) {
-      const pg = pos.get(g)!
-      const ph = pos.get(h)!
-      const dx = pg.x - ph.x
-      const dy = pg.y - ph.y
-      const dz = pg.z - ph.z
+    for (let k = 0; k < pairI.length; k++) {
+      const g = pairI[k]
+      const h = pairJ[k]
+      const a = pairA[k]
+      const dx = x[g] - x[h]
+      const dy = y[g] - y[h]
+      const dz = z[g] - z[h]
       const dist = Math.max(EPSILON, vecLen(dx, dy, dz))
-      const target = affinityTarget(radiusOf.get(g)!, radiusOf.get(h)!, a)
-      const diff = dist - target
-      const coeff = (LAMBDA_AFFINITY * a * 2 * diff) / dist
+      const target = affinityTarget(radius[g], radius[h], a)
+      const coeff = (LAMBDA_AFFINITY * a * 2 * (dist - target)) / dist
       // Force on g = -∇_g E = -coeff · (pg - ph)
-      addForce(g, -coeff * dx, -coeff * dy, -coeff * dz)
-      addForce(h, coeff * dx, coeff * dy, coeff * dz)
+      fx[g] -= coeff * dx
+      fy[g] -= coeff * dy
+      fz[g] -= coeff * dz
+      fx[h] += coeff * dx
+      fy[h] += coeff * dy
+      fz[h] += coeff * dz
     }
-
-    // (No repulsion here — see the separation projection after the loop. It
-    // used to run on the same grid, rebuilt every iteration, which cost more
-    // than the whole rest of the descent and never converged: the anchor term
-    // pulls a group toward its neighbours' barycentre, which can lie inside a
-    // third group, so a soft penalty cannot win that tug of war. Removing it
-    // from the loop and enforcing separation once, by projection, is both
-    // correct and an order of magnitude cheaper.)
 
     // E_stability: spring toward the previous position, when supplied.
     if (previous) {
-      for (const id of ids) {
-        const prev = previous.get(id)
-        if (!prev) continue
-        const p = pos.get(id)!
-        addForce(id, -2 * LAMBDA_STABILITY * (p.x - prev.x), -2 * LAMBDA_STABILITY * (p.y - prev.y), -2 * LAMBDA_STABILITY * (p.z - prev.z))
+      for (let i = 0; i < n; i++) {
+        if (!hasPrev[i]) continue
+        fx[i] -= 2 * LAMBDA_STABILITY * (x[i] - prevX[i])
+        fy[i] -= 2 * LAMBDA_STABILITY * (y[i] - prevY[i])
+        fz[i] -= 2 * LAMBDA_STABILITY * (z[i] - prevZ[i])
       }
     }
 
     // E_anchor: spring toward the affinity-weighted barycenter of REAL
     // neighbours only — isolated groups (no neighbours) get no anchor force.
-    for (const id of ids) {
-      const ns = neighbors.get(id)!
-      if (ns.length === 0) continue
+    for (let i = 0; i < n; i++) {
+      const from = adjStart[i]
+      const to = adjStart[i + 1]
+      if (from === to) continue
       let wx = 0
       let wy = 0
       let wz = 0
       let wsum = 0
-      for (const { h, a } of ns) {
-        const ph = pos.get(h)!
-        wx += ph.x * a
-        wy += ph.y * a
-        wz += ph.z * a
+      for (let k = from; k < to; k++) {
+        const h = adj[k]
+        const a = adjA[k]
+        wx += x[h] * a
+        wy += y[h] * a
+        wz += z[h] * a
         wsum += a
       }
       if (wsum <= 0) continue
-      const bx = wx / wsum
-      const by = wy / wsum
-      const bz = wz / wsum
-      const p = pos.get(id)!
-      addForce(id, -2 * LAMBDA_ANCHOR * (p.x - bx), -2 * LAMBDA_ANCHOR * (p.y - by), -2 * LAMBDA_ANCHOR * (p.z - bz))
+      fx[i] -= 2 * LAMBDA_ANCHOR * (x[i] - wx / wsum)
+      fy[i] -= 2 * LAMBDA_ANCHOR * (y[i] - wy / wsum)
+      fz[i] -= 2 * LAMBDA_ANCHOR * (z[i] - wz / wsum)
     }
 
     // Synchronous apply: every move uses the SAME snapshot of positions that
     // produced every force above, so the result never depends on id order.
     const lr = LEARNING_RATE_0 * (1 - iter / maxIterations)
-    for (const id of ids) {
-      const f = force.get(id)!
-      const p = pos.get(id)!
-      let dx = lr * f.x
-      let dy = lr * f.y
-      let dz = lr * f.z
+    for (let i = 0; i < n; i++) {
+      let dx = lr * fx[i]
+      let dy = lr * fy[i]
+      let dz = lr * fz[i]
       const mag = vecLen(dx, dy, dz)
       if (mag > MAX_STEP) {
         const scale = MAX_STEP / mag
@@ -470,33 +538,29 @@ export function layoutGroups(
         dy *= scale
         dz *= scale
       }
-      pos.set(id, { x: p.x + dx, y: p.y + dy, z: p.z + dz })
+      x[i] += dx
+      y[i] += dy
+      z[i] += dz
     }
   }
 
+  const grid = makeGrid(n, 2 * p.maxRadius + OVERLAP_MARGIN)
+
   // ── Global inflation ─────────────────────────────────────────────────────
-  // The descent contracts hard: with many affine neighbours every pair wants
-  // 55 % of its envelope at once, which no sphere packing can satisfy (kissing
-  // number). The projection then had to undo a very deep contraction locally
-  // and, at 200 groups, ran out of budget with pairs still 65 px apart where
-  // their envelopes need 140.
-  //
   // One uniform scale about the centroid resolves EVERY violated hard distance
   // at once — a scale s multiplies all distances by s, so s = max(hard/dist)
   // makes the worst pair exactly touch. The projection is then only a local
-  // clean-up, which is what it is good at.
+  // clean-up.
   {
-    const cell = 2 * maxRadius + OVERLAP_MARGIN
-    const buckets = buildGrid(ids, pos, cell)
+    fillGrid(grid, n, x, y, z)
     let scale = 1
-    for (const g of ids) {
-      const pg = pos.get(g)!
-      for (const bucket of neighboursOf(buckets, pg, cell)) {
-        for (const h of bucket) {
-          if (h <= g) continue
-          const ph = pos.get(h)!
-          const dist = Math.max(EPSILON, vecLen(pg.x - ph.x, pg.y - ph.y, pg.z - ph.z))
-          const hard = hardDistance(radiusOf.get(g)!, radiusOf.get(h)!, affinityOf(affinities, g, h))
+    for (let i = 0; i < n; i++) {
+      const count = slotsAround(grid, x[i], y[i], z[i])
+      for (let s = 0; s < count; s++) {
+        for (let j = grid.head[grid.slots[s]]; j !== -1; j = grid.next[j]) {
+          if (j <= i) continue
+          const dist = Math.max(EPSILON, vecLen(x[i] - x[j], y[i] - y[j], z[i] - z[j]))
+          const hard = hardDistance(radius[i], radius[j], pairAffinity(p, i, j))
           if (dist < hard) scale = Math.max(scale, hard / dist)
         }
       }
@@ -508,48 +572,101 @@ export function layoutGroups(
       let cx = 0
       let cy = 0
       let cz = 0
-      for (const id of ids) {
-        const p = pos.get(id)!
-        cx += p.x
-        cy += p.y
-        cz += p.z
+      for (let i = 0; i < n; i++) {
+        cx += x[i]
+        cy += y[i]
+        cz += z[i]
       }
       cx /= n
       cy /= n
       cz /= n
-      for (const id of ids) {
-        const p = pos.get(id)!
-        pos.set(id, {
-          x: cx + (p.x - cx) * s,
-          y: cy + (p.y - cy) * s,
-          z: cz + (p.z - cz) * s,
-        })
+      for (let i = 0; i < n; i++) {
+        x[i] = cx + (x[i] - cx) * s
+        y[i] = cy + (y[i] - cy) * s
+        z[i] = cz + (z[i] - cz) * s
       }
     }
   }
 
-  separateGroups(ids, pos, radiusOf, affinities)
+  separate(p, x, y, z, grid, SEPARATION_ITERATIONS)
 
-  for (const id of ids) {
-    const p = pos.get(id)!
-    result.set(id, {
-      x: Number.isFinite(p.x) ? p.x : 0,
-      y: Number.isFinite(p.y) ? p.y : 0,
-      z: Number.isFinite(p.z) ? p.z : 0,
+  for (let i = 0; i < n; i++) {
+    result.set(ids[i], {
+      x: Number.isFinite(x[i]) ? x[i] : 0,
+      y: Number.isFinite(y[i]) ? y[i] : 0,
+      z: Number.isFinite(z[i]) ? z[i] : 0,
     })
   }
   return result
 }
 
 /**
- * Separation projection, exported for its own tests.
- *
- * The descent leaves overlaps (see SEPARATION_ITERATIONS). This pass removes
- * them by construction: it visits the penetrating pairs in canonical order and
- * moves each apart, until a full pass finds nothing to do or the budget is
- * spent. Positions are read from the live map (Gauss-Seidel), and every visit
- * is deterministic, so the output stays independent of the caller's array
- * order. `ids` must be sorted. Returns the number of passes it ran.
+ * Separation projection on the prepared arrays. Visits the penetrating pairs
+ * (found through the grid, never all n² pairs) in index order and moves each
+ * apart, reading and writing the live arrays (Gauss-Seidel): a group pressed by
+ * several neighbours in one pass accumulates every push. Deterministic: the
+ * visit order is a function of the indices and positions only. Returns the
+ * number of passes run.
+ */
+function separate(
+  p: Prepared,
+  x: Float64Array,
+  y: Float64Array,
+  z: Float64Array,
+  grid: Grid,
+  maxPasses: number,
+): number {
+  const { n, radius } = p
+  let pass = 0
+  for (; pass < maxPasses; pass++) {
+    fillGrid(grid, n, x, y, z)
+    let moved = 0
+    let maxPush = 0
+    for (let i = 0; i < n; i++) {
+      const count = slotsAround(grid, x[i], y[i], z[i])
+      for (let s = 0; s < count; s++) {
+        for (let j = grid.head[grid.slots[s]]; j !== -1; j = grid.next[j]) {
+          if (j <= i) continue
+          const dx = x[i] - x[j]
+          const dy = y[i] - y[j]
+          const dz = z[i] - z[j]
+          const d2 = dx * dx + dy * dy + dz * dz
+          const reach = radius[i] + radius[j] + OVERLAP_MARGIN
+          // Cheap reject first: no pair farther than the envelope sum can be
+          // in contact, whatever its affinity.
+          if (d2 >= reach * reach) continue
+          const dist = Math.max(EPSILON, Math.sqrt(d2))
+          const overlap = hardDistance(radius[i], radius[j], pairAffinity(p, i, j)) - dist
+          if (overlap <= 0) continue
+          // Along the line joining the centres. A pair at exactly the same
+          // point gets a deterministic axis rather than a division by zero.
+          const ux = dist > EPSILON ? dx / dist : 1
+          const uy = dist > EPSILON ? dy / dist : 0
+          const uz = dist > EPSILON ? dz / dist : 0
+          const push = overlap * 0.75
+          if (push > maxPush) maxPush = push
+          x[i] += ux * push
+          y[i] += uy * push
+          z[i] += uz * push
+          x[j] -= ux * push
+          y[j] -= uy * push
+          z[j] -= uz * push
+          moved++
+        }
+      }
+    }
+    // Converges geometrically but never exactly: stop once a whole pass moves
+    // nothing by more than SEPARATION_TOLERANCE — invisible.
+    if (moved === 0 || maxPush < SEPARATION_TOLERANCE) return pass + 1
+  }
+  return pass
+}
+
+/**
+ * Separation projection on caller-held positions, exported for its own tests.
+ * Same contract as the pass `layoutGroups` runs: unrelated envelopes never
+ * overlap, related groups keep their cores apart. `pos` is updated in place.
+ * Returns the number of passes it ran.
  */
 export function separateGroups(
   ids: string[],
@@ -558,65 +675,18 @@ export function separateGroups(
   affinities: AffinityMatrix,
   maxPasses: number = SEPARATION_ITERATIONS,
 ): number {
-  const n = ids.length
-  const maxRadius = ids.reduce((m, id) => Math.max(m, radiusOf.get(id)!), 0)
-  const sepCell = 2 * maxRadius + OVERLAP_MARGIN
-  let pass = 0
-  for (; pass < maxPasses; pass++) {
-    const cell = sepCell
-    const buckets = buildGrid(ids, pos, cell)
-    let moved = 0
-    let maxPush = 0
-    for (let i = 0; i < n; i++) {
-      const g = ids[i]
-      let pg = pos.get(g)!
-      const gx = Math.floor(pg.x / cell)
-      const gy = Math.floor(pg.y / cell)
-      const gz = Math.floor(pg.z / cell)
-      for (let ox = -1; ox <= 1; ox++) {
-        for (let oy = -1; oy <= 1; oy++) {
-          for (let oz = -1; oz <= 1; oz++) {
-            const bucket = buckets.get(cellKey(gx + ox, gy + oy, gz + oz))
-            if (!bucket) continue
-            for (const h of bucket) {
-              if (h <= g) continue
-              const ph = pos.get(h)!
-              const dx = pg.x - ph.x
-              const dy = pg.y - ph.y
-              const dz = pg.z - ph.z
-              const dist = Math.max(EPSILON, vecLen(dx, dy, dz))
-              const minDist = hardDistance(
-                radiusOf.get(g)!,
-                radiusOf.get(h)!,
-                affinityOf(affinities, g, h),
-              )
-              const overlap = minDist - dist
-              if (overlap <= 0) continue
-              // Half the penetration each, along the line joining the centres.
-              // A pair at exactly the same point gets a deterministic axis from
-              // its own ids rather than a division by zero.
-              const ux = dist > EPSILON ? dx / dist : 1
-              const uy = dist > EPSILON ? dy / dist : 0
-              const uz = dist > EPSILON ? dz / dist : 0
-              const push = overlap * 0.75
-              if (push > maxPush) maxPush = push
-              // Re-read through `pg`: a group pressed by several neighbours in
-              // one pass must accumulate every push, not keep only the last.
-              pg = { x: pg.x + ux * push, y: pg.y + uy * push, z: pg.z + uz * push }
-              pos.set(g, pg)
-              pos.set(h, { x: ph.x - ux * push, y: ph.y - uy * push, z: ph.z - uz * push })
-              moved++
-            }
-          }
-        }
-      }
-    }
-    // Half-penetration projection converges geometrically but never exactly:
-    // it kept asking for its full budget (399 of 400 passes at 200 groups)
-    // trading sub-pixel corrections. Stop once the worst remaining penetration
-    // is under a pixel — invisible, and it cuts the cost by an order of
-    // magnitude.
-    if (moved === 0 || maxPush < SEPARATION_TOLERANCE) break
-  }
-  return Math.min(pass + 1, maxPasses)
+  const radii = new Map(ids.map((id) => [id, radiusOf.get(id)!]))
+  const p = prepare(radii, affinities)
+  const x = new Float64Array(p.n)
+  const y = new Float64Array(p.n)
+  const z = new Float64Array(p.n)
+  p.ids.forEach((id, i) => {
+    const q = pos.get(id)!
+    x[i] = q.x
+    y[i] = q.y
+    z[i] = q.z
+  })
+  const passes = separate(p, x, y, z, makeGrid(p.n, 2 * p.maxRadius + OVERLAP_MARGIN), maxPasses)
+  p.ids.forEach((id, i) => pos.set(id, { x: x[i], y: y[i], z: z[i] }))
+  return passes
 }
