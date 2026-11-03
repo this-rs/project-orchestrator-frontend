@@ -1,4 +1,4 @@
-// GENERATED from website@2965f21ad8d0be29a705ef91b3a29513a87196f3:src/three/iso/IsoGL.tsx by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@0cee6ea9285b77e371c79ca3af250d01c0b37a92:src/three/iso/IsoGL.tsx by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
 
@@ -55,6 +55,9 @@ interface IsoGLProps {
   /** Plein écran (ou vue immersive) : la scène prend TOUS les gestes — toucher à un doigt sans focus préalable, molette
    * sans Ctrl/⌘ — puisqu'il n'y a plus de conversation à faire défiler autour. */
   immersive?: boolean | undefined
+  /** Tournée des vues (opt-in : le bloc de chat, jamais le héros du site) : la scène visite Iso → Face → Côté → Dessus
+   * toutes les 3,2 s et rend la main au PREMIER geste du lecteur (doigt, molette, touche, bouton de la barre). */
+  tour?: boolean | undefined
 }
 
 /** Textes de la barre de vues : `x` le libellé court, `xHint` le nom accessible. */
@@ -135,7 +138,7 @@ const PIN_FULL = 40
  * machine (premier tiers du trajet), la suite du trajet joue un cycle entier ; la scène n'est retracée qu'au défilement.
  * Le canvas apparaît en fondu ; la boucle ne tourne que si le canvas est visible et l'onglet au premier plan.
  */
-export default function IsoGL({ machine: given, live, still = false, drive = 'time', className = 'iso-lit iso-fit block', transparent = false, interactive = false, focusId, avoid, onHotspots, onFirstFrame, onUnsupported, controls, pins, onPinClick, immersive = false }: IsoGLProps) {
+export default function IsoGL({ machine: given, live, still = false, drive = 'time', className = 'iso-lit iso-fit block', transparent = false, interactive = false, focusId, avoid, onHotspots, onFirstFrame, onUnsupported, controls, pins, onPinClick, immersive = false, tour = false }: IsoGLProps) {
   const ref = useRef<HTMLCanvasElement>(null)
   const withControls = !!controls
   const api = useRef<CameraApi | null>(null)
@@ -191,6 +194,12 @@ export default function IsoGL({ machine: given, live, still = false, drive = 'ti
     let fade = 0
     let start = 0
     let resized = true
+    /** Tout ce qui s'arrête quand le lecteur prend la main (aujourd'hui : la tournée des vues). */
+    const handOver: (() => void)[] = []
+    const takeOver = () => {
+      if (!handOver.length) return
+      for (const f of handOver.splice(0)) f()
+    }
     const avoidEl = avoid ? canvas.closest('.page-hero')?.querySelector(avoid) : null
     const resize = () => {
       resized = true
@@ -444,13 +453,13 @@ export default function IsoGL({ machine: given, live, still = false, drive = 'ti
       }
       const menu = (e: Event) => e.preventDefault()
       const on: [string, EventListener, AddEventListenerOptions?][] = [
-        ['pointerdown', down as EventListener],
+        ['pointerdown', ((e: Event) => { takeOver(); ;(down as EventListener)(e) }) as EventListener],
         ['pointermove', move as EventListener],
         ['pointerup', up as EventListener],
         ['pointercancel', up as EventListener],
-        ['wheel', wheel as EventListener, { passive: false }],
+        ['wheel', ((e: Event) => { takeOver(); ;(wheel as EventListener)(e) }) as EventListener, { passive: false }],
         ['dblclick', dbl as EventListener],
-        ['keydown', key as EventListener],
+        ['keydown', ((e: Event) => { takeOver(); ;(key as EventListener)(e) }) as EventListener],
         ['contextmenu', menu],
       ]
       for (const [t, fn, o] of on) canvas.addEventListener(t, fn, o)
@@ -476,6 +485,26 @@ export default function IsoGL({ machine: given, live, still = false, drive = 'ti
         },
       }
       setMode(current().mode)
+      // TOURNÉE DES VUES — ce que la scène ne montrait pas : elle s'explique seule. Les quatre vues existaient déjà
+      // (touches iso/top/front/side) mais personne ne les voyait. Toutes les 3,2 s la caméra glisse vers la suivante,
+      // et le PREMIER geste du lecteur (doigt, molette, touche, bouton) rend la main définitivement : une visite, pas
+      // une animation qui s'impose. Jamais en mouvement réduit (still) — là, l'image reste finie et immobile.
+      if (tour && !still && !machine.live && withControls) {
+        const TOUR: ViewPreset[] = ['iso', 'front', 'side', 'top']
+        let ix = 0
+        let tourTimer = 0
+        const stopTour = () => {
+          if (tourTimer) {
+            clearInterval(tourTimer)
+            tourTimer = 0
+          }
+        }
+        handOver.push(stopTour)
+        tourTimer = window.setInterval(() => {
+          ix = (ix + 1) % TOUR.length
+          api.current?.preset(TOUR[ix]!)
+        }, 3200)
+      }
     }
     // Étiquettes ancrées : points de l'arbre → monde (une fois par liste et par machine dessinée), puis pixels avec la
     // matrice de la dernière image. Écrites directement dans le DOM (transform, opacité) : aucun rendu React par image.

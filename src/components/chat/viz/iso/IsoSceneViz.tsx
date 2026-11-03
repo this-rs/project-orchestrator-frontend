@@ -125,6 +125,7 @@ export function IsoStage({ machine, expanded, label, live }: { machine: MachineD
             {...(live ? { live } : {})}
             still={reduced}
             drive="time"
+            tour
             transparent
             controls
             className="absolute inset-0 block h-full w-full"

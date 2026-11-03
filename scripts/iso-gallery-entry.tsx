@@ -82,7 +82,10 @@ function SceneCanvas({ machine }: { machine: MachineDef }) {
       canvas.height = Math.max(1, Math.round(rect.height * dpr))
       const r = new IsoRenderer(canvas, machine, true)
       r.setDefaults({ mode: 'persp', fov: DEFAULT_FOV, zoom: PERSP_FIT })
-      r.draw(machine.t0, 1, null)
+      // ?built=0.35 : tire un INSTANT de la construction (0 = rien, 1 = fini) — c'est ainsi qu'on voit les ouvriers
+      // au travail, sinon le banc ne montre que la machine finie et personne ne peut juger l'apparition.
+      const built = Number(new URLSearchParams(location.search).get('built') ?? 1)
+      r.draw(machine.t0, Number.isFinite(built) ? Math.min(1, Math.max(0, built)) : 1, null)
     } catch {
       setNoGl(true)
     }

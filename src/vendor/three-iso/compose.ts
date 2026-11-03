@@ -1,4 +1,4 @@
-// GENERATED from website@2965f21ad8d0be29a705ef91b3a29513a87196f3:src/three/iso/compose.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@0cee6ea9285b77e371c79ca3af250d01c0b37a92:src/three/iso/compose.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Cadre du héros pour une machine : le viewBox 1200 × 700 des scènes (components/hero/safeZone.ts), la projection

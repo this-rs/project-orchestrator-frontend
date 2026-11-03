@@ -249,7 +249,9 @@ async function capture(chrome, base, width, dir) {
     // d'IntersectionObserver ni d'animation à fiabiliser). `captureBeyondViewport`
     // capture toute la planche (contenu réel), pas le seul viewport.
     await tab.send('Emulation.setDeviceMetricsOverride', { width: vp.width, height: vp.height, deviceScaleFactor: 1, mobile: width < 600 })
-    await tab.send('Page.navigate', { url: base + '/' })
+    // BUILT=<0..1> : tire un instant de la CONSTRUCTION (0 = rien, 1 = fini), pour juger les ouvriers au travail.
+    const q = process.env.BUILT ? '?built=' + process.env.BUILT : ''
+    await tab.send('Page.navigate', { url: base + '/' + q })
     // La galerie tire les scènes puis pose window.__ISO_READY__.
     const t0 = Date.now()
     let ready = false
