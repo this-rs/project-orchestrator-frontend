@@ -35,7 +35,7 @@ import type { LinkStyle, LinkStyleFn } from './linkRibbon'
 import { buildCorridors, type Corridor } from './linkRouting'
 import { buildLinkSystem, fromCorridors, type DrawableBundle, type SystemBudget } from './linkSystem'
 import { braidedOffsets, parallelTransportFrames, type Vec3 } from './linkVascular'
-import { flowPositions, strataFor, stratumRadius, type Stratum } from './linkStrata'
+import { flowPositions, strataFor, type Stratum } from './linkStrata'
 import { communityToken } from './linkRibbon'
 import { LINK_RENDER_ORDER } from './nodePoints'
 import { isMobileLikeDevice } from './useRenderLoop'
@@ -69,8 +69,50 @@ const MICRO_FIBERS = 5
  * moins : la silhouette reste, le coût par pixel tombe.
  */
 const MOBILE_LIKE = isMobileLikeDevice()
-/** Rayon d'une fibre, en fraction du rayon du conduit. */
-const MICRO_FIBER_RADIUS = 0.07
+/**
+ * Rayon d'un sous-canal, en fraction du rayon du conduit.
+ *
+ * PHASE 5 : les canaux doivent être des SOUS-CONDUITS distincts, répartis
+ * autour de l'axe, pas des coques concentriques. À 0,07 ils étaient des fils
+ * invisibles ; à 0,16 ils ont un volume propre et laissent voir les ESPACES
+ * entre eux — que la spec dit aussi importants que les surfaces.
+ */
+const MICRO_FIBER_RADIUS = 0.16
+/** Rayon de l'orbite des sous-canaux, et son aplatissement (ellipse, pas cercle). */
+const CHANNEL_ORBIT = 0.52
+const CHANNEL_ELLIPSE = 0.78
+
+/**
+ * Les cinq identités géométriques d'un conduit (phase 5).
+ *
+ * Chacune a un rayon, une opacité et un rôle distincts :
+ *   0 halo        — l'atmosphère, très large et presque transparente
+ *   1 gaine       — l'enveloppe translucide
+ *   2 structure   — la couche qui accroche la lumière (reflets, relief)
+ *   3..N canaux   — les sous-conduits, répartis AUTOUR de l'axe
+ *   N+1 cœur      — le canal de flux, axial et émissif
+ */
+interface LayerSpec {
+  kind: 'halo' | 'sheath' | 'structure' | 'channel' | 'core'
+  radius: number
+  alpha: number
+  emit: boolean
+  /** Indice du canal (pour son angle d'orbite). */
+  channel?: number
+}
+
+function layerSpecs(channelCount: number): LayerSpec[] {
+  const out: LayerSpec[] = [
+    { kind: 'halo', radius: 1.7, alpha: 0.06, emit: false },
+    { kind: 'sheath', radius: 1.0, alpha: 0.18, emit: false },
+    { kind: 'structure', radius: 0.78, alpha: 0.34, emit: false },
+  ]
+  for (let i = 0; i < channelCount; i++) {
+    out.push({ kind: 'channel', radius: MICRO_FIBER_RADIUS, alpha: 0.55, emit: false, channel: i })
+  }
+  out.push({ kind: 'core', radius: 0.16, alpha: 0.95, emit: true })
+  return out
+}
 
 /** Branches per end — the vascular tree's first division. */
 const BRANCHES_PER_END = 3
@@ -116,7 +158,6 @@ const SHEATH_ALPHA = 1.0
  * proportionnellement entre ses couches : plus il a de strates, plus chacune est
  * discrète, et l'ensemble reste dans la plage lisible.
  */
-const CONDUIT_LIGHT_BUDGET = 1.9
 
 const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aColor;
@@ -527,9 +568,10 @@ export function createVascularLinks(
         // One vertex ring per stratum: the tube is CONCENTRIC layers, not one
         // shell. That is what distinguishes a 1 000-relation conduit from a
         // 10 000-relation trunk once the projected width has hit its ceiling.
-        // halo + strates + fibres internes (voir fillConduit).
-        const fiberCount = MOBILE_LIKE ? 2 : Math.min(MICRO_FIBERS, 1 + strata.length * 2)
-        const layers = 1 + Math.max(1, strata.length) + fiberCount
+        // Les couches ont maintenant des IDENTITÉS fixes (phase 5), pas un
+        // empilement de coques : halo, gaine, structure, canaux, cœur.
+        const channelCount = MOBILE_LIKE ? 2 : Math.min(MICRO_FIBERS, Math.max(2, strata.length + 2))
+        const layers = layerSpecs(channelCount).length
         const count = samples * TUBE_SEGMENTS * layers
         conduits.push({
           fromId,
@@ -714,42 +756,21 @@ export function createVascularLinks(
       const cr2 = fam ? fam[0] : (style.r2 ?? style.r)
       const cg2 = fam ? fam[1] : (style.g2 ?? style.g)
       const cb2 = fam ? fam[2] : (style.b2 ?? style.b)
-      const fiberCount = MOBILE_LIKE ? 2 : Math.min(MICRO_FIBERS, 1 + conduit.strata.length * 2)
-      const layers = 1 + Math.max(1, conduit.strata.length) + fiberCount
+      const channelCount = MOBILE_LIKE ? 2 : Math.min(MICRO_FIBERS, Math.max(2, conduit.strata.length + 2))
+      const specs = layerSpecs(channelCount)
+      const layers = specs.length
       const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
-      // Part de lumière de chaque couche : halo 0,1 puis les strates.
-      const shares = [0.05, ...conduit.strata.map((x) => x.alpha), ...Array.from({ length: fiberCount }, () => 0.5)]
-      const shareTotal = shares.reduce((acc, v) => acc + v, 0) || 1
-      // Grains du flux : leur motif lumineux court le long de la couche la plus
-      // interne. `flowPositions` donne des abscisses régulières ; on s'en sert
-      // comme d'une période pour moduler la brillance.
+      // Grains du flux : leur motif lumineux court sur le canal axial.
       const grains = flowPositions(6, 0, conduit.flowPhase)
       const base = conduit.vertexStart
+      const baseAlpha = Math.max(0.3, style.a)
       for (let layer = 0; layer < layers; layer++) {
-        // Couche 0 : le HALO — une enveloppe large et tres faible qui diffuse
-        // autour du vaisseau. C'est la lueur des planches, obtenue sans
-        // compositeur de post-traitement : un bloom de geometrie, paye une fois.
-        const stratumCount = Math.max(1, conduit.strata.length)
-        const isHalo = layer === 0
-        const isFiber = layer >= 1 + stratumCount
-        const fiberIndex = layer - 1 - stratumCount
-        const stratum = isHalo || isFiber
-          ? { radius: 1.6, alpha: isHalo ? 0.08 : 0.5, carriesFlow: false }
-          : (conduit.strata[layer - 1] ?? { radius: 1, alpha: 1, carriesFlow: false })
-        // Les fibres sont réparties sur un cercle à 55 % du rayon : on les VOIT
-        // courir à l'intérieur de la gaine, ce qui distingue un faisceau d'un
-        // simple tube.
-        const fiberAngle = isFiber ? (fiberIndex / Math.max(1, fiberCount)) * Math.PI * 2 : 0
+        const spec = specs[layer]
         const layerBase = base + layer * samplesPerLayer
-        // Un tronc represente des CENTAINES de relations : il ne peut pas
-        // emprunter l'opacite au repos d'un fil isole (0,05 a 0,28), sinon il
-        // s'eteint. On part d'un plancher propre au vaisseau.
-        const baseAlpha = Math.max(0.3, style.a)
-        const share = isHalo ? 0.05 : isFiber ? 0.5 : stratum.alpha
-        const layerAlpha = Math.min(
-          1,
-          (CONDUIT_LIGHT_BUDGET * (share / shareTotal) * conduit.alpha * Math.max(0.55, baseAlpha)),
-        )
+        // Opacité propre à l'identité de la couche, pas une part d'un budget
+        // commun : la spec demande que chaque strate ait une identité CLAIRE, et
+        // non « toutes rendues avec la même luminosité ».
+        const layerAlpha = Math.min(1, spec.alpha * Math.max(0.6, baseAlpha) * conduit.alpha)
         for (let i = 0; i < conduit.samples; i++) {
           const f = frames[Math.min(i, frames.length - 1)]
           if (!f) continue
@@ -762,17 +783,15 @@ export function createVascularLinks(
           // les conduits redevenaient des fils.
           const taper = radiusAt(u, conduit.startRadius, conduit.endRadius, 0.5, { min: 0.05, max: 2 })
           const thicknessAt = thickness * taper
-          const fiberOrbit = thicknessAt * 0.55
-          const layerRadius = isHalo
-            ? thicknessAt * 1.7
-            : isFiber
-              ? thicknessAt * MICRO_FIBER_RADIUS
-              : stratumRadius(stratum, thicknessAt)
+          const isChannel = spec.kind === 'channel'
+          // Orbite des canaux : ELLIPSE (pas un cercle), avec une vrille lente —
+          // « répartition circulaire, elliptique ou légèrement hélicoïdale ».
+          const channelAngle =
+            ((spec.channel ?? 0) / Math.max(1, channelCount)) * Math.PI * 2 + u * 1.8
+          const orbitX = isChannel ? Math.cos(channelAngle) * thicknessAt * CHANNEL_ORBIT : 0
+          const orbitY = isChannel ? Math.sin(channelAngle) * thicknessAt * CHANNEL_ORBIT * CHANNEL_ELLIPSE : 0
+          const layerRadius = thicknessAt * spec.radius
           const off = offsets[i] ?? [0, 0, 0]
-          // Vrille lente : la fibre tourne autour de l'axe en avançant.
-          const twist = isFiber ? fiberAngle + u * 2.4 : 0
-          const orbitX = isFiber ? Math.cos(twist) * fiberOrbit : 0
-          const orbitY = isFiber ? Math.sin(twist) * fiberOrbit : 0
           const cx = f.position[0] + f.normal[0] * (off[0] * layerRadius + orbitX) + f.binormal[0] * (off[1] * layerRadius + orbitY)
           const cy = f.position[1] + f.normal[1] * (off[0] * layerRadius + orbitX) + f.binormal[1] * (off[1] * layerRadius + orbitY)
           const cz = f.position[2] + f.normal[2] * (off[0] * layerRadius + orbitX) + f.binormal[2] * (off[1] * layerRadius + orbitY)
@@ -780,7 +799,7 @@ export function createVascularLinks(
           // animation c'est déjà des grains lisibles ; `setFlowTime` les fait
           // défiler (voir le champ exposé plus bas).
           let flowGain = 1
-          if (stratum.carriesFlow && grains.length > 0) {
+          if (spec.emit && grains.length > 0) {
             const period = grains.length
             const pos = (u * period + flowTime + conduit.flowPhase) % 1
             const nearest = Math.abs(pos - Math.round(pos))
@@ -806,7 +825,7 @@ export function createVascularLinks(
             const vi1 = layerBase + i * TUBE_SEGMENTS + k
             alp[vi1] = Math.min(1, layerAlpha * g)
             // Seule la couche qui porte le flux émet ; tout le reste est surface.
-            emi[vi1] = !isHalo && stratum.carriesFlow ? 1 : 0
+            emi[vi1] = spec.emit ? 1 : 0
           }
         }
       }
