@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
-  MAX_AGGREGATE_GROUPS,
   aggregateAtResolution,
   aggregateByGroup,
   groupHullNodes,
   resolveGroupKeys,
   resolutionForLevel,
+  groupBudgetForResolution,
 } from './graphAggregation'
 import type { Graph3DNode, Graph3DLink } from './useGraph3DLayout'
 
@@ -312,11 +312,11 @@ function manyDirNodes(total: number, dirs: number): Graph3DNode[] {
 describe('group cap', () => {
   const nodes = manyDirNodes(20000, 1285)
 
-  it('caps 1285 input groups at MAX_AGGREGATE_GROUPS', () => {
+  it('caps 1285 input groups at the budget of the resolution', () => {
     const distinct = new Set(nodes.map((n) => n.groupKey)).size
     expect(distinct).toBeGreaterThan(1000)
     const agg = aggregateByGroup(nodes, [], 4)
-    expect(agg.superNodes.length).toBeLessThanOrEqual(MAX_AGGREGATE_GROUPS)
+    expect(agg.superNodes.length).toBeLessThanOrEqual(groupBudgetForResolution(4))
     expect(agg.superNodes.length).toBeGreaterThan(1)
   })
 
@@ -344,10 +344,10 @@ describe('group cap', () => {
     expect(keys[31]).toBe(keys[0]) // src/chat/x joined its chat sibling group
   })
 
-  it('folds parentless groups (communities) into a catch-all', () => {
+  it('folds parentless groups (communities) into regions, under the budget', () => {
     const ns = Array.from({ length: 100 }, (_, i) => groupedNode(`n${i}`, i, 0, 0, `c${i % 50}`))
     const agg = aggregateByGroup(ns, [], 2)
-    expect(agg.superNodes.length).toBeLessThanOrEqual(MAX_AGGREGATE_GROUPS)
+    expect(agg.superNodes.length).toBeLessThanOrEqual(groupBudgetForResolution(2))
     expect(agg.superNodes.reduce((s, n) => s + n.count, 0)).toBe(100)
   })
 
@@ -359,7 +359,7 @@ describe('group cap', () => {
   it('groupHullNodes numbers the capped groups, biggest first', () => {
     const hn = groupHullNodes(nodes, 4)
     const ids = new Set(hn.map((n) => n.communityId))
-    expect(ids.size).toBeLessThanOrEqual(MAX_AGGREGATE_GROUPS)
+    expect(ids.size).toBeLessThanOrEqual(groupBudgetForResolution(4))
     expect(hn.every((n) => n.communityId != null && n.communityLabel)).toBe(true)
   })
 
@@ -368,6 +368,91 @@ describe('group cap', () => {
       .superNodes.map((n) => n.count)
       .sort((a, b) => b - a)
     console.log('GROUPS', sizes.length, 'TOP5', sizes.slice(0, 5), 'MIN', sizes[sizes.length - 1])
-    expect(sizes.length).toBeLessThanOrEqual(MAX_AGGREGATE_GROUPS)
+    expect(sizes.length).toBeLessThanOrEqual(groupBudgetForResolution(4))
+  })
+})
+
+// ── Semantic zoom: every level is a different graph ─────────────────────────
+
+/** `n` nodes in `comms` communities, each a ball around its own centre. */
+function communityGraph(n: number, e: number, comms: number) {
+  let seed = 11
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  const centres = Array.from({ length: comms }, () => [
+    (rnd() - 0.5) * 4000, (rnd() - 0.5) * 4000, (rnd() - 0.5) * 4000,
+  ])
+  const nodes = Array.from({ length: n }, (_, i) => {
+    const c = i % comms
+    return groupedNode(
+      `n${i}`,
+      centres[c][0] + (rnd() - 0.5) * 200,
+      centres[c][1] + (rnd() - 0.5) * 200,
+      centres[c][2] + (rnd() - 0.5) * 200,
+      `c${c}`,
+    )
+  })
+  const links = Array.from({ length: e }, () =>
+    link(`n${Math.floor(rnd() * n)}`, `n${Math.floor(rnd() * n)}`),
+  )
+  return { nodes, links }
+}
+
+describe('semantic zoom levels', () => {
+  const g = communityGraph(20000, 40000, 300)
+  const levels = [1, 2, 3, 4, 5].map((level) => {
+    const res = resolutionForLevel(g.nodes.length, level)
+    return { level, res, agg: aggregateByGroup(g.nodes, g.links, res) }
+  })
+
+  it('each level is strictly coarser than the one below it (fewer super-nodes AND super-edges)', () => {
+    for (let i = 1; i < levels.length; i++) {
+      expect(levels[i].agg.superNodes.length).toBeLessThan(levels[i - 1].agg.superNodes.length)
+      expect(levels[i].agg.superEdges.length).toBeLessThan(levels[i - 1].agg.superEdges.length)
+    }
+  })
+
+  it('tracks the ≈5:1 target of resolutionForLevel within a factor of 2', () => {
+    for (const { res, agg } of levels) {
+      const budget = groupBudgetForResolution(res)
+      expect(agg.superNodes.length).toBeLessThanOrEqual(budget)
+      expect(agg.superNodes.length).toBeGreaterThanOrEqual(budget / 2)
+    }
+  })
+
+  it('loses no node at any level', () => {
+    for (const { agg } of levels) {
+      expect(agg.superNodes.reduce((s, n) => s + n.count, 0)).toBe(g.nodes.length)
+    }
+  })
+
+  it('splits a community only at levels finer than the communities, and never mixes two', () => {
+    const fine = levels[0].agg // ≈ 4 000 targets for 300 communities
+    const parts = new Map<string, Set<string>>()
+    fine.cellOfNode.forEach((key, i) => {
+      const set = parts.get(g.nodes[i].groupKey as string) ?? new Set()
+      set.add(key)
+      parts.set(g.nodes[i].groupKey as string, set)
+    })
+    // every community is split in several parts, each part belongs to ONE community
+    const owner = new Map<string, string>()
+    for (const [community, keys] of parts) {
+      expect(keys.size).toBeGreaterThan(1)
+      for (const k of keys) {
+        expect(owner.get(k) ?? community).toBe(community)
+        owner.set(k, community)
+      }
+    }
+  })
+
+  it('merges neighbouring communities at coarse levels instead of one catch-all blob', () => {
+    const coarse = levels[3].agg // budget 27 for 300 communities
+    const biggest = Math.max(...coarse.superNodes.map((n) => n.count))
+    expect(biggest).toBeLessThan(g.nodes.length / 4)
+  })
+
+  it('hulls wrap the semantic groups, not the fine parts', () => {
+    const res = levels[0].res
+    const ids = new Set(groupHullNodes(g.nodes, res).map((n) => n.communityId))
+    expect(ids.size).toBeLessThanOrEqual(300)
   })
 })

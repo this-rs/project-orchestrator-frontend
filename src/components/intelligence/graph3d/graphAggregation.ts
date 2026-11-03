@@ -191,20 +191,53 @@ export function aggregateAtResolution(
 const GROUP_KEY_PREFIX = 'g:'
 
 /**
- * Maximum number of semantic groups an aggregated tier shows. Without this a
- * project with no GDS communities gets one group per directory (1 285 on a
- * 20 000-node graph): a regular shell of tiny clumps, unreadable. ~24 lets a few
- * big clusters dominate with a long tail merged into their parents.
+ * Fewest super-nodes an aggregated tier shows, whatever the resolution: below
+ * it the coarsest tier is a handful of blobs that say nothing.
  */
-export const MAX_AGGREGATE_GROUPS = 24
+export const MIN_AGGREGATE_GROUPS = 8
+
+/**
+ * Number of super-nodes a tier aims at for a grid resolution: `res³`, the cell
+ * budget `resolutionForLevel` derived from the ≈5:1 fan-in (level L targets
+ * N / 5^L), floored at MIN_AGGREGATE_GROUPS.
+ *
+ * It used to be a fixed 24 whatever the level. Every node carries a
+ * `groupKey` (community, directory or layer:type), so the resolution was never
+ * read and the six levels of the semantic zoom produced the SAME graph —
+ * measured on 20 000 nodes: 24 super-nodes / 105 super-edges at every level.
+ * Now the budget follows the level: finer levels split the semantic groups,
+ * coarser ones merge them.
+ */
+export function groupBudgetForResolution(res: number): number {
+  const r = Math.max(1, Math.floor(res))
+  return Math.max(MIN_AGGREGATE_GROUPS, r * r * r)
+}
+
+/**
+ * A semantic group is split into parts only when it holds at least this many
+ * nodes: a split of a 3-node group is noise, not a finer level.
+ */
+const SPLIT_MIN_SIZE = 8
+
+/** Separator of a group's PART (`g:c7#1,0,2`): a sub-cell of the group's own box. */
+const PART_SEP = '#'
+
+/** Prefix of a REGION (`g:~c7`): neighbouring groups merged around the biggest. */
+const REGION_PREFIX = GROUP_KEY_PREFIX + '~'
 
 /** Key of the catch-all group that absorbs what has no path parent to merge into. */
 const OTHER_GROUP_KEY = GROUP_KEY_PREFIX + 'd(autres)'
 
 const DIR_KEY_PREFIX = GROUP_KEY_PREFIX + 'd'
 
-/** Parent of a directory group by path prefix ("g:dsrc/chat/x" → "g:dsrc/chat"), else null. */
+/**
+ * Parent of a group: a part's parent is its group ("g:c7#1,0,0" → "g:c7"); a
+ * directory's parent is its path prefix ("g:dsrc/chat/x" → "g:dsrc/chat");
+ * anything else has none (null).
+ */
 function parentGroupKey(key: string): string | null {
+  const part = key.indexOf(PART_SEP)
+  if (part > 0) return key.slice(0, part)
   if (!key.startsWith(DIR_KEY_PREFIX)) return null
   const path = key.slice(DIR_KEY_PREFIX.length)
   const cut = path.lastIndexOf('/')
@@ -214,13 +247,20 @@ function parentGroupKey(key: string): string | null {
 /**
  * Cap the number of distinct keys at `max`. Deterministic, O(K log K · passes).
  *  1. Raise a size threshold t = 2, 4, 8, … ; at each pass, groups smaller than
- *     t (smallest first, key as tie-break) are merged into their path-prefix
- *     parent, stopping the moment the count reaches `max`.
- *  2. Whatever has no parent (community / grid keys, top-level directories) is
- *     folded, smallest first, into one catch-all group.
+ *     t (smallest first, key as tie-break) are merged into their parent (a
+ *     part into its group, a directory into its path prefix), stopping the
+ *     moment the count reaches `max`.
+ *  2. Whatever has no parent is merged, smallest first, into its REGION when
+ *     `regionOf` names one (neighbouring groups in space — see
+ *     resolveGroupKeys), so a coarse tier is a few regions, not one blob.
+ *  3. Only what is still over the cap is folded into one catch-all group.
  * Returns old key → final key; the sum of counts is preserved by construction.
  */
-export function capGroups(counts: Map<string, number>, max: number): Map<string, string> {
+export function capGroups(
+  counts: Map<string, number>,
+  max: number,
+  regionOf?: (key: string) => string | null,
+): Map<string, string> {
   const cur = new Map(counts)
   const redirect = new Map<string, string>() // merged key → where it went
   const move = (from: string, to: string) => {
@@ -250,6 +290,17 @@ export function capGroups(counts: Map<string, number>, max: number): Map<string,
     }
   }
 
+  if (cur.size > limit && regionOf) {
+    const order = [...cur.keys()].sort(bySize)
+    for (const k of order) {
+      if (cur.size <= limit) break
+      if (!cur.has(k)) continue
+      const region = regionOf(k)
+      if (region === null || region === k) continue
+      move(k, region)
+    }
+  }
+
   if (cur.size > limit) {
     const order = [...cur.keys()].filter((k) => k !== OTHER_GROUP_KEY).sort(bySize)
     for (const k of order) {
@@ -266,25 +317,123 @@ export function capGroups(counts: Map<string, number>, max: number): Map<string,
   return alias
 }
 
+type Box = Acc & {
+  minX: number; minY: number; minZ: number; maxX: number; maxY: number; maxZ: number
+}
+
+/** Count, centroid sums and bounding box of every key, in one pass. */
+function boxesOf(nodes: Graph3DNode[], keys: string[]): Map<string, Box> {
+  const boxes = new Map<string, Box>()
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i]
+    const b = boxes.get(keys[i])
+    if (!b) {
+      boxes.set(keys[i], {
+        count: 1, sx: n.x, sy: n.y, sz: n.z,
+        minX: n.x, minY: n.y, minZ: n.z, maxX: n.x, maxY: n.y, maxZ: n.z,
+      })
+      continue
+    }
+    b.count++
+    b.sx += n.x; b.sy += n.y; b.sz += n.z
+    if (n.x < b.minX) b.minX = n.x
+    if (n.y < b.minY) b.minY = n.y
+    if (n.z < b.minZ) b.minZ = n.z
+    if (n.x > b.maxX) b.maxX = n.x
+    if (n.y > b.maxY) b.maxY = n.y
+    if (n.z > b.maxZ) b.maxZ = n.z
+  }
+  return boxes
+}
+
 /**
- * Final group key of every node: its `groupKey` (grid cell when absent), with
- * the number of groups capped at MAX_AGGREGATE_GROUPS.
+ * Final group key of every node at grid resolution `res`.
+ *
+ * The tier aims at `maxGroups` super-nodes (default groupBudgetForResolution):
+ *  • FINER than the semantic groups (fewer groups than the budget): every
+ *    group big enough is split into parts — a local grid over ITS OWN box, so
+ *    a part never mixes two groups (`g:c7#1,0,2`);
+ *  • COARSER (more groups than the budget): parts fold back into their group,
+ *    directories into their parent, then groups into their spatial REGION
+ *    (`g:~c7`, named after its biggest member: the cell of a coarse grid over
+ *    the group centroids) — never all into one catch-all blob.
  */
 export function resolveGroupKeys(
   nodes: Graph3DNode[],
   res: number,
-  maxGroups: number = MAX_AGGREGATE_GROUPS,
+  maxGroups: number = groupBudgetForResolution(res),
 ): string[] {
+  const limit = Math.max(1, Math.floor(maxGroups))
   const gridKeyOf = makeGridKeyOf(nodes, res)
-  const raw = nodes.map((n) => {
+  let raw = nodes.map((n) => {
     const g = n.groupKey
     return g != null && g !== '' ? GROUP_KEY_PREFIX + g : gridKeyOf(n)
   })
+  let boxes = boxesOf(nodes, raw)
+
+  // ── Finer than the groups: split each big group in its own box ───────────
+  if (boxes.size < limit && nodes.length > 0) {
+    const perPart = nodes.length / limit
+    const localRes = new Map<string, number>()
+    for (const [k, b] of boxes) {
+      if (!k.startsWith(GROUP_KEY_PREFIX) || b.count < SPLIT_MIN_SIZE) continue
+      const parts = Math.floor(b.count / perPart)
+      if (parts >= 2) localRes.set(k, Math.max(2, Math.round(Math.cbrt(parts))))
+    }
+    if (localRes.size > 0) {
+      raw = raw.map((k, i) => {
+        const r = localRes.get(k)
+        const b = boxes.get(k)
+        if (r === undefined || !b) return k
+        const n = nodes[i]
+        const cell = (v: number, lo: number, hi: number) =>
+          Math.min(r - 1, Math.floor(((v - lo) / Math.max(hi - lo, 1e-6)) * r))
+        return `${k}${PART_SEP}${cell(n.x, b.minX, b.maxX)},${cell(n.y, b.minY, b.maxY)},${cell(n.z, b.minZ, b.maxZ)}`
+      })
+      boxes = boxesOf(nodes, raw)
+    }
+  }
+  if (boxes.size <= limit) return raw
+
+  // ── Coarser than the groups: regions of neighbouring groups ──────────────
+  // A coarse grid over the group centroids, with at most `limit` cells; each
+  // cell is named after its biggest group, so the region reads as "c7 and its
+  // neighbours". A part's region is its group's region (parts fold first).
   const counts = new Map<string, number>()
-  for (const k of raw) counts.set(k, (counts.get(k) ?? 0) + 1)
-  if (counts.size <= maxGroups) return raw
-  const alias = capGroups(counts, maxGroups)
+  for (const [k, b] of boxes) counts.set(k, b.count)
+  const centroids: Graph3DNode[] = []
+  const owners: string[] = []
+  for (const [k, b] of boxes) {
+    if (k.includes(PART_SEP)) continue
+    owners.push(k)
+    centroids.push({ id: k, label: k, entityType: '', layer: '', x: b.sx / b.count, y: b.sy / b.count, z: b.sz / b.count, data: {} })
+  }
+  const cellOf = makeGridKeyOf(centroids, Math.max(1, Math.floor(Math.cbrt(limit))))
+  const biggestInCell = new Map<string, string>()
+  const cellOfOwner = new Map<string, string>()
+  owners.forEach((k, i) => {
+    const cell = cellOf(centroids[i])
+    cellOfOwner.set(k, cell)
+    const best = biggestInCell.get(cell)
+    const bc = best === undefined ? -1 : counts.get(best) ?? 0
+    const kc = counts.get(k) ?? 0
+    if (best === undefined || kc > bc || (kc === bc && k < best)) biggestInCell.set(cell, k)
+  })
+  const regionOf = (key: string): string | null => {
+    if (key.startsWith(REGION_PREFIX)) return null
+    const cell = cellOfOwner.get(key)
+    const head = cell === undefined ? undefined : biggestInCell.get(cell)
+    if (head === undefined) return null
+    return REGION_PREFIX + (head.startsWith(GROUP_KEY_PREFIX) ? head.slice(GROUP_KEY_PREFIX.length) : head)
+  }
+  const alias = capGroups(counts, limit, regionOf)
   return raw.map((k) => alias.get(k) ?? k)
+}
+
+/** The semantic group of a resolved key: a part's group, else the key itself. */
+function semanticKeyOf(key: string): string {
+  const part = key.indexOf(PART_SEP)
+  return part > 0 ? key.slice(0, part) : key
 }
 
 /**
@@ -311,7 +460,9 @@ export function aggregateByGroup(
  * Index 0 is the biggest group (colour order stays stable as sizes shift).
  */
 export function groupHullNodes(nodes: Graph3DNode[], res: number): Graph3DNode[] {
-  const keys = resolveGroupKeys(nodes, res)
+  // A hull wraps a SEMANTIC group: the parts of a fine tier share their
+  // group's envelope (one hull per community, not one per part).
+  const keys = resolveGroupKeys(nodes, res).map(semanticKeyOf)
   const counts = new Map<string, number>()
   for (const k of keys) counts.set(k, (counts.get(k) ?? 0) + 1)
   const order = [...counts.keys()].sort(
@@ -334,6 +485,11 @@ export function groupHullNodes(nodes: Graph3DNode[], res: number): Graph3DNode[]
 export function superNodeName(key: string, communityLabel?: string): string {
   const label = communityLabel?.trim()
   if (label) return label
+  if (key.startsWith(REGION_PREFIX)) {
+    return `${superNodeName(GROUP_KEY_PREFIX + key.slice(REGION_PREFIX.length), label)} et voisins`
+  }
+  const part = key.indexOf(PART_SEP)
+  if (part > 0) return `${superNodeName(key.slice(0, part), label)} · partie`
   const gk = key.startsWith(GROUP_KEY_PREFIX) ? key.slice(GROUP_KEY_PREFIX.length) : ''
   if (gk) {
     if (gk.startsWith('c')) return `Communauté ${gk.slice(1)}`
@@ -409,7 +565,8 @@ function buildScaledGraphFrom(
         }
       }
     }
-    const name = superNodeName(sn.key, cellLabel.get(sn.key))
+    // A region merges several groups: the first label met is not its name.
+    const name = superNodeName(sn.key, sn.key.startsWith(REGION_PREFIX) ? undefined : cellLabel.get(sn.key))
     return {
       id: sn.key,
       label: name,
