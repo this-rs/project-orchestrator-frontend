@@ -107,7 +107,7 @@ async function openTab(chrome) {
 // Installed before any page script: three then reports every renderer it creates.
 // Each renderer.render() call is timed (JS side: scene walk + command submission; with SwiftShader the
 // GPU work runs on the CPU too). Renders are counted by three's own info.render.frame, not by rAF.
-const DEVTOOLS_HOOK = `window.__LT = []; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__LT.push(e.duration) }).observe({ type: 'longtask', buffered: true }) } catch { /* */ } window.__THREE_DEVTOOLS__ = new EventTarget(); window.__RAF = null; (function raf(t) { if (window.__RAF) window.__RAF.push(t); requestAnimationFrame(raf); })(performance.now());
+const DEVTOOLS_HOOK = `window.__ERR = []; window.addEventListener('error', (e) => window.__ERR.push(String((e && (e.error && e.error.stack) || e && e.message) || e))); window.addEventListener('unhandledrejection', (e) => window.__ERR.push('rejection: ' + String(e && e.reason))); window.__LT = []; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__LT.push(e.duration) }).observe({ type: 'longtask', buffered: true }) } catch { /* */ } window.__THREE_DEVTOOLS__ = new EventTarget(); window.__RAF = null; (function raf(t) { if (window.__RAF) window.__RAF.push(t); requestAnimationFrame(raf); })(performance.now());
 window.__POR = null; window.__RT = [];
 window.__THREE_DEVTOOLS__.addEventListener('observe', (e) => {
   const R = e.detail; window.__POR = R;
@@ -264,12 +264,36 @@ async function run(chrome, base, n) {
     }
     await resize(900, 700)
     const s1 = await state()
+    // --shot=<file>: keep the picture. A number tells that something was drawn;
+    // only the image tells WHAT. (Two invisible defects of this view were
+    // diagnosed by looking, not by counting.)
+    if (args.shot) {
+      const { data } = await tab.send('Page.captureScreenshot', { format: 'png' })
+      fs.writeFileSync(String(args.shot), Buffer.from(data, 'base64'))
+      console.log('shot:', String(args.shot))
+    }
     check('inline resized 900x700: canvas drawn', drawing(s1, s0 && s0.frame), s1)
 
     // the fullscreen toggle of the graph page
     const toggle = async () => {
       const box = await tab.evaluate(`(() => { const b = [...document.querySelectorAll('button')].find((x) => /full ?screen|plein/i.test(x.title || x.getAttribute('aria-label') || '') || x.querySelector('svg.lucide-maximize, svg.lucide-minimize')); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })()`)
-      if (!box) throw new Error('fullscreen button not found')
+      if (!box) {
+        // Say WHAT is on the page instead of only what is missing: "button not
+        // found" sent the reader looking for a selector when the usual cause is
+        // that the page never reached the graph (route, fixture, or a build
+        // from another branch).
+        const diag = await tab.evaluate(`(() => ({
+          title: document.title,
+          buttons: [...document.querySelectorAll('button')]
+            .map((b) => (b.getAttribute('aria-label') || b.title || b.textContent || '').trim())
+            .filter(Boolean)
+            .slice(0, 25),
+          text: (document.body.innerText || '').replace(/\\s+/g, ' ').slice(0, 400),
+          errors: (window.__ERR || []).slice(0, 5),
+          root: (document.getElementById('root') || {}).innerHTML ? 'has content' : 'EMPTY',
+        }))()`)
+        throw new Error('fullscreen button not found — page says: ' + JSON.stringify(diag))
+      }
       await tab.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1 })
       await tab.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1 })
       await sleep(900)
