@@ -2634,6 +2634,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       el.removeEventListener('click', onClick)
       if (rafId) cancelAnimationFrame(rafId)
       el.style.cursor = 'default'
+      // The hover state lives in this closure: a re-subscription (a selection
+      // change re-runs this effect) starts from `null` and would never lower
+      // a hull raised by the previous one. Give it back before leaving.
+      setHullHover(null)
     }
     // hasDimensions: the library mounts after the data when the graph is opened
     // from the code map. Without it this effect returns early (no ForceGraph3D

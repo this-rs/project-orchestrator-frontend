@@ -14,7 +14,7 @@ import { act, render } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import * as THREE from 'three'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
-import { graphScaleAtom, hoveredNodeIdAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
+import { graphScaleAtom, hoveredNodeIdAtom, selectedNodeIdAtom, showCommunityHullsAtom } from '@/atoms/intelligence'
 
 // ── The library stand-in ──────────────────────────────────────────────────────
 
@@ -502,4 +502,45 @@ describe('IntelligenceGraph3D — screen changes', () => {
     expect(armed('(resolution: 2dppx)')).toBe(0)
     Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1 })
   })
+})
+
+describe('IntelligenceGraph3D — hull hover', () => {
+  it('a raised hull is lowered when the pick effect re-subscribes (selection change)', async () => {
+    const view = await mountGraph(makeGraph(1200))
+    act(() => {
+      view.store.set(graphScaleAtom, 1)
+      view.store.set(showCommunityHullsAtom, true)
+    })
+    await flush(3000)
+    const fills: THREE.Mesh[] = []
+    lib.fg.scene().traverse((o) => {
+      if (o instanceof THREE.Mesh && typeof (o.userData as { communityId?: number }).communityId === 'number') fills.push(o)
+    })
+    expect(fills.length).toBeGreaterThan(0)
+    // Aim at a point just inside a hull's edge, far from the super-node at its centre.
+    const camera = lib.fg.camera()
+    camera.updateMatrixWorld()
+    const container = view.container.firstElementChild as HTMLElement
+    let raised: THREE.Mesh | null = null
+    for (const fill of fills) {
+      const pos = fill.geometry.getAttribute('position') as THREE.BufferAttribute
+      fill.geometry.computeBoundingSphere()
+      const c = fill.geometry.boundingSphere!.center
+      const v = new THREE.Vector3().fromBufferAttribute(pos, 0).lerp(c, 0.1).project(camera)
+      const before = (fill.material as THREE.MeshBasicMaterial).opacity
+      act(() => {
+        container.dispatchEvent(new PointerEvent('pointermove', {
+          clientX: ((v.x + 1) / 2) * 800, clientY: ((1 - v.y) / 2) * 600, buttons: 0,
+        }))
+      })
+      await flush(100)
+      if ((fill.material as THREE.MeshBasicMaterial).opacity > before) { raised = fill; break }
+    }
+    expect(raised, 'no hull could be hovered').not.toBeNull()
+    const lifted = (raised!.material as THREE.MeshBasicMaterial).opacity
+    // A selection change re-subscribes the pick effect.
+    act(() => { view.store.set(selectedNodeIdAtom, 'n1') })
+    await flush(100)
+    expect((raised!.material as THREE.MeshBasicMaterial).opacity).toBeLessThan(lifted)
+  }, 60_000)
 })
