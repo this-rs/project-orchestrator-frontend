@@ -241,13 +241,13 @@ describe('buildGroupedGraph', () => {
     expect(d.byType).toEqual({ file: 2, class: 1 })
   })
 
-  it('saturates edge weight and grows width with count', () => {
+  it('carries the bundle count, a positive width and a weight in (0, 1]', () => {
     const g = buildGroupedGraph(data, 2)
     expect(g.links.length).toBe(1)
     const e = g.links[0]
     expect(e.count).toBe(2) // a→d and b→d cross groups; a→c is intra-group
-    expect(e.weight).toBe(Math.min(1, 2 / 8))
-    expect(e.width).toBe(Math.min(4, 0.5 + 2 * 0.25))
+    expect(e.weight).toBe(1) // the only bundle of the tier is its biggest
+    expect(e.width).toBeGreaterThan(0.5)
   })
 
   it('names every super-node (label + data.name) from its group', () => {
@@ -454,5 +454,44 @@ describe('semantic zoom levels', () => {
     const res = levels[0].res
     const ids = new Set(groupHullNodes(g.nodes, res).map((n) => n.communityId))
     expect(ids.size).toBeLessThanOrEqual(300)
+  })
+})
+
+// ── Super-edge importance: a magnitude law, no early saturation ─────────────
+
+describe('super-edge width and weight follow the magnitude of the bundle', () => {
+  /** Two groups joined by `count` links, plus a 1 000-link reference pair. */
+  function bundles(counts: number[]) {
+    const nodes: Graph3DNode[] = []
+    const links: Graph3DLink[] = []
+    counts.forEach((count, i) => {
+      nodes.push(groupedNode(`a${i}`, i * 10, 0, 0, `c${2 * i}`))
+      nodes.push(groupedNode(`b${i}`, i * 10, 50, 0, `c${2 * i + 1}`))
+      for (let k = 0; k < count; k++) links.push(link(`a${i}`, `b${i}`))
+    })
+    return buildGroupedGraph({ nodes, links }, 16).links
+  }
+
+  it('tells 14, 232 and 294 relations apart (they were all width 4, weight 1)', () => {
+    const edges = bundles([14, 232, 294, 1000]).sort((x, y) => (x.count ?? 0) - (y.count ?? 0))
+    for (let i = 1; i < edges.length; i++) {
+      expect(edges[i].width).toBeGreaterThan(edges[i - 1].width)
+      expect(edges[i].weight as number).toBeGreaterThan(edges[i - 1].weight as number)
+    }
+  })
+
+  it('grows by one constant step per decade (a log law, not a clamp)', () => {
+    const [w1, w10, w100, w1000] = bundles([1, 10, 100, 1000])
+      .sort((x, y) => (x.count ?? 0) - (y.count ?? 0))
+      .map((e) => e.width)
+    expect(w10 - w1).toBeCloseTo(w100 - w10, 6)
+    expect(w1000 - w100).toBeCloseTo(w100 - w10, 6)
+  })
+
+  it('keeps weight in (0, 1], the biggest bundle of the tier at 1', () => {
+    const edges = bundles([1, 30, 900])
+    const weights = edges.map((e) => e.weight as number)
+    expect(Math.max(...weights)).toBe(1)
+    expect(Math.min(...weights)).toBeGreaterThan(0)
   })
 })

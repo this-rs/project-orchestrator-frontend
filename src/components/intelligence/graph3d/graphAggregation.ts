@@ -22,6 +22,7 @@
 // ============================================================================
 
 import type { Graph3DNode, Graph3DLink } from './useGraph3DLayout'
+import { magnitudeMantissaOf, magnitudeOrderOf } from './linkMagnitude'
 
 export interface SuperNode {
   /** Aggregate key — stable id (a grid cell or a semantic group). */
@@ -515,6 +516,42 @@ export function resolutionForLevel(nodeCount: number, level: number): number {
   return Math.max(2, Math.round(Math.cbrt(targetCells)))
 }
 
+/** Width a super-edge gains per decade of bundled relations. */
+export const SUPER_EDGE_WIDTH_PER_DECADE = 1.25
+/** Width of a one-relation super-edge. */
+export const SUPER_EDGE_BASE_WIDTH = 0.5
+
+/**
+ * Continuous decimal magnitude of a bundle count: log10(count), read from the
+ * exact order and mantissa of linkMagnitude (0 for one relation, 2 for 100,
+ * 2.37 for 232). 0 for a count below 1.
+ */
+export function bundleDecades(count: number): number {
+  if (!(count >= 1)) return 0
+  const n = BigInt(Math.floor(count))
+  const order = magnitudeOrderOf(n)
+  return order + Math.log10(magnitudeMantissaOf(n, order))
+}
+
+/**
+ * Width of a super-edge: one constant step per decade, never clamped.
+ * The old `min(4, 0.5 + 0.25·count)` saturated at 14 relations, so a bundle of
+ * 14 and one of 294 were drawn the same.
+ */
+export function superEdgeWidth(count: number): number {
+  return SUPER_EDGE_BASE_WIDTH + SUPER_EDGE_WIDTH_PER_DECADE * bundleDecades(count)
+}
+
+/**
+ * Importance (0, 1] of a super-edge inside its tier: its magnitude against the
+ * tier's biggest bundle, on the same log scale — the biggest is 1, a single
+ * relation still > 0. The old `min(1, count/8)` was 1 from 8 relations on.
+ */
+export function superEdgeWeight(count: number, tierMaxCount: number): number {
+  const top = 1 + bundleDecades(Math.max(count, tierMaxCount))
+  return (1 + bundleDecades(count)) / top
+}
+
 /**
  * Turn an aggregated graph into render-ready Graph3DData (positions = centroids,
  * so no re-layout). Each super-node carries its dominant entity type (for
@@ -579,17 +616,19 @@ function buildScaledGraphFrom(
     }
   })
 
+  let tierMax = 1
+  for (const e of superEdges) if (e.count > tierMax) tierMax = e.count
   const links: Graph3DLink[] = superEdges.map((e) => ({
     source: e.source,
     target: e.target,
     relationType: 'AGGREGATE',
     layer: 'fabric',
-    // Importance of a bundle = how many links it carries → renderer maps to
-    // opacity (LineSegments) / width (cylinders). Saturate at a handful.
-    weight: Math.min(1, e.count / 8),
+    // Importance of a bundle = the MAGNITUDE of what it carries → renderer maps
+    // to opacity (LineSegments) / width (cylinders). Log law, no saturation.
+    weight: superEdgeWeight(e.count, tierMax),
     count: e.count,
     color: 'rgba(148, 163, 184, 0.4)',
-    width: Math.min(4, 0.5 + e.count * 0.25),
+    width: superEdgeWidth(e.count),
     particles: 0,
     particleSpeed: 0,
     isInterCommunity: true,
