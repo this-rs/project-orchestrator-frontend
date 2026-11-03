@@ -46,6 +46,19 @@ const TUBE_SEGMENTS = 8
 const BOW = 0.16
 /** Hard ceiling on lanes drawn for one trunk. */
 const MAX_STRANDS = 5
+/**
+ * Fibres internes d'un conduit.
+ *
+ * Les planches ne montrent pas un tube : elles montrent un FAISCEAU — une gaine
+ * translucide dans laquelle on voit courir des dizaines de fibres parallèles.
+ * C'est cette structure interne qui fait lire « vaisseau » et non « fil ». Elles
+ * tournent en hélice lente autour de l'axe, donc la lumière accroche par
+ * intermittence, comme dans les références.
+ */
+const MICRO_FIBERS = 10
+/** Rayon d'une fibre, en fraction du rayon du conduit. */
+const MICRO_FIBER_RADIUS = 0.07
+
 /** Branches per end — the vascular tree's first division. */
 const BRANCHES_PER_END = 3
 /** Samples along a branch (shorter than a trunk, so fewer). */
@@ -190,9 +203,12 @@ function bowAnchors(a: Vec3, b: Vec3, seed: number): [Vec3, Vec3] {
   const bow = len * BOW
   const c1 = lerp3(a, b, 1 / 3)
   const c2 = lerp3(a, b, 2 / 3)
+  // Les deux contrôles partent de part et d'autre : une S, pas un arc. Un arc
+  // unique donnait des cordes tendues d'un point à l'autre — « de simples fils »
+  // entre les nœuds, exactement ce que le client refuse.
   return [
     [c1[0] + perp[0] * bow, c1[1] + perp[1] * bow, c1[2] + perp[2] * bow],
-    [c2[0] + perp[0] * bow, c2[1] + perp[1] * bow, c2[2] + perp[2] * bow],
+    [c2[0] - perp[0] * bow, c2[1] - perp[1] * bow, c2[2] - perp[2] * bow],
   ]
 }
 
@@ -333,7 +349,7 @@ export function createVascularLinks(
       const trunkSamples = drawable.samples
       const order = corridor.magnitude.magnitudeOrder
       // Base radius: a share of the scene, growing with the magnitude order.
-      const baseRadius = sceneRadius * 0.011 * (1 + 0.42 * Math.min(9, order))
+      const baseRadius = sceneRadius * 0.024 * (1 + 0.38 * Math.min(9, order))
 
       const conduits: Conduit[] = []
       const vertexStart = position.length / 3
@@ -353,8 +369,9 @@ export function createVascularLinks(
         // One vertex ring per stratum: the tube is CONCENTRIC layers, not one
         // shell. That is what distinguishes a 1 000-relation conduit from a
         // 10 000-relation trunk once the projected width has hit its ceiling.
-        // +1 : la couche de HALO, dessinée avant les strates (voir fillConduit).
-        const layers = Math.max(1, strata.length) + 1
+        // halo + strates + fibres internes (voir fillConduit).
+        const fiberCount = Math.min(MICRO_FIBERS, 4 + strata.length * 3)
+        const layers = 1 + Math.max(1, strata.length) + fiberCount
         const count = samples * TUBE_SEGMENTS * layers
         conduits.push({
           fromId,
@@ -493,7 +510,7 @@ export function createVascularLinks(
       const points = sampleCurve(a, c1, c2, b, conduit.samples)
       const frames = parallelTransportFrames(points)
       const order = bundle.corridor.magnitude.magnitudeOrder
-      const thickness = sceneRadius * 0.011 * (1 + 0.42 * Math.min(9, order)) * conduit.radius
+      const thickness = sceneRadius * 0.024 * (1 + 0.38 * Math.min(9, order)) * conduit.radius
       const offsets = braidedOffsets(
         Math.max(1, conduit.lane === 0.5 ? 1 : Math.round(bundle.conduits.length / 2)),
         conduit.samples,
@@ -512,10 +529,11 @@ export function createVascularLinks(
       const cr2 = fam ? fam[0] : (style.r2 ?? style.r)
       const cg2 = fam ? fam[1] : (style.g2 ?? style.g)
       const cb2 = fam ? fam[2] : (style.b2 ?? style.b)
-      const layers = Math.max(1, conduit.strata.length) + 1
+      const fiberCount = Math.min(MICRO_FIBERS, 4 + conduit.strata.length * 3)
+      const layers = 1 + Math.max(1, conduit.strata.length) + fiberCount
       const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
       // Part de lumière de chaque couche : halo 0,1 puis les strates.
-      const shares = [0.1, ...conduit.strata.map((x) => x.alpha)]
+      const shares = [0.08, ...conduit.strata.map((x) => x.alpha), ...Array.from({ length: fiberCount }, () => 0.5)]
       const shareTotal = shares.reduce((acc, v) => acc + v, 0) || 1
       // Grains du flux : leur motif lumineux court le long de la couche la plus
       // interne. `flowPositions` donne des abscisses régulières ; on s'en sert
@@ -526,17 +544,29 @@ export function createVascularLinks(
         // Couche 0 : le HALO — une enveloppe large et tres faible qui diffuse
         // autour du vaisseau. C'est la lueur des planches, obtenue sans
         // compositeur de post-traitement : un bloom de geometrie, paye une fois.
+        const stratumCount = Math.max(1, conduit.strata.length)
         const isHalo = layer === 0
-        const stratum = isHalo
-          ? { radius: 1.6, alpha: 0.1, carriesFlow: false }
+        const isFiber = layer >= 1 + stratumCount
+        const fiberIndex = layer - 1 - stratumCount
+        const stratum = isHalo || isFiber
+          ? { radius: 1.6, alpha: isHalo ? 0.08 : 0.5, carriesFlow: false }
           : (conduit.strata[layer - 1] ?? { radius: 1, alpha: 1, carriesFlow: false })
-        const layerRadius = isHalo ? thickness * 1.6 : stratumRadius(stratum, thickness)
+        const layerRadius = isHalo
+          ? thickness * 1.7
+          : isFiber
+            ? thickness * MICRO_FIBER_RADIUS
+            : stratumRadius(stratum, thickness)
+        // Les fibres sont réparties sur un cercle à 55 % du rayon : on les VOIT
+        // courir à l'intérieur de la gaine, ce qui distingue un faisceau d'un
+        // simple tube.
+        const fiberAngle = isFiber ? (fiberIndex / Math.max(1, fiberCount)) * Math.PI * 2 : 0
+        const fiberOrbit = thickness * 0.55
         const layerBase = base + layer * samplesPerLayer
         // Un tronc represente des CENTAINES de relations : il ne peut pas
         // emprunter l'opacite au repos d'un fil isole (0,05 a 0,28), sinon il
         // s'eteint. On part d'un plancher propre au vaisseau.
         const baseAlpha = Math.max(0.3, style.a)
-        const share = isHalo ? 0.1 : stratum.alpha
+        const share = isHalo ? 0.08 : isFiber ? 0.5 : stratum.alpha
         const layerAlpha = Math.min(
           1,
           CONDUIT_LIGHT_BUDGET * (share / shareTotal) * conduit.alpha * Math.max(0.55, baseAlpha),
@@ -546,9 +576,13 @@ export function createVascularLinks(
           if (!f) continue
           const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
           const off = offsets[i] ?? [0, 0, 0]
-          const cx = f.position[0] + f.normal[0] * off[0] * layerRadius + f.binormal[0] * off[1] * layerRadius
-          const cy = f.position[1] + f.normal[1] * off[0] * layerRadius + f.binormal[1] * off[1] * layerRadius
-          const cz = f.position[2] + f.normal[2] * off[0] * layerRadius + f.binormal[2] * off[1] * layerRadius
+          // Vrille lente : la fibre tourne autour de l'axe en avançant.
+          const twist = isFiber ? fiberAngle + u * 2.4 : 0
+          const orbitX = isFiber ? Math.cos(twist) * fiberOrbit : 0
+          const orbitY = isFiber ? Math.sin(twist) * fiberOrbit : 0
+          const cx = f.position[0] + f.normal[0] * (off[0] * layerRadius + orbitX) + f.binormal[0] * (off[1] * layerRadius + orbitY)
+          const cy = f.position[1] + f.normal[1] * (off[0] * layerRadius + orbitX) + f.binormal[1] * (off[1] * layerRadius + orbitY)
+          const cz = f.position[2] + f.normal[2] * (off[0] * layerRadius + orbitX) + f.binormal[2] * (off[1] * layerRadius + orbitY)
           // Flux : une brillance périodique le long de la couche porteuse. Sans
           // animation c'est déjà des grains lisibles ; `setFlowTime` les fait
           // défiler (voir le champ exposé plus bas).
