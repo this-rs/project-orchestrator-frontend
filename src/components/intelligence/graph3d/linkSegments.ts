@@ -27,6 +27,7 @@ import {
 import { classifyLinkScale, interpolateRgb, linkScaleCurvature } from './linkScale'
 import type { LinkStyle, LinkStyleFn } from './linkRibbon'
 import { createLinkRibbons, type LinkRenderer } from './linkRibbons'
+import { createVascularLinks } from './linkVascularRenderer'
 
 /**
  * Line segments drawn per link's stroke: CURVE_SUBDIVISIONS − 1 bowed
@@ -362,7 +363,27 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
  * non-finite position, or an allocation throw). The graph never disappears:
  * the fallback is the exact renderer that predates the ribbon work.
  */
+/**
+ * Below this many links, the per-link renderer shows MORE than any aggregation
+ * can: every relation is visible, and the vascular layer would replace 6 000
+ * wires with a couple hundred trunks whose centroids bunch wherever the
+ * communities overlap in space. Measured on the browser bench at 6 926 links:
+ * the aggregated picture was less informative than the detailed one.
+ *
+ * Above it, the trade is the right way round: the detail is unreadable and the
+ * magnitude is what the eye needs.
+ */
+export const VASCULAR_MIN_LINKS = 3_000
+
 export function createLinkRenderer(nodes: Graph3DNode[], links: Graph3DLink[]): LinkRenderer {
+  // The organic hierarchy first (Organic Link Engine V2), and only where it
+  // earns its keep: corridors, exact magnitudes, per-bundle morphology and LOD,
+  // vascular strands — one batched geometry whose cost depends on the number of
+  // corridors, not on how many relations they summarise.
+  const vascular = links.length > VASCULAR_MIN_LINKS ? createVascularLinks(nodes, links) : null
+  if (vascular) return vascular
+  // Then the ribbon renderer, then the LineSegments of last resort. Each step is
+  // a strict fallback: the graph never disappears because a path could not build.
   const ribbons = createLinkRibbons(nodes, links)
   if (ribbons) return ribbons
   return createLinkSegments(nodes, links)
