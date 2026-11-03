@@ -198,7 +198,22 @@ export const touchesHeatmapAtom = atom<boolean>(false)
 export const coChangeThresholdAtom = atom<number>(1)
 
 /** Community hulls toggle — show/hide convex hull overlays in 3D view */
-export const showCommunityHullsAtom = atom<boolean>(true)
+/**
+ * Community hulls are OFF by default.
+ *
+ * They were introduced when the graph had no shape of its own: a translucent
+ * envelope around a cluster was the only thing saying "these nodes belong
+ * together". The placement now draws that grouping itself — each group is a
+ * nebula with a dense core and a sparse halo, and related groups share their
+ * halos — so the hull adds nothing and costs a lot: on the browser bench, six
+ * overlapping envelopes at 5 000 nodes covered most of the frame with a green
+ * wash (qa-out/graph3d-organites.png), hiding the very relief they were meant
+ * to reveal.
+ *
+ * Kept as a switch, not deleted: on a small graph, or when explaining the
+ * grouping to someone, the envelope is still a useful read.
+ */
+export const showCommunityHullsAtom = atom<boolean>(false)
 
 /** Graph brightness (0→1) — controls ambient light intensity + background luminance */
 export const graphBrightnessAtom = atom<number>(0.5)

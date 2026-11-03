@@ -126,8 +126,12 @@ describe('LayerControls', () => {
     expect(store.get(energyHeatmapAtom)).toBe(true)
     fireEvent.click(screen.getByText('Churn heatmap'))
     expect(store.get(touchesHeatmapAtom)).toBe(true)
-    fireEvent.click(screen.getByText('Communities'))
+    // The hulls are OFF by default (the grouping is drawn by the placement
+    // itself now), so the first click TURNS THEM ON — the switch still works in
+    // both directions, which is what this test is about.
     expect(store.get(showCommunityHullsAtom)).toBe(false)
+    fireEvent.click(screen.getByText('Communities'))
+    expect(store.get(showCommunityHullsAtom)).toBe(true)
     fireEvent.click(screen.getByText('Activation'))
     expect(store.get(activationSearchOpenAtom)).toBe(true)
   })
