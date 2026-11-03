@@ -40,6 +40,7 @@ import { communityToken } from './linkRibbon'
 import { LINK_RENDER_ORDER } from './nodePoints'
 import { isMobileLikeDevice } from './useRenderLoop'
 import { buildRanges, bundleAtTriangle } from './linkVascularPicking'
+import { distributePorts, type GroupEnvelope, type GroupPair } from './linkPorts'
 
 /** Radial segments. Eight reads round at these widths and stays cheap. */
 const TUBE_SEGMENTS = 6
@@ -324,16 +325,52 @@ export function createVascularLinks(
         hubPoints.set(k, acc)
       }
     }
+    // Rayon de chaque ensemble : écart moyen de ses extrémités à son centre.
+    const envelopeRadius = new Map<string, number>()
+    for (const link of links) {
+      for (const [end, token] of [
+        [nodeById.get(endpointId(link.source)), communityToken(link.sourceCommunityId)] as const,
+        [nodeById.get(endpointId(link.target)), communityToken(link.targetCommunityId)] as const,
+      ]) {
+        const acc = hubPoints.get(token)
+        if (!end || !acc || acc.n === 0) continue
+        const cx = acc.x / acc.n, cy = acc.y / acc.n, cz = acc.z / acc.n
+        const d = Math.hypot(end.x - cx, end.y - cy, end.z - cz)
+        envelopeRadius.set(token, (envelopeRadius.get(token) ?? 0) + d)
+      }
+    }
+    for (const [token, sum] of envelopeRadius) {
+      const acc = hubPoints.get(token)
+      if (!acc || acc.n === 0) continue
+      envelopeRadius.set(token, Math.max(8, sum / acc.n))
+    }
+
+    const envelopes: GroupEnvelope[] = []
     for (const [token, acc] of hubPoints) {
       if (acc.n === 0) continue
-      nodeById.set(hubId(token), {
-        id: hubId(token),
+      envelopes.push({
+        id: token,
+        center: [acc.x / acc.n, acc.y / acc.n, acc.z / acc.n],
+        radius: envelopeRadius.get(token) ?? 40,
+      })
+    }
+    const groupPairs: GroupPair[] = corridors
+      .filter((c) => c.from !== c.to)
+      .map((c) => ({ key: c.key, from: c.from, to: c.to }))
+    const { ports, pairPorts } = distributePorts(envelopes, groupPairs)
+
+    // Les ports sont des points de ROUTAGE : ils n'ont ni compte ni relation.
+    // On les enregistre comme ancres pour que les conduits puissent s'y accrocher.
+    for (const port of ports) {
+      nodeById.set(port.id, {
+        id: port.id,
         label: '',
-        x: acc.x / acc.n,
-        y: acc.y / acc.n,
-        z: acc.z / acc.n,
+        x: port.position[0],
+        y: port.position[1],
+        z: port.position[2],
       } as unknown as Graph3DNode)
     }
+    void hubId
 
     /** Centroids of a corridor's two sides, plus the branch targets on each side. */
     const geometryOf = (corridor: Corridor) => {
@@ -499,8 +536,11 @@ export function createVascularLinks(
       // Nombre de strates AUTORISÉ par la morphologie : elle seule décide, et
       // `strataFor` n'en dessine jamais davantage.
       const strata = strataFor(Math.max(0, Math.min(6, drawable.morphology.graphical.strata)), order)
-      const trunkFrom = nodeById.has(hubId(corridor.from)) ? hubId(corridor.from) : (geo.branchA[0] ?? endpointId(corridor.links[0].source))
-      const trunkTo = nodeById.has(hubId(corridor.to)) ? hubId(corridor.to) : (geo.branchB[0] ?? endpointId(corridor.links[0].target))
+      // Le tronc va d'un PORT à un PORT : deux corridors qui partent dans des
+      // directions différentes quittent l'ensemble par des points différents.
+      const assigned = pairPorts.get(corridor.key)
+      const trunkFrom = assigned?.from ?? (geo.branchA[0] ?? endpointId(corridor.links[0].source))
+      const trunkTo = assigned?.to ?? (geo.branchB[0] ?? endpointId(corridor.links[0].target))
 
       laneFamilies.forEach((family, s) => {
         const lane = laneFamilies.length === 1 ? 0.5 : s / (laneFamilies.length - 1)
