@@ -40,9 +40,27 @@ export function spriteScaleFor(act: number): number {
   return 1 + 0.6 * Math.min(1, Math.max(0, act))
 }
 
+/** A node's style at activation `act`, optionally tinted toward a colour while active. */
+export function activatedNodeStyle(
+  base: NodeStyle,
+  act: number,
+  tint?: { r: number; g: number; b: number; k: number },
+): NodeStyle {
+  const style = pulsedNodeStyle(base, act)
+  if (!tint || !(tint.k > 0) || !(act > 0)) return style
+  const k = Math.min(1, tint.k)
+  return {
+    ...style,
+    r: style.r + (tint.r - style.r) * k,
+    g: style.g + (tint.g - style.g) * k,
+    b: style.b + (tint.b - style.b) * k,
+  }
+}
+
 /**
  * Write one node's activation. Points tier: a targeted style write. Sprite
- * tier: scale the node's Object3D (restored at `act = 0`). Returns whether
+ * tier: scale the node's Object3D on top of its current scale (restored at
+ * `act = 0`). Returns whether
  * anything was written (a node absent from both tiers is a no-op).
  */
 export function writeNodeActivation(
@@ -55,23 +73,28 @@ export function writeNodeActivation(
   if (np) {
     const idx = np.indexOf(node.id)
     if (idx < 0) return false
-    let style = pulsedNodeStyle(baseStyle(node), act)
-    if (tint && tint.k > 0 && act > 0) {
-      const k = Math.min(1, tint.k)
-      style = {
-        ...style,
-        r: style.r + (tint.r - style.r) * k,
-        g: style.g + (tint.g - style.g) * k,
-        b: style.b + (tint.b - style.b) * k,
-      }
-    }
-    np.updateStyleAt(idx, style)
+    np.updateStyleAt(idx, activatedNodeStyle(baseStyle(node), act, tint))
     return true
   }
   const obj = (node as NodeWithObject).__threeObj
   if (!obj) return false
-  const s = spriteScaleFor(act)
-  obj.scale.set(s, s, 1)
+  // The pulse MULTIPLIES the scale the other effects set (dimmed type 0.5,
+  // legend 1.6 / 0.5, group 1.3 / 0.6) instead of overwriting it, and gives
+  // that scale back at rest. A scale someone else wrote mid-pulse (it differs
+  // from the last one written here) becomes the new base.
+  const ud = obj.userData as { pulseBase?: number; pulseWritten?: number }
+  let base = ud.pulseBase ?? obj.scale.x
+  if (ud.pulseWritten !== undefined && Math.abs(obj.scale.x - ud.pulseWritten) > 1e-6) base = obj.scale.x
+  if (act <= 0) {
+    obj.scale.set(base, base, obj.scale.z)
+    delete ud.pulseBase
+    delete ud.pulseWritten
+    return true
+  }
+  const s = base * spriteScaleFor(act)
+  obj.scale.set(s, s, obj.scale.z)
+  ud.pulseBase = base
+  ud.pulseWritten = s
   return true
 }
 

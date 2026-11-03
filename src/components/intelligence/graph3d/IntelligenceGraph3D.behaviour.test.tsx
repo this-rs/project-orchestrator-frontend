@@ -14,7 +14,7 @@ import { act, render } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import * as THREE from 'three'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
-import { graphScaleAtom, hoveredNodeIdAtom } from '@/atoms/intelligence'
+import { graphScaleAtom, hoveredNodeIdAtom, selectedNodeIdAtom, showCommunityHullsAtom } from '@/atoms/intelligence'
 
 // ── The library stand-in ──────────────────────────────────────────────────────
 
@@ -43,6 +43,12 @@ const lib = vi.hoisted(() => ({
   props: {} as Record<string, unknown>,
   engineStops: 0,
   saves: 0,
+  agents: [] as Array<Record<string, unknown>>,
+}))
+
+// The live agents, as GET /api/agents/live would list them.
+vi.mock('@/hooks/useLiveAgents', () => ({
+  useLiveAgents: () => ({ data: { agents: lib.agents }, status: 'ready', stale: false }),
 }))
 
 // savePositions, counted: it is the O(N) cost an idle onEngineStop must not pay.
@@ -127,6 +133,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   lib.engineStops = 0
   lib.saves = 0
+  lib.agents = []
   ;(globalThis as { Worker?: unknown }).Worker = NoWorker
   ;(globalThis as { ResizeObserver?: unknown }).ResizeObserver = class {
     observe() {}
@@ -138,11 +145,17 @@ beforeEach(() => {
     unobserve() {}
     disconnect() {}
   }
+  mediaListeners.clear()
   window.matchMedia = ((query: string) => ({
     matches: false,
     media: query,
-    addEventListener: () => {},
-    removeEventListener: () => {},
+    addEventListener: (_type: string, fn: () => void) => {
+      if (!mediaListeners.has(query)) mediaListeners.set(query, new Set())
+      mediaListeners.get(query)!.add(fn)
+    },
+    removeEventListener: (_type: string, fn: () => void) => {
+      mediaListeners.get(query)?.delete(fn)
+    },
   })) as unknown as typeof window.matchMedia
   rect = { width: 800, height: 600 }
   lib.fg = null as unknown as FakeGraph
@@ -156,6 +169,10 @@ beforeEach(() => {
     x: 0, y: 0, top: 0, left: 0, right: rect.width, bottom: rect.height, width: rect.width, height: rect.height, toJSON: () => ({}),
   }) as DOMRect)
 })
+
+/** Live matchMedia 'change' listeners, by query. */
+const mediaListeners = new Map<string, Set<() => void>>()
+const armed = (query: string) => mediaListeners.get(query)?.size ?? 0
 
 /** The container's size, as getBoundingClientRect reports it. */
 let rect = { width: 800, height: 600 }
@@ -365,5 +382,165 @@ describe('IntelligenceGraph3D — semantic zoom at the default framing', () => {
     expect(view.store.get(graphScaleAtom)).toBe(0) // dead zone: holds
     at(3)
     expect(view.store.get(graphScaleAtom)).toBe(1)
+  }, 60_000)
+})
+
+describe('IntelligenceGraph3D — a WebSocket flush does not rebuild the scene', () => {
+  const sceneObjects = () => new Set(lib.fg.scene().children)
+  /** Everything the component added (the library's lights excluded). */
+  const drawn = () => [...sceneObjects()].filter((o) => !(o instanceof THREE.Light))
+  /** Which of `before` were replaced (identity), named for the failure message. */
+  const replaced = (before: Set<THREE.Object3D>) => {
+    const after = sceneObjects()
+    return [...before].filter((o) => !after.has(o)).map((o) => o.name || o.type)
+  }
+
+  it('detail tier: same entities → the same Points and link objects, updated in place', async () => {
+    const g = makeGraph(2500)
+    const view = await mountGraph(g)
+    await flush(3000)
+    const before = sceneObjects()
+    // Points + links + the (empty) agent-marker group. The links must be there
+    // although the library mounted after the data.
+    expect(drawn().map((o) => o.type)).toEqual(expect.arrayContaining(['Points']))
+    expect(drawn().length).toBeGreaterThanOrEqual(3)
+    view.rerender(refresh(g))
+    await flush(3000)
+    expect(replaced(before)).toEqual([])
+    expect(sceneObjects().size).toBe(before.size)
+  }, 60_000)
+
+  it('aggregated tier: same groups → the same labels / tubes / points', async () => {
+    const g = makeGraph(4200)
+    const view = await mountGraph(g)
+    await flush(3000)
+    const before = sceneObjects()
+    view.rerender(refresh(g))
+    await flush(3000)
+    expect(replaced(before)).toEqual([])
+    expect(sceneObjects().size).toBe(before.size)
+  }, 60_000)
+
+  it('a real change of the node set still rebuilds', async () => {
+    const view = await mountGraph(makeGraph(2500))
+    await flush(3000)
+    const before = sceneObjects()
+    view.rerender(makeGraph(2500, 'm'))
+    await flush(3000)
+    const after = sceneObjects()
+    expect([...after].some((o) => !before.has(o))).toBe(true)
+  }, 60_000)
+})
+
+describe('IntelligenceGraph3D — a kept scene follows a drag after a flush', () => {
+  /** True when some vertex drawn by the component sits near `p`. */
+  const drawnNear = (p: THREE.Vector3, tolerance = 60) => {
+    let hit = false
+    lib.fg.scene().traverse((o) => {
+      const geo = (o as THREE.Mesh).geometry as THREE.BufferGeometry | undefined
+      const pos = geo?.getAttribute?.('position') as THREE.BufferAttribute | undefined
+      if (!pos || hit) return
+      const v = new THREE.Vector3()
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i)
+        if (v.distanceTo(p) < tolerance) { hit = true; return }
+      }
+    })
+    return hit
+  }
+
+  it('the links of a node dragged after a same-structure flush move with it', async () => {
+    const g = makeGraph(600) // sprite tier (draggable), optimized links
+    const view = await mountGraph(g)
+    await flush(3000)
+    view.rerender(refresh(g))
+    await flush(3000)
+    // The library drags ITS node objects: those of the latest graphData prop.
+    const nodes = (lib.props.graphData as { nodes: Array<{ id: string; x: number; y: number; z: number }> }).nodes
+    const dragged = nodes[300]
+    const far = new THREE.Vector3(9000, 9000, 9000)
+    expect(drawnNear(far)).toBe(false)
+    dragged.x = far.x
+    dragged.y = far.y
+    dragged.z = far.z
+    act(() => { (lib.props.onNodeDrag as (n: unknown) => void)(dragged) })
+    expect(drawnNear(far)).toBe(true)
+  }, 60_000)
+})
+
+describe('IntelligenceGraph3D — an agent waiting on the user stays lit', () => {
+  const actOf = (index: number) => {
+    const points = lib.fg.scene().children.find((o) => o instanceof THREE.Points) as THREE.Points
+    return (points.geometry.getAttribute('aAct') as THREE.BufferAttribute).getX(index)
+  }
+
+  it('a bulk restyle (selection) keeps the waiting_input activation on its node', async () => {
+    lib.agents = [{ session_id: 'n7', title: 'agent', state: 'waiting_input' }]
+    const view = await mountGraph(makeGraph(2500))
+    await flush(3000)
+    expect(actOf(7)).toBeGreaterThan(0.4)
+    act(() => { view.store.set(selectedNodeIdAtom, 'n3') })
+    await flush(500)
+    expect(actOf(7)).toBeGreaterThan(0.4)
+    act(() => { view.store.set(selectedNodeIdAtom, null) })
+    await flush(500)
+    expect(actOf(7)).toBeGreaterThan(0.4)
+  }, 60_000)
+})
+
+describe('IntelligenceGraph3D — screen changes', () => {
+  it('re-arms the resolution watch after a DPR change (a second move is still seen)', async () => {
+    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 2 })
+    await mountGraph(makeGraph(60))
+    await flush(500)
+    expect(armed('(resolution: 2dppx)')).toBe(1)
+    // The window is dragged to a 1× screen: the 2dppx query stops matching.
+    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1 })
+    act(() => { [...mediaListeners.get('(resolution: 2dppx)')!].forEach((fn) => fn()) })
+    // The watch now follows the NEW ratio; the old one is released.
+    expect(armed('(resolution: 1dppx)')).toBe(1)
+    expect(armed('(resolution: 2dppx)')).toBe(0)
+    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1 })
+  })
+})
+
+describe('IntelligenceGraph3D — hull hover', () => {
+  it('a raised hull is lowered when the pick effect re-subscribes (selection change)', async () => {
+    const view = await mountGraph(makeGraph(1200))
+    act(() => {
+      view.store.set(graphScaleAtom, 1)
+      view.store.set(showCommunityHullsAtom, true)
+    })
+    await flush(3000)
+    const fills: THREE.Mesh[] = []
+    lib.fg.scene().traverse((o) => {
+      if (o instanceof THREE.Mesh && typeof (o.userData as { communityId?: number }).communityId === 'number') fills.push(o)
+    })
+    expect(fills.length).toBeGreaterThan(0)
+    // Aim at a point just inside a hull's edge, far from the super-node at its centre.
+    const camera = lib.fg.camera()
+    camera.updateMatrixWorld()
+    const container = view.container.firstElementChild as HTMLElement
+    let raised: THREE.Mesh | null = null
+    for (const fill of fills) {
+      const pos = fill.geometry.getAttribute('position') as THREE.BufferAttribute
+      fill.geometry.computeBoundingSphere()
+      const c = fill.geometry.boundingSphere!.center
+      const v = new THREE.Vector3().fromBufferAttribute(pos, 0).lerp(c, 0.1).project(camera)
+      const before = (fill.material as THREE.MeshBasicMaterial).opacity
+      act(() => {
+        container.dispatchEvent(new PointerEvent('pointermove', {
+          clientX: ((v.x + 1) / 2) * 800, clientY: ((1 - v.y) / 2) * 600, buttons: 0,
+        }))
+      })
+      await flush(100)
+      if ((fill.material as THREE.MeshBasicMaterial).opacity > before) { raised = fill; break }
+    }
+    expect(raised, 'no hull could be hovered').not.toBeNull()
+    const lifted = (raised!.material as THREE.MeshBasicMaterial).opacity
+    // A selection change re-subscribes the pick effect.
+    act(() => { view.store.set(selectedNodeIdAtom, 'n1') })
+    await flush(100)
+    expect((raised!.material as THREE.MeshBasicMaterial).opacity).toBeLessThan(lifted)
   }, 60_000)
 })

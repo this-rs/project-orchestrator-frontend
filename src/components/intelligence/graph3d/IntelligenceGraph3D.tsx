@@ -57,7 +57,9 @@ import { useCommunityActivity } from './useCommunityActivity'
 import { buildCommunityIndex } from './communityActivity'
 import { useAgentMarkers } from './useAgentMarkers'
 import type { AgentMarkers } from './agentMarkers'
+import type { NodeStyleOverlay } from './useAgentMarkers'
 import { communityFocus, nodeSetSignature } from './useGraph3DLayout'
+import { labelStructureKey, linkStructureKey, nodeStructureKey } from './graphStructureKey'
 import { activationStateAtom } from '../SpreadingActivation'
 import { GraphPanel } from '../GraphPanel'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
@@ -351,6 +353,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // Live agents' labels (useAgentMarkers fills it; declared here so the
   // engine-tick callback below can re-anchor them like the other overlays).
   const agentMarkersRef = useRef<AgentMarkers | null>(null)
+  // The live agents' lit nodes, applied on top of every BULK node restyle
+  // (useAgentMarkers fills it): a steady waiting_input state is drawn once, so
+  // without this a selection / legend / heatmap restyle erased it.
+  const agentOverlayRef = useRef<NodeStyleOverlay>((_node, style) => style)
 
   // ── Cleanup cached Three.js resources on unmount ────────────────────────
   useEffect(() => {
@@ -480,15 +486,24 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   useEffect(() => {
     // The zoom-adapted ceiling, not the bare one: a resize while zoomed in must
     // not throw the close-up back to the overview's sharpness.
-    const max = zoomedPixelRatioCeiling()
-    const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
+    //
+    // The query names ONE ratio: once the window has left it, a further move
+    // (1× → 1.5×, or back) would never fire again. Re-arm on the new ratio at
+    // every change.
+    let mq: MediaQueryList | null = null
     const onChange = () => {
+      arm()
       setMaxPixelRatio(zoomedPixelRatioCeiling())
       wake(WAKE_MUTATION_MS)
     }
-    setMaxPixelRatio(max)
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
+    const arm = () => {
+      mq?.removeEventListener('change', onChange)
+      mq = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
+      mq.addEventListener('change', onChange)
+    }
+    setMaxPixelRatio(zoomedPixelRatioCeiling())
+    arm()
+    return () => mq?.removeEventListener('change', onChange)
   }, [dimensions, setMaxPixelRatio, zoomedPixelRatioCeiling, wake])
 
   // ── Workaround: three.js OrbitControls + DragControls pointercancel crash ──
@@ -589,11 +604,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // so we rebuild hulls on engine stop (positions final) and on toggle change.
   const hullNeedsRebuildRef = useRef(false)
 
-  // Mark for rebuild when toggle changes or data changes
-  useEffect(() => {
-    hullNeedsRebuildRef.current = true
-  }, [showCommunityHulls, graphData.nodes])
-
   // A cheap, stable signature of "which communities exist and how big they are".
   // Positions are deterministic per node set, so this is all the hulls depend on.
   const hullSignature = useMemo(() => {
@@ -611,6 +621,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     for (const [id, c] of [...counts].sort((a, b) => a[0] - b[0])) seen += `${id}:${c},`
     return `${total}|${seen}`
   }, [graphData.nodes, aggregated, scaleRes])
+
+  // Mark for rebuild when the toggle flips or the hulls' inputs change — the
+  // group sizes (hullSignature) or the positions (nodeLayoutKey), not the
+  // identity of a node array every flush recreates.
+  const nodeLayoutKey = useMemo(
+    () => (aggregated ? nodeStructureKey(graphData.nodes) : ''),
+    [aggregated, graphData.nodes],
+  )
+  useEffect(() => {
+    hullNeedsRebuildRef.current = true
+  }, [showCommunityHulls, hullSignature, nodeLayoutKey])
 
   // The callback reads the CURRENT nodes without depending on their identity.
   const nodesRef = useRef(graphData.nodes)
@@ -1975,6 +1996,50 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         ? graphData
         : emptyGraphData
 
+  // ── What the scene objects are BUILT from (graphStructureKey.ts) ──────
+  // Every WebSocket flush hands over a new `activeGraphData` — new arrays, new
+  // node objects — even when nothing structural moved. The creation effects
+  // below key on these strings, not on that identity, so a flush no longer
+  // rebuilds the links, the Points, the tubes and the labels (a canvas texture
+  // each); what changed is applied in place (Points.setData + restyle).
+  const activeNodeKey = useMemo(() => nodeStructureKey(activeGraphData.nodes), [activeGraphData.nodes])
+  const activeLinkKey = useMemo(() => linkStructureKey(activeGraphData.links), [activeGraphData.links])
+  const activeLabelKey = useMemo(
+    () => (aggregated ? labelStructureKey(activeGraphData.nodes) : ''),
+    [aggregated, activeGraphData.nodes],
+  )
+  /** The data the creation effects build from, read when their KEY changes. */
+  const activeGraphDataRef = useRef(activeGraphData)
+  useEffect(() => {
+    activeGraphDataRef.current = activeGraphData
+  }, [activeGraphData])
+
+  // A renderer kept across a flush reads positions from the node objects it was
+  // BUILT with, while the library moves the objects of the LATEST graphData (a
+  // drag). Each kept renderer registers its node array here; a drag copies the
+  // moved node's position into every registered array (same key ⇒ same order,
+  // so the slot is the node's index in the current data).
+  const boundNodeArraysRef = useRef(new Map<string, Graph3DNode[]>())
+  const activeIndexById = useMemo(() => {
+    const m = new Map<string, number>()
+    activeGraphData.nodes.forEach((n, i) => m.set(n.id, i))
+    return m
+  }, [activeGraphData.nodes])
+  const syncBoundPosition = useCallback((node: Graph3DNode) => {
+    const i = activeIndexById.get(node.id)
+    if (i === undefined) return
+    for (const arr of boundNodeArraysRef.current.values()) {
+      const held = arr[i]
+      if (!held || held === node || held.id !== node.id) continue
+      held.x = node.x
+      held.y = node.y
+      held.z = node.z
+      held.fx = node.fx
+      held.fy = node.fy
+      held.fz = node.fz
+    }
+  }, [activeIndexById])
+
   // A visible trace when the aggregated step yields nothing: one line in the
   // console says whether the graph is empty, the grouping is empty, or the
   // resolution collapsed — instead of a black canvas that explains nothing.
@@ -2036,23 +2101,30 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       linkSegmentsRef.current = null
     }
 
-    if (!useOptimizedLinks || useTubes || activeGraphData.links.length === 0) return
+    const data = activeGraphDataRef.current
+    if (!useOptimizedLinks || useTubes || data.links.length === 0) return
 
-    const seg = createLinkRenderer(activeGraphData.nodes, activeGraphData.links)
+    const seg = createLinkRenderer(data.nodes, data.links)
     seg.updateColors(computeLinkStyleRef.current)
     scene.add(seg.object)
     linkSegmentsRef.current = seg
+    const bound = boundNodeArraysRef.current
+    bound.set('links', data.nodes)
     // wake: edges were added to the scene.
     wake(WAKE_MUTATION_MS)
 
     return () => {
+      if (bound.get('links') === data.nodes) bound.delete('links')
       if (linkSegmentsRef.current === seg) {
         scene.remove(seg.object)
         seg.dispose()
         linkSegmentsRef.current = null
       }
     }
-  }, [useOptimizedLinks, useTubes, activeGraphData, wake])
+    // Keyed on the STRUCTURE, not on activeGraphData's identity (see above).
+    // hasDimensions: the library mounts after the data when the 3D view opens
+    // on a loaded graph; without it the links waited for the next flush.
+  }, [useOptimizedLinks, useTubes, activeNodeKey, activeLinkKey, wake, hasDimensions])
 
   // ── Aggregated tier — super-edges as tubes ────────────────────────────
   // At scaleLevel ≥ 1 the super-edges are few enough (≤ TUBE_MAX_EDGES) to
@@ -2073,20 +2145,24 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
     if (!useTubes) return
 
-    const tubes = createSuperLinkTubes(activeGraphData.nodes, activeGraphData.links)
+    const tubeNodes = activeGraphDataRef.current.nodes
+    const tubes = createSuperLinkTubes(tubeNodes, activeGraphDataRef.current.links)
     if (!tubes) return
     scene.add(tubes.group)
     superLinkTubesRef.current = tubes
+    const bound = boundNodeArraysRef.current
+    bound.set('tubes', tubeNodes)
     wake(WAKE_MUTATION_MS)
 
     return () => {
+      if (bound.get('tubes') === tubeNodes) bound.delete('tubes')
       if (superLinkTubesRef.current === tubes) {
         scene.remove(tubes.group)
         tubes.dispose()
         superLinkTubesRef.current = null
       }
     }
-  }, [useTubes, activeGraphData, wake])
+  }, [useTubes, activeNodeKey, activeLinkKey, wake, hasDimensions])
 
   // ── Recolor links when highlight state changes ────────────────────────
   // linkColor (and thus computeLinkStyle) depends on hover / selection /
@@ -2100,6 +2176,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   }, [useOptimizedLinks, computeLinkStyle, activeGraphData])
 
   // ── Overview tier — one THREE.Points for all nodes ────────────────────
+  /** The node array the Points currently indexes (in-place refresh below). */
+  const pointsNodesRef = useRef<Graph3DNode[] | null>(null)
   // Above NODE_POINTS_THRESHOLD the library's per-node sprite objects are
   // suppressed (`nodeVisibility`) and a single Points draws every node as a
   // coloured shape. Built/removed on mode or graph change.
@@ -2115,10 +2193,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       nodePointsRef.current = null
     }
 
-    if (!useOptimizedNodes || activeGraphData.nodes.length === 0) return
+    const nodesNow = activeGraphDataRef.current.nodes
+    if (!useOptimizedNodes || nodesNow.length === 0) return
 
-    const np = createNodePoints(activeGraphData.nodes)
-    np.updateStyles(computeNodeStyleRef.current)
+    const np = createNodePoints(nodesNow)
+    pointsNodesRef.current = nodesNow
+    np.updateStyles((n) => agentOverlayRef.current(n, computeNodeStyleRef.current(n)))
     // The loop only reports CHANGES, so a Points built after a drop must adopt
     // the ratio already in force or its points would change size on the next
     // frame (gl_PointSize is in device pixels).
@@ -2145,7 +2225,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // hasDimensions: the library mounts only once the container is measured. If the
     // graph data arrives first, this effect runs with no ForceGraph3D yet and must run
     // again when it mounts — otherwise the Points are never created above the threshold.
-  }, [useOptimizedNodes, activeGraphData, wake, hasDimensions])
+  }, [useOptimizedNodes, activeNodeKey, wake, hasDimensions])
 
   // ── Aggregated tier — named super-nodes (billboard SpriteText) ────────
   // The Points above draws every super-node as a bare shape; the N largest get
@@ -2163,30 +2243,41 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       superNodeLabelsRef.current = null
     }
 
-    if (!aggregated || activeGraphData.nodes.length === 0) return
+    const labelNodes = activeGraphDataRef.current.nodes
+    if (!aggregated || labelNodes.length === 0) return
     // One canvas texture per label: skipped on a device whose tier says the graph is too big for them.
     if (graphData.nodes.length > DEVICE_BUDGET.maxNodesForLabels) return
 
-    const labels = createSuperNodeLabels(activeGraphData.nodes, DEVICE_BUDGET.labelLimit)
+    const labels = createSuperNodeLabels(labelNodes, DEVICE_BUDGET.labelLimit)
     if (labels.count === 0) return
     scene.add(labels.group)
     superNodeLabelsRef.current = labels
+    const bound = boundNodeArraysRef.current
+    bound.set('labels', labelNodes)
     wake(WAKE_MUTATION_MS)
 
     return () => {
+      if (bound.get('labels') === labelNodes) bound.delete('labels')
       if (superNodeLabelsRef.current === labels) {
         scene.remove(labels.group)
         labels.dispose()
         superNodeLabelsRef.current = null
       }
     }
-  }, [aggregated, activeGraphData, wake, hasDimensions, graphData.nodes.length])
+  }, [aggregated, activeLabelKey, wake, hasDimensions, graphData.nodes.length])
 
   // Recolor points when any highlight/activation/heatmap state changes.
+  // Same structure, new objects (a flush): point the Points at the new array
+  // first — O(N), no GPU reallocation — so styles read the fresh node data.
   useEffect(() => {
-    if (useOptimizedNodes) {
-      nodePointsRef.current?.updateStyles(computeNodeStyle)
+    if (!useOptimizedNodes) return
+    const np = nodePointsRef.current
+    if (!np) return
+    if (pointsNodesRef.current !== activeGraphData.nodes) {
+      np.setData(activeGraphData.nodes)
+      pointsNodesRef.current = activeGraphData.nodes
     }
+    np.updateStyles((n) => agentOverlayRef.current(n, computeNodeStyle(n)))
   }, [useOptimizedNodes, computeNodeStyle, activeGraphData])
 
   // ── Hover spotlight (transient, O(1) per move) ────────────────────────
@@ -2224,11 +2315,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       }
       return
     }
-    // Restore the previously boosted node to its bulk style.
+    // Restore the previously boosted node to its bulk style (agents included).
     if (prev != null) {
       const idx = np.indexOf(prev)
       const node = activeGraphData.nodes.find((n) => n.id === prev)
-      if (idx >= 0 && node) np.updateStyleAt(idx, computeNodeStyleRef.current(node))
+      if (idx >= 0 && node) np.updateStyleAt(idx, agentOverlayRef.current(node, computeNodeStyleRef.current(node)))
     }
     // Boost the newly hovered node.
     if (cur != null && !hoverSuppressed) {
@@ -2304,12 +2395,19 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return computeLinkStyleRef.current(l)
   }, [HIGHLIGHT_COLOR_HOVER])
 
+  // A pulse returns to the live base PLUS the agents' overlay, so a pulse ending
+  // on a node an agent lights gives the agent's colour back, not the bulk.
+  const pulseBaseNodeStyle = useCallback(
+    (node: Graph3DNode): NodeStyle => agentOverlayRef.current(node, liveBaseNodeStyle(node)),
+    [liveBaseNodeStyle],
+  )
+
   // Entity pulses: ids published by useGraphWebSocket (graph + CRUD channels).
   useLivePulse({
     nodePointsRef,
     linkSegmentsRef,
     nodes: activeGraphData.nodes,
-    baseNodeStyle: liveBaseNodeStyle,
+    baseNodeStyle: pulseBaseNodeStyle,
     baseLinkStyle: liveBaseLinkStyle,
     animator,
     enabled: hasDimensions,
@@ -2335,6 +2433,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     baseNodeStyle: liveBaseNodeStyle,
     animator,
     enabled: hasDimensions && !aggregated,
+    overlayRef: agentOverlayRef,
   })
 
   // ── Overview tier — custom pick for hover / click ─────────────────────
@@ -2535,6 +2634,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       el.removeEventListener('click', onClick)
       if (rafId) cancelAnimationFrame(rafId)
       el.style.cursor = 'default'
+      // The hover state lives in this closure: a re-subscription (a selection
+      // change re-runs this effect) starts from `null` and would never lower
+      // a hull raised by the previous one. Give it back before leaving.
+      setHullHover(null)
     }
     // hasDimensions: the library mounts after the data when the graph is opened
     // from the code map. Without it this effect returns early (no ForceGraph3D
@@ -2574,8 +2677,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         // Interactions — in the overview tier our own pick drives hover/click.
         onNodeClick={useOptimizedNodes ? undefined : onNodeClick}
         onNodeHover={useOptimizedNodes ? undefined : onNodeHover}
-        onNodeDrag={() => {
+        onNodeDrag={(node: Graph3DNode) => {
           // Dragged node moves without a force tick — keep edges attached.
+          syncBoundPosition(node)
           linkSegmentsRef.current?.updatePositions()
           superLinkTubesRef.current?.updatePositions()
           superNodeLabelsRef.current?.updatePositions()
@@ -2587,6 +2691,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           node.fx = node.x
           node.fy = node.y
           node.fz = node.z
+          syncBoundPosition(node)
           savePositions([node])
           // wake: the library calls resetCountdown() on drag end, so the
           // engine restarts and nodes keep moving after the pointer is up.

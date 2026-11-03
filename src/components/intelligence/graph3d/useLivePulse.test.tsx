@@ -99,6 +99,32 @@ describe('writeNodeActivation', () => {
   })
 })
 
+describe('writeNodeActivation — sprite tier keeps the scale others set', () => {
+  it('pulses ON TOP of a dim / legend scale and gives that scale back', () => {
+    const obj = new THREE.Group()
+    obj.scale.setScalar(0.5) // dimmed type (connection toggle) or legend miss
+    const node = Object.assign(mk('a'), { __threeObj: obj })
+    writeNodeActivation(null, node, 0.5, baseNode)
+    expect(obj.scale.x).toBeCloseTo(0.5 * spriteScaleFor(0.5))
+    writeNodeActivation(null, node, 0.8, baseNode)
+    expect(obj.scale.x).toBeCloseTo(0.5 * spriteScaleFor(0.8))
+    writeNodeActivation(null, node, 0, baseNode)
+    expect(obj.scale.x).toBeCloseTo(0.5)
+    expect(obj.scale.y).toBeCloseTo(0.5)
+  })
+
+  it('a scale written by someone else mid-pulse becomes the new base', () => {
+    const obj = new THREE.Group()
+    const node = Object.assign(mk('a'), { __threeObj: obj })
+    writeNodeActivation(null, node, 0.5, baseNode)
+    obj.scale.setScalar(1.6) // the legend effect runs while the node pulses
+    writeNodeActivation(null, node, 0.5, baseNode)
+    expect(obj.scale.x).toBeCloseTo(1.6 * spriteScaleFor(0.5))
+    writeNodeActivation(null, node, 0, baseNode)
+    expect(obj.scale.x).toBeCloseTo(1.6)
+  })
+})
+
 describe('writeLinkActivation', () => {
   it('rewrites only the links of the node', () => {
     const nodes = [mk('a'), mk('b', 10), mk('c', 20)]

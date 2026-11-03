@@ -23,7 +23,10 @@ import type { Graph3DNode } from './useGraph3DLayout'
 import type { FrameAnimator } from './frameAnimator'
 import { breathEnvelope, buildPulseIndex } from './livePulse'
 import { agentRgb, createAgentMarkers, placeAgents, type AgentMarkers, type PlacedAgent } from './agentMarkers'
-import { writeNodeActivation } from './useLivePulse'
+import { activatedNodeStyle, writeNodeActivation } from './useLivePulse'
+
+/** Applies something on top of a node's bulk style (identity when nothing applies). */
+export type NodeStyleOverlay = (node: Graph3DNode, style: NodeStyle) => NodeStyle
 
 /** Activation of a node under an agent in a given state, at time `now`. */
 export function agentNodeActivation(state: PlacedAgent['state'], now: number, sessionId: string): number {
@@ -47,6 +50,12 @@ export interface AgentMarkersInput {
   animator: FrameAnimator
   /** False: no poll, nothing drawn (the caller gates on scene readiness). */
   enabled?: boolean
+  /**
+   * Filled with the agents' overlay: the caller's BULK restyles pass every node
+   * through it, so a steady state (waiting_input) survives a selection / legend
+   * / heatmap restyle instead of being drawn once and overwritten.
+   */
+  overlayRef?: React.MutableRefObject<NodeStyleOverlay>
 }
 
 export interface AgentMarkersHandle {
@@ -55,7 +64,7 @@ export interface AgentMarkersHandle {
 }
 
 export function useAgentMarkers(input: AgentMarkersInput): AgentMarkersHandle {
-  const { graphRef, nodePointsRef, markersRef, nodes, animator, enabled = true } = input
+  const { graphRef, nodePointsRef, markersRef, overlayRef, nodes, animator, enabled = true } = input
   const { data } = useLiveAgents()
   const agents = useMemo(() => (enabled ? data?.agents ?? [] : []), [enabled, data])
   const index = useMemo(() => buildPulseIndex(nodes), [nodes])
@@ -95,17 +104,40 @@ export function useAgentMarkers(input: AgentMarkersInput): AgentMarkersHandle {
   // Placement → labels, and the lit nodes. Restores the nodes an agent left.
   const litRef = useRef(new Map<string, Graph3DNode>())
   const placedRef = useRef<PlacedAgent[]>([])
+  /** Lit node id → the agent lighting it (the overlay reads it at restyle time). */
+  const litAgentRef = useRef(new Map<string, PlacedAgent>())
+
+  // The overlay: ONE stable function reading refs. A bulk restyle calls it per
+  // node; only the lit nodes (a handful) pay more than a Map miss.
+  const [overlay] = useState(() => (node: Graph3DNode, style: NodeStyle): NodeStyle => {
+    const p = litAgentRef.current.get(node.id)
+    if (!p) return style
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    return activatedNodeStyle(style, agentNodeActivation(p.state, now, p.session_id), { ...agentRgb(p.session_id), k: 0.6 })
+  })
+  useEffect(() => {
+    if (!overlayRef) return
+    overlayRef.current = overlay
+    return () => {
+      if (overlayRef.current === overlay) overlayRef.current = (_node, style) => style
+    }
+  }, [overlayRef, overlay])
   useEffect(() => {
     placedRef.current = placement.placed
     if (enabled) ensureMarkers()?.set(placement.placed, (id) => index.get(id))
     else markersRef.current?.set([], () => undefined)
     const np = nodePointsRef.current
     const nextLit = new Map<string, Graph3DNode>()
+    const nextAgents = new Map<string, PlacedAgent>()
     for (const p of placement.placed) {
       if (p.state === 'idle') continue
       const node = index.get(p.nodeId)
-      if (node) nextLit.set(p.nodeId, node)
+      if (node) {
+        nextLit.set(p.nodeId, node)
+        nextAgents.set(p.nodeId, p)
+      }
     }
+    litAgentRef.current = nextAgents
     for (const [id, node] of litRef.current) {
       if (!nextLit.has(id)) writeNodeActivation(np, node, 0, baseNodeStyleRef.current)
     }
@@ -151,6 +183,7 @@ export function useAgentMarkers(input: AgentMarkersInput): AgentMarkersHandle {
       const np = points.current
       for (const node of lit.values()) writeNodeActivation(np, node, 0, baseNodeStyleRef.current)
       lit.clear()
+      litAgentRef.current = new Map()
       animator.remove(job)
     }
   }, [index, animator, nodePointsRef, job])
