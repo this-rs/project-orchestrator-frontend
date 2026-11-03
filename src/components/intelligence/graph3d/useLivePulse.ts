@@ -42,7 +42,8 @@ export function spriteScaleFor(act: number): number {
 
 /**
  * Write one node's activation. Points tier: a targeted style write. Sprite
- * tier: scale the node's Object3D (restored at `act = 0`). Returns whether
+ * tier: scale the node's Object3D on top of its current scale (restored at
+ * `act = 0`). Returns whether
  * anything was written (a node absent from both tiers is a no-op).
  */
 export function writeNodeActivation(
@@ -70,8 +71,23 @@ export function writeNodeActivation(
   }
   const obj = (node as NodeWithObject).__threeObj
   if (!obj) return false
-  const s = spriteScaleFor(act)
-  obj.scale.set(s, s, 1)
+  // The pulse MULTIPLIES the scale the other effects set (dimmed type 0.5,
+  // legend 1.6 / 0.5, group 1.3 / 0.6) instead of overwriting it, and gives
+  // that scale back at rest. A scale someone else wrote mid-pulse (it differs
+  // from the last one written here) becomes the new base.
+  const ud = obj.userData as { pulseBase?: number; pulseWritten?: number }
+  let base = ud.pulseBase ?? obj.scale.x
+  if (ud.pulseWritten !== undefined && Math.abs(obj.scale.x - ud.pulseWritten) > 1e-6) base = obj.scale.x
+  if (act <= 0) {
+    obj.scale.set(base, base, obj.scale.z)
+    delete ud.pulseBase
+    delete ud.pulseWritten
+    return true
+  }
+  const s = base * spriteScaleFor(act)
+  obj.scale.set(s, s, obj.scale.z)
+  ud.pulseBase = base
+  ud.pulseWritten = s
   return true
 }
 
