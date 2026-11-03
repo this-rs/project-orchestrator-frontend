@@ -20,7 +20,7 @@ import { toView } from '@/vendor/three-iso/compose'
 import { contentBox } from '@/vendor/three-iso/fit'
 import { litColor } from '@/vendor/three-iso/shading'
 import type { MachineDef } from '@/vendor/three-iso/machine'
-import { applyParts } from '@/vendor/three-iso/parts'
+import { applyParts, partNames } from '@/vendor/three-iso/parts'
 import type { LiveScene } from '@/vendor/three-iso/live'
 import type { VizBlockProps } from '../registry'
 import { compileIsoScene, type LegendEntry } from './compile'
@@ -179,8 +179,68 @@ function IsoFrames({ frames, frameMs, expanded, label }: { frames: MachineDef[];
   )
 }
 
+
+/**
+ * COMMANDES DE LECTURE — les trois gestes qui rendent une scène manipulable : écarter les pièces, couper la matière,
+ * et n'en regarder qu'UNE. Les transformations existent déjà dans le moteur (`parts.ts`) ; il ne manquait que de quoi
+ * les déclencher. Aucun aller-retour serveur : la scène est recompilée localement (~ms).
+ */
+function ReadControls({ names, explode, cut, iso, onExplode, onCut, onIso }: {
+  names: string[]
+  explode: boolean
+  cut: boolean
+  iso: string
+  onExplode: (v: boolean) => void
+  onCut: (v: boolean) => void
+  onIso: (v: string) => void
+}) {
+  const chip = (on: boolean) =>
+    `rounded-md border px-2 py-1 text-[11px] transition-colors ${on ? 'border-indigo-400/70 bg-indigo-500/15 text-indigo-200' : 'border-white/10 text-slate-400 hover:text-slate-200'}`
+  return (
+    <div data-testid="iso-read-controls" className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5">
+      <button type="button" aria-pressed={explode} onClick={() => onExplode(!explode)} className={chip(explode)}>
+        Éclater
+      </button>
+      <button type="button" aria-pressed={cut} onClick={() => onCut(!cut)} className={chip(cut)}>
+        Couper
+      </button>
+      <select
+        aria-label="Isoler une pièce"
+        value={iso}
+        onChange={(e) => onIso(e.target.value)}
+        className="rounded-md border border-white/10 bg-transparent px-2 py-1 text-[11px] text-slate-300"
+      >
+        <option value="">Toutes les pièces</option>
+        {names.map((n) => (
+          <option key={n} value={n}>{n}</option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 export default function IsoSceneViz({ data, fallbackText, expanded = false, title }: VizBlockProps) {
-  const result = useMemo(() => compileIsoScene(data), [data])
+  // Lecture : éclater / couper / isoler une pièce. La scène est recompilée avec l'override — pas de mutation du moteur.
+  const [explode, setExplode] = useState(false)
+  const [cut, setCut] = useState(false)
+  const [iso, setIso] = useState('')
+  const view = useMemo(() => {
+    const base = (data as { parts?: Record<string, unknown> } | null)?.parts ?? {}
+    const out: Record<string, unknown> = { ...base }
+    if (explode) out.explode = 0.55
+    if (cut) out.cutaway = { axis: 'x', at: 0 }
+    if (iso) out.isolate = [iso]
+    return out
+  }, [data, explode, cut, iso])
+  const result = useMemo(() => compileIsoScene(Object.keys(view).length ? { ...(data as object), parts: view } : data), [data, view])
+  // Les pièces adressables viennent du moteur (registre), filtrées des pièces internes du poste.
+  // Nom COURT : le registre préfixe chaque pièce du poste (« 1. piece-1 · corps ») et `isolate` adresse par la fin du nom.
+  // On n'affiche donc que la fin, dédoublonnée — ce que l'auteur peut réellement écrire.
+  const names = useMemo(() => {
+    if (!result.ok) return []
+    const short = partNames(result.machine).map((n: string) => n.split(' · ').pop() ?? n)
+    return [...new Set(short)].filter((n: string) => !/^Voie|^Poste|^socle|^voie/i.test(n))
+  }, [result])
   if (!result.ok) return <IsoSceneRefusal problems={result.problems} fallbackText={fallbackText} />
   const label = title ?? result.title ?? fallbackText
   if (result.frames && result.frames.length > 1) {
@@ -189,6 +249,17 @@ export default function IsoSceneViz({ data, fallbackText, expanded = false, titl
   return (
     <div data-testid="iso-scene">
       <IsoStage machine={result.machine} expanded={expanded} label={label} />
+      {names.length > 0 ? (
+        <ReadControls
+          names={names}
+          explode={explode}
+          cut={cut}
+          iso={iso}
+          onExplode={setExplode}
+          onCut={setCut}
+          onIso={setIso}
+        />
+      ) : null}
       <Legend entries={result.legend} />
     </div>
   )
