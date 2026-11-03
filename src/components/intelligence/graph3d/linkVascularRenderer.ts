@@ -2,27 +2,30 @@
 // linkVascularRenderer — the vascular link layer of the Organic Link Engine V2
 // ============================================================================
 //
-// This is the renderer T7 promised: ONE geometry for the whole link layer,
-// built from the magnitude pipeline instead of from a global regime.
+// Les planches de référence montrent des VAISSEAUX, pas des fils : un tronc
+// lumineux, translucide sur ses bords, brillant en son cœur, qui SE RAMIFIE
+// dans les grappes qu'il relie. La version précédente dessinait un tube d'un
+// pixel entre deux centroïdes : à l'écran, une toile de fils qui traverse le
+// vide. Trois écarts, corrigés ici.
 //
-//   links ─▶ corridors (T6) ─▶ magnitudes (T1) ─▶ morphology (T2/T3)
-//          ─▶ LOD (T4) ─▶ strands, frames (T5) ─▶ tubes ─▶ ONE BufferGeometry
+// 1. DU VOLUME, PAS UN TRAIT. Chaque conduit est dessiné DEUX fois, en deux
+//    tubes concentriques : une GAINE large et très transparente (la lumière qui
+//    diffuse autour du vaisseau) et un CŒUR étroit et brillant (le flux). C'est
+//    ce contraste gaine/cœur qui fait lire un volume, là où un seul tube
+//    translucide se lit comme un fil.
 //
-// WHAT CHANGES ON SCREEN
-// A bundle is no longer a flat triangle strip of fixed width. It is a set of
-// STRANDS wound around a common path — one strand for a filament, several for a
-// conduit, a braided set for an artery — and the number of strands keeps growing
-// after the projected width has hit its ceiling. That is how 10⁶ and 10⁹ say
-// different things without being wider.
+// 2. DES RAMIFICATIONS RÉELLES. Un tronc relie deux ensembles, mais il ne
+//    s'arrête pas dans le vide : à chaque extrémité il se divise en branches qui
+//    rejoignent des NŒUDS RÉELS du corridor (les mieux connectés). Rien n'est
+//    inventé : chaque branche pointe vers un sommet qui appartient vraiment à
+//    l'ensemble.
 //
-// COST. The geometry is a function of the number of CORRIDORS and their LOD
-// depth, never of the number of relations a corridor summarises: a corridor of
-// 10¹² relations costs exactly what a corridor of 10³ costs. `linkSystem.ts`
-// owns that budget; this file only obeys it.
+// 3. LA MAGNITUDE PORTE L'ÉPAISSEUR. Le rayon est une fraction du rayon de la
+//    scène multipliée par l'ordre de grandeur, et le nombre de brins suit la
+//    morphologie. 10⁶ et 10⁹ ne font pas la même chose à l'écran.
 //
-// FALLBACK. Any failure — bad data, allocation, a NaN position — returns null so
-// the caller keeps the existing ribbon renderer. The graph must never vanish
-// because the new path could not build.
+// Coût : dépend du nombre de CORRIDORS et de leur LOD, jamais du nombre de
+// relations résumées. `linkSystem.ts` tient le budget ; ce fichier l'obéit.
 // ============================================================================
 
 import * as THREE from 'three'
@@ -36,20 +39,21 @@ import { communityToken } from './linkRibbon'
 import { LINK_RENDER_ORDER } from './nodePoints'
 import { buildRanges, bundleAtTriangle } from './linkVascularPicking'
 
-/** `LinkRenderer` + capacité de picking (champs optionnels, additifs). */
-export interface VascularLinkRenderer extends LinkRenderer {
-  /** Clé du bundle qui possède ce triangle (`faceIndex` du raycast), ou null. */
-  bundleAt?: (faceIndex: number) => string | null
-  /** Rappel de clic transmis aux options ; à invoquer par le câblage externe. */
-  onBundleClick?: (key: string) => void
-}
-
-/** Radial segments of a strand's tube. Six reads round at these widths and stays cheap. */
-const TUBE_SEGMENTS = 6
-/** Share of the link length used as the spline's bow — organic, never a straight wire. */
-const BOW = 0.18
-/** Hard ceiling on strands drawn for one bundle, whatever the morphology asks. */
+/** Radial segments. Eight reads round at these widths and stays cheap. */
+const TUBE_SEGMENTS = 8
+/** Share of the link length used as the spline's bow. */
+const BOW = 0.16
+/** Hard ceiling on lanes drawn for one trunk. */
 const MAX_STRANDS = 5
+/** Branches per end — the vascular tree's first division. */
+const BRANCHES_PER_END = 3
+/** Samples along a branch (shorter than a trunk, so fewer). */
+const BRANCH_SAMPLES = 5
+/** Core radius as a share of the sheath radius. */
+const CORE_RATIO = 0.34
+/** Sheath alpha, and how much brighter the core is. */
+const SHEATH_ALPHA = 0.16
+const CORE_ALPHA = 1.0
 
 const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aColor;
@@ -67,7 +71,7 @@ const FRAGMENT_SHADER = /* glsl */ `
   varying vec3 vColor;
   varying float vAlpha;
   void main() {
-    gl_FragColor = vec4(vColor, vAlpha);
+    gl_FragColor = vec4(vColor * vAlpha, 1.0);
   }
 `
 
@@ -83,33 +87,30 @@ function hashKey(key: string): number {
   return ((h >>> 0) / 4294967296) * Math.PI * 2
 }
 
-/** One strand of one bundle, with the endpoints it must follow when positions move. */
-interface Strand {
-  bundleIndex: number
-  /** The bundle's two anchor NODE ids — the most connected node on each side, so a
-   *  position update has a real node to follow. The tube itself runs between the
-   *  two ensemble centroids (see `fillStrand`), not between these two nodes. */
+/** One drawn conduit: a trunk lane or a branch, as a sheath + a core. */
+interface Conduit {
   fromId: string
   toId: string
-  /** Lateral offset of this strand around the path, in [0,1) — its place in the braid. */
+  /** Radius multiplier applied to the bundle's base radius. */
+  radius: number
+  /** Alpha multiplier applied to the style's alpha. */
+  alpha: number
+  /** Braid lane (only for trunk lanes). */
   lane: number
-  phase: number
+  samples: number
+  /** First vertex of this conduit in the shared buffers. */
+  vertexStart: number
+  vertexCount: number
 }
 
 interface Bundle {
   corridor: Corridor
   drawable: DrawableBundle
-  /** Bow seed of the WHOLE bundle — every strand of a trunk shares its path. */
-  bowSeed: number
   color: LinkStyle
-  strands: Strand[]
-  /** First vertex of this bundle in the shared buffers, and how many it owns. */
+  bowSeed: number
+  conduits: Conduit[]
   vertexStart: number
   vertexCount: number
-}
-
-function toVec3(n: Graph3DNode): Vec3 {
-  return [n.x, n.y, n.z]
 }
 
 function lerp3(a: Vec3, b: Vec3, t: number): Vec3 {
@@ -129,7 +130,7 @@ function norm3(v: Vec3): Vec3 {
   return [v[0] / len, v[1] / len, v[2] / len]
 }
 
-/** A quadratic bow between two anchors: the control point is pushed off-axis so links curve. */
+/** A bowed pair of control points between two anchors: the trunk never runs straight. */
 function bowAnchors(a: Vec3, b: Vec3, seed: number): [Vec3, Vec3] {
   const d = sub3(b, a)
   const len = Math.hypot(d[0], d[1], d[2]) || 1
@@ -144,17 +145,35 @@ function bowAnchors(a: Vec3, b: Vec3, seed: number): [Vec3, Vec3] {
   ]
 }
 
+/** Cubic Bézier sampling between two anchors through two controls. */
+function sampleCurve(a: Vec3, c1: Vec3, c2: Vec3, b: Vec3, samples: number): Vec3[] {
+  const out: Vec3[] = []
+  for (let i = 0; i < samples; i++) {
+    const u = samples === 1 ? 0 : i / (samples - 1)
+    const v = 1 - u
+    out.push([
+      v * v * v * a[0] + 3 * v * v * u * c1[0] + 3 * v * u * u * c2[0] + u * u * u * b[0],
+      v * v * v * a[1] + 3 * v * v * u * c1[1] + 3 * v * u * u * c2[1] + u * u * u * b[1],
+      v * v * v * a[2] + 3 * v * v * u * c1[2] + 3 * v * u * u * c2[2] + u * u * u * b[2],
+    ])
+  }
+  return out
+}
+
+export interface VascularLinkRenderer extends LinkRenderer {
+  /** Key of the bundle that owns this triangle (`faceIndex` from a raycast), or null. */
+  bundleAt?: (faceIndex: number) => string | null
+  /** Click callback, to be invoked by the DOM wiring. */
+  onBundleClick?: (key: string) => void
+}
+
 /**
  * Build the vascular link layer, or null when the data cannot carry it.
- *
- * `budget` is the same object `linkSystem` uses; the camera distance decides the
- * LOD, so a closer camera decomposes more bundles — locally, never globally.
  */
 export function createVascularLinks(
   nodes: Graph3DNode[],
   links: Graph3DLink[],
   budget: Partial<SystemBudget> = {},
-  /** Rappel optionnel : le câblage DOM appelle `bundleAt` puis ce rappel ailleurs. */
   onBundleClick?: (key: string) => void,
 ): VascularLinkRenderer | null {
   try {
@@ -172,42 +191,63 @@ export function createVascularLinks(
     const system = buildLinkSystem(fromCorridors(corridors), budget)
     if (system.bundles.length === 0) return null
 
-    // ── Anchors: where each corridor starts and ends, in world space ──────
-    // A corridor's two ends are community tokens; the positions come from the
-    // REAL endpoints of its links, averaged per side. No invented anchor.
-    const corridorByKey = new Map(corridors.map((c) => [c.key, c]))
-    const anchors = new Map<string, { a: Vec3; b: Vec3 }>()
-    for (const bundle of system.bundles) {
-      const corridor = corridorByKey.get(bundle.corridor.key)
-      if (!corridor) continue
-      let ax = 0, ay = 0, az = 0, an = 0
-      let bx = 0, by = 0, bz = 0, bn = 0
-      for (const link of corridor.links) {
-        const s = nodeById.get(endpointId(link.source))
-        const t = nodeById.get(endpointId(link.target))
-        if (!s || !t) continue
-        const sSide = communityToken(link.sourceCommunityId)
-        if (sSide === corridor.from) {
-          ax += s.x; ay += s.y; az += s.z; an++
-          bx += t.x; by += t.y; bz += t.z; bn++
-        } else {
-          ax += t.x; ay += t.y; az += t.z; an++
-          bx += s.x; by += s.y; bz += s.z; bn++
-        }
-      }
-      if (an === 0 || bn === 0) continue
-      anchors.set(bundle.corridor.key, {
-        a: [ax / an, ay / an, az / an],
-        b: [bx / bn, by / bn, bz / bn],
-      })
-    }
-
-    // Bounding radius of the graph, so every thickness is expressed as a share
-    // of what is actually on screen.
+    // Bounding radius of the graph: every thickness is a share of what is on screen.
     let sceneRadius = 1
     for (const n of nodes) {
       const d = Math.hypot(n.x, n.y, n.z)
       if (Number.isFinite(d) && d > sceneRadius) sceneRadius = d
+    }
+
+    const corridorByKey = new Map(corridors.map((c) => [c.key, c]))
+
+    /** Centroids of a corridor's two sides, plus the branch targets on each side. */
+    const geometryOf = (corridor: Corridor) => {
+      let ax = 0, ay = 0, az = 0, an = 0
+      let bx = 0, by = 0, bz = 0, bn = 0
+      const sideA: { id: string; deg: number }[] = []
+      const sideB: { id: string; deg: number }[] = []
+      const degree = new Map<string, number>()
+      for (const link of corridor.links) {
+        const s = endpointId(link.source)
+        const t = endpointId(link.target)
+        degree.set(s, (degree.get(s) ?? 0) + 1)
+        degree.set(t, (degree.get(t) ?? 0) + 1)
+      }
+      for (const link of corridor.links) {
+        const s = endpointId(link.source)
+        const t = endpointId(link.target)
+        const sn = nodeById.get(s)
+        const tn = nodeById.get(t)
+        if (!sn || !tn) continue
+        if (communityToken(link.sourceCommunityId) === corridor.from) {
+          ax += sn.x; ay += sn.y; az += sn.z; an++
+          bx += tn.x; by += tn.y; bz += tn.z; bn++
+          sideA.push({ id: s, deg: degree.get(s) ?? 0 })
+          sideB.push({ id: t, deg: degree.get(t) ?? 0 })
+        } else {
+          ax += tn.x; ay += tn.y; az += tn.z; an++
+          bx += sn.x; by += sn.y; bz += sn.z; bn++
+          sideA.push({ id: t, deg: degree.get(t) ?? 0 })
+          sideB.push({ id: s, deg: degree.get(s) ?? 0 })
+        }
+      }
+      if (an === 0 || bn === 0) return null
+      // The most connected real nodes on each side become the branch tips: the
+      // trunk visibly enters the cluster instead of stopping in the void.
+      const pick = (list: { id: string; deg: number }[]) => {
+        const seen = new Set<string>()
+        return [...list]
+          .sort((p, q) => q.deg - p.deg || (p.id < q.id ? -1 : 1))
+          .filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)))
+          .slice(0, BRANCHES_PER_END)
+          .map((x) => x.id)
+      }
+      return {
+        a: [ax / an, ay / an, az / an] as Vec3,
+        b: [bx / bn, by / bn, bz / bn] as Vec3,
+        branchA: pick(sideA),
+        branchB: pick(sideB),
+      }
     }
 
     // ── Buffers ──────────────────────────────────────────────────────────
@@ -216,47 +256,49 @@ export function createVascularLinks(
     const color: number[] = []
     const alpha: number[] = []
     const index: number[] = []
+    const trianglesPerBundle: number[] = []
 
     for (const drawable of system.bundles) {
       const corridor = corridorByKey.get(drawable.corridor.key)
-      const anchor = anchors.get(drawable.corridor.key)
-      if (!corridor || !anchor) continue
-      const strandCount = Math.min(MAX_STRANDS, Math.max(1, drawable.strands))
-      const samples = drawable.samples
-      const ringVerts = samples * TUBE_SEGMENTS
+      if (!corridor) continue
+      const geo = geometryOf(corridor)
+      if (!geo) continue
+
+      const lanes = Math.min(MAX_STRANDS, Math.max(1, drawable.strands))
+      const trunkSamples = drawable.samples
+      const order = corridor.magnitude.magnitudeOrder
+      // Base radius: a share of the scene, growing with the magnitude order.
+      const baseRadius = sceneRadius * 0.0075 * (1 + 0.42 * Math.min(9, order))
+
+      const conduits: Conduit[] = []
       const vertexStart = position.length / 3
-      const strands: Strand[] = []
-      for (let s = 0; s < strandCount; s++) {
-        strands.push({
-          bundleIndex: bundles.length,
-          fromId: endpointId(corridor.links[0].source),
-          toId: endpointId(corridor.links[0].target),
-          lane: strandCount === 1 ? 0.5 : s / (strandCount - 1),
-          phase: s * 0.7,
+      let trianglesBefore = index.length / 3
+
+      const addConduit = (
+        fromId: string,
+        toId: string,
+        radius: number,
+        alphaMul: number,
+        lane: number,
+        samples: number,
+      ) => {
+        const count = samples * TUBE_SEGMENTS
+        conduits.push({
+          fromId,
+          toId,
+          radius,
+          alpha: alphaMul,
+          lane,
+          samples,
+          vertexStart: position.length / 3,
+          vertexCount: count,
         })
-      }
-      bundles.push({
-        corridor,
-        drawable,
-        // One bow per TRUNK, derived from its key: all strands of the same
-        // bundle follow the same path and only braid around it. Giving each
-        // strand its own seed turned every trunk into a fan of diverging curves
-        // — measured on the 5 107-node bench, where corridors spanned the whole
-        // graph as spaghetti instead of reading as one vessel.
-        bowSeed: hashKey(corridor.key),
-        color: { r: 0.4, g: 0.8, b: 0.7, r2: 0.6, g2: 0.9, b2: 0.8, a: 0.3 },
-        strands,
-        vertexStart,
-        vertexCount: ringVerts * strandCount,
-      })
-      // Placeholder positions/colors: fillStrand overwrites them from the anchors.
-      for (let i = 0; i < ringVerts * strandCount; i++) {
-        position.push(anchor.a[0], anchor.a[1], anchor.a[2])
-        color.push(0.4, 0.8, 0.7)
-        alpha.push(0)
-      }
-      for (let s = 0; s < strandCount; s++) {
-        const base = vertexStart + s * ringVerts
+        for (let i = 0; i < count; i++) {
+          position.push(0, 0, 0)
+          color.push(0.4, 0.8, 0.7)
+          alpha.push(0)
+        }
+        const base = position.length / 3 - count
         for (let i = 0; i < samples - 1; i++) {
           for (let k = 0; k < TUBE_SEGMENTS; k++) {
             const a0 = base + i * TUBE_SEGMENTS + k
@@ -267,6 +309,43 @@ export function createVascularLinks(
           }
         }
       }
+
+      // Trunk: per lane, a translucent sheath and a bright core.
+      for (let s = 0; s < lanes; s++) {
+        const lane = lanes === 1 ? 0.5 : s / (lanes - 1)
+        addConduit(geo.branchA[0] ?? endpointId(corridor.links[0].source),
+          geo.branchB[0] ?? endpointId(corridor.links[0].target),
+          1, SHEATH_ALPHA, lane, trunkSamples)
+        addConduit(geo.branchA[0] ?? endpointId(corridor.links[0].source),
+          geo.branchB[0] ?? endpointId(corridor.links[0].target),
+          CORE_RATIO, CORE_ALPHA, lane, trunkSamples)
+      }
+
+      // Branches: from each trunk end to the most connected real nodes.
+      const trunkEndA = geo.branchA[0]
+      const trunkEndB = geo.branchB[0]
+      for (const id of geo.branchA.slice(1)) {
+        addConduit(trunkEndA ?? id, id, 0.55, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES)
+        addConduit(trunkEndA ?? id, id, 0.55 * CORE_RATIO, CORE_ALPHA, 0.5, BRANCH_SAMPLES)
+      }
+      for (const id of geo.branchB.slice(1)) {
+        addConduit(trunkEndB ?? id, id, 0.55, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES)
+        addConduit(trunkEndB ?? id, id, 0.55 * CORE_RATIO, CORE_ALPHA, 0.5, BRANCH_SAMPLES)
+      }
+
+      const vertexCount = position.length / 3 - vertexStart
+      trianglesPerBundle.push(index.length / 3 - trianglesBefore)
+      trianglesBefore = index.length / 3
+      bundles.push({
+        corridor,
+        drawable,
+        color: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.3 },
+        bowSeed: hashKey(corridor.key),
+        conduits,
+        vertexStart,
+        vertexCount,
+      })
+      void baseRadius
     }
 
     if (bundles.length === 0) return null
@@ -297,175 +376,107 @@ export function createVascularLinks(
     const group = new THREE.Group()
     group.add(mesh)
 
-    /** Centroids of a corridor's two sides, from its REAL endpoints. */
-    const corridorCentroids = (corridor: Corridor): { a: Vec3; b: Vec3 } | null => {
-      let ax = 0, ay = 0, az = 0, an = 0
-      let bx = 0, by = 0, bz = 0, bn = 0
-      for (const link of corridor.links) {
-        const s = nodeById.get(endpointId(link.source))
-        const t = nodeById.get(endpointId(link.target))
-        if (!s || !t) continue
-        if (communityToken(link.sourceCommunityId) === corridor.from) {
-          ax += s.x; ay += s.y; az += s.z; an++
-          bx += t.x; by += t.y; bz += t.z; bn++
-        } else {
-          ax += t.x; ay += t.y; az += t.z; an++
-          bx += s.x; by += s.y; bz += s.z; bn++
-        }
-      }
-      if (an === 0 || bn === 0) return null
-      return { a: [ax / an, ay / an, az / an], b: [bx / bn, by / bn, bz / bn] }
-    }
+    const ranges = buildRanges(
+      bundles.map((b) => b.corridor.key),
+      trianglesPerBundle,
+    )
 
-    /** Rewrite one strand's tube from the current node positions. */
-    const fillStrand = (bundle: Bundle, strand: Strand, strandIndex: number, style: LinkStyle) => {
-      const s = nodeById.get(strand.fromId)
-      const t = nodeById.get(strand.toId)
+    /** Write one conduit's tube into the shared buffers. */
+    const fillConduit = (bundle: Bundle, conduit: Conduit, style: LinkStyle) => {
+      const s = nodeById.get(conduit.fromId)
+      const t = nodeById.get(conduit.toId)
       if (!s || !t) return
-      // Anchor on the two ensembles the corridor joins, not on one arbitrary
-      // member link: a corridor between communities A and B is a TRUNK between
-      // them. The centroids are recomputed here, from the corridor's real
-      // endpoints, so a position update moves the trunk with its clusters.
-      const anchor = corridorCentroids(bundle.corridor)
-      const a = anchor?.a ?? toVec3(s)
-      const b = anchor?.b ?? toVec3(t)
-      const [c1, c2] = bowAnchors(a, b, bundle.bowSeed)
-      const samples = bundle.drawable.samples
-      const points: Vec3[] = []
-      for (let i = 0; i < samples; i++) {
-        const u = samples === 1 ? 0 : i / (samples - 1)
-        const v = 1 - u
-        // Cubic Bézier through the two bowed controls.
-        points.push([
-          v * v * v * a[0] + 3 * v * v * u * c1[0] + 3 * v * u * u * c2[0] + u * u * u * b[0],
-          v * v * v * a[1] + 3 * v * v * u * c1[1] + 3 * v * u * u * c2[1] + u * u * u * b[1],
-          v * v * v * a[2] + 3 * v * v * u * c1[2] + 3 * v * u * u * c2[2] + u * u * u * b[2],
-        ])
-      }
+      const a: Vec3 = [s.x, s.y, s.z]
+      const b: Vec3 = [t.x, t.y, t.z]
+      const [c1, c2] = bowAnchors(a, b, bundle.bowSeed + conduit.lane * 0.9)
+      const points = sampleCurve(a, c1, c2, b, conduit.samples)
       const frames = parallelTransportFrames(points)
-      // Amplitude < 1 keeps the strands INSIDE the trunk instead of letting
-      // them orbit far from the shared centreline.
-      const offsets = braidedOffsets(Math.max(1, bundle.strands.length), samples, 1.5, 0.55)[strandIndex % Math.max(1, bundle.strands.length)] ?? []
-      // The trunk's thickness follows what it CARRIES — the whole point of the
-      // engine. Bounded so a giant bundle never becomes a wall, and the rest of
-      // its magnitude stays in the strand count (see linkMorphology).
-      // Thickness is a FRACTION OF THE SCENE, not an absolute number of units.
-      // Measured at 5 107 nodes: an absolute radius of ~2 units on a graph whose
-      // bounding radius is ~400 drew 1-pixel wires — the trunks were visible in
-      // the code and invisible on screen.
+      const radiusBase = bundle.drawable.samples > 0 ? conduit.radius : 1
       const order = bundle.corridor.magnitude.magnitudeOrder
-      const radius = sceneRadius * 0.006 * (1 + 0.5 * Math.min(8, order))
-      const base = bundle.vertexStart + strandIndex * samples * TUBE_SEGMENTS
+      const sceneR = sceneRadius
+      const thickness = sceneR * 0.0075 * (1 + 0.42 * Math.min(9, order)) * radiusBase
+      const offsets = braidedOffsets(
+        Math.max(1, conduit.lane === 0.5 ? 1 : Math.round(bundle.conduits.length / 2)),
+        conduit.samples,
+        1.4,
+        0.5,
+      )[0] ?? []
       const pos = positionAttr.array as Float32Array
       const col = colorAttr.array as Float32Array
       const alp = alphaAttr.array as Float32Array
-      for (let i = 0; i < samples; i++) {
+      const base = conduit.vertexStart
+      for (let i = 0; i < conduit.samples; i++) {
         const f = frames[Math.min(i, frames.length - 1)]
         if (!f) continue
+        const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
         const off = offsets[i] ?? [0, 0, 0]
-        const cx = f.position[0] + f.normal[0] * off[0] * radius + f.binormal[0] * off[1] * radius
-        const cy = f.position[1] + f.normal[1] * off[0] * radius + f.binormal[1] * off[1] * radius
-        const cz = f.position[2] + f.normal[2] * off[0] * radius + f.binormal[2] * off[1] * radius
+        const cx = f.position[0] + f.normal[0] * off[0] * thickness + f.binormal[0] * off[1] * thickness
+        const cy = f.position[1] + f.normal[1] * off[0] * thickness + f.binormal[1] * off[1] * thickness
+        const cz = f.position[2] + f.normal[2] * off[0] * thickness + f.binormal[2] * off[1] * thickness
         for (let k = 0; k < TUBE_SEGMENTS; k++) {
-          const ang = (k / TUBE_SEGMENTS) * Math.PI * 2 + strandIndex * 0.4
+          const ang = (k / TUBE_SEGMENTS) * Math.PI * 2
           const nx = Math.cos(ang)
           const ny = Math.sin(ang)
           const vi = (base + i * TUBE_SEGMENTS + k) * 3
-          pos[vi] = cx + f.normal[0] * nx * radius + f.binormal[0] * ny * radius
-          pos[vi + 1] = cy + f.normal[1] * nx * radius + f.binormal[1] * ny * radius
-          pos[vi + 2] = cz + f.normal[2] * nx * radius + f.binormal[2] * ny * radius
-          // Gradient along the path: source colour at u=0, target at u=1.
-          const u = samples === 1 ? 0 : i / (samples - 1)
-          // `r2/g2/b2` are the target-end colour; absent means a flat colour.
+          pos[vi] = cx + f.normal[0] * nx * thickness + f.binormal[0] * ny * thickness
+          pos[vi + 1] = cy + f.normal[1] * nx * thickness + f.binormal[1] * ny * thickness
+          pos[vi + 2] = cz + f.normal[2] * nx * thickness + f.binormal[2] * ny * thickness
           col[vi] = style.r + ((style.r2 ?? style.r) - style.r) * u
           col[vi + 1] = style.g + ((style.g2 ?? style.g) - style.g) * u
           col[vi + 2] = style.b + ((style.b2 ?? style.b) - style.b) * u
-          // A trunk that summarises hundreds of relations must be SEEN: the
-          // resting per-link alpha (0.05–0.28) was tuned for single wires.
-          alp[base + i * TUBE_SEGMENTS + k] = Math.min(1, style.a * 2.2)
+          alp[base + i * TUBE_SEGMENTS + k] = Math.min(1, style.a * conduit.alpha)
         }
       }
     }
 
-    /**
-     * Rebuild the geometry of every strand (positions, frames, tubes).
-     *
-     * EXPENSIVE on purpose-isolated: it runs parallel transport per strand, so it
-     * is reserved for the two moments where positions actually change — the
-     * first paint and a layout update.
-     */
-    const fillGeometry = (styleOf: (bundle: Bundle, strand: Strand) => LinkStyle) => {
+    const fillGeometry = (styleOf: (bundle: Bundle) => LinkStyle) => {
       for (const bundle of bundles) {
-        bundle.strands.forEach((strand, i) => fillStrand(bundle, strand, i, styleOf(bundle, strand)))
+        for (const conduit of bundle.conduits) fillConduit(bundle, conduit, styleOf(bundle))
       }
       positionAttr.needsUpdate = true
       colorAttr.needsUpdate = true
       alphaAttr.needsUpdate = true
+      geometry.computeBoundingSphere()
     }
 
-    /**
-     * Rewrite ONLY the colours, vertex by vertex.
-     *
-     * It used to call `fillGeometry`, i.e. re-run the parallel transport of every
-     * strand on every hover and every style change — the page went unresponsive
-     * at a few thousand links, the browser bench stopped answering and looked
-     * like a hang. A colour change is a write into one Float32Array; it must cost
-     * that, and nothing more.
-     */
-    const fillColors = (styleOf: (bundle: Bundle, strand: Strand) => LinkStyle) => {
+    const fillColors = (styleOf: (bundle: Bundle) => LinkStyle) => {
       const col = colorAttr.array as Float32Array
       const alp = alphaAttr.array as Float32Array
       for (const bundle of bundles) {
-        const samples = bundle.drawable.samples
-        bundle.strands.forEach((strand, strandIndex) => {
-          const style = styleOf(bundle, strand)
-          const base = bundle.vertexStart + strandIndex * samples * TUBE_SEGMENTS
-          for (let i = 0; i < samples; i++) {
-            const u = samples === 1 ? 0 : i / (samples - 1)
+        const style = styleOf(bundle)
+        for (const conduit of bundle.conduits) {
+          for (let i = 0; i < conduit.samples; i++) {
+            const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
             for (let k = 0; k < TUBE_SEGMENTS; k++) {
-              const vi = (base + i * TUBE_SEGMENTS + k) * 3
+              const vi = (conduit.vertexStart + i * TUBE_SEGMENTS + k) * 3
               col[vi] = style.r + ((style.r2 ?? style.r) - style.r) * u
               col[vi + 1] = style.g + ((style.g2 ?? style.g) - style.g) * u
               col[vi + 2] = style.b + ((style.b2 ?? style.b) - style.b) * u
-              alp[base + i * TUBE_SEGMENTS + k] = Math.min(1, style.a * 2.2)
+              alp[conduit.vertexStart + i * TUBE_SEGMENTS + k] = Math.min(1, style.a * conduit.alpha)
             }
           }
-        })
+        }
       }
       colorAttr.needsUpdate = true
       alphaAttr.needsUpdate = true
     }
 
-    // First paint: geometry + neutral colour; the caller's style function
-    // replaces the colours at once, for the price of a buffer write.
     fillGeometry((b) => b.color)
-    geometry.computeBoundingSphere()
-
-    // Plages de triangles par bundle, dans l'ordre d'écriture de l'index :
-    // (samples-1) anneaux × TUBE_SEGMENTS × 2 triangles × brins.
-    const ranges = buildRanges(
-      bundles.map((b) => b.corridor.key),
-      bundles.map((b) => (b.drawable.samples - 1) * TUBE_SEGMENTS * 2 * b.strands.length),
-    )
 
     return {
       object: group,
-      bundleAt: (faceIndex: number) => bundleAtTriangle(ranges, faceIndex),
-      onBundleClick,
-      // Positions moved: the tubes must be rebuilt.
       updatePositions: () => fillGeometry((b) => b.color),
-      // Style changed: colours only, never the geometry.
-      updateColors: (styleFn: LinkStyleFn) => {
-        fillColors((bundle) => styleFn(bundle.corridor.links[0]))
-      },
+      updateColors: (styleFn: LinkStyleFn) => fillColors((b) => styleFn(b.corridor.links[0])),
       updateColorsForNodes: (nodeIds: readonly string[], styleFn: LinkStyleFn) => {
         const set = new Set(nodeIds)
-        fillColors((bundle) => {
-          const link = bundle.corridor.links[0]
+        fillColors((b) => {
+          const link = b.corridor.links[0]
           const touches = set.has(endpointId(link.source)) || set.has(endpointId(link.target))
-          return touches ? styleFn(link) : bundle.color
+          return touches ? styleFn(link) : b.color
         })
       },
+      bundleAt: (faceIndex: number) => bundleAtTriangle(ranges, faceIndex),
+      onBundleClick,
       dispose: () => {
         geometry.dispose()
         material.dispose()
