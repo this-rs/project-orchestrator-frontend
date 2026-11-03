@@ -16,16 +16,28 @@
 import type { Graph3DNode } from './useGraph3DLayout'
 
 /**
- * Degroup (one level DOWN) when the camera is closer than this many cluster
- * radii. A cluster's members spread over ≈1 of its own radii, so within 3 radii
- * the cluster fills enough of the viewport that its internal structure resolves.
+ * Distance at which the auto-frame places the camera, in units of the radius
+ * the zoom handler passes as `clusterRadius`: radius / sin(fov / 2) × 1.06 with
+ * the 45° fov of the scene, ≈ 2.77. The renderer's zoom handler passes the
+ * GRAPH radius, i.e. the same yardstick the framing uses.
  */
-export const DEGROUP_DISTANCE_RATIO = 3
+export const FRAMING_DISTANCE_RATIO = 1.06 / Math.sin((45 * Math.PI) / 180 / 2)
 
 /**
- * Regroup (one level UP) when the camera is further than this many cluster
- * radii. At 6 radii a cluster is small enough on screen that its internal
- * detail is lost, so bundling it up again loses nothing readable.
+ * Degroup (one level DOWN) when the camera is closer than this many radii.
+ *
+ * It MUST sit below FRAMING_DISTANCE_RATIO: at 3 the framing distance (2.77)
+ * was already "close", so the first gesture after an auto-frame — a tiny
+ * rotation — dropped one level without the user zooming at all. At 2 the
+ * framing sits inside the dead zone [2, 6] with a ≈ 28 % margin; zooming in to
+ * 2 radii (inside the cloud's outer shell) still degroups.
+ */
+export const DEGROUP_DISTANCE_RATIO = 2
+
+/**
+ * Regroup (one level UP) when the camera is further than this many radii:
+ * ≈ 2.2 × the framing distance, so reachable before the orbit limit
+ * (OrbitControls.maxDistance = 3 × framing ≈ 8.3 radii).
  */
 export const REGROUP_DISTANCE_RATIO = 6
 

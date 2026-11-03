@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
+import { LINK_SCALE_ALPHA } from './linkScale'
 import {
   LINK_FAMILY_ALPHA,
   linkFamilyOf,
   linkFamilyAlpha,
   computeLinkAlpha,
   LINK_ALPHA_FLOOR,
+  LINK_FLOOR_MIN_SCALE,
 } from './linkFamily'
 
 // The previous budget (before the ≈ ×0.7 cut), kept as anchors for the review.
@@ -66,9 +68,12 @@ describe('computeLinkAlpha — the resting web fades, a focused link never does'
   })
 
   it('never drops below the floor, scaled by the colour alpha', () => {
-    expect(computeLinkAlpha({ ...base, familyAlpha: 0.001, weight: 0 })).toBeGreaterThanOrEqual(LINK_ALPHA_FLOOR)
+    // The weakest presence floors at half the reference floor, never at 0.
+    expect(computeLinkAlpha({ ...base, familyAlpha: 0.001, weight: 0 })).toBeGreaterThanOrEqual(LINK_ALPHA_FLOOR * LINK_FLOOR_MIN_SCALE)
     const dim = computeLinkAlpha({ ...base, familyAlpha: 0.001, weight: 0, colorAlpha: 0.5 })
-    expect(dim).toBeGreaterThanOrEqual(LINK_ALPHA_FLOOR * 0.5)
+    expect(dim).toBeGreaterThanOrEqual(LINK_ALPHA_FLOOR * LINK_FLOOR_MIN_SCALE * 0.5)
+    // The reference presence floors exactly at LINK_ALPHA_FLOOR.
+    expect(computeLinkAlpha({ ...base, familyAlpha: 0.12, weight: 0, linkCount: 1e9 })).toBeCloseTo(LINK_ALPHA_FLOOR, 12)
   })
 
   it('orders the families for identical inputs (structure > knowledge > tissue)', () => {
@@ -84,5 +89,32 @@ describe('computeLinkAlpha — the resting web fades, a focused link never does'
     const fams = [0.028, 0.035, 0.049, 0.056, 0.077, 0.105, 0.119]
     const as = fams.map((familyAlpha) => computeLinkAlpha({ ...base, familyAlpha }))
     for (let i = 1; i < as.length; i++) expect(as[i]).toBeGreaterThanOrEqual(as[i - 1])
+  })
+})
+
+describe('the three link scales stay distinguishable at any link count', () => {
+  // The resting web at the IntelligenceGraph3D call site: the SCALE alpha
+  // (intra / neighbor / inter) as the family alpha, weight 0.5, colour alpha 1.
+  const at = (scale: 'intra' | 'neighbor' | 'inter', linkCount: number) =>
+    computeLinkAlpha({
+      familyAlpha: LINK_SCALE_ALPHA[scale],
+      weight: 0.5,
+      colorAlpha: 1,
+      linkCount,
+      isInterCommunity: false,
+      emphasised: false,
+    })
+
+  it('orders intra < neighbor < inter by a visible step (≥ ×1.25) from 2 000 to 10⁶ links', () => {
+    for (const n of [2_000, 10_000, 40_000, 200_000, 1_000_000]) {
+      expect(at('neighbor', n) / at('intra', n)).toBeGreaterThanOrEqual(1.25)
+      expect(at('inter', n) / at('neighbor', n)).toBeGreaterThanOrEqual(1.25)
+    }
+  })
+
+  it('still never lets a link vanish: every scale keeps a strictly positive floor', () => {
+    for (const s of ['intra', 'neighbor', 'inter'] as const) {
+      expect(at(s, 1e9)).toBeGreaterThan(0.01)
+    }
   })
 })

@@ -117,10 +117,7 @@ describe('the hovered group reads louder, measured on its OWN density', () => {
     // Backwards compatibility: gain/densityCount are optional, and their
     // absence must reproduce the previous formula exactly.
     for (const n of [10, 2000, 12000]) {
-      const legacy = computeLinkAlpha({
-        familyAlpha: 0.091, weight: 0.5, colorAlpha: 1, linkCount: n,
-        isInterCommunity: false, emphasised: false,
-      })
+      const legacy = resting(n)
       const explicit = computeLinkAlpha({
         familyAlpha: 0.091, weight: 0.5, colorAlpha: 1, linkCount: n,
         isInterCommunity: false, emphasised: false, gain: 1, densityCount: n,

@@ -110,3 +110,32 @@ describe('scaleYardstick', () => {
     expect(scaleYardstick(Number.NaN, 300)).toBe(300)
   })
 })
+
+describe('nextScaleLevel at the default framing distance', () => {
+  // The framing effect places the camera at radius / sin(fov/2) × 1.06 with a
+  // 45° fov — ≈ 2.77 × the graph radius — and the zoom handler passes that SAME
+  // graph radius to nextScaleLevel. A gesture that ends at the framing distance
+  // (a tiny rotation right after the auto-frame) must not change the level.
+  const fov = (45 * Math.PI) / 180
+  const framing = (radius: number) => (radius / Math.sin(fov / 2)) * 1.06
+
+  it('is ≈ 2.77 radii, the value the renderer computes', () => {
+    expect(framing(1)).toBeCloseTo(2.77, 2)
+  })
+
+  it('holds every level at the framing distance, for small and large graphs', () => {
+    for (const radius of [40, 327, 976]) {
+      for (let level = 0; level <= 6; level++) {
+        expect(nextScaleLevel(framing(radius), radius, level)).toBe(level)
+      }
+    }
+  })
+
+  it('still degroups when zoomed well inside the framing, and regroups before the orbit limit', () => {
+    const radius = 500
+    // OrbitControls.maxDistance is 3 × the framing distance: regrouping must be
+    // reachable before it, degrouping reachable by zooming in.
+    expect(nextScaleLevel(framing(radius) * 0.5, radius, 2)).toBe(1)
+    expect(nextScaleLevel(framing(radius) * 2.9, radius, 2)).toBe(3)
+  })
+})
