@@ -34,6 +34,7 @@ import { classifyLinkScale, interpolateRgb, linkScaleCurvature } from './linkSca
 import { ARROW_ANCHOR, ARROW_VERTICES, arrowsEnabled, computeArrowHeadAt } from './linkArrows'
 import { isDirectionalRelation } from './linkFamily'
 import { LINK_RENDER_ORDER } from './nodePoints'
+import { markFullUpload, markRangeUpload } from './bufferUpload'
 
 /**
  * The unified link renderer — ribbons (this module) or the LineSegments
@@ -391,11 +392,11 @@ function buildRibbons(nodes: Graph3DNode[], links: Graph3DLink[]): LinkRenderer 
       paintRibbon(r, style, m.isSheet ? sheetAlpha(m.count) : undefined)
       paintArrow(r, style)
     }
-    ;(geometry.getAttribute('aColor') as THREE.BufferAttribute).needsUpdate = true
-    ;(geometry.getAttribute('aAlpha') as THREE.BufferAttribute).needsUpdate = true
+    markFullUpload(geometry.getAttribute('aColor') as THREE.BufferAttribute)
+    markFullUpload(geometry.getAttribute('aAlpha') as THREE.BufferAttribute)
     if (arrowGeometry) {
-      ;(arrowGeometry.getAttribute('aColor') as THREE.BufferAttribute).needsUpdate = true
-      ;(arrowGeometry.getAttribute('aAlpha') as THREE.BufferAttribute).needsUpdate = true
+      markFullUpload(arrowGeometry.getAttribute('aColor') as THREE.BufferAttribute)
+      markFullUpload(arrowGeometry.getAttribute('aAlpha') as THREE.BufferAttribute)
     }
   }
 
@@ -410,21 +411,15 @@ function buildRibbons(nodes: Graph3DNode[], links: Graph3DLink[]): LinkRenderer 
       // Hover/spotlight: the style's own alpha, never the sheet's resting one.
       paintRibbon(r, style, undefined)
       const base = r * RIBBON_SUBDIVISIONS * 2
-      colAttr.addUpdateRange(base * 3, RIBBON_SUBDIVISIONS * 2 * 3)
-      alpAttr.addUpdateRange(base, RIBBON_SUBDIVISIONS * 2)
+      markRangeUpload(colAttr, base * 3, RIBBON_SUBDIVISIONS * 2 * 3)
+      markRangeUpload(alpAttr, base, RIBBON_SUBDIVISIONS * 2)
       if (arrowObject && arrowSlot[r] >= 0) {
         paintArrow(r, style)
         const aCol = arrowGeometry!.getAttribute('aColor') as THREE.BufferAttribute
         const aAlp = arrowGeometry!.getAttribute('aAlpha') as THREE.BufferAttribute
-        aCol.addUpdateRange(arrowSlot[r] * 3, ARROW_VERTICES * 3)
-        aAlp.addUpdateRange(arrowSlot[r], ARROW_VERTICES)
+        markRangeUpload(aCol, arrowSlot[r] * 3, ARROW_VERTICES * 3)
+        markRangeUpload(aAlp, arrowSlot[r], ARROW_VERTICES)
       }
-    }
-    colAttr.needsUpdate = true
-    alpAttr.needsUpdate = true
-    if (arrowGeometry) {
-      ;(arrowGeometry.getAttribute('aColor') as THREE.BufferAttribute).needsUpdate = true
-      ;(arrowGeometry.getAttribute('aAlpha') as THREE.BufferAttribute).needsUpdate = true
     }
   }
 

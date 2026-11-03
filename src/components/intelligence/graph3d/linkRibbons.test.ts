@@ -108,3 +108,21 @@ describe('createLinkRenderer', () => {
     renderer.dispose()
   })
 })
+
+describe('createLinkRibbons — GPU upload', () => {
+  // three r183 uploads ONLY the queued ranges when there are any: a full restyle
+  // (selection dims every ribbon) followed by a hover update of one ribbon must
+  // not shrink the upload to that one ribbon.
+  it('a ranged update right after a full restyle keeps the full upload', () => {
+    const nodes = [node('a', 0), node('b', 10), node('c', 20)]
+    const links = [mk('a', 'b'), mk('b', 'c')]
+    const ribbons = createLinkRibbons(nodes, links)!
+    const geo = ribbonMesh(ribbons.object).geometry
+    const col = () => geo.getAttribute('aColor') as THREE.BufferAttribute
+    const style = () => ({ r: 1, g: 0, b: 0, a: 0.8 })
+    ribbons.updateColors(style)
+    ribbons.updateColorsForNodes(['a'], style)
+    expect(col().updateRanges).toEqual([])
+    ribbons.dispose()
+  })
+})
