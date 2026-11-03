@@ -864,8 +864,11 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     }
     for (const n of graph3dNodes) n.degree = degree.get(n.id) ?? 0
 
-    // A node is placed when it has no cached position. Everything else keeps
-    // its cached position, so refreshes and drags stay stable.
+    // A node is placed again when it has no cached position OR its group
+    // changed since it was placed (the detected communities replaced the
+    // directory fallback: keeping the old positions scattered each community
+    // over the whole scene). Everything else keeps its cached position, so
+    // refreshes and drags stay stable.
     //
     // The placement sees the WHOLE graph, not only the nodes to place: a group
     // with cached members keeps its centre (fixed), a node joining it lands
@@ -873,7 +876,7 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     // as a second archipelago on top of the first.
     const keyOf = new Map(graph3dNodes.map((n) => [n.id, placementKey(n)]))
     const unsettled = graph3dNodes.filter(
-      (n) => !positionCache.current.has(n.id),
+      (n) => !positionCache.current.has(n.id) || placedGroupOf.current.get(n.id) !== keyOf.get(n.id),
     )
     if (unsettled.length > 0) {
       const toPlace = new Set(unsettled.map((n) => n.id))

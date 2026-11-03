@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import type { IntelligenceEdge, IntelligenceNode } from '@/types/intelligence'
-import { useGraph3DLayout } from './useGraph3DLayout'
+import { groupRadius, useGraph3DLayout } from './useGraph3DLayout'
 import { detectCommunities } from './communityDetect'
 
 // A single-threaded worker: it answers its requests one by one, in the order
@@ -171,6 +171,40 @@ const radiusOf = (ps: P[]) => {
 }
 
 describe('useGraph3DLayout — placement across updates', () => {
+  it('re-places the nodes when detected communities replace the fallback grouping', () => {
+    // 2 000 files in 80 directories, file i importing i+1..i+3: the detected
+    // communities run along the index, across the directories. Positions used
+    // to stay where the directory layout put them, so each detected community
+    // was scattered over the whole scene (median radius 1 565 px against 94
+    // for a directory group).
+    const files = Array.from({ length: 2000 }, (_, i) => file(`src/d${i % 80}/f${i}.ts`))
+    const edges: IntelligenceEdge[] = []
+    for (let i = 0; i < files.length; i++) {
+      for (let k = 1; k <= 3; k++) if (i + k < files.length && (i * 7 + k) % 4 !== 0) edges.push(link(files[i].id, files[i + k].id))
+    }
+    const { result } = renderHook(() => useGraph3DLayout(files, edges))
+    result.current.transformToGraph3D(files, edges) // directory fallback, cached
+    const partition = detectCommunities(
+      FifoWorker.last!.queue[0].nodes,
+      edges.map((e) => ({ source: e.source, target: e.target })),
+    )
+    act(() => FifoWorker.last!.answerNext((id) => partition.get(id)))
+    const out = result.current.transformToGraph3D(files, edges).data.nodes
+    const byCommunity = new Map<number, P[]>()
+    for (const n of out) {
+      const list = byCommunity.get(n.communityId!) ?? []
+      list.push(n)
+      byCommunity.set(n.communityId!, list)
+    }
+    // A detected community is laid out as ONE group: its members within the
+    // radius a group of that size gets.
+    const spread = [...byCommunity.values()]
+      .filter((ps) => ps.length >= 10)
+      .map((ps) => radiusOf(ps) / groupRadius(ps.length))
+      .sort((a, b) => a - b)
+    expect(spread[Math.floor(spread.length / 2)]).toBeLessThan(1.05)
+  })
+
   it('places a new node inside the group it joins, not at the origin', () => {
     const nodes = Array.from({ length: 500 }, (_, i) => inCommunity(`src/c${Math.floor(i / 50)}/f${i}.ts`, Math.floor(i / 50)))
     const { result } = renderHook(() => useGraph3DLayout(nodes, NO_EDGES))
