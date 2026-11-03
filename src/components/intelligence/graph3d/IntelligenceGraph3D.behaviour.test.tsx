@@ -335,53 +335,66 @@ function zoomTo(k: number, home: THREE.Vector3, target: THREE.Vector3) {
   })
 }
 
+/** What is drawn: elements (real nodes + groups) and how many are real nodes. */
+function drawnCounts() {
+  const nodes = (lib.props.graphData as { nodes: Array<{ id: string }> }).nodes
+  return { elements: nodes.length, real: nodes.filter((n) => !n.id.startsWith('cl:')).length }
+}
+
+// Above the HLOD budget the scale is DYNAMIC (decision b7e6a1ad): no global
+// level any more — these keep what the old level tests protected, measured on
+// what is drawn.
 describe('IntelligenceGraph3D — camera listeners', () => {
   it('attach when the library mounts AFTER the data (zoom out regroups)', async () => {
-    const view = await mountGraph(makeGraph(4200))
+    await mountGraph(makeGraph(4200))
     await flush(3000)
-    expect(view.store.get(graphScaleAtom)).toBe(1)
     const home = lib.fg.camera().position.clone()
     const target = lib.fg.controls().target.clone()
+    const before = drawnCounts()
     zoomTo(10, home, target)
-    expect(view.store.get(graphScaleAtom)).toBe(2)
+    await flush(500)
+    expect(drawnCounts().elements).toBeLessThan(before.elements)
   }, 60_000)
 })
 
-describe('IntelligenceGraph3D — semantic zoom at the default framing', () => {
-  it('a rotation at the framing distance keeps the aggregated level', async () => {
-    // > AUTO_AGGREGATE_ABOVE nodes: the view opens one step aggregated.
-    const view = await mountGraph(makeGraph(4200))
+describe('IntelligenceGraph3D — dynamic zoom at the default framing', () => {
+  it('a rotation at the framing distance changes nothing that is drawn', async () => {
+    await mountGraph(makeGraph(4200))
     await flush(3000)
-    expect(view.store.get(graphScaleAtom)).toBe(1)
     expect(lib.fg.cameraPosition).toHaveBeenCalled()
-    // A pure rotation: the distance to the target does not change.
+    const before = lib.props.graphData
     const controls = lib.fg.controls()
     act(() => {
       controls.dispatchEvent({ type: 'start' })
+      controls.dispatchEvent({ type: 'change' })
       controls.dispatchEvent({ type: 'end' })
     })
-    // It used to fall to the raw detail (ratio ≈ 2.8 < 3 against the graph
-    // radius): 20 000 points and 40 000 links on the first orbit.
-    expect(view.store.get(graphScaleAtom)).toBe(1)
+    await flush(500)
+    // It used to fall to the raw detail on the first orbit (20 000 points,
+    // 40 000 links); now the same cut must keep the same graph object.
+    expect(lib.props.graphData).toBe(before)
   }, 60_000)
 
-  it('zooming well in degroups, zooming well out regroups (monotone)', async () => {
-    const view = await mountGraph(makeGraph(4200))
+  it('zooming in opens more detail, zooming out regroups (monotone)', async () => {
+    await mountGraph(makeGraph(4200))
     await flush(3000)
     const camera = lib.fg.camera()
     const controls = lib.fg.controls()
     const home = camera.position.clone()
     const target = controls.target.clone()
-    const at = (k: number) => {
+    const at = async (k: number) => {
       camera.position.copy(target).add(home.clone().sub(target).multiplyScalar(k))
       act(() => { controls.dispatchEvent({ type: 'end' }) })
+      await flush(500)
+      return drawnCounts()
     }
-    at(0.4)
-    expect(view.store.get(graphScaleAtom)).toBe(0)
-    at(1)
-    expect(view.store.get(graphScaleAtom)).toBe(0) // dead zone: holds
-    at(3)
-    expect(view.store.get(graphScaleAtom)).toBe(1)
+    const near = await at(0.4)
+    const mid = await at(1)
+    const far = await at(3)
+    expect(near.real).toBeGreaterThanOrEqual(mid.real)
+    expect(mid.real).toBeGreaterThanOrEqual(far.real)
+    expect(near.real).toBeGreaterThan(far.real)
+    expect(far.elements).toBeLessThan(near.elements)
   }, 60_000)
 })
 
@@ -543,4 +556,56 @@ describe('IntelligenceGraph3D — hull hover', () => {
     await flush(100)
     expect((raised!.material as THREE.MeshBasicMaterial).opacity).toBeLessThan(lifted)
   }, 60_000)
+})
+
+describe('IntelligenceGraph3D — dynamic scale (HLOD)', () => {
+  type Drawn = { nodes: Array<{ id: string; x: number; y: number; z: number; data: Record<string, unknown> }>; links: unknown[] }
+  const drawn = () => lib.props.graphData as Drawn
+  const isGroup = (id: string) => id.startsWith('cl:')
+
+  it('a big graph opens as groups AND details chosen per element, not one global level', async () => {
+    await mountGraph(makeGraph(5000))
+    await flush(3000)
+    const g = drawn()
+    expect(g.nodes.length).toBeGreaterThan(0)
+    expect(g.nodes.length).toBeLessThan(5000)
+    expect(g.nodes.some((n) => isGroup(n.id))).toBe(true)
+  })
+
+  it('flying close to a group opens it into its real nodes; the rest stays grouped', async () => {
+    await mountGraph(makeGraph(5000))
+    await flush(3000)
+    const before = drawn()
+    const target = before.nodes.filter((n) => isGroup(n.id)).sort((a, b) => (b.data.count as number) - (a.data.count as number))[0]
+    expect(target).toBeDefined()
+    const camera = lib.fg.camera()
+    const controls = lib.fg.controls()
+    const r = Math.max(1, (target.data.clusterRadius as number) ?? 1)
+    act(() => {
+      camera.position.set(target.x, target.y, target.z + r * 1.5)
+      controls.target.set(target.x, target.y, target.z)
+      controls.dispatchEvent({ type: 'end' })
+    })
+    await flush(100)
+    const after = drawn()
+    expect(after.nodes.some((n) => n.id === target.id)).toBe(false)
+    expect(after.nodes.some((n) => !isGroup(n.id))).toBe(true)
+    expect(after.nodes.some((n) => isGroup(n.id))).toBe(true)
+  })
+
+  it('an orbit that changes nothing on screen does not rebuild the drawn graph', async () => {
+    await mountGraph(makeGraph(5000))
+    await flush(3000)
+    const before = drawn()
+    act(() => { lib.fg.controls().dispatchEvent({ type: 'end' }) })
+    await flush(100)
+    expect(drawn()).toBe(before)
+  })
+
+  it('a small graph is drawn as is (no tree, no grouping)', async () => {
+    await mountGraph(makeGraph(200))
+    await flush(3000)
+    expect(drawn().nodes.length).toBe(200)
+    expect(drawn().nodes.some((n) => isGroup(n.id))).toBe(false)
+  })
 })

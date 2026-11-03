@@ -47,6 +47,8 @@ import {
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
 import { nextScaleLevel, scaleYardstick } from './scaleDecision'
+import { buildClusterTree, cutForView, type ClusterCut, type ClusterTree } from './clusterTree'
+import { carriedPrevious, graphFromCut, openIdsOf } from './cutGraph'
 import { zoomAdaptivePixelRatioCeiling } from './pixelRatioZoom'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { currentDeviceBudget } from './deviceTier'
@@ -202,6 +204,38 @@ function readCssColor(name: string, fallback: string): string {
  * texture and the user has no way to tell a community from a neighbour.
  */
 const AUTO_AGGREGATE_ABOVE = 4000
+
+/**
+ * Dynamic scale (HLOD, decision b7e6a1ad): above this many nodes the scene is no
+ * longer ONE global level — the cluster tree is cut per element by its size on
+ * screen, so what is close is in detail and what is far stays grouped, in the
+ * same frame. Below it everything fits: the raw graph is drawn as is.
+ */
+const HLOD_BUDGET = isMobileLikeDevice()
+  ? { maxNodes: 1200, maxLinks: 2500 }
+  : { maxNodes: 3000, maxLinks: 6000 }
+
+/** How often the cut follows a moving camera (trailing call), ms. */
+const RECUT_THROTTLE_MS = 200
+
+/** Same frontier, same graph: a cut that did not move must not rebuild the scene. */
+function sameFrontier(a: ClusterCut | null, b: ClusterCut | null): boolean {
+  if (!a || !b) return a === b
+  if (a.frontier.length !== b.frontier.length) return false
+  for (let i = 0; i < a.frontier.length; i++) if (a.frontier[i] !== b.frontier[i]) return false
+  return true
+}
+
+/** Where the camera will be before the library has one: the framing the view opens on. */
+function estimatedFramingView(tree: ClusterTree, heightPx: number) {
+  const root = tree.nodes[tree.root]
+  const distance = (Math.max(40, root.radius) / Math.sin((45 * Math.PI) / 360)) * 1.06
+  return {
+    position: [root.x, root.y, root.z + distance] as [number, number, number],
+    fovDeg: 45,
+    viewportHeightPx: Math.max(1, heightPx),
+  }
+}
 
 // Link opacity policy — the per-family budget (LINK_FAMILY_ALPHA), the density
 // reference/ceiling, the alpha floor, the library-path base (LINK_OPACITY) and
@@ -542,8 +576,63 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // of communities, thickness = how many real links it replaces. That is what
   // turns 40 000 threads into thirty readable strands. A node with no
   // `groupKey` still falls back to the grid (see aggregateByGroup).
-  const aggregated = scaleLevel > 0
-  const scaleRes = aggregated ? resolutionForLevel(graphData.nodes.length, scaleLevel) : 0
+  // ── Dynamic scale: the cluster tree and its current cut ──────────────────
+  const clusterTree = useMemo(
+    () =>
+      graphData.nodes.length > HLOD_BUDGET.maxNodes || graphData.links.length > HLOD_BUDGET.maxLinks
+        ? buildClusterTree(graphData.nodes, graphData.links)
+        : null,
+    [graphData],
+  )
+  const dynamicScale = clusterTree != null
+  // The viewport height the cut is measured against. Before the container is
+  // measured there is no height: a cut at 1 px opens nothing (the scene showed
+  // ONE root node until the first gesture). A typical height stands in.
+  const cutHeight = dimensions.height > 0 ? dimensions.height : 800
+  /** The camera as the cut sees it; null before the library has one. */
+  const currentView = useCallback(() => {
+    const fg = graphRef.current
+    const camera = fg && typeof fg.camera === 'function' ? (fg.camera() as THREE.PerspectiveCamera | null) : null
+    if (!camera) return null
+    return {
+      position: [camera.position.x, camera.position.y, camera.position.z] as [number, number, number],
+      fovDeg: camera.fov || 45,
+      viewportHeightPx: cutHeight,
+    }
+  }, [cutHeight])
+  // The cut of a NEW tree (a WebSocket flush, a new dataset) is computed right
+  // away from the last view, never via an empty step: going through "no cut"
+  // drew the raw graph for one render and rebuilt the scene twice per flush.
+  // The groups open in the cut on screen, by stable id: a new tree of the same
+  // graph keeps them open (hysteresis carried across the rebuild).
+  const openIdsRef = useRef<Set<string>>(new Set())
+  const treeCut = useMemo(() => {
+    if (!clusterTree) return null
+    const view = currentView() ?? estimatedFramingView(clusterTree, cutHeight)
+    return cutForView(clusterTree, view, HLOD_BUDGET, carriedPrevious(clusterTree, openIdsRef.current))
+  }, [clusterTree, currentView, cutHeight])
+  // A gesture's cut, tagged with the tree it belongs to (indices are per tree).
+  const [gestureCut, setGestureCut] = useState<{ tree: ClusterTree; cut: ClusterCut } | null>(null)
+  const clusterCut = gestureCut && gestureCut.tree === clusterTree ? gestureCut.cut : treeCut
+  const clusterCutRef = useRef<ClusterCut | null>(null)
+  clusterCutRef.current = clusterCut
+  useEffect(() => {
+    if (clusterTree && clusterCut) openIdsRef.current = openIdsOf(clusterTree, clusterCut)
+  }, [clusterTree, clusterCut])
+  /** Re-cut the tree for the current camera, at the end of a gesture. */
+  const recut = useCallback(() => {
+    if (!clusterTree) return
+    const view = currentView() ?? estimatedFramingView(clusterTree, cutHeight)
+    const prev = clusterCutRef.current
+    const next = cutForView(clusterTree, view, HLOD_BUDGET, prev ?? undefined)
+    if (sameFrontier(next, prev)) return
+    setGestureCut({ tree: clusterTree, cut: next })
+  }, [clusterTree, currentView, cutHeight])
+
+  const aggregated = dynamicScale
+    ? clusterCut != null && clusterCut.frontier.some((i) => clusterTree!.nodes[i].kind !== 'leaf')
+    : scaleLevel > 0
+  const scaleRes = !dynamicScale && aggregated ? resolutionForLevel(graphData.nodes.length, scaleLevel) : 0
   const displayData = useMemo(() => {
     // An opened community wins over the aggregation step: it shows its real
     // members, so a click inside it reaches an actual element (its fiche, its
@@ -558,9 +647,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         }
       }
     }
+    if (dynamicScale) {
+      if (!clusterTree || !clusterCut) return graphData
+      return graphFromCut(clusterTree, clusterCut, graphData.nodes, graphData.links)
+    }
     if (!aggregated || scaleRes <= 0 || graphData.nodes.length === 0) return graphData
     return buildGroupedGraph(graphData, scaleRes)
-  }, [aggregated, scaleRes, graphData, drilledCommunity])
+  }, [aggregated, scaleRes, graphData, drilledCommunity, dynamicScale, clusterTree, clusterCut])
 
   // True in the optimized path (minimal quality: ≥500 nodes, particles off):
   // links are drawn as ONE LineSegments instead of one cylinder per link.
@@ -738,11 +831,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const autoScaledForRef = useRef(0)
   useEffect(() => {
     const count = graphData.nodes.length
-    if (count <= AUTO_AGGREGATE_ABOVE) return
+    if (count <= AUTO_AGGREGATE_ABOVE || dynamicScale) return
     if (autoScaledForRef.current === count) return
     autoScaledForRef.current = count
     if (scaleLevel === 0) setScaleLevel(1)
-  }, [graphData.nodes.length, scaleLevel, setScaleLevel])
+  }, [graphData.nodes.length, scaleLevel, setScaleLevel, dynamicScale])
 
   // ── Manual-interaction guard: an automatic re-frame never fights a gesture ─
   // OrbitControls fires `start` when the user begins orbiting/panning/zooming
@@ -772,6 +865,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (!controls || typeof controls.addEventListener !== 'function') return
     const onEnd = () => {
       userInteractingRef.current = false
+      if (dynamicScale) {
+        recut()
+        return
+      }
       const camera = typeof fg.camera === 'function' ? fg.camera() : null
       const target = controls.target
       if (!camera || !target) return
@@ -801,7 +898,20 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     //   so a smooth zoom crosses a few values, and `setZoomPixelRatioCeiling`
     //   is a no-op when it did not move — no canvas resize per frame. It keeps
     //   the budget's drop history: a zoom is the same screen, not a new one.
+    // The cut follows the camera DURING a move too (framing tween, orbit, a long
+    // zoom), at most every RECUT_THROTTLE_MS with a trailing call: the framing
+    // moves the camera without any gesture 'end', and a cut left at the
+    // pre-framing view changed at the next data flush and rebuilt the scene.
+    let recutTimer: ReturnType<typeof setTimeout> | null = null
+    const scheduleRecut = () => {
+      if (!dynamicScale || recutTimer) return
+      recutTimer = setTimeout(() => {
+        recutTimer = null
+        recut()
+      }, RECUT_THROTTLE_MS)
+    }
     const onChange = () => {
+      scheduleRecut()
       const camera = typeof fg.camera === 'function' ? fg.camera() : null
       if (!camera || !controls.target) return
       nodePointsRef.current?.setCameraDistance(camera.position.distanceTo(controls.target))
@@ -814,12 +924,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       controls.removeEventListener('start', onStart)
       controls.removeEventListener('end', onEnd)
       controls.removeEventListener('change', onChange)
+      if (recutTimer) clearTimeout(recutTimer)
     }
     // hasDimensions: the library mounts only once the container is measured.
     // When the data is already there (3D opened from the code map) this effect
     // first runs with no ForceGraph3D, and nothing else re-runs it: no scale
     // decision, no density factor, no sharper close-up — for the whole session.
-  }, [graphData.nodes, setScaleLevel, setZoomPixelRatioCeiling, zoomedPixelRatioCeiling, hasDimensions])
+  }, [graphData.nodes, setScaleLevel, setZoomPixelRatioCeiling, zoomedPixelRatioCeiling, hasDimensions, dynamicScale, recut])
 
   // ── Data identity: re-frame once per dataset, not once per node count ───
   // `needsRelayout` is a boolean that stays `true` across a dataset swap, and
@@ -1221,12 +1332,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const computeNodeStyle = useCallback((node: Graph3DNode): NodeStyle => {
     const entityType = node.entityType
     // Colour channel: LAYER when aggregated (scale ≥ 1), entity TYPE in detail.
-    const base = resolveNodeBaseRgb(aggregated, node.layer, ENTITY_RGB[entityType] ?? DEFAULT_NODE_RGB)
     // Super-nodes (aggregated) are sized by how many nodes they bundle (area ∝
     // count), coloured/shaped by their dominant type. Individual nodes use the
-    // per-type size.
+    // per-type size. With the dynamic scale a frame mixes both: the channel is
+    // chosen PER NODE (a group by layer, a real node by type).
     const count = node.data.count as number | undefined
     const isSuper = typeof count === 'number' && count > 1
+    const base = resolveNodeBaseRgb(dynamicScale ? isSuper : aggregated, node.layer, ENTITY_RGB[entityType] ?? DEFAULT_NODE_RGB)
     const shape = isSuper ? 0 : shapeForType(entityType)
     const size = baseNodeSize(node)
     const energy = Math.min(1, Math.max(0, (node.data.energy as number) ?? 0))
@@ -1294,7 +1406,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
 
     return { r: base.r, g: base.g, b: base.b, alpha: 1, size, shape, act: 0 }
-  }, [energyHeatmap, touchesHeatmap, activation, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes, baseNodeSize, aggregated])
+  }, [energyHeatmap, touchesHeatmap, activation, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes, baseNodeSize, aggregated, dynamicScale])
 
   /** Always-current node style fn, so the structure effect can color without re-running on every hover. */
   const computeNodeStyleRef = useRef(computeNodeStyle)
@@ -2724,6 +2836,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           icon={<ZoomIn size={12} className="text-[var(--text-tertiary)]" aria-hidden="true" />}
           className="absolute right-3 top-[4.5rem]"
         >
+          {dynamicScale ? (
+            <div className="px-2 py-1.5 text-xs text-[var(--text-secondary)] tabular-nums" aria-live="polite">
+              {t('intelGraph.scale.groups', { count: activeGraphData.nodes.length })}
+            </div>
+          ) : (
           <div className="flex items-center gap-1 p-0.5">
             <button
               type="button"
@@ -2751,6 +2868,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
               +
             </button>
           </div>
+          )}
         </GraphPanel>
       )}
     </div>

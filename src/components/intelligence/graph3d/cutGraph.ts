@@ -147,3 +147,24 @@ export function clusterIndexOf(node: Graph3DNode): number {
   const v = (node.data as { clusterIndex?: unknown } | undefined)?.clusterIndex
   return typeof v === 'number' && node.id.startsWith(CLUSTER_NODE_PREFIX) ? v : -1
 }
+
+/** The ids of the tree nodes a cut has opened (stable across trees of the same graph). */
+export function openIdsOf(tree: ClusterTree, cut: ClusterCut): Set<string> {
+  const ids = new Set<string>()
+  for (const i of cut.open) ids.add(tree.nodes[i].id)
+  return ids
+}
+
+/**
+ * A `previous` cut for `cutForView` on a NEW tree (a data flush rebuilds it):
+ * only its open set matters to the cut (hysteresis), and tree indices are per
+ * tree, so the open groups are carried by their stable id. Without it a flush
+ * re-cut from scratch closed every group sitting between τ/1.5 and τ, changed
+ * the frontier and rebuilt the scene.
+ */
+export function carriedPrevious(tree: ClusterTree, openIds: ReadonlySet<string>): ClusterCut | undefined {
+  if (openIds.size === 0) return undefined
+  const open = new Set<number>()
+  for (const t of tree.nodes) if (openIds.has(t.id)) open.add(t.index)
+  return { frontier: [], open, links: [], internal: new Map() }
+}
