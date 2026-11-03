@@ -312,7 +312,11 @@ describe('cutTransition — what splits and what merges', () => {
 })
 
 describe('cost at 20 000 nodes / 40 000 links', () => {
-  it('builds the tree in < 150 ms and cuts it in < 50 ms (best of 3: the CPU is shared)', () => {
+  // Measured alone (Node 22, M-series, loaded machine): build 43–71 ms, cut 8–20 ms.
+  // The full suite runs files in parallel on a shared CPU (measured up to 380 ms
+  // for the same build), so the assertion is a ceiling that only an O(N²)
+  // regression crosses — a quadratic build at 20 000 nodes takes seconds.
+  it('builds the tree and cuts it fast enough at 20 000 nodes (best of 3)', () => {
     const g = synth(20000, 40000, 300)
     const v = view(g.centres[0][0], g.centres[0][1], g.centres[0][2] + 600)
     const budget = { maxNodes: 4000, maxLinks: 12000 }
@@ -331,8 +335,8 @@ describe('cost at 20 000 nodes / 40 000 links', () => {
     }
     console.info(`clusterTree 20k/40k: build ${build.toFixed(1)} ms, cut ${cutMs.toFixed(1)} ms, ` +
       `tree ${tree.nodes.length} nodes, frontier ${cut.frontier.length}, links ${cut.links.length}`)
-    expect(build).toBeLessThan(150)
-    expect(cutMs).toBeLessThan(50)
+    expect(build).toBeLessThan(600)
+    expect(cutMs).toBeLessThan(200)
     expect(accounted(tree, cut)).toBe(40000 - tree.skippedLinks)
   })
 })
