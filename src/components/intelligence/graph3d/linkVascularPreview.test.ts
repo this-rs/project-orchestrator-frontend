@@ -158,6 +158,25 @@ describe('aperçu vasculaire', () => {
         }
       }
     }
+    // Noeuds, pour juger la COHERENCE d'echelle liens / noeuds.
+    // Le client : les echelles ne semblent pas coherentes entre les liens et les
+    // nodes. Sans les noeuds, l'apercu ne pouvait pas le montrer.
+    for (const node of nodes as unknown as { x: number; y: number; z: number }[]) {
+      const p = project(node.x, node.y, node.z)
+      const r = 1.6
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          if (dx * dx + dy * dy > r * r) continue
+          const x = Math.round(p.sx + dx)
+          const y = Math.round(p.sy + dy)
+          if (x < 0 || x >= W || y < 0 || y >= H) continue
+          const o = y * W + x
+          buf[o * 3] = Math.min(255, buf[o * 3] + 150)
+          buf[o * 3 + 1] = Math.min(255, buf[o * 3 + 1] + 170)
+          buf[o * 3 + 2] = Math.min(255, buf[o * 3 + 2] + 180)
+        }
+      }
+    }
     writePng('qa-out/veines.png', W, H, buf)
     // Garde : moins de 5 000 sommets signale une chute du nombre de voies.
     expect(nv).toBeGreaterThan(5000)

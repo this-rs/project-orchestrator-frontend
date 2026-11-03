@@ -104,14 +104,17 @@ interface LayerSpec {
 
 function layerSpecs(channelCount: number): LayerSpec[] {
   const out: LayerSpec[] = [
-    { kind: 'halo', radius: 1.7, alpha: 0.06, emit: false },
-    { kind: 'sheath', radius: 1.0, alpha: 0.18, emit: false },
-    { kind: 'structure', radius: 0.78, alpha: 0.34, emit: false },
+    // Couches plus DISCRÈTES : l'empilement de gaines opaques faisait une purée
+    // où l'on ne distinguait plus rien. Chaque couche porte maintenant un rôle
+    // lisible et une opacité basse ; le contraste vient du cœur, pas du nombre.
+    { kind: 'halo', radius: 1.45, alpha: 0.03, emit: false },
+    { kind: 'sheath', radius: 1.0, alpha: 0.08, emit: false },
+    { kind: 'structure', radius: 0.8, alpha: 0.16, emit: false },
   ]
   for (let i = 0; i < channelCount; i++) {
-    out.push({ kind: 'channel', radius: MICRO_FIBER_RADIUS, alpha: 0.55, emit: false, channel: i })
+    out.push({ kind: 'channel', radius: MICRO_FIBER_RADIUS, alpha: 0.3, emit: false, channel: i })
   }
-  out.push({ kind: 'core', radius: 0.16, alpha: 0.95, emit: true })
+  out.push({ kind: 'core', radius: 0.16, alpha: 0.7, emit: true })
   return out
 }
 
@@ -585,7 +588,7 @@ export function createVascularLinks(
       const extFrom = envelopeRadius.get(corridor.from) ?? 0
       const extTo = envelopeRadius.get(corridor.to) ?? 0
       const territory = Math.min(1.8, 0.55 + (extFrom + extTo) / Math.max(1, sceneRadius))
-      const baseRadius = sceneRadius * 0.02 * (1 + 0.34 * Math.min(9, order)) * territory
+      const baseRadius = sceneRadius * 0.005 * (1 + 0.30 * Math.min(9, order)) * territory
 
       const conduits: Conduit[] = []
       const vertexStart = position.length / 3
@@ -819,7 +822,7 @@ export function createVascularLinks(
       const points = sampleCurve(a, c1, c2, b, conduit.samples)
       const frames = parallelTransportFrames(points)
       const order = bundle.corridor.magnitude.magnitudeOrder
-      const thickness = sceneRadius * 0.02 * (1 + 0.34 * Math.min(9, order)) * conduit.radius
+      const thickness = sceneRadius * 0.005 * (1 + 0.30 * Math.min(9, order)) * conduit.radius
       const offsets = braidedOffsets(
         Math.max(1, conduit.lane === 0.5 ? 1 : Math.round(bundle.conduits.length / 2)),
         conduit.samples,
