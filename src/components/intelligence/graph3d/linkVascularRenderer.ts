@@ -118,8 +118,16 @@ function layerSpecs(channelCount: number): LayerSpec[] {
   return out
 }
 
-/** Branches per end — the vascular tree's first division. */
-const BRANCHES_PER_END = 3
+/**
+ * ARBRE VASCULAIRE (phase 2).
+ *
+ * Le tronc ne se divisait qu'une fois, vers trois nœuds choisis par degré. Un
+ * vrai réseau est dendritique : artère → branches secondaires → capillaires,
+ * et les branches se regroupent par PROXIMITÉ SPATIALE des extrémités réelles,
+ * pas par identifiant de communauté.
+ */
+const SUB_HUBS_PER_END = 3
+const CAPILLARIES_PER_SUB_HUB = 3
 /** Samples along a branch (shorter than a trunk, so fewer). */
 const BRANCH_SAMPLES = 5
 /**
@@ -508,15 +516,43 @@ export function createVascularLinks(
         }
       }
       if (an === 0 || bn === 0) return null
-      // The most connected real nodes on each side become the branch tips: the
-      // trunk visibly enters the cluster instead of stopping in the void.
+      /**
+       * Regroupe les extrémités RÉELLES d'un côté en sous-moyeux spatiaux.
+       *
+       * Tri par angle autour du centre du côté, puis découpe en autant de
+       * paquets que de sous-moyeux autorisés : deux nœuds voisins tombent dans
+       * le même paquet, deux nœuds opposés non. C'est le clustering que la
+       * phase 2 demande, réduit à ce qui se calcule en O(n log n).
+       */
       const pick = (list: { id: string; deg: number }[]) => {
         const seen = new Set<string>()
-        return [...list]
+        const unique = [...list]
           .sort((p, q) => q.deg - p.deg || (p.id < q.id ? -1 : 1))
           .filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)))
-          .slice(0, BRANCHES_PER_END)
-          .map((x) => x.id)
+        if (unique.length === 0) return [] as string[][]
+        // Centre du côté, puis angle de chaque extrémité autour de ce centre.
+        let cx = 0, cy = 0, cz = 0
+        const pts = unique.map((x) => {
+          const n = nodeById.get(x.id)!
+          cx += n.x; cy += n.y; cz += n.z
+          return { id: x.id, deg: x.deg, n }
+        })
+        cx /= pts.length; cy /= pts.length; cz /= pts.length
+        const angle = (p: { n: { x: number; y: number; z: number } }) =>
+          Math.atan2(p.n.y - cy, p.n.x - cx)
+        const byAngle = [...pts].sort((a, b) => angle(a) - angle(b) || (a.id < b.id ? -1 : 1))
+        const groups: string[][] = []
+        const per = Math.max(1, Math.ceil(byAngle.length / SUB_HUBS_PER_END))
+        for (let i = 0; i < byAngle.length; i += per) {
+          groups.push(
+            byAngle
+              .slice(i, i + per)
+              .sort((a, b) => b.deg - a.deg || (a.id < b.id ? -1 : 1))
+              .slice(0, CAPILLARIES_PER_SUB_HUB)
+              .map((x) => x.id),
+          )
+        }
+        return groups.filter((g) => g.length > 0)
       }
       return {
         a: [ax / an, ay / an, az / an] as Vec3,
@@ -686,37 +722,51 @@ export function createVascularLinks(
       // porte plus qu'un ensemble où il n'en arrive qu'un.
       const hubSwellFrom = Math.cbrt(Math.max(1, hubLoad.get(corridor.from) ?? 1)) / 2
       const hubSwellTo = Math.cbrt(Math.max(1, hubLoad.get(corridor.to) ?? 1)) / 2
-      const trunkFrom = assigned?.from ?? (geo.branchA[0] ?? endpointId(corridor.links[0].source))
-      const trunkTo = assigned?.to ?? (geo.branchB[0] ?? endpointId(corridor.links[0].target))
+      const trunkFrom = assigned?.from ?? (geo.branchA[0]?.[0] ?? endpointId(corridor.links[0].source))
+      const trunkTo = assigned?.to ?? (geo.branchB[0]?.[0] ?? endpointId(corridor.links[0].target))
 
       laneFamilies.forEach((family, s) => {
         const lane = laneFamilies.length === 1 ? 0.5 : s / (laneFamilies.length - 1)
         addConduit(trunkFrom, trunkTo, 1, SHEATH_ALPHA, lane, trunkSamples, strata, family, s * 0.37, load, 0.85 + 0.5 * shareFrom + hubSwellFrom, 0.85 + 0.5 * shareTo + hubSwellTo)
       })
 
-      // ── Branches, DEUX niveaux ───────────────────────────────────────────
-      // Niveau 1 : du bout du tronc vers les nœuds réels les plus connectés.
-      // Niveau 2 : de chaque branche vers un nœud voisin de la même extrémité —
-      // c'est ce qui donne l'arborescence des planches, plutôt qu'un tronc qui
-      // s'arrête net.
       const branchStrata = strata.slice(-1)
-      const trunkEndA = geo.branchA[0]
-      const trunkEndB = geo.branchB[0]
-      const addBranches = (tip: string | undefined, ids: string[]) => {
-        for (const id of ids) {
-          if (!tip || id === tip) continue
-          addConduit(tip, id, 0.5, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.21, load, 0.85 + 0.5 * shareFrom, 0.2)
-        }
-        // Second level: one sub-branch per level-1 tip, to the next real node.
-        const next = ids[1]
-        if (next) {
-          for (const id of ids.slice(2)) {
-            addConduit(next, id, 0.3, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.13, load, 0.45, 0.14)
+
+      /**
+       * ARBRE A TROIS NIVEAUX (phase 2).
+       *
+       *   moyeu -> sous-moyeux (centre d'un groupe d'extremites voisines)
+       *         -> capillaire (un noeud reel du groupe)
+       *
+       * Les sous-moyeux sont des points de ROUTAGE : aucun compte, aucune
+       * relation. Ils existent parce que plusieurs extremites reelles passent par
+       * le meme coude - c'est ce que dessine un arbre vasculaire, et ce qui
+       * manquait : un tronc unique qui s'arretait net.
+       */
+      const addTree = (hub: string, groups: string[][], tag: string, share: number) => {
+        groups.forEach((members, gi) => {
+          if (members.length === 0) return
+          let cx = 0, cy = 0, cz = 0, n = 0
+          for (const id of members) {
+            const nd = nodeById.get(id)
+            if (!nd) continue
+            cx += nd.x; cy += nd.y; cz += nd.z; n++
           }
-        }
+          if (n === 0) return
+          const subId = `sub:${tag}:${gi}`
+          nodeById.set(subId, {
+            id: subId, label: '', x: cx / n, y: cy / n, z: cz / n,
+          } as unknown as Graph3DNode)
+          // Artere secondaire : epaisse, elle se detache du tronc.
+          addConduit(hub, subId, 0.62, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES + 2, branchStrata, null, 0.31, load, 0.9 + 0.4 * share, 0.5)
+          // Capillaires : fins, ils rejoignent les noeuds REELS du groupe.
+          for (const id of members) {
+            addConduit(subId, id, 0.3, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.13, load, 0.45, 0.12)
+          }
+        })
       }
-      addBranches(trunkEndA, geo.branchA)
-      addBranches(trunkEndB, geo.branchB)
+      addTree(trunkFrom, geo.branchA, `${corridor.key}:a`, shareFrom)
+      addTree(trunkTo, geo.branchB, `${corridor.key}:b`, shareTo)
 
       const vertexCount = position.length / 3 - vertexStart
       trianglesPerBundle.push(index.length / 3 - trianglesBefore)
