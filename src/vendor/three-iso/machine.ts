@@ -1,4 +1,4 @@
-// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/machine.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@8adfc7b6f829d9c60b3045a6922f43b436cf39de:src/three/iso/machine.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Une machine de héros : un registre de pièces nommées (groupées, avec un niveau de détail) et une fonction de
@@ -54,6 +54,8 @@ export interface MachineDef {
   /** Centre de l'espace libre (pixels du viewBox) : le cadrage met ce point au centre de la zone visible, là où se centre
    * le texte du héros. Absent : la boîte de la machine est centrée. */
   anchor?: readonly [number, number] | undefined
+  /** Vue de lecture des pièces (isoler / éclater), appliquée par les rendus — WebGL et SVG lisent la MÊME. */
+  partsView?: import('./parts.ts').PartsView | undefined
   /** Calendrier de l'apparition (qui construit quoi, quand) ; absent : ordonnancement parallèle par défaut. */
   buildPlan?: BuildPlan | undefined
   /** Scène vivante (`live.ts`) : le rendu lui confie les faces de l'instant pour les assembler selon l'état réel de

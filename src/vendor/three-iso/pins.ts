@@ -1,4 +1,4 @@
-// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/pins.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@8adfc7b6f829d9c60b3045a6922f43b436cf39de:src/three/iso/pins.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Étiquettes ancrées (« pins ») d'une machine dessinée en WebGL : un point de l'ARBRE de construction (le même repère

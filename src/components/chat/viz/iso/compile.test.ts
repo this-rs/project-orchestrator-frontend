@@ -69,14 +69,19 @@ describe('compileIsoScene — a scene the model wrote', () => {
     expect(spec?.stations.map((s) => s.tone)).toEqual(['green', 'indigo'])
   })
 
-  it('frames a chat scene without a central hole by default, keeps an explicit layout', () => {
+  it('frames a chat scene without a central hole, whatever the layout asked', () => {
     const stations = Array.from({ length: 6 }, () => ({ mech: 'drawers' }))
     const r = compileIsoScene({ stations })
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.machine.anchor).toBeUndefined()
+    // Une disposition explicite ne réserve plus le trou du texte : un bloc de conversation n'a pas de texte au milieu,
+    // et ce trou laissait la moitié basse d'une arche vide (0,088 de cadre occupé, mesuré sur la planche). Le site, lui,
+    // garde le cadrage par défaut — c'est ce que vérifie scripts/tests/iso-frame.test.mjs côté site.
     const arch = compileIsoScene({ layout: 'arch', stations })
     expect(arch.ok).toBe(true)
-    if (arch.ok) expect(arch.machine.anchor).toBeDefined()
+    if (arch.ok) expect(arch.machine.anchor).toBeUndefined()
+    // Le cadrage demandé est bien celui du chat : la spec envoyée au moteur porte frame = 'tight'.
+    expect(toSceneSpec({ layout: 'arch', stations }).spec).toMatchObject({ frame: 'tight' })
     expect(ISO_VOCABULARY.layouts).toContain('compact')
   })
 })

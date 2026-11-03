@@ -1,4 +1,4 @@
-// GENERATED from website@255d188e3498305845e72a27d2569810c72c2e1b:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@8adfc7b6f829d9c60b3045a6922f43b436cf39de:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * PROTOCOLE DE CONSTRUCTION : des objets et des mécaniques décrits comme des DONNÉES (un arbre JSON), compilés en
@@ -78,11 +78,16 @@ export type IsoNode =
 
 /** Une pièce plus petite que ceci (en unités du poste) n'existe qu'au rendu éclairé. */
 export const DETAIL = 0.16
-/** Bornes : profondeur de l'arbre, nombre de formes, tailles. */
-export const AST_LIMITS = { depth: 8, shapes: 160, size: [0.01, 6] as const, path: 12 }
+/** Bornes d'un arbre : profondeur, nombre de formes, tailles (deux bornes, la même paire pour les deux jeux). */
+export interface AstLimits {
+  readonly depth: number
+  readonly shapes: number
+  readonly size: readonly [number, number]
+  readonly path: number
+}
+export const AST_LIMITS: AstLimits = { depth: 8, shapes: 160, size: [0.01, 6], path: 12 }
 /** Bornes d'une machine NUE (`bare`, disposition `solo`) : une seule grande mécanique composée, détaillée récursivement. */
-export const BARE_LIMITS = { ...AST_LIMITS, depth: 10, shapes: 2400, size: [0.005, 8] as const }
-export type AstLimits = typeof AST_LIMITS
+export const BARE_LIMITS: AstLimits = { ...AST_LIMITS, depth: 10, shapes: 2400, size: [0.005, 8] }
 
 const MATS: Readonly<Record<Material, string>> = {
   porcelain: MAT.porcelain,
@@ -231,6 +236,22 @@ interface Leaf {
   size: number
 }
 
+/**
+ * Encombrement d'une surface de révolution : le plus grand des diamètres du profil, ou sa hauteur si elle dépasse.
+ * (Sans profil, il n'y a rien : la taille vaut 0 et la pièce est écartée par le niveau de détail.)
+ */
+function latheExtent(profile: readonly (readonly [number, number])[]): number {
+  let radius = 0
+  let lo = Infinity
+  let hi = -Infinity
+  for (const [r, y] of profile) {
+    radius = Math.max(radius, r)
+    lo = Math.min(lo, y)
+    hi = Math.max(hi, y)
+  }
+  return Math.max(radius * 2, Number.isFinite(lo) ? hi - lo : 0)
+}
+
 /** Formes de l'arbre (les `use` dépliés), avec leur chemin, leur profondeur et leur taille. */
 function leaves(root: IsoNode): Leaf[] {
   const out: Leaf[] = []
@@ -252,11 +273,13 @@ function leaves(root: IsoNode): Leaf[] {
         ? Math.max(n.size[0], n.size[1], n.size[2])
         : n.kind === 'tube'
           ? Math.max(n.r * 2, Math.hypot(n.to[0] - (n.at?.[0] ?? 0), n.to[1] - (n.at?.[1] ?? 0), n.to[2] - (n.at?.[2] ?? 0)))
-          : n.kind === 'puck' || n.kind === 'cone'
+          : n.kind === 'puck' || n.kind === 'cone' || n.kind === 'capsule'
             ? Math.max(n.r * 2, n.h)
             : n.kind === 'torus'
               ? (n.r + n.t) * 2
-              : n.r * 2
+              : n.kind === 'lathe'
+                ? latheExtent(n.profile)
+                : n.r * 2
     out.push({ path: path || n.kind, node: n, depth, size: size * scale })
   }
   walk(root, root.name ?? '', 0, 1)
