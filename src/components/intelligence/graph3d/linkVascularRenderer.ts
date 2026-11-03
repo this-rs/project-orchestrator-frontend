@@ -41,6 +41,7 @@ import { LINK_RENDER_ORDER } from './nodePoints'
 import { isMobileLikeDevice } from './useRenderLoop'
 import { buildRanges, bundleAtTriangle } from './linkVascularPicking'
 import { distributePorts, type GroupEnvelope, type GroupPair } from './linkPorts'
+import { radiusAt } from './linkRadius'
 
 /** Radial segments. Eight reads round at these widths and stays cheap. */
 const TUBE_SEGMENTS = 6
@@ -204,6 +205,9 @@ interface Conduit {
   flowPhase: number
   /** Combien de faisceaux se rejoignent sur ses moyeux — divise sa lumière. */
   load: number
+  /** Multiplicateurs de rayon au départ et à l'arrivée : le conduit s'affine. */
+  startRadius: number
+  endRadius: number
   /** First vertex of this conduit in the shared buffers. */
   vertexStart: number
   vertexCount: number
@@ -456,9 +460,15 @@ export function createVascularLinks(
     // charge de ses deux moyeux — une correction qui vient des données, pas d'un
     // réglage à l'œil.
     const hubLoad = new Map<string, number>()
+    // Masse exacte portée par chaque ensemble : c'est elle qui décide de la
+    // section du parent dans la loi de confluence.
+    const hubMass = new Map<string, number>()
     for (const c of corridors) {
+      const n = Number(c.magnitude.exactCount)
       hubLoad.set(c.from, (hubLoad.get(c.from) ?? 0) + 1)
       hubLoad.set(c.to, (hubLoad.get(c.to) ?? 0) + 1)
+      hubMass.set(c.from, (hubMass.get(c.from) ?? 0) + n)
+      hubMass.set(c.to, (hubMass.get(c.to) ?? 0) + n)
     }
 
     // ── Buffers ──────────────────────────────────────────────────────────
@@ -511,6 +521,8 @@ export function createVascularLinks(
         family: string | null,
         flowPhase: number,
         load: number,
+        startRadius: number,
+        endRadius: number,
       ) => {
         // One vertex ring per stratum: the tube is CONCENTRIC layers, not one
         // shell. That is what distinguishes a 1 000-relation conduit from a
@@ -530,6 +542,8 @@ export function createVascularLinks(
           family,
           flowPhase,
           load,
+          startRadius,
+          endRadius,
           vertexStart: position.length / 3,
           vertexCount: count,
         })
@@ -570,12 +584,19 @@ export function createVascularLinks(
       // Le tronc va d'un PORT à un PORT : deux corridors qui partent dans des
       // directions différentes quittent l'ensemble par des points différents.
       const assigned = pairPorts.get(corridor.key)
+      // Part de ce corridor dans la masse de chacun de ses deux moyeux, en
+      // racine cubique : c'est la loi de confluence appliquée au port.
+      const pairCount = Number(corridor.magnitude.exactCount)
+      const massFrom = Math.max(pairCount, hubMass.get(corridor.from) ?? pairCount)
+      const massTo = Math.max(pairCount, hubMass.get(corridor.to) ?? pairCount)
+      const shareFrom = Math.cbrt(pairCount / massFrom)
+      const shareTo = Math.cbrt(pairCount / massTo)
       const trunkFrom = assigned?.from ?? (geo.branchA[0] ?? endpointId(corridor.links[0].source))
       const trunkTo = assigned?.to ?? (geo.branchB[0] ?? endpointId(corridor.links[0].target))
 
       laneFamilies.forEach((family, s) => {
         const lane = laneFamilies.length === 1 ? 0.5 : s / (laneFamilies.length - 1)
-        addConduit(trunkFrom, trunkTo, 1, SHEATH_ALPHA, lane, trunkSamples, strata, family, s * 0.37, load)
+        addConduit(trunkFrom, trunkTo, 1, SHEATH_ALPHA, lane, trunkSamples, strata, family, s * 0.37, load, 0.85 + 0.5 * shareFrom, 0.85 + 0.5 * shareTo)
       })
 
       // ── Branches, DEUX niveaux ───────────────────────────────────────────
@@ -589,13 +610,13 @@ export function createVascularLinks(
       const addBranches = (tip: string | undefined, ids: string[]) => {
         for (const id of ids) {
           if (!tip || id === tip) continue
-          addConduit(tip, id, 0.5, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.21, load)
+          addConduit(tip, id, 0.5, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.21, load, 0.85 + 0.5 * shareFrom, 0.2)
         }
         // Second level: one sub-branch per level-1 tip, to the next real node.
         const next = ids[1]
         if (next) {
           for (const id of ids.slice(2)) {
-            addConduit(next, id, 0.3, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.13, load)
+            addConduit(next, id, 0.3, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.13, load, 0.45, 0.14)
           }
         }
       }
@@ -715,16 +736,10 @@ export function createVascularLinks(
         const stratum = isHalo || isFiber
           ? { radius: 1.6, alpha: isHalo ? 0.08 : 0.5, carriesFlow: false }
           : (conduit.strata[layer - 1] ?? { radius: 1, alpha: 1, carriesFlow: false })
-        const layerRadius = isHalo
-          ? thickness * 1.7
-          : isFiber
-            ? thickness * MICRO_FIBER_RADIUS
-            : stratumRadius(stratum, thickness)
         // Les fibres sont réparties sur un cercle à 55 % du rayon : on les VOIT
         // courir à l'intérieur de la gaine, ce qui distingue un faisceau d'un
         // simple tube.
         const fiberAngle = isFiber ? (fiberIndex / Math.max(1, fiberCount)) * Math.PI * 2 : 0
-        const fiberOrbit = thickness * 0.55
         const layerBase = base + layer * samplesPerLayer
         // Un tronc represente des CENTAINES de relations : il ne peut pas
         // emprunter l'opacite au repos d'un fil isole (0,05 a 0,28), sinon il
@@ -739,6 +754,20 @@ export function createVascularLinks(
           const f = frames[Math.min(i, frames.length - 1)]
           if (!f) continue
           const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
+          // Le rayon VARIE le long du conduit : gonflement a la confluence,
+          // amincissement vers le capillaire, sans cassure (smoothstep).
+          // Le profil porte sur le RATIO, pas sur le rayon absolu : radiusAt
+          // borne ses résultats à l'échelle d'un rayon relatif (0,05 à 2), et
+          // lui passer des unités monde (plusieurs unités) écrasait tout à 1 —
+          // les conduits redevenaient des fils.
+          const taper = radiusAt(u, conduit.startRadius, conduit.endRadius, 0.5, { min: 0.05, max: 2 })
+          const thicknessAt = thickness * taper
+          const fiberOrbit = thicknessAt * 0.55
+          const layerRadius = isHalo
+            ? thicknessAt * 1.7
+            : isFiber
+              ? thicknessAt * MICRO_FIBER_RADIUS
+              : stratumRadius(stratum, thicknessAt)
           const off = offsets[i] ?? [0, 0, 0]
           // Vrille lente : la fibre tourne autour de l'axe en avançant.
           const twist = isFiber ? fiberAngle + u * 2.4 : 0
