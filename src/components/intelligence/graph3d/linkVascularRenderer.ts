@@ -77,7 +77,7 @@ function familyRgb(relation: string | null | undefined): [number, number, number
 }
 
 /** Sheath alpha, and how much brighter the core is. */
-const SHEATH_ALPHA = 0.16
+const SHEATH_ALPHA = 1.0
 
 const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aColor;
@@ -307,11 +307,23 @@ export function createVascularLinks(
       const geo = geometryOf(corridor)
       if (!geo) continue
 
-      const lanes = Math.min(MAX_STRANDS, Math.max(1, drawable.strands))
+      // Le nombre de VOIES vient de la structure, pas du LOD.
+      //
+      // Il valait `drawable.strands`, c'est-à-dire 1 dès que le LOD est au
+      // niveau agrégé — donc un corridor de 150 relations portant TROIS familles
+      // et cinq canaux était dessiné comme un seul fil. Mesuré sur l'aperçu hors
+      // navigateur : vingt et un corridors, cinq courbes visibles.
+      const lanes = Math.min(
+        MAX_STRANDS,
+        Math.max(1, Math.min(
+          Math.max(1, corridor.families.length),
+          Math.max(1, drawable.morphology.graphical.channels),
+        )),
+      )
       const trunkSamples = drawable.samples
       const order = corridor.magnitude.magnitudeOrder
       // Base radius: a share of the scene, growing with the magnitude order.
-      const baseRadius = sceneRadius * 0.0075 * (1 + 0.42 * Math.min(9, order))
+      const baseRadius = sceneRadius * 0.011 * (1 + 0.42 * Math.min(9, order))
 
       const conduits: Conduit[] = []
       const vertexStart = position.length / 3
@@ -470,7 +482,7 @@ export function createVascularLinks(
       const points = sampleCurve(a, c1, c2, b, conduit.samples)
       const frames = parallelTransportFrames(points)
       const order = bundle.corridor.magnitude.magnitudeOrder
-      const thickness = sceneRadius * 0.0075 * (1 + 0.42 * Math.min(9, order)) * conduit.radius
+      const thickness = sceneRadius * 0.011 * (1 + 0.42 * Math.min(9, order)) * conduit.radius
       const offsets = braidedOffsets(
         Math.max(1, conduit.lane === 0.5 ? 1 : Math.round(bundle.conduits.length / 2)),
         conduit.samples,
@@ -500,7 +512,11 @@ export function createVascularLinks(
         const stratum = conduit.strata[layer] ?? { radius: 1, alpha: 1, carriesFlow: false }
         const layerRadius = stratumRadius(stratum, thickness)
         const layerBase = base + layer * samplesPerLayer
-        const layerAlpha = Math.min(1, style.a * stratum.alpha * conduit.alpha * 2.2)
+        // Un tronc represente des CENTAINES de relations : il ne peut pas
+        // emprunter l'opacite au repos d'un fil isole (0,05 a 0,28), sinon il
+        // s'eteint. On part d'un plancher propre au vaisseau.
+        const baseAlpha = Math.max(0.3, style.a)
+        const layerAlpha = Math.min(1, baseAlpha * stratum.alpha * conduit.alpha * 2.2)
         for (let i = 0; i < conduit.samples; i++) {
           const f = frames[Math.min(i, frames.length - 1)]
           if (!f) continue

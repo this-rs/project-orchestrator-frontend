@@ -219,7 +219,19 @@ function litPixels(png, background = [15, 23, 42], threshold = 60, box = [0.25, 
 const TARGET = '/workspace/acme-freelance/projects/billing/intelligence/graph'
 
 async function run(chrome, base, n) {
+  const mark = (m) => { if (args.trace) console.error(`[trace] ${m}`) }
+  mark('ouverture de l\'onglet…')
   const tab = await openTab(chrome)
+  mark('onglet ouvert')
+  // Every CDP call gets a deadline: a page stuck in a synchronous loop otherwise
+  // waits forever, and the bench dies without a word.
+  const rawSend = tab.send.bind(tab)
+  tab.send = (method, params) =>
+    Promise.race([
+      rawSend(method, params),
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`CDP timeout: ${method}`)), 15000)),
+    ])
+  mark('fixture prête')
   const graph = makeGraph(n)
   let loaded = false, inflight = 0, lastNet = Date.now()
   const checks = []
@@ -230,6 +242,18 @@ async function run(chrome, base, n) {
       else if (msg.method === 'Fetch.requestPaused') {
         const { requestId, request } = msg.params
         const pathname = new URL(request.url).pathname
+        try {
+          await handlePaused(requestId, request, pathname)
+        } catch (error) {
+          // A paused request left paused hangs the navigation itself. Whatever
+          // happens, let it through and say which one.
+          if (args.trace) console.error(`[trace] interception échouée sur ${pathname}: ${error && error.message}`)
+          try { await tab.send('Fetch.continueRequest', { requestId }) } catch { /* */ }
+        }
+      }
+    })
+    const handlePaused = async (requestId, request, pathname) => {
+      {
         if (/\.\w{1,5}$/.test(pathname)) { try { await tab.send('Fetch.continueRequest', { requestId }) } catch { /* */ } return }
         inflight++; lastNet = Date.now()
         let status = 200, body
@@ -240,7 +264,7 @@ async function run(chrome, base, n) {
         } catch { /* tab gone */ }
         inflight--; lastNet = Date.now()
       }
-    })
+    }
     await tab.send('Page.enable'); await tab.send('Runtime.enable')
     await tab.send('Page.addScriptToEvaluateOnNewDocument', { source: DEVTOOLS_HOOK })
     await tab.send('Fetch.enable', { patterns: [{ urlPattern: '*/api/*', requestStage: 'Request' }, { urlPattern: '*/auth/*', requestStage: 'Request' }] })
@@ -250,7 +274,16 @@ async function run(chrome, base, n) {
       : { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }
     await tab.send('Emulation.setDeviceMetricsOverride', profile)
     if (args.mobile) await tab.send('Emulation.setTouchEmulationEnabled', { enabled: true })
-    await tab.send('Page.navigate', { url: base + TARGET })
+    // Some Chrome builds never answer Page.navigate (measured here: the call
+    // hangs forever while the target answers everything else). Navigate through
+    // the runtime instead — same effect, no dead command.
+    const url = base + TARGET
+    try {
+      await tab.send('Page.navigate', { url })
+    } catch {
+      if (args.trace) console.error('[trace] Page.navigate muet, repli par location.href')
+      await tab.evaluate(`location.href = ${JSON.stringify(url)}`)
+    }
     // the user switches to 3D once the code map has its data (the real order): wait for the tiles
     for (let i = 0; i < 150; i++) {
       const tiles = await tab.evaluate(`[...document.querySelectorAll('button')].filter((b) => /^(Ouvrir|Open)/.test(b.getAttribute('aria-label') || '')).length`)
