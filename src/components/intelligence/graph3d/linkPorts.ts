@@ -84,6 +84,32 @@ function dot(a: Vec3, b: Vec3): number {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
+/** Part du rayon de l'enveloppe où se pose un port. */
+export const PORT_DEPTH = 0.85
+
+/**
+ * Pose un port sur l'enveloppe, à partir de la SOMME des directions sortantes
+ * qui y tombent. Écrit dans `out` (aucune allocation) : le renderer la rappelle
+ * à chaque tick de layout pour que le port suive son groupe.
+ *
+ * Sur l'enveloppe, à 85 % du rayon : le port est SUR la surface du groupe, pas
+ * dedans ni à l'infini.
+ */
+export function placePort(
+  center: Vec3,
+  radius: number,
+  sum: Vec3,
+  out: { position: Vec3; direction: Vec3 },
+): void {
+  const dir = norm(sum)
+  out.direction[0] = dir[0]
+  out.direction[1] = dir[1]
+  out.direction[2] = dir[2]
+  out.position[0] = center[0] + dir[0] * radius * PORT_DEPTH
+  out.position[1] = center[1] + dir[1] * radius * PORT_DEPTH
+  out.position[2] = center[2] + dir[2] * radius * PORT_DEPTH
+}
+
 /**
  * Répartit les ports de chaque groupe.
  *
@@ -164,19 +190,8 @@ export function distributePorts(
       }
     }
     buckets.forEach((b, i) => {
-      const dir = norm(b.sum)
-      const port: Port = {
-        id: `port:${group.id}:${i}`,
-        group: group.id,
-        // Sur l'enveloppe, à 85 % du rayon : le port est SUR la surface du
-        // groupe, pas dedans ni à l'infini.
-        position: [
-          group.center[0] + dir[0] * group.radius * 0.85,
-          group.center[1] + dir[1] * group.radius * 0.85,
-          group.center[2] + dir[2] * group.radius * 0.85,
-        ],
-        direction: dir,
-      }
+      const port: Port = { id: `port:${group.id}:${i}`, group: group.id, position: [0, 0, 0], direction: [0, 1, 0] }
+      placePort(group.center, group.radius, b.sum, port)
       ports.push(port)
       for (const member of b.members) portOfPair(member.key, member.side, port.id)
     })

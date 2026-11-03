@@ -41,7 +41,7 @@ import { SECTION_SEGMENTS, type GeometryStats, trianglesFromIndex } from './link
 import { LINK_RENDER_ORDER } from './nodePoints'
 import { isMobileLikeDevice } from './useRenderLoop'
 import { buildRanges, bundleAtTriangle } from './linkVascularPicking'
-import { distributePorts, type GroupEnvelope, type GroupPair } from './linkPorts'
+import { distributePorts, placePort, type GroupEnvelope, type GroupPair } from './linkPorts'
 import { radiusAt } from './linkRadius'
 
 /** Radial segments. Eight reads round at these widths and stays cheap. */
@@ -295,8 +295,12 @@ function hashKey(key: string): number {
   return ((h >>> 0) / 4294967296) * Math.PI * 2
 }
 
+/** Niveau d'un conduit dans l'arbre vasculaire. */
+export type ConduitKind = 'trunk' | 'artery' | 'capillary'
+
 /** One drawn conduit: a trunk lane or a branch, as a sheath + a core. */
 interface Conduit {
+  kind: ConduitKind
   fromId: string
   toId: string
   /** Radius multiplier applied to the bundle's base radius. */
@@ -320,6 +324,31 @@ interface Conduit {
   /** First vertex of this conduit in the shared buffers. */
   vertexStart: number
   vertexCount: number
+  /** Couches (anneaux concentriques) de ce conduit. */
+  layers: number
+}
+
+/** Ce que `inspect()` expose d'un conduit : de quoi mesurer la géométrie. */
+export interface ConduitInfo {
+  key: string
+  kind: ConduitKind
+  fromId: string
+  toId: string
+  /** Position COURANTE des deux ancres. */
+  from: Vec3
+  to: Vec3
+  vertexStart: number
+  samples: number
+  layers: number
+  lane: number
+  family: string | null
+}
+
+/** Un point qui a une position : un nœud réel, ou une ancre calculée. */
+interface Point3 {
+  x: number
+  y: number
+  z: number
 }
 
 interface Bundle {
@@ -415,6 +444,8 @@ export interface VascularLinkRenderer extends LinkRenderer {
   bundleAt?: (faceIndex: number) => string | null
   /** Click callback, to be invoked by the DOM wiring. */
   onBundleClick?: (key: string) => void
+  /** Conduits dessinés et position courante de leurs ancres (tests, diagnostics). */
+  inspect?: () => ConduitInfo[]
 }
 
 /**
@@ -432,7 +463,7 @@ export function createVascularLinks(
       if (!Number.isFinite(n.x) || !Number.isFinite(n.y) || !Number.isFinite(n.z)) return null
     }
 
-    const nodeById = new Map<string, Graph3DNode>()
+    const nodeById = new Map<string, Point3>()
     for (const n of nodes) nodeById.set(n.id, n)
 
     const corridors = buildCorridors(links)
@@ -440,13 +471,6 @@ export function createVascularLinks(
 
     const system = buildLinkSystem(fromCorridors(corridors), budget)
     if (system.bundles.length === 0) return null
-
-    // Bounding radius of the graph: every thickness is a share of what is on screen.
-    let sceneRadius = 1
-    for (const n of nodes) {
-      const d = Math.hypot(n.x, n.y, n.z)
-      if (Number.isFinite(d) && d > sceneRadius) sceneRadius = d
-    }
 
     const corridorByKey = new Map(corridors.map((c) => [c.key, c]))
 
@@ -458,52 +482,70 @@ export function createVascularLinks(
     // ils fusionnent là, puis se divisent vers leur destination. C'est la
     // demande : « des formes évoluées pour connecter les ensembles quand ils
     // s'unissent, et les redviser automatiquement ».
-    const hubId = (token: string) => `hub:${token}`
-    const hubPoints = new Map<string, { x: number; y: number; z: number; n: number }>()
+    //
+    // ── ANCRES VIVANTES ─────────────────────────────────────────────────
+    // Moyeux, ports et sous-moyeux ne sont PAS des nœuds : ce sont des points
+    // calculés depuis les nœuds réels. Ils étaient copiés une fois, à la
+    // construction, puis figés : le layout déplaçait les nœuds, troncs et
+    // artères restaient sur place (mesuré : 47 078 sommets immobiles après un
+    // déplacement de +1000). Chaque ancre garde maintenant ses SOURCES — des
+    // références vers les nœuds réels — et se recalcule, sans allocation, à
+    // chaque `updatePositions`. Seule la TOPOLOGIE (qui appartient à quel port,
+    // à quel sous-moyeu) est figée à la construction.
+    interface Hub {
+      token: string
+      /** Extrémités réelles, avec leur multiplicité (une par lien). */
+      members: Point3[]
+      center: Vec3
+      radius: number
+    }
+    const hubs = new Map<string, Hub>()
+    const hubOf = (token: string): Hub => {
+      let h = hubs.get(token)
+      if (!h) {
+        h = { token, members: [], center: [0, 0, 0], radius: 0 }
+        hubs.set(token, h)
+      }
+      return h
+    }
     for (const link of links) {
       const sNode = nodeById.get(endpointId(link.source))
       const tNode = nodeById.get(endpointId(link.target))
-      if (sNode) {
-        const k = endpointToken(link.sourceCommunityId, endpointId(link.source))
-        const acc = hubPoints.get(k) ?? { x: 0, y: 0, z: 0, n: 0 }
-        acc.x += sNode.x; acc.y += sNode.y; acc.z += sNode.z; acc.n++
-        hubPoints.set(k, acc)
+      if (sNode) hubOf(endpointToken(link.sourceCommunityId, endpointId(link.source))).members.push(sNode)
+      if (tNode) hubOf(endpointToken(link.targetCommunityId, endpointId(link.target))).members.push(tNode)
+    }
+
+    // Bounding radius of the graph: every thickness is a share of what is on screen.
+    let sceneRadius = 1
+    const recomputeHubs = () => {
+      sceneRadius = 1
+      for (const n of nodes) {
+        const d = Math.hypot(n.x, n.y, n.z)
+        if (Number.isFinite(d) && d > sceneRadius) sceneRadius = d
       }
-      if (tNode) {
-        const k = endpointToken(link.targetCommunityId, endpointId(link.target))
-        const acc = hubPoints.get(k) ?? { x: 0, y: 0, z: 0, n: 0 }
-        acc.x += tNode.x; acc.y += tNode.y; acc.z += tNode.z; acc.n++
-        hubPoints.set(k, acc)
+      for (const h of hubs.values()) {
+        const count = h.members.length
+        if (count === 0) continue
+        let x = 0, y = 0, z = 0
+        for (const m of h.members) { x += m.x; y += m.y; z += m.z }
+        h.center[0] = x / count
+        h.center[1] = y / count
+        h.center[2] = z / count
+        // Rayon de l'ensemble : écart moyen de ses extrémités à son centre.
+        let sum = 0
+        for (const m of h.members) sum += Math.hypot(m.x - h.center[0], m.y - h.center[1], m.z - h.center[2])
+        h.radius = Math.max(8, sum / count)
       }
     }
-    // Rayon de chaque ensemble : écart moyen de ses extrémités à son centre.
-    const envelopeRadius = new Map<string, number>()
-    for (const link of links) {
-      for (const [end, token] of [
-        [nodeById.get(endpointId(link.source)), endpointToken(link.sourceCommunityId, endpointId(link.source))] as const,
-        [nodeById.get(endpointId(link.target)), endpointToken(link.targetCommunityId, endpointId(link.target))] as const,
-      ]) {
-        const acc = hubPoints.get(token)
-        if (!end || !acc || acc.n === 0) continue
-        const cx = acc.x / acc.n, cy = acc.y / acc.n, cz = acc.z / acc.n
-        const d = Math.hypot(end.x - cx, end.y - cy, end.z - cz)
-        envelopeRadius.set(token, (envelopeRadius.get(token) ?? 0) + d)
-      }
-    }
-    for (const [token, sum] of envelopeRadius) {
-      const acc = hubPoints.get(token)
-      if (!acc || acc.n === 0) continue
-      envelopeRadius.set(token, Math.max(8, sum / acc.n))
+    recomputeHubs()
+    const envelopeRadius = {
+      get: (token: string): number | undefined => hubs.get(token)?.radius,
     }
 
     const envelopes: GroupEnvelope[] = []
-    for (const [token, acc] of hubPoints) {
-      if (acc.n === 0) continue
-      envelopes.push({
-        id: token,
-        center: [acc.x / acc.n, acc.y / acc.n, acc.z / acc.n],
-        radius: envelopeRadius.get(token) ?? 40,
-      })
+    for (const h of hubs.values()) {
+      if (h.members.length === 0) continue
+      envelopes.push({ id: h.token, center: [h.center[0], h.center[1], h.center[2]], radius: h.radius })
     }
     const groupPairs: GroupPair[] = corridors
       .filter((c) => c.from !== c.to)
@@ -511,17 +553,81 @@ export function createVascularLinks(
     const { ports, pairPorts } = distributePorts(envelopes, groupPairs)
 
     // Les ports sont des points de ROUTAGE : ils n'ont ni compte ni relation.
-    // On les enregistre comme ancres pour que les conduits puissent s'y accrocher.
-    for (const port of ports) {
-      nodeById.set(port.id, {
-        id: port.id,
-        label: '',
-        x: port.position[0],
-        y: port.position[1],
-        z: port.position[2],
-      } as unknown as Graph3DNode)
+    // On les enregistre comme ancres pour que les conduits puissent s'y
+    // accrocher, avec les groupes vers lesquels ils regardent : c'est ce qui
+    // permet de les reposer quand les groupes bougent.
+    interface PortRec {
+      anchor: Point3
+      hub: Hub
+      others: Hub[]
+      sum: Vec3
+      position: Vec3
+      direction: Vec3
     }
-    void hubId
+    const portRecs: PortRec[] = []
+    const portById = new Map<string, PortRec>()
+    for (const port of ports) {
+      const hub = hubs.get(port.group)
+      if (!hub) continue
+      const rec: PortRec = {
+        anchor: { x: port.position[0], y: port.position[1], z: port.position[2] },
+        hub,
+        others: [],
+        sum: [0, 0, 0],
+        position: [...port.position],
+        direction: [...port.direction],
+      }
+      portRecs.push(rec)
+      portById.set(port.id, rec)
+      nodeById.set(port.id, rec.anchor)
+    }
+    for (const [key, pp] of pairPorts) {
+      const c = corridorByKey.get(key)
+      if (!c) continue
+      const toHub = hubs.get(c.to)
+      const fromHub = hubs.get(c.from)
+      if (toHub) portById.get(pp.from)?.others.push(toHub)
+      if (fromHub) portById.get(pp.to)?.others.push(fromHub)
+    }
+    /** Même règle que `distributePorts` : somme des directions sortantes, posée sur l'enveloppe. */
+    const recomputePorts = () => {
+      for (const rec of portRecs) {
+        const c = rec.hub.center
+        rec.sum[0] = 0; rec.sum[1] = 0; rec.sum[2] = 0
+        for (const o of rec.others) {
+          const dx = o.center[0] - c[0], dy = o.center[1] - c[1], dz = o.center[2] - c[2]
+          const len = Math.hypot(dx, dy, dz)
+          if (len < 1e-9) { rec.sum[1] += 1; continue }
+          rec.sum[0] += dx / len; rec.sum[1] += dy / len; rec.sum[2] += dz / len
+        }
+        placePort(c, rec.hub.radius, rec.sum, rec)
+        rec.anchor.x = rec.position[0]
+        rec.anchor.y = rec.position[1]
+        rec.anchor.z = rec.position[2]
+      }
+    }
+
+    /** Sous-moyeux : centre de leurs extrémités réelles, recalculé à chaque tick. */
+    interface SubRec {
+      anchor: Point3
+      members: Point3[]
+    }
+    const subRecs: SubRec[] = []
+    const recomputeSubs = () => {
+      for (const s of subRecs) {
+        let x = 0, y = 0, z = 0
+        for (const m of s.members) { x += m.x; y += m.y; z += m.z }
+        const n = s.members.length
+        s.anchor.x = x / n
+        s.anchor.y = y / n
+        s.anchor.z = z / n
+      }
+    }
+    const recomputeAnchors = () => {
+      recomputeHubs()
+      recomputePorts()
+      recomputeSubs()
+    }
 
     /** Centroids of a corridor's two sides, plus the branch targets on each side. */
     const geometryOf = (corridor: Corridor) => {
@@ -670,6 +776,7 @@ export function createVascularLinks(
       let trianglesBefore = index.length / 3
 
       const addConduit = (
+        kind: ConduitKind,
         fromId: string,
         toId: string,
         radius: number,
@@ -696,6 +803,8 @@ export function createVascularLinks(
         const layers = layerSpecs(channelCount).length
         const count = samples * TUBE_SEGMENTS * layers
         conduits.push({
+          kind,
+          layers,
           fromId,
           toId,
           radius,
@@ -766,7 +875,7 @@ export function createVascularLinks(
 
       laneFamilies.forEach((family, s) => {
         const lane = laneFamilies.length === 1 ? 0.5 : s / (laneFamilies.length - 1)
-        addConduit(trunkFrom, trunkTo, 1, SHEATH_ALPHA, lane, trunkSamples, strata, family, s * 0.37, load, 0.85 + 0.5 * shareFrom + hubSwellFrom, 0.85 + 0.5 * shareTo + hubSwellTo)
+        addConduit('trunk', trunkFrom, trunkTo, 1, SHEATH_ALPHA, lane, trunkSamples, strata, family, s * 0.37, load, 0.85 + 0.5 * shareFrom + hubSwellFrom, 0.85 + 0.5 * shareTo + hubSwellTo)
       })
 
       const branchStrata = strata.slice(-1)
@@ -785,22 +894,22 @@ export function createVascularLinks(
       const addTree = (hub: string, groups: string[][], tag: string, share: number) => {
         groups.forEach((members, gi) => {
           if (members.length === 0) return
-          let cx = 0, cy = 0, cz = 0, n = 0
+          const pts: Point3[] = []
           for (const id of members) {
             const nd = nodeById.get(id)
-            if (!nd) continue
-            cx += nd.x; cy += nd.y; cz += nd.z; n++
+            if (nd) pts.push(nd)
           }
-          if (n === 0) return
+          if (pts.length === 0) return
           const subId = `sub:${tag}:${gi}`
-          nodeById.set(subId, {
-            id: subId, label: '', x: cx / n, y: cy / n, z: cz / n,
-          } as unknown as Graph3DNode)
+          const sub: SubRec = { anchor: { x: 0, y: 0, z: 0 }, members: pts }
+          subRecs.push(sub)
+          nodeById.set(subId, sub.anchor)
+          recomputeSubs()
           // Artere secondaire : epaisse, elle se detache du tronc.
-          addConduit(hub, subId, 0.62, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES + 2, branchStrata, null, 0.31, load, 0.9 + 0.4 * share, 0.5)
+          addConduit('artery', hub, subId, 0.62, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES + 2, branchStrata, null, 0.31, load, 0.9 + 0.4 * share, 0.5)
           // Capillaires : fins, ils rejoignent les noeuds REELS du groupe.
           for (const id of members) {
-            addConduit(subId, id, 0.3, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.13, load, 0.45, 0.12)
+            addConduit('capillary', subId, id, 0.3, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.13, load, 0.45, 0.12)
           }
         })
       }
@@ -1047,7 +1156,27 @@ export function createVascularLinks(
 
     return {
       object: group,
-      updatePositions: () => fillGeometry((b) => b.color),
+      updatePositions: () => {
+        recomputeAnchors()
+        fillGeometry((b) => b.color)
+      },
+      inspect: () => {
+        const out: ConduitInfo[] = []
+        const at = (id: string): Vec3 => {
+          const p = nodeById.get(id)
+          return p ? [p.x, p.y, p.z] : [NaN, NaN, NaN]
+        }
+        for (const b of bundles) {
+          for (const c of b.conduits) {
+            out.push({
+              key: b.corridor.key, kind: c.kind, fromId: c.fromId, toId: c.toId,
+              from: at(c.fromId), to: at(c.toId), vertexStart: c.vertexStart,
+              samples: c.samples, layers: c.layers, lane: c.lane, family: c.family,
+            })
+          }
+        }
+        return out
+      },
       updateColors: (styleFn: LinkStyleFn) => fillColors((b) => styleFn(b.corridor.links[0])),
       updateColorsForNodes: (nodeIds: readonly string[], styleFn: LinkStyleFn) => {
         const set = new Set(nodeIds)
