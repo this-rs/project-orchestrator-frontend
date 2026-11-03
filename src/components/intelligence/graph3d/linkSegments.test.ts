@@ -175,6 +175,35 @@ describe('createLinkSegments', () => {
     seg.dispose()
   })
 
+  it('a pending full recolor wins over a later ranged one (three uploads ONLY the ranges)', () => {
+    const nodes: Graph3DNode[] = [
+      { id: 'a', label: 'A', entityType: 'file', layer: 'code', x: 0, y: 0, z: 0, data: {} },
+      { id: 'b', label: 'B', entityType: 'file', layer: 'code', x: 0, y: 0, z: 0, data: {} },
+      { id: 'c', label: 'C', entityType: 'file', layer: 'code', x: 0, y: 0, z: 0, data: {} },
+    ]
+    const mk = (source: string, target: string): Graph3DLink => ({
+      source, target, relationType: 'IMPORTS', layer: 'fabric', color: 'rgba(148,163,184,0.35)', width: 1, particles: 0, particleSpeed: 0, isInterCommunity: false,
+    })
+    const seg = createLinkSegments(nodes, [mk('a', 'b'), mk('b', 'c'), mk('a', 'c')])
+    const g = seg.object.geometry
+    const col = () => g.getAttribute('aColor') as THREE.BufferAttribute
+    const alp = () => g.getAttribute('aAlpha') as THREE.BufferAttribute
+    col().onUploadCallback()
+    alp().onUploadCallback()
+    // Full restyle (selection dims everything), then the hover spotlight in the
+    // same frame: the full upload must survive.
+    seg.updateColors(() => ({ r: 0, g: 0, b: 0, a: 0.05 }))
+    seg.updateColorsForNodes(['a'], () => ({ r: 1, g: 1, b: 0, a: 1 }))
+    expect(col().updateRanges).toEqual([])
+    expect(alp().updateRanges).toEqual([])
+    // After the upload, a lone spotlight is ranged again.
+    col().onUploadCallback()
+    alp().onUploadCallback()
+    seg.updateColorsForNodes(['a'], () => ({ r: 1, g: 1, b: 0, a: 1 }))
+    expect(col().updateRanges.length).toBeGreaterThan(0)
+    seg.dispose()
+  })
+
   it('recolors only the links touching a node (hover spotlight), not the whole crate', () => {
     const nodes: Graph3DNode[] = [
       { id: 'a', label: 'A', entityType: 'file', layer: 'code', x: 0, y: 0, z: 0, data: {} },

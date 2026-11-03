@@ -94,6 +94,10 @@ describe('createNodePoints', () => {
     const np = createNodePoints(nodes)
     np.updateStyles(() => ({ r: 0, g: 0, b: 1, alpha: 0.5, size: 2, shape: 0, act: 0 }))
     const g = np.object.geometry
+    // The full restyle reached the GPU (WebGLAttributes calls onUpload after it).
+    for (const name of ['aColor', 'aAlpha', 'aSize', 'aShape', 'aAct']) {
+      ;(g.getAttribute(name) as THREE.BufferAttribute).onUploadCallback()
+    }
     const idx = np.indexOf('b')
     np.updateStyleAt(idx, { r: 1, g: 0, b: 0, alpha: 0.9, size: 5, shape: 1, act: 0.7 })
     const col = g.getAttribute('aColor').array as Float32Array
@@ -109,6 +113,32 @@ describe('createNodePoints', () => {
     // a ranged upload was queued (element units), not a full-buffer rewrite
     const aColor = g.getAttribute('aColor') as THREE.BufferAttribute
     expect(aColor.updateRanges).toEqual([{ start: 3, count: 3 }])
+    np.dispose()
+  })
+
+  it('a pending full restyle wins over a later ranged update (three uploads ONLY the ranges)', () => {
+    // three r183 WebGLAttributes: a non-empty `updateRanges` uploads those
+    // ranges and nothing else. A full updateStyles (dim everything but the
+    // selection) followed in the same frame by an updateStyleAt (the pulse /
+    // the clicked node) used to upload one vertex: the dimming never reached
+    // the GPU — click a node above 2000 nodes, the others stayed lit.
+    const np = createNodePoints(fixture())
+    const g = np.object.geometry
+    for (const name of ['aColor', 'aAlpha', 'aSize', 'aShape', 'aAct']) {
+      ;(g.getAttribute(name) as THREE.BufferAttribute).onUploadCallback()
+    }
+    np.updateStyles(() => ({ r: 0, g: 0, b: 1, alpha: 0.1, size: 2, shape: 0, act: 0 }))
+    np.updateStyleAt(np.indexOf('b'), { r: 1, g: 0, b: 0, alpha: 0.9, size: 5, shape: 1, act: 0.7 })
+    for (const name of ['aColor', 'aAlpha', 'aSize', 'aShape', 'aAct']) {
+      const attr = g.getAttribute(name) as THREE.BufferAttribute
+      expect(attr.updateRanges, name).toEqual([])
+    }
+    // Once uploaded, the next single-vertex update is ranged again.
+    for (const name of ['aColor', 'aAlpha', 'aSize', 'aShape', 'aAct']) {
+      ;(g.getAttribute(name) as THREE.BufferAttribute).onUploadCallback()
+    }
+    np.updateStyleAt(np.indexOf('a'), { r: 1, g: 0, b: 0, alpha: 0.9, size: 5, shape: 1, act: 0.7 })
+    expect((g.getAttribute('aColor') as THREE.BufferAttribute).updateRanges).toEqual([{ start: 0, count: 3 }])
     np.dispose()
   })
 
