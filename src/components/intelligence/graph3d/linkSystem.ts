@@ -45,6 +45,8 @@ export interface SystemCorridor {
   families?: number
   /** Distinct real endpoints on the `from` and `to` sides (the branch trees). Unknown ⇒ upper bound. */
   endpoints?: readonly [number, number]
+  /** Layer of the corridor (its dominant link layer), for the per-layer merge. */
+  layer?: string
 }
 
 const endId = (end: unknown): string =>
@@ -70,10 +72,17 @@ export function fromCorridors(corridors: readonly Corridor[]): SystemCorridor[] 
         sideB.add(s)
       }
     }
+    const layers = new Map<string, number>()
+    for (const link of c.links) layers.set(link.layer, (layers.get(link.layer) ?? 0) + 1)
+    let layer: string | undefined
+    for (const [l, n] of [...layers].sort((x, y) => (x[0] < y[0] ? -1 : 1))) {
+      if (layer === undefined || n > (layers.get(layer) ?? 0)) layer = l
+    }
     return {
       key: c.key, from: c.from, to: c.to, magnitude: c.magnitude,
       families: c.families.length,
       endpoints: [sideA.size, sideB.size] as const,
+      layer,
     }
   })
 }
@@ -82,7 +91,7 @@ export function fromCorridors(corridors: readonly Corridor[]): SystemCorridor[] 
 export interface SystemBudget {
   /** Hard ceiling on the triangles the link layer may submit. */
   maxTriangles: number
-  /** Hard ceiling on drawn corridors (the rest are aggregated, never dropped). */
+  /** Hard ceiling on drawn bundles (the rest are merged into aggregates, never dropped). */
   maxCorridors: number
   /** Camera distance to the graph centre, for the LOD. */
   cameraDistance: number
@@ -110,6 +119,12 @@ export const DEFAULT_SYSTEM_BUDGET: SystemBudget = {
 /** One drawable bundle: what to draw, how, and what it costs. */
 export interface DrawableBundle {
   corridor: SystemCorridor
+  /**
+   * Keys of the corridors this bundle AGGREGATES (absent for a single
+   * corridor). Its `corridor` is then synthetic: key `agg:<level>:<head>`,
+   * drawn along its biggest member's pair, magnitude = exact sum of members.
+   */
+  members?: string[]
   morphology: MorphologyShape
   lod: LodState
   /** Trunk lanes the renderer draws (one per relation family, ≤ 5). */
@@ -167,21 +182,77 @@ export function bundleTriangles(lod: LodState, morphologyChannels: number, shape
   })
 }
 
+/** Coarser groupings tried, in order, for the corridors the budget cannot draw one by one. */
+export type MergeLevel = 'hub' | 'layer' | 'all'
+export const MERGE_LEVELS: readonly MergeLevel[] = ['hub', 'layer', 'all']
+
+const LOD_ZERO: LodState = { depth: 0, canRefine: true, visible: 'aggregate' }
+
+/** One unit to draw: a corridor alone, or the aggregate of several. */
+interface Unit {
+  corridor: SystemCorridor
+  members?: string[]
+  shape: BundleShape
+  channels: number
+  morphology: MorphologyShape
+  /** Cost at depth 0, the cheapest shape. */
+  minCost: number
+}
+
+const byMagnitudeThenKey = (x: SystemCorridor, y: SystemCorridor) => {
+  if (x.magnitude.exactCount !== y.magnitude.exactCount) {
+    return x.magnitude.exactCount > y.magnitude.exactCount ? -1 : 1
+  }
+  return x.key < y.key ? -1 : x.key > y.key ? 1 : 0
+}
+
+/**
+ * Merge `rest` (sorted by magnitude) at `level` into aggregate corridors:
+ *   hub   — per hub: each corridor joins the heavier of its two ends (mass =
+ *           relations touching it), "everything else that leaves c7";
+ *   layer — per layer of the corridor (`layer`, else one group);
+ *   all   — one bundle.
+ * An aggregate is drawn along its biggest member (a real pair of hubs), with
+ * the exact sum of its members' counts and no claim on families or endpoints
+ * (the cost model then takes its upper bound).
+ */
+function mergeAt(rest: readonly SystemCorridor[], level: MergeLevel, mass: Map<string, bigint>): SystemCorridor[][] {
+  const groups = new Map<string, SystemCorridor[]>()
+  for (const c of rest) {
+    let key: string
+    if (level === 'hub') {
+      const mf = mass.get(c.from) ?? 0n
+      const mt = mass.get(c.to) ?? 0n
+      key = mf > mt || (mf === mt && c.from <= c.to) ? c.from : c.to
+    } else if (level === 'layer') {
+      key = c.layer ?? ''
+    } else {
+      key = ''
+    }
+    const list = groups.get(key)
+    if (list) list.push(c)
+    else groups.set(key, [c])
+  }
+  return [...groups.keys()].sort().map((k) => groups.get(k)!)
+}
+
 /**
  * Build the drawable link system.
  *
  * Order of operations, and why:
  *  1. the corridors are sorted by magnitude DESC, then by key — the biggest
  *     bundles earn the budget first, and the result stays deterministic;
- *  2. each corridor gets its morphology (what it looks like) and its LOD
- *     (how deep it is decomposed at this camera distance);
- *  3. a corridor is drawn only if it fits the remaining triangle budget AND the
- *     corridor ceiling. A corridor that does not fit is NOT lost: its exact
- *     count stays in `stats.exactRelations`, and `aggregated` says so.
+ *  2. if they do not all fit (triangles at their cheapest shape, or the
+ *     corridor ceiling), the TOP k stay individual and the rest is MERGED into
+ *     coarser aggregate bundles — per hub, else per layer, else into one — with
+ *     k the largest that fits. "Aggregated, never lost": every relation is
+ *     counted in exactly one drawn bundle (`members` lists the corridors an
+ *     aggregate carries), as long as the budget holds one bundle at all;
+ *  3. every bundle starts at depth 0, then each, biggest first, is refined
+ *     towards its LOD depth while the remaining budget pays for it.
  *
- * The caller therefore always knows the true total, even when the render had to
- * simplify it — which is the whole point of keeping the logical volume separate
- * from the graphical one.
+ * The previous version dropped (`continue`) whatever did not fit: at 20 000
+ * nodes / 40 000 links, 47 corridors drawn and 0.6 % of the relations shown.
  */
 export function buildLinkSystem(
   corridors: readonly SystemCorridor[],
@@ -191,53 +262,100 @@ export function buildLinkSystem(
   if (!(b.maxTriangles >= 0) || !(b.maxCorridors >= 0)) {
     throw new RangeError('the system budget must be non-negative')
   }
-
   const lodOptions = b.sceneRadius !== undefined ? lodOptionsForScene(b.sceneRadius) : undefined
 
-  const ordered = [...corridors].sort((x, y) => {
-    if (x.magnitude.exactCount !== y.magnitude.exactCount) {
-      return x.magnitude.exactCount > y.magnitude.exactCount ? -1 : 1
-    }
-    return x.key < y.key ? -1 : x.key > y.key ? 1 : 0
-  })
-
+  const ordered = [...corridors].sort(byMagnitudeThenKey)
   let exactRelations = 0n
   for (const c of corridors) exactRelations += c.magnitude.exactCount
 
-  const bundles: DrawableBundle[] = []
-  let triangles = 0
-  let drawnRelations = 0n
-
-  for (const corridor of ordered) {
-    if (bundles.length >= b.maxCorridors) break
+  const unitOf = (corridor: SystemCorridor, members?: string[]): Unit => {
     const morphology = morphologyShape(corridor.magnitude)
-    const lod = lodFor(corridor.magnitude, b.cameraDistance, lodOptions)
     const channels = morphology.graphical.channels
     const shape: BundleShape = { families: corridor.families, endpoints: corridor.endpoints, mobile: b.mobile }
-    const cost = bundleTriangles(lod, channels, shape)
-    // The budget is a CEILING, not a target: one oversized bundle must not be
-    // drawn "because it is first". It falls back to the aggregate shape, which
-    // costs one strand, and is drawn if even that fits.
-    let depth = lod.depth
-    let visible = lod
-    let cost_ = cost
-    while (cost_ > b.maxTriangles - triangles && depth > 0) {
-      depth -= 1
-      visible = { ...lod, depth, canRefine: false }
-      cost_ = bundleTriangles(visible, channels, shape)
-    }
-    if (cost_ > b.maxTriangles - triangles) continue
-    triangles += cost_
-    drawnRelations += corridor.magnitude.exactCount
-    bundles.push({
-      corridor,
-      morphology,
-      lod: visible,
-      strands: trunkLanes(corridor.families ?? Infinity, channels),
-      samples: SAMPLES_BASE + SAMPLES_PER_DEPTH * depth,
-      triangles: cost_,
-    })
+    return { corridor, members, shape, channels, morphology, minCost: bundleTriangles(LOD_ZERO, channels, shape) }
   }
+  const singles = ordered.map((c) => unitOf(c))
+  const prefix = [0]
+  for (const u of singles) prefix.push(prefix[prefix.length - 1] + u.minCost)
+
+  const mass = new Map<string, bigint>()
+  for (const c of corridors) {
+    mass.set(c.from, (mass.get(c.from) ?? 0n) + c.magnitude.exactCount)
+    if (c.to !== c.from) mass.set(c.to, (mass.get(c.to) ?? 0n) + c.magnitude.exactCount)
+  }
+  const aggregates = (rest: readonly SystemCorridor[], level: MergeLevel): Unit[] =>
+    mergeAt(rest, level, mass).map((group) => {
+      if (group.length === 1) return unitOf(group[0])
+      let sum = 0n
+      for (const c of group) sum += c.magnitude.exactCount
+      const head = group[0]
+      return unitOf(
+        { key: `agg:${level}:${head.key}`, from: head.from, to: head.to, magnitude: describeMagnitude(sum), layer: head.layer },
+        group.map((c) => c.key),
+      )
+    })
+
+  // ── Choose what is individual and what is merged ────────────────────────
+  const fits = (units: number, cost: number) => units <= b.maxCorridors && cost <= b.maxTriangles
+  let units: Unit[] = []
+  if (fits(singles.length, prefix[singles.length])) {
+    units = singles
+  } else {
+    for (const level of MERGE_LEVELS) {
+      const tryK = (k: number): Unit[] | null => {
+        const merged = aggregates(ordered.slice(k), level)
+        let cost = prefix[k]
+        for (const u of merged) cost += u.minCost
+        return fits(k + merged.length, cost) ? [...singles.slice(0, k), ...merged] : null
+      }
+      // largest k that fits: binary search, then confirmed (the cost is
+      // monotone in k up to the merge granularity)
+      let lo = 0
+      let hi = singles.length - 1
+      let best: Unit[] | null = tryK(0)
+      if (!best) continue
+      while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2)
+        const r = tryK(mid)
+        if (r) {
+          best = r
+          lo = mid
+        } else {
+          hi = mid - 1
+        }
+      }
+      units = best
+      break
+    }
+  }
+
+  // ── Depth: cheapest first for all, then refine the biggest first ─────────
+  let triangles = 0
+  for (const u of units) triangles += u.minCost
+  const bundles: DrawableBundle[] = units.map((u) => {
+    const lod = lodFor(u.corridor.magnitude, b.cameraDistance, lodOptions)
+    let depth = lod.depth
+    let cost = bundleTriangles({ ...lod, depth }, u.channels, u.shape)
+    // The budget is a CEILING: a bundle refines only as far as what is left pays.
+    while (depth > 0 && cost - u.minCost > b.maxTriangles - triangles) {
+      depth -= 1
+      cost = bundleTriangles({ ...lod, depth }, u.channels, u.shape)
+    }
+    triangles += cost - u.minCost
+    const visible: LodState = depth === lod.depth ? lod : { ...lod, depth, canRefine: false }
+    return {
+      corridor: u.corridor,
+      members: u.members,
+      morphology: u.morphology,
+      lod: visible,
+      strands: trunkLanes(u.corridor.families ?? Infinity, u.channels),
+      samples: SAMPLES_BASE + SAMPLES_PER_DEPTH * depth,
+      triangles: cost,
+    }
+  })
+
+  let drawnRelations = 0n
+  for (const bd of bundles) drawnRelations += bd.corridor.magnitude.exactCount
 
   return {
     bundles,

@@ -70,9 +70,16 @@ describe('the GPU cost does not follow the relation count', () => {
     // tiennent plus dans 240 000 triangles — c'est le budget qui fait son
     // travail, et l'ancienne attente (tous dessinés) était fausse.
     expect(hundred.stats.triangles).toBeLessThanOrEqual(240_000)
-    expect(hundred.stats.drawn).toBeLessThanOrEqual(100)
-    expect(hundred.stats.drawn).toBeGreaterThanOrEqual(ten.stats.drawn)
+    // Exactly as many bundles as the budget holds at their cheapest shape: the
+    // individual corridors plus the aggregate bundles that carry the overflow.
+    const cheapest = bundleTriangles({ depth: 0, canRefine: true, visible: 'aggregate' }, hundred.bundles[0].morphology.graphical.channels)
+    const fits = Math.floor(240_000 / cheapest)
+    expect(fits).toBeLessThan(100)
+    expect(hundred.stats.drawn).toBeLessThanOrEqual(fits)
+    expect(hundred.stats.drawn).toBeGreaterThanOrEqual(fits - 2)
     expect(hundred.stats.aggregated).toBe(true)
+    // …and nothing the budget could not draw is lost: it is in an aggregate.
+    expect(hundred.stats.drawnRelations).toBe(hundred.stats.exactRelations)
   })
 })
 
@@ -90,22 +97,64 @@ describe('the budget is a ceiling, never a lie', () => {
     }
   })
 
-  it('falls back to a coarser shape rather than dropping a bundle it cannot afford', () => {
-    // A budget that cannot hold every corridor at full depth still draws as many
-    // as it can, and says how much of the graph it had to simplify.
-    const system = buildLinkSystem(corridorSet(200, 10_000n), { maxTriangles: 2_000 })
-    expect(system.stats.drawn).toBeLessThan(200)
+  it('merges what it cannot afford into coarser bundles — no corridor dropped', () => {
+    const one = bundleTriangles({ depth: 0, canRefine: true, visible: 'aggregate' }, buildLinkSystem([syntheticCorridor('a', 'x', 'y', 10_000n)]).bundles[0].morphology.graphical.channels)
+    const system = buildLinkSystem(corridorSet(200, 10_000n), { maxTriangles: 6 * one })
+    expect(system.stats.drawn).toBeLessThanOrEqual(6)
     expect(system.stats.aggregated).toBe(true)
-    // Nothing is lost from the ledger: the exact total is still reported.
     expect(system.stats.exactRelations).toBe(200n * 10_000n)
-    expect(system.stats.drawnRelations).toBeLessThan(system.stats.exactRelations)
+    // every relation is counted in some drawn bundle
+    expect(system.stats.drawnRelations).toBe(system.stats.exactRelations)
+    // every input corridor appears in exactly one drawn bundle
+    const seen = new Map<string, number>()
+    for (const b of system.bundles) {
+      for (const k of b.members ?? [b.corridor.key]) seen.set(k, (seen.get(k) ?? 0) + 1)
+      const sum = (b.members ?? [b.corridor.key]).length
+      expect(sum).toBeGreaterThan(0)
+    }
+    expect(seen.size).toBe(200)
+    expect([...seen.values()].every((v) => v === 1)).toBe(true)
+    // an aggregate bundle's magnitude is the exact sum of its members
+    const agg = system.bundles.find((b) => b.members)!
+    expect(agg.corridor.magnitude.exactCount).toBe(BigInt(agg.members!.length) * 10_000n)
+  })
+
+  it('draws a bundle at a coarser DEPTH when its refined shape does not fit', () => {
+    // Close camera: the LOD asks for depth 3. The budget holds the bundle at
+    // depth 0 only — it must be drawn there, not dropped, not over budget.
+    const c = [syntheticCorridor('a', 'x', 'y', 1_000_000n)]
+    const close = { cameraDistance: 0.3 * 976, sceneRadius: 976 }
+    const free = buildLinkSystem(c, close)
+    expect(free.bundles[0].lod.depth).toBe(3)
+    const depth0 = bundleTriangles({ depth: 0, canRefine: true, visible: 'aggregate' }, free.bundles[0].morphology.graphical.channels)
+    const tight = buildLinkSystem(c, { ...close, maxTriangles: depth0 + 1 })
+    expect(tight.bundles).toHaveLength(1)
+    expect(tight.bundles[0].lod.depth).toBe(0)
+    expect(tight.stats.triangles).toBeLessThanOrEqual(depth0 + 1)
+  })
+
+  it('at 20 000 nodes / 14 000 corridors every relation stays represented within budget', () => {
+    let seed = 3
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+    const corridors = Array.from({ length: 14_000 }, (_, i) => {
+      const a = Math.floor(rnd() * 300)
+      const b = Math.floor(rnd() * 300)
+      const c = syntheticCorridor(`k${i}`, `c${a}`, `c${b}`, BigInt(1 + Math.floor(rnd() * 8)))
+      return { ...c, layer: a % 3 === 0 ? 'knowledge' : 'code' }
+    })
+    const system = buildLinkSystem(corridors)
+    expect(system.stats.triangles).toBeLessThanOrEqual(240_000)
+    expect(system.stats.drawn).toBeLessThanOrEqual(4_000)
+    expect(system.stats.drawnRelations).toBe(system.stats.exactRelations)
   })
 
   it('respects the corridor ceiling too', () => {
     const system = buildLinkSystem(corridorSet(100, 10n), { maxCorridors: 7 })
-    expect(system.stats.drawn).toBe(7)
+    expect(system.stats.drawn).toBeLessThanOrEqual(7)
+    expect(system.stats.drawn).toBeGreaterThanOrEqual(1)
     expect(system.stats.aggregated).toBe(true)
     expect(system.stats.exactRelations).toBe(1_000n)
+    expect(system.stats.drawnRelations).toBe(1_000n)
   })
 })
 
@@ -124,8 +173,9 @@ describe('determinism and shape', () => {
       syntheticCorridor('big', 'c', 'd', 1_000_000n),
       syntheticCorridor('mid', 'e', 'f', 1_000n),
     ]
-    const system = buildLinkSystem(corridors, { maxCorridors: 1 })
+    const system = buildLinkSystem(corridors, { maxCorridors: 2 })
     expect(system.bundles[0].corridor.key).toBe('big')
+    expect(system.bundles[0].members).toBeUndefined()
   })
 
   it('a drawn bundle carries its own LOD, strands and cost', () => {
