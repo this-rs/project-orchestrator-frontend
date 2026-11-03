@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
+import { layoutGroups, type AffinityMatrix } from './relationalLayout'
 import { currentDeviceBudget } from './deviceTier'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -390,6 +391,26 @@ export function deterministicPlacement(
       )
     : 0
 
+  // Centres from REAL relations: A[g][h] = number of links between group g and
+  // group h, stored once in canonical order (min, max). Nothing is invented: a
+  // pair with no link has no affinity and is only pushed apart, never pulled.
+  const groupOf = new Map<string, string>()
+  for (const key of keys) for (const n of groups.get(key)!) groupOf.set(n.id, key)
+  const affinities: AffinityMatrix = {}
+  for (const e of edges) {
+    const g = groupOf.get(e.source)
+    const h = groupOf.get(e.target)
+    if (!g || !h || g === h) continue
+    const [a, b] = g < h ? [g, h] : [h, g]
+    affinities[a] ??= {}
+    affinities[a][b] = (affinities[a][b] ?? 0) + 1
+  }
+  const centres = layoutGroups(
+    keys.map((k, i) => ({ id: k, radius: radii[i] })),
+    affinities,
+    { maxIterations: 200 },
+  )
+
   keys.forEach((key, gi) => {
     const ids = groups.get(key)!
     // Every group gets its own deterministic shape: an even spiral on a
@@ -404,9 +425,11 @@ export function deterministicPlacement(
     const up = keys.length === 1 ? 0 : 1 - (gi / (keys.length - 1)) * 2
     const around = Math.sqrt(Math.max(0, 1 - up * up))
     const angle = GOLDEN_SPHERE * gi + (rng() - 0.5) * 2 * ANGLE_JITTER * step
-    const cx = Math.cos(angle) * around * radial
-    const cy = up * radial
-    const cz = Math.sin(angle) * around * radial
+    // A lone group stays at the origin, as before: there is nothing to relate it to.
+    const placed = keys.length > 1 ? centres.get(key) : undefined
+    const cx = placed ? placed.x : Math.cos(angle) * around * radial
+    const cy = placed ? placed.y : up * radial
+    const cz = placed ? placed.z : Math.sin(angle) * around * radial
     const tilt = (rng() - 0.5) * 1.1
     const cosT = Math.cos(tilt)
     const sinT = Math.sin(tilt)
