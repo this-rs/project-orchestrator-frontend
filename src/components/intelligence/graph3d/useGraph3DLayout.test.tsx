@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import type { IntelligenceEdge, IntelligenceNode } from '@/types/intelligence'
 import { useGraph3DLayout } from './useGraph3DLayout'
+import { detectCommunities } from './communityDetect'
 
 // A single-threaded worker: it answers its requests one by one, in the order
 // they were posted, like the real communityWorker. Each answer gives node i of
@@ -28,11 +29,12 @@ class FifoWorker {
     this.queue.push(m)
   }
   terminate() {}
-  answerNext(assign?: (id: string, i: number) => number) {
+  answerNext(assign?: (id: string, i: number) => number | undefined) {
     const m = this.queue.shift()!
     const communities: Record<string, number> = {}
     m.nodes.forEach((id, i) => {
-      communities[id] = assign ? assign(id, i) : m.nodes.length * 100 + i
+      const c = assign ? assign(id, i) : m.nodes.length * 100 + i
+      if (c !== undefined) communities[id] = c
     })
     const data = { type: 'result', requestId: m.requestId, communities, count: m.nodes.length }
     for (const f of [...this.listeners.message]) f({ data } as MessageEvent)
@@ -122,6 +124,28 @@ describe('useGraph3DLayout — community worker', () => {
     const nodes = Array.from({ length: 8 }, (_, i) => inCommunity(`src/f${i}.ts`, i % 2))
     renderHook(() => useGraph3DLayout(nodes, NO_EDGES))
     expect(FifoWorker.last?.queue.length ?? 0).toBe(0)
+  })
+
+  it('pools the nodes detection leaves without a community instead of one group each', () => {
+    // 100 files in one chain + 300 notes linked to nothing.
+    const files = Array.from({ length: 100 }, (_, i) => file(`src/a/f${i}.ts`))
+    const notes = Array.from({ length: 300 }, (_, i) =>
+      ({ id: `note${i}`, type: 'note', position: { x: 0, y: 0 }, data: { entityType: 'note', layer: 'knowledge' } }) as unknown as IntelligenceNode,
+    )
+    const edges = files.slice(1).map((f, i) => link(files[i].id, f.id))
+    const nodes = [...files, ...notes]
+    const { result } = renderHook(() => useGraph3DLayout(nodes, edges))
+    const partition = detectCommunities(
+      FifoWorker.last!.queue[0].nodes,
+      edges.map((e) => ({ source: e.source, target: e.target })),
+    )
+    act(() => FifoWorker.last!.answerNext((id) => partition.get(id)))
+    const out = result.current.transformToGraph3D(nodes, edges).data.nodes
+    // The files got their detected communities…
+    expect(out.filter((n) => n.layer === 'code').every((n) => n.communityId !== undefined)).toBe(true)
+    // …and the 300 notes share ONE pooled group, not 300.
+    const noteGroups = new Set(out.filter((n) => n.layer === 'knowledge').map((n) => n.groupKey))
+    expect(noteGroups.size).toBe(1)
   })
 
   it('runs detection only on the nodes the backend leaves without a community', () => {

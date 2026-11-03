@@ -669,13 +669,24 @@ const RELAYOUT_THRESHOLD = 0.2 // 20% change triggers relayout
  * the new answer lands.
  */
 export function partitionFor(
-  partition: Map<string, number> | null,
+  partition: DetectedPartition | null,
   nodes: { id: string }[],
 ): Map<string, number> | null {
   if (!partition || nodes.length === 0) return null
   let known = 0
-  for (const n of nodes) if (partition.has(n.id)) known++
-  return known >= (1 - RELAYOUT_THRESHOLD) * nodes.length ? partition : null
+  for (const n of nodes) if (partition.scope.has(n.id)) known++
+  return known >= (1 - RELAYOUT_THRESHOLD) * nodes.length ? partition.communities : null
+}
+
+/**
+ * A detection answer: the communities found, and every node id it was asked
+ * about. The two differ — a node with no edge is asked about but gets no
+ * community (it is pooled by the fallback grouping) — so coverage is measured
+ * on the scope, not on the communities.
+ */
+export interface DetectedPartition {
+  communities: Map<string, number>
+  scope: Set<string>
 }
 
 // ── Community detection worker ────────────────────────────────────────────────
@@ -702,7 +713,7 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
   // first result: nodes keep the directory/(layer, type) fallback meanwhile.
   // A partition is only used while it still describes the data (see
   // `partitionFor`): switching data set never shows the previous one's.
-  const [detectedCommunities, setDetectedCommunities] = useState<Map<string, number> | null>(null)
+  const [detectedCommunities, setDetectedCommunities] = useState<DetectedPartition | null>(null)
   const communityVersionRef = useRef(0)
   const communityWorkerRef = useRef<Worker | null>(null)
 
@@ -753,7 +764,10 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
       if (event.data?.type !== 'result' || event.data.requestId !== requestId) return
       cleanup()
       if (version !== communityVersionRef.current) return
-      setDetectedCommunities(new Map(Object.entries(event.data.communities ?? {})))
+      setDetectedCommunities({
+        communities: new Map(Object.entries(event.data.communities ?? {})),
+        scope: inScope,
+      })
     }
 
     function onError(): void {
