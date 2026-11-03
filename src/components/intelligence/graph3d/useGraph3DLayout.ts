@@ -217,6 +217,44 @@ export function communityIndex(
   return byPath
 }
 
+/** The community the BACKEND gives a node: its own, or its owning file's. */
+function backendCommunityOf(
+  node: IntelligenceNode,
+  communityByPath: Map<string, { id: number; label?: string }>,
+): number | undefined {
+  const data = node.data as Record<string, unknown>
+  const own = asNumber(data.community_id ?? data.communityId)
+  if (own != null) return own
+  const entityType = (data.entityType as string) ?? 'file'
+  const path = asPath(data) ?? (entityType === 'file' ? node.id : undefined)
+  return path ? communityByPath.get(path)?.id : undefined
+}
+
+/** The nodes the backend leaves without a community: the only ones detection runs on. */
+export function nodesWithoutBackendCommunity(
+  nodes: IntelligenceNode[],
+  communityByPath: Map<string, { id: number; label?: string }> = communityIndex(nodes),
+): IntelligenceNode[] {
+  return nodes.filter((n) => backendCommunityOf(n, communityByPath) == null)
+}
+
+/**
+ * First community id free for DETECTED communities: one past the largest
+ * backend id. Louvain numbers its communities from 0, like the backend; in one
+ * namespace a node of detected community 3 joined backend community 3.
+ */
+export function detectedCommunityOffset(
+  nodes: IntelligenceNode[],
+  communityByPath: Map<string, { id: number; label?: string }>,
+): number {
+  let max = -1
+  for (const n of nodes) {
+    const c = backendCommunityOf(n, communityByPath)
+    if (c != null && c > max) max = c
+  }
+  return Math.floor(max) + 1
+}
+
 /**
  * A stable identity of a node set, for re-framing the camera once per dataset.
  *
@@ -274,6 +312,7 @@ export function toGraph3DNode(
   communityByPath: Map<string, { id: number; label?: string }>,
   pos?: { x: number; y: number; z: number },
   detectedByNode?: Map<string, number> | null,
+  detectedOffset = 0,
 ): Graph3DNode {
   const data = node.data as Record<string, unknown>
   const entityType = (data.entityType as string) ?? 'file'
@@ -283,9 +322,10 @@ export function toGraph3DNode(
   const inherited = own == null && path ? communityByPath.get(path) : undefined
   // The backend community (own or the owning file's) wins when present. The
   // client-detected community then primes over the directory/(layer, type)
-  // proxy the view used to fall back to on projects without GDS analytics.
+  // proxy the view used to fall back to on projects without GDS analytics —
+  // shifted past every backend id (`detectedOffset`), never in their range.
   const detected = detectedByNode?.get(node.id)
-  const communityId = own ?? inherited?.id ?? detected
+  const communityId = own ?? inherited?.id ?? (detected != null ? detectedOffset + detected : undefined)
   const communityLabel = asCommunityLabel(data) ?? inherited?.label
   return {
     id: node.id,
@@ -620,8 +660,9 @@ const ANGLE_JITTER = 0.15
 const RELAYOUT_THRESHOLD = 0.2 // 20% change triggers relayout
 
 /**
- * The detected partition, if it still describes `nodes`: it must cover at
- * least (1 − RELAYOUT_THRESHOLD) of them. A partition answered for another
+ * The detected partition, if it still describes `nodes` (the nodes detection
+ * runs on — those without a backend community): it must cover at least
+ * (1 − RELAYOUT_THRESHOLD) of them. A partition answered for another
  * data set (another project whose file ids partly coincide, a first load
  * before the second one) is dropped instead of leaking its communities onto
  * the homonyms; an incremental refresh keeps it for the nodes it knows until
@@ -678,13 +719,17 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     // above the tier's threshold the fallback grouping stays (never an empty screen).
     if (nodes.length > currentDeviceBudget().budget.maxNodesForCommunityDetection) return
 
+    // Only the nodes the backend leaves without a community: when it gives
+    // every node one, there is nothing to detect (and two partitions of the
+    // same nodes would only fight).
+    const undetermined = nodesWithoutBackendCommunity(nodes)
+    if (undetermined.length === 0) return
     const worker = getCommunityWorker(communityWorkerRef)
-    const serializedNodes = nodes.map((n) => n.id)
-    const serializedEdges = edges.map((e) => ({
-      source: e.source,
-      target: e.target,
-      weight: e.data?.weight,
-    }))
+    const serializedNodes = undetermined.map((n) => n.id)
+    const inScope = new Set(serializedNodes)
+    const serializedEdges = edges
+      .filter((e) => inScope.has(e.source) && inScope.has(e.target))
+      .map((e) => ({ source: e.source, target: e.target, weight: e.data?.weight }))
 
     // The worker is shared: answers to older requests may still arrive, in
     // order, after this one was posted. Only the answer carrying THIS request
@@ -759,9 +804,10 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
 
     // Build 3D nodes (positions filled below from cache or the deterministic layout).
     const communityByPath = communityIndex(nodes)
-    const detected = partitionFor(detectedCommunities, nodes)
+    const detected = partitionFor(detectedCommunities, nodesWithoutBackendCommunity(nodes, communityByPath))
+    const offset = detectedCommunityOffset(nodes, communityByPath)
     const graph3dNodes: Graph3DNode[] = nodes.map((node) =>
-      toGraph3DNode(node, communityByPath, positionCache.current.get(node.id), detected),
+      toGraph3DNode(node, communityByPath, positionCache.current.get(node.id), detected, offset),
     )
 
     // Weight, shared by both views: the size of a node and its place in the

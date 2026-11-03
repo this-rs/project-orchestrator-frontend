@@ -28,11 +28,11 @@ class FifoWorker {
     this.queue.push(m)
   }
   terminate() {}
-  answerNext() {
+  answerNext(assign?: (id: string, i: number) => number) {
     const m = this.queue.shift()!
     const communities: Record<string, number> = {}
     m.nodes.forEach((id, i) => {
-      communities[id] = m.nodes.length * 100 + i
+      communities[id] = assign ? assign(id, i) : m.nodes.length * 100 + i
     })
     const data = { type: 'result', requestId: m.requestId, communities, count: m.nodes.length }
     for (const f of [...this.listeners.message]) f({ data } as MessageEvent)
@@ -44,6 +44,13 @@ const file = (id: string): IntelligenceNode =>
 const link = (s: string, t: string): IntelligenceEdge =>
   ({ id: `${s}-${t}`, source: s, target: t, data: { relationType: 'IMPORTS' } }) as unknown as IntelligenceEdge
 const NO_EDGES: IntelligenceEdge[] = []
+const inCommunity = (id: string, community: number): IntelligenceNode =>
+  ({
+    id,
+    type: 'file',
+    position: { x: 0, y: 0 },
+    data: { entityType: 'file', layer: 'code', path: id, community_id: community },
+  }) as unknown as IntelligenceNode
 
 let savedWorker: unknown
 beforeEach(() => {
@@ -90,5 +97,37 @@ describe('useGraph3DLayout — community worker', () => {
     rerender({ nodes: Q })
     const q = result.current.transformToGraph3D(Q, [link('src/f0.ts', 'lib/g0.ts')]).data.nodes
     expect(q.every((n) => n.communityId === undefined)).toBe(true)
+  })
+
+  it('never merges a detected community into a backend community with the same number', () => {
+    // Backend communities 0..3 on the code; the notes have none, so Louvain
+    // runs on them and numbers its own communities from 0 too. A note in
+    // detected community 3 used to get communityId 3 and groupKey "c3": it
+    // joined backend community 3.
+    const backend = [0, 1, 2, 3].map((c) => inCommunity(`src/c${c}.ts`, c))
+    const notes = Array.from({ length: 6 }, (_, i) => file(`notes/n${i}.md`))
+    const nodes = [...backend, ...notes]
+    const { result } = renderHook(() => useGraph3DLayout(nodes, NO_EDGES))
+    act(() => FifoWorker.last!.answerNext(() => 3))
+    const out = result.current.transformToGraph3D(nodes, NO_EDGES).data.nodes
+    const backend3 = out.find((n) => n.id === 'src/c3.ts')!
+    for (const n of out.filter((m) => m.id.startsWith('notes/'))) {
+      expect(n.communityId).toBeDefined()
+      expect(n.communityId).not.toBe(backend3.communityId)
+      expect(n.groupKey).not.toBe(backend3.groupKey)
+    }
+  })
+
+  it('does not run detection when the backend already gives every node a community', () => {
+    const nodes = Array.from({ length: 8 }, (_, i) => inCommunity(`src/f${i}.ts`, i % 2))
+    renderHook(() => useGraph3DLayout(nodes, NO_EDGES))
+    expect(FifoWorker.last?.queue.length ?? 0).toBe(0)
+  })
+
+  it('runs detection only on the nodes the backend leaves without a community', () => {
+    const backend = [0, 1].map((c) => inCommunity(`src/c${c}.ts`, c))
+    const notes = Array.from({ length: 3 }, (_, i) => file(`notes/n${i}.md`))
+    renderHook(() => useGraph3DLayout([...backend, ...notes], NO_EDGES))
+    expect(FifoWorker.last!.queue[0].nodes).toEqual(notes.map((n) => n.id))
   })
 })
