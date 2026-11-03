@@ -33,3 +33,33 @@ describe('arbre vasculaire', () => {
     expect(degenerate).toHaveLength(0)
   })
 })
+
+describe('sous-moyeux en trois dimensions', () => {
+  it('deux paquets séparés en Z (même x, y) ne sont jamais mélangés', () => {
+    // Côté A : six nœuds de la communauté 0, trois en haut (z = +100), trois
+    // en bas (z = −100), au MÊME (x, y) — atan2(y, x) ne les distingue pas.
+    // Les identifiants alternent haut/bas pour que l'ordre ne les sépare pas
+    // par accident.
+    const nodes: Graph3DNode[] = []
+    const links: Graph3DLink[] = []
+    for (let i = 0; i < 6; i++) {
+      const up = i % 2 === 0
+      nodes.push(node(`a${i}`, -300 + (i >> 1) * 0.5, 0, up ? 100 : -100, 0))
+    }
+    nodes.push(node('b0', 300, 0, 0, 1))
+    for (let i = 0; i < 6; i++) links.push(link(`a${i}`, 'b0', 0, 1))
+    const r = createVascularLinks(nodes, links)!
+    const info = r.inspect!()
+    const zOf = new Map(nodes.map((n) => [n.id, (n as unknown as { z: number }).z]))
+    const arteries = info.filter((c) => c.kind === 'artery' && c.side === 'a')
+    expect(arteries.length).toBeGreaterThan(1)
+    for (const a of arteries) {
+      const caps = info.filter((c) => c.parent === a.id && c.kind === 'capillary')
+      const members = caps.length > 0 ? caps.map((c) => c.toId) : [a.toId]
+      const signs = new Set(members.map((id) => Math.sign(zOf.get(id)!)))
+      expect(signs.size).toBe(1)
+      // Et le sous-moyeu est du côté de ses membres, pas au milieu.
+      expect(Math.abs(a.to[2])).toBeGreaterThan(50)
+    }
+  })
+})

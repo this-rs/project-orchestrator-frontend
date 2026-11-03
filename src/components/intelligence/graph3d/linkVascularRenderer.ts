@@ -810,28 +810,63 @@ export function createVascularLinks(
       /**
        * Regroupe les extrémités RÉELLES d'un côté en sous-moyeux spatiaux.
        *
-       * Tri par angle autour du centre du côté, puis découpe en autant de
-       * paquets que de sous-moyeux autorisés. Chaque paquet garde TOUS ses
-       * membres (ils comptent dans ce que porte l'artère) et désigne ceux qui
-       * reçoivent un capillaire (les mieux connectés).
+       * En TROIS dimensions : chaque extrémité est une direction sur la sphère
+       * autour du centre du côté. Le tri par atan2(y, x) ignorait z — deux
+       * nœuds l'un au-dessus de l'autre tombaient dans le même paquet, deux
+       * nœuds voisins pouvaient être séparés. Graines par point le plus
+       * éloigné (déterministe), puis chaque extrémité rejoint la graine la plus
+       * proche en angle. Chaque paquet garde TOUS ses membres (ils comptent
+       * dans ce que porte l'artère) et désigne ceux qui reçoivent un
+       * capillaire (les mieux connectés).
        */
       const pick = (side: Map<string, EndLoad>) => {
         const unique = [...side.values()].sort((p, q) => q.deg - p.deg || (p.id < q.id ? -1 : 1))
-        let cx = 0, cy = 0
-        const pts = unique.map((x) => {
+        let cx = 0, cy = 0, cz = 0
+        for (const x of unique) {
           const n = nodeById.get(x.id)!
-          cx += n.x; cy += n.y
-          return { e: x, n }
+          cx += n.x; cy += n.y; cz += n.z
+        }
+        cx /= unique.length; cy /= unique.length; cz /= unique.length
+        const dirs = unique.map((x) => {
+          const n = nodeById.get(x.id)!
+          const dx = n.x - cx, dy = n.y - cy, dz = n.z - cz
+          const len = Math.hypot(dx, dy, dz)
+          return len > 1e-9 ? [dx / len, dy / len, dz / len] as Vec3 : null
         })
-        cx /= pts.length; cy /= pts.length
-        const angle = (p: { n: Point3 }) => Math.atan2(p.n.y - cy, p.n.x - cx)
-        const byAngle = [...pts].sort((a, b) => angle(a) - angle(b) || (a.e.id < b.e.id ? -1 : 1))
+        const dot = (a: Vec3 | null, b: Vec3 | null) => (a && b ? a[0] * b[0] + a[1] * b[1] + a[2] * b[2] : 1)
+        // Graines : la première direction définie (le mieux connecté), puis à
+        // chaque fois celle qui est la plus loin de toutes les graines.
+        const seeds: number[] = []
+        const first = dirs.findIndex((d) => d !== null)
+        if (first >= 0) seeds.push(first)
+        while (seeds.length > 0 && seeds.length < SUB_HUBS_PER_END) {
+          let best = -1, bestSim = Infinity
+          dirs.forEach((d, i) => {
+            if (!d || seeds.includes(i)) return
+            const sim = Math.max(...seeds.map((s) => dot(d, dirs[s])))
+            if (sim < bestSim - 1e-12) { bestSim = sim; best = i }
+          })
+          // Plus aucune direction vraiment distincte : pas de graine de plus.
+          if (best < 0 || bestSim > 1 - 1e-9) break
+          seeds.push(best)
+        }
+        const buckets: EndLoad[][] = seeds.map(() => [])
+        unique.forEach((e, i) => {
+          if (seeds.length === 0) return
+          let g = 0, gSim = -Infinity
+          seeds.forEach((s, k) => {
+            const sim = dot(dirs[i], dirs[s])
+            if (sim > gSim + 1e-12) { gSim = sim; g = k }
+          })
+          buckets[g].push(e)
+        })
+        // Extrémités toutes au centre (aucune direction) : un seul paquet.
+        if (seeds.length === 0) buckets.push([...unique])
         const groups: { all: EndLoad[]; drawn: EndLoad[] }[] = []
-        const per = Math.max(1, Math.ceil(byAngle.length / SUB_HUBS_PER_END))
-        for (let i = 0; i < byAngle.length; i += per) {
-          const all = byAngle.slice(i, i + per).map((p) => p.e)
+        for (const all of buckets) {
+          if (all.length === 0) continue
           const drawn = [...all].sort((a, b) => b.deg - a.deg || (a.id < b.id ? -1 : 1)).slice(0, CAPILLARIES_PER_SUB_HUB)
-          if (all.length > 0) groups.push({ all, drawn })
+          groups.push({ all, drawn })
         }
         return { groups, ranked: unique }
       }
