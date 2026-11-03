@@ -1,4 +1,4 @@
-// GENERATED from website@b91eb36fd983b29cf89d74c404f12578321655c2:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@2965f21ad8d0be29a705ef91b3a29513a87196f3:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Fabrique de MACHINES À POSTES : une disposition (`layouts.ts`), une voie tracée le long de ses tracés, une navette

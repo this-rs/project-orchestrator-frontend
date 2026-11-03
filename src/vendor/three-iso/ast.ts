@@ -1,4 +1,4 @@
-// GENERATED from website@b91eb36fd983b29cf89d74c404f12578321655c2:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@2965f21ad8d0be29a705ef91b3a29513a87196f3:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * PROTOCOLE DE CONSTRUCTION : des objets et des mécaniques décrits comme des DONNÉES (un arbre JSON), compilés en

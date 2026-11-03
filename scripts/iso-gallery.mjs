@@ -44,6 +44,26 @@ const SERVER_TREE = {
 }
 
 export const SCENES = [
+  {
+    slug: 'robot-agent',
+    title: 'Un agent — le petit robot du catalogue',
+    intent:
+      "Trois exemplaires de l'objet « agent » : corps, cœur lumineux, anneau qui tourne. À 340 px, la silhouette doit dire « petit robot » sans légende, et le cœur doit être le seul accent.",
+    expect: 'ok',
+    data: {
+      title: 'Un agent',
+      ast: {
+        kind: 'group',
+        children: [
+          { kind: 'use', ref: 'agent', at: [-1.25, 0.3, 0] },
+          { kind: 'use', ref: 'agent', at: [0, -0.5, 0] },
+          { kind: 'use', ref: 'agent', at: [1.25, 0.3, 0] },
+          { kind: 'use', ref: 'agent', at: [0, 1.1, 0] },
+        ],
+      },
+    },
+  },
+
   // (a) les 4 mécanismes, un par poste en gros plan.
   {
     slug: 'mech-dependency-graph',
