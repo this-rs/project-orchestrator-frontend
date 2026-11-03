@@ -139,6 +139,28 @@ describe('createLinkSegments', () => {
     seg.dispose()
   })
 
+  it('interpolates a gradient per vertex: source colour at t=0, target colour at t=1', () => {
+    const { nodes, links } = makeFixture()
+    const seg = createLinkSegments(nodes, links)
+    // Red source, green target — the stroke must run red → green along its curve.
+    seg.updateColors(() => ({ r: 1, g: 0, b: 0, r2: 0, g2: 1, b2: 0, a: 0.7 }))
+    const col = seg.object.geometry.getAttribute('aColor').array as Float32Array
+    expect([col[0], col[1], col[2]]).toEqual([1, 0, 0])
+    const lastVertex = CURVED_STROKE_VERTS - 1
+    expect([col[lastVertex * 3], col[lastVertex * 3 + 1], col[lastVertex * 3 + 2]]).toEqual([0, 1, 0])
+    seg.dispose()
+  })
+
+  it('a style without r2/g2/b2 stays uniform (highlight overlay path)', () => {
+    const { nodes, links } = makeFixture()
+    const seg = createLinkSegments(nodes, links)
+    seg.updateColors(() => ({ r: 0.5, g: 0.25, b: 0.125, a: 0.7 }))
+    const col = seg.object.geometry.getAttribute('aColor').array as Float32Array
+    const lastVertex = CURVED_STROKE_VERTS - 1
+    expect([col[lastVertex * 3], col[lastVertex * 3 + 1], col[lastVertex * 3 + 2]]).toEqual([0.5, 0.25, 0.125])
+    seg.dispose()
+  })
+
   it('resolves object endpoints after d3-force mutates them', () => {
     const { nodes, links } = makeFixture()
     const seg = createLinkSegments(nodes, links)

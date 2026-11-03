@@ -122,6 +122,18 @@ describe('curveControlPoint + bezierPoint — the curve passes exactly through b
   it('degenerates to the source point when s === t (no direction to bow along)', () => {
     expect(curveControlPoint(s, s, 1, 'a', 'b')).toEqual(s)
   })
+
+  it('an explicit amplitude overrides the volume-derived curvature (scale-aware bow)', () => {
+    const s0: Vec3 = [0, 0, 0]
+    const t0: Vec3 = [100, 0, 0]
+    const len = 100
+    const chordMid: Vec3 = [50, 0, 0]
+    const distFromMid = (c: Vec3) => Math.hypot(c[0] - chordMid[0], c[1] - chordMid[1], c[2] - chordMid[2])
+    // Default (volume=0) bows curvature(0)·len = 0.02·100 = 2.
+    expect(distFromMid(curveControlPoint(s0, t0, 0, 'a', 'b'))).toBeCloseTo(curvature(0) * len, 5)
+    // A custom amplitude 0.4 bows 0.4·len = 40, regardless of the volume passed.
+    expect(distFromMid(curveControlPoint(s0, t0, 0, 'a', 'b', 0.4))).toBeCloseTo(0.4 * len, 5)
+  })
 })
 
 describe('bezierTangent', () => {

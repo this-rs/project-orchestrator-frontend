@@ -24,6 +24,7 @@ import {
   CURVE_SUBDIVISIONS, curveEnabled, linkVolume, pathPointAndTangent,
   sampleLinkPath as samplePath, type Vec3,
 } from './linkCurve'
+import { classifyLinkScale, interpolateRgb, linkScaleCurvature } from './linkScale'
 
 /**
  * Line segments drawn per link's stroke: CURVE_SUBDIVISIONS − 1 bowed
@@ -34,11 +35,19 @@ function segmentsPerLink(linkCount: number): number {
   return curveEnabled(linkCount) ? CURVE_SUBDIVISIONS - 1 : 1
 }
 
-/** Final per-link style: normalized RGB + alpha (0..1). */
+/**
+ * Final per-link style: normalized RGB + alpha (0..1). `r2/g2/b2` are the
+ * colour of the target endpoint; when omitted the colour is uniform along the
+ * link (used by the highlight overlay). The stroke interpolates from
+ * (r,g,b) to (r2,g2,b2) per vertex, so the direction reads without an arrow.
+ */
 export interface LinkStyle {
   r: number
   g: number
   b: number
+  r2?: number
+  g2?: number
+  b2?: number
   a: number
 }
 
@@ -127,6 +136,7 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
   let strokeVerts = segmentsPerLink(links.length) * 2
   let vertexCount = links.length * strokeVerts
   let arrowSlot = new Int32Array(0)
+  let amplitudes = new Float32Array(0)
   const geometry = new THREE.BufferGeometry()
   const positions = new Float32Array(vertexCount * 3)
   const colors = new Float32Array(vertexCount * 3)
@@ -196,6 +206,21 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
     }
     rebuildIndex(nextNodes)
     rebuildAdjacency(nextLinks)
+    // Precompute each link's curvature amplitude once (per data change, not per
+    // frame): the scale (intra/neighbor/inter) decides how much a link bows,
+    // the volume (width) how strong it is. updatePositions then reads
+    // amplitudes[i] instead of re-classifying every link every frame.
+    amplitudes = new Float32Array(nextLinks.length)
+    for (let i = 0; i < nextLinks.length; i++) {
+      const link = nextLinks[i]
+      const sNode = nodeById.get(endpointId(link.source))
+      const tNode = nodeById.get(endpointId(link.target))
+      const scale = classifyLinkScale(
+        { layer: sNode?.layer ?? link.layer, communityId: sNode?.communityId ?? link.sourceCommunityId },
+        { layer: tNode?.layer ?? link.layer, communityId: tNode?.communityId ?? link.targetCommunityId },
+      )
+      amplitudes[i] = linkScaleCurvature(scale, linkVolume(link))
+    }
     // Fill positions from scratch (and, on a fresh object, the arrays start zeroed).
     updatePositions()
   }
@@ -211,11 +236,12 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
       const s: Vec3 = [sNode?.x ?? 0, sNode?.y ?? 0, sNode?.z ?? 0]
       const t: Vec3 = [tNode?.x ?? 0, tNode?.y ?? 0, tNode?.z ?? 0]
       const volume = linkVolume(link)
+      const amplitude = amplitudes[i]
       const base = i * strokeVerts // first vertex of this link's stroke
       // Sample `segs + 1` points along the path (bowed or straight — see
       // sampleLinkPath), then write each consecutive pair as one disjoint
       // LineSegments segment: [p0,p1], [p1,p2], …
-      const sampled = samplePath(s, t, volume, endpointId(link.source), endpointId(link.target), segs + 1, curved)
+      const sampled = samplePath(s, t, volume, endpointId(link.source), endpointId(link.target), segs + 1, curved, amplitude)
       for (let j = 0; j < segs; j++) {
         const p0 = sampled[j], p1 = sampled[j + 1]
         const o = (base + j * 2) * 3
@@ -226,7 +252,7 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
       if (slot >= 0) {
         const straightLen = Math.hypot(t[0] - s[0], t[1] - s[1], t[2] - s[2])
         const { point, tangent } = pathPointAndTangent(
-          s, t, volume, endpointId(link.source), endpointId(link.target), ARROW_ANCHOR, curved,
+          s, t, volume, endpointId(link.source), endpointId(link.target), ARROW_ANCHOR, curved, amplitude,
         )
         const h = computeArrowHeadAt(point, tangent, straightLen, link.relationType, linkList.length)
         // Degenerate link: collapse the head onto the source (zero-length, invisible).
@@ -237,23 +263,46 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
     ;(geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
   }
 
-  /** Give link i's head (if any) the same colour and alpha as its stroke. */
+  /**
+   * Give link i's head (if any) the stroke's colour at its anchor (75 % along
+   * the link) — the same gradient the stroke carries, so a head never looks
+   * detached from its line.
+   */
   const paintArrow = (i: number, s: LinkStyle, col: Float32Array, alp: Float32Array) => {
     const slot = arrowSlot[i]
     if (slot < 0) return
+    const c = interpolateRgb(
+      { r: s.r, g: s.g, b: s.b },
+      { r: s.r2 ?? s.r, g: s.g2 ?? s.g, b: s.b2 ?? s.b },
+      ARROW_ANCHOR,
+    )
     for (let v = 0; v < ARROW_VERTICES; v++) {
-      const c = (slot + v) * 3
-      col[c] = s.r; col[c + 1] = s.g; col[c + 2] = s.b
+      const o = (slot + v) * 3
+      col[o] = c.r; col[o + 1] = c.g; col[o + 2] = c.b
       alp[slot + v] = s.a
     }
   }
 
-  /** Paint every vertex of link i's stroke (all `strokeVerts` of them) one colour. */
+  /**
+   * Paint every vertex of link i's stroke, interpolating the colour from the
+   * source endpoint (r,g,b) to the target endpoint (r2,g2,b2) along the curve
+   * parameter. The buffer is per-vertex for alpha; the colour is now per-vertex
+   * too, so a link reads "who talks to whom" without an arrow head.
+   */
   const paintStroke = (i: number, s: LinkStyle, col: Float32Array, alp: Float32Array) => {
     const base = i * strokeVerts
+    const segs = strokeVerts / 2 // number of straight sub-segments of the stroke
+    const r1 = s.r, g1 = s.g, b1 = s.b
+    const r2 = s.r2 ?? s.r, g2 = s.g2 ?? s.g, b2 = s.b2 ?? s.b
     for (let v = 0; v < strokeVerts; v++) {
+      // Vertex v belongs to the sample point at curve parameter t (see
+      // updatePositions: vertices are the disjoint pairs [p0,p1],[p1,p2],…).
+      const t = Math.floor((v + 1) / 2) / segs
+      const u = 1 - t
       const c = (base + v) * 3
-      col[c] = s.r; col[c + 1] = s.g; col[c + 2] = s.b
+      col[c] = r1 * u + r2 * t
+      col[c + 1] = g1 * u + g2 * t
+      col[c + 2] = b1 * u + b2 * t
       alp[base + v] = s.a
     }
   }

@@ -132,14 +132,14 @@ export function perpendicular(dir: Vec3): Vec3 {
  * At s === t (degenerate link) returns `s` — no direction to bow along.
  */
 export function curveControlPoint(
-  s: Vec3, t: Vec3, volume: number, sourceId: string, targetId: string,
+  s: Vec3, t: Vec3, volume: number, sourceId: string, targetId: string, amplitude?: number,
 ): Vec3 {
   const d = vSub(t, s)
   const len = vLen(d)
   if (!Number.isFinite(len) || len < 1e-6) return s
   const dir: Vec3 = [d[0] / len, d[1] / len, d[2] / len]
   const perp = perpendicular(dir)
-  const offset = curvature(volume) * len * curveSide(sourceId, targetId)
+  const offset = (amplitude ?? curvature(volume)) * len * curveSide(sourceId, targetId)
   const mid = vScale(vAdd(s, t), 0.5)
   return vAdd(mid, vScale(perp, offset))
 }
@@ -199,10 +199,11 @@ export function curveEnabled(linkCount: number): boolean {
  */
 export function sampleLinkPath(
   s: Vec3, t: Vec3, volume: number, sourceId: string, targetId: string, n: number, curved: boolean,
+  amplitude?: number,
 ): Vec3[] {
   const pts: Vec3[] = []
   if (curved) {
-    const control = curveControlPoint(s, t, volume, sourceId, targetId)
+    const control = curveControlPoint(s, t, volume, sourceId, targetId, amplitude)
     for (let i = 0; i < n; i++) pts.push(bezierPoint(s, control, t, i / (n - 1)))
   } else {
     for (let i = 0; i < n; i++) {
@@ -220,9 +221,10 @@ export function sampleLinkPath(
  */
 export function pathPointAndTangent(
   s: Vec3, t: Vec3, volume: number, sourceId: string, targetId: string, at: number, curved: boolean,
+  amplitude?: number,
 ): { point: Vec3; tangent: Vec3 } {
   if (curved) {
-    const control = curveControlPoint(s, t, volume, sourceId, targetId)
+    const control = curveControlPoint(s, t, volume, sourceId, targetId, amplitude)
     return { point: bezierPoint(s, control, t, at), tangent: bezierTangent(s, control, t, at) }
   }
   const d = vSub(t, s)

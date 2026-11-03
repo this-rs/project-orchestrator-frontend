@@ -22,9 +22,10 @@ import {
   WAKE_MUTATION_MS,
 } from './useRenderLoop'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
-import { resolveNodeBaseRgb } from './layerColors'
+import { layerRgb, resolveNodeBaseRgb } from './layerColors'
 import { createLinkSegments, parseColor, type LinkSegments, type LinkStyle } from './linkSegments'
 import { computeLinkAlpha, linkFamilyAlpha, LINK_OPACITY } from './linkFamily'
+import { classifyLinkScale, linkScaleAlpha } from './linkScale'
 import { createNodePoints, shapeForType, sizeForType, type NodePoints, type NodeStyle } from './nodePoints'
 import { buildCommunityHulls, disposeCommunityHulls, type CommunityHull, type CommunityHullGroup } from './CommunityHulls3D'
 import { buildCommunityRings, disposeCommunityRings, type CommunityRingGroup } from './CommunityRings3D'
@@ -981,8 +982,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // No colour override for the bridges. A near-white here repainted EVERY link
   // that crosses two communities — and with hulls on by default that is most of
   // them, so the whole graph read as one white web ("les liens sont toujours
-  // blancs"). The bridge factor in computeLinkStyle already makes them stand
-  // out; the relation hue stays, so the types remain readable.
+  // blancs"). The connection scale in computeLinkStyle (inter > neighbor >
+  // intra) already makes them stand out; the relation hue stays, so the types
+  // remain readable.
 
   // ── Link colour, WITHOUT transient hover ──────────────────────────────
   // Covers spreading activation, selection (cyan + dim), group highlight and
@@ -1025,8 +1027,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       return 'rgba(107, 114, 128, 0.03)'
     }
 
-    // Inter-community edges keep their relation colour: only their ALPHA is
-    // raised (computeLinkStyle, ×1.7), never their hue.
+    // Inter-community edges keep their relation colour: their SCALE (neighbor /
+    // inter) raises the alpha in computeLinkStyle, never their hue.
 
     return link.color
   }, [selectedNodeId, activation, showCommunityHulls, highlightedGroup])
@@ -1070,9 +1072,40 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return { r: p.r, g: p.g, b: p.b, a }
   }, [graphData.links.length])
 
+  // Node lookup for the resting link style: which layer/community each endpoint
+  // sits in. Built from the same graph the style is evaluated against.
+  const nodesById = useMemo(() => {
+    const m = new Map<string, Graph3DNode>()
+    for (const n of graphData.nodes) m.set(n.id, n)
+    return m
+  }, [graphData.nodes])
+
+  // Resting style: a gradient from the source's layer colour to the target's,
+  // with the connection scale (intra/neighbor/inter) deciding the opacity. The
+  // relation family no longer sets the resting alpha — the scale does — but the
+  // family still picks the direction (arrow heads) and the highlight path keeps
+  // its family-based alpha (linkStyleFromColor above).
   const computeLinkStyle = useCallback((link: Graph3DLink): LinkStyle => {
-    return linkStyleFromColor(link, baseLinkColor(link))
-  }, [linkStyleFromColor, baseLinkColor])
+    const sourceId = typeof link.source === 'object' ? (link.source as Graph3DNode).id : link.source
+    const targetId = typeof link.target === 'object' ? (link.target as Graph3DNode).id : link.target
+    const sNode = nodesById.get(sourceId)
+    const tNode = nodesById.get(targetId)
+    const scale = classifyLinkScale(
+      { layer: sNode?.layer ?? link.layer, communityId: sNode?.communityId ?? link.sourceCommunityId },
+      { layer: tNode?.layer ?? link.layer, communityId: tNode?.communityId ?? link.targetCommunityId },
+    )
+    const start = layerRgb(sNode?.layer)
+    const end = layerRgb(tNode?.layer)
+    const a = computeLinkAlpha({
+      familyAlpha: linkScaleAlpha(scale),
+      weight: link.weight ?? 0.5,
+      colorAlpha: 1,
+      linkCount: graphData.links.length,
+      isInterCommunity: false,
+      emphasised: false,
+    })
+    return { r: start.r, g: start.g, b: start.b, r2: end.r, g2: end.g, b2: end.b, a }
+  }, [nodesById, graphData.links.length])
 
   // ── Base node size (before any highlight / dim / hover) ───────────────
   // Super-nodes scale with the bundle count (area ∝ count); individual nodes
