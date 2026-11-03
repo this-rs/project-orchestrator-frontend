@@ -2000,6 +2000,32 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     activeGraphDataRef.current = activeGraphData
   }, [activeGraphData])
 
+  // A renderer kept across a flush reads positions from the node objects it was
+  // BUILT with, while the library moves the objects of the LATEST graphData (a
+  // drag). Each kept renderer registers its node array here; a drag copies the
+  // moved node's position into every registered array (same key ⇒ same order,
+  // so the slot is the node's index in the current data).
+  const boundNodeArraysRef = useRef(new Map<string, Graph3DNode[]>())
+  const activeIndexById = useMemo(() => {
+    const m = new Map<string, number>()
+    activeGraphData.nodes.forEach((n, i) => m.set(n.id, i))
+    return m
+  }, [activeGraphData.nodes])
+  const syncBoundPosition = useCallback((node: Graph3DNode) => {
+    const i = activeIndexById.get(node.id)
+    if (i === undefined) return
+    for (const arr of boundNodeArraysRef.current.values()) {
+      const held = arr[i]
+      if (!held || held === node || held.id !== node.id) continue
+      held.x = node.x
+      held.y = node.y
+      held.z = node.z
+      held.fx = node.fx
+      held.fy = node.fy
+      held.fz = node.fz
+    }
+  }, [activeIndexById])
+
   // A visible trace when the aggregated step yields nothing: one line in the
   // console says whether the graph is empty, the grouping is empty, or the
   // resolution collapsed — instead of a black canvas that explains nothing.
@@ -2068,10 +2094,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     seg.updateColors(computeLinkStyleRef.current)
     scene.add(seg.object)
     linkSegmentsRef.current = seg
+    const bound = boundNodeArraysRef.current
+    bound.set('links', data.nodes)
     // wake: edges were added to the scene.
     wake(WAKE_MUTATION_MS)
 
     return () => {
+      if (bound.get('links') === data.nodes) bound.delete('links')
       if (linkSegmentsRef.current === seg) {
         scene.remove(seg.object)
         seg.dispose()
@@ -2102,13 +2131,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
     if (!useTubes) return
 
-    const tubes = createSuperLinkTubes(activeGraphDataRef.current.nodes, activeGraphDataRef.current.links)
+    const tubeNodes = activeGraphDataRef.current.nodes
+    const tubes = createSuperLinkTubes(tubeNodes, activeGraphDataRef.current.links)
     if (!tubes) return
     scene.add(tubes.group)
     superLinkTubesRef.current = tubes
+    const bound = boundNodeArraysRef.current
+    bound.set('tubes', tubeNodes)
     wake(WAKE_MUTATION_MS)
 
     return () => {
+      if (bound.get('tubes') === tubeNodes) bound.delete('tubes')
       if (superLinkTubesRef.current === tubes) {
         scene.remove(tubes.group)
         tubes.dispose()
@@ -2205,9 +2238,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (labels.count === 0) return
     scene.add(labels.group)
     superNodeLabelsRef.current = labels
+    const bound = boundNodeArraysRef.current
+    bound.set('labels', labelNodes)
     wake(WAKE_MUTATION_MS)
 
     return () => {
+      if (bound.get('labels') === labelNodes) bound.delete('labels')
       if (superNodeLabelsRef.current === labels) {
         scene.remove(labels.group)
         labels.dispose()
@@ -2615,8 +2651,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         // Interactions — in the overview tier our own pick drives hover/click.
         onNodeClick={useOptimizedNodes ? undefined : onNodeClick}
         onNodeHover={useOptimizedNodes ? undefined : onNodeHover}
-        onNodeDrag={() => {
+        onNodeDrag={(node: Graph3DNode) => {
           // Dragged node moves without a force tick — keep edges attached.
+          syncBoundPosition(node)
           linkSegmentsRef.current?.updatePositions()
           superLinkTubesRef.current?.updatePositions()
           superNodeLabelsRef.current?.updatePositions()
@@ -2628,6 +2665,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           node.fx = node.x
           node.fy = node.y
           node.fz = node.z
+          syncBoundPosition(node)
           savePositions([node])
           // wake: the library calls resetCountdown() on drag end, so the
           // engine restarts and nodes keep moving after the pointer is up.

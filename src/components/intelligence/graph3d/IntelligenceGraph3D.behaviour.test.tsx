@@ -414,3 +414,39 @@ describe('IntelligenceGraph3D — a WebSocket flush does not rebuild the scene',
     expect([...after].some((o) => !before.has(o))).toBe(true)
   }, 60_000)
 })
+
+describe('IntelligenceGraph3D — a kept scene follows a drag after a flush', () => {
+  /** True when some vertex drawn by the component sits near `p`. */
+  const drawnNear = (p: THREE.Vector3, tolerance = 60) => {
+    let hit = false
+    lib.fg.scene().traverse((o) => {
+      const geo = (o as THREE.Mesh).geometry as THREE.BufferGeometry | undefined
+      const pos = geo?.getAttribute?.('position') as THREE.BufferAttribute | undefined
+      if (!pos || hit) return
+      const v = new THREE.Vector3()
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i)
+        if (v.distanceTo(p) < tolerance) { hit = true; return }
+      }
+    })
+    return hit
+  }
+
+  it('the links of a node dragged after a same-structure flush move with it', async () => {
+    const g = makeGraph(600) // sprite tier (draggable), optimized links
+    const view = await mountGraph(g)
+    await flush(3000)
+    view.rerender(refresh(g))
+    await flush(3000)
+    // The library drags ITS node objects: those of the latest graphData prop.
+    const nodes = (lib.props.graphData as { nodes: Array<{ id: string; x: number; y: number; z: number }> }).nodes
+    const dragged = nodes[300]
+    const far = new THREE.Vector3(9000, 9000, 9000)
+    expect(drawnNear(far)).toBe(false)
+    dragged.x = far.x
+    dragged.y = far.y
+    dragged.z = far.z
+    act(() => { (lib.props.onNodeDrag as (n: unknown) => void)(dragged) })
+    expect(drawnNear(far)).toBe(true)
+  }, 60_000)
+})
