@@ -1,4 +1,4 @@
-// GENERATED from website@91b2d26477b24de2e8c6e7621c93d7d092e5daaf:src/three/iso/parts.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@c49f5f220cdb1b250d2fe265c52ca13ec330054a:src/three/iso/parts.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Lire une pièce dans une scène : l'ISOLER (ne garder qu'elle, le reste en fantôme) et l'ÉCLATER (écarter les pièces
@@ -14,6 +14,8 @@ import type { MachineDef } from './machine.ts'
 export interface PartsView {
   readonly isolate?: readonly string[] | undefined
   readonly explode?: number | undefined
+  /** Coupe : on garde le côté dont la coordonnée `axis` est INFÉRIEURE à `at` (unités monde de la machine). */
+  readonly cutaway?: { readonly axis: 'x' | 'y' | 'z'; readonly at: number } | undefined
 }
 
 /** Opacité d'une pièce écartée par `isolate` : présente, mais effacée — le contexte reste lisible. */
@@ -22,6 +24,28 @@ const GHOST = 0.2
 const GHOST_COL = '#8b93a8'
 /** Écart maximal, en unités monde, pour `explode = 1`. */
 const EXPLODE_MAX = 1.6
+
+/**
+ * Découpe un polygone convexe par un demi-espace `coord <= at` (Sutherland–Hodgman), en gardant son ordre de sommets :
+ * un triangle coupé devient un quadrilatère, jamais un décalage de faces. Les coordonnées sont celles de la machine.
+ */
+function clipPolygon(pts: readonly Vec3[], axis: 0 | 1 | 2, at: number): Vec3[] {
+  const out: Vec3[] = []
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i]!
+    const b = pts[(i + 1) % pts.length]!
+    const da = a[axis] - at
+    const db = b[axis] - at
+    if (da <= 0) out.push(a)
+    if ((da < 0 && db > 0) || (da > 0 && db < 0)) {
+      const k = da / (da - db)
+      out.push([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k])
+    }
+  }
+  return out
+}
+
+const AXIS = { x: 0, y: 1, z: 2 } as const
 
 const centroid = (f: Face): Vec3 => {
   let x = 0
@@ -64,11 +88,24 @@ function nameOf(m: MachineDef, part: number): string | null {
  *
  * Aucune allocation quand la vue est vide : `faces` est rendu tel quel, donc un rendu sans vue ne paie rien.
  */
-export function applyParts(faces: readonly Face[], m: MachineDef, view: PartsView | undefined): readonly Face[] {
+export function applyParts(input: readonly Face[], m: MachineDef, view: PartsView | undefined): readonly Face[] {
+  let faces = input
   if (!view) return faces
   const keep = view.isolate && view.isolate.length ? new Set(view.isolate) : null
   const amount = Math.max(0, Math.min(1, view.explode ?? 0)) * EXPLODE_MAX
-  if (!keep && !amount) return faces
+  const cut = view.cutaway
+  if (!keep && !amount && !cut) return faces
+  // Coupe d'abord : elle retire de la matière, donc elle précède l'isolement et l'éclatement (sinon on éclaircit des
+  // faces qu'on jette juste après).
+  if (cut) {
+    const ax = AXIS[cut.axis]
+    const kept: Face[] = []
+    for (const f of faces) {
+      const pts = clipPolygon(f.pts, ax, cut.at)
+      if (pts.length >= 3) kept.push({ ...f, pts })
+    }
+    faces = kept
+  }
   const centre = amount ? centreOf(faces) : [0, 0, 0]
   // L'éclatement est PAR PIÈCE, pas par face : translater chaque triangle séparément déchire une sphère en morceaux.
   // On calcule donc un décalage unique par pièce, et toutes ses faces le suivent (translation rigide).

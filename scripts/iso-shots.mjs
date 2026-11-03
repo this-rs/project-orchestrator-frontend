@@ -28,6 +28,7 @@ import path from 'node:path'
 import http from 'node:http'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import { userInfo } from 'node:os'
 import esbuild from 'esbuild'
 import { SCENES } from './iso-gallery.mjs'
 
@@ -198,7 +199,9 @@ async function launchChrome(profileDir) {
     // SwiftShader : un WebGL2 logiciel FIABLE et raisonnablement rapide en headless (le
     // rendu par défaut sans GPU peut être beaucoup plus lent sur les cartes d'ombre).
     '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', 'about:blank',
-  ], { stdio: 'ignore' })
+  // HOME RÉEL : lancé depuis un environnement d'outil, Chrome hérite d'un HOME bac à sable et son service réseau
+  // ne démarre jamais — il pend alors à la première navigation http (mesuré : 0 requête reçue, écran jamais chargé).
+  ], { stdio: 'ignore', env: { ...process.env, HOME: userInfo().homedir } })
   const http = `http://127.0.0.1:${port}`
   await waitUp(http + '/json/version')
   return { http, close: () => child.exitCode === null && child.kill('SIGKILL') }
