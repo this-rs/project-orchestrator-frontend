@@ -1,4 +1,4 @@
-// GENERATED from website@61bdfbc616afa37a57e9f9d3e9ab8a02324e5460:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@9936a71e24d72e5ccccf091211456dc379253605:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Fabrique de MACHINES À POSTES : une disposition (`layouts.ts`), une voie tracée le long de ses tracés, une navette
@@ -95,6 +95,8 @@ export interface StationMachineDef {
   focal?: number | undefined
   /** `solo` seulement : la mécanique sans socle ni cercle de couleur (une machine composée, posée sur le sol). */
   bare?: boolean | undefined
+  /** Cadrage : `text` (défaut) centre autour du trou du texte ; `tight` cadre la scène sur ses seules bornes. */
+  frame?: 'text' | 'tight' | undefined
 }
 
 export interface StationState {
@@ -469,7 +471,9 @@ export function makeStationMachine(def: StationMachineDef, kind: LayoutKind = de
       return s.sorted()
     },
     // Gros plan : pas de texte à centrer, on cadre la mécanique elle-même.
-    anchor: kind === 'solo' || kind === 'compact' ? undefined : layout.hole,
+    // Cadrage : un bloc de conversation n'a pas de texte au milieu, donc pas de trou à réserver. Sans cela une arche
+    // laissait sa moitié basse vide et un anneau son centre vide : 0,088 à 0,147 de cadre occupé, mesuré sur la planche.
+    anchor: def.frame === 'tight' || kind === 'solo' || kind === 'compact' ? undefined : layout.hole,
     // Points d'interaction : le centre de chaque poste, à mi-hauteur de son objet ; rayon = celui du socle.
     hotspots: { at: posts.map((q) => [q[0], q[1], Z_TOP + 1.4 * scale] as const), radius: Math.max(...reach) * scale },
     // Repère de l'arbre de chaque poste (= celui de `drawTree` : le cadre du poste, relevé de `z` ; pas de lévitation).

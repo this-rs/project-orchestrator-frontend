@@ -105,7 +105,7 @@ const PAGE_CSS = `
 
 // ---------- alias esbuild ----------
 const ALIAS_EXTS = ['.tsx', '.ts', '.jsx', '.js', '.mjs']
-const SITE_ISO = path.resolve(ROOT, '..', 'website', 'src', 'three', 'iso')
+const SITE_ISO = path.resolve(ROOT, String(args.site ?? '../website'), 'src', 'three', 'iso')
 const ENGINE = args.engine === 'site' ? 'site' : 'vendor'
 function resolveAlias(spec) {
   if (spec === '@/i18n') return path.join(SCRIPTS, 'iso-i18n-stub.ts')
