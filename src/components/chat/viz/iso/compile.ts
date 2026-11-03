@@ -51,7 +51,7 @@ export type IsoCompile =
 export const MAX_DATA_CHARS = 32_000
 const MAX_LABEL = 60
 const TONES = Object.keys(LAMP) as ToneName[]
-const SCENE_KEYS = new Set(['title', 'caption', 'layout', 'stations', 'angles', 'home', 'stepSeconds', 'build', 'ast', 'tone', 'label', 'focal', 'frame', 'bare'])
+const SCENE_KEYS = new Set(['title', 'caption', 'layout', 'stations', 'angles', 'home', 'stepSeconds', 'build', 'ast', 'tone', 'label', 'focal', 'frame', 'bare', 'parts'])
 const STATION_KEYS = new Set(['mech', 'ast', 'tone', 'label', 'after'])
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -142,6 +142,8 @@ export function toSceneSpec(data: unknown): { spec?: SceneSpec; title?: string; 
     // `bare` : l'objet seul, posé sur le sol, SANS socle ni piste — le cas « je rends librement ce que je veux ».
     // Le moteur refuse la combinaison hors disposition `solo`, avec un message qui dit quoi corriger.
     ...(scene.bare !== undefined ? { bare: scene.bare } : {}),
+    // Lecture des pièces : { isolate: ['…'], explode: 0..1 }. Le moteur valide et refuse les noms inconnus à l'usage.
+    ...(scene.parts !== undefined ? { parts: scene.parts } : {}),
     ...(scene.build !== undefined ? { build: scene.build } : {}),
   }
   const spec = { id: `chat-${hash(JSON.stringify(body))}`, ...body } as unknown as SceneSpec

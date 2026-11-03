@@ -1,4 +1,4 @@
-// GENERATED from website@0cee6ea9285b77e371c79ca3af250d01c0b37a92:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@91b2d26477b24de2e8c6e7621c93d7d092e5daaf:src/three/iso/litRenderer.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Rendu WebGL 2 des machines isométriques : la MÊME géométrie que le SVG prérendu (`machine.build`), mais éclairée
@@ -24,6 +24,7 @@ import { WIDE_ASPECT, type MachineDef } from './machine.ts'
 import { triangulate } from './triangulate.ts'
 import { contentBox, DESK_FITS, fitAround, fitWindow, type Box, type CssRect } from './fit.ts'
 import { assemble } from './buildIn.ts'
+import { applyParts } from './parts.ts'
 import { anchorOf, basis, DEFAULT_CAMERA, eyeDistance, fovForFocal, ISO_SCALE, sceneBounds, toScreen, viewProj, type CameraState, type Frame } from './camera.ts'
 import { MOVE_MS as GLIDE_MS } from './live.ts'
 
@@ -795,7 +796,9 @@ export class IsoRenderer {
     // Apparition : la machine se construit couche par couche (buildIn.ts) ; 1 = complète.
     // Scène vivante : chaque poste suit son statut réel (live.ts) ; sinon, l'apparition jouée une fois.
     const live = this.machine.live
-    const faces = live ? live.assemble(all, performance.now()) : built < 1 ? assemble(this.machine, all, built) : all
+    const builtFaces = live ? live.assemble(all, performance.now()) : built < 1 ? assemble(this.machine, all, built) : all
+    // Isoler / éclater : la MÊME transformation que le repli SVG (parts.ts), appliquée après l'apparition.
+    const faces = this.machine.partsView ? applyParts(builtFaces, this.machine, this.machine.partsView) : builtFaces
     let tris = 2 // sol
     for (const f of faces) tris += f.pts.length - 2
     if (this.data.length < tris * 3 * FLOATS) this.data = new Float32Array(tris * 3 * FLOATS * 1.25)

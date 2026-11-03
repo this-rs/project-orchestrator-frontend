@@ -1,4 +1,4 @@
-// GENERATED from website@0cee6ea9285b77e371c79ca3af250d01c0b37a92:src/three/iso/scene.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@91b2d26477b24de2e8c6e7621c93d7d092e5daaf:src/three/iso/scene.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * API SÛRE pour décrire une scène isométrique (en-tête ou bloc de page) : `defineScene`.
@@ -69,6 +69,8 @@ export interface SceneSpec {
    * dans une conversation n'a pas de texte à contourner, et une arche ou un anneau perdaient la moitié de leur cadre
    * à cause de ce trou. */
   frame?: 'text' | 'tight' | undefined
+  /** Lecture des pièces : `isolate` (noms à garder, le reste en fantôme) et `explode` (0 à 1). */
+  parts?: import('./parts.ts').PartsView | undefined
 }
 
 export interface Scene {
@@ -126,6 +128,7 @@ function checkSpec(spec: SceneSpec): string[] {
   if (spec.home !== undefined && (spec.home < 0 || spec.home >= spec.stations.length)) out.push(`home ${spec.home} : hors des postes`)
   if (spec.stepSeconds !== undefined && (spec.stepSeconds < 0.6 || spec.stepSeconds > 10)) out.push(`stepSeconds ${spec.stepSeconds} : de 0,6 à 10 s`)
   if (spec.focal !== undefined && (spec.focal < 0 || spec.focal > 0.25)) out.push(`focal ${spec.focal} : de 0 à 0,25`)
+  if (spec.parts?.explode !== undefined && !(spec.parts.explode >= 0 && spec.parts.explode <= 1)) out.push(`parts.explode ${String(spec.parts.explode)} : de 0 à 1`)
   if (spec.frame !== undefined && spec.frame !== 'text' && spec.frame !== 'tight') out.push(`frame « ${String(spec.frame)} » inconnu (text, tight)`)
   if (spec.bare && spec.layout !== 'solo') out.push('bare : seulement sur la disposition « solo » (une machine nue, sans voie ni socle)')
   // Chorégraphie : dépendances valides et sans cycle, réglages dans leurs plages.
@@ -181,6 +184,7 @@ export function stationDefOf(spec: SceneSpec): StationMachineDef {
     focal: spec.focal,
     bare: spec.bare,
     frame: spec.frame,
+    partsView: spec.parts,
     deps: spec.stations.map((s) => s.after ?? []),
     build: spec.build,
   }

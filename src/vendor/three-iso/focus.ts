@@ -1,4 +1,4 @@
-// GENERATED from website@0cee6ea9285b77e371c79ca3af250d01c0b37a92:src/three/iso/focus.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@91b2d26477b24de2e8c6e7621c93d7d092e5daaf:src/three/iso/focus.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Le poste mis en avant par le lecteur dans une scène (survol, toucher), partagé entre la scène (qui le soulève et
