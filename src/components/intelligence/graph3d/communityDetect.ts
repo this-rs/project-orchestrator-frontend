@@ -46,7 +46,14 @@ export interface CommunityDetectOptions {
   resolution?: number
 }
 
-/** Result partition: node id → community id (dense integers 0..k-1). */
+/**
+ * Result partition: node id → community id (dense integers 0..k-1).
+ *
+ * A node with NO edge in the input is absent: it has no community to find.
+ * Giving each one its own made every unlinked note a group of one (300 notes
+ * → 300 groups beside one group for 100 linked files, a scene 6.5× wider);
+ * the caller pools them instead (directory, or layer and type).
+ */
 export type CommunityPartition = Map<string, number>
 
 // ── Internal graph level ──────────────────────────────────────────────────────
@@ -94,11 +101,8 @@ export function detectCommunities(
   for (let i = 0; i < n; i++) indexOf.set(nodes[i], i)
 
   const base = buildBaseLevel(n, edges, indexOf)
-  if (base.totalWeight <= 0) {
-    // No edges at all: every node is its own community.
-    for (let i = 0; i < n; i++) result.set(nodes[i], i)
-    return result
-  }
+  // No edges at all: no node has a community (see CommunityPartition).
+  if (base.totalWeight <= 0) return result
 
   // Multilevel loop: local move, then aggregate, until nothing merges.
   let level = base
@@ -113,11 +117,19 @@ export function detectCommunities(
     level = aggregate(level, labels, count)
   }
 
-  // Compose the aggregation chain back to the original nodes.
+  // Compose the aggregation chain back to the original nodes, leaving out the
+  // nodes with no edge, and renumber densely in input order.
+  const dense = new Map<number, number>()
   for (let i = 0; i < n; i++) {
+    if (base.adj[i].size === 0) continue
     let v = i
     for (let k = 0; k < aggregations.length; k++) v = aggregations[k][v]
-    result.set(nodes[i], v)
+    let c = dense.get(v)
+    if (c === undefined) {
+      c = dense.size
+      dense.set(v, c)
+    }
+    result.set(nodes[i], c)
   }
   return result
 }

@@ -55,14 +55,26 @@ describe('detectCommunities', () => {
     expect(communities.size).toBe(1)
   })
 
-  it('isolates every node for an empty graph or a graph with no edges', () => {
+  it('leaves a node with no edge out of the partition, so the caller can pool it', () => {
+    // A node with no edge has no community to find. Giving each one its own
+    // made 300 unlinked notes 300 groups (next to ONE group for 100 linked
+    // files) and the scene 6.5× wider; left out, they fall back to the
+    // caller's pooled grouping (directory, or layer and type).
     expect(detectCommunities([], []).size).toBe(0)
+    expect(detectCommunities(['n0', 'n1', 'n2'], []).size).toBe(0)
 
-    const nodes = Array.from({ length: 10 }, (_, i) => `n${i}`)
-    const partition = detectCommunities(nodes, [])
-    expect(partition.size).toBe(10)
-    // Every node its own community, no exception.
-    expect(new Set(nodes.map((id) => partition.get(id))).size).toBe(10)
+    const partition = detectCommunities(
+      ['a', 'b', 'c', 'd', 'iso1', 'iso2'],
+      [
+        { source: 'a', target: 'b' },
+        { source: 'c', target: 'd' },
+      ],
+    )
+    expect(partition.has('iso1')).toBe(false)
+    expect(partition.has('iso2')).toBe(false)
+    expect([...partition.keys()].sort()).toEqual(['a', 'b', 'c', 'd'])
+    // The communities that remain are still dense: 0..k-1.
+    expect([...new Set(partition.values())].sort()).toEqual([0, 1])
   })
 
   it('returns a complete partition on a 5 000-node graph (no interruption)', () => {

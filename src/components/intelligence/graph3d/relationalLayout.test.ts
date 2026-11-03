@@ -41,6 +41,29 @@ describe('layoutGroups', () => {
     const strongDist = dist(positions.get('strong-a')!, positions.get('strong-b')!)
     const weakDist = dist(positions.get('weak-a')!, positions.get('weak-b')!)
     expect(strongDist).toBeLessThan(weakDist)
+    // And it is the ATTRACTION that put it there, not the core floor (the
+    // projection's 0.45·120 + 2 = 56): a strong pair rests at its affinity
+    // target 120·(1 − 0.45·20/22) ≈ 70.9 (the anchor takes 0.5 % off it).
+    // This used to pass with the attraction switched off.
+    expect(strongDist).toBeGreaterThan(70.9 * 0.97)
+    expect(strongDist).toBeLessThan(70.9 * 1.03)
+  })
+
+  it('anchors a pair toward each other, inside its affinity target but above the core floor', () => {
+    // E_anchor pulls each group toward the barycentre of its neighbours; for
+    // a lone pair that is the other group, so the pair rests at
+    // d = t·a / (a + 2·λr) — for a = 0.5, 83 % of its target t ≈ 109.2.
+    // Without the anchor it would rest at t; without the attraction, on the
+    // core floor (56).
+    const groups: RelationalGroup[] = [
+      { id: 'a', radius: 60 },
+      { id: 'b', radius: 60 },
+    ]
+    const positions = layoutGroups(groups, { a: { b: 0.5 } }, { maxIterations: 300 })
+    const d = dist(positions.get('a')!, positions.get('b')!)
+    const target = 120 * (1 - 0.45 * (0.5 / 2.5))
+    expect(d).toBeLessThan(target * 0.92)
+    expect(d).toBeGreaterThan(target * 0.75)
   })
 
   it('keeps a group with no external relation isolated (farther than the envelope sum)', () => {
@@ -133,6 +156,10 @@ describe('layoutGroups', () => {
     const linked = dist(positions.get('a')!, positions.get('b')!)
     const unlinked = dist(positions.get('x')!, positions.get('y')!)
     expect(linked).toBeLessThan(unlinked)
+    // Held by its spring near the affinity target 140·(1 − 0.45/3) = 119, not
+    // dropped onto the core floor (0.45·140 + 2 = 65) — the assertion above
+    // alone stayed green with the attraction removed.
+    expect(linked).toBeGreaterThan(119 * 0.8)
   })
 
   it('resolves 200 groups through the grid, with no overlapping core left', () => {
@@ -165,7 +192,8 @@ describe('layoutGroups', () => {
       for (let j = i + 1; j < groups.length; j++) {
         const gi = groups[i].id
         const gj = groups[j].id
-        const related = affinities[gi]?.[gj] !== undefined
+        // Keys are stored in string order ("g12" < "g5"), so both directions.
+        const related = affinities[gi]?.[gj] !== undefined || affinities[gj]?.[gi] !== undefined
         const floor = related
           ? (byId.get(gi)! + byId.get(gj)!) * CORE_RATIO
           : byId.get(gi)! + byId.get(gj)!
@@ -226,6 +254,78 @@ describe('layoutGroups', () => {
     )
     layoutGroups(groups, counted, { maxIterations: 1 })
     expect(reads).toBeLessThan(10 * groups.length)
+  })
+
+  it('packs the groups: the cloud stays near the compact sphere and unrelated neighbours touch', () => {
+    // The layout used to inflate the whole cloud by the worst pair's ratio,
+    // which always hit its ×4 cap: the final radius was 3.45× the compact
+    // sphere and the nearest unrelated neighbour of a group sat 1.6–2.2× its
+    // envelope away — "les clusters sont beaucoup trop éloignés".
+    const G = 200
+    const groups: RelationalGroup[] = Array.from({ length: G }, (_, i) => ({
+      id: `g${String(i).padStart(3, '0')}`,
+      radius: 60 + (i % 7) * 15,
+    }))
+    const affinities: AffinityMatrix = {}
+    for (let i = 0; i < G; i++) {
+      for (const k of [1, 3]) {
+        const j = i + k
+        if (j >= G || (i * 7 + k) % 3 === 0) continue
+        affinities[groups[i].id] ??= {}
+        affinities[groups[i].id][groups[j].id] = 1 + (i % 4)
+      }
+    }
+    const positions = layoutGroups(groups, affinities)
+    const pts = groups.map((g) => positions.get(g.id)!)
+    const c = pts.reduce((s, q) => ({ x: s.x + q.x / G, y: s.y + q.y / G, z: s.z + q.z / G }), { x: 0, y: 0, z: 0 })
+    let extent = 0
+    groups.forEach((g, i) => { extent = Math.max(extent, dist(pts[i], c) + g.radius) })
+    // The tightest random packing of the envelopes (≈ 0.64 of a sphere).
+    const compact = Math.cbrt(groups.reduce((s, g) => s + g.radius ** 3, 0) / 0.64)
+    expect(extent / compact).toBeLessThan(1.6)
+
+    const related = (a: string, b: string) =>
+      affinities[a]?.[b] !== undefined || affinities[b]?.[a] !== undefined
+    const ratios: number[] = []
+    for (let i = 0; i < G; i++) {
+      let best = Infinity
+      for (let j = 0; j < G; j++) {
+        if (i === j || related(groups[i].id, groups[j].id)) continue
+        best = Math.min(best, dist(pts[i], pts[j]) / (groups[i].radius + groups[j].radius))
+      }
+      ratios.push(best)
+    }
+    ratios.sort((a, b) => a - b)
+    expect(ratios[Math.floor(G / 2)]).toBeLessThan(1.25)
+  })
+
+  it('keeps fixed centres exactly and places the new groups around them', () => {
+    // Twenty groups already on screen; three arrive: one related to f05, two
+    // related to nothing.
+    const fixed = new Map<string, OrganicPoint>()
+    const first = layoutGroups(
+      Array.from({ length: 20 }, (_, i) => ({ id: `f${String(i).padStart(2, '0')}`, radius: 80 })),
+      {},
+    )
+    for (const [id, q] of first) fixed.set(id, q)
+    const groups: RelationalGroup[] = [
+      ...[...fixed.keys()].map((id) => ({ id, radius: 80 })),
+      { id: 'n-linked', radius: 70 },
+      { id: 'n-free-1', radius: 70 },
+      { id: 'n-free-2', radius: 70 },
+    ]
+    const out = layoutGroups(groups, { 'n-linked': { f05: 3 } }, { fixedPositions: fixed })
+    for (const [id, q] of fixed) expect(out.get(id)).toEqual(q)
+    for (const id of ['n-linked', 'n-free-1', 'n-free-2']) {
+      for (const f of fixed.keys()) {
+        const floor = id === 'n-linked' && f === 'f05' ? (70 + 80) * CORE_RATIO : 70 + 80
+        expect(dist(out.get(id)!, out.get(f)!)).toBeGreaterThanOrEqual(floor)
+      }
+    }
+    // The related newcomer sits against f05, closer to it than to any other.
+    const toF05 = dist(out.get('n-linked')!, out.get('f05')!)
+    expect(toF05).toBeLessThan(150)
+    for (const f of fixed.keys()) if (f !== 'f05') expect(toF05).toBeLessThan(dist(out.get('n-linked')!, out.get(f)!))
   })
 
   it('pulls the result toward supplied previous positions (stability)', () => {

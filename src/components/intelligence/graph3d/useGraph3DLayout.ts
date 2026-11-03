@@ -217,6 +217,44 @@ export function communityIndex(
   return byPath
 }
 
+/** The community the BACKEND gives a node: its own, or its owning file's. */
+function backendCommunityOf(
+  node: IntelligenceNode,
+  communityByPath: Map<string, { id: number; label?: string }>,
+): number | undefined {
+  const data = node.data as Record<string, unknown>
+  const own = asNumber(data.community_id ?? data.communityId)
+  if (own != null) return own
+  const entityType = (data.entityType as string) ?? 'file'
+  const path = asPath(data) ?? (entityType === 'file' ? node.id : undefined)
+  return path ? communityByPath.get(path)?.id : undefined
+}
+
+/** The nodes the backend leaves without a community: the only ones detection runs on. */
+export function nodesWithoutBackendCommunity(
+  nodes: IntelligenceNode[],
+  communityByPath: Map<string, { id: number; label?: string }> = communityIndex(nodes),
+): IntelligenceNode[] {
+  return nodes.filter((n) => backendCommunityOf(n, communityByPath) == null)
+}
+
+/**
+ * First community id free for DETECTED communities: one past the largest
+ * backend id. Louvain numbers its communities from 0, like the backend; in one
+ * namespace a node of detected community 3 joined backend community 3.
+ */
+export function detectedCommunityOffset(
+  nodes: IntelligenceNode[],
+  communityByPath: Map<string, { id: number; label?: string }>,
+): number {
+  let max = -1
+  for (const n of nodes) {
+    const c = backendCommunityOf(n, communityByPath)
+    if (c != null && c > max) max = c
+  }
+  return Math.floor(max) + 1
+}
+
 /**
  * A stable identity of a node set, for re-framing the camera once per dataset.
  *
@@ -274,6 +312,7 @@ export function toGraph3DNode(
   communityByPath: Map<string, { id: number; label?: string }>,
   pos?: { x: number; y: number; z: number },
   detectedByNode?: Map<string, number> | null,
+  detectedOffset = 0,
 ): Graph3DNode {
   const data = node.data as Record<string, unknown>
   const entityType = (data.entityType as string) ?? 'file'
@@ -283,9 +322,10 @@ export function toGraph3DNode(
   const inherited = own == null && path ? communityByPath.get(path) : undefined
   // The backend community (own or the owning file's) wins when present. The
   // client-detected community then primes over the directory/(layer, type)
-  // proxy the view used to fall back to on projects without GDS analytics.
+  // proxy the view used to fall back to on projects without GDS analytics —
+  // shifted past every backend id (`detectedOffset`), never in their range.
   const detected = detectedByNode?.get(node.id)
-  const communityId = own ?? inherited?.id ?? detected
+  const communityId = own ?? inherited?.id ?? (detected != null ? detectedOffset + detected : undefined)
   const communityLabel = asCommunityLabel(data) ?? inherited?.label
   return {
     id: node.id,
@@ -355,8 +395,31 @@ export function deterministicPlacement(
   nodes: Graph3DNode[],
   edges: IntelligenceEdge[],
 ): Map<string, { x: number; y: number; z: number }> {
+  return placeGroups(nodes, edges).positions
+}
+
+/** The group a node is placed in: its layer and its group key. */
+export function placementKey(n: Graph3DNode): string {
+  return n.layer + DOUBLE_SEP + (n.groupKey ?? String(n.communityId ?? 0))
+}
+
+/**
+ * `deterministicPlacement`, with the group centres it chose, and optionally
+ * some centres imposed: a group whose key is in `fixedCentres` keeps that
+ * centre exactly (it is already on screen), and the other groups are placed
+ * around it — next to the groups they relate to, else just outside the scene.
+ */
+export function placeGroups(
+  nodes: Graph3DNode[],
+  edges: IntelligenceEdge[],
+  fixedCentres?: Map<string, { x: number; y: number; z: number }>,
+): {
+  positions: Map<string, { x: number; y: number; z: number }>
+  centres: Map<string, { x: number; y: number; z: number }>
+} {
   const out = new Map<string, { x: number; y: number; z: number }>()
-  if (nodes.length === 0) return out
+  const centresOut = new Map<string, { x: number; y: number; z: number }>()
+  if (nodes.length === 0) return { positions: out, centres: centresOut }
 
   // Degree (importance proxy) straight from the edges.
   const deg = new Map<string, number>()
@@ -370,7 +433,7 @@ export function deterministicPlacement(
   // gets its own island: every group of every layer lives in one archipelago.
   const groups = new Map<string, Graph3DNode[]>()
   for (const n of nodes) {
-    const key = n.layer + DOUBLE_SEP + (n.groupKey ?? String(n.communityId ?? 0))
+    const key = placementKey(n)
     const g = groups.get(key)
     if (g) g.push(n)
     else groups.set(key, [n])
@@ -405,10 +468,15 @@ export function deterministicPlacement(
     affinities[a] ??= {}
     affinities[a][b] = (affinities[a][b] ?? 0) + 1
   }
+  // 40 iterations: the layout starts from a constructive placement that is
+  // already free of overlap and relational, so the descent only refines it.
+  // Measured at 801 groups: 200 iterations cost 2× more for the same
+  // compactness; 40 against 60 saves a fifth of the whole placement for
+  // affine pairs at 0.94 instead of 0.92 of their envelope.
   const centres = layoutGroups(
     keys.map((k, i) => ({ id: k, radius: radii[i] })),
     affinities,
-    { maxIterations: 200 },
+    { maxIterations: 40, fixedPositions: fixedCentres },
   )
 
   keys.forEach((key, gi) => {
@@ -425,11 +493,13 @@ export function deterministicPlacement(
     const up = keys.length === 1 ? 0 : 1 - (gi / (keys.length - 1)) * 2
     const around = Math.sqrt(Math.max(0, 1 - up * up))
     const angle = GOLDEN_SPHERE * gi + (rng() - 0.5) * 2 * ANGLE_JITTER * step
-    // A lone group stays at the origin, as before: there is nothing to relate it to.
-    const placed = keys.length > 1 ? centres.get(key) : undefined
+    // A lone group stays at the origin, as before: there is nothing to relate
+    // it to — unless it is already on screen somewhere else.
+    const placed = keys.length > 1 || fixedCentres?.has(key) ? centres.get(key) : undefined
     const cx = placed ? placed.x : Math.cos(angle) * around * radial
     const cy = placed ? placed.y : up * radial
     const cz = placed ? placed.z : Math.sin(angle) * around * radial
+    centresOut.set(key, { x: cx, y: cy, z: cz })
     // Full 3D orientation, not a small roll.
     //
     // This used to be a single tilt of ±31° around X, so every group's cloud
@@ -543,7 +613,7 @@ export function deterministicPlacement(
       place(satellites[j].id, radius, j * GOLDEN_ANGLE + phase, (w - 0.5) * CORONA_ELEVATION, satellites[j].entityType)
     }
   })
-  return out
+  return { positions: out, centres: centresOut }
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -615,6 +685,36 @@ const ANGLE_JITTER = 0.15
 
 const RELAYOUT_THRESHOLD = 0.2 // 20% change triggers relayout
 
+/**
+ * The detected partition, if it still describes `nodes` (the nodes detection
+ * runs on — those without a backend community): it must cover at least
+ * (1 − RELAYOUT_THRESHOLD) of them. A partition answered for another
+ * data set (another project whose file ids partly coincide, a first load
+ * before the second one) is dropped instead of leaking its communities onto
+ * the homonyms; an incremental refresh keeps it for the nodes it knows until
+ * the new answer lands.
+ */
+export function partitionFor(
+  partition: DetectedPartition | null,
+  nodes: { id: string }[],
+): Map<string, number> | null {
+  if (!partition || nodes.length === 0) return null
+  let known = 0
+  for (const n of nodes) if (partition.scope.has(n.id)) known++
+  return known >= (1 - RELAYOUT_THRESHOLD) * nodes.length ? partition.communities : null
+}
+
+/**
+ * A detection answer: the communities found, and every node id it was asked
+ * about. The two differ — a node with no edge is asked about but gets no
+ * community (it is pooled by the fallback grouping) — so coverage is measured
+ * on the scope, not on the communities.
+ */
+export interface DetectedPartition {
+  communities: Map<string, number>
+  scope: Set<string>
+}
+
 // ── Community detection worker ────────────────────────────────────────────────
 
 /** Give up on a worker answer after this long; the view keeps its fallback grouping. */
@@ -634,10 +734,19 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
   // Cache positions for stable refresh
   const positionCache = useRef<Map<string, { x: number; y: number; z: number }>>(new Map())
   const previousNodeIds = useRef<Set<string>>(new Set())
+  // The group each cached position was computed in, and every group's centre:
+  // a node whose group changed is placed again, a group still on screen keeps
+  // its centre and new groups are placed around it.
+  const placedGroupOf = useRef<Map<string, string>>(new Map())
+  const groupCentres = useRef<Map<string, { x: number; y: number; z: number }>>(new Map())
+  // Bumped every time a placement writes positions (see `layoutRevision`).
+  const layoutRevision = useRef(0)
 
   // Client-side Louvain communities (computed in a worker). `null` until the
   // first result: nodes keep the directory/(layer, type) fallback meanwhile.
-  const [detectedCommunities, setDetectedCommunities] = useState<Map<string, number> | null>(null)
+  // A partition is only used while it still describes the data (see
+  // `partitionFor`): switching data set never shows the previous one's.
+  const [detectedCommunities, setDetectedCommunities] = useState<DetectedPartition | null>(null)
   const communityVersionRef = useRef(0)
   const communityWorkerRef = useRef<Worker | null>(null)
 
@@ -654,14 +763,23 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     // above the tier's threshold the fallback grouping stays (never an empty screen).
     if (nodes.length > currentDeviceBudget().budget.maxNodesForCommunityDetection) return
 
+    // Only the nodes the backend leaves without a community: when it gives
+    // every node one, there is nothing to detect (and two partitions of the
+    // same nodes would only fight).
+    const undetermined = nodesWithoutBackendCommunity(nodes)
+    if (undetermined.length === 0) return
     const worker = getCommunityWorker(communityWorkerRef)
-    const serializedNodes = nodes.map((n) => n.id)
-    const serializedEdges = edges.map((e) => ({
-      source: e.source,
-      target: e.target,
-      weight: e.data?.weight,
-    }))
+    const serializedNodes = undetermined.map((n) => n.id)
+    const inScope = new Set(serializedNodes)
+    const serializedEdges = edges
+      .filter((e) => inScope.has(e.source) && inScope.has(e.target))
+      .map((e) => ({ source: e.source, target: e.target, weight: e.data?.weight }))
 
+    // The worker is shared: answers to older requests may still arrive, in
+    // order, after this one was posted. Only the answer carrying THIS request
+    // id is ours — an older one is ignored without unsubscribing, or our own
+    // answer would be lost when it lands.
+    const requestId = version
     let settled = false
 
     function cleanup(): void {
@@ -672,15 +790,17 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
       clearTimeout(timeoutId)
     }
 
-    function handler(event: MessageEvent<{ type?: string; communities?: Record<string, number> }>): void {
+    function handler(
+      event: MessageEvent<{ type?: string; requestId?: number; communities?: Record<string, number> }>,
+    ): void {
       if (settled) return
-      if (version !== communityVersionRef.current) {
-        cleanup()
-        return
-      }
-      if (event.data?.type !== 'result') return
+      if (event.data?.type !== 'result' || event.data.requestId !== requestId) return
       cleanup()
-      setDetectedCommunities(new Map(Object.entries(event.data.communities ?? {})))
+      if (version !== communityVersionRef.current) return
+      setDetectedCommunities({
+        communities: new Map(Object.entries(event.data.communities ?? {})),
+        scope: inScope,
+      })
     }
 
     function onError(): void {
@@ -691,7 +811,7 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     const timeoutId = setTimeout(cleanup, COMMUNITY_DETECT_TIMEOUT_MS)
     worker.addEventListener('message', handler)
     worker.addEventListener('error', onError)
-    worker.postMessage({ nodes: serializedNodes, edges: serializedEdges })
+    worker.postMessage({ requestId, nodes: serializedNodes, edges: serializedEdges })
 
     return cleanup
   }, [nodes, edges])
@@ -711,7 +831,7 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
   const transformToGraph3D = useCallback((
     nodes: IntelligenceNode[],
     edges: IntelligenceEdge[],
-  ): { data: Graph3DData; needsRelayout: boolean } => {
+  ): { data: Graph3DData; needsRelayout: boolean; layoutRevision: number } => {
     const currentIds = new Set(nodes.map((n) => n.id))
     const prevIds = previousNodeIds.current
 
@@ -727,12 +847,15 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     // Remove cached positions for removed nodes
     for (const id of removed) {
       positionCache.current.delete(id)
+      placedGroupOf.current.delete(id)
     }
 
     // Build 3D nodes (positions filled below from cache or the deterministic layout).
     const communityByPath = communityIndex(nodes)
+    const detected = partitionFor(detectedCommunities, nodesWithoutBackendCommunity(nodes, communityByPath))
+    const offset = detectedCommunityOffset(nodes, communityByPath)
     const graph3dNodes: Graph3DNode[] = nodes.map((node) =>
-      toGraph3DNode(node, communityByPath, positionCache.current.get(node.id), detectedCommunities),
+      toGraph3DNode(node, communityByPath, positionCache.current.get(node.id), detected, offset),
     )
 
     // Weight, shared by both views: the size of a node and its place in the
@@ -744,22 +867,41 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     }
     for (const n of graph3dNodes) n.degree = degree.get(n.id) ?? 0
 
-    // Nodes without a cached position are laid out deterministically in one
-    // O(N log N) pass (po-graph's Fermat-spiral-per-community). On a first load
-    // that is every node → the layout is complete immediately, no force
-    // settling. Cached positions win so refreshes and drags stay stable.
-    const uncached = graph3dNodes.filter((n) => !positionCache.current.has(n.id))
-    if (uncached.length > 0) {
-      const placed = deterministicPlacement(uncached, edges)
-      for (const n of uncached) {
-        const p = placed.get(n.id)
-        if (p) {
-          n.x = p.x
-          n.y = p.y
-          n.z = p.z
-          positionCache.current.set(n.id, p)
-        }
+    // A node is placed again when it has no cached position OR its group
+    // changed since it was placed (the detected communities replaced the
+    // directory fallback: keeping the old positions scattered each community
+    // over the whole scene). Everything else keeps its cached position, so
+    // refreshes and drags stay stable.
+    //
+    // The placement sees the WHOLE graph, not only the nodes to place: a group
+    // with cached members keeps its centre (fixed), a node joining it lands
+    // inside it, and new groups are laid out around the existing ones — not
+    // as a second archipelago on top of the first.
+    const keyOf = new Map(graph3dNodes.map((n) => [n.id, placementKey(n)]))
+    const unsettled = graph3dNodes.filter(
+      (n) => !positionCache.current.has(n.id) || placedGroupOf.current.get(n.id) !== keyOf.get(n.id),
+    )
+    if (unsettled.length > 0) {
+      const toPlace = new Set(unsettled.map((n) => n.id))
+      const fixed = new Map<string, { x: number; y: number; z: number }>()
+      for (const n of graph3dNodes) {
+        if (toPlace.has(n.id)) continue
+        const key = keyOf.get(n.id)!
+        const centre = groupCentres.current.get(key)
+        if (centre) fixed.set(key, centre)
       }
+      const { positions, centres } = placeGroups(graph3dNodes, edges, fixed)
+      for (const n of unsettled) {
+        const p = positions.get(n.id)
+        if (!p) continue
+        n.x = p.x
+        n.y = p.y
+        n.z = p.z
+        positionCache.current.set(n.id, p)
+        placedGroupOf.current.set(n.id, keyOf.get(n.id)!)
+      }
+      groupCentres.current = centres
+      layoutRevision.current++
     }
 
     // Build community lookup for inter-community edge detection
@@ -802,6 +944,11 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
     return {
       data: { nodes: graph3dNodes, links: graph3dLinks },
       needsRelayout,
+      // Changes whenever positions were (re)computed — including when the
+      // detected communities re-place the SAME node set, which neither
+      // `needsRelayout` nor a node-set signature sees. A framing effect keyed
+      // on it re-frames the scene after such a re-placement.
+      layoutRevision: layoutRevision.current,
     }
   }, [detectedCommunities])
 
@@ -823,6 +970,8 @@ export function useGraph3DLayout(nodes: IntelligenceNode[], edges: IntelligenceE
   const resetPositions = useCallback(() => {
     positionCache.current.clear()
     previousNodeIds.current.clear()
+    placedGroupOf.current.clear()
+    groupCentres.current.clear()
   }, [])
 
   return {

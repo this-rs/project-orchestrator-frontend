@@ -56,18 +56,19 @@
 // stable.
 //
 // ── Initial placement ────────────────────────────────────────────────────────
-// A VOLUME, not a shell: each group starts at a radius ∝ cbrt(rank) on a
-// golden-angle spiral, and the outer radius is the tightest sphere that holds
-// every envelope at PACKING_FRACTION. The previous version gave every group
-// the SAME radius, which is why the graph read as a hollow ball with unrelated
-// groups arbitrarily far apart.
+// CONSTRUCTIVE (see "Constructive initial placement"): each component of the
+// affinity graph is grown relation by relation, every group at the free spot
+// nearest to its placed neighbours, then the components are packed in shells.
+// The start is already compact and free of overlap; the descent refines it.
 //
 // ── Separation ───────────────────────────────────────────────────────────────
-// After the descent, a position-based projection visits the penetrating pairs
-// (found through a uniform grid, never all n² pairs) in canonical order and
-// moves each apart by half the penetration, repeating until a pass finds
-// nothing to do or SEPARATION_ITERATIONS is spent. The distance it enforces is
-// `hardDistance`: envelope for unrelated groups, core for related ones.
+// Contact is resolved during the descent (one Jacobi sweep every
+// CONTACT_EVERY iterations) and once more after it by a position-based
+// projection that visits the penetrating pairs (found through a uniform grid,
+// never all n² pairs) and moves each apart, repeating until a pass finds
+// nothing to do or SEPARATION_ITERATIONS is spent. The distance both enforce
+// is `hardDistance`: envelope for unrelated groups, core for related ones.
+// There is no global inflation any more.
 // ============================================================================
 
 /** A 3D point. */
@@ -99,6 +100,13 @@ export interface LayoutOptions {
   /** Previous centres, e.g. from the last computed layout — pulls the result
    *  toward continuity across incremental graph updates (E_stability). */
   previousPositions?: Map<string, OrganicPoint>
+  /**
+   * Centres that must not move: groups already on screen when new ones
+   * arrive. They are returned unchanged; the other groups are placed around
+   * them (next to their related fixed groups, else just outside the scene)
+   * and pushed off them, never the reverse.
+   */
+  fixedPositions?: Map<string, OrganicPoint>
 }
 
 // ── Energy weights (all > 0) ─────────────────────────────────────────────────
@@ -144,6 +152,13 @@ const MAX_SHARED_ENVELOPE = 0.45
 /** Minimum clear gap (px) enforced between any two envelopes at convergence —
  *  strictly positive so "touching" never reads as "overlapping". */
 const OVERLAP_MARGIN = 2
+/**
+ * Clear space kept between two UNRELATED envelopes, as a share of their sum.
+ * At 0 the packing left them touching (nearest unrelated neighbour at 1.01×
+ * the envelope sum): two hulls then read as one blob. 5 % keeps a visible
+ * seam without loosening the cloud.
+ */
+const UNRELATED_CLEARANCE = 0.05
 
 /** Default and maximum iteration budget — bounded, never unbounded. */
 const DEFAULT_MAX_ITERATIONS = 200
@@ -172,46 +187,40 @@ const SEPARATION_ITERATIONS = 400
  *  pass. */
 const SEPARATION_TOLERANCE = 0.25
 
-/** Upper bound on the uniform inflation applied before the projection. */
-const MAX_INFLATION = 4
+/**
+ * Share of a contact's penetration removed per contact sweep of the descent.
+ *
+ * The descent used to run with no contact at all: related groups were pulled
+ * THROUGH the others into a deep pile that one global inflation then had to
+ * undo. That inflation took the worst pair's ratio, so it always hit its ×4
+ * cap and the final cloud was 3.45× the compact sphere, unrelated neighbours
+ * 1.6–2.2× their envelope apart. Contact is now resolved as the descent goes.
+ * Jacobi-style (from one snapshot, like the forces): a group pressed on
+ * several sides sums several pushes, so the share stays well under 1 and the
+ * sum is clamped like a step.
+ */
+const CONTACT_RELAXATION = 0.5
+/**
+ * Descent iterations between two contact sweeps. A sweep is the descent's
+ * only grid pass and costs more than everything else in an iteration
+ * (measured: 0.7 ms against < 0.1 ms at 801 groups); the springs move little
+ * between two sweeps, so every other iteration is enough.
+ */
+const CONTACT_EVERY = 2
 
 /**
- * Fraction of the bounding sphere the group envelopes are assumed to occupy
- * at the initial placement. Random sphere packing sits near 0.64; a lower
- * value leaves room for the descent to pull related groups together instead
- * of starting them jammed against each other.
+ * Share of the way to its local equilibrium a group moves per step, decaying
+ * linearly to 0 across the iteration budget. A step is force / stiffness
+ * (see `stiffness` in layoutGroups); 0.5 would close a lone pair's gap in
+ * one step from both ends, so anything below it never overshoots.
  */
-const PACKING_FRACTION = 0.4
-
-/** Initial step size and its linear decay to ~0 across the iteration budget. */
-const LEARNING_RATE_0 = 0.06
+const STEP_FRACTION_0 = 0.45
 /** Per-step displacement clamp (px) — keeps the descent from ever exploding. */
 const MAX_STEP = 24
 
 /** Minimum distance used in direction/force maths — avoids division by zero
  *  when two centres land exactly on top of each other. */
 const EPSILON = 1e-6
-
-// ── Deterministic hash → [0,1) PRNG (mulberry32), seeded by a string id ──────
-function hashString(s: string): number {
-  let h = 2166136261 >>> 0
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return h >>> 0
-}
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0
-  return () => {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
 
 const GOLDEN_ANGLE = 2.39996
 
@@ -225,8 +234,13 @@ function vecLen(x: number, y: number, z: number): number {
  *  may interpenetrate — that is how a relation reads at a glance. */
 function hardDistance(rg: number, rh: number, affinity: number): number {
   const envelope = rg + rh
-  if (affinity <= 0) return envelope + OVERLAP_MARGIN
+  if (affinity <= 0) return envelope * (1 + UNRELATED_CLEARANCE) + OVERLAP_MARGIN
   return envelope * CORE_RATIO + OVERLAP_MARGIN
+}
+
+/** The largest hard distance any pair of this problem can have: the grid cell. */
+function maxHardDistance(p: Prepared): number {
+  return 2 * p.maxRadius * (1 + UNRELATED_CLEARANCE) + OVERLAP_MARGIN
 }
 
 /** Resting distance of an affine pair: the shared halo grows with the number
@@ -246,6 +260,8 @@ function affinityTarget(rg: number, rh: number, a: number): number {
 interface Prepared {
   ids: string[]
   n: number
+  /** 1 for a group whose centre is given and must not move (`fixedPositions`). */
+  fixed: Uint8Array
   radius: Float64Array
   /** Affine pairs, canonical (i < j, sorted by i then j). */
   pairI: Int32Array
@@ -255,8 +271,6 @@ interface Prepared {
   adjStart: Int32Array
   adj: Int32Array
   adjA: Float64Array
-  /** i·n + j (i < j) → affinity, for the contact pairs the grid finds. */
-  affinityByPair: Map<number, number>
   maxRadius: number
 }
 
@@ -326,73 +340,705 @@ function prepare(
     adj[fill[j]] = i
     adjA[fill[j]++] = pairA[k]
   }
-  return { ids, n, radius, pairI, pairJ, pairA, adjStart, adj, adjA, affinityByPair, maxRadius }
+  return { ids, n, fixed: new Uint8Array(n), radius, pairI, pairJ, pairA, adjStart, adj, adjA, maxRadius }
 }
 
+/** Affinity of a pair, 0 when unrelated. A binary search in i's neighbour
+ *  list (ascending by construction) — no hash lookup on the contact path. */
 function pairAffinity(p: Prepared, i: number, j: number): number {
-  return p.affinityByPair.get(i < j ? i * p.n + j : j * p.n + i) ?? 0
+  let lo = p.adjStart[i]
+  let hi = p.adjStart[i + 1] - 1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    const v = p.adj[mid]
+    if (v === j) return p.adjA[mid]
+    if (v < j) lo = mid + 1
+    else hi = mid - 1
+  }
+  return 0
 }
 
 // ── Hashed uniform grid over the centres ────────────────────────────────────
 // Every interaction the grid serves is exactly zero beyond
-// `2·maxRadius + OVERLAP_MARGIN` (a contact does not exist between envelopes
+// `maxHardDistance` (a contact does not exist between envelopes
 // that do not touch), so with that cell size a query only examines the 27
-// neighbouring cells. The cells are hashed into a power-of-two table of
-// linked lists held in two Int32Arrays: no Map, no string, no allocation per
-// rebuild. Two cells that share a slot only cost extra distance checks — the
-// distance test is exact either way.
+// neighbouring cells. Cells index a flat table of linked lists held in
+// Int32Arrays: no Map, no string, no allocation per rebuild. A compact cloud
+// (the normal case) is indexed DIRECTLY by its bounding box of cells; a cloud
+// too sparse for that falls back to hashing the cells into a power-of-two
+// table, where two cells sharing a slot are told apart by their coordinates.
 
 interface Grid {
   cell: number
-  mask: number
   head: Int32Array
   next: Int32Array
-  slots: Int32Array
+  /** The cell of every centre at the last fill. */
+  cx: Int32Array
+  cy: Int32Array
+  cz: Int32Array
+  direct: boolean
+  mask: number
+  minX: number
+  minY: number
+  minZ: number
+  dimX: number
+  dimY: number
+  dimZ: number
 }
+
+/**
+ * The cell itself, then the 13 neighbours that come after it in
+ * lexicographic order: every pair of adjacent cells is visited from exactly
+ * one side, so a sweep checks each pair once and looks at 14 cells, not 27.
+ */
+const HALF_SHELL = (() => {
+  const out: number[] = [0, 0, 0]
+  for (let ox = -1; ox <= 1; ox++) {
+    for (let oy = -1; oy <= 1; oy++) {
+      for (let oz = -1; oz <= 1; oz++) {
+        if (ox > 0 || (ox === 0 && (oy > 0 || (oy === 0 && oz > 0)))) out.push(ox, oy, oz)
+      }
+    }
+  }
+  return Int32Array.from(out)
+})()
 
 function makeGrid(n: number, cell: number): Grid {
-  let size = 16
-  while (size < 2 * n) size <<= 1
-  return { cell, mask: size - 1, head: new Int32Array(size), next: new Int32Array(n), slots: new Int32Array(27) }
+  return {
+    cell,
+    head: new Int32Array(16),
+    next: new Int32Array(n),
+    cx: new Int32Array(n),
+    cy: new Int32Array(n),
+    cz: new Int32Array(n),
+    direct: true,
+    mask: 15,
+    minX: 0,
+    minY: 0,
+    minZ: 0,
+    dimX: 0,
+    dimY: 0,
+    dimZ: 0,
+  }
 }
 
+/** Slot of a cell, -1 when a direct grid has no such cell. */
 function slotOf(g: Grid, cx: number, cy: number, cz: number): number {
+  if (g.direct) {
+    const ix = cx - g.minX
+    const iy = cy - g.minY
+    const iz = cz - g.minZ
+    if (ix < 0 || iy < 0 || iz < 0 || ix >= g.dimX || iy >= g.dimY || iz >= g.dimZ) return -1
+    return (ix * g.dimY + iy) * g.dimZ + iz
+  }
   return (Math.imul(cx, 73856093) ^ Math.imul(cy, 19349663) ^ Math.imul(cz, 83492791)) & g.mask
 }
 
 function fillGrid(g: Grid, n: number, x: Float64Array, y: Float64Array, z: Float64Array): void {
-  g.head.fill(-1)
+  let minX = Infinity
+  let minY = Infinity
+  let minZ = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  let maxZ = -Infinity
+  for (let i = 0; i < n; i++) {
+    const cx = Math.floor(x[i] / g.cell)
+    const cy = Math.floor(y[i] / g.cell)
+    const cz = Math.floor(z[i] / g.cell)
+    g.cx[i] = cx
+    g.cy[i] = cy
+    g.cz[i] = cz
+    if (cx < minX) minX = cx
+    if (cy < minY) minY = cy
+    if (cz < minZ) minZ = cz
+    if (cx > maxX) maxX = cx
+    if (cy > maxY) maxY = cy
+    if (cz > maxZ) maxZ = cz
+  }
+  const cells = (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1)
+  g.direct = Number.isFinite(cells) && cells <= Math.max(4096, 8 * n)
+  let size: number
+  if (g.direct) {
+    g.minX = minX
+    g.minY = minY
+    g.minZ = minZ
+    g.dimX = maxX - minX + 1
+    g.dimY = maxY - minY + 1
+    g.dimZ = maxZ - minZ + 1
+    size = cells
+  } else {
+    size = 16
+    while (size < 2 * n) size <<= 1
+    g.mask = size - 1
+  }
+  if (g.head.length < size) g.head = new Int32Array(size)
+  g.head.fill(-1, 0, size)
   // Descending insert → every chain lists its indices in ascending order, so
   // the visit order is a function of the positions only.
   for (let i = n - 1; i >= 0; i--) {
-    const s = slotOf(g, Math.floor(x[i] / g.cell), Math.floor(y[i] / g.cell), Math.floor(z[i] / g.cell))
+    const s = slotOf(g, g.cx[i], g.cy[i], g.cz[i])
     g.next[i] = g.head[s]
     g.head[s] = i
   }
 }
 
-/** The distinct slots around a point, written into `g.slots`; returns their count. */
-function slotsAround(g: Grid, px: number, py: number, pz: number): number {
-  const cx = Math.floor(px / g.cell)
-  const cy = Math.floor(py / g.cell)
-  const cz = Math.floor(pz / g.cell)
-  let count = 0
-  for (let ox = -1; ox <= 1; ox++) {
-    for (let oy = -1; oy <= 1; oy++) {
-      for (let oz = -1; oz <= 1; oz++) {
-        const s = slotOf(g, cx + ox, cy + oy, cz + oz)
-        let seen = false
-        for (let k = 0; k < count; k++) {
-          if (g.slots[k] === s) {
-            seen = true
-            break
-          }
+/**
+ * One sweep over every pair in contact (i < j, cells adjacent, centres closer
+ * than their hard distance).
+ *
+ * `live` (Gauss-Seidel): each push is applied at once, so a group pressed on
+ * several sides accumulates every push of the sweep. Used by the final
+ * projection.
+ * not `live` (Jacobi): pushes are summed from the snapshot the grid was filled
+ * from, scaled by `relax`, and applied at the end — the result is then
+ * independent of the visit order. Used inside the descent.
+ *
+ * Returns the largest single push, 0 when nothing was in contact.
+ */
+function contactSweep(
+  p: Prepared,
+  x: Float64Array,
+  y: Float64Array,
+  z: Float64Array,
+  grid: Grid,
+  live: boolean,
+  relax: number,
+  bx: Float64Array,
+  by: Float64Array,
+  bz: Float64Array,
+): number {
+  const { n, radius, fixed } = p
+  fillGrid(grid, n, x, y, z)
+  if (!live) {
+    bx.fill(0)
+    by.fill(0)
+    bz.fill(0)
+  }
+  let maxPush = 0
+  for (let i = 0; i < n; i++) {
+    const ci = grid.cx[i]
+    const cj = grid.cy[i]
+    const ck = grid.cz[i]
+    for (let o = 0; o < HALF_SHELL.length; o += 3) {
+      const tx = ci + HALF_SHELL[o]
+      const ty = cj + HALF_SHELL[o + 1]
+      const tz = ck + HALF_SHELL[o + 2]
+      const slot = slotOf(grid, tx, ty, tz)
+      if (slot < 0) continue
+      for (let j = grid.head[slot]; j !== -1; j = grid.next[j]) {
+        if (o === 0 && j <= i) continue
+        if (!grid.direct && (grid.cx[j] !== tx || grid.cy[j] !== ty || grid.cz[j] !== tz)) continue
+        const dx = x[i] - x[j]
+        const dy = y[i] - y[j]
+        const dz = z[i] - z[j]
+        const d2 = dx * dx + dy * dy + dz * dz
+        const reach = (radius[i] + radius[j]) * (1 + UNRELATED_CLEARANCE) + OVERLAP_MARGIN
+        // Cheap reject first: no pair farther than the envelope sum can be
+        // in contact, whatever its affinity.
+        if (d2 >= reach * reach) continue
+        const dist = Math.sqrt(d2)
+        const overlap = hardDistance(radius[i], radius[j], pairAffinity(p, i, j)) - dist
+        if (overlap <= 0) continue
+        // Along the line joining the centres. A pair at exactly the same
+        // point gets a deterministic axis rather than a division by zero.
+        const ux = dist > EPSILON ? dx / dist : 1
+        const uy = dist > EPSILON ? dy / dist : 0
+        const uz = dist > EPSILON ? dz / dist : 0
+        // A fixed group does not move: the other one takes the whole push.
+        const fi = fixed[i]
+        const fj = fixed[j]
+        if (fi && fj) continue
+        const push = overlap * relax
+        if (push > maxPush) maxPush = push
+        const pi = fi ? 0 : fj ? 2 * push : push
+        const pj = fj ? 0 : fi ? 2 * push : push
+        if (live) {
+          x[i] += ux * pi
+          y[i] += uy * pi
+          z[i] += uz * pi
+          x[j] -= ux * pj
+          y[j] -= uy * pj
+          z[j] -= uz * pj
+        } else {
+          bx[i] += ux * pi
+          by[i] += uy * pi
+          bz[i] += uz * pi
+          bx[j] -= ux * pj
+          by[j] -= uy * pj
+          bz[j] -= uz * pj
         }
-        if (!seen) g.slots[count++] = s
       }
     }
   }
-  return count
+  if (!live) {
+    for (let i = 0; i < n; i++) {
+      // Bounded like a descent step: a group buried in a pile sums many
+      // pushes, and unbounded they shot it across the scene (measured: a
+      // cloud 6× the compact sphere on random relations).
+      const mag = vecLen(bx[i], by[i], bz[i])
+      const k = mag > MAX_STEP ? MAX_STEP / mag : 1
+      x[i] += bx[i] * k
+      y[i] += by[i] * k
+      z[i] += bz[i] * k
+    }
+  }
+  return maxPush
+}
+
+// ── Constructive initial placement ──────────────────────────────────────────
+// The descent only refines; where a group STARTS decides which groups it can
+// ever end up next to. A volume spiral (the previous start) scattered related
+// groups across the cloud, so their springs had to drag them through the
+// others: without contact they collapsed into a pile that a global inflation
+// had to undo (×4, every time), and with contact they jammed far apart.
+//
+// 1. Each connected component of the affinity graph is BUILT on its own, in
+//    breadth-first order (heaviest hub first, strongest relation first): a
+//    group goes to the free spot nearest to the weighted barycentre of its
+//    already-placed neighbours. "Free" means at least the rest distance from
+//    every placed group — the affinity target for a related pair, the
+//    envelope sum (+ margin) otherwise. Candidates lie on RAY_DIRECTION_COUNT
+//    rays from that target; on each ray the first free distance is exact,
+//    from the intervals the placed spheres cut on it. Among the rays the
+//    nearest wins, slightly biased toward the component's centroid so it
+//    grows as a ball, not a snake.
+// 2. The components (an isolated group is a component of one) are then packed
+//    as balls, largest first, shell after shell around the first one.
+//
+// Both steps are bounded: a search looks once, in a fixed neighbourhood, and
+// a group whose neighbours are buried too deep for it (random relations no 3D
+// layout can keep local) goes to its target overlapping and is left to the
+// descent's contact pass — never an O(n) scan per group.
+
+/** Rays tried around a target. */
+const RAY_DIRECTION_COUNT = 24
+/** Weight of "near the centroid" against "near the target" when choosing a ray. */
+const COMPACTNESS = 0.3
+/** Share of a shell's area the packed balls may cover. Discs on a sphere
+ *  cannot pass ~0.9; under it, a shell of mixed sizes still closes. */
+const SHELL_FILL = 0.7
+
+const RAY_DIRECTIONS = (() => {
+  const out = new Float64Array(RAY_DIRECTION_COUNT * 3)
+  for (let k = 0; k < RAY_DIRECTION_COUNT; k++) {
+    const up = 1 - (2 * (k + 0.5)) / RAY_DIRECTION_COUNT
+    const around = Math.sqrt(Math.max(0, 1 - up * up))
+    const angle = GOLDEN_ANGLE * k
+    out[3 * k] = Math.cos(angle) * around
+    out[3 * k + 1] = up
+    out[3 * k + 2] = Math.sin(angle) * around
+  }
+  return out
+})()
+
+/** Rest distance of a pair at construction: where its own forces would leave it. */
+function restDistance(rg: number, rh: number, a: number): number {
+  return a > 0 ? affinityTarget(rg, rh, a) : hardDistance(rg, rh, 0)
+}
+
+/**
+ * Breadth-first order of the affinity graph, heaviest hub of each component
+ * first. `start[c]..start[c+1]` delimits component c in the returned order.
+ */
+function components(p: Prepared): { order: Int32Array; start: number[] } {
+  const { n, adjStart, adj, adjA } = p
+  const weight = new Float64Array(n)
+  for (let i = 0; i < n; i++) {
+    for (let k = adjStart[i]; k < adjStart[i + 1]; k++) weight[i] += adjA[k]
+  }
+  const seeds = Array.from({ length: n }, (_, i) => i).sort((a, b) => weight[b] - weight[a] || a - b)
+  const visited = new Uint8Array(n)
+  const order = new Int32Array(n)
+  const start: number[] = []
+  let len = 0
+  const nbrs: number[] = []
+  for (const seed of seeds) {
+    if (visited[seed]) continue
+    start.push(len)
+    visited[seed] = 1
+    let head = len
+    order[len++] = seed
+    while (head < len) {
+      const g = order[head++]
+      nbrs.length = 0
+      for (let k = adjStart[g]; k < adjStart[g + 1]; k++) if (!visited[adj[k]]) nbrs.push(k)
+      nbrs.sort((ka, kb) => adjA[kb] - adjA[ka] || adj[ka] - adj[kb])
+      for (const k of nbrs) {
+        visited[adj[k]] = 1
+        order[len++] = adj[k]
+      }
+    }
+  }
+  start.push(len)
+  return { order, start }
+}
+
+/** Obstacle grid of the construction: exact cell keys, grown one group at a time. */
+class PlacementGrid {
+  private readonly cells = new Map<number, number[]>()
+  constructor(readonly cell: number) {}
+  private static key(cx: number, cy: number, cz: number): number {
+    // Exact (collision-free) for |cell index| < 2^20 — far beyond any cloud.
+    const o = 1 << 20
+    return ((cx + o) * 2 ** 21 + (cy + o)) * 2 ** 21 + (cz + o)
+  }
+  insert(i: number, px: number, py: number, pz: number): void {
+    const k = PlacementGrid.key(Math.floor(px / this.cell), Math.floor(py / this.cell), Math.floor(pz / this.cell))
+    const bucket = this.cells.get(k)
+    if (bucket) bucket.push(i)
+    else this.cells.set(k, [i])
+  }
+  /** Every inserted index whose cell meets the cube of half-side `reach` around (px, py, pz). */
+  forEachNear(px: number, py: number, pz: number, reach: number, visit: (h: number) => void): void {
+    const c = this.cell
+    const x1 = Math.floor((px + reach) / c)
+    const y1 = Math.floor((py + reach) / c)
+    const z1 = Math.floor((pz + reach) / c)
+    for (let ix = Math.floor((px - reach) / c); ix <= x1; ix++) {
+      for (let iy = Math.floor((py - reach) / c); iy <= y1; iy++) {
+        for (let iz = Math.floor((pz - reach) / c); iz <= z1; iz++) {
+          const bucket = this.cells.get(PlacementGrid.key(ix, iy, iz))
+          if (bucket) for (const h of bucket) visit(h)
+        }
+      }
+    }
+  }
+}
+
+/**
+ * The free spot nearest to (tx, ty, tz) for group g among the groups in
+ * `grid`, or null when there is none within one search neighbourhood.
+ */
+function nearestFreeSpot(
+  p: Prepared,
+  g: number,
+  x: Float64Array,
+  y: Float64Array,
+  z: Float64Array,
+  grid: PlacementGrid,
+  tx: number,
+  ty: number,
+  tz: number,
+  cx: number,
+  cy: number,
+  cz: number,
+  scratch: { v: Float64Array; t0: Float64Array; t1: Float64Array },
+): OrganicPoint | null {
+  const restMax = maxHardDistance(p)
+  // A point at distance t from the target is provably free of every group
+  // outside the cube when t ≤ reach − restMax.
+  const reach = 2 * restMax
+  const accept = reach - restMax
+  let m = 0
+  grid.forEachNear(tx, ty, tz, reach, (h) => {
+    const vx = x[h] - tx
+    const vy = y[h] - ty
+    const vz = z[h] - tz
+    const rest = restDistance(p.radius[g], p.radius[h], pairAffinity(p, g, h))
+    // An obstacle that only starts beyond the farthest acceptable point
+    // cannot change the answer.
+    const lead = accept + rest
+    if (vx * vx + vy * vy + vz * vz >= lead * lead) return
+    if (4 * (m + 1) > scratch.v.length) {
+      const grown = new Float64Array(scratch.v.length * 2)
+      grown.set(scratch.v)
+      scratch.v = grown
+      scratch.t0 = new Float64Array(grown.length / 4)
+      scratch.t1 = new Float64Array(grown.length / 4)
+    }
+    scratch.v[4 * m] = vx
+    scratch.v[4 * m + 1] = vy
+    scratch.v[4 * m + 2] = vz
+    scratch.v[4 * m + 3] = rest
+    m++
+  })
+  const { v, t0: t0s, t1: t1s } = scratch
+  let best = Infinity
+  let spot: OrganicPoint | null = null
+  for (let r = 0; r < RAY_DIRECTION_COUNT; r++) {
+    const dx = RAY_DIRECTIONS[3 * r]
+    const dy = RAY_DIRECTIONS[3 * r + 1]
+    const dz = RAY_DIRECTIONS[3 * r + 2]
+    // The interval [t0, t1] each obstacle cuts on the ray, kept sorted by t0.
+    let k = 0
+    for (let o = 0; o < m; o++) {
+      const vx = v[4 * o]
+      const vy = v[4 * o + 1]
+      const vz = v[4 * o + 2]
+      const rest = v[4 * o + 3]
+      const b = dx * vx + dy * vy + dz * vz
+      const disc = b * b - (vx * vx + vy * vy + vz * vz - rest * rest)
+      if (disc <= 0) continue
+      const s = Math.sqrt(disc)
+      const t1 = b + s
+      if (t1 <= 0) continue
+      const t0 = Math.max(0, b - s)
+      let at = k++
+      while (at > 0 && t0s[at - 1] > t0) {
+        t0s[at] = t0s[at - 1]
+        t1s[at] = t1s[at - 1]
+        at--
+      }
+      t0s[at] = t0
+      t1s[at] = t1
+    }
+    let t = 0
+    for (let o = 0; o < k && t0s[o] <= t; o++) if (t1s[o] > t) t = t1s[o]
+    if (t > accept) continue
+    const px = tx + dx * t
+    const py = ty + dy * t
+    const pz = tz + dz * t
+    const score = t + COMPACTNESS * vecLen(px - cx, py - cy, pz - cz)
+    if (score < best) {
+      best = score
+      spot = { x: px, y: py, z: pz }
+    }
+  }
+  return spot
+}
+
+/** Build one component (order[from..to)) around the origin. Returns its bounding radius. */
+function buildComponent(
+  p: Prepared,
+  order: Int32Array,
+  from: number,
+  to: number,
+  x: Float64Array,
+  y: Float64Array,
+  z: Float64Array,
+  placed: Uint8Array,
+  scratch: { v: Float64Array; t0: Float64Array; t1: Float64Array },
+): number {
+  const { radius, adjStart, adj, adjA } = p
+  const g0 = order[from]
+  x[g0] = 0
+  y[g0] = 0
+  z[g0] = 0
+  placed[g0] = 1
+  if (to - from === 1) return radius[g0]
+  const grid = new PlacementGrid(maxHardDistance(p))
+  grid.insert(g0, 0, 0, 0)
+  let sx = 0
+  let sy = 0
+  let sz = 0
+  let count = 1
+  for (let q = from + 1; q < to; q++) {
+    const g = order[q]
+    // Breadth-first: at least one neighbour is already placed.
+    let tx = 0
+    let ty = 0
+    let tz = 0
+    let wsum = 0
+    for (let k = adjStart[g]; k < adjStart[g + 1]; k++) {
+      const h = adj[k]
+      if (!placed[h]) continue
+      tx += x[h] * adjA[k]
+      ty += y[h] * adjA[k]
+      tz += z[h] * adjA[k]
+      wsum += adjA[k]
+    }
+    tx /= wsum
+    ty /= wsum
+    tz /= wsum
+    const spot = nearestFreeSpot(p, g, x, y, z, grid, tx, ty, tz, sx / count, sy / count, sz / count, scratch)
+    if (spot) {
+      x[g] = spot.x
+      y[g] = spot.y
+      z[g] = spot.z
+      grid.insert(g, spot.x, spot.y, spot.z)
+    } else {
+      // Buried: to its target, nudged off it along a ray of its own so two
+      // buried groups never coincide, and kept out of the obstacle grid — or
+      // every later search around it would scan a growing pile.
+      const o = 3 * (g % RAY_DIRECTION_COUNT)
+      x[g] = tx + RAY_DIRECTIONS[o] * radius[g]
+      y[g] = ty + RAY_DIRECTIONS[o + 1] * radius[g]
+      z[g] = tz + RAY_DIRECTIONS[o + 2] * radius[g]
+    }
+    placed[g] = 1
+    sx += x[g]
+    sy += y[g]
+    sz += z[g]
+    count++
+  }
+  // Recentre on the centroid, so the bounding ball is tight.
+  const mx = sx / count
+  const my = sy / count
+  const mz = sz / count
+  let bound = 0
+  for (let q = from; q < to; q++) {
+    const g = order[q]
+    x[g] -= mx
+    y[g] -= my
+    z[g] -= mz
+    bound = Math.max(bound, vecLen(x[g], y[g], z[g]) + radius[g])
+  }
+  return bound
+}
+
+/**
+ * Pack the balls `comps` (component index → bound) shell after shell around
+ * `centre`, from radius `outer`; with `firstAtCentre`, the largest one takes
+ * the centre itself. Writes each component's offset.
+ */
+function packShells(
+  comps: number[],
+  bound: Float64Array,
+  centre: OrganicPoint,
+  outer: number,
+  firstAtCentre: boolean,
+  off: { x: Float64Array; y: Float64Array; z: Float64Array },
+): void {
+  let q = 0
+  if (firstAtCentre && comps.length > 0) {
+    off.x[comps[0]] = centre.x
+    off.y[comps[0]] = centre.y
+    off.z[comps[0]] = centre.z
+    outer = bound[comps[0]]
+    q = 1
+  }
+  while (q < comps.length) {
+    // One shell: its balls are the next ones in size order, so they are all
+    // at most as big as the first; it sits right outside the previous one.
+    const r = bound[comps[q]]
+    const rho = outer + r + OVERLAP_MARGIN
+    const capacity = Math.max(1, Math.floor((SHELL_FILL * 4 * rho * rho) / (r * r)))
+    const inShell = Math.min(capacity, comps.length - q)
+    for (let k = 0; k < inShell; k++) {
+      const c = comps[q + k]
+      const up = inShell === 1 ? 1 : 1 - (2 * (k + 0.5)) / inShell
+      const around = Math.sqrt(Math.max(0, 1 - up * up))
+      const angle = GOLDEN_ANGLE * k
+      off.x[c] = centre.x + Math.cos(angle) * around * rho
+      off.y[c] = centre.y + up * rho
+      off.z[c] = centre.z + Math.sin(angle) * around * rho
+    }
+    q += inShell
+    outer = rho + r
+  }
+}
+
+/**
+ * Initial centres. Without fixed groups: every component built on its own,
+ * then the components packed in shells. With fixed groups (already on screen,
+ * `p.fixed`): a component that holds one grows around it in the scene's own
+ * frame, every new group at the free spot nearest to its placed neighbours
+ * (or to its component's fixed groups); the components that touch nothing
+ * fixed are built on their own and packed in shells just outside the scene —
+ * never laid out as a second archipelago over the first.
+ */
+function constructPlacement(p: Prepared, x: Float64Array, y: Float64Array, z: Float64Array): void {
+  const { order, start } = components(p)
+  const { fixed, radius, adjStart, adj, adjA } = p
+  const placed = new Uint8Array(p.n)
+  const scratch = { v: new Float64Array(256), t0: new Float64Array(64), t1: new Float64Array(64) }
+  const count = start.length - 1
+
+  let fixedCount = 0
+  let sx = 0
+  let sy = 0
+  let sz = 0
+  const grid = new PlacementGrid(maxHardDistance(p))
+  for (let i = 0; i < p.n; i++) {
+    if (!fixed[i]) continue
+    placed[i] = 1
+    grid.insert(i, x[i], y[i], z[i])
+    sx += x[i]
+    sy += y[i]
+    sz += z[i]
+    fixedCount++
+  }
+
+  const bound = new Float64Array(count)
+  const free: number[] = []
+  for (let c = 0; c < count; c++) {
+    let anchors = 0
+    let ax = 0
+    let ay = 0
+    let az = 0
+    for (let k = start[c]; k < start[c + 1]; k++) {
+      const g = order[k]
+      if (!fixed[g]) continue
+      anchors++
+      ax += x[g]
+      ay += y[g]
+      az += z[g]
+    }
+    if (anchors === 0) {
+      bound[c] = buildComponent(p, order, start[c], start[c + 1], x, y, z, placed, scratch)
+      free.push(c)
+      continue
+    }
+    // Grows in the scene's frame, around its fixed groups.
+    for (let k = start[c]; k < start[c + 1]; k++) {
+      const g = order[k]
+      if (placed[g]) continue
+      let tx = 0
+      let ty = 0
+      let tz = 0
+      let wsum = 0
+      for (let e = adjStart[g]; e < adjStart[g + 1]; e++) {
+        const h = adj[e]
+        if (!placed[h]) continue
+        tx += x[h] * adjA[e]
+        ty += y[h] * adjA[e]
+        tz += z[h] * adjA[e]
+        wsum += adjA[e]
+      }
+      if (wsum > 0) {
+        tx /= wsum
+        ty /= wsum
+        tz /= wsum
+      } else {
+        tx = ax / anchors
+        ty = ay / anchors
+        tz = az / anchors
+      }
+      const total = fixedCount > 0 ? fixedCount : 1
+      const spot = nearestFreeSpot(p, g, x, y, z, grid, tx, ty, tz, sx / total, sy / total, sz / total, scratch)
+      if (spot) {
+        x[g] = spot.x
+        y[g] = spot.y
+        z[g] = spot.z
+        grid.insert(g, spot.x, spot.y, spot.z)
+      } else {
+        const o = 3 * (g % RAY_DIRECTION_COUNT)
+        x[g] = tx + RAY_DIRECTIONS[o] * radius[g]
+        y[g] = ty + RAY_DIRECTIONS[o + 1] * radius[g]
+        z[g] = tz + RAY_DIRECTIONS[o + 2] * radius[g]
+      }
+      placed[g] = 1
+    }
+  }
+
+  // Largest ball first; ties by the component's first group (deterministic).
+  free.sort((a, b) => bound[b] - bound[a] || order[start[a]] - order[start[b]])
+  const off = { x: new Float64Array(count), y: new Float64Array(count), z: new Float64Array(count) }
+  if (fixedCount === 0) {
+    packShells(free, bound, { x: 0, y: 0, z: 0 }, 0, true, off)
+  } else {
+    // Outside everything already in the scene, around the fixed groups' centroid.
+    const centre = { x: sx / fixedCount, y: sy / fixedCount, z: sz / fixedCount }
+    const isFree = new Uint8Array(count)
+    for (const c of free) isFree[c] = 1
+    let outer = 0
+    for (let c = 0; c < count; c++) {
+      if (isFree[c]) continue
+      for (let k = start[c]; k < start[c + 1]; k++) {
+        const g = order[k]
+        outer = Math.max(outer, vecLen(x[g] - centre.x, y[g] - centre.y, z[g] - centre.z) + radius[g])
+      }
+    }
+    packShells(free, bound, centre, outer, false, off)
+  }
+  for (const c of free) {
+    for (let k = start[c]; k < start[c + 1]; k++) {
+      const g = order[k]
+      x[g] += off.x[c]
+      y[g] += off.y[c]
+      z[g] += off.z[c]
+    }
+  }
 }
 
 /**
@@ -420,32 +1066,26 @@ export function layoutGroups(
   const p = prepare(new Map(groups.map((g) => [g.id, g.radius])), affinities)
   const { ids, n, radius, pairI, pairJ, pairA, adjStart, adj, adjA } = p
 
-  // Deterministic initial placement: a VOLUME, not a shell.
-  //
-  // The previous init put every centre at `spreadRadius · jitter` — i.e. ON a
-  // sphere of constant radius. Every group therefore sat at the same distance
-  // from the origin, which is why the graph read as a hollow ball with
-  // unrelated groups arbitrarily far apart.
-  //
-  // The radius now follows cbrt(rank) (uniform density in a volume), and the
-  // outer radius is the tightest sphere that can hold the envelopes at a given
-  // packing fraction.
-  let totalVolume = 0
-  for (let i = 0; i < n; i++) totalVolume += (4 / 3) * Math.PI * radius[i] ** 3
-  const spreadRadius = Math.max(1, Math.cbrt(totalVolume / (PACKING_FRACTION * (4 / 3) * Math.PI)))
+  // Deterministic initial placement: constructive, relation by relation (see
+  // "Constructive initial placement"). It is already free of overlap, so the
+  // descent below only refines it.
   const x = new Float64Array(n)
   const y = new Float64Array(n)
   const z = new Float64Array(n)
-  for (let i = 0; i < n; i++) {
-    const rng = mulberry32(hashString(ids[i]))
-    const up = n === 1 ? 0 : 1 - (2 * (i + 0.5)) / n
-    const around = Math.sqrt(Math.max(0, 1 - up * up))
-    const angle = GOLDEN_ANGLE * i + rng() * Math.PI * 2 * 0.05
-    const r = spreadRadius * Math.cbrt((i + 0.5) / n)
-    x[i] = Math.cos(angle) * around * r
-    y[i] = up * r
-    z[i] = Math.sin(angle) * around * r
+  const fixedPositions = options.fixedPositions
+  let anyFixed = false
+  if (fixedPositions) {
+    for (let i = 0; i < n; i++) {
+      const q = fixedPositions.get(ids[i])
+      if (!q) continue
+      p.fixed[i] = 1
+      x[i] = q.x
+      y[i] = q.y
+      z[i] = q.z
+      anyFixed = true
+    }
   }
+  constructPlacement(p, x, y, z)
 
   const prevX = new Float64Array(n)
   const prevY = new Float64Array(n)
@@ -465,6 +1105,21 @@ export function layoutGroups(
   const fx = new Float64Array(n)
   const fy = new Float64Array(n)
   const fz = new Float64Array(n)
+  const grid = makeGrid(n, maxHardDistance(p))
+  // Diagonal of the energy's Hessian per group: a step divides the force by
+  // it (preconditioned Jacobi). With a raw learning rate a hub tied to fifty
+  // groups, or one pair with fifty links, moved fifty times too far and every
+  // step ended on the MAX_STEP clamp — measured: 801 directory groups imploded
+  // into a pile of 63 000 penetrating pairs that cost 2 ms per contact sweep.
+  const stiffness = new Float64Array(n)
+  for (let i = 0; i < n; i++) {
+    let s = 0
+    for (let k = adjStart[i]; k < adjStart[i + 1]; k++) s += 2 * LAMBDA_AFFINITY * adjA[k]
+    if (adjStart[i + 1] > adjStart[i]) s += 2 * LAMBDA_ANCHOR
+    if (hasPrev[i]) s += 2 * LAMBDA_STABILITY
+    stiffness[i] = s
+  }
+
   for (let iter = 0; iter < maxIterations; iter++) {
     fx.fill(0)
     fy.fill(0)
@@ -526,8 +1181,11 @@ export function layoutGroups(
 
     // Synchronous apply: every move uses the SAME snapshot of positions that
     // produced every force above, so the result never depends on id order.
-    const lr = LEARNING_RATE_0 * (1 - iter / maxIterations)
+    const alpha = STEP_FRACTION_0 * (1 - iter / maxIterations)
+    let stepMax = 0
     for (let i = 0; i < n; i++) {
+      if (stiffness[i] <= 0 || p.fixed[i]) continue
+      const lr = alpha / stiffness[i]
       let dx = lr * fx[i]
       let dy = lr * fy[i]
       let dz = lr * fz[i]
@@ -541,54 +1199,39 @@ export function layoutGroups(
       x[i] += dx
       y[i] += dy
       z[i] += dz
+      if (mag > stepMax) stepMax = mag
     }
-  }
 
-  const grid = makeGrid(n, 2 * p.maxRadius + OVERLAP_MARGIN)
-
-  // ── Global inflation ─────────────────────────────────────────────────────
-  // One uniform scale about the centroid resolves EVERY violated hard distance
-  // at once — a scale s multiplies all distances by s, so s = max(hard/dist)
-  // makes the worst pair exactly touch. The projection is then only a local
-  // clean-up.
-  {
-    fillGrid(grid, n, x, y, z)
-    let scale = 1
-    for (let i = 0; i < n; i++) {
-      const count = slotsAround(grid, x[i], y[i], z[i])
-      for (let s = 0; s < count; s++) {
-        for (let j = grid.head[grid.slots[s]]; j !== -1; j = grid.next[j]) {
-          if (j <= i) continue
-          const dist = Math.max(EPSILON, vecLen(x[i] - x[j], y[i] - y[j], z[i] - z[j]))
-          const hard = hardDistance(radius[i], radius[j], pairAffinity(p, i, j))
-          if (dist < hard) scale = Math.max(scale, hard / dist)
-        }
-      }
-    }
-    if (scale > 1) {
-      // Bounded: a pair that the descent put on top of each other must not
-      // throw the whole graph to infinity.
-      const s = Math.min(scale, MAX_INFLATION)
-      let cx = 0
-      let cy = 0
-      let cz = 0
-      for (let i = 0; i < n; i++) {
-        cx += x[i]
-        cy += y[i]
-        cz += z[i]
-      }
-      cx /= n
-      cy /= n
-      cz /= n
-      for (let i = 0; i < n; i++) {
-        x[i] = cx + (x[i] - cx) * s
-        y[i] = cy + (y[i] - cy) * s
-        z[i] = cz + (z[i] - cz) * s
-      }
+    // Contact, resolved as the descent goes: an attraction can no longer drag
+    // a group through the others into a pile (no global inflation needed
+    // afterwards — it always hit its ×4 cap and left the cloud 3.45× too big).
+    if (iter % CONTACT_EVERY === 0) {
+      const pushMax = contactSweep(p, x, y, z, grid, false, CONTACT_RELAXATION, fx, fy, fz)
+      // At rest: nothing moved this iteration and nothing is in contact.
+      if (stepMax < SEPARATION_TOLERANCE && pushMax < SEPARATION_TOLERANCE) break
     }
   }
 
   separate(p, x, y, z, grid, SEPARATION_ITERATIONS)
+
+  // Centre the cloud on the origin (the construction grows it from its first
+  // group). Not when previous or fixed positions were given: the result must
+  // stay in their frame.
+  if (!previous && !anyFixed) {
+    let mx = 0
+    let my = 0
+    let mz = 0
+    for (let i = 0; i < n; i++) {
+      mx += x[i] / n
+      my += y[i] / n
+      mz += z[i] / n
+    }
+    for (let i = 0; i < n; i++) {
+      x[i] -= mx
+      y[i] -= my
+      z[i] -= mz
+    }
+  }
 
   for (let i = 0; i < n; i++) {
     result.set(ids[i], {
@@ -616,50 +1259,14 @@ function separate(
   grid: Grid,
   maxPasses: number,
 ): number {
-  const { n, radius } = p
-  let pass = 0
-  for (; pass < maxPasses; pass++) {
-    fillGrid(grid, n, x, y, z)
-    let moved = 0
-    let maxPush = 0
-    for (let i = 0; i < n; i++) {
-      const count = slotsAround(grid, x[i], y[i], z[i])
-      for (let s = 0; s < count; s++) {
-        for (let j = grid.head[grid.slots[s]]; j !== -1; j = grid.next[j]) {
-          if (j <= i) continue
-          const dx = x[i] - x[j]
-          const dy = y[i] - y[j]
-          const dz = z[i] - z[j]
-          const d2 = dx * dx + dy * dy + dz * dz
-          const reach = radius[i] + radius[j] + OVERLAP_MARGIN
-          // Cheap reject first: no pair farther than the envelope sum can be
-          // in contact, whatever its affinity.
-          if (d2 >= reach * reach) continue
-          const dist = Math.max(EPSILON, Math.sqrt(d2))
-          const overlap = hardDistance(radius[i], radius[j], pairAffinity(p, i, j)) - dist
-          if (overlap <= 0) continue
-          // Along the line joining the centres. A pair at exactly the same
-          // point gets a deterministic axis rather than a division by zero.
-          const ux = dist > EPSILON ? dx / dist : 1
-          const uy = dist > EPSILON ? dy / dist : 0
-          const uz = dist > EPSILON ? dz / dist : 0
-          const push = overlap * 0.75
-          if (push > maxPush) maxPush = push
-          x[i] += ux * push
-          y[i] += uy * push
-          z[i] += uz * push
-          x[j] -= ux * push
-          y[j] -= uy * push
-          z[j] -= uz * push
-          moved++
-        }
-      }
-    }
+  const scratch = new Float64Array(0)
+  for (let pass = 0; pass < maxPasses; pass++) {
+    const maxPush = contactSweep(p, x, y, z, grid, true, 0.75, scratch, scratch, scratch)
     // Converges geometrically but never exactly: stop once a whole pass moves
     // nothing by more than SEPARATION_TOLERANCE — invisible.
-    if (moved === 0 || maxPush < SEPARATION_TOLERANCE) return pass + 1
+    if (maxPush < SEPARATION_TOLERANCE) return pass + 1
   }
-  return pass
+  return maxPasses
 }
 
 /**
@@ -686,7 +1293,7 @@ export function separateGroups(
     y[i] = q.y
     z[i] = q.z
   })
-  const passes = separate(p, x, y, z, makeGrid(p.n, 2 * p.maxRadius + OVERLAP_MARGIN), maxPasses)
+  const passes = separate(p, x, y, z, makeGrid(p.n, maxHardDistance(p)), maxPasses)
   p.ids.forEach((id, i) => pos.set(id, { x: x[i], y: y[i], z: z[i] }))
   return passes
 }

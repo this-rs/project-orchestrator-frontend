@@ -155,11 +155,20 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     stageId?: string,
     signal?: AbortSignal,
     force = false,
+    // How many layers share `limit`: ALL the layers of a progressive load, not
+    // only this call's. Each call used to split `limit` over its own layers,
+    // so code+fabric then the four others asked for 2× the limit.
+    budgetLayers = layers.length,
   ) => {
     if (!projectSlug || layers.length === 0) return
     // Reuse a recently-loaded response for this exact (layers, limit) instead of
     // hitting the network again — "don't reload a view already loaded".
-    const cacheKey = graphCacheKey('project', projectSlug, layers, limit)
+    // The API applies `limit` PER CATEGORY: asking 5000 with six layers can
+    // return ~30 000 nodes. The number the user sets is a TOTAL budget, so each
+    // layer gets its share of it — the share of every layer of the load, so
+    // that the calls of a progressive load add up to the budget, not beyond.
+    const perCategory = Math.max(1, Math.floor(limit / Math.max(1, budgetLayers, layers.length)))
+    const cacheKey = graphCacheKey('project', projectSlug, layers, perCategory)
     const cached = force ? null : (graphCacheGet(cacheKey) as ProjectGraphResponse | null)
     setError(null)
     // Track per-layer loading state for UI indicators
@@ -175,11 +184,6 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
       if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
     }
     try {
-      // The API applies `limit` PER CATEGORY (files, symbols, knowledge, skills,
-      // behavioural, pm): asking 5000 with six layers can return ~30 000 nodes
-      // and every edge between them. The number the user sets is a TOTAL budget,
-      // so split it across the categories the request covers.
-      const perCategory = Math.max(200, Math.floor(limit / Math.max(1, layers.length)))
       const data =
         cached ??
         await intelligenceApi.getGraph(projectSlug, { layers, limit: perCategory }, signal)
@@ -307,9 +311,9 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     setStages(stages)
 
     if (primary.length > 0 && rest.length > 0) {
-      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary', signal).then(() => {
+      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary', signal, false, layers.length).then(() => {
         if (!signal.aborted) {
-          fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary', signal)
+          fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary', signal, false, layers.length)
         }
       })
     } else {
@@ -345,7 +349,7 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
           { id: 'layout', label: tRef.current('intelPage.graph.stage.computeLayout'), status: 'pending' },
         ]
         setStages(stages)
-        fetchGraphForLayers(needed, nodeLimit, stageId)
+        fetchGraphForLayers(needed, nodeLimit, stageId, undefined, false, visibleLayers.size)
       }
     }, 300)
     return () => {
