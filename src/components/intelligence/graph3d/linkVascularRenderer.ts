@@ -531,13 +531,13 @@ export function createVascularLinks(
           .filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)))
         if (unique.length === 0) return [] as string[][]
         // Centre du côté, puis angle de chaque extrémité autour de ce centre.
-        let cx = 0, cy = 0, cz = 0
+        let cx = 0, cy = 0, _cz = 0
         const pts = unique.map((x) => {
           const n = nodeById.get(x.id)!
-          cx += n.x; cy += n.y; cz += n.z
+          cx += n.x; cy += n.y; _cz += n.z
           return { id: x.id, deg: x.deg, n }
         })
-        cx /= pts.length; cy /= pts.length; cz /= pts.length
+        cx /= pts.length; cy /= pts.length
         const angle = (p: { n: { x: number; y: number; z: number } }) =>
           Math.atan2(p.n.y - cy, p.n.x - cx)
         const byAngle = [...pts].sort((a, b) => angle(a) - angle(b) || (a.id < b.id ? -1 : 1))

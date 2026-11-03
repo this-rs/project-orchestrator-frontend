@@ -32,11 +32,19 @@ describe('the GPU cost does not follow the relation count', () => {
     expect(huge.stats.exactRelations).toBe(1_000_000_000_000n)
   })
 
-  it('scales with the number of CORRIDORS, which is what the budget bounds', () => {
+  it('scales with the number of CORRIDORS until the budget stops it', () => {
     const ten = buildLinkSystem(corridorSet(10, 10_000n))
     const hundred = buildLinkSystem(corridorSet(100, 10_000n))
+    // Le coût croît avec le nombre de corridors…
     expect(hundred.stats.triangles).toBeGreaterThan(ten.stats.triangles)
-    expect(hundred.stats.drawn).toBe(100)
+    // …jusqu'au plafond. Depuis que le budget compte les VRAIES primitives
+    // (gaines, strates, canaux, arbre à trois niveaux), cent gros corridors ne
+    // tiennent plus dans 240 000 triangles — c'est le budget qui fait son
+    // travail, et l'ancienne attente (tous dessinés) était fausse.
+    expect(hundred.stats.triangles).toBeLessThanOrEqual(240_000)
+    expect(hundred.stats.drawn).toBeLessThanOrEqual(100)
+    expect(hundred.stats.drawn).toBeGreaterThanOrEqual(ten.stats.drawn)
+    expect(hundred.stats.aggregated).toBe(true)
   })
 })
 

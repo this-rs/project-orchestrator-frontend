@@ -19,6 +19,15 @@
 /** Segments d'un anneau de section. Doit rester aligné sur le renderer. */
 export const SECTION_SEGMENTS = 6
 
+/**
+ * Forme de l'arbre (phase 2), partagée par l'estimateur et le renderer.
+ * Sous-moyeux par extrémité, capillaires par sous-moyeu, et leurs échantillons.
+ */
+export const SUB_HUBS_PER_END = 3
+export const CAPILLARIES_PER_SUB_HUB = 3
+export const ARTERY_SAMPLES = 7
+export const CAPILLARY_SAMPLES = 5
+
 /** Nombre de couches d'un conduit : halo + gaine + structure + N canaux + cœur. */
 export function layersForChannels(channels: number): number {
   return 3 + Math.max(0, channels) + 1
@@ -34,8 +43,13 @@ export function conduitTriangles(samples: number, layers: number): number {
 export interface BundleCostInput {
   samples: number
   channels: number
-  /** Nombre de branches effectivement générées (niveau 1 + niveau 2). */
-  branches: number
+  /** Nombre de branches (forme simple, sans distinction de niveau). */
+  branches?: number
+  /** Artères secondaires (niveau 2) et capillaires (niveau 3). */
+  arteries?: number
+  capillaries?: number
+  arterySamples?: number
+  capillarySamples?: number
   /** Échantillons par branche. */
   branchSamples?: number
   /** Couches d'une branche : elles n'ont ni canaux ni cœur. */
@@ -44,9 +58,19 @@ export interface BundleCostInput {
 
 export function bundleTrianglesCost(input: BundleCostInput): number {
   const trunk = conduitTriangles(input.samples, layersForChannels(input.channels))
-  const branchSamples = input.branchSamples ?? 5
   const branchLayers = input.branchLayers ?? layersForChannels(0)
-  return trunk + input.branches * conduitTriangles(branchSamples, branchLayers)
+  const arteries = input.arteries ?? 0
+  const capillaries = input.capillaries ?? 0
+  const legacy = input.branches ?? arteries + capillaries
+  const arterySamples = input.arterySamples ?? ARTERY_SAMPLES
+  const capillarySamples = input.capillarySamples ?? CAPILLARY_SAMPLES
+  // Les deux niveaux de l'arbre n'ont pas le même nombre d'échantillons.
+  const branchCost =
+    arteries > 0 || capillaries > 0
+      ? arteries * conduitTriangles(arterySamples, branchLayers) +
+        capillaries * conduitTriangles(capillarySamples, branchLayers)
+      : legacy * conduitTriangles(input.branchSamples ?? CAPILLARY_SAMPLES, branchLayers)
+  return trunk + branchCost
 }
 
 /** Mesures réelles, lues sur les tampons produits. */

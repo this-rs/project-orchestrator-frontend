@@ -25,7 +25,14 @@ import { describeMagnitude } from './linkMagnitude'
 import { type MorphologyShape, morphologyShape } from './linkMorphology'
 import { type LodState, lodFor } from './linkLod'
 import type { Corridor } from './linkRouting'
-import { bundleTrianglesCost, layersForChannels } from './linkGeometryCost'
+import {
+  ARTERY_SAMPLES,
+  CAPILLARIES_PER_SUB_HUB,
+  CAPILLARY_SAMPLES,
+  SUB_HUBS_PER_END,
+  bundleTrianglesCost,
+  layersForChannels,
+} from './linkGeometryCost'
 
 /**
  * The minimum a corridor must expose to be drawn: an identity, its two ends,
@@ -112,10 +119,19 @@ export interface LinkSystem {
 export function bundleTriangles(lod: LodState, strands: number): number {
   const samples = SAMPLES_BASE + SAMPLES_PER_DEPTH * lod.depth
   const channels = lod.depth === 0 ? 1 : Math.max(1, strands)
-  // Branches : jusqu'à 3 par extrémité, deux niveaux, moins une qui devient le
-  // tronc lui-même — même règle que le renderer.
-  const branches = 2 * Math.min(3, Math.max(1, channels))
-  return bundleTrianglesCost({ samples, channels, branches })
+  // Arbre à TROIS niveaux (phase 2) : par extrémité, SUB_HUBS artères
+  // secondaires, puis CAPILLARIES capillaires par artère. L'estimateur doit
+  // compter les deux niveaux, sinon il sous-estime d'un ordre de grandeur —
+  // mesuré : 13× d'écart entre budget annoncé et géométrie produite.
+  const arteries = 2 * SUB_HUBS_PER_END
+  const capillaries = 2 * SUB_HUBS_PER_END * CAPILLARIES_PER_SUB_HUB
+  return bundleTrianglesCost({
+    samples,
+    channels,
+    branches: arteries + capillaries,
+    arterySamples: ARTERY_SAMPLES,
+    capillarySamples: CAPILLARY_SAMPLES,
+  })
 }
 
 /**
