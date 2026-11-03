@@ -575,8 +575,17 @@ export function createVascularLinks(
       )
       const trunkSamples = drawable.samples
       const order = corridor.magnitude.magnitudeOrder
-      // Base radius: a share of the scene, growing with the magnitude order.
-      const baseRadius = sceneRadius * 0.02 * (1 + 0.34 * Math.min(9, order))
+      // ÉPAISSEUR = f(nombre) × f(CE QUI EST CONNECTÉ).
+      //
+      // Le rayon ne dépendait que du nombre de relations. Deux ensembles
+      // minuscules reliés par 10 000 relations dessinaient donc le même tronc
+      // que deux ensembles immenses reliés par le même nombre. La taille des
+      // ensembles connectés entre maintenant dans le calcul : un vaisseau qui
+      // relie de grands territoires est plus gros, à quantité égale.
+      const extFrom = envelopeRadius.get(corridor.from) ?? 0
+      const extTo = envelopeRadius.get(corridor.to) ?? 0
+      const territory = Math.min(1.8, 0.55 + (extFrom + extTo) / Math.max(1, sceneRadius))
+      const baseRadius = sceneRadius * 0.02 * (1 + 0.34 * Math.min(9, order)) * territory
 
       const conduits: Conduit[] = []
       const vertexStart = position.length / 3
@@ -601,7 +610,11 @@ export function createVascularLinks(
         // 10 000-relation trunk once the projected width has hit its ceiling.
         // Les couches ont maintenant des IDENTITÉS fixes (phase 5), pas un
         // empilement de coques : halo, gaine, structure, canaux, cœur.
-        const channelCount = MOBILE_LIKE ? 2 : Math.min(MICRO_FIBERS, Math.max(2, strata.length + 2))
+        // La gamme vient de la MORPHOLOGIE, pas d'une constante : 10⁴ et 10⁹
+        // doivent porter des faisceaux différents. Bornée pour le surdessin.
+        const channelCount = MOBILE_LIKE
+          ? 2
+          : Math.max(2, Math.min(MICRO_FIBERS, drawable.morphology.graphical.channels))
         const layers = layerSpecs(channelCount).length
         const count = samples * TUBE_SEGMENTS * layers
         conduits.push({
@@ -666,12 +679,16 @@ export function createVascularLinks(
       const massTo = Math.max(pairCount, hubMass.get(corridor.to) ?? pairCount)
       const shareFrom = Math.cbrt(pairCount / massFrom)
       const shareTo = Math.cbrt(pairCount / massTo)
+      // Gonflement de confluence : un ensemble où se rejoignent dix corridors
+      // porte plus qu'un ensemble où il n'en arrive qu'un.
+      const hubSwellFrom = Math.cbrt(Math.max(1, hubLoad.get(corridor.from) ?? 1)) / 2
+      const hubSwellTo = Math.cbrt(Math.max(1, hubLoad.get(corridor.to) ?? 1)) / 2
       const trunkFrom = assigned?.from ?? (geo.branchA[0] ?? endpointId(corridor.links[0].source))
       const trunkTo = assigned?.to ?? (geo.branchB[0] ?? endpointId(corridor.links[0].target))
 
       laneFamilies.forEach((family, s) => {
         const lane = laneFamilies.length === 1 ? 0.5 : s / (laneFamilies.length - 1)
-        addConduit(trunkFrom, trunkTo, 1, SHEATH_ALPHA, lane, trunkSamples, strata, family, s * 0.37, load, 0.85 + 0.5 * shareFrom, 0.85 + 0.5 * shareTo)
+        addConduit(trunkFrom, trunkTo, 1, SHEATH_ALPHA, lane, trunkSamples, strata, family, s * 0.37, load, 0.85 + 0.5 * shareFrom + hubSwellFrom, 0.85 + 0.5 * shareTo + hubSwellTo)
       })
 
       // ── Branches, DEUX niveaux ───────────────────────────────────────────
@@ -825,7 +842,9 @@ export function createVascularLinks(
       const cr2 = fam ? fam[0] : (style.r2 ?? style.r)
       const cg2 = fam ? fam[1] : (style.g2 ?? style.g)
       const cb2 = fam ? fam[2] : (style.b2 ?? style.b)
-      const channelCount = MOBILE_LIKE ? 2 : Math.min(MICRO_FIBERS, Math.max(2, conduit.strata.length + 2))
+      const channelCount = MOBILE_LIKE
+        ? 2
+        : Math.max(2, Math.min(MICRO_FIBERS, bundle.drawable.morphology.graphical.channels))
       const specs = layerSpecs(channelCount)
       const layers = specs.length
       const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
