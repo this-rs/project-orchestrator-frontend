@@ -5,6 +5,13 @@ import {
   conduitTriangles,
   layersForChannels,
   trianglesFromIndex,
+  SUB_HUBS_PER_END,
+  CAPILLARIES_PER_SUB_HUB,
+  BRANCH_SAMPLES,
+  ARTERY_SAMPLES,
+  CAPILLARY_SAMPLES,
+  conduitLayers,
+  sideTree,
 } from './linkGeometryCost'
 import { buildLinkSystem, fromCorridors } from './linkSystem'
 import { buildCorridors } from './linkRouting'
@@ -69,9 +76,11 @@ describe('le budget ANNONCÉ correspond à ce qui est PRODUIT (phase 8)', () => 
     expect(estimate).toBeGreaterThan(0)
     // L'ancienne formule comptait UN tube par conduit : elle annonçait cinq à dix
     // fois moins que ce que le renderer produisait. On borne désormais l'écart.
-    const ratio = real / estimate
-    expect(ratio).toBeLessThan(4)
-    expect(ratio).toBeGreaterThan(0.2)
+    // Puis la phase 8 bis : le modèle compte les voies (familles), les couches
+    // réelles (≥ 6, canaux bornés [2, 5]), et l'arbre réel de chaque côté
+    // (artères à 7 échantillons, capillaires à 5). Quand toutes les extrémités
+    // existent, l'estimation EST la géométrie produite — au triangle près.
+    expect(estimate).toBe(real)
   })
 
   it('le renderer rapporte des mesures cohérentes', () => {
@@ -82,5 +91,49 @@ describe('le budget ANNONCÉ correspond à ce qui est PRODUIT (phase 8)', () => 
     expect(s.triangles).toBeGreaterThan(0)
     expect(s.conduits).toBeGreaterThan(0)
     expect(s.transparentTriangles).toBeLessThanOrEqual(s.triangles)
+  })
+})
+
+describe('le modèle partagé suit le renderer à toutes les tailles', () => {
+  it('estimation = triangles produits, de 2 à 40 communautés et à plusieurs budgets', () => {
+    for (const [n, groups, maxTriangles] of [
+      [60, 2, 240_000],
+      [400, 5, 240_000],
+      [2_000, 40, 240_000],
+      [2_000, 40, 60_000],
+    ] as const) {
+      const { nodes, links } = synth(n, groups)
+      const system = buildLinkSystem(fromCorridors(buildCorridors(links)), { maxTriangles })
+      const real = createVascularLinks(nodes, links, { maxTriangles })!.stats!.triangles
+      // Aggregate bundles (`members`) are not drawn by the renderer yet: it looks
+      // their synthetic key up among the routed corridors and skips it. What it
+      // DOES draw matches the model to the triangle; the whole estimate is the
+      // ceiling it will reach once it draws the aggregates.
+      const single = system.bundles.filter((b) => !b.members).reduce((s, b) => s + b.triangles, 0)
+      expect(single).toBe(real)
+      expect(system.stats.triangles).toBeGreaterThanOrEqual(real)
+      expect(real).toBeLessThanOrEqual(maxTriangles)
+    }
+  })
+
+  it('exporte les constantes que le renderer doit importer', () => {
+    expect(SUB_HUBS_PER_END).toBe(3)
+    expect(CAPILLARIES_PER_SUB_HUB).toBe(3)
+    expect(BRANCH_SAMPLES).toBe(5)
+    expect(ARTERY_SAMPLES).toBe(BRANCH_SAMPLES + 2)
+    expect(CAPILLARY_SAMPLES).toBe(BRANCH_SAMPLES)
+    // couches d'un conduit = halo + gaine + structure + canaux bornés [2, 5] + cœur
+    expect(conduitLayers(1)).toBe(6)
+    expect(conduitLayers(3)).toBe(7)
+    expect(conduitLayers(40)).toBe(9)
+    expect(conduitLayers(40, true)).toBe(6)
+  })
+
+  it('l’arbre d’un côté : ≤ 3 artères, ≤ 3 capillaires chacune, groupes contigus', () => {
+    expect(sideTree(0)).toEqual({ arteries: 0, capillaries: 0 })
+    expect(sideTree(1)).toEqual({ arteries: 1, capillaries: 1 })
+    expect(sideTree(4)).toEqual({ arteries: 2, capillaries: 4 }) // 2 + 2
+    expect(sideTree(7)).toEqual({ arteries: 3, capillaries: 7 }) // 3 + 3 + 1
+    expect(sideTree(100)).toEqual({ arteries: 3, capillaries: 9 })
   })
 })

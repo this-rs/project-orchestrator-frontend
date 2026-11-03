@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_LOD_OPTIONS, lodFor, maxUsefulDepth } from './linkLod'
+import { DEFAULT_LOD_OPTIONS, lodFor, lodOptionsForScene, maxUsefulDepth } from './linkLod'
 import { describeMagnitude } from './linkMagnitude'
 
 const FIXTURES: bigint[] = [1n, 10n, 100n, 1000n, 10000n, 10n ** 6n, 10n ** 9n, 10n ** 12n]
@@ -118,5 +118,44 @@ describe('lodFor', () => {
     expect(() => lodFor(m, 10, { refineBelow: 200, collapseAbove: 100 })).toThrow(RangeError)
     expect(() => lodFor(m, 10, { refineBelow: 0 })).toThrow(RangeError)
     expect(() => lodFor(m, NaN)).toThrow(RangeError)
+  })
+})
+
+describe('LOD relatif à la scène (lodOptionsForScene)', () => {
+  // Le cadrage met la caméra à ≈ 2,77 rayons de scène : 905 pour 2 000 nœuds
+  // (R ≈ 327), 2 703 pour 20 000 (R ≈ 976). Avec des seuils absolus 400/600
+  // le LOD restait à 0 sur TOUTES ces scènes, même zoomé dans le graphe.
+  const m = describeMagnitude(1_000_000n)
+
+  it('raffine quand on zoome DANS le graphe, quelle que soit sa taille', () => {
+    for (const R of [327, 976, 10_000]) {
+      const o = lodOptionsForScene(R)
+      expect(lodFor(m, 2.77 * R, o).depth).toBe(0) // cadrage : vue d'ensemble
+      expect(lodFor(m, 1.5 * R, o).depth).toBe(1)
+      expect(lodFor(m, 0.8 * R, o).depth).toBe(2)
+      expect(lodFor(m, 0.3 * R, o).depth).toBe(3)
+    }
+  })
+
+  it('même rapport distance / rayon ⇒ même profondeur (invariance d’échelle)', () => {
+    for (const k of [0.2, 0.6, 1.2, 1.9, 2.5, 3.5]) {
+      const small = lodFor(m, k * 300, lodOptionsForScene(300)).depth
+      const large = lodFor(m, k * 9_000, lodOptionsForScene(9_000)).depth
+      expect(large).toBe(small)
+    }
+  })
+
+  it('le cadrage tombe dans la zone morte de la profondeur 1 : pas de clignotement en sortant du zoom', () => {
+    const R = 976
+    const o = lodOptionsForScene(R)
+    // arrivée par le zoom (profondeur 1 précédente) : on reste à 1 au cadrage
+    expect(lodFor(m, 2.77 * R, o, 1).depth).toBe(1)
+    // arrivée de loin (profondeur 0) : on reste à 0
+    expect(lodFor(m, 2.77 * R, o, 0).depth).toBe(0)
+  })
+
+  it('refuse un rayon de scène non fini ou ≤ 0', () => {
+    expect(() => lodOptionsForScene(0)).toThrow(RangeError)
+    expect(() => lodOptionsForScene(Number.NaN)).toThrow(RangeError)
   })
 })

@@ -18,8 +18,11 @@ import {
   FAST_FRAMES,
   DROP_COOLDOWN_MS,
   RAISE_COOLDOWN_MS,
+  MIN_LINK_SCALE,
+  linkBudgetFor,
   type FrameQualityState,
 } from './frameQuality'
+import { TIER_BUDGETS } from './deviceTier'
 
 /** Feed `n` frames of `dtMs` at 60 fps of wall clock, starting at `t0`. */
 function run(state: FrameQualityState, dtMs: number, n: number, startAt = 1000, maxRatio = 1.5) {
@@ -156,5 +159,45 @@ describe('observeFrame — thresholds', () => {
     // Exactly SLOW_FRAMES slow frames: the counter has to EXCEED the window.
     const { state } = run(initialFrameQuality(1.5, 0), 50, SLOW_FRAMES, DROP_COOLDOWN_MS)
     expect(state.ratio).toBe(1.5)
+  })
+})
+
+describe('the link budget: the governor’s second lever', () => {
+  // medium and low tiers already open at maxPixelRatio 1.0: the ratio has
+  // nowhere to go, so a slow frame used to change nothing at all.
+  it('at ratio 1, sustained slow frames halve the link budget, down to its floor', () => {
+    let s = initialFrameQuality(1, 0)
+    expect(s.linkScale).toBe(1)
+    let t = 1000
+    const scales: number[] = []
+    for (let k = 0; k < 4; k++) {
+      const r = run(s, 50, SLOW_FRAMES + 2, t + DROP_COOLDOWN_MS)
+      s = r.state
+      t = r.now
+      scales.push(s.linkScale)
+    }
+    expect(s.ratio).toBe(MIN_PIXEL_RATIO)
+    expect(scales).toEqual([0.5, MIN_LINK_SCALE, MIN_LINK_SCALE, MIN_LINK_SCALE])
+  })
+
+  it('drops the pixel ratio first, then the link budget', () => {
+    let s = initialFrameQuality(1.5, 0)
+    s = run(s, 50, SLOW_FRAMES + 2, DROP_COOLDOWN_MS).state
+    expect([s.ratio, s.linkScale]).toEqual([1, 1])
+    s = run(s, 50, SLOW_FRAMES + 2, s.changedAt + DROP_COOLDOWN_MS).state
+    expect([s.ratio, s.linkScale]).toEqual([1, 0.5])
+  })
+
+  it('gives the link budget back first when the frames are fast again', () => {
+    const slow = { ...initialFrameQuality(1, 0), linkScale: 0.5 }
+    const { state } = run(slow, 8, FAST_FRAMES + 2, RAISE_COOLDOWN_MS, 1.5)
+    expect(state.linkScale).toBe(1)
+    expect(state.ratio).toBe(1)
+  })
+
+  it('turns the scale into a budget for the link system', () => {
+    const b = linkBudgetFor(TIER_BUDGETS.medium, { linkScale: 0.5 })
+    expect(b.maxTriangles).toBe(TIER_BUDGETS.medium.maxLinkTriangles / 2)
+    expect(b.maxCorridors).toBe(TIER_BUDGETS.medium.maxLinkBundles / 2)
   })
 })

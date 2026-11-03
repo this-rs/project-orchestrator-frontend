@@ -107,6 +107,15 @@ export interface TierBudget {
   maxNodesForCommunityDetection: number
   /** Ceiling for the device pixel ratio the render loop may open at. */
   maxPixelRatio: number
+  /**
+   * Triangles the link layer may submit (SystemBudget.maxTriangles) before the
+   * frame governor scales it (frameQuality.linkBudgetFor). medium and low
+   * already open at pixel ratio 1.0: without this the governor had no lever
+   * left on exactly the devices that need one.
+   */
+  maxLinkTriangles: number
+  /** Bundles the link layer may draw (SystemBudget.maxCorridors). */
+  maxLinkBundles: number
 }
 
 export const TIER_BUDGETS: Record<DeviceTier, TierBudget> = {
@@ -117,6 +126,8 @@ export const TIER_BUDGETS: Record<DeviceTier, TierBudget> = {
     labelLimit: 40,
     maxNodesForCommunityDetection: Infinity,
     maxPixelRatio: 1.5,
+    maxLinkTriangles: 240_000, // = DEFAULT_SYSTEM_BUDGET (linkSystem.ts)
+    maxLinkBundles: 4_000,
   },
   medium: {
     nodeBudget: 8_000,
@@ -125,6 +136,8 @@ export const TIER_BUDGETS: Record<DeviceTier, TierBudget> = {
     labelLimit: 20,
     maxNodesForCommunityDetection: 8_000,
     maxPixelRatio: 1.0,
+    maxLinkTriangles: 120_000,
+    maxLinkBundles: 2_000,
   },
   low: {
     nodeBudget: 4_000,
@@ -133,6 +146,8 @@ export const TIER_BUDGETS: Record<DeviceTier, TierBudget> = {
     labelLimit: 10,
     maxNodesForCommunityDetection: 4_000,
     maxPixelRatio: 1.0,
+    maxLinkTriangles: 60_000,
+    maxLinkBundles: 1_000,
   },
 }
 

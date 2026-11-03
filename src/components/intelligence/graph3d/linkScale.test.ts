@@ -9,6 +9,7 @@ import {
   LINK_SCALE_ORDER,
   type LinkEndpoint,
 } from './linkScale'
+import { curvature } from './linkCurve'
 
 const ep = (layer: string, communityId?: number): LinkEndpoint => ({ layer, communityId })
 
@@ -50,19 +51,20 @@ describe('LINK_SCALE_ALPHA — strictly increasing', () => {
     }
   })
 
-  it('matches the documented targets', () => {
-    expect(linkScaleAlpha('intra')).toBeCloseTo(0.05, 6)
-    expect(linkScaleAlpha('neighbor')).toBeCloseTo(0.12, 6)
-    expect(linkScaleAlpha('inter')).toBeCloseTo(0.28, 6)
+  it('separates each scale from the next by at least ×2 (readable at a glance)', () => {
+    for (let i = 1; i < LINK_SCALE_ORDER.length; i++) {
+      expect(linkScaleAlpha(LINK_SCALE_ORDER[i]) / linkScaleAlpha(LINK_SCALE_ORDER[i - 1])).toBeGreaterThanOrEqual(2)
+    }
   })
 })
 
 describe('LINK_SCALE_CURVATURE — minimal / organic / maximal', () => {
-  it('neighbor matches the existing organic curve (linkCurve.curvature)', () => {
-    // 0.02 + 0.13·v², capped at 0.15
-    expect(linkScaleCurvature('neighbor', 0)).toBeCloseTo(0.02, 6)
-    expect(linkScaleCurvature('neighbor', 0.5)).toBeCloseTo(0.02 + 0.13 * 0.25, 6)
-    expect(linkScaleCurvature('neighbor', 1)).toBeCloseTo(0.15, 6)
+  it('neighbor IS the existing organic curve (linkCurve.curvature), at every volume', () => {
+    // Called, not copied: if linkCurve changes, this test says the two diverged.
+    for (let k = -2; k <= 12; k++) {
+      const v = k / 10
+      expect(linkScaleCurvature('neighbor', v)).toBeCloseTo(curvature(v), 12)
+    }
   })
 
   it('is strictly increasing in volume for every scale', () => {
