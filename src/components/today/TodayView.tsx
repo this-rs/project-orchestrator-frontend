@@ -172,9 +172,16 @@ export interface TodayViewProps {
    * stays the first actionable section.
    */
   askSlot?: ReactNode
+  /**
+   * The core of the self (components/today/SelfCoreCard): what the foundation of every turn is,
+   * declared or proposed. It sits at the top of the right column, above the plans that run —
+   * it is a durable declaration, not a request waiting on the user, so it never preempts the
+   * queue; the right column is sticky and its top is always in view on a wide screen.
+   */
+  selfCoreSlot?: ReactNode
 }
 
-export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, laneNote, renderDiscussions, renderAttach, daySlot, liveSlot, askSlot }: TodayViewProps) {
+export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, laneNote, renderDiscussions, renderAttach, daySlot, liveSlot, askSlot, selfCoreSlot }: TodayViewProps) {
   const { status, data, error, refresh } = source
   const bands = data ? buildBands(data) : null
   const errors = data?.source_errors ?? []
@@ -453,6 +460,8 @@ export function TodayView({ source, lane, plansSlug, onClearLane, lanePicker, la
           </div>
 
           <div data-testid="sections-side" className="min-w-0 space-y-5 @4xl/today:sticky @4xl/today:top-4">
+            {selfCoreSlot}
+
             <BandFrame
               {...common('running')}
               panel

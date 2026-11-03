@@ -9,6 +9,7 @@ import { GlobalRouteLayout } from '@/components/GlobalRouteLayout'
 import { WorkspaceRouteGuard } from '@/components/WorkspaceRouteGuard'
 import { UpdateBanner } from '@/components/UpdateBanner'
 import { WebUpdateBanner } from '@/components/ui/WebUpdateBanner'
+import { SelfCorePrompt } from '@/components/knowledge/SelfCorePrompt'
 import { useTrayNavigation } from '@/hooks'
 import { useDocumentScrollGuard } from '@/hooks/useDocumentScrollGuard'
 import { isTauri } from '@/services/env'
@@ -169,6 +170,7 @@ function App() {
           <div className="flex min-h-0 flex-1 flex-col">
             <UpdateBanner />
             <WebUpdateBanner />
+            <SelfCorePrompt />
             <Routes>
               {/* Capture ?from=tray before any guard runs */}
               <Route element={<TrayNavigationCapture />}>

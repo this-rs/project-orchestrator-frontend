@@ -61,6 +61,7 @@ import type networkTools from './messages/en/networkTools.ts'
 import type anchors from './messages/en/anchors.ts'
 import type apiTokens from './messages/en/apiTokens.ts'
 import type execConfirm from './messages/en/execConfirm.ts'
+import type selfCore from './messages/en/selfCore.ts'
 
 interface EnglishMessages {
   auth: typeof auth
@@ -120,6 +121,7 @@ interface EnglishMessages {
   anchors: typeof anchors
   apiTokens: typeof apiTokens
   execConfirm: typeof execConfirm
+  selfCore: typeof selfCore
 }
 
 export type Ns = keyof EnglishMessages
@@ -130,7 +132,7 @@ export const NAMESPACES = [
   'intelPage', 'intelDashboard', 'intelGraph', 'intelLearning', 'intelTimeline',
   'auth', 'workspaceSelector', 'settingsPage', 'settingsShared', 'vault', 'sharing', 'admin', 'mcpFederation', 'providerWizard', 'providerAdmin', 'networkTools', 'anchors',
   'chatA-activity', 'chatA-input', 'chatA-messages', 'chatA-page', 'chatA-tools',
-  'apiTokens', 'execConfirm',
+  'apiTokens', 'execConfirm', 'selfCore',
 ] as const satisfies readonly Ns[]
 
 /** Every other language is a (possibly partial) overlay of the same shape. */
