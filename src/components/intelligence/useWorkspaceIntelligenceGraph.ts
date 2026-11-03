@@ -10,7 +10,7 @@ import type {
   IntelligenceRelationType,
   ProjectGraphMeta,
 } from '@/types/intelligence'
-import { NODE_SIZES, EDGE_STYLES } from '@/constants/intelligence'
+import { EDGE_STYLES } from '@/constants/intelligence'
 import {
   intelligenceNodesAtom,
   intelligenceEdgesAtom,
@@ -33,35 +33,6 @@ import { intelligenceApi } from '@/services/intelligence'
 import { VISIBILITY_PRESETS } from '@/constants/intelligence'
 import { graphCacheKey, graphCacheGet, graphCacheSet } from './graphCache'
 import type { VisibilityMode, WorkspaceGraphResponse } from '@/types/intelligence'
-
-// ── Dagre Web Worker ─────────────────────────────────────────────────────────
-
-let sharedWorker: Worker | null = null
-function getDagreWorker(): Worker {
-  if (!sharedWorker) {
-    sharedWorker = new Worker(
-      new URL('@/workers/dagreWorker.ts', import.meta.url),
-      { type: 'module' },
-    )
-  }
-  return sharedWorker
-}
-
-/** Terminate the shared worker to free resources (called on unmount) */
-function terminateDagreWorker(): void {
-  if (sharedWorker) {
-    sharedWorker.terminate()
-    sharedWorker = null
-  }
-}
-
-function serializeForWorker(nodes: IntelligenceNode[]) {
-  return nodes.map((node) => {
-    const entityType = (node.data as { entityType?: string }).entityType ?? 'file'
-    const size = NODE_SIZES[entityType as keyof typeof NODE_SIZES] ?? { width: 32, height: 32 }
-    return { id: node.id, width: size.width + 20, height: size.height + 20 }
-  })
-}
 
 // ── Transform backend data → ReactFlow ───────────────────────────────────────
 
@@ -138,7 +109,6 @@ function toReactFlowEdge(edge: BackendGraphEdge, index: number): IntelligenceEdg
 type Tr = ReturnType<typeof useT>['t']
 const countOf = (t: Tr, n: number, one: MessageKey, other: MessageKey) => t(n === 1 ? one : other, { count: n })
 const nodesText = (t: Tr, n: number) => countOf(t, n, 'intelPage.graph.stage.nodesOne', 'intelPage.graph.stage.nodesOther')
-const edgesText = (t: Tr, n: number) => countOf(t, n, 'intelPage.graph.stage.edgesOne', 'intelPage.graph.stage.edgesOther')
 
 export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined) {
   const { t } = useT()
@@ -343,7 +313,6 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
       setSummary(null)
       setCommunities([])
       setStages([])
-      terminateDagreWorker()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on slug change
   }, [workspaceSlug])
@@ -395,15 +364,14 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     setVisibilityMode('custom')
   }, [setVisibleLayers, setVisibilityMode])
 
-  // ── Async dagre layout via Web Worker ─────────────────────────────────────
+  // ── Layout: pass-through (no 2D dagre pass) ────────────────────────────────
+  // Same reason as the project view (useIntelligenceGraph): the dagre worker
+  // laid out every visible set, the 3D view ignores those positions (it places
+  // nodes itself), and dagre grows super-linearly — ~12 s at 500 nodes, over
+  // two minutes at 2 000 — while the page waited on it. A worker error left the
+  // "layout" stage loading forever and the 3D view empty.
   const [layoutedNodes, setLayoutedNodes] = useState<IntelligenceNode[]>([])
   const [layoutedEdges, setLayoutedEdges] = useState<IntelligenceEdge[]>([])
-  const [layouting, setLayouting] = useState(false)
-  const layoutVersionRef = useRef(0)
-
-  // Track node identity to detect edge-only changes (e.g. show-all-edges toggle)
-  const prevNodeFingerprintRef = useRef('')
-  const hasLayoutedOnceRef = useRef(false)
 
   // Filter nodes by project(s) if any filters are active
   // IMPORTANT: useMemo prevents new array refs every render which would cause
@@ -425,105 +393,21 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
   }, [activeProjectFilters, filteredNodes, visibleEdges])
 
   useEffect(() => {
-    if (filteredNodes.length === 0) {
-      setLayoutedNodes([])
-      setLayoutedEdges([])
-      setLayouting(false)
-      prevNodeFingerprintRef.current = ''
-      hasLayoutedOnceRef.current = false
-      return
-    }
-
-    // Build a lightweight fingerprint of node IDs to detect node-set changes
-    const nodeFingerprint = filteredNodes.map((n) => n.id).sort().join(',')
-    const nodesChanged = nodeFingerprint !== prevNodeFingerprintRef.current
-    prevNodeFingerprintRef.current = nodeFingerprint
-
-    // If only edges changed (e.g. show-all-edges toggle, CO_CHANGED threshold),
-    // skip the full dagre re-layout — node positions don't change.
-    // Show a brief loading stage so the user sees feedback.
-    if (!nodesChanged && hasLayoutedOnceRef.current) {
-      const edgeCount = filteredEdges.length
-      const startedAt = Date.now()
-      setStages([
-        { id: 'update_edges', label: tRef.current('intelPage.graph.stage.updateEdges'), status: 'loading', startedAt, detail: edgesText(tRef.current, edgeCount) },
-      ])
-      requestAnimationFrame(() => {
-        setLayoutedEdges(filteredEdges)
-        setStages([
-          { id: 'update_edges', label: tRef.current('intelPage.graph.stage.updateEdges'), status: 'done', startedAt, completedAt: Date.now(), detail: edgesText(tRef.current, edgeCount) },
-        ])
-      })
-      return
-    }
-
-    const version = ++layoutVersionRef.current
-    setLayouting(true)
-    updateStage('layout', { status: 'loading', startedAt: Date.now() })
-
-    const worker = getDagreWorker()
-    const serializedNodes = serializeForWorker(filteredNodes)
-    const serializedEdges = filteredEdges.map((e) => ({ source: e.source, target: e.target }))
-
-    const handler = (event: MessageEvent<{ type: string; [key: string]: unknown }>) => {
-      if (version !== layoutVersionRef.current) return
-      const msg = event.data
-
-      if (msg.type === 'progress') {
-        const { done, total, nodesDone, nodesTotal } = msg as {
-          type: string; done: number; total: number; nodesDone: number; nodesTotal: number
-        }
-        updateStage('layout', {
-          status: 'loading',
-          detail: total > 1
-            ? tRef.current('intelPage.graph.stage.layoutClusters', { done, total, nodesDone, nodesTotal })
-            : tRef.current('intelPage.graph.stage.layoutNodes', { nodesDone, nodesTotal }),
-          progress: nodesDone,
-          progressTotal: nodesTotal,
-        })
-        return
-      }
-
-      if (msg.type === 'result') {
-        const { nodes: resultNodes, components } = msg as {
-          type: string; nodes: { id: string; x: number; y: number }[]; components: number
-        }
-        const positionMap = new Map(resultNodes.map((n) => [n.id, { x: n.x, y: n.y }]))
-
-        setLayoutedNodes(
-          filteredNodes.map((node) => {
-            const pos = positionMap.get(node.id)
-            return pos ? { ...node, position: pos } : node
-          }),
-        )
-        setLayoutedEdges(filteredEdges)
-        setLayouting(false)
-        hasLayoutedOnceRef.current = true
-        updateStage('layout', {
-          status: 'done',
-          completedAt: Date.now(),
-          detail: components > 1
-            ? tRef.current('intelPage.graph.stage.layoutDone', { nodes: nodesText(tRef.current, filteredNodes.length), clusters: components })
-            : nodesText(tRef.current, filteredNodes.length),
-          progress: filteredNodes.length,
-          progressTotal: filteredNodes.length,
-        })
-        worker.removeEventListener('message', handler)
-      }
-    }
-
-    worker.addEventListener('message', handler)
-    worker.postMessage({ nodes: serializedNodes, edges: serializedEdges })
-
-    return () => {
-      worker.removeEventListener('message', handler)
-    }
+    setLayoutedNodes(filteredNodes)
+    setLayoutedEdges(filteredEdges)
+    updateStage('layout', {
+      status: 'done',
+      startedAt: Date.now(),
+      completedAt: Date.now(),
+      detail: nodesText(tRef.current, filteredNodes.length),
+      progress: filteredNodes.length,
+      progressTotal: filteredNodes.length,
+    })
   }, [filteredNodes, filteredEdges, updateStage])
 
   return {
     nodes: layoutedNodes,
     edges: layoutedEdges,
-    layouting,
     allNodes: nodes,
     allEdges: edges,
     selectedNodeId,
