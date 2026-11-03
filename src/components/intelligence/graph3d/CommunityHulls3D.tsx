@@ -21,7 +21,7 @@
 
 import * as THREE from 'three'
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js'
-import { entityColor } from '@/constants/graphPalette'
+import { layerColor } from './layerColors'
 import {
   prepareCommunityHulls,
   type CommunityHullPrepOptions,
@@ -103,7 +103,7 @@ export function buildCommunityHulls(
   const prepared = prepareCommunityHulls(nodes, options)
 
   for (const p of prepared) {
-    const color = entityColor(p.dominantType)
+    const color = layerColor(p.dominantLayer)
     const hullGeo = buildHullGeometry(p)
     if (!hullGeo) continue
 

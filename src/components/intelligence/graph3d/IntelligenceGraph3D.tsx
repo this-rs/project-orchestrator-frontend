@@ -22,6 +22,7 @@ import {
   WAKE_MUTATION_MS,
 } from './useRenderLoop'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
+import { resolveNodeBaseRgb } from './layerColors'
 import { createLinkSegments, parseColor, type LinkSegments, type LinkStyle } from './linkSegments'
 import { computeLinkAlpha, linkFamilyAlpha, LINK_OPACITY } from './linkFamily'
 import { createNodePoints, shapeForType, sizeForType, type NodePoints, type NodeStyle } from './nodePoints'
@@ -1058,7 +1059,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // never re-evaluates the whole crate.)
   const computeNodeStyle = useCallback((node: Graph3DNode): NodeStyle => {
     const entityType = node.entityType
-    const base = ENTITY_RGB[entityType] ?? DEFAULT_NODE_RGB
+    // Colour channel: LAYER when aggregated (scale ≥ 1), entity TYPE in detail.
+    const base = resolveNodeBaseRgb(aggregated, node.layer, ENTITY_RGB[entityType] ?? DEFAULT_NODE_RGB)
     // Super-nodes (aggregated) are sized by how many nodes they bundle (area ∝
     // count), coloured/shaped by their dominant type. Individual nodes use the
     // per-type size.
@@ -1131,7 +1133,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
 
     return { r: base.r, g: base.g, b: base.b, alpha: 1, size, shape, act: 0 }
-  }, [energyHeatmap, touchesHeatmap, activation, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes, baseNodeSize])
+  }, [energyHeatmap, touchesHeatmap, activation, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes, baseNodeSize, aggregated])
 
   /** Always-current node style fn, so the structure effect can color without re-running on every hover. */
   const computeNodeStyleRef = useRef(computeNodeStyle)

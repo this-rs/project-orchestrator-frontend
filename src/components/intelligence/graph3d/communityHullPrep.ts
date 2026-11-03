@@ -16,6 +16,7 @@
 // ============================================================================
 
 import type { Graph3DNode } from './useGraph3DLayout'
+import { dominantLayer } from './layerColors'
 
 /** A community is too small to wrap — a hull over fewer than this many points is degenerate. */
 export const MIN_HULL_MEMBERS = 20
@@ -41,6 +42,8 @@ export interface PreparedCommunityHull {
   nodeCount: number
   /** Most common entity type among the members — drives the envelope colour. */
   dominantType: string
+  /** Layer with the most members (ties → alphabetical) — drives the envelope colour. */
+  dominantLayer: string
   /** Member positions (finite-only), in stable input order. */
   points: HullPoint[]
   /** Centroid of the member positions. */
@@ -142,6 +145,7 @@ export function prepareCommunityHulls(
       label: label || `#${communityId}`,
       nodeCount: points.length,
       dominantType,
+      dominantLayer: dominantLayer(members.map((n) => n.layer)),
       points,
       centroid,
       radius,
