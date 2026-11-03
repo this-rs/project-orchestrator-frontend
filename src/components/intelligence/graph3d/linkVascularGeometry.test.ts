@@ -37,8 +37,34 @@ describe('géométrie vasculaire', () => {
       if (d > maxR) maxR = d
     }
     expect(nan).toBe(0)
-    // Le graphe tient dans ~200 de rayon ; un vaisseau ne doit pas le dépasser
-    // de plus du double, sinon c'est une baudruche.
-    expect(maxR).toBeLessThan(2000)
+    // Les nœuds tiennent dans ~346 de rayon (mesuré : les vaisseaux montent à
+    // ~323). Le ventre des troncs reste DANS le nuage, à 10 % près ; l'ancienne
+    // borne (2 000) laissait passer une épaisseur ×10.
+    let nodeR = 0
+    for (const n of nodes as unknown as { x: number; y: number; z: number }[]) nodeR = Math.max(nodeR, Math.hypot(n.x, n.y, n.z))
+    expect(maxR).toBeLessThan(1.1 * nodeR)
+  })
+
+  it('les liens restent fins devant l’espacement des nœuds (proportion liens/nœuds)', () => {
+    const { nodes, links } = synth(3000)
+    const r = createVascularLinks(nodes, links)!
+    const pos = (r.object as unknown as { children: { geometry: { attributes: { position: { array: Float32Array } } } }[] })
+      .children[0].geometry.attributes.position.array
+    const d0 = r.unit!()
+    let widest = 0
+    for (const c of r.inspect!()) {
+      if (c.kind === 'junction') continue
+      const base = c.vertexStart + Math.floor(c.samples / 2) * 6
+      let mx = 0, my = 0, mz = 0
+      for (let k = 0; k < 6; k++) { mx += pos[(base + k) * 3] / 6; my += pos[(base + k) * 3 + 1] / 6; mz += pos[(base + k) * 3 + 2] / 6 }
+      const rr = Math.hypot(pos[base * 3] - mx, pos[base * 3 + 1] - my, pos[base * 3 + 2] - mz)
+      // Jamais plus que la loi : 0,03 · d0 · n^(1/3).
+      expect(rr).toBeLessThanOrEqual(0.03 * d0 * Math.cbrt(Number(c.n)) * 1.01)
+      widest = Math.max(widest, rr)
+    }
+    // Le plus gros faisceau (≈ 1 000 relations) reste plus fin que la moitié
+    // de l'espace entre deux nœuds voisins : on voit les nœuds ENTRE les liens.
+    expect(widest).toBeLessThan(0.5 * d0)
+    expect(widest).toBeGreaterThan(0.1 * d0)
   })
 })

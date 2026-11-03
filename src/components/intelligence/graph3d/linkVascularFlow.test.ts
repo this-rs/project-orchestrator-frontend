@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { ORGANIC_FLOW_ENABLED, createVascularLinks } from './linkVascularRenderer'
 
 function synth(n: number) {
@@ -94,9 +94,31 @@ describe('flux animé (phase 7)', () => {
     expect(Math.max(...u)).toBeCloseTo(1, 6)
   })
 
-  it('n’active pas le flux par défaut sur mobile', () => {
-    // Le flag est une constante d'environnement : on vérifie seulement qu'il
-    // existe et qu'il est booléen — la décision d'animer reste à l'appelant.
+  it('n’active pas le flux par défaut sur mobile, l’active sur poste fixe', async () => {
+    // Le drapeau est évalué au chargement du module : on le recharge sous un
+    // appareil « mobile » (pointeur grossier) puis « fixe ».
+    const load = async (mobile: boolean) => {
+      vi.resetModules()
+      vi.doMock('./useRenderLoop', async (orig) => ({
+        ...(await orig<typeof import('./useRenderLoop')>()),
+        isMobileLikeDevice: () => mobile,
+      }))
+      const mod = await import('./linkVascularRenderer')
+      vi.doUnmock('./useRenderLoop')
+      return mod.ORGANIC_FLOW_ENABLED
+    }
+    expect(await load(true)).toBe(false)
+    expect(await load(false)).toBe(true)
     expect(typeof ORGANIC_FLOW_ENABLED).toBe('boolean')
+  })
+
+  it('setFlowTime n’écrit qu’un uniforme, borné à un tour de motif', () => {
+    const { nodes, links } = synth(150)
+    const r = createVascularLinks(nodes, links)!
+    const m = materialOf(r)
+    r.setFlowTime!(2.25)
+    expect(m.uniforms.uFlowTime.value).toBeCloseTo(0.25, 12)
+    r.setFlowTime!(Number.NaN)
+    expect(m.uniforms.uFlowTime.value).toBe(0)
   })
 })

@@ -27,6 +27,9 @@ function chunk(type: string, data: Buffer): Buffer {
   return Buffer.concat([len, body, crc])
 }
 function writePng(path: string, w: number, h: number, rgb: Buffer) {
+  // Image de QA écrite SEULEMENT sur demande explicite (QA_PNG=1) : un test
+  // ne doit pas salir l'arbre de travail à chaque exécution.
+  if (!process.env.QA_PNG) return
   fs.mkdirSync(path.split('/').slice(0, -1).join('/') || '.', { recursive: true })
   const stride = w * 3
   const raw = Buffer.alloc((stride + 1) * h)
