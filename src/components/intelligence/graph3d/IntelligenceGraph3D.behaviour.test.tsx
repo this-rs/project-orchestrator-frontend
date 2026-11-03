@@ -602,6 +602,35 @@ describe('IntelligenceGraph3D — dynamic scale (HLOD)', () => {
     expect(drawn()).toBe(before)
   })
 
+  it('clicking a group flies the camera to it, and the group opens in place', async () => {
+    await mountGraph(makeGraph(5000))
+    await flush(3000)
+    const camera = lib.fg.camera()
+    camera.aspect = 800 / 600
+    camera.updateProjectionMatrix()
+    camera.updateMatrixWorld()
+    // the group nearest to the camera: nothing stands in front of it
+    const d = (n: { x: number; y: number; z: number }) => camera.position.distanceTo(new THREE.Vector3(n.x, n.y, n.z))
+    const target = drawn().nodes
+      .filter((n) => isGroup(n.id))
+      .filter((n) => Math.abs(new THREE.Vector3(n.x, n.y, n.z).project(camera).x) < 0.9)
+      .sort((a, b) => d(a) - d(b))[0]
+    const v = new THREE.Vector3(target.x, target.y, target.z).project(camera)
+    const clientX = ((v.x + 1) / 2) * 800
+    const clientY = ((1 - v.y) / 2) * 600
+    const el = document.querySelector('.absolute.inset-0.overflow-hidden') as HTMLElement
+    act(() => {
+      el.dispatchEvent(new MouseEvent('click', { clientX, clientY, bubbles: true }))
+    })
+    expect(lib.fg.cameraPosition).toHaveBeenLastCalledWith(
+      expect.anything(),
+      { x: target.x, y: target.y, z: target.z },
+      900,
+    )
+    await flush(500)
+    expect(drawn().nodes.some((n) => n.id === target.id)).toBe(false)
+  })
+
   it('a small graph is drawn as is (no tree, no grouping)', async () => {
     await mountGraph(makeGraph(200))
     await flush(3000)

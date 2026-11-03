@@ -49,6 +49,9 @@ import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAg
 import { nextScaleLevel, scaleYardstick } from './scaleDecision'
 import { buildClusterTree, cutForView, type ClusterCut, type ClusterTree } from './clusterTree'
 import { carriedPrevious, graphFromCut, openIdsOf } from './cutGraph'
+import type { VascularLinkRenderer } from './linkVascularRenderer'
+import { formatExactCount } from './linkMagnitude'
+import type { MessageKey } from '@/i18n'
 import { zoomAdaptivePixelRatioCeiling } from './pixelRatioZoom'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { currentDeviceBudget } from './deviceTier'
@@ -214,6 +217,9 @@ const AUTO_AGGREGATE_ABOVE = 4000
 const HLOD_BUDGET = isMobileLikeDevice()
   ? { maxNodes: 1200, maxLinks: 2500 }
   : { maxNodes: 3000, maxLinks: 6000 }
+
+/** Screen tolerance around a link's axis for hover, px: a one-relation conduit is barely wider. */
+const LINK_PICK_TOLERANCE_PX = 6
 
 /** How often the cut follows a moving camera (trailing call), ms. */
 const RECUT_THROTTLE_MS = 200
@@ -2552,6 +2558,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // With nodeVisibility=false the library has no node objects to raycast, so
   // hover/click/double-click are driven from our own NDC projection (pick).
   const pointsClickRef = useRef<{ nodeId: string; time: number } | null>(null)
+  // The link under the pointer: its exact relation count, near the pointer.
+  const [hoveredLink, setHoveredLink] = useState<{ text: string; x: number; y: number } | null>(null)
   useEffect(() => {
     if (!useOptimizedNodes) return
     const el = containerRef.current
@@ -2639,7 +2647,43 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       setHullHover(hull)
       const id = hit?.id ?? null
       if (id !== lastHoverId) { lastHoverId = id; setHoveredNodeId(id) }
-      el.style.cursor = hit || hull ? 'pointer' : 'default'
+      // Nothing solid under the pointer: a link may be. Thin conduits (one
+      // relation) are a few pixels wide, so the pick is a SCREEN distance to
+      // their axis with a tolerance, not a ray on triangles. Hovering lights the
+      // conduit's path up to its trunk and says how many relations it carries.
+      const link = hit || hull ? null : pickLink(ev)
+      el.style.cursor = hit || hull || link ? 'pointer' : 'default'
+    }
+
+    let litConduit: number | null = null
+    const lightConduit = (next: number | null) => {
+      if (next === litConduit) return
+      litConduit = next
+      ;(linkSegmentsRef.current as VascularLinkRenderer | null)?.highlightConduit?.(next)
+      wake(WAKE_MUTATION_MS)
+    }
+    const pickLink = (ev: PointerEvent) => {
+      const seg = linkSegmentsRef.current as VascularLinkRenderer | null
+      const camera = fg.camera?.()
+      if (!seg?.pickAt || !camera) {
+        lightConduit(null)
+        setHoveredLink(null)
+        return null
+      }
+      const rect = el.getBoundingClientRect()
+      const pick = seg.pickAt(ndcVec.x, ndcVec.y, camera, rect.height, LINK_PICK_TOLERANCE_PX)
+      lightConduit(pick?.id ?? null)
+      if (!pick) {
+        setHoveredLink(null)
+        return null
+      }
+      const n = pick.n
+      setHoveredLink({
+        text: t(`featureGraphs.counts.relation.${n === 1n ? 'one' : 'other'}` as MessageKey, { n: formatExactCount(n) }),
+        x: ev.clientX - rect.left,
+        y: ev.clientY - rect.top,
+      })
+      return pick
     }
 
     // ── Gesture guard — touch orbit / pinch must never pick a node ──────────
@@ -2707,7 +2751,20 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       const hit = np.pick(raycaster)
       // A super-node IS a community: clicking it opens it (drill-down) instead
       // of selecting a blob the user cannot inspect.
-      const sup = hit?.data as { count?: number } | undefined
+      const sup = hit?.data as { count?: number; clusterRadius?: number } | undefined
+      // Dynamic scale: a group is OPENED by going to it — the cut then shows its
+      // real nodes in place, in context, instead of a filtered view.
+      if (hit && dynamicScale && hit.id.startsWith('cl:')) {
+        const r = Math.max(40, sup?.clusterRadius ?? 40)
+        const camera = fg.camera?.()
+        const from = camera ? camera.position : new THREE.Vector3(hit.x, hit.y, hit.z + 1)
+        const dir = new THREE.Vector3(from.x - hit.x, from.y - hit.y, from.z - hit.z)
+        if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1)
+        dir.normalize().multiplyScalar(r * 2.2)
+        fg.cameraPosition?.({ x: hit.x + dir.x, y: hit.y + dir.y, z: hit.z + dir.z }, { x: hit.x, y: hit.y, z: hit.z }, 900)
+        wake(1400)
+        return
+      }
       if (hit && typeof sup?.count === 'number' && sup.count > 1 && hit.communityId != null) {
         setDrilledCommunity(hit.communityId)
         return
@@ -2746,6 +2803,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       el.removeEventListener('click', onClick)
       if (rafId) cancelAnimationFrame(rafId)
       el.style.cursor = 'default'
+      lightConduit(null)
+      setHoveredLink(null)
       // The hover state lives in this closure: a re-subscription (a selection
       // change re-runs this effect) starts from `null` and would never lower
       // a hull raised by the previous one. Give it back before leaving.
@@ -2754,7 +2813,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // hasDimensions: the library mounts after the data when the graph is opened
     // from the code map. Without it this effect returns early (no ForceGraph3D
     // yet) and never attaches the pick, so a click on a node selects nothing.
-  }, [useOptimizedNodes, selectedNodeId, setHoveredNodeId, setSelectedNodeId, onNodeDoubleClick, hasDimensions])
+  }, [useOptimizedNodes, selectedNodeId, setHoveredNodeId, setSelectedNodeId, onNodeDoubleClick, hasDimensions, dynamicScale, t, wake])
 
   return (
     <div ref={containerRef} className="absolute inset-0 overflow-hidden bg-[var(--color-surface-base)]">
@@ -2827,6 +2886,16 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         // Background
         backgroundColor={PO_CANVAS_BG}
       />}
+
+      {hoveredLink && (
+        <div
+          data-testid="link-hover-count"
+          className="pointer-events-none absolute z-10 rounded-md bg-surface-popover px-2 py-1 text-[11px] tabular-nums text-[var(--text-primary)] shadow"
+          style={{ left: hoveredLink.x + 12, top: hoveredLink.y + 12 }}
+        >
+          {hoveredLink.text}
+        </div>
+      )}
 
       {/* ── Scale stepper (multi-scale aggregation) — collapsible ───────── */}
       {graphData.nodes.length > 0 && (
