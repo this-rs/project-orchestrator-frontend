@@ -1,4 +1,4 @@
-// GENERATED from website@33e082ed383c655e3293b66a3e04160d5876eac8:src/three/iso/buildIn.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@8edc84d47096978e049137e0b5fa32b9dffb4360:src/three/iso/buildIn.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Apparition « en construction » d'une machine : PO la CONÇOIT puis la BÂTIT sous les yeux du lecteur, avec un
@@ -140,7 +140,10 @@ function schedule(m: MachineDef, faces: readonly Face[]): Schedule {
       const sweep = ((((Math.atan2(cy / k - ay, cx / k - ax) + Math.PI / 2) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) / (2 * Math.PI)
       const start = TRACK[0] + (TRACK[1] - TRACK[0] - 0.05) * sweep
       track.push({ start, c: [wx / k, wy / k, wz / k] })
-      return { wire: DESIGN_TRACK[0] + (DESIGN_TRACK[1] - DESIGN_TRACK[0]) * sweep, start, dur: 0.05, base: 0 }
+      // dur 0,05 → 0,12 : une voie se POSE, elle ne se pose pas par tronçons. Avec 0,05 chaque face naissait et finissait
+      // avant que la suivante commence, ce qui donnait des segments qui clignotent ; 0,12 fait chevaucher ~4 faces, donc
+      // un front continu qui avance (mesuré : c est ce que l oeil lit comme un ruban qui se déroule).
+      return { wire: DESIGN_TRACK[0] + (DESIGN_TRACK[1] - DESIGN_TRACK[0]) * sweep, start, dur: 0.12, base: 0 }
     }
     const base = partMin.get(f.part)!
     if (key === 'tool') return { wire: DESIGN_STATIONS[1], start: TOOL, dur: 0.05, base }

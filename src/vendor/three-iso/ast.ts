@@ -1,4 +1,4 @@
-// GENERATED from website@33e082ed383c655e3293b66a3e04160d5876eac8:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@8edc84d47096978e049137e0b5fa32b9dffb4360:src/three/iso/ast.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * PROTOCOLE DE CONSTRUCTION : des objets et des mécaniques décrits comme des DONNÉES (un arbre JSON), compilés en
@@ -28,6 +28,7 @@
  */
 import { ease, LAMP, MAT, mmul, ngon, Rx, Ry, Rz, I3, annulus, type Frame, type Mat3, type Vec3 } from './iso.ts'
 import type { MechCtx, Mechanism } from './mechanisms.ts'
+import { triangulateWithHoles } from './polygon.ts'
 
 export type V3 = readonly [number, number, number]
 export type Material = 'porcelain' | 'satin' | 'graphite' | 'steel' | 'steelL' | 'brass' | 'brassL' | 'copper' | 'dark'
@@ -72,7 +73,13 @@ export type IsoNode =
   | (Base & { kind: 'lathe'; profile: readonly (readonly [number, number])[]; seg?: number })
   /** Extrusion : un polygone FERMÉ du plan (x, y) poussé sur `depth` en z. C'est la primitive qui ouvre les formes
    * planes arbitraires — équerre, engrenage, plaque, logo — que la boîte et la révolution ne savent pas faire. */
-  | (Base & { kind: 'prism'; profile: readonly (readonly [number, number])[]; depth: number })
+  | (Base & {
+      kind: 'prism'
+      profile: readonly (readonly [number, number])[]
+      depth: number
+      /** Contours INTÉRIEURS (trous traversants). Un seul trou pour l instant — limite du triangulateur, nommée. */
+      holes?: readonly (readonly (readonly [number, number])[])[] | undefined
+    })
   | (Base & { kind: 'capsule'; r: number; h: number; seg?: number })
   | (Base & { kind: 'repeat'; shape: IsoNode; positions: readonly V3[] })
   | (Base & { kind: 'torus'; r: number; t: number; seg?: number })
@@ -181,6 +188,15 @@ export function checkAst(root: IsoNode, limits: AstLimits = AST_LIMITS): string[
           if (!Array.isArray(v) || v.length !== 2 || typeof v[0] !== 'number' || typeof v[1] !== 'number' || Math.abs(v[0]) > 6 || Math.abs(v[1]) > 6) out.push(`${where} : profil[${k}] doit être [x, y] dans ±6`)
         })
         num(where, 'depth', n.depth, 0.01, 6)
+        if (n.holes !== undefined) {
+          if (!Array.isArray(n.holes) || n.holes.length > 1) out.push(`${where} : prism.holes — un seul trou pour l instant`)
+          else n.holes.forEach((h, k) => {
+            if (!Array.isArray(h) || h.length < 3 || h.length > 32) out.push(`${where} : holes[${k}] doit avoir 3 à 32 points`)
+            else h.forEach((v, j) => {
+              if (!Array.isArray(v) || v.length !== 2 || Math.abs(v[0]) > 6 || Math.abs(v[1]) > 6) out.push(`${where} : holes[${k}][${j}] doit être [x, y] dans ±6`)
+            })
+          })
+        }
         shapes++
         break
       }
@@ -437,7 +453,12 @@ function drawTree(root: IsoNode, c: MechCtx, F: Frame, z0: number, sockets: Map<
         break
       case 'prism': {
         const poly = n.profile.map((p) => [p[0], p[1]] as const)
-        sub.loft(poly as never, poly as never, n.depth, o)
+        const holes = (n.holes ?? []).map((h) => h.map((p) => [p[0], p[1]] as const))
+        if (holes.length) {
+          // Un n-gone ne porte pas de trou : on triangule le CAPUCHON (ponts + oreilles) et on extrude chaque triangle.
+          // Les cloisons entre triangles sont invisibles : elles sont à l'intérieur de la matière.
+          for (const tri of triangulateWithHoles(poly, holes as never)) sub.loft(tri as never, tri as never, n.depth, o)
+        } else sub.loft(poly as never, poly as never, n.depth, o)
         break
       }
       case 'capsule':

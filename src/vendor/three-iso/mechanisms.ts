@@ -1,4 +1,4 @@
-// GENERATED from website@33e082ed383c655e3293b66a3e04160d5876eac8:src/three/iso/mechanisms.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@8edc84d47096978e049137e0b5fa32b9dffb4360:src/three/iso/mechanisms.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Bibliothèque de MÉCANIQUES : de petites machines qui montrent une logique (pas une icône), à poser sur un poste de
