@@ -1,4 +1,4 @@
-// GENERATED from website@8edc84d47096978e049137e0b5fa32b9dffb4360:src/three/iso/polygon.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@4dfb9f9807e5ff890ea2007962062eef1398c7d5:src/three/iso/polygon.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Triangulation d'un polygone SIMPLE ou À TROUS, dans le plan.
@@ -126,5 +126,10 @@ export function triangulateWithHoles(outer: readonly P2[], holes: readonly (read
   // Les trous se relient du plus à droite au plus à gauche : un pont ne peut alors pas traverser un trou déjà relié.
   const sorted = holes.map((h) => ccw(h).reverse()).sort((a, b) => Math.max(...b.map((p) => p[0])) - Math.max(...a.map((p) => p[0])))
   for (const hole of sorted) ring = bridge(ring, hole)
-  return earClip(ring).map(([a, b, c]) => [ring[a]!, ring[b]!, ring[c]!])
+  // TOUS les triangles dans le MÊME sens : un mélange laisse des triangles vus de dos, donc cullés ou éclairés
+  // autrement — c était les arêtes visibles sur le capuchon (mesuré au rendu).
+  return earClip(ring).map(([a, b, c]) => {
+    const t: [P2, P2, P2] = [ring[a]!, ring[b]!, ring[c]!]
+    return area(t[0], t[1], t[2]) < 0 ? ([t[0], t[2], t[1]] as [P2, P2, P2]) : t
+  })
 }

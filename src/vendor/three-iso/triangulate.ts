@@ -1,4 +1,4 @@
-// GENERATED from website@8edc84d47096978e049137e0b5fa32b9dffb4360:src/three/iso/triangulate.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@4dfb9f9807e5ff890ea2007962062eef1398c7d5:src/three/iso/triangulate.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Triangulation des faces planes des machines (rendu WebGL). Module PUR, sans import : lu par Node dans les tests.
