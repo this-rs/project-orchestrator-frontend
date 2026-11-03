@@ -92,6 +92,29 @@ describe('buildCommunityPairSheets', () => {
     expect(byKey.get(communityPairKey(5, 5))?.count).toBe(1)
   })
 
+  it('carries an EXACT magnitude per sheet, partitioned by relation type', () => {
+    // The count a sheet shows must be exact and complete: the sub-bundles are a
+    // real partition (one per relation type), so their sum IS the sheet's count.
+    const links = [link(1, 2), link(1, 2), link(1, 2), link(2, 1)]
+    const [sheet] = buildCommunityPairSheets(links)
+    expect(sheet.magnitude.exactCount).toBe(4n)
+    expect(sheet.magnitude.exactCountText).toBe('4')
+    const sum = sheet.magnitude.hierarchicalComponents.reduce((a, c) => a + c.count, 0n)
+    expect(sum).toBe(sheet.magnitude.exactCount)
+    expect(sheet.magnitude.coverage).toBe(1)
+  })
+
+  it('keeps the decimal ORDER of a sheet, so 10^6 and 10^9 stay distinguishable', () => {
+    const wall = (n: number) => Array.from({ length: n }, () => link(1, 2))
+    const small = buildCommunityPairSheets(wall(10))[0]
+    const big = buildCommunityPairSheets(wall(1000))[0]
+    expect(small.magnitude.magnitudeOrder).toBe(1)
+    expect(big.magnitude.magnitudeOrder).toBe(3)
+    // The band width would clamp; the magnitude must not.
+    expect(small.magnitude.exactCount).toBe(10n)
+    expect(big.magnitude.exactCount).toBe(1000n)
+  })
+
   it('treats a→b and b→a as the same pair (order-independent)', () => {
     expect(communityPairKey(1, 2)).toBe(communityPairKey(2, 1))
   })

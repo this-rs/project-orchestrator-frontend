@@ -30,6 +30,7 @@
 // ============================================================================
 
 import type { Graph3DLink } from './useGraph3DLayout'
+import { describeMagnitude, type Magnitude } from './linkMagnitude'
 
 /**
  * A per-link style: normalized RGB (source endpoint) plus optional target
@@ -153,8 +154,18 @@ export interface CommunityPairSheet {
   targetCommunityId: number | undefined
   /** The links summarized by this sheet (links.length === count). */
   links: Graph3DLink[]
-  /** Number of links summarized. */
+  /** Number of links summarized. Kept as a `number` because it only sizes the band. */
   count: number
+  /**
+   * How much the sheet carries, in the OPEN magnitude model (linkMagnitude.ts).
+   *
+   * `count` is a `number` and can only size a band; `magnitude` is the exact
+   * count (bigint), its decimal order, and the REAL sub-bundles — one per
+   * relation type, because that is a partition of the links the data actually
+   * states. It is what lets a sheet of 10⁶ and a sheet of 10⁹ stay
+   * distinguishable once the projected width has hit its ceiling.
+   */
+  magnitude: Magnitude
 }
 
 /** A community id as a stable token; a missing community is its own bucket. */
@@ -186,11 +197,30 @@ export function buildCommunityPairSheets(links: readonly Graph3DLink[]): Communi
         targetCommunityId: link.targetCommunityId,
         links: [],
         count: 0,
+        // Replaced by the second pass below; typed here so the field is never
+        // optional and no caller can read an undefined magnitude.
+        magnitude: describeMagnitude(0n),
       }
       map.set(key, sheet)
     }
     sheet.links.push(link)
     sheet.count++
+  }
+  // Second pass: the magnitude needs the whole sheet. The components are a REAL
+  // partition (each link has exactly one relation type), so their exact sum is
+  // the sheet's exact count — no relation is invented, none is lost.
+  for (const sheet of map.values()) {
+    const byRelation = new Map<string, bigint>()
+    for (const link of sheet.links) {
+      const type = link.relationType || 'UNKNOWN'
+      byRelation.set(type, (byRelation.get(type) ?? 0n) + 1n)
+    }
+    sheet.magnitude = describeMagnitude(
+      BigInt(sheet.links.length),
+      [...byRelation.entries()]
+        .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+        .map(([key, count]) => ({ key, count })),
+    )
   }
   return [...map.values()]
 }
