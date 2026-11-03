@@ -132,16 +132,35 @@ export interface LinkAlphaParams {
   isInterCommunity: boolean
   /** Hover / selection / activation: a focused link never attenuates. */
   emphasised: boolean
+  /**
+   * Opacity gain from the hover focus (see linkFocus.ts). 1 when nothing is
+   * hovered; > 1 inside the hovered group, < 1 outside. Optional so the
+   * existing call sites and tests keep their meaning unchanged.
+   */
+  gain?: number
+  /**
+   * Number of links the density term is measured against. Defaults to
+   * `linkCount`.
+   *
+   * A hovered group passes the count of ITS OWN focus class: the fade must be
+   * computed on what is actually being looked at. Measured motivation: with
+   * 12 000 links the resting density factor is √(2000/12000) ≈ 0.41 whatever
+   * the group; applying it to the 40 links of the hovered cluster brightens
+   * them by a gain computed for a crowd they are no longer part of.
+   */
+  densityCount?: number
 }
 
 /**
  * Final alpha of a link, in [LINK_ALPHA_FLOOR × colorAlpha, 1].
  *
- *     alpha = max( family × focus × density × colorAlpha × weight × bridge,
+ *     alpha = max( family × focus × gain × density × colorAlpha × weight × bridge,
  *                  LINK_ALPHA_FLOOR × colorAlpha )
  *
- * with focus = 2 for an emphasised link else 1, density = 1 for an emphasised
- * link else min(LINK_DENSITY_CEILING, √(LINK_DENSITY_REFERENCE / linkCount)),
+ * with focus = 2 for an emphasised link else 1,
+ * gain = the hover focus gain (1 when nothing is hovered),
+ * density = 1 for an emphasised link else
+ *           min(LINK_DENSITY_CEILING, √(LINK_DENSITY_REFERENCE / densityCount)),
  * weight = 0.12 + 0.88·√weight, bridge = 1.7 when inter-community else 1.
  *
  * The rule that matters for the client: an emphasised link (hovered, selected
@@ -153,13 +172,16 @@ export function computeLinkAlpha(p: LinkAlphaParams): number {
   const weightFactor = 0.12 + 0.88 * Math.sqrt(w)
   // An emphasised link skips the density term entirely: it is never attenuated
   // by how many other links the graph holds, only the resting web takes the fade.
+  // The denominator is the hovered class when one is supplied — see densityCount.
+  const densityBase = Math.max(1, p.densityCount ?? p.linkCount)
   const density = p.emphasised
     ? 1
-    : Math.min(LINK_DENSITY_CEILING, Math.sqrt(LINK_DENSITY_REFERENCE / Math.max(1, p.linkCount)))
+    : Math.min(LINK_DENSITY_CEILING, Math.sqrt(LINK_DENSITY_REFERENCE / densityBase))
   const bridge = p.isInterCommunity ? 1.7 : 1
   const focus = p.emphasised ? 2 : 1
+  const gain = p.gain ?? 1
   const a = Math.max(
-    p.familyAlpha * focus * density * p.colorAlpha * weightFactor * bridge,
+    p.familyAlpha * focus * gain * density * p.colorAlpha * weightFactor * bridge,
     LINK_ALPHA_FLOOR * p.colorAlpha,
   )
   return Math.min(1, a)

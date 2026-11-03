@@ -26,6 +26,7 @@ import { layerRgb, resolveNodeBaseRgb } from './layerColors'
 import { createLinkRenderer, parseColor, type LinkRenderer, type LinkStyle } from './linkSegments'
 import { computeLinkAlpha, linkFamilyAlpha, LINK_OPACITY } from './linkFamily'
 import { classifyLinkScale, linkScaleAlpha } from './linkScale'
+import { LINK_FOCUS_GAIN, classifyLinkFocus, countLinksByFocus } from './linkFocus'
 import { createNodePoints, shapeForType, sizeForType, type NodePoints, type NodeStyle } from './nodePoints'
 import { buildCommunityHulls, disposeCommunityHulls, type CommunityHull, type CommunityHullGroup } from './CommunityHulls3D'
 import { buildCommunityRings, disposeCommunityRings, type CommunityRingGroup } from './CommunityRings3D'
@@ -1080,6 +1081,33 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return m
   }, [graphData.nodes])
 
+  // ── Hover focus: the group under the cursor ─────────────────────────────
+  // Hovering a node focuses its GROUP, not the node itself. Two consequences:
+  //   • every link of that group gains, every other link recedes (linkFocus);
+  //   • moving from one node to another INSIDE the same group does not change
+  //     `focusGroupKey`, so it does not trigger a second O(E) recolour — the
+  //     node-level amber spotlight stays the only per-node cost.
+  const focusGroupKey = useMemo(() => {
+    if (!hoveredNodeId) return null
+    return nodesById.get(hoveredNodeId)?.groupKey ?? null
+  }, [hoveredNodeId, nodesById])
+
+  // Group of each link's two ends, in link order — computed once per graph
+  // change, never per hover move.
+  const linkGroups = useMemo(() => {
+    const endId = (end: unknown): string =>
+      typeof end === 'object' && end !== null ? (end as Graph3DNode).id : String(end)
+    return graphData.links.map((l) => ({
+      sourceGroup: nodesById.get(endId(l.source))?.groupKey ?? null,
+      targetGroup: nodesById.get(endId(l.target))?.groupKey ?? null,
+    }))
+  }, [graphData.links, nodesById])
+
+  // How many links sit inside / across / outside the focused group. This is the
+  // density denominator: each class is faded against ITSELF, not against the
+  // whole graph (see linkFocus.ts for why the difference is visible).
+  const focusCounts = useMemo(() => countLinksByFocus(linkGroups, focusGroupKey), [linkGroups, focusGroupKey])
+
   // Resting style: a gradient from the source's layer colour to the target's,
   // with the connection scale (intra/neighbor/inter) deciding the opacity. The
   // relation family no longer sets the resting alpha — the scale does — but the
@@ -1096,6 +1124,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     )
     const start = layerRgb(sNode?.layer)
     const end = layerRgb(tNode?.layer)
+    // Where this link sits relative to the group under the cursor, and the
+    // density of THAT class — the two halves of the client's request.
+    const focus = classifyLinkFocus(sNode?.groupKey, tNode?.groupKey, focusGroupKey)
     const a = computeLinkAlpha({
       familyAlpha: linkScaleAlpha(scale),
       weight: link.weight ?? 0.5,
@@ -1103,9 +1134,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       linkCount: graphData.links.length,
       isInterCommunity: false,
       emphasised: false,
+      gain: focus ? LINK_FOCUS_GAIN[focus] : 1,
+      densityCount: focus && focusCounts ? focusCounts[focus] : graphData.links.length,
     })
     return { r: start.r, g: start.g, b: start.b, r2: end.r, g2: end.g, b2: end.b, a }
-  }, [nodesById, graphData.links.length])
+  }, [nodesById, graphData.links.length, focusGroupKey, focusCounts])
 
   // ── Base node size (before any highlight / dim / hover) ───────────────
   // Super-nodes scale with the bundle count (area ∝ count); individual nodes
