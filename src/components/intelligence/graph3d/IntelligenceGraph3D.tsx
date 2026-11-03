@@ -47,6 +47,8 @@ import { currentDeviceBudget } from './deviceTier'
 import { createSuperLinkTubes, TUBE_MAX_EDGES, type SuperLinkTubes } from './superLinkTubes'
 import { FrameAnimator } from './frameAnimator'
 import { useLivePulse } from './useLivePulse'
+import { useCommunityActivity } from './useCommunityActivity'
+import { buildCommunityIndex } from './communityActivity'
 import { useAgentMarkers } from './useAgentMarkers'
 import type { AgentMarkers } from './agentMarkers'
 import { communityFocus, nodeSetSignature } from './useGraph3DLayout'
@@ -298,6 +300,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
   // ── Community hulls ref ───────────────────────────────────────────────
   const communityHullsRef = useRef<CommunityHullGroup | null>(null)
+  // Entity id -> community id, rebuilt alongside the hulls (same numbering).
+  const communityIndexRef = useRef<Map<string, number>>(new Map())
 
   // ── Single LineSegments renderer for links (optimized path) ───────────
   const linkSegmentsRef = useRef<LinkSegments | null>(null)
@@ -573,6 +577,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         disposeCommunityHulls(communityHullsRef.current)
         communityHullsRef.current = null
       }
+      communityIndexRef.current = new Map()
 
       const current = nodesRef.current
       // Halos are one convex hull per community: past the tier's node threshold
@@ -594,6 +599,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       if (hullGroup.hulls.length > 0) {
         scene.add(hullGroup.group)
         communityHullsRef.current = hullGroup
+        communityIndexRef.current = buildCommunityIndex(hullNodes)
       }
     } catch (err) {
       console.warn('[IntelligenceGraph3D] community hulls error:', err)
@@ -2146,6 +2152,15 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     nodes: activeGraphData.nodes,
     baseNodeStyle: liveBaseNodeStyle,
     baseLinkStyle: liveBaseLinkStyle,
+    animator,
+    enabled: hasDimensions,
+  })
+
+  // Community glow: an event on an entity raises its community envelope
+  // (fill + wireframe) for a named decay. Same bus, same animator.
+  useCommunityActivity({
+    hullsRef: communityHullsRef,
+    communityIndexRef,
     animator,
     enabled: hasDimensions,
   })

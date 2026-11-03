@@ -27,6 +27,7 @@ import {
   type CommunityHullPrepOptions,
   type PreparedCommunityHull,
 } from './communityHullPrep'
+import { COMMUNITY_FILL_OPACITY_REST, COMMUNITY_WIRE_OPACITY_REST } from './communityActivity'
 import type { Graph3DNode } from './useGraph3DLayout'
 
 // ── Render order ────────────────────────────────────────────────────────────
@@ -52,9 +53,9 @@ export interface CommunityHullGroup {
 }
 
 export interface CommunityHullOptions extends CommunityHullPrepOptions {
-  /** Fill opacity (default 0.06 — within the required 0.05–0.08 band). */
+  /** Fill opacity (default COMMUNITY_FILL_OPACITY_REST). */
   fillOpacity?: number
-  /** Wireframe opacity (default 0.03). */
+  /** Wireframe opacity (default COMMUNITY_WIRE_OPACITY_REST). */
   wireOpacity?: number
 }
 
@@ -94,7 +95,7 @@ export function buildCommunityHulls(
   nodes: Graph3DNode[],
   options: CommunityHullOptions = {},
 ): CommunityHullGroup {
-  const { fillOpacity = 0.06, wireOpacity = 0.03 } = options
+  const { fillOpacity = COMMUNITY_FILL_OPACITY_REST, wireOpacity = COMMUNITY_WIRE_OPACITY_REST } = options
   const group = new THREE.Group()
   group.name = 'communityHulls'
   const hulls: CommunityHull[] = []
