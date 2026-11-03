@@ -341,7 +341,9 @@ describe('NetworkTools — search engine order', () => {
     await waitFor(() => expect(setSearchEngineOrder).toHaveBeenCalledWith(['searx', 'brave']))
     expect(await screen.findByText('Order saved: searx, brave.')).toBeTruthy()
     // brave is last now: its down button is disabled, so the focus stays on its up button.
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Move brave up' }))
+    // Le déplacement du focus se fait APRÈS le rendu : une assertion immédiate court contre un effet. Sous charge, elle
+    // perdait la course (rouge aléatoire de la CI, sans rapport avec le code). waitFor rend l'attente explicite.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Move brave up' })))
   })
 
   it('the move buttons are reachable by keyboard (real buttons, named by engine) and the built-in engine has none', async () => {
