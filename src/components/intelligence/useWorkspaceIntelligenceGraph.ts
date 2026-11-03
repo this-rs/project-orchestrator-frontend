@@ -150,10 +150,19 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     stageId?: string,
     signal?: AbortSignal,
     force = false,
+    // How many layers share `limit`: ALL the layers of a progressive load, not
+    // only this call's. Each call used to split `limit` over its own layers,
+    // so code+fabric then the four others asked for 2× the limit.
+    budgetLayers = layers.length,
   ) => {
     if (!workspaceSlug || layers.length === 0) return
     // Reuse a recently-loaded workspace response for this exact (layers, limit).
-    const cacheKey = graphCacheKey('workspace', workspaceSlug, layers, limit)
+    // The API applies `limit` PER CATEGORY: asking 5000 with six layers can
+    // return ~30 000 nodes. The number the user sets is a TOTAL budget, so each
+    // layer gets its share of it — the share of every layer of the load, so
+    // that the calls of a progressive load add up to the budget, not beyond.
+    const perCategory = Math.max(1, Math.floor(limit / Math.max(1, budgetLayers, layers.length)))
+    const cacheKey = graphCacheKey('workspace', workspaceSlug, layers, perCategory)
     const cached = force ? null : (graphCacheGet(cacheKey) as WorkspaceGraphResponse | null)
     setError(null)
     setLoadingLayers((prev: Set<string>) => {
@@ -166,9 +175,6 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
       if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
     }
     try {
-      // `limit` is per category on the API side (see useIntelligenceGraph): the
-      // number the user sets is a total budget, split across the categories.
-      const perCategory = Math.max(200, Math.floor(limit / Math.max(1, layers.length)))
       const data =
         cached ??
         await intelligenceApi.getWorkspaceGraph(workspaceSlug, { layers, limit: perCategory }, signal)
@@ -295,9 +301,9 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     setStages(stages)
 
     if (primary.length > 0 && rest.length > 0) {
-      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary', signal).then(() => {
+      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary', signal, false, layers.length).then(() => {
         if (!signal.aborted) {
-          fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary', signal)
+          fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary', signal, false, layers.length)
         }
       })
     } else {
@@ -332,7 +338,7 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
           { id: 'layout', label: tRef.current('intelPage.graph.stage.computeLayout'), status: 'pending' },
         ]
         setStages(stages)
-        fetchGraphForLayers(needed, nodeLimit, stageId)
+        fetchGraphForLayers(needed, nodeLimit, stageId, undefined, false, visibleLayers.size)
       }
     }, 300)
     return () => {
