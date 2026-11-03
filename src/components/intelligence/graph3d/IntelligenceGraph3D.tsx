@@ -47,6 +47,7 @@ import {
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
 import { nextScaleLevel } from './scaleDecision'
+import { zoomAdaptivePixelRatioCeiling } from './pixelRatioZoom'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { currentDeviceBudget } from './deviceTier'
 import { createSuperLinkTubes, TUBE_MAX_EDGES, type SuperLinkTubes } from './superLinkTubes'
@@ -296,7 +297,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // replaces the fixed 1.5 cap: the same guarantee on the worst device, no
   // penalty on the best one.
   const initialPixelRatio = pixelRatioRef.current
-  const { wake, setEngineRunning, setParticlesAnimating, setMaxPixelRatio } = useRenderLoop(
+  const { wake, setEngineRunning, setParticlesAnimating, setMaxPixelRatio, setZoomPixelRatioCeiling } = useRenderLoop(
     graphRef,
     containerRef,
     {
@@ -305,6 +306,27 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       onPixelRatioChange: applyPixelRatio,
     },
   )
+
+  // ── Zoom-adaptive pixel ratio ceiling ─────────────────────────────────
+  // Closer than the framing distance, fewer nodes fill the viewport, so the GPU
+  // can afford more pixels: the sampling ceiling follows the zoom. The rule is
+  // the pure `zoomAdaptivePixelRatioCeiling` (pixelRatioZoom.ts, tested); this
+  // reads the camera as it stands and returns the ceiling to hand the budget.
+  // The base ceiling when nothing is framed yet or the library is not mounted.
+  const zoomedPixelRatioCeiling = useCallback((): number => {
+    const base = pixelRatioCeiling()
+    const fg = graphRef.current
+    const camera = fg && typeof fg.camera === 'function' ? fg.camera() : null
+    const controls = fg && typeof fg.controls === 'function' ? fg.controls() : null
+    if (!camera || !controls?.target) return base
+    const deviceRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+    return zoomAdaptivePixelRatioCeiling(
+      camera.position.distanceTo(controls.target),
+      framingDistanceRef.current,
+      base,
+      deviceRatio,
+    )
+  }, [])
 
   // ── Community hulls ref ───────────────────────────────────────────────
   const communityHullsRef = useRef<CommunityHullGroup | null>(null)
@@ -451,16 +473,18 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // another display changes the ratio without a resize, which po-graph watches
   // through `matchMedia('(resolution: Xdppx)')`.
   useEffect(() => {
-    const max = pixelRatioCeiling()
+    // The zoom-adapted ceiling, not the bare one: a resize while zoomed in must
+    // not throw the close-up back to the overview's sharpness.
+    const max = zoomedPixelRatioCeiling()
     const mq = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
     const onChange = () => {
-      setMaxPixelRatio(pixelRatioCeiling())
+      setMaxPixelRatio(zoomedPixelRatioCeiling())
       wake(WAKE_MUTATION_MS)
     }
     setMaxPixelRatio(max)
     mq.addEventListener('change', onChange)
     return () => mq.removeEventListener('change', onChange)
-  }, [dimensions, setMaxPixelRatio, wake])
+  }, [dimensions, setMaxPixelRatio, zoomedPixelRatioCeiling, wake])
 
   // ── Workaround: three.js OrbitControls + DragControls pointercancel crash ──
   // When DragControls dispatches pointercancel, OrbitControls.onPointerUp tries
@@ -764,11 +788,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const onStart = () => {
       userInteractingRef.current = true
     }
-    // uDensK follows the camera distance: one cheap update per controls change
-    // (setCameraDistance only touches the uniform when the factor moves).
+    // uDensK and the pixel ratio ceiling follow the camera distance.
+    // - uDensK: setCameraDistance only touches the uniform when the factor moves.
+    // - Ceiling: closer = sharper. The ceiling is stepped (ZOOM_RATIO_QUANTUM),
+    //   so a smooth zoom crosses a few values, and `setZoomPixelRatioCeiling`
+    //   is a no-op when it did not move — no canvas resize per frame. It keeps
+    //   the budget's drop history: a zoom is the same screen, not a new one.
     const onChange = () => {
       const camera = typeof fg.camera === 'function' ? fg.camera() : null
-      if (camera && controls.target) nodePointsRef.current?.setCameraDistance(camera.position.distanceTo(controls.target))
+      if (!camera || !controls.target) return
+      nodePointsRef.current?.setCameraDistance(camera.position.distanceTo(controls.target))
+      setZoomPixelRatioCeiling(zoomedPixelRatioCeiling())
     }
     controls.addEventListener('start', onStart)
     controls.addEventListener('end', onEnd)
@@ -778,7 +808,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       controls.removeEventListener('end', onEnd)
       controls.removeEventListener('change', onChange)
     }
-  }, [graphData.nodes, setScaleLevel])
+  }, [graphData.nodes, setScaleLevel, setZoomPixelRatioCeiling, zoomedPixelRatioCeiling])
 
   // ── Data identity: re-frame once per dataset, not once per node count ───
   // `needsRelayout` is a boolean that stays `true` across a dataset swap, and
@@ -869,11 +899,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       }
     }, 120)
     return () => clearTimeout(id)
-    // A fullscreen switch changes the viewport, not the graph: without
-    // `dimensions` here the camera kept a framing computed for the old canvas,
-    // so half the cloud fell outside the frame. The node-set signature (not the
-    // count) is what makes a same-sized new dataset re-frame.
-  }, [nodeSetKey, dimensions, wake])
+    // FULLSCREEN STABILITY: this effect re-frames only on DATA change (nodeSetKey),
+    // never on viewport change (dimensions). The aspect ratio is handled by the
+    // "Force renderer resize on fullscreen transitions" effect above, which
+    // updates camera.aspect without repositioning. A fullscreen toggle must NOT reset the projection — the user
+    // explicitly asked to keep the same view ("je veux rester sur la même projection").
+  }, [nodeSetKey, wake])
 
   // ── Save positions when simulation stops ────────────────────────────────
   const onEngineStop = useCallback(() => {

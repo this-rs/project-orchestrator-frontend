@@ -514,6 +514,33 @@ describe('useRenderLoop — frame budget (pixel ratio)', () => {
     expect(result.current.getPixelRatio()).toBe(1.5)
   })
 
+  it('follows a zoom ceiling at once while the budget never dropped, and back down', () => {
+    const graph = makeGraph()
+    const seen: number[] = []
+    const { result } = mount(graph, { ...ceiling, onPixelRatioChange: (pr) => seen.push(pr) })
+
+    act(() => result.current.setZoomPixelRatioCeiling(2))
+    expect(result.current.getPixelRatio()).toBe(2)
+    expect(graph.pixelRatio.value).toBe(2)
+
+    act(() => result.current.setZoomPixelRatioCeiling(1.5))
+    expect(result.current.getPixelRatio()).toBe(1.5)
+    expect(seen).toEqual([1.5, 2, 1.5])
+  })
+
+  it('a zoom keeps the drop history: a machine that dropped is not sharpened again', () => {
+    const graph = makeGraph()
+    const { result } = mount(graph, ceiling)
+    pumpFrames(120, 50) // slow → 1
+    expect(result.current.getPixelRatio()).toBe(1)
+
+    act(() => result.current.setZoomPixelRatioCeiling(2))
+    expect(result.current.getPixelRatio()).toBe(1)
+    // Still slow: the budget is not reset by the zoom, it stays at the floor.
+    pumpFrames(120, 50)
+    expect(result.current.getPixelRatio()).toBe(1)
+  })
+
   it('starts a new measurement after a resume, without averaging the pause in', () => {
     const graph = makeGraph()
     const { result } = mount(graph, ceiling)
