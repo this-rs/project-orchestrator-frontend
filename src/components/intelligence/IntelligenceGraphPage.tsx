@@ -88,7 +88,9 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   )
   // Situation line: one pass over the nodes already loaded, memoised on them
   const groupCount = useMemo(() => {
-    if (graphScale === 0) return 1
+    // No early return at scale 0: the label says "groups", and the groups exist
+    // whatever the zoom — a detailed view of six communities was announcing
+    // "1 group", which is simply false.
     const ids = new Set<number>()
     for (const n of allNodes) {
       // `community_id` is what the backend sends (snake_case, straight from

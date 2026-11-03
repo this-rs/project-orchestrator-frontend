@@ -40,7 +40,7 @@ const TUBE_SEGMENTS = 6
 /** Share of the link length used as the spline's bow — organic, never a straight wire. */
 const BOW = 0.18
 /** Hard ceiling on strands drawn for one bundle, whatever the morphology asks. */
-const MAX_STRANDS = 8
+const MAX_STRANDS = 5
 
 const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aColor;
@@ -64,6 +64,16 @@ const FRAGMENT_SHADER = /* glsl */ `
 
 const endpointId = (e: string | { id: string }): string => (typeof e === 'string' ? e : e.id)
 
+/** Deterministic 0..2π seed from a corridor key, so a trunk's bow never flickers. */
+function hashKey(key: string): number {
+  let h = 2166136261
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return ((h >>> 0) / 4294967296) * Math.PI * 2
+}
+
 /** One strand of one bundle, with the endpoints it must follow when positions move. */
 interface Strand {
   bundleIndex: number
@@ -80,6 +90,8 @@ interface Strand {
 interface Bundle {
   corridor: Corridor
   drawable: DrawableBundle
+  /** Bow seed of the WHOLE bundle — every strand of a trunk shares its path. */
+  bowSeed: number
   color: LinkStyle
   strands: Strand[]
   /** First vertex of this bundle in the shared buffers, and how many it owns. */
@@ -179,6 +191,14 @@ export function createVascularLinks(
       })
     }
 
+    // Bounding radius of the graph, so every thickness is expressed as a share
+    // of what is actually on screen.
+    let sceneRadius = 1
+    for (const n of nodes) {
+      const d = Math.hypot(n.x, n.y, n.z)
+      if (Number.isFinite(d) && d > sceneRadius) sceneRadius = d
+    }
+
     // ── Buffers ──────────────────────────────────────────────────────────
     const bundles: Bundle[] = []
     const position: number[] = []
@@ -207,6 +227,12 @@ export function createVascularLinks(
       bundles.push({
         corridor,
         drawable,
+        // One bow per TRUNK, derived from its key: all strands of the same
+        // bundle follow the same path and only braid around it. Giving each
+        // strand its own seed turned every trunk into a fan of diverging curves
+        // — measured on the 5 107-node bench, where corridors spanned the whole
+        // graph as spaghetti instead of reading as one vessel.
+        bowSeed: hashKey(corridor.key),
         color: { r: 0.4, g: 0.8, b: 0.7, r2: 0.6, g2: 0.9, b2: 0.8, a: 0.3 },
         strands,
         vertexStart,
@@ -292,7 +318,7 @@ export function createVascularLinks(
       const anchor = corridorCentroids(bundle.corridor)
       const a = anchor?.a ?? toVec3(s)
       const b = anchor?.b ?? toVec3(t)
-      const [c1, c2] = bowAnchors(a, b, strand.phase)
+      const [c1, c2] = bowAnchors(a, b, bundle.bowSeed)
       const samples = bundle.drawable.samples
       const points: Vec3[] = []
       for (let i = 0; i < samples; i++) {
@@ -306,12 +332,18 @@ export function createVascularLinks(
         ])
       }
       const frames = parallelTransportFrames(points)
-      const offsets = braidedOffsets(Math.max(1, bundle.strands.length), samples, 1.5, 1)[strandIndex % Math.max(1, bundle.strands.length)] ?? []
+      // Amplitude < 1 keeps the strands INSIDE the trunk instead of letting
+      // them orbit far from the shared centreline.
+      const offsets = braidedOffsets(Math.max(1, bundle.strands.length), samples, 1.5, 0.55)[strandIndex % Math.max(1, bundle.strands.length)] ?? []
       // The trunk's thickness follows what it CARRIES — the whole point of the
       // engine. Bounded so a giant bundle never becomes a wall, and the rest of
       // its magnitude stays in the strand count (see linkMorphology).
+      // Thickness is a FRACTION OF THE SCENE, not an absolute number of units.
+      // Measured at 5 107 nodes: an absolute radius of ~2 units on a graph whose
+      // bounding radius is ~400 drew 1-pixel wires — the trunks were visible in
+      // the code and invisible on screen.
       const order = bundle.corridor.magnitude.magnitudeOrder
-      const radius = Math.min(3.2, 0.9 + 0.42 * Math.min(8, order))
+      const radius = sceneRadius * 0.006 * (1 + 0.5 * Math.min(8, order))
       const base = bundle.vertexStart + strandIndex * samples * TUBE_SEGMENTS
       const pos = positionAttr.array as Float32Array
       const col = colorAttr.array as Float32Array
