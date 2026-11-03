@@ -8,6 +8,7 @@ import {
   type DeviceSignals,
 } from './deviceTier'
 
+import { DEFAULT_SYSTEM_BUDGET } from './linkSystem'
 const sig = (over: Partial<DeviceSignals> = {}): DeviceSignals => ({ coarsePointer: false, ...over })
 
 describe('classifyDevice', () => {
@@ -119,5 +120,16 @@ describe('readDeviceSignals / currentDeviceBudget', () => {
     expect(readDeviceSignals()).toEqual({ coarsePointer: true, deviceMemoryGb: 2, cores: 6, pixelRatio: 3 })
     expect(currentDeviceBudget().tier).toBe('low')
     Reflect.deleteProperty(navigator, 'deviceMemory')
+  })
+})
+
+describe('link budget per tier', () => {
+  it('high keeps the link system defaults, lower tiers spend strictly less', () => {
+    expect(TIER_BUDGETS.high.maxLinkTriangles).toBe(DEFAULT_SYSTEM_BUDGET.maxTriangles)
+    expect(TIER_BUDGETS.high.maxLinkBundles).toBe(DEFAULT_SYSTEM_BUDGET.maxCorridors)
+    expect(TIER_BUDGETS.medium.maxLinkTriangles).toBeLessThan(TIER_BUDGETS.high.maxLinkTriangles)
+    expect(TIER_BUDGETS.low.maxLinkTriangles).toBeLessThan(TIER_BUDGETS.medium.maxLinkTriangles)
+    expect(TIER_BUDGETS.medium.maxLinkBundles).toBeLessThan(TIER_BUDGETS.high.maxLinkBundles)
+    expect(TIER_BUDGETS.low.maxLinkBundles).toBeLessThan(TIER_BUDGETS.medium.maxLinkBundles)
   })
 })

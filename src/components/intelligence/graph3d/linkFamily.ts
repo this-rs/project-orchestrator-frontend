@@ -116,8 +116,41 @@ export const LINK_DENSITY_REFERENCE = 2000
 /** Ceiling of the density factor for a resting link (a sparse graph is still capped). */
 export const LINK_DENSITY_CEILING = 0.7
 
-/** Floor of a link's final alpha, scaled by the colour's own alpha so dim links stay dim. */
+/**
+ * Floor of a link's final alpha for the REFERENCE presence
+ * (LINK_FLOOR_REFERENCE_ALPHA, the neighbour scale), scaled by the colour's
+ * own alpha so dim links stay dim. See linkAlphaFloor for the other presences.
+ */
 export const LINK_ALPHA_FLOOR = 0.04
+
+/** Presence (family alpha × focus gain) whose floor is exactly LINK_ALPHA_FLOOR. */
+export const LINK_FLOOR_REFERENCE_ALPHA = 0.12
+
+/** Bounds of the floor's scale factor: no presence floors below ½ or above 2× the reference. */
+export const LINK_FLOOR_MIN_SCALE = 0.5
+export const LINK_FLOOR_MAX_SCALE = 2
+
+/**
+ * Floor of a link of presence `familyAlpha × gain`:
+ *
+ *     floor = LINK_ALPHA_FLOOR × colorAlpha × clamp(√(presence / REFERENCE), ½, 2)
+ *
+ * WHY NOT ONE ABSOLUTE FLOOR. Past ~10 000 links the density fade pushes every
+ * resting link under 0.04, and the three connection scales (intra 0.05,
+ * neighbour 0.12, inter 0.28) all landed on the SAME floor: the hierarchy the
+ * client asked for vanished exactly when the graph is big enough to need it.
+ * A floor that follows √presence keeps every ratio ≥ √(f₂/f₁) at any count
+ * (intra : neighbour : inter ≈ 1 : 1.55 : 2.37), while still never letting a
+ * link vanish.
+ */
+export function linkAlphaFloor(familyAlpha: number, gain = 1, colorAlpha = 1): number {
+  const presence = Math.max(0, familyAlpha) * Math.max(0, gain)
+  const scale = Math.min(
+    LINK_FLOOR_MAX_SCALE,
+    Math.max(LINK_FLOOR_MIN_SCALE, Math.sqrt(presence / LINK_FLOOR_REFERENCE_ALPHA)),
+  )
+  return LINK_ALPHA_FLOOR * colorAlpha * scale
+}
 
 export interface LinkAlphaParams {
   /** Base opacity of the relation family (see LINK_FAMILY_ALPHA / linkFamilyAlpha). */
@@ -152,10 +185,10 @@ export interface LinkAlphaParams {
 }
 
 /**
- * Final alpha of a link, in [LINK_ALPHA_FLOOR × colorAlpha, 1].
+ * Final alpha of a link, in [linkAlphaFloor(family, gain, colorAlpha), 1].
  *
  *     alpha = max( family × focus × gain × density × colorAlpha × weight × bridge,
- *                  LINK_ALPHA_FLOOR × colorAlpha )
+ *                  linkAlphaFloor(family, gain, colorAlpha) )
  *
  * with focus = 2 for an emphasised link else 1,
  * gain = the hover focus gain (1 when nothing is hovered),
@@ -182,7 +215,7 @@ export function computeLinkAlpha(p: LinkAlphaParams): number {
   const gain = p.gain ?? 1
   const a = Math.max(
     p.familyAlpha * focus * gain * density * p.colorAlpha * weightFactor * bridge,
-    LINK_ALPHA_FLOOR * p.colorAlpha,
+    linkAlphaFloor(p.familyAlpha, gain, p.colorAlpha),
   )
   return Math.min(1, a)
 }

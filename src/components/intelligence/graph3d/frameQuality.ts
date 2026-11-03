@@ -30,6 +30,8 @@
 //   * COOLDOWNS — 4 s after a drop, 15 s after a raise — so a resize, a
 //     relayout or a burst of activations cannot drive a decision on its own.
 
+import type { TierBudget } from './deviceTier'
+
 /** EMA above which a frame counts as slow (≈29 fps). */
 export const SLOW_FRAME_MS = 34
 /** EMA below which a frame counts as fast (12 ms; 60 fps is 16.7 ms). */
@@ -48,6 +50,11 @@ export const MAX_DROPS_BEFORE_NO_RAISE = 2
 export const DROP_COOLDOWN_MS = 4000
 /** Minimum time between two raises. */
 export const RAISE_COOLDOWN_MS = 15000
+/**
+ * Lowest share of the tier's link budget the governor may fall to. Each slow
+ * episode at the minimum pixel ratio halves it: 1 → ½ → ¼.
+ */
+export const MIN_LINK_SCALE = 0.25
 /** EMA smoothing factor; 0.1 is po-graph's `S.ema * .9 + dt * .1`. */
 export const EMA_ALPHA = 0.1
 /** A gap beyond this is a stall (hidden tab, GC, breakpoint), not a frame. */
@@ -58,6 +65,13 @@ const EPS = 1e-6
 export interface FrameQualityState {
   /** Pixel ratio currently in force (renderer + shader `uPx`). */
   ratio: number
+  /**
+   * Share (MIN_LINK_SCALE..1) of the tier's link budget in force — the second
+   * lever, used once the pixel ratio is at its floor (see linkBudgetFor).
+   */
+  linkScale: number
+  /** How many times the link budget has been lowered. */
+  linkDrops: number
   /** How many times the ratio has been dropped since this state was created. */
   drops: number
   /** Consecutive samples above `SLOW_FRAME_MS`. */
@@ -78,6 +92,8 @@ export interface FrameQualityState {
 export function initialFrameQuality(ratio: number, now = 0): FrameQualityState {
   return {
     ratio,
+    linkScale: 1,
+    linkDrops: 0,
     drops: 0,
     slowFrames: 0,
     fastFrames: 0,
@@ -147,6 +163,45 @@ export function observeFrame(state: FrameQualityState, sample: FrameSample): Fra
     }
   }
 
+  // ── Second lever: the pixel ratio is at its floor, lower the link budget ──
+  if (
+    slowFrames > SLOW_FRAMES
+    && state.ratio <= MIN_PIXEL_RATIO + EPS
+    && state.linkScale > MIN_LINK_SCALE + EPS
+    && sinceChange >= DROP_COOLDOWN_MS
+  ) {
+    return {
+      ...state,
+      linkScale: Math.max(MIN_LINK_SCALE, state.linkScale / 2),
+      linkDrops: state.linkDrops + 1,
+      emaMs: 0,
+      emaSeeded: false,
+      slowFrames: 0,
+      fastFrames: 0,
+      changedAt: sample.now,
+      lastFrameAt: sample.now,
+    }
+  }
+
+  // ── Raise the link budget back first: it was the last thing lowered ───────
+  if (
+    fastFrames > FAST_FRAMES
+    && state.linkScale < 1 - EPS
+    && sinceChange >= RAISE_COOLDOWN_MS
+    && state.linkDrops < MAX_DROPS_BEFORE_NO_RAISE
+  ) {
+    return {
+      ...state,
+      linkScale: Math.min(1, state.linkScale * 2),
+      emaMs: 0,
+      emaSeeded: false,
+      slowFrames: 0,
+      fastFrames: 0,
+      changedAt: sample.now,
+      lastFrameAt: sample.now,
+    }
+  }
+
   // ── Raise: there is headroom, and the machine has not given up already ────
   if (
     fastFrames > FAST_FRAMES
@@ -168,4 +223,19 @@ export function observeFrame(state: FrameQualityState, sample: FrameSample): Fra
 
   // No decision: still freeze the counters so the caller can read them.
   return { ...state, emaMs, emaSeeded: true, slowFrames, fastFrames, lastFrameAt: sample.now }
+}
+
+/**
+ * The link-system budget (SystemBudget.maxTriangles / maxCorridors) for a tier
+ * at the governor's current `linkScale`.
+ */
+export function linkBudgetFor(
+  tier: Pick<TierBudget, 'maxLinkTriangles' | 'maxLinkBundles'>,
+  state: Pick<FrameQualityState, 'linkScale'>,
+): { maxTriangles: number; maxCorridors: number } {
+  const k = Math.min(1, Math.max(MIN_LINK_SCALE, state.linkScale))
+  return {
+    maxTriangles: Math.floor(tier.maxLinkTriangles * k),
+    maxCorridors: Math.max(1, Math.floor(tier.maxLinkBundles * k)),
+  }
 }
