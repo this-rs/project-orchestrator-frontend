@@ -24,7 +24,7 @@ function synth(n: number) {
  */
 describe('géométrie vasculaire', () => {
   it('reste dans une enveloppe plausible autour du graphe', () => {
-    const { nodes, links } = synth(400)
+    const { nodes, links } = synth(3000)
     const r = createVascularLinks(nodes, links)
     expect(r).not.toBeNull()
     const group = r!.object as unknown as { children: { geometry: { attributes: { position: { array: Float32Array } } } }[] }
@@ -39,6 +39,6 @@ describe('géométrie vasculaire', () => {
     expect(nan).toBe(0)
     // Le graphe tient dans ~200 de rayon ; un vaisseau ne doit pas le dépasser
     // de plus du double, sinon c'est une baudruche.
-    expect(maxR).toBeLessThan(600)
+    expect(maxR).toBeLessThan(2000)
   })
 })

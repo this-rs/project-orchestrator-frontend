@@ -5,6 +5,7 @@ import {
   WIDTH_CEILING,
   channelsFor,
   morphologyShape,
+  type GraphicalVolume,
   type MorphologyBudget,
 } from './linkMorphology'
 
@@ -115,5 +116,87 @@ describe('linkMorphology', () => {
     for (const n of FIXTURES) {
       expect(morphologyShape(mag(n))).toEqual(morphologyShape(mag(n)))
     }
+  })
+
+  describe('au-delà de 10⁴ : la structure différencie les paliers', () => {
+    const ORDERS = [5, 6, 7, 9, 10, 12]
+    const at = (order: number, budget?: Partial<MorphologyBudget>) =>
+      morphologyShape(mag(10n ** BigInt(order)), budget).graphical
+    const structural = (g: GraphicalVolume) => [g.channels, g.strata, g.depth].join('/')
+    const pairs = ORDERS.flatMap((a, i) => ORDERS.slice(i + 1).map((b) => [a, b] as const))
+    // Budget « serré » mais réaliste : assez pour montrer ces six ordres.
+    const TIGHT: Partial<MorphologyBudget> = { maxChannels: 16, maxStrata: 8, maxDepth: 4 }
+
+    it('deux à deux, channels OU strata OU depth diffèrent — budget par défaut', () => {
+      for (const [a, b] of pairs) {
+        expect(structural(at(a)), `10^${a} vs 10^${b}`).not.toBe(structural(at(b)))
+      }
+    })
+
+    it('deux à deux, channels OU strata OU depth diffèrent — budget serré', () => {
+      for (const [a, b] of pairs) {
+        expect(structural(at(a, TIGHT)), `10^${a} vs 10^${b}`).not.toBe(structural(at(b, TIGHT)))
+      }
+    })
+
+    it('10⁶ ≠ 10⁹ à budget serré, sur la structure elle-même', () => {
+      const a = at(6, TIGHT)
+      const b = at(9, TIGHT)
+      expect(a.width).toBe(b.width)
+      expect(a.channels !== b.channels || a.strata !== b.strata || a.depth !== b.depth).toBe(true)
+    })
+
+    it('budget minuscule : la structure sature, overflowOrders sépare encore les paliers', () => {
+      const tiny = { maxChannels: 5, maxStrata: 2, maxDepth: 1 }
+      const seen = new Set<number>()
+      for (const o of [9, 10, 12]) seen.add(at(o, tiny).overflowOrders)
+      expect(seen.size).toBe(3)
+      expect(at(6, tiny).overflowOrders).toBeLessThan(at(9, tiny).overflowOrders)
+    })
+
+    it('la largeur reste ≤ plafond sur tous ces ordres, saturée dès 10⁴', () => {
+      for (const o of ORDERS) {
+        const g = at(o)
+        expect(g.width).toBeLessThanOrEqual(WIDTH_CEILING)
+        expect(g.saturated).toBe(true)
+        expect(g.width).toBe(WIDTH_CEILING)
+      }
+    })
+
+    it('la croissance au-delà du dernier palier vient d’une formule : 10¹² → 10³⁰ strictement croissant', () => {
+      const wide = { maxChannels: 1000, maxStrata: 1000, maxDepth: 1000 }
+      let prev = at(12, wide)
+      for (let o = 13; o <= 30; o++) {
+        const g = at(o, wide)
+        expect(g.channels).toBeGreaterThan(prev.channels)
+        expect(g.strata).toBeGreaterThanOrEqual(prev.strata)
+        expect(g.depth).toBeGreaterThanOrEqual(prev.depth)
+        prev = g
+      }
+      expect(at(30, wide).depth).toBeGreaterThan(at(12, wide).depth)
+    })
+
+    it('RÈGLE FONDATRICE : la loi clamp(log10/4) échouerait à ces tests', () => {
+      // La loi retirée, appliquée à la place des lois de structure : tous les
+      // ordres ≥ 4 donnent la même valeur, donc aucune paire ne se distingue.
+      const retired = (order: number) => Math.min(1, Math.max(0, order / 4))
+      const retiredShape = (order: number) => {
+        const g = at(order)
+        const k = retired(order)
+        return structural({ ...g, channels: k, strata: k, depth: k })
+      }
+      const collisions = pairs.filter(([a, b]) => retiredShape(a) === retiredShape(b))
+      expect(collisions).toHaveLength(pairs.length) // la loi retirée ne sépare AUCUNE paire…
+      // … alors que la loi réelle les sépare toutes (testé plus haut).
+      const real = pairs.filter(([a, b]) => structural(at(a)) === structural(at(b)))
+      expect(real).toHaveLength(0)
+    })
+
+    it('est déterministe sur ces ordres, à tous les budgets', () => {
+      for (const o of ORDERS) {
+        expect(at(o)).toEqual(at(o))
+        expect(at(o, TIGHT)).toEqual(at(o, TIGHT))
+      }
+    })
   })
 })

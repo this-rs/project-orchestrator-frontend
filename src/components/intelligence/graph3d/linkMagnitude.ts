@@ -25,15 +25,25 @@
 //     question (T3: the projected width is bounded, the STRUCTURE is what
 //     encodes the rest).
 //
-// The five named morphologies are the ones the client's boards name. They are
-// NOT a closed set of orders: beyond the last named level the model keeps
-// counting (10¹², 10¹⁵, 10³⁰…) and the hierarchy carries the difference —
+// Eight named morphologies, one per order from 10⁰ to 10⁶, then a last named
+// level (`constellation`, 10⁷ and above). Naming a level is allowed; what is
+// forbidden is a threshold PER order of magnitude. Beyond the last named level
+// the model keeps counting (10¹², 10¹⁵, 10³⁰…) and the difference is carried by
+// a FORMULA (see `morphologyShape`: log-affine laws on order + mantissa) —
 // "les niveaux suivants suivent exactement le même principe, sans nouvelle
-// catégorie obligatoire".
+// catégorie obligatoire". No further level is ever added.
 // ============================================================================
 
 /** The morphology a bundle of this size wears. Named levels only; the ORDERS keep counting past them. */
-export type MorphologyLevel = 'filament' | 'bundle' | 'conduit' | 'artery' | 'macrostructure'
+export type MorphologyLevel =
+  | 'filament'
+  | 'bundle'
+  | 'conduit'
+  | 'artery'
+  | 'macrostructure'
+  | 'network'
+  | 'system'
+  | 'constellation'
 
 /** Ordered from the thinnest to the thickest, for tests and for the renderer's LOD. */
 export const MORPHOLOGY_ORDER: readonly MorphologyLevel[] = [
@@ -42,7 +52,18 @@ export const MORPHOLOGY_ORDER: readonly MorphologyLevel[] = [
   'conduit',
   'artery',
   'macrostructure',
+  'network',
+  'system',
+  'constellation',
 ]
+
+/**
+ * Borne basse (ordre de grandeur décimal) de chaque palier nommé, alignée sur
+ * `MORPHOLOGY_ORDER`. Une table, pas une cascade de `if` : le dernier palier
+ * (`constellation`) est ouvert vers le haut et ne crée jamais de palier suivant.
+ * Chaque ordre de 0 à 6 a son propre palier ; 7 et au-delà partagent le dernier.
+ */
+export const MORPHOLOGY_FLOOR_ORDERS: readonly number[] = [0, 1, 2, 3, 4, 5, 6, 7]
 
 /**
  * One REAL sub-bundle of a magnitude: a partition of the relations by something
@@ -126,24 +147,27 @@ export function magnitudeMantissaOf(count: bigint, order = magnitudeOrderOf(coun
 /**
  * The morphology a count wears, by its order of magnitude.
  *
- *   1        filament          the single thread
- *   10       bundle            the braided thread
- *   100      conduit           the fibre bundle
- *   1 000    artery            the branching conduit
- *   10 000+  macrostructure    the arterial trunk, and every order above it
+ *   1            filament          the single thread
+ *   10           bundle            the braided thread
+ *   100          conduit           the fibre bundle
+ *   1 000        artery            the branching conduit
+ *   10⁴          macrostructure    the arterial trunk
+ *   10⁵          network           a web of trunks
+ *   10⁶          system            a vascular system
+ *   10⁷ et plus  constellation     last named level, open upwards
  *
- * Past `macrostructure` the level does NOT change again — that is the client's
- * instruction. 10⁶ and 10⁹ wear the same level and must still be told apart:
- * by `magnitudeOrder`, by their structure in the renderer, and by the exact
- * count shown. A test asserts they differ on those three channels.
+ * Sous le dernier palier, deux ordres voisins ne portent jamais le même niveau.
+ * Au-delà de `constellation` le niveau ne change plus : 10⁹ et 10¹² se
+ * distinguent par `magnitudeOrder`, par la structure du rendu
+ * (`morphologyShape`) et par le compte exact affiché.
  */
 export function morphologyOf(count: bigint): MorphologyLevel {
   const order = magnitudeOrderOf(count)
-  if (order <= 0) return 'filament'
-  if (order === 1) return 'bundle'
-  if (order === 2) return 'conduit'
-  if (order === 3) return 'artery'
-  return 'macrostructure'
+  let index = 0
+  for (let i = 0; i < MORPHOLOGY_FLOOR_ORDERS.length; i++) {
+    if (order >= MORPHOLOGY_FLOOR_ORDERS[i]) index = i
+  }
+  return MORPHOLOGY_ORDER[index]
 }
 
 /** Accept the three transports a count can arrive in, and refuse anything that would lose digits. */

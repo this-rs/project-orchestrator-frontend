@@ -28,6 +28,10 @@
 // entier (canaux : +2 par ordre) : elles ne cessent pas de croître quand la
 // largeur sature. Chacune est ensuite bornée par le budget (`Math.min`).
 //
+// Les paliers nommés (`network`, `system`, `constellation`, voir
+// `linkMagnitude`) n'interviennent PAS ici : le niveau est une étiquette, la
+// forme vient uniquement de t. Au-delà de `constellation` rien n'est ajouté.
+//
 // LIMITE HONNÊTE : un budget fini ne peut pas, par construction, séparer deux
 // ordres au-delà de sa capacité. Plutôt que de retomber en silence sur des
 // valeurs identiques, `graphical.overflowOrders` expose le nombre d'ordres que

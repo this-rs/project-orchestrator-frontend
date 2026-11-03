@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   MORPHOLOGY_ORDER,
+  MORPHOLOGY_FLOOR_ORDERS,
   componentsSumToTotal,
   describeMagnitude,
   formatExactCount,
@@ -121,9 +122,9 @@ describe('NO CEILING AT 10 000 — the rule the brief replaces', () => {
   it('makes 10^6 and 10^9 differ on order AND exact count, not just on a clamped shape', () => {
     const million = describeMagnitude(1_000_000n)
     const billion = describeMagnitude(1_000_000_000n)
-    // The morphology saturates by design (the brief says the named levels stop
-    // growing) — so the difference must live in the channels that do not.
-    expect(million.morphology).toBe(billion.morphology)
+    // 10⁶ (system) and 10⁹ (constellation) now wear different named levels;
+    // the order and the exact count still separate them on their own.
+    expect(million.morphology).not.toBe(billion.morphology)
     expect(magnitudeGap(million, billion)).toBe(3)
     expect(million.exactCountText).not.toBe(billion.exactCountText)
   })
@@ -143,6 +144,54 @@ describe('NO CEILING AT 10 000 — the rule the brief replaces', () => {
     // same order, which a single clamped scalar never could.
     expect(magnitudeMantissaOf(4_200_000_000n)).toBeCloseTo(4.2, 9)
     expect(magnitudeMantissaOf(9_100_000_000n)).toBeCloseTo(9.1, 9)
+  })
+})
+
+describe('named levels beyond 10^4 — network, system, constellation', () => {
+  const pow = (n: number) => 10n ** BigInt(n)
+
+  it('covers 10^0 to 10^12 without a hole, and stays monotone', () => {
+    let previous = -1
+    for (let order = 0; order <= 12; order++) {
+      const level = morphologyOf(pow(order))
+      const rank = MORPHOLOGY_ORDER.indexOf(level)
+      expect(rank).toBeGreaterThanOrEqual(0)
+      expect(rank).toBeGreaterThanOrEqual(previous)
+      previous = rank
+    }
+  })
+
+  it('MORPHOLOGY_ORDER is ordered thinnest → thickest with one floor per level', () => {
+    expect(MORPHOLOGY_ORDER).toEqual([
+      'filament', 'bundle', 'conduit', 'artery', 'macrostructure', 'network', 'system', 'constellation',
+    ])
+    expect(MORPHOLOGY_FLOOR_ORDERS).toHaveLength(MORPHOLOGY_ORDER.length)
+    for (let i = 1; i < MORPHOLOGY_FLOOR_ORDERS.length; i++) {
+      expect(MORPHOLOGY_FLOOR_ORDERS[i]).toBeGreaterThan(MORPHOLOGY_FLOOR_ORDERS[i - 1])
+    }
+  })
+
+  it('no two neighbouring orders share a level below the last named one', () => {
+    const lastFloor = MORPHOLOGY_FLOOR_ORDERS[MORPHOLOGY_FLOOR_ORDERS.length - 1]
+    for (let order = 0; order < lastFloor; order++) {
+      expect(morphologyOf(pow(order))).not.toBe(morphologyOf(pow(order + 1)))
+    }
+  })
+
+  it('maps the new boards and creates no level past the last one', () => {
+    expect(morphologyOf(pow(5))).toBe('network')
+    expect(morphologyOf(pow(6))).toBe('system')
+    expect(morphologyOf(pow(7))).toBe('constellation')
+    for (const order of [9, 10, 12, 15, 30, 100]) {
+      expect(morphologyOf(pow(order))).toBe('constellation')
+    }
+    expect(morphologyOf(pow(30)).length).toBeGreaterThan(0)
+  })
+
+  it('stays exact at 10^30', () => {
+    const m = describeMagnitude(pow(30))
+    expect(m.magnitudeOrder).toBe(30)
+    expect(m.exactCountText).toBe('1' + '0'.repeat(30))
   })
 })
 

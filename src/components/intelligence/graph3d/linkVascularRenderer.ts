@@ -35,6 +35,7 @@ import type { LinkStyle, LinkStyleFn } from './linkRibbon'
 import { buildCorridors, type Corridor } from './linkRouting'
 import { buildLinkSystem, fromCorridors, type DrawableBundle, type SystemBudget } from './linkSystem'
 import { braidedOffsets, parallelTransportFrames, type Vec3 } from './linkVascular'
+import { flowPositions, strataFor, stratumRadius, type Stratum } from './linkStrata'
 import { communityToken } from './linkRibbon'
 import { LINK_RENDER_ORDER } from './nodePoints'
 import { buildRanges, bundleAtTriangle } from './linkVascularPicking'
@@ -49,11 +50,34 @@ const MAX_STRANDS = 5
 const BRANCHES_PER_END = 3
 /** Samples along a branch (shorter than a trunk, so fewer). */
 const BRANCH_SAMPLES = 5
-/** Core radius as a share of the sheath radius. */
-const CORE_RATIO = 0.34
+/**
+ * Couleur par famille de relation.
+ *
+ * Les planches montrent des familles DISTINGUABLES dans un même faisceau
+ * (directionnel / dépendance / connaissance / agrégat). Une voie par famille,
+ * c'est une VRAIE partition des relations du corridor — pas une métaphore : le
+ * brief interdit d'inventer un embranchement qui suggère une relation
+ * inexistante, et une famille est, elle, un fait des données.
+ */
+const FAMILY_RGB: Record<string, [number, number, number]> = {
+  IMPORTS: [0.35, 0.85, 0.75],
+  CALLS: [0.45, 0.75, 1.0],
+  IMPLEMENTS: [0.6, 0.55, 1.0],
+  EXTENDS: [0.75, 0.5, 1.0],
+  TOUCHES: [0.95, 0.8, 0.45],
+  CO_CHANGED: [1.0, 0.7, 0.4],
+  CO_CHANGED_TRANSITIVE: [1.0, 0.6, 0.35],
+  DISCUSSED: [0.9, 0.6, 0.9],
+  AFFECTS: [0.95, 0.55, 0.7],
+  UNKNOWN: [0.55, 0.65, 0.75],
+}
+
+function familyRgb(relation: string | null | undefined): [number, number, number] {
+  return FAMILY_RGB[relation ?? 'UNKNOWN'] ?? FAMILY_RGB.UNKNOWN
+}
+
 /** Sheath alpha, and how much brighter the core is. */
 const SHEATH_ALPHA = 0.16
-const CORE_ALPHA = 1.0
 
 const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aColor;
@@ -77,6 +101,15 @@ const FRAGMENT_SHADER = /* glsl */ `
 
 const endpointId = (e: string | { id: string }): string => (typeof e === 'string' ? e : e.id)
 
+/**
+ * Avancement du flux, en tours de motif.
+ *
+ * Module-level et non par rendu : c'est un CADENCE, pas une donnée du graphe.
+ * `setFlowTime` le fait avancer quand l'appelant décide d'animer ; à l'arrêt la
+ * valeur reste, et l'image reste stable et reproductible.
+ */
+let flowTime = 0
+
 /** Deterministic 0..2π seed from a corridor key, so a trunk's bow never flickers. */
 function hashKey(key: string): number {
   let h = 2166136261
@@ -98,6 +131,12 @@ interface Conduit {
   /** Braid lane (only for trunk lanes). */
   lane: number
   samples: number
+  /** Concentric layers of this conduit, outermost first. Empty = single tube. */
+  strata: Stratum[]
+  /** Relation family this lane carries (null for branches: they inherit). */
+  family: string | null
+  /** Flowing grain offset, so two conduits never pulse in step. */
+  flowPhase: number
   /** First vertex of this conduit in the shared buffers. */
   vertexStart: number
   vertexCount: number
@@ -107,6 +146,8 @@ interface Bundle {
   corridor: Corridor
   drawable: DrawableBundle
   color: LinkStyle
+  /** Dernière couleur appliquée, pour que le flux puisse repeindre sans style. */
+  lastStyle: LinkStyle
   bowSeed: number
   conduits: Conduit[]
   vertexStart: number
@@ -161,6 +202,8 @@ function sampleCurve(a: Vec3, c1: Vec3, c2: Vec3, b: Vec3, samples: number): Vec
 }
 
 export interface VascularLinkRenderer extends LinkRenderer {
+  /** Fait avancer le flux d'un tour de motif. Sans appel, l'image est stable. */
+  setFlowTime?: (turns: number) => void
   /** Key of the bundle that owns this triangle (`faceIndex` from a raycast), or null. */
   bundleAt?: (faceIndex: number) => string | null
   /** Click callback, to be invoked by the DOM wiring. */
@@ -281,8 +324,15 @@ export function createVascularLinks(
         alphaMul: number,
         lane: number,
         samples: number,
+        strata: Stratum[],
+        family: string | null,
+        flowPhase: number,
       ) => {
-        const count = samples * TUBE_SEGMENTS
+        // One vertex ring per stratum: the tube is CONCENTRIC layers, not one
+        // shell. That is what distinguishes a 1 000-relation conduit from a
+        // 10 000-relation trunk once the projected width has hit its ceiling.
+        const layers = Math.max(1, strata.length)
+        const count = samples * TUBE_SEGMENTS * layers
         conduits.push({
           fromId,
           toId,
@@ -290,6 +340,9 @@ export function createVascularLinks(
           alpha: alphaMul,
           lane,
           samples,
+          strata,
+          family,
+          flowPhase,
           vertexStart: position.length / 3,
           vertexCount: count,
         })
@@ -299,39 +352,63 @@ export function createVascularLinks(
           alpha.push(0)
         }
         const base = position.length / 3 - count
-        for (let i = 0; i < samples - 1; i++) {
-          for (let k = 0; k < TUBE_SEGMENTS; k++) {
-            const a0 = base + i * TUBE_SEGMENTS + k
-            const a1 = base + i * TUBE_SEGMENTS + ((k + 1) % TUBE_SEGMENTS)
-            const b0 = a0 + TUBE_SEGMENTS
-            const b1 = a1 + TUBE_SEGMENTS
-            index.push(a0, b0, a1, a1, b0, b1)
+        for (let layer = 0; layer < layers; layer++) {
+          const layerBase = base + layer * samples * TUBE_SEGMENTS
+          for (let i = 0; i < samples - 1; i++) {
+            for (let k = 0; k < TUBE_SEGMENTS; k++) {
+              const a0 = layerBase + i * TUBE_SEGMENTS + k
+              const a1 = layerBase + i * TUBE_SEGMENTS + ((k + 1) % TUBE_SEGMENTS)
+              const b0 = a0 + TUBE_SEGMENTS
+              const b1 = a1 + TUBE_SEGMENTS
+              index.push(a0, b0, a1, a1, b0, b1)
+            }
           }
         }
       }
 
-      // Trunk: per lane, a translucent sheath and a bright core.
-      for (let s = 0; s < lanes; s++) {
-        const lane = lanes === 1 ? 0.5 : s / (lanes - 1)
-        addConduit(geo.branchA[0] ?? endpointId(corridor.links[0].source),
-          geo.branchB[0] ?? endpointId(corridor.links[0].target),
-          1, SHEATH_ALPHA, lane, trunkSamples)
-        addConduit(geo.branchA[0] ?? endpointId(corridor.links[0].source),
-          geo.branchB[0] ?? endpointId(corridor.links[0].target),
-          CORE_RATIO, CORE_ALPHA, lane, trunkSamples)
-      }
+      // ── Voies = FAMILLES de relations (une vraie partition) ──────────────
+      // Le brief : « un même corridor peut transporter plusieurs familles de
+      // relations, qui restent distinguables et comptabilisées séparément ».
+      // Une voie par famille, colorée par elle : ce n'est pas une métaphore,
+      // c'est la composition réelle du corridor.
+      const families = [...corridor.families]
+        .sort((x, y) => (y.exactCount === x.exactCount ? (x.relation < y.relation ? -1 : 1) : y.exactCount > x.exactCount ? 1 : -1))
+        .slice(0, lanes)
+      const laneFamilies = families.length > 0 ? families.map((f) => f.relation) : [null]
+      // Nombre de strates AUTORISÉ par la morphologie : elle seule décide, et
+      // `strataFor` n'en dessine jamais davantage.
+      const strata = strataFor(Math.max(0, Math.min(6, drawable.morphology.graphical.strata)), order)
+      const trunkFrom = geo.branchA[0] ?? endpointId(corridor.links[0].source)
+      const trunkTo = geo.branchB[0] ?? endpointId(corridor.links[0].target)
 
-      // Branches: from each trunk end to the most connected real nodes.
+      laneFamilies.forEach((family, s) => {
+        const lane = laneFamilies.length === 1 ? 0.5 : s / (laneFamilies.length - 1)
+        addConduit(trunkFrom, trunkTo, 1, SHEATH_ALPHA, lane, trunkSamples, strata, family, s * 0.37)
+      })
+
+      // ── Branches, DEUX niveaux ───────────────────────────────────────────
+      // Niveau 1 : du bout du tronc vers les nœuds réels les plus connectés.
+      // Niveau 2 : de chaque branche vers un nœud voisin de la même extrémité —
+      // c'est ce qui donne l'arborescence des planches, plutôt qu'un tronc qui
+      // s'arrête net.
+      const branchStrata = strata.slice(-1)
       const trunkEndA = geo.branchA[0]
       const trunkEndB = geo.branchB[0]
-      for (const id of geo.branchA.slice(1)) {
-        addConduit(trunkEndA ?? id, id, 0.55, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES)
-        addConduit(trunkEndA ?? id, id, 0.55 * CORE_RATIO, CORE_ALPHA, 0.5, BRANCH_SAMPLES)
+      const addBranches = (tip: string | undefined, ids: string[]) => {
+        for (const id of ids) {
+          if (!tip || id === tip) continue
+          addConduit(tip, id, 0.55, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.21)
+        }
+        // Second level: one sub-branch per level-1 tip, to the next real node.
+        const next = ids[1]
+        if (next) {
+          for (const id of ids.slice(2)) {
+            addConduit(next, id, 0.3, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES, branchStrata, null, 0.13)
+          }
+        }
       }
-      for (const id of geo.branchB.slice(1)) {
-        addConduit(trunkEndB ?? id, id, 0.55, SHEATH_ALPHA, 0.5, BRANCH_SAMPLES)
-        addConduit(trunkEndB ?? id, id, 0.55 * CORE_RATIO, CORE_ALPHA, 0.5, BRANCH_SAMPLES)
-      }
+      addBranches(trunkEndA, geo.branchA)
+      addBranches(trunkEndB, geo.branchB)
 
       const vertexCount = position.length / 3 - vertexStart
       trianglesPerBundle.push(index.length / 3 - trianglesBefore)
@@ -340,6 +417,7 @@ export function createVascularLinks(
         corridor,
         drawable,
         color: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.3 },
+        lastStyle: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.3 },
         bowSeed: hashKey(corridor.key),
         conduits,
         vertexStart,
@@ -391,10 +469,8 @@ export function createVascularLinks(
       const [c1, c2] = bowAnchors(a, b, bundle.bowSeed + conduit.lane * 0.9)
       const points = sampleCurve(a, c1, c2, b, conduit.samples)
       const frames = parallelTransportFrames(points)
-      const radiusBase = bundle.drawable.samples > 0 ? conduit.radius : 1
       const order = bundle.corridor.magnitude.magnitudeOrder
-      const sceneR = sceneRadius
-      const thickness = sceneR * 0.0075 * (1 + 0.42 * Math.min(9, order)) * radiusBase
+      const thickness = sceneRadius * 0.0075 * (1 + 0.42 * Math.min(9, order)) * conduit.radius
       const offsets = braidedOffsets(
         Math.max(1, conduit.lane === 0.5 ? 1 : Math.round(bundle.conduits.length / 2)),
         conduit.samples,
@@ -404,27 +480,59 @@ export function createVascularLinks(
       const pos = positionAttr.array as Float32Array
       const col = colorAttr.array as Float32Array
       const alp = alphaAttr.array as Float32Array
+      // Couleur de la voie : celle de SA famille quand elle en porte une, pour
+      // que deux familles du même corridor restent distinguables à l'œil.
+      const fam = conduit.family ? familyRgb(conduit.family) : null
+      const cr = fam ? fam[0] : style.r
+      const cg = fam ? fam[1] : style.g
+      const cb = fam ? fam[2] : style.b
+      const cr2 = fam ? fam[0] : (style.r2 ?? style.r)
+      const cg2 = fam ? fam[1] : (style.g2 ?? style.g)
+      const cb2 = fam ? fam[2] : (style.b2 ?? style.b)
+      const layers = Math.max(1, conduit.strata.length)
+      const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
+      // Grains du flux : leur motif lumineux court le long de la couche la plus
+      // interne. `flowPositions` donne des abscisses régulières ; on s'en sert
+      // comme d'une période pour moduler la brillance.
+      const grains = flowPositions(6, 0, conduit.flowPhase)
       const base = conduit.vertexStart
-      for (let i = 0; i < conduit.samples; i++) {
-        const f = frames[Math.min(i, frames.length - 1)]
-        if (!f) continue
-        const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
-        const off = offsets[i] ?? [0, 0, 0]
-        const cx = f.position[0] + f.normal[0] * off[0] * thickness + f.binormal[0] * off[1] * thickness
-        const cy = f.position[1] + f.normal[1] * off[0] * thickness + f.binormal[1] * off[1] * thickness
-        const cz = f.position[2] + f.normal[2] * off[0] * thickness + f.binormal[2] * off[1] * thickness
-        for (let k = 0; k < TUBE_SEGMENTS; k++) {
-          const ang = (k / TUBE_SEGMENTS) * Math.PI * 2
-          const nx = Math.cos(ang)
-          const ny = Math.sin(ang)
-          const vi = (base + i * TUBE_SEGMENTS + k) * 3
-          pos[vi] = cx + f.normal[0] * nx * thickness + f.binormal[0] * ny * thickness
-          pos[vi + 1] = cy + f.normal[1] * nx * thickness + f.binormal[1] * ny * thickness
-          pos[vi + 2] = cz + f.normal[2] * nx * thickness + f.binormal[2] * ny * thickness
-          col[vi] = style.r + ((style.r2 ?? style.r) - style.r) * u
-          col[vi + 1] = style.g + ((style.g2 ?? style.g) - style.g) * u
-          col[vi + 2] = style.b + ((style.b2 ?? style.b) - style.b) * u
-          alp[base + i * TUBE_SEGMENTS + k] = Math.min(1, style.a * conduit.alpha)
+      for (let layer = 0; layer < layers; layer++) {
+        const stratum = conduit.strata[layer] ?? { radius: 1, alpha: 1, carriesFlow: false }
+        const layerRadius = stratumRadius(stratum, thickness)
+        const layerBase = base + layer * samplesPerLayer
+        const layerAlpha = Math.min(1, style.a * stratum.alpha * conduit.alpha * 2.2)
+        for (let i = 0; i < conduit.samples; i++) {
+          const f = frames[Math.min(i, frames.length - 1)]
+          if (!f) continue
+          const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
+          const off = offsets[i] ?? [0, 0, 0]
+          const cx = f.position[0] + f.normal[0] * off[0] * layerRadius + f.binormal[0] * off[1] * layerRadius
+          const cy = f.position[1] + f.normal[1] * off[0] * layerRadius + f.binormal[1] * off[1] * layerRadius
+          const cz = f.position[2] + f.normal[2] * off[0] * layerRadius + f.binormal[2] * off[1] * layerRadius
+          // Flux : une brillance périodique le long de la couche porteuse. Sans
+          // animation c'est déjà des grains lisibles ; `setFlowTime` les fait
+          // défiler (voir le champ exposé plus bas).
+          let flowGain = 1
+          if (stratum.carriesFlow && grains.length > 0) {
+            const period = grains.length
+            const pos = (u * period + flowTime + conduit.flowPhase) % 1
+            const nearest = Math.abs(pos - Math.round(pos))
+            flowGain = 0.45 + 0.85 * Math.max(0, 1 - nearest * 3.2)
+          }
+          for (let k = 0; k < TUBE_SEGMENTS; k++) {
+            const ang = (k / TUBE_SEGMENTS) * Math.PI * 2
+            const nx = Math.cos(ang)
+            const ny = Math.sin(ang)
+            const vi = (layerBase + i * TUBE_SEGMENTS + k) * 3
+            pos[vi] = cx + f.normal[0] * nx * layerRadius + f.binormal[0] * ny * layerRadius
+            pos[vi + 1] = cy + f.normal[1] * nx * layerRadius + f.binormal[1] * ny * layerRadius
+            pos[vi + 2] = cz + f.normal[2] * nx * layerRadius + f.binormal[2] * ny * layerRadius
+            const g = flowGain
+            col[vi] = (cr + (cr2 - cr) * u) * g
+            col[vi + 1] = (cg + (cg2 - cg) * u) * g
+            col[vi + 2] = (cb + (cb2 - cb) * u) * g
+            alp[layerBase + i * TUBE_SEGMENTS + k] = Math.min(1, layerAlpha * g)
+          }
         }
       }
     }
@@ -444,6 +552,7 @@ export function createVascularLinks(
       const alp = alphaAttr.array as Float32Array
       for (const bundle of bundles) {
         const style = styleOf(bundle)
+        bundle.lastStyle = style
         for (const conduit of bundle.conduits) {
           for (let i = 0; i < conduit.samples; i++) {
             const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
@@ -477,6 +586,10 @@ export function createVascularLinks(
       },
       bundleAt: (faceIndex: number) => bundleAtTriangle(ranges, faceIndex),
       onBundleClick,
+      setFlowTime: (turns: number) => {
+        flowTime = Number.isFinite(turns) ? turns % 1 : 0
+        fillColors((b) => b.lastStyle)
+      },
       dispose: () => {
         geometry.dispose()
         material.dispose()
