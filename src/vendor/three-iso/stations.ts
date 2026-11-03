@@ -1,4 +1,4 @@
-// GENERATED from website@33e082ed383c655e3293b66a3e04160d5876eac8:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
+// GENERATED from website@4dfb9f9807e5ff890ea2007962062eef1398c7d5:src/three/iso/stations.ts by scripts/sync-iso-lib.mjs — do not edit.
 // @ts-nocheck — typechecked on the site (TypeScript 6, strict + noUncheckedIndexedAccess); TS 5.7 here infers differently.
 /**
  * Fabrique de MACHINES À POSTES : une disposition (`layouts.ts`), une voie tracée le long de ses tracés, une navette
@@ -148,8 +148,91 @@ interface GroundTrack {
   L: number[]
 }
 
+/**
+ * ARRONDIT CHAQUE SOMMET d'une polyligne avec un rayon UNIQUE.
+ *
+ * Un circuit ne peut pas avoir un coin droit et un coin arrondi : c'est ce que montrait la capture — la voie était une
+ * polyligne, donc droite là où la disposition ne l'échantillonnait pas en arc, et arrondie ailleurs. Le rayon est borné
+ * par la demi-longueur des segments voisins pour qu'un virage serré ne dévore pas son segment.
+ */
+function roundCorners(pts: readonly Vec3[], closed: boolean, radius: number, perArc = 6): Vec3[] {
+  const n = pts.length
+  if (n < 3 || radius <= 0) return [...pts]
+  const out: Vec3[] = []
+  const at = (i: number) => pts[((i % n) + n) % n]!
+  const first = closed ? 0 : 1
+  const last = closed ? n - 1 : n - 2
+  if (!closed) out.push(pts[0]!)
+  for (let i = first; i <= last; i++) {
+    const p0 = at(i)
+    const prev = at(i - 1)
+    const next = at(i + 1)
+    const inD: [number, number] = [p0[0] - prev[0], p0[1] - prev[1]]
+    const outD: [number, number] = [next[0] - p0[0], next[1] - p0[1]]
+    const lIn = Math.hypot(inD[0], inD[1]) || 1
+    const lOut = Math.hypot(outD[0], outD[1]) || 1
+    const uIn: [number, number] = [inD[0] / lIn, inD[1] / lIn]
+    const uOut: [number, number] = [outD[0] / lOut, outD[1] / lOut]
+    const cross = uIn[0] * uOut[1] - uIn[1] * uOut[0]
+    const dot = Math.max(-1, Math.min(1, uIn[0] * uOut[0] + uIn[1] * uOut[1]))
+    const turn = Math.atan2(cross, dot)
+    if (Math.abs(turn) < 1e-3) {
+      out.push(p0)
+      continue
+    }
+    const r = Math.min(radius, lIn / 2, lOut / 2)
+    const t = r * Math.tan(Math.min(Math.abs(turn), Math.PI * 0.9) / 2)
+    const aStart = [p0[0] - uIn[0] * t, p0[1] - uIn[1] * t]
+    const aEnd = [p0[0] + uOut[0] * t, p0[1] + uOut[1] * t]
+    for (let k = 0; k <= perArc; k++) {
+      const f = k / perArc
+      const w0 = (1 - f) * (1 - f)
+      const w1 = 2 * (1 - f) * f
+      const w2 = f * f
+      out.push([
+        w0 * aStart[0]! + w1 * p0[0] + w2 * aEnd[0]!,
+        w0 * aStart[1]! + w1 * p0[1] + w2 * aEnd[1]!,
+        p0[2]!,
+      ])
+    }
+  }
+  if (!closed) out.push(pts[n - 1]!)
+  return out
+}
+
+/**
+ * RÉÉCHANTILLONNE une polyligne à `n` points équidistants en abscisse curviligne. L'arrondi ajoute des points par
+ * virage ; sans ce plafond le ruban explosait le budget de faces (mesuré : 1279 faces au repli SVG pour 900 autorisées).
+ * Un nombre FIXE de points rend le coût indépendant du nombre de virages.
+ */
+function resample(pts: readonly Vec3[], closed: boolean, n: number): Vec3[] {
+  if (pts.length < 2) return [...pts]
+  const p = closed ? [...pts, pts[0]!] : [...pts]
+  const L = [0]
+  for (let i = 1; i < p.length; i++) L.push(L[i - 1]! + Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]))
+  const tot = L[L.length - 1]!
+  if (!(tot > 0)) return [...pts]
+  const out: Vec3[] = []
+  let seg = 1
+  for (let k = 0; k < n; k++) {
+    const want = (k / n) * tot
+    while (seg < L.length - 1 && L[seg]! < want) seg++
+    const a = p[seg - 1]!
+    const b = p[seg]!
+    const l0 = L[seg - 1]!
+    const l1 = L[seg]!
+    const f = l1 > l0 ? (want - l0) / (l1 - l0) : 0
+    out.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f])
+  }
+  return out
+}
+
+/** Rayon d'arrondi des virages du circuit, en unités monde. */
+const TRACK_CORNER = 0.55
+
 function groundTrack(tr: Track): GroundTrack {
-  const pts = tr.pts.map((q) => fromView(CAM, q[0], q[1], 0))
+  const raw = tr.pts.map((q) => fromView(CAM, q[0], q[1], 0))
+  const pts = resample(roundCorners(raw, tr.closed, TRACK_CORNER, 8), tr.closed, tr.closed ? 48 : 36)
   const p = tr.closed ? [...pts, pts[0]!] : pts
   const L = [0]
   for (let i = 1; i < p.length; i++) L.push(L[i - 1]! + Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]))

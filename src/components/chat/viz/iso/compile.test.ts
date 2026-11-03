@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { assemble } from '@/vendor/three-iso/buildIn'
-import { compileIsoScene, toSceneSpec, MAX_DATA_CHARS, ISO_VOCABULARY } from './compile'
+import { compileIsoScene, toSceneSpec, MAX_DATA_CHARS, ISO_VOCABULARY, ISO_SCENE_VERSION } from './compile'
 
 const RELEASE = {
   title: 'Release',
@@ -179,5 +179,24 @@ describe('frames — les versions successives d’un même travail', () => {
     expect(a.ok && a.frameMs).toBe(120_000)
     const b = compileIsoScene({ frames: [] })
     expect(b.ok).toBe(false)
+  })
+})
+
+describe('contrat de version — une garantie, pas une version qui dérive', () => {
+  it('un bloc qui déclare une version FUTURE est refusé en nommant les deux versions', () => {
+    const r = compileIsoScene({ v: 2, ast: { kind: 'sphere', r: 0.5 } })
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.problems[0]).toContain('iso_scene v2')
+      expect(r.problems[0]).toContain(`v${ISO_SCENE_VERSION}`)
+    }
+  })
+
+  it('un bloc sans version est traité comme la version courante (rétro-compatibilité)', () => {
+    expect(compileIsoScene({ ast: { kind: 'sphere', r: 0.5 } }).ok).toBe(true)
+  })
+
+  it('la version courante passe', () => {
+    expect(compileIsoScene({ v: ISO_SCENE_VERSION, ast: { kind: 'sphere', r: 0.5 } }).ok).toBe(true)
   })
 })
