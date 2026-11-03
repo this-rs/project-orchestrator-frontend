@@ -84,6 +84,37 @@ function dot(a: Vec3, b: Vec3): number {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
+/**
+ * Direction unitaire d'une liaison, du groupe `from` vers le groupe `to`.
+ *
+ * Deux centres CONFONDUS donnaient [0, 1, 0] des deux côtés : les deux ports
+ * se posaient au même point, et le tronc entre eux avait une longueur nulle.
+ * Ici la direction vient alors de la clé de la liaison (déterministe), et le
+ * côté `to` reçoit l'opposé : les deux ports sont distincts et se font face.
+ */
+export function pairDirection(from: Vec3, to: Vec3, key: string, side: 'from' | 'to' = 'from'): Vec3 {
+  const d = sub(to, from)
+  const len = Math.hypot(d[0], d[1], d[2])
+  let dir: Vec3
+  if (len >= 1e-9) {
+    dir = [d[0] / len, d[1] / len, d[2] / len]
+  } else {
+    let h = 2166136261
+    for (let i = 0; i < key.length; i++) {
+      h ^= key.charCodeAt(i)
+      h = Math.imul(h, 16777619)
+    }
+    const u = (h >>> 0) / 4294967296
+    const v = (Math.imul(h, 2654435761) >>> 0) / 4294967296
+    // Point uniforme sur la sphère.
+    const z = 2 * u - 1
+    const t = 2 * Math.PI * v
+    const s = Math.sqrt(Math.max(0, 1 - z * z))
+    dir = [s * Math.cos(t), s * Math.sin(t), z]
+  }
+  return side === 'from' ? dir : [-dir[0], -dir[1], -dir[2]]
+}
+
 /** Part du rayon de l'enveloppe où se pose un port. */
 export const PORT_DEPTH = 0.85
 
@@ -136,14 +167,14 @@ export function distributePorts(
     const to = byId.get(pair.to)
     if (!from || !to) continue
     if (pair.from === pair.to) continue // boucle interne : pas de port sortant
-    const d = norm(sub(to.center, from.center))
+    const d = pairDirection(from.center, to.center, pair.key, 'from')
     // Le CÔTÉ compte : un corridor a un port côté `from` et un côté `to`. Les
     // deux étaient enregistrés comme « from », donc le second écrasait le
     // premier et le port affiché pointait vers le mauvais voisin.
     const list = outgoing.get(pair.from) ?? []
     list.push({ key: pair.key, dir: d, side: 'from' })
     outgoing.set(pair.from, list)
-    const back = norm(sub(from.center, to.center))
+    const back = pairDirection(from.center, to.center, pair.key, 'to')
     const listB = outgoing.get(pair.to) ?? []
     listB.push({ key: pair.key, dir: back, side: 'to' })
     outgoing.set(pair.to, listB)

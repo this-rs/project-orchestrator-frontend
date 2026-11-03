@@ -112,3 +112,21 @@ describe('ports distribués', () => {
     expect(dot).toBeGreaterThan(0.5)
   })
 })
+
+describe('centres confondus', () => {
+  it('deux groupes au même centre reçoivent deux ports DISTINCTS, opposés et déterministes', () => {
+    const groups = [
+      { id: 'A', center: [5, 5, 5] as [number, number, number], radius: 10 },
+      { id: 'B', center: [5, 5, 5] as [number, number, number], radius: 10 },
+    ]
+    const run = () => distributePorts(groups, [{ key: 'A|B', from: 'A', to: 'B' }])
+    const { ports, pairPorts } = run()
+    const pa = ports.find((p) => p.id === pairPorts.get('A|B')!.from)!
+    const pb = ports.find((p) => p.id === pairPorts.get('A|B')!.to)!
+    const gap = Math.hypot(pa.position[0] - pb.position[0], pa.position[1] - pb.position[1], pa.position[2] - pb.position[2])
+    expect(gap).toBeGreaterThan(10)
+    const dot = pa.direction[0] * pb.direction[0] + pa.direction[1] * pb.direction[1] + pa.direction[2] * pb.direction[2]
+    expect(dot).toBeCloseTo(-1, 9)
+    expect(run().ports.map((p) => p.position)).toEqual(ports.map((p) => p.position))
+  })
+})

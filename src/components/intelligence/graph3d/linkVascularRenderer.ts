@@ -48,7 +48,7 @@ import {
 import { LINK_RENDER_ORDER } from './nodePoints'
 import { isMobileLikeDevice } from './useRenderLoop'
 import { buildRanges, bundleAtTriangle } from './linkVascularPicking'
-import { distributePorts, placePort, type GroupEnvelope, type GroupPair } from './linkPorts'
+import { distributePorts, pairDirection, placePort, type GroupEnvelope, type GroupPair } from './linkPorts'
 import { linkRadiusFor, nearestNeighbourScale, softCap } from './linkRadius'
 import { linkMultiplicity } from './linkRouting'
 
@@ -702,7 +702,8 @@ export function createVascularLinks(
     interface PortRec {
       anchor: Point3
       hub: Hub
-      others: Hub[]
+      /** Liaisons qui partent de ce port : le groupe d'en face, et de quel côté. */
+      others: { from: Hub; to: Hub; key: string; side: 'from' | 'to' }[]
       sum: Vec3
       position: Vec3
       direction: Vec3
@@ -729,8 +730,9 @@ export function createVascularLinks(
       if (!c) continue
       const toHub = hubs.get(c.to)
       const fromHub = hubs.get(c.from)
-      if (toHub) portById.get(pp.from)?.others.push(toHub)
-      if (fromHub) portById.get(pp.to)?.others.push(fromHub)
+      if (!toHub || !fromHub) continue
+      portById.get(pp.from)?.others.push({ from: fromHub, to: toHub, key, side: 'from' })
+      portById.get(pp.to)?.others.push({ from: fromHub, to: toHub, key, side: 'to' })
     }
     /** Même règle que `distributePorts` : somme des directions sortantes, posée sur l'enveloppe. */
     const recomputePorts = () => {
@@ -738,10 +740,8 @@ export function createVascularLinks(
         const c = rec.hub.center
         rec.sum[0] = 0; rec.sum[1] = 0; rec.sum[2] = 0
         for (const o of rec.others) {
-          const dx = o.center[0] - c[0], dy = o.center[1] - c[1], dz = o.center[2] - c[2]
-          const len = Math.hypot(dx, dy, dz)
-          if (len < 1e-9) { rec.sum[1] += 1; continue }
-          rec.sum[0] += dx / len; rec.sum[1] += dy / len; rec.sum[2] += dz / len
+          const d = pairDirection(o.from.center, o.to.center, o.key, o.side)
+          rec.sum[0] += d[0]; rec.sum[1] += d[1]; rec.sum[2] += d[2]
         }
         placePort(c, rec.hub.radius, rec.sum, rec)
         rec.anchor.x = rec.position[0]
