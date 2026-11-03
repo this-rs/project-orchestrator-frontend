@@ -198,6 +198,12 @@ function familyRgb(relation: string | null | undefined): [number, number, number
   return FAMILY_RGB[relation ?? 'UNKNOWN'] ?? FAMILY_RGB.UNKNOWN
 }
 
+/**
+ * Part du style (surbrillance, sélection, couleur de couche) qui TEINTE une
+ * voie de famille. La famille reste lisible ; le style la module.
+ */
+const FAMILY_TINT = 0.3
+
 /** Sheath alpha, and how much brighter the core is. */
 const SHEATH_ALPHA = 1.0
 /**
@@ -355,8 +361,10 @@ interface Bundle {
   corridor: Corridor
   drawable: DrawableBundle
   color: LinkStyle
-  /** Dernière couleur appliquée, pour que le flux puisse repeindre sans style. */
+  /** Dernier style appliqué : le tick suivant du layout repeint avec lui. */
   lastStyle: LinkStyle
+  /** Couches de chaque conduit du faisceau (même nombre de canaux partout). */
+  specs: LayerSpec[]
   bowSeed: number
   conduits: Conduit[]
   vertexStart: number
@@ -925,6 +933,7 @@ export function createVascularLinks(
         color: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.3 },
         lastStyle: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.3 },
         bowSeed: hashKey(corridor.key),
+        specs: layerSpecs(MOBILE_LIKE ? 2 : Math.max(2, Math.min(MICRO_FIBERS, drawable.morphology.graphical.channels))),
         conduits,
         vertexStart,
         vertexCount,
@@ -1028,36 +1037,18 @@ export function createVascularLinks(
         0.5,
       )[0] ?? []
       const pos = positionAttr.array as Float32Array
-      const col = colorAttr.array as Float32Array
-      const alp = alphaAttr.array as Float32Array
       const nrm = normalAttr.array as Float32Array
       const emi = emitAttr.array as Float32Array
       const crv = curvAttr.array as Float32Array
       const pha = phaseAttr.array as Float32Array
-      // Couleur de la voie : celle de SA famille quand elle en porte une, pour
-      // que deux familles du même corridor restent distinguables à l'œil.
-      const fam = conduit.family ? familyRgb(conduit.family) : null
-      const cr = fam ? fam[0] : style.r
-      const cg = fam ? fam[1] : style.g
-      const cb = fam ? fam[2] : style.b
-      const cr2 = fam ? fam[0] : (style.r2 ?? style.r)
-      const cg2 = fam ? fam[1] : (style.g2 ?? style.g)
-      const cb2 = fam ? fam[2] : (style.b2 ?? style.b)
-      const channelCount = MOBILE_LIKE
-        ? 2
-        : Math.max(2, Math.min(MICRO_FIBERS, bundle.drawable.morphology.graphical.channels))
-      const specs = layerSpecs(channelCount)
+      const specs = bundle.specs
+      const channelCount = specs.length - 4
       const layers = specs.length
       const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
       const base = conduit.vertexStart
-      const baseAlpha = Math.max(0.3, style.a)
       for (let layer = 0; layer < layers; layer++) {
         const spec = specs[layer]
         const layerBase = base + layer * samplesPerLayer
-        // Opacité propre à l'identité de la couche, pas une part d'un budget
-        // commun : la spec demande que chaque strate ait une identité CLAIRE, et
-        // non « toutes rendues avec la même luminosité ».
-        const layerAlpha = Math.min(1, spec.alpha * Math.max(0.6, baseAlpha) * conduit.alpha)
         for (let i = 0; i < conduit.samples; i++) {
           const f = frames[Math.min(i, frames.length - 1)]
           if (!f) continue
@@ -1081,13 +1072,8 @@ export function createVascularLinks(
           const cx = f.position[0] + f.normal[0] * ox + f.binormal[0] * oy
           const cy = f.position[1] + f.normal[1] * ox + f.binormal[1] * oy
           const cz = f.position[2] + f.normal[2] * ox + f.binormal[2] * oy
-          // Flux : une brillance périodique le long de la couche porteuse. Sans
-          // animation c'est déjà des grains lisibles ; `setFlowTime` les fait
-          // défiler (voir le champ exposé plus bas).
-          // La couleur ne porte PLUS le flux : elle est stable, et c'est le
-          // shader qui anime. Sans cette séparation, `setFlowTime` devait
-          // réécrire les tampons de couleur à chaque image.
-          const flowGain = 1
+          // La couleur ne porte PAS le flux : elle est stable, et c'est le
+          // shader qui anime (`setFlowTime` ne réécrit aucun tampon).
           for (let k = 0; k < TUBE_SEGMENTS; k++) {
             const ang = (k / TUBE_SEGMENTS) * Math.PI * 2
             const nx = Math.cos(ang)
@@ -1096,17 +1082,12 @@ export function createVascularLinks(
             pos[vi] = cx + f.normal[0] * nx * layerRadius + f.binormal[0] * ny * layerRadius
             pos[vi + 1] = cy + f.normal[1] * nx * layerRadius + f.binormal[1] * ny * layerRadius
             pos[vi + 2] = cz + f.normal[2] * nx * layerRadius + f.binormal[2] * ny * layerRadius
-            const g = flowGain
-            col[vi] = (cr + (cr2 - cr) * u) * g
-            col[vi + 1] = (cg + (cg2 - cg) * u) * g
-            col[vi + 2] = (cb + (cb2 - cb) * u) * g
             // Normale de surface : la direction radiale du repère de transport.
             // C'est elle qui donne du volume à la rotation, émission coupée.
             nrm[vi] = f.normal[0] * nx + f.binormal[0] * ny
             nrm[vi + 1] = f.normal[1] * nx + f.binormal[1] * ny
             nrm[vi + 2] = f.normal[2] * nx + f.binormal[2] * ny
             const vi1 = layerBase + i * TUBE_SEGMENTS + k
-            alp[vi1] = Math.min(1, layerAlpha * g)
             // Seule la couche qui porte le flux émet ; tout le reste est surface.
             emi[vi1] = spec.emit ? 1 : 0
             // Position curviligne et phase : le shader en fait une impulsion.
@@ -1115,11 +1096,60 @@ export function createVascularLinks(
           }
         }
       }
+      paintConduit(bundle, conduit, style)
     }
 
-    const fillGeometry = (styleOf: (bundle: Bundle) => LinkStyle) => {
+    /**
+     * Couleur et opacité de TOUTES les couches d'un conduit.
+     *
+     * Une seule fonction, partagée par le maillage et la recoloration. La
+     * recoloration ne repeignait que la couche 0 (le halo) avec `style.a` brut :
+     * le halo devenait dix fois trop opaque, portait seul la couleur de
+     * surbrillance, et le tick suivant du layout remettait tout à l'ancienne
+     * couleur — un clignotement.
+     *
+     * Chaque couche garde SON opacité (spec × style × conduit). La couleur
+     * d'une voie reste celle de sa famille : la surbrillance la TEINTE, elle ne
+     * la remplace pas.
+     */
+    const paintConduit = (bundle: Bundle, conduit: Conduit, style: LinkStyle) => {
+      const col = colorAttr.array as Float32Array
+      const alp = alphaAttr.array as Float32Array
+      const fam = conduit.family ? familyRgb(conduit.family) : null
+      const sr = style.r, sg = style.g, sb = style.b
+      const sr2 = style.r2 ?? sr, sg2 = style.g2 ?? sg, sb2 = style.b2 ?? sb
+      const specs = bundle.specs
+      const baseAlpha = Math.max(0.6, Math.max(0.3, style.a))
+      const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
+      for (let layer = 0; layer < specs.length; layer++) {
+        // Opacité propre à l'identité de la couche, pas une part d'un budget
+        // commun : chaque strate garde une identité CLAIRE.
+        const layerAlpha = Math.min(1, specs[layer].alpha * baseAlpha * conduit.alpha)
+        const layerBase = conduit.vertexStart + layer * samplesPerLayer
+        for (let i = 0; i < conduit.samples; i++) {
+          const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
+          let r = sr + (sr2 - sr) * u
+          let g = sg + (sg2 - sg) * u
+          let b = sb + (sb2 - sb) * u
+          if (fam) {
+            r = fam[0] + (r - fam[0]) * FAMILY_TINT
+            g = fam[1] + (g - fam[1]) * FAMILY_TINT
+            b = fam[2] + (b - fam[2]) * FAMILY_TINT
+          }
+          for (let k = 0; k < TUBE_SEGMENTS; k++) {
+            const v = layerBase + i * TUBE_SEGMENTS + k
+            col[v * 3] = r
+            col[v * 3 + 1] = g
+            col[v * 3 + 2] = b
+            alp[v] = layerAlpha
+          }
+        }
+      }
+    }
+
+    const fillGeometry = () => {
       for (const bundle of bundles) {
-        for (const conduit of bundle.conduits) fillConduit(bundle, conduit, styleOf(bundle))
+        for (const conduit of bundle.conduits) fillConduit(bundle, conduit, bundle.lastStyle)
       }
       positionAttr.needsUpdate = true
       colorAttr.needsUpdate = true
@@ -1129,36 +1159,44 @@ export function createVascularLinks(
       geometry.computeBoundingSphere()
     }
 
-    const fillColors = (styleOf: (bundle: Bundle) => LinkStyle) => {
-      const col = colorAttr.array as Float32Array
-      const alp = alphaAttr.array as Float32Array
-      for (const bundle of bundles) {
+    /**
+     * Repeint les faisceaux choisis. Le style appliqué est MÉMORISÉ : le tick
+     * suivant du layout (`fillGeometry`) repeint avec lui, pas avec la couleur
+     * de construction.
+     */
+    const fillColors = (targets: Iterable<Bundle>, styleOf: (bundle: Bundle) => LinkStyle) => {
+      for (const bundle of targets) {
         const style = styleOf(bundle)
         bundle.lastStyle = style
         for (const conduit of bundle.conduits) {
-          for (let i = 0; i < conduit.samples; i++) {
-            const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
-            for (let k = 0; k < TUBE_SEGMENTS; k++) {
-              const vi = (conduit.vertexStart + i * TUBE_SEGMENTS + k) * 3
-              col[vi] = style.r + ((style.r2 ?? style.r) - style.r) * u
-              col[vi + 1] = style.g + ((style.g2 ?? style.g) - style.g) * u
-              col[vi + 2] = style.b + ((style.b2 ?? style.b) - style.b) * u
-              alp[conduit.vertexStart + i * TUBE_SEGMENTS + k] = Math.min(1, style.a * conduit.alpha)
-            }
-          }
+          if (!nodeById.has(conduit.fromId) || !nodeById.has(conduit.toId)) continue
+          paintConduit(bundle, conduit, style)
         }
       }
       colorAttr.needsUpdate = true
       alphaAttr.needsUpdate = true
     }
 
-    fillGeometry((b) => b.color)
+    // Faisceaux touchés par chaque nœud réel : la surbrillance d'un nœud ne
+    // repeint que ce qui le concerne, sans parcourir tous les liens.
+    const bundlesByNode = new Map<string, Bundle[]>()
+    for (const b of bundles) {
+      for (const link of b.corridor.links) {
+        for (const id of [endpointId(link.source), endpointId(link.target)]) {
+          const list = bundlesByNode.get(id)
+          if (!list) bundlesByNode.set(id, [b])
+          else if (list[list.length - 1] !== b) list.push(b)
+        }
+      }
+    }
+
+    fillGeometry()
 
     return {
       object: group,
       updatePositions: () => {
         recomputeAnchors()
-        fillGeometry((b) => b.color)
+        fillGeometry()
       },
       inspect: () => {
         const out: ConduitInfo[] = []
@@ -1177,14 +1215,23 @@ export function createVascularLinks(
         }
         return out
       },
-      updateColors: (styleFn: LinkStyleFn) => fillColors((b) => styleFn(b.corridor.links[0])),
+      updateColors: (styleFn: LinkStyleFn) => fillColors(bundles, (b) => styleFn(b.corridor.links[0])),
       updateColorsForNodes: (nodeIds: readonly string[], styleFn: LinkStyleFn) => {
+        // Seuls les faisceaux qui touchent ces nœuds sont repeints ; les autres
+        // GARDENT leur style courant (ils étaient remis à la couleur de
+        // construction, ce qui effaçait la sélection en cours).
+        // Le style est évalué sur un lien du corridor qui touche VRAIMENT l'un
+        // de ces nœuds (le premier lien du corridor peut ne pas le toucher).
         const set = new Set(nodeIds)
-        fillColors((b) => {
-          const link = b.corridor.links[0]
-          const touches = set.has(endpointId(link.source)) || set.has(endpointId(link.target))
-          return touches ? styleFn(link) : b.color
-        })
+        const touched = new Map<Bundle, Graph3DLink>()
+        for (const id of nodeIds) {
+          for (const b of bundlesByNode.get(id) ?? []) {
+            if (touched.has(b)) continue
+            const link = b.corridor.links.find((l) => set.has(endpointId(l.source)) || set.has(endpointId(l.target)))
+            touched.set(b, link ?? b.corridor.links[0])
+          }
+        }
+        fillColors(touched.keys(), (b) => styleFn(touched.get(b)!))
       },
       bundleAt: (faceIndex: number) => bundleAtTriangle(ranges, faceIndex),
       onBundleClick,
