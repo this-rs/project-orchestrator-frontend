@@ -222,7 +222,7 @@ function readCssColor(name: string, fallback: string): string {
 const DYNAMIC_MIN_NODES = isMobileLikeDevice() ? 1000 : 2000
 
 const HLOD_BUDGET = isMobileLikeDevice()
-  ? { maxNodes: 3000, maxLinks: 3000, childSpacingPx: 12 }
+  ? { maxNodes: 4500, maxLinks: 3000, childSpacingPx: 12 }
   : { maxNodes: 5000, maxLinks: 9000, childSpacingPx: 12 }
 
 /** Smallest closed group wrapped by an envelope at the dynamic scale (a solid hull needs 4 points). */

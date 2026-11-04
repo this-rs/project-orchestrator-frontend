@@ -69,6 +69,17 @@ export const STICKY_BONUS = 1.5
  */
 export const CHILD_SPACING_PX = 12
 
+/**
+ * The spacing a group needs is this much smaller when ALL its children are real
+ * nodes. Groups apart must read as groups (the rule above), but real nodes are
+ * small points (4 px at the floor): 6 px between them is legible. Measured on
+ * the real graph (04/11/2026, desktop): every group still closed in view held
+ * real nodes and sat at 27–38 px — 64 files need 96 px at full spacing, so the
+ * front never burst into its nodes (« je devrais pouvoir voir tout en éclaté
+ * en face de moi »).
+ */
+export const LEAF_SPACING_FACTOR = 0.5
+
 /** Projected radius, px, above which a node with `childCount` children opens. */
 export function openThresholdPx(tau: number, childCount: number, spacingPx = CHILD_SPACING_PX): number {
   return Math.max(tau, spacingPx * Math.sqrt(Math.max(1, childCount)))
@@ -704,7 +715,10 @@ export function cutForView(
   const consider = (i: number) => {
     if (nodes[i].children.length === 0) return
     const px = pxOf(i)
-    const base = openThresholdPx(tau, nodes[i].children.length, budget.childSpacingPx)
+    const kids = nodes[i].children
+    const leafKids = kids.every((c) => nodes[c].kind === 'leaf')
+    const spacing = (budget.childSpacingPx ?? CHILD_SPACING_PX) * (leafKids ? LEAF_SPACING_FACTOR : 1)
+    const base = openThresholdPx(tau, kids.length, spacing)
     const wasOpen = previous?.open.has(i) ?? false
     const forced = mustOpen.has(i)
     const w = weightOf(i)

@@ -11,6 +11,7 @@ import {
   projectedRadiusPx,
   openThresholdPx,
   focusWeightRect,
+  LEAF_SPACING_FACTOR,
   focusCentrality,
   FOCUS_PLATEAU,
   FOCUS_GAIN,
@@ -380,6 +381,15 @@ describe('cutForView — a group opens only when its children can be told apart'
   it('opens once its children are ~12 px apart', () => {
     expect(at(12 * Math.sqrt(community.children.length) * 1.1).open.has(community.index)).toBe(true)
   })
+
+  it('bursts into its real nodes once they sit ~6 px apart (half the spacing of groups)', () => {
+    // all 64 children are files: at full spacing this needed 96 px, so the
+    // front never burst (measured: closed groups of real nodes at 27–38 px)
+    expect(community.children.every((c) => tree.nodes[c].kind === 'leaf')).toBe(true)
+    const px = 12 * LEAF_SPACING_FACTOR * Math.sqrt(community.children.length) * 1.1
+    expect(px).toBeLessThan(12 * Math.sqrt(community.children.length))
+    expect(at(px).open.has(community.index)).toBe(true)
+  })
 })
 
 describe('cutForView — a finger needs more room than a pointer', () => {
@@ -392,8 +402,10 @@ describe('cutForView — a finger needs more room than a pointer', () => {
   }))
   const tree = buildClusterTree(nodes, [])
   const c = tree.nodes.find((t) => t.kind === 'community')!
-  // seen at a size where children sit ~14 px apart: a pointer opens, a finger waits
-  const px = 14 * Math.sqrt(c.children.length)
+  // its children are real nodes, so the spacing needed is LEAF_SPACING_FACTOR
+  // of the budget's: seen where they sit ~7 px apart, a pointer (12 → 6 px)
+  // opens, a finger (18 → 9 px) waits
+  const px = 7 * Math.sqrt(c.children.length)
   const d = (c.radius * 450) / (px * Math.tan((22.5 * Math.PI) / 180))
   const v = view(c.x, c.y, c.z + d)
 
@@ -430,7 +442,9 @@ describe('cutForView — foveated: the detail goes where the camera looks', () =
 
   it('the centre of the screen opens earlier than its edge', () => {
     // same distance, one on the line of sight, one near the edge of the view
-    const nodes = [...ball(3, -1800, 0), ...ball(4, -1800, 1200)] // the second ~34° off the line of sight
+    // far enough that the centre needs its focus bonus to open (real nodes open
+    // at half the spacing): the second ball ~34° off the line of sight
+    const nodes = [...ball(3, -3600, 0), ...ball(4, -3600, 2430)]
     const tree = buildClusterTree(nodes, [])
     const centre = tree.nodes.find((t) => t.kind === 'community' && t.id.endsWith('c3'))!
     const edge = tree.nodes.find((t) => t.kind === 'community' && t.id.endsWith('c4'))!
@@ -499,10 +513,13 @@ describe('cutForView — what the audit measured on a big graph (20 000 nodes, 2
     expect(best).toBeGreaterThan(600)
   })
 
-  it('orbiting keeps what is shown: new regions coming into view open, almost nothing closes', () => {
+  it('orbiting keeps what is shown: new regions coming into view open, almost nothing in view closes', () => {
     // Measured before the sticky cut: Jaccard down to 0.53 per 10° step, the
     // whole link layer rebuilt each time. What may change now is mostly
-    // ADDITIONS (what enters the view); what was shown stays (removals ≤ 3 %).
+    // ADDITIONS (what enters the view); what is SHOWN stays (≤ 3 % of what is
+    // in view closes). Off screen, an open group gives its place to what
+    // enters the view once the budget is full (out of view is served last):
+    // measured 70–282 such closings per step, invisible, against ≤ 50 in view.
     const r = 4000
     let prev: ReturnType<typeof cutForView> | undefined
     for (let k = 0; k <= 9; k++) {
@@ -510,8 +527,21 @@ describe('cutForView — what the audit measured on a big graph (20 000 nodes, 2
       const cut = cutForView(tree, look([Math.sin(a) * r, 0, Math.cos(a) * r], [0, 0, 0]), { maxNodes: 5000, maxLinks: 9000 }, prev)
       if (prev) {
         const now = new Set(cut.frontier)
-        const removed = prev.frontier.filter((x) => !now.has(x)).length
-        expect(removed / prev.frontier.length).toBeLessThanOrEqual(0.03)
+        const v = look([Math.sin(a) * r, 0, Math.cos(a) * r], [0, 0, 0])
+        const inView = (x: number) => {
+          const t = tree.nodes[x]
+          const d = [t.x - v.position[0], t.y - v.position[1], t.z - v.position[2]]
+          const l = Math.hypot(d[0], d[1], d[2]) || 1
+          return (d[0] * v.forward![0] + d[1] * v.forward![1] + d[2] * v.forward![2]) / l > Math.cos((20 * Math.PI) / 180)
+        }
+        const shown = prev.frontier.filter(inView)
+        // closed = merged back into an ancestor now drawn (an OPENED group is detail, not a loss)
+        const closedInView = shown.filter((x) => {
+          if (now.has(x)) return false
+          for (let p = tree.nodes[x].parent; p >= 0; p = tree.nodes[p].parent) if (now.has(p)) return true
+          return false
+        })
+        expect(closedInView.length / shown.length).toBeLessThanOrEqual(0.03)
       }
       prev = cut
     }
