@@ -43,10 +43,10 @@ import {
   dimmedEntityTypesAtom,
   graphBrightnessAtom,
   graphScaleAtom,
+  graphDrawnAtom,
   drilledCommunityAtom,
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
-import { nextScaleLevel, scaleYardstick } from './scaleDecision'
 import { buildClusterTree, cutForView, type ClusterCut, type ClusterTree } from './clusterTree'
 import { CLUSTER_NODE_PREFIX, carriedPrevious, graphFromCut, openIdsOf } from './cutGraph'
 import type { VascularLinkRenderer } from './linkVascularRenderer'
@@ -290,8 +290,6 @@ function estimatedFramingView(tree: ClusterTree, heightPx: number) {
 const NODE_POINTS_THRESHOLD = 2000
 
 
-/** Highest aggregation level the scale stepper offers (resolutionForLevel saturates at ~2). */
-const MAX_SCALE = 6
 
 /** Precomputed ENTITY_COLORS → normalized RGB (avoids a THREE.Color per node). */
 const ENTITY_RGB: Record<string, { r: number; g: number; b: number }> = Object.fromEntries(
@@ -415,7 +413,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // Entity id -> community id, rebuilt alongside the hulls (same numbering).
   const communityIndexRef = useRef<Map<string, number>>(new Map())
 
-  // ── Single LineSegments renderer for links (optimized path) ───────────
+  // ── The link renderer (vascular, ribbons or LineSegments: createLinkRenderer) ─
   const linkSegmentsRef = useRef<LinkRenderer | null>(null)
 
   // ── Aggregated tier: tube links + named super-nodes ───────────────────
@@ -716,6 +714,19 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     recut()
   }, [selectedNodeId, cutHeight, recut])
 
+  // ── What is drawn, for the page's situation line ─────────────────────────
+  const setDrawn = useSetAtom(graphDrawnAtom)
+  useEffect(() => {
+    if (!clusterTree || !clusterCut) {
+      setDrawn(null)
+      return
+    }
+    let groups = 0
+    for (const i of clusterCut.frontier) if (clusterTree.nodes[i].kind !== 'leaf') groups++
+    setDrawn({ groups, nodes: clusterCut.frontier.length - groups })
+  }, [clusterTree, clusterCut, setDrawn])
+  useEffect(() => () => setDrawn(null), [setDrawn])
+
   // Entity id → the closed group drawn for it (the real-time layer — agents,
   // pulses — follows an entity into the group that holds it).
   const drawnAliases = useMemo(() => {
@@ -941,19 +952,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   /** Set by any gesture, cleared by a framing: a late re-placement must not take the user's view away. */
   const userMovedSinceFramingRef = useRef(false)
 
-  // ── Multi-scale zoom: the camera distance picks the aggregation step ─────
-  // The answer to "millions of single links": above the detail, links are drawn
-  // as bundles between groups and zooming IN degroups them a step at a time
-  // (po-graph's semantic zoom).
-  //
-  // The decision is the pure `nextScaleLevel` (scaleDecision.ts): one step
-  // DOWN closer than DEGROUP_DISTANCE_RATIO (3) yardsticks, one step UP further
-  // than REGROUP_DISTANCE_RATIO (6), and the 3…6 gap is the dead zone
-  // (hysteresis) where the level holds. The yardstick is `scaleYardstick`:
-  // the framing distance over √18, so the home view sits in the middle of the
-  // dead zone. (A cluster's sprite radius was tried first and never let the
-  // camera degroup; the bare graph radius put the home view under the degroup
-  // threshold, so the first orbit fell to the raw detail.)
+  // ── Camera listeners: the dynamic scale follows the camera ─────────────
+  // At the end of a move (and at every wheel notch) the cut is re-computed once
+  // the camera settles (scheduleRecut, RECUT_SETTLE_MS); the density factor and
+  // the sharpness ceiling follow the distance on every change.
 
   useEffect(() => {
     const fg = graphRef.current
@@ -969,25 +971,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         scheduleRecut()
         return
       }
-      const camera = typeof fg.camera === 'function' ? fg.camera() : null
-      const target = controls.target
-      if (!camera || !target) return
-      const distance = camera.position.distanceTo(target)
-      // Ladder on the FRAMING distance (∝ the whole graph's radius), not on a
-      // cluster's sprite size — see scaleYardstick: zooming in always ends at
-      // the detail, zooming out at the coarsest, and the home view sits in the
-      // dead zone, so an orbit at the framing distance never changes the level.
-      let yardstick = scaleYardstick(framingDistanceRef.current, 0)
-      if (yardstick <= 0) {
-        // Not framed yet: the graph radius stands in.
-        let radius = 40
-        for (const n of graphData.nodes) radius = Math.max(radius, Math.hypot(n.x, n.y, n.z))
-        yardstick = radius
-      }
-      setScaleLevel((current) => {
-        const next = nextScaleLevel(distance, yardstick, current)
-        return Math.max(0, Math.min(MAX_SCALE, next))
-      })
+      // Below DYNAMIC_MIN_NODES the whole graph is drawn as is: no scale to
+      // change. (The old global ladder stepped here — zooming out far on a
+      // small graph switched the OLD aggregation back on: a second scale
+      // system. Removed.)
     }
     const onStart = () => {
       userInteractingRef.current = true
@@ -2072,10 +2059,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   useEffect(() => {
     focusCommunityOfRef.current = focusCommunityOf
   }, [focusCommunityOf])
-  const focusCommunityOfRef2 = useRef(focusCommunityOf)
-  useEffect(() => {
-    focusCommunityOfRef2.current = focusCommunityOf
-  }, [focusCommunityOf])
   const focusCommunityRef = useRef(focusCommunity)
   useEffect(() => {
     focusCommunityRef.current = focusCommunity
@@ -2094,7 +2077,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       }
       lastClickRef.current = null
       // Double-click frames the node's community (the explicit "go there").
-      focusCommunityOfRef2.current(node.id)
+      focusCommunityOfRef.current(node.id)
       onNodeDoubleClick?.(node.id)
       return
     }
@@ -2394,7 +2377,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     setTimeout(finish, LINK_CROSSFADE_MS + 200)
   }, [wake])
 
-  // ── Optimized link rendering — one LineSegments for all links ─────────
+  // ── Link layer — one renderer for all links (see createLinkRenderer) ──
   // In the minimal-quality path (≥500 nodes) the library's per-link cylinders
   // (and their MeshLambertMaterial lights dependency) are suppressed via
   // `linkVisibility`, and a single LineSegments draws every edge. Built here

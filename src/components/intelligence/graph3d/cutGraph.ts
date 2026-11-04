@@ -69,10 +69,12 @@ function partName(base: string, members: readonly Graph3DNode[]): string {
 }
 
 function groupName(t: ClusterNode, members: readonly Graph3DNode[]): string {
+  // the whole graph (the camera turned away from it): never « Communauté 1 »
+  if (t.kind === 'root') return 'Tout le graphe'
   if (t.kind === 'layer') return `Couche ${members[0]?.layer ?? ''}`.trim()
   const label = members.find((m) => m.communityLabel)?.communityLabel?.trim()
   const base = label || (members[0]?.communityId != null ? `Communauté ${members[0].communityId}` : 'Groupe')
-  return t.kind === 'split' ? partName(base, members) : base
+  return t.kind === 'split' || t.kind === 'region' ? partName(base, members) : base
 }
 
 function superNode(tree: ClusterTree, index: number, source: readonly Graph3DNode[]): Graph3DNode {
@@ -204,7 +206,7 @@ export function openIdsOf(tree: ClusterTree, cut: ClusterCut): Set<string> {
  * A `previous` cut for `cutForView` on a NEW tree (a data flush rebuilds it):
  * only its open set matters to the cut (hysteresis), and tree indices are per
  * tree, so the open groups are carried by their stable id. Without it a flush
- * re-cut from scratch closed every group sitting between τ/1.5 and τ, changed
+ * re-cut from scratch closed every group held open only by the hysteresis, changed
  * the frontier and rebuilt the scene.
  */
 export function carriedPrevious(tree: ClusterTree, openIds: ReadonlySet<string>): ClusterCut | undefined {

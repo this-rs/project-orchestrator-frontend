@@ -229,17 +229,25 @@ export const intelligenceCommunitiesAtom = atom<BackendGraphCommunity[]>([])
  * per category. 20 000 is what a FULL graph needs on a high-tier device (the default
  * follows the device tier: graph3d/deviceTier.ts, 20 000 / 8 000 / 4 000); the renderer stays light
  * because above 2 000 nodes they are one `THREE.Points` (graph3d/nodePoints.ts)
- * and above 4 000 the view opens aggregated. Lower it if the payload is too
+ * and above 2 000 (1 000 on a phone) the scale is dynamic: what is far is
+ * grouped, what is near is in detail. Lower it if the payload is too
  * heavy for your backend.
  */
 export const graphNodeLimitAtom = atom<number>(currentDeviceBudget().budget.nodeBudget)
 
 /**
- * Aggregation scale of the 3D graph. 0 = full detail (individual nodes);
- * 1..N = aggregated super-nodes (see graph3d/graphAggregation.ts). Driven by
- * the scale stepper and (later) by semantic zoom.
+ * Former GLOBAL aggregation level of the 3D graph (0 = detail). The 3D view no
+ * longer steps it: the scale is dynamic (clusterTree / cutGraph) and what is
+ * drawn is published in graphDrawnAtom. Kept for the breadcrumb's drill-down.
  */
 export const graphScaleAtom = atom<number>(0)
+
+/**
+ * What the 3D view DRAWS right now (written by IntelligenceGraph3D). With the
+ * dynamic scale the old global level stays 0 while groups are on screen, so a
+ * line reading it announced « détail » over a view of groups.
+ */
+export const graphDrawnAtom = atom<{ groups: number; nodes: number } | null>(null)
 
 // ── Search / filter ──────────────────────────────────────────────────────────
 

@@ -23,6 +23,7 @@ import {
   selectedNodeIdAtom,
   graphBrightnessAtom,
   graphScaleAtom,
+  graphDrawnAtom,
 } from '@/atoms/intelligence'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -58,6 +59,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   const selectedNodeId = useAtomValue(selectedNodeIdAtom)
   const [graphBrightness, setGraphBrightness] = useAtom(graphBrightnessAtom)
   const graphScale = useAtomValue(graphScaleAtom)
+  const drawn = useAtomValue(graphDrawnAtom)
 
   const {
     nodes: layoutedNodes,
@@ -103,7 +105,7 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       if (c != null) ids.add(c)
     }
     return Math.max(ids.size, 1)
-  }, [allNodes, graphScale])
+  }, [allNodes])
   // Custom mode — shows LayerControls panel
   const [showCustomPanel, setShowCustomPanel] = useState(false)
   // Inspector collapsed
@@ -193,10 +195,10 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
       {/* Situation: what the graph shows (under the title, below the layer presets) */}
       <GraphSituation
         nodeCount={allNodes.length}
-        groupCount={groupCount}
+        groupCount={drawn && drawn.groups > 0 ? drawn.groups : groupCount}
         edgeCount={allEdges.length}
         layers={Array.from(visibleLayers) as string[]}
-        scale={graphScale}
+        scale={drawn && drawn.groups > 0 ? 1 : graphScale}
       />
 
       {/* Breadcrumb: where you are, one click back out (under the situation line) */}
