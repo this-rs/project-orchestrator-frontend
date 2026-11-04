@@ -3127,7 +3127,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       {/* ── Scale: what is drawn, read on the same line as « Couches » ─────
           Not a button any more: the camera chooses the scale (dynamic scale),
           so there is nothing to press — only what the view shows right now.
-          Same height and surface as the layer panel header, just to its right. */}
+          Same height and surface as the layer panel header, just to its right.
+          Not on a portrait phone: beside « Couches » it had ~110 px and read
+          « Groupes : … » — the situation line under it already says the groups. */}
       {graphData.nodes.length > 0 && (() => {
         const groups = activeGraphData.nodes.filter((n) => n.id.startsWith('cl:')).length
         const real = activeGraphData.nodes.length - groups
@@ -3136,7 +3138,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
             data-testid="graph-scale-indicator"
             role="status"
             aria-live="polite"
-            className={`${graphFloat} shadow-[var(--shadow-md)] pointer-events-none absolute top-3 z-40 flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] tabular-nums whitespace-nowrap overflow-hidden text-ellipsis`}
+            className={`${graphFloat} shadow-[var(--shadow-md)] pointer-events-none absolute top-3 z-40 hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] tabular-nums whitespace-nowrap overflow-hidden text-ellipsis`}
             style={{
               left: 'calc(0.75rem + min(15.5rem, 100% - 1.5rem) + 0.5rem)',
               maxWidth: 'calc(100% - min(15.5rem, 100% - 1.5rem) - 2rem)',

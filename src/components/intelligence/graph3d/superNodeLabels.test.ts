@@ -96,6 +96,21 @@ describe('createSuperNodeLabels — names are the same size on any screen', () =
     labels.dispose()
   })
 
+  it('a name the edge of the screen would cut is hidden, a whole one is shown', () => {
+    // portrait phone: at z = -800 the screen is ±153 units wide; a label is
+    // centred on its group, so one at x = -150 would be cut in half
+    const at = (x: number) => ({ id: `g${x}`, label: `components/chat ${x}`, entityType: 'file', layer: 'code', x, y: 0, z: -800, data: { count: 10, name: `components/chat ${x}` } })
+    const labels = createSuperNodeLabels([at(-150), at(0)] as Graph3DNode[])
+    const cam = new THREE.PerspectiveCamera(45, 390 / 844, 1, 10000)
+    cam.updateProjectionMatrix()
+    cam.updateMatrixWorld()
+    labels.declutter(cam, 390, 844)
+    const byName = new Map((labels.group.children as THREE.Sprite[]).map((s) => [(s as unknown as { text: string }).text, s]))
+    expect(byName.get('components/chat -150')!.visible).toBe(false)
+    expect(byName.get('components/chat 0')!.visible).toBe(true)
+    labels.dispose()
+  })
+
   it('desktop 50°, phone portrait and landscape: the label height in px matches', () => {
     const desk = pxHeight(50, 1440, 900)
     const portrait = pxHeight(50, 390, 650)

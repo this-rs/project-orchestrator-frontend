@@ -145,7 +145,11 @@ export function createSuperNodeLabels(nodes: Graph3DNode[], limit = SUPER_NODE_L
     const rects = sprites.map((sp) => {
       v.copy(sp.position).project(camera)
       if (v.z > 1 || v.z < -1) return null
-      return { x: ((v.x + 1) / 2) * width, y: ((1 - v.y) / 2) * height, w: sp.scale.x * k, h: sp.scale.y * k }
+      const r = { x: ((v.x + 1) / 2) * width, y: ((1 - v.y) / 2) * height, w: sp.scale.x * k, h: sp.scale.y * k }
+      // A name cut by the edge of the screen (« ents/chat » on a 390 px phone)
+      // says nothing: it is hidden until its whole rectangle is on screen.
+      if (r.x - r.w / 2 < 0 || r.x + r.w / 2 > width || r.y - r.h / 2 < 0 || r.y + r.h / 2 > height) return null
+      return r
     })
     const show = declutterRects(rects)
     for (let i = 0; i < sprites.length; i++) sprites[i].visible = show[i]
