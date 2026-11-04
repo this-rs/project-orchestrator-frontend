@@ -679,6 +679,50 @@ export interface VascularSceneFrame {
   unit: number
   /** Centre of the whole graph (the outward bow is measured from it). */
   center: Vec3
+  /**
+   * Every community of the WHOLE graph, keyed by its hub token
+   * (`endpointToken`, i.e. `String(communityId)`): see vascularGroupFrames.
+   * When given, a bundle's coherence cap (rMax) is measured on it instead of
+   * on the drawn endpoints — which change with every cut, so a capped trunk
+   * changed width when a neighbour group opened.
+   */
+  groups?: ReadonlyMap<string, VascularGroupFrame>
+}
+
+/** A community of the whole graph: centroid, and mean distance of its nodes to it. */
+export interface VascularGroupFrame {
+  center: Vec3
+  radius: number
+}
+
+/**
+ * The per-community frame of the WHOLE graph, for VascularSceneFrame.groups.
+ * Same rule as the drawn hubs (centroid, mean distance to it), but over every
+ * node of the community: it does not depend on the cut. Nodes without a
+ * community are skipped (their hub is the node itself, already stable).
+ */
+export function vascularGroupFrames(
+  nodes: readonly { x: number; y: number; z: number; communityId?: number }[],
+): Map<string, VascularGroupFrame> {
+  const acc = new Map<string, { x: number; y: number; z: number; members: { x: number; y: number; z: number }[] }>()
+  for (const n of nodes) {
+    if (n.communityId === undefined || n.communityId === null) continue
+    if (!Number.isFinite(n.x) || !Number.isFinite(n.y) || !Number.isFinite(n.z)) continue
+    const key = endpointToken(n.communityId, '')
+    let a = acc.get(key)
+    if (!a) acc.set(key, (a = { x: 0, y: 0, z: 0, members: [] }))
+    a.x += n.x; a.y += n.y; a.z += n.z
+    a.members.push(n)
+  }
+  const out = new Map<string, VascularGroupFrame>()
+  for (const [key, a] of acc) {
+    const k = a.members.length
+    const center: Vec3 = [a.x / k, a.y / k, a.z / k]
+    let sum = 0
+    for (const m of a.members) sum += Math.hypot(m.x - center[0], m.y - center[1], m.z - center[2])
+    out.set(key, { center, radius: sum / k })
+  }
+  return out
 }
 
 export function createVascularLinks(
@@ -1169,11 +1213,24 @@ export function createVascularLinks(
       for (const b of bundles) {
         const ha = hubs.get(b.hubA)
         const hb = hubs.get(b.hubB)
+        // Groupes du graphe ENTIER quand le cadre les porte : le plafond ne
+        // dépend alors plus des extrémités dessinées (qui changent à chaque
+        // coupe). Sinon, les moyeux dessinés.
+        const ga = frame?.groups?.get(b.hubA)
+        const gb = frame?.groups?.get(b.hubB)
+        const ra = ga?.radius ?? ha?.radius ?? Infinity
+        const rb = gb?.radius ?? hb?.radius ?? Infinity
         // Pour le plafond, un groupe occupe au moins l'espacement d'un nœud.
-        const smallest = Math.max(d0, Math.min(ha?.radius ?? Infinity, hb?.radius ?? Infinity))
+        const smallest = Math.max(d0, Math.min(ra, rb))
+        // Longueur du tronc : entre les centres des groupes du cadre (stable ;
+        // les ports, eux, glissent sur des enveloppes qui suivent la coupe),
+        // sinon entre les ports dessinés.
+        const between = ga && gb && b.hubA !== b.hubB
+          ? Math.hypot(gb.center[0] - ga.center[0], gb.center[1] - ga.center[1], gb.center[2] - ga.center[2])
+          : 0
         const s = nodeById.get(b.trunkFrom)
         const t = nodeById.get(b.trunkTo)
-        const trunkLen = s && t ? Math.hypot(t.x - s.x, t.y - s.y, t.z - s.z) : Infinity
+        const trunkLen = between > 0 ? between : s && t ? Math.hypot(t.x - s.x, t.y - s.y, t.z - s.z) : Infinity
         let rMax = Math.min(CAP_GROUP_SHARE * smallest, trunkLen > 0 ? CAP_TRUNK_SHARE * trunkLen : Infinity)
         if (!Number.isFinite(rMax)) rMax = CAP_GROUP_SHARE * d0
         b.rMax = rMax
