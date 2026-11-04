@@ -56,9 +56,8 @@ import { distributePorts, pairDirection, placePort, type GroupEnvelope, type Gro
 import { linkRadiusFor, nearestNeighbourScale, softCap } from './linkRadius'
 
 
-/** Radial segments. Eight reads round at these widths and stays cheap. */
+/** Radial segments (SECTION_SEGMENTS, shared with the cost model). */
 const TUBE_SEGMENTS = SECTION_SEGMENTS
-/** Share of the link length used as the spline's bow. */
 /**
  * Share of the chord used as the outward bow. It was 0.16: seen in the browser
  * on the real graph, the links made wide loops far around what they join (« les
@@ -66,16 +65,6 @@ const TUBE_SEGMENTS = SECTION_SEGMENTS
  * bow only keeps parallel trunks from lying on each other.
  */
 const BOW = 0.05
-/**
- * Fibres internes d'un conduit.
- *
- * Les planches ne montrent pas un tube : elles montrent un FAISCEAU — une gaine
- * translucide dans laquelle on voit courir des dizaines de fibres parallèles.
- * C'est cette structure interne qui fait lire « vaisseau » et non « fil ». Elles
- * tournent en hélice lente autour de l'axe, donc la lumière accroche par
- * intermittence, comme dans les références. Au plus MAX_CONDUIT_CHANNELS
- * (linkGeometryCost), selon ce que porte le conduit (conduitChannels).
- */
 /**
  * Budget réduit sur mobile.
  *
@@ -112,6 +101,16 @@ export const CHANNEL_EXTENT = CHANNEL_ORBIT + MICRO_FIBER_RADIUS
  * est une COUCHE FINE collée à ce qu'elle représente : chaque peau ajoute 0,04.
  */
 export const MEMBRANE_SKIN = 0.04
+
+/**
+ * Opacité d'une surface non émissive selon l'angle de vue (Fresnel) :
+ * `alpha × (FACING + EDGE × rim)`, rim = (1 − N·V)². De face (rim = 0) la
+ * membrane laisse voir ce qu'elle contient ; sur la silhouette (rim → 1) elle
+ * se lit comme un trait fin. Le mur PROCHE est dessiné (enroulement sortant) :
+ * sans ce profil, il voilait le cœur sur toute la largeur du tube.
+ */
+export const MEMBRANE_FACING_ALPHA = 0.3
+export const MEMBRANE_EDGE_ALPHA = 1.7
 
 /**
  * Les cinq identités géométriques d'un conduit (phase 5).
@@ -179,7 +178,10 @@ export function layerSpecs(channelCount: number): LayerSpec[] {
     { kind: 'structure', radius: CHANNEL_EXTENT, alpha: 0.16, emit: false },
   ]
   for (let i = 0; i < channelCount; i++) {
-    out.push({ kind: 'channel', radius: MICRO_FIBER_RADIUS, alpha: 0.3, emit: false, channel: i })
+    // 0,45 et non 0,3 : le profil de Fresnel (MEMBRANE_FACING_ALPHA) divise
+    // par ~2 l'opacité moyenne d'un tube vu de face ; un canal garde sa
+    // présence d'avant.
+    out.push({ kind: 'channel', radius: MICRO_FIBER_RADIUS, alpha: 0.45, emit: false, channel: i })
   }
   out.push({ kind: 'core', radius: CORE_RADIUS, alpha: 0.7, emit: true })
   return out
@@ -228,18 +230,6 @@ function familyRgb(relation: string | null | undefined): [number, number, number
  * voie de famille. La famille reste lisible ; le style la module.
  */
 const FAMILY_TINT = 0.3
-
-/** Sheath alpha, and how much brighter the core is. */
-const SHEATH_ALPHA = 1.0
-/**
- * Budget de lumière d'un conduit, réparti entre ses couches.
- *
- * Chaque couche ajoutait son opacité à la précédente (halo + gaine + strates +
- * cœur) : la somme dépassait 1 et le tronc virait au blanc plein — le rendu
- * additif sature. Un conduit a désormais un budget FIXE, partagé
- * proportionnellement entre ses couches : plus il a de strates, plus chacune est
- * discrète, et l'ensemble reste dans la plage lisible.
- */
 
 const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aColor;
@@ -291,6 +281,7 @@ const FRAGMENT_SHADER = /* glsl */ `
   uniform float uFade;
   uniform vec3 uLightDir;
   uniform float uFlowTime;
+  uniform float uFlowOn;
   varying vec3 vColor;
   varying float vAlpha;
   varying vec3 vNormal;
@@ -310,15 +301,19 @@ const FRAGMENT_SHADER = /* glsl */ `
     // dizaines de couches ne peuvent plus saturer le meme pixel.
     // LE FLUX VIT ICI. Impulsions fines, décalées par conduit, qui avancent avec
     // uFlowTime : la géométrie et les couleurs ne bougent jamais pendant
-    // l'animation — c'est la phase 7 du plan.
+    // l'animation — c'est la phase 7 du plan. ÉTEINT tant que personne n'anime
+    // (uFlowOn = 0) : une vague figée peignait des bandes fixes sur chaque cœur.
     float pulse = 1.0;
     if (vEmit > 0.5) {
       float wave = fract(vU * 6.0 - uFlowTime + vPhase);
-      pulse = 0.55 + 0.75 * smoothstep(0.0, 0.35, wave) * smoothstep(1.0, 0.65, wave);
+      float shaped = 0.55 + 0.75 * smoothstep(0.0, 0.35, wave) * (1.0 - smoothstep(0.65, 1.0, wave));
+      pulse = mix(1.0, shaped, uFlowOn);
     }
     float e = (1.0 - exp(-2.0 * vEmit * vAlpha)) * pulse;
     vec3 col = surface * (1.0 - vEmit) + vColor * e;
-    float a = clamp(vAlpha * (1.0 - vEmit) * 1.0 + e, 0.0, 1.0);
+    // Membrane FINE : transparente de face, lisible sur sa silhouette.
+    float shell = ${MEMBRANE_FACING_ALPHA.toFixed(3)} + ${MEMBRANE_EDGE_ALPHA.toFixed(3)} * rim;
+    float a = clamp(vAlpha * (1.0 - vEmit) * shell + e, 0.0, 1.0);
     gl_FragColor = vec4(col, a * uFade);
   }
 `
@@ -556,17 +551,54 @@ export interface VascularLinkRenderer extends LinkRenderer {
    * Conduit le plus proche du pointeur, en distance ÉCRAN le long des axes
    * (un capillaire fin ne se rate plus au lancer de rayon). `ndc` en [-1, 1].
    */
-  pickAt?: (ndcX: number, ndcY: number, camera: THREE.Camera, viewportHeightPx: number, tolerancePx?: number) => ConduitPick | null
+  pickAt?: (
+    ndcX: number,
+    ndcY: number,
+    camera: THREE.Camera,
+    viewportHeightPx: number,
+    tolerancePx?: number,
+    /** Largeur du viewport (px CSS) ; par défaut la hauteur (signature d'avant). */
+    viewportWidthPx?: number,
+  ) => ConduitPick | null
   /** Conduits allumés quand on survole `id` : ancêtres jusqu'au tronc, et descendants. */
   pathOf?: (id: number) => number[]
   /** Allume le chemin de `id` (null = éteint). */
   highlightConduit?: (id: number | null) => void
+  /**
+   * Impose le ratio pixels du tampon / pixels CSS du plancher du cœur. Sans
+   * appel, le ratio du renderer (`getPixelRatio`) est lu à chaque rendu — le
+   * bon choix quand on dessine dans le canevas.
+   */
+  setPixelRatio?: (pixelRatio: number) => void
 }
 
-/** Plancher de rayon ÉCRAN du cœur, en pixels : un lien d'une relation reste visible. */
+/**
+ * Plancher de rayon ÉCRAN du cœur, en pixels CSS : un lien d'une relation reste
+ * visible (diamètre ≥ 1,2 px CSS). Converti en pixels du tampon par le ratio
+ * de pixels au moment du rendu : la taille à l'écran ne bouge pas quand le
+ * ratio adaptatif change.
+ */
 export const CORE_SCREEN_FLOOR_PX = 0.6
 /** Gain d'opacité d'un chemin survolé. */
 const GLOW_GAIN = 2.2
+
+/**
+ * Gain entre l'opacité d'un lien (`style.a`, sortie de computeLinkAlpha) et la
+ * présence d'un faisceau vasculaire, dans [0, 1].
+ *
+ * `style.a` est calibré pour UN trait (un pont au repos ≈ 0,15, un lien de
+ * tissu ≈ 0,03, un lien hors focus ≈ 0,02) ; un faisceau répartit déjà son
+ * opacité entre ses couches (layerSpecs). Le gain ramène un pont au repos à la
+ * présence d'avant (≈ 0,5) SANS plancher : un lien atténué par la densité, la
+ * sélection, la légende ou le focus de groupe s'éteint vraiment. L'ancien
+ * `max(0,6, …)` laissait chaque tube à 0,42 quel que soit le focus.
+ */
+export const VASCULAR_ALPHA_GAIN = 3.5
+
+export function vascularPresence(styleAlpha: number): number {
+  const a = Number.isFinite(styleAlpha) ? styleAlpha : 0
+  return Math.max(0, Math.min(1, a * VASCULAR_ALPHA_GAIN))
+}
 /** Plafond : part du rayon du plus petit groupe touché, et de la longueur du tronc. */
 export const CAP_GROUP_SHARE = 0.15
 export const CAP_TRUNK_SHARE = 0.06
@@ -577,6 +609,16 @@ export const CAP_TRUNK_SHARE = 0.06
  * depuis son CENTRE (pour le LOD, lodOptionsForScene) et le type d'appareil.
  * Le renderer s'en sert ; un test qui veut l'estimation exacte aussi.
  */
+/**
+ * Plafond de triangles d'un appareil mobile, quand l'appelant n'en donne pas.
+ *
+ * Mesuré : le plafond poste fixe (240 000) est atteint sur toute vue d'ensemble
+ * (le budget agrège jusqu'à le remplir), dont ≈ 75 % de triangles
+ * translucides — du surdessin, ce qui chauffe un téléphone. Le quart suffit :
+ * le budget agrège davantage, aucune relation n'est perdue.
+ */
+export const MOBILE_MAX_TRIANGLES = 60_000
+
 export function vascularBudget(
   nodes: readonly { id: string; x: number; y: number; z: number }[],
   corridors: readonly Corridor[],
@@ -592,14 +634,12 @@ export function vascularBudget(
   return {
     ...budget,
     ...(sceneRadius > 0 ? { sceneRadius } : {}),
+    ...(MOBILE_LIKE && budget.maxTriangles === undefined ? { maxTriangles: MOBILE_MAX_TRIANGLES } : {}),
     mobile: MOBILE_LIKE,
     shapeOf: vascularShapeOf((id) => byId.get(id), corridors, MOBILE_LIKE),
   }
 }
 
-/**
- * Build the vascular link layer, or null when the data cannot carry it.
- */
 /**
  * The frame the link law is measured in, taken from the WHOLE graph by the
  * caller. With the dynamic scale the drawn set changes at every cut (60 spread
@@ -613,8 +653,55 @@ export interface VascularSceneFrame {
   unit: number
   /** Centre of the whole graph (the outward bow is measured from it). */
   center: Vec3
+  /**
+   * Every community of the WHOLE graph, keyed by its hub token
+   * (`endpointToken`, i.e. `String(communityId)`): see vascularGroupFrames.
+   * When given, a bundle's coherence cap (rMax) is measured on it instead of
+   * on the drawn endpoints — which change with every cut, so a capped trunk
+   * changed width when a neighbour group opened.
+   */
+  groups?: ReadonlyMap<string, VascularGroupFrame>
 }
 
+/** A community of the whole graph: centroid, and mean distance of its nodes to it. */
+export interface VascularGroupFrame {
+  center: Vec3
+  radius: number
+}
+
+/**
+ * The per-community frame of the WHOLE graph, for VascularSceneFrame.groups.
+ * Same rule as the drawn hubs (centroid, mean distance to it), but over every
+ * node of the community: it does not depend on the cut. Nodes without a
+ * community are skipped (their hub is the node itself, already stable).
+ */
+export function vascularGroupFrames(
+  nodes: readonly { x: number; y: number; z: number; communityId?: number }[],
+): Map<string, VascularGroupFrame> {
+  const acc = new Map<string, { x: number; y: number; z: number; members: { x: number; y: number; z: number }[] }>()
+  for (const n of nodes) {
+    if (n.communityId === undefined || n.communityId === null) continue
+    if (!Number.isFinite(n.x) || !Number.isFinite(n.y) || !Number.isFinite(n.z)) continue
+    const key = endpointToken(n.communityId, '')
+    let a = acc.get(key)
+    if (!a) acc.set(key, (a = { x: 0, y: 0, z: 0, members: [] }))
+    a.x += n.x; a.y += n.y; a.z += n.z
+    a.members.push(n)
+  }
+  const out = new Map<string, VascularGroupFrame>()
+  for (const [key, a] of acc) {
+    const k = a.members.length
+    const center: Vec3 = [a.x / k, a.y / k, a.z / k]
+    let sum = 0
+    for (const m of a.members) sum += Math.hypot(m.x - center[0], m.y - center[1], m.z - center[2])
+    out.set(key, { center, radius: sum / k })
+  }
+  return out
+}
+
+/**
+ * Build the vascular link layer, or null when the data cannot carry it.
+ */
 export function createVascularLinks(
   nodes: Graph3DNode[],
   links: Graph3DLink[],
@@ -634,7 +721,8 @@ export function createVascularLinks(
     const corridors = buildCorridors(links)
     if (corridors.length === 0) return null
 
-    const system = buildLinkSystem(fromCorridors(corridors), vascularBudget(nodes, corridors, budget))
+    const effective = vascularBudget(nodes, corridors, budget)
+    const system = buildLinkSystem(fromCorridors(corridors), effective)
     if (system.bundles.length === 0) return null
 
     const corridorByKey = new Map(corridors.map((c) => [c.key, c]))
@@ -897,7 +985,10 @@ export function createVascularLinks(
               const a1 = layerBase + i * TUBE_SEGMENTS + ((k + 1) % TUBE_SEGMENTS)
               const b0 = a0 + TUBE_SEGMENTS
               const b1 = a1 + TUBE_SEGMENTS
-              index.push(a0, b0, a1, a1, b0, b1)
+              // Enroulement SORTANT : (a1 − a0) × (b0 − a0) suit la normale
+              // d'anneau. Tourné vers l'intérieur, FrontSide ne dessinait que
+              // le mur du fond — normale dos à la vue, rim = 1 partout.
+              index.push(a0, a1, b0, a1, b1, b0)
             }
           }
           if (specs[layer].emit) coreTriangles += (c.samples - 1) * TUBE_SEGMENTS * 2
@@ -991,8 +1082,8 @@ export function createVascularLinks(
       bundles.push({
         corridor,
         drawable,
-        color: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.3 },
-        lastStyle: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.3 },
+        color: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.17 },
+        lastStyle: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.17 },
         bowSeed: hashKey(corridor.key),
         conduits,
         hubA: corridor.from,
@@ -1008,7 +1099,7 @@ export function createVascularLinks(
     // PLAFOND DUR. Le modèle de coût partagé rend l'estimation exacte ; si un
     // écart réapparaissait (un bug du modèle), le budget reste un plafond : on
     // retire les plus petits faisceaux (fin de liste) jusqu'à rentrer dedans.
-    const maxTriangles = budget.maxTriangles ?? DEFAULT_SYSTEM_BUDGET.maxTriangles
+    const maxTriangles = effective.maxTriangles ?? DEFAULT_SYSTEM_BUDGET.maxTriangles
     if (index.length / 3 > maxTriangles) {
       if (import.meta.env?.DEV) {
         console.warn(`[linkVascular] ${index.length / 3} triangles produits pour un budget de ${maxTriangles} : troncature`)
@@ -1065,6 +1156,8 @@ export function createVascularLinks(
       uniforms: {
         uLightDir: { value: new THREE.Vector3(0.45, 0.8, 0.6).normalize() },
         uFlowTime: { value: 0 },
+        // 0 tant que setFlowTime n'a pas été appelé : cœur uniforme, sans bandes figées.
+        uFlowOn: { value: 0 },
         uViewportH: { value: 0 },
         uPxFloor: { value: CORE_SCREEN_FLOOR_PX },
         uFade: { value: 1 },
@@ -1074,11 +1167,15 @@ export function createVascularLinks(
     const mesh = new THREE.Mesh(geometry, material)
     mesh.renderOrder = LINK_RENDER_ORDER
     mesh.frustumCulled = false
-    // Le plancher écran du cœur a besoin de la hauteur réelle du tampon.
+    // Le plancher écran du cœur : hauteur réelle du tampon, et plancher CSS
+    // converti en pixels du tampon par le ratio courant.
     const drawSize = new THREE.Vector2()
+    let pixelRatioOverride: number | null = null
     mesh.onBeforeRender = (renderer) => {
       renderer.getDrawingBufferSize(drawSize)
       material.uniforms.uViewportH.value = drawSize.y
+      const ratio = pixelRatioOverride ?? (typeof renderer.getPixelRatio === 'function' ? renderer.getPixelRatio() : 1)
+      material.uniforms.uPxFloor.value = CORE_SCREEN_FLOOR_PX * (Number.isFinite(ratio) && ratio > 0 ? ratio : 1)
     }
     const group = new THREE.Group()
     group.add(mesh)
@@ -1093,11 +1190,24 @@ export function createVascularLinks(
       for (const b of bundles) {
         const ha = hubs.get(b.hubA)
         const hb = hubs.get(b.hubB)
+        // Groupes du graphe ENTIER quand le cadre les porte : le plafond ne
+        // dépend alors plus des extrémités dessinées (qui changent à chaque
+        // coupe). Sinon, les moyeux dessinés.
+        const ga = frame?.groups?.get(b.hubA)
+        const gb = frame?.groups?.get(b.hubB)
+        const ra = ga?.radius ?? ha?.radius ?? Infinity
+        const rb = gb?.radius ?? hb?.radius ?? Infinity
         // Pour le plafond, un groupe occupe au moins l'espacement d'un nœud.
-        const smallest = Math.max(d0, Math.min(ha?.radius ?? Infinity, hb?.radius ?? Infinity))
+        const smallest = Math.max(d0, Math.min(ra, rb))
+        // Longueur du tronc : entre les centres des groupes du cadre (stable ;
+        // les ports, eux, glissent sur des enveloppes qui suivent la coupe),
+        // sinon entre les ports dessinés.
+        const between = ga && gb && b.hubA !== b.hubB
+          ? Math.hypot(gb.center[0] - ga.center[0], gb.center[1] - ga.center[1], gb.center[2] - ga.center[2])
+          : 0
         const s = nodeById.get(b.trunkFrom)
         const t = nodeById.get(b.trunkTo)
-        const trunkLen = s && t ? Math.hypot(t.x - s.x, t.y - s.y, t.z - s.z) : Infinity
+        const trunkLen = between > 0 ? between : s && t ? Math.hypot(t.x - s.x, t.y - s.y, t.z - s.z) : Infinity
         let rMax = Math.min(CAP_GROUP_SHARE * smallest, trunkLen > 0 ? CAP_TRUNK_SHARE * trunkLen : Infinity)
         if (!Number.isFinite(rMax)) rMax = CAP_GROUP_SHARE * d0
         b.rMax = rMax
@@ -1217,8 +1327,11 @@ export function createVascularLinks(
       return b
     }
 
-    /** Write one conduit's tube into the shared buffers. */
-    const fillConduit = (bundle: Bundle, conduit: Conduit, style: LinkStyle) => {
+    /**
+     * Write one conduit's tube into the shared buffers. `style` null = a
+     * positions-only tick: colours and opacities are left as they are.
+     */
+    const fillConduit = (bundle: Bundle, conduit: Conduit, style: LinkStyle | null) => {
       const s = nodeById.get(conduit.fromId)
       const t = nodeById.get(conduit.toId)
       if (!s || !t) {
@@ -1244,7 +1357,7 @@ export function createVascularLinks(
           points.push([s.x + dx * R * x, s.y + dy * R * x, s.z + dz * R * x])
         }
         writeRings(conduit, points, (u) => R * Math.sqrt(Math.max(0, 1 - (2 * u - 1) ** 2)), null, 0)
-        paintConduit(conduit, style)
+        if (style) paintConduit(conduit, style)
         return
       }
       const a: Vec3 = [s.x, s.y, s.z]
@@ -1266,7 +1379,7 @@ export function createVascularLinks(
         braidOf(conduit),
         trunkR * 0.5,
       )
-      paintConduit(conduit, style)
+      if (style) paintConduit(conduit, style)
     }
 
     /**
@@ -1284,12 +1397,12 @@ export function createVascularLinks(
       const sr = style.r, sg = style.g, sb = style.b
       const sr2 = style.r2 ?? sr, sg2 = style.g2 ?? sg, sb2 = style.b2 ?? sb
       const specs = conduit.specs
-      const baseAlpha = Math.max(0.6, Math.max(0.3, style.a))
+      const baseAlpha = vascularPresence(style.a)
       const glow = conduit.glow
       const lift = glow > 1 ? 0.35 : 0
       const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
       for (let layer = 0; layer < specs.length; layer++) {
-        const layerAlpha = Math.min(1, specs[layer].alpha * baseAlpha * SHEATH_ALPHA * glow)
+        const layerAlpha = Math.min(1, specs[layer].alpha * baseAlpha * glow)
         const layerBase = conduit.vertexStart + layer * samplesPerLayer
         for (let i = 0; i < conduit.samples; i++) {
           const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
@@ -1315,20 +1428,32 @@ export function createVascularLinks(
       }
     }
 
-    const fillGeometry = () => {
+    /**
+     * `full` : construction (tout est écrit). Sinon, un tick de layout : seuls
+     * les anneaux bougent — position, normale et axe sont les seuls tampons
+     * téléversés (aColor, aAlpha, aEmit, aU, aPhase ne dépendent pas des
+     * positions), et la sphère englobante est seulement INVALIDÉE : le maillage
+     * n'est pas culled (frustumCulled = false), seul un lancer de rayon la lit,
+     * et three la recalcule alors à la demande.
+     */
+    const fillGeometry = (full: boolean) => {
       recomputeRadii()
       for (const bundle of bundles) {
-        for (const conduit of bundle.conduits) fillConduit(bundle, conduit, bundle.lastStyle)
+        for (const conduit of bundle.conduits) fillConduit(bundle, conduit, full ? bundle.lastStyle : null)
       }
       positionAttr.needsUpdate = true
-      colorAttr.needsUpdate = true
-      alphaAttr.needsUpdate = true
       normalAttr.needsUpdate = true
-      emitAttr.needsUpdate = true
-      curvAttr.needsUpdate = true
-      phaseAttr.needsUpdate = true
       axisAttr.needsUpdate = true
-      geometry.computeBoundingSphere()
+      if (full) {
+        colorAttr.needsUpdate = true
+        alphaAttr.needsUpdate = true
+        emitAttr.needsUpdate = true
+        curvAttr.needsUpdate = true
+        phaseAttr.needsUpdate = true
+        geometry.computeBoundingSphere()
+      } else {
+        geometry.boundingSphere = null
+      }
     }
 
     /**
@@ -1429,12 +1554,14 @@ export function createVascularLinks(
       camera: THREE.Camera,
       viewportHeightPx: number,
       tolerancePx = 6,
+      viewportWidthPx = viewportHeightPx,
     ): ConduitPick | null => {
       if (!(viewportHeightPx > 0)) return null
-      // Pixels par unité NDC : la moitié de la hauteur (l'aspect est absorbé
-      // par la projection ; une distance en x est comptée à la même échelle,
-      // ce qui reste une tolérance de l'ordre du pixel).
-      const half = viewportHeightPx / 2
+      // Pixels par unité NDC : la moitié de la LARGEUR en x, de la HAUTEUR en
+      // y. Une seule échelle (la hauteur) comptait un écart horizontal ×H/W :
+      // 4 px devenaient 8,7 px en portrait, 2,2 px en 16:9.
+      const halfW = (viewportWidthPx > 0 ? viewportWidthPx : viewportHeightPx) / 2
+      const halfH = viewportHeightPx / 2
       let best: ConduitPick | null = null
       let px = 0, py = 0, pvalid = false
       for (const c of allConduits) {
@@ -1445,11 +1572,11 @@ export function createVascularLinks(
           if (!Number.isFinite(x)) { pvalid = false; continue }
           projected.set(x, c.axis[i * 3 + 1], c.axis[i * 3 + 2]).project(camera)
           const inFront = projected.z >= -1 && projected.z <= 1
-          const qx = projected.x * half
-          const qy = projected.y * half
+          const qx = projected.x * halfW
+          const qy = projected.y * halfH
           if (inFront && pvalid) {
             // Distance du pointeur au segment écran [p, q].
-            const mx = ndcX * half, my = ndcY * half
+            const mx = ndcX * halfW, my = ndcY * halfH
             const sx = qx - px, sy = qy - py
             const l2 = sx * sx + sy * sy
             const t = l2 > 0 ? Math.max(0, Math.min(1, ((mx - px) * sx + (my - py) * sy) / l2)) : 0
@@ -1466,14 +1593,14 @@ export function createVascularLinks(
     }
 
     recomputeSubs()
-    fillGeometry()
+    fillGeometry(true)
 
     const totalTriangles = trianglesFromIndex(index.length)
     return {
       object: group,
       updatePositions: () => {
         recomputeAnchors()
-        fillGeometry()
+        fillGeometry(false)
       },
       updateColors: (styleFn: LinkStyleFn) => fillColors(bundles, (b) => styleFn(b.corridor.links[0])),
       updateColorsForNodes: (nodeIds: readonly string[], styleFn: LinkStyleFn) => {
@@ -1523,9 +1650,13 @@ export function createVascularLinks(
         // Tout est translucide sauf le cœur émissif : compté sur l'index réel.
         transparentTriangles: totalTriangles - coreTriangles,
       },
+      setPixelRatio: (pixelRatio: number) => {
+        pixelRatioOverride = Number.isFinite(pixelRatio) && pixelRatio > 0 ? pixelRatio : null
+      },
       setFlowTime: (turns: number) => {
         flowTime = Number.isFinite(turns) ? turns % 1 : 0
         material.uniforms.uFlowTime.value = flowTime
+        material.uniforms.uFlowOn.value = 1
       },
       dispose: () => {
         // Retirer de la scène AVANT de libérer : un groupe laissé attaché

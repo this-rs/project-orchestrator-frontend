@@ -29,6 +29,7 @@ import { classifyLinkScale, interpolateRgb, linkScaleCurvature } from './linkSca
 import type { LinkStyle, LinkStyleFn } from './linkRibbon'
 import { createLinkRibbons, type LinkRenderer } from './linkRibbons'
 import { createVascularLinks, type VascularSceneFrame } from './linkVascularRenderer'
+import type { SystemBudget } from './linkSystem'
 
 /**
  * Line segments drawn per link's stroke: CURVE_SUBDIVISIONS − 1 bowed
@@ -395,7 +396,18 @@ export function setLinkFade(object: THREE.Object3D, fade: number): void {
   })
 }
 
-export function createLinkRenderer(nodes: Graph3DNode[], links: Graph3DLink[], frame?: VascularSceneFrame): LinkRenderer {
+/**
+ * `budget` reaches the vascular layer untouched: `cameraDistance` (camera →
+ * graph centre) drives its LOD and `maxTriangles` its ceiling. Without it the
+ * LOD stays at its default distance and a mobile-like device takes
+ * MOBILE_MAX_TRIANGLES (linkVascularRenderer).
+ */
+export function createLinkRenderer(
+  nodes: Graph3DNode[],
+  links: Graph3DLink[],
+  frame?: VascularSceneFrame,
+  budget: Partial<SystemBudget> = {},
+): LinkRenderer {
   // The organic hierarchy first (Organic Link Engine V2), and only where it
   // earns its keep: corridors, exact magnitudes, per-bundle morphology and LOD,
   // vascular strands — one batched geometry whose cost depends on the number of
@@ -408,7 +420,7 @@ export function createLinkRenderer(nodes: Graph3DNode[], links: Graph3DLink[], f
   // fell under the 3 000-link threshold, and the trunks between modules came
   // out as one-pixel threads — the scale law never applied where it matters.
   const carriesAggregates = links.some((l) => (l.count ?? 1) > 1)
-  const vascular = links.length > VASCULAR_MIN_LINKS || carriesAggregates ? createVascularLinks(nodes, links, {}, undefined, frame) : null
+  const vascular = links.length > VASCULAR_MIN_LINKS || carriesAggregates ? createVascularLinks(nodes, links, budget, undefined, frame) : null
   if (vascular) return vascular
   // Then the ribbon renderer, then the LineSegments of last resort. Each step is
   // a strict fallback: the graph never disappears because a path could not build.

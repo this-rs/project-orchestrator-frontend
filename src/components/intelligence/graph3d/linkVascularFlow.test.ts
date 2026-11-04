@@ -122,3 +122,67 @@ describe('flux animé (phase 7)', () => {
     expect(m.uniforms.uFlowTime.value).toBe(0)
   })
 })
+
+/**
+ * Aucun appelant n'anime le flux en production. Avec uFlowTime = 0, la vague
+ * peignait pourtant ~6 bandes FIXES claires/sombres (×2,4) le long de chaque
+ * cœur. Sans animation, le cœur est uniforme ; setFlowTime allume le flux.
+ */
+describe('flux éteint tant que personne ne l’anime', () => {
+  it('uFlowOn vaut 0 à la construction, et le shader ne module le cœur que sous uFlowOn', () => {
+    const { nodes, links } = synth(150)
+    const r = createVascularLinks(nodes, links)!
+    const m = materialOf(r) as unknown as { uniforms: Record<string, { value: unknown }>; fragmentShader: string }
+    expect(m.uniforms.uFlowOn.value).toBe(0)
+    // pulse = mix(1, vague, uFlowOn) : à 0, exactement 1 partout.
+    expect(m.fragmentShader).toMatch(/pulse\s*=\s*mix\(1\.0,\s*[^;]+,\s*uFlowOn\)/)
+  })
+
+  it('setFlowTime allume le flux', () => {
+    const { nodes, links } = synth(150)
+    const r = createVascularLinks(nodes, links)!
+    r.setFlowTime!(0.4)
+    expect(materialOf(r).uniforms.uFlowOn.value).toBe(1)
+  })
+})
+
+/**
+ * Un tick de layout ne déplace que des POSITIONS : il ne doit téléverser que
+ * position / aNormal / aAxis, et ne pas recalculer une sphère englobante sur
+ * ~140 000 sommets (frustumCulled = false : personne ne la lit au rendu).
+ */
+describe('coût d’un tick de positions', () => {
+  it('ne téléverse que position, aNormal et aAxis', () => {
+    const { nodes, links } = synth(300)
+    const r = createVascularLinks(nodes, links)!
+    const attrs = (r.object as unknown as { children: { geometry: { attributes: Record<string, { version: number }> } }[] }).children[0].geometry.attributes
+    const before = Object.fromEntries(Object.entries(attrs).map(([k, a]) => [k, a.version]))
+    r.updatePositions()
+    const changed = Object.keys(attrs).filter((k) => attrs[k].version !== before[k]).sort()
+    expect(changed).toEqual(['aAxis', 'aNormal', 'position'])
+  })
+
+  it('ne recalcule pas la sphère englobante à chaque tick', () => {
+    const { nodes, links } = synth(300)
+    const r = createVascularLinks(nodes, links)!
+    const geometry = (r.object as unknown as { children: { geometry: { computeBoundingSphere: () => void; boundingSphere: unknown } }[] }).children[0].geometry
+    const spy = vi.spyOn(geometry, 'computeBoundingSphere')
+    r.updatePositions()
+    r.updatePositions()
+    expect(spy).not.toHaveBeenCalled()
+    // Invalidée : un lancer de rayon la recalculera, à la demande.
+    expect(geometry.boundingSphere).toBeNull()
+  })
+
+  it('les couleurs survivent au tick (rien n’est repeint ni perdu)', () => {
+    const { nodes, links } = synth(300)
+    const r = createVascularLinks(nodes, links)!
+    r.updateColors(() => ({ r: 1, g: 0.5, b: 0, a: 0.2 }))
+    const g = geometryOf(r)
+    const col = Float32Array.from(g.attributes.aColor.array)
+    const alp = Float32Array.from(g.attributes.aAlpha.array)
+    r.updatePositions()
+    expect(Float32Array.from(g.attributes.aColor.array)).toEqual(col)
+    expect(Float32Array.from(g.attributes.aAlpha.array)).toEqual(alp)
+  })
+})
