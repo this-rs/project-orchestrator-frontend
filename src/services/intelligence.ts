@@ -19,6 +19,14 @@ import type { PaginatedResponse } from '@/types'
 // INTELLIGENCE GRAPH — API Service
 // ============================================================================
 
+/** Incremental-reload fields, present when `since` or `include_deleted` was asked. */
+export interface GraphSyncMeta {
+  synced_at?: string
+  deletions_tracked?: boolean
+  deleted_nodes?: { id: string }[]
+  deleted_edges?: { source: string; target: string; edge_type: string }[]
+}
+
 export const intelligenceApi = {
   // Summary (layer counts & stats)
   // GET /api/projects/:slug/intelligence/summary
@@ -95,6 +103,10 @@ export const intelligenceApi = {
       layers?: string[]
       limit?: number
       community?: number
+      /** Cursor (`synced_at` of an earlier answer): only what changed since it. */
+      since?: string
+      /** Also list what disappeared since `since`. Asked on a full load too, so it yields a cursor. */
+      includeDeleted?: boolean
     } = {},
     signal?: AbortSignal,
   ) => {
@@ -102,8 +114,10 @@ export const intelligenceApi = {
       layers: params.layers?.join(','),
       limit: params.limit,
       community: params.community,
+      since: params.since,
+      include_deleted: params.includeDeleted ? 'true' : undefined,
     })
-    return api.get<ProjectGraphResponse>(
+    return api.get<ProjectGraphResponse & GraphSyncMeta>(
       `/projects/${projectSlug}/graph${query}`,
       signal,
     )

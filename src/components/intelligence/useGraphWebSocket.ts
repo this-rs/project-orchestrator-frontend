@@ -63,6 +63,12 @@ interface GraphActivation {
   scores?: Record<string, number>
 }
 
+/** A node left the graph (note deleted, file dropped by a sync): it goes now, with its edges. */
+interface GraphNodeDeleted {
+  type: 'graph.node_deleted'
+  node_id: string
+}
+
 interface GraphCommunityChanged {
   type: 'graph.community_changed'
   node_ids: string[]
@@ -78,6 +84,7 @@ type FrontendGraphEvent =
   | GraphReinforcement
   | GraphActivation
   | GraphCommunityChanged
+  | GraphNodeDeleted
 
 // ============================================================================
 // BACKEND → FRONTEND EVENT MAPPING
@@ -90,7 +97,7 @@ type FrontendGraphEvent =
  * The backend sends flat events with node_id, target_id, edge_type, delta fields.
  * The frontend expects structured events with nested objects (node, edge, etc.).
  */
-function mapBackendEvent(raw: BackendGraphEvent): FrontendGraphEvent | null {
+export function mapBackendEvent(raw: BackendGraphEvent): FrontendGraphEvent | null {
   const delta = raw.delta as Record<string, unknown> | null
 
   switch (raw.type) {
@@ -126,6 +133,10 @@ function mapBackendEvent(raw: BackendGraphEvent): FrontendGraphEvent | null {
           attributes: delta as Record<string, unknown> | undefined,
         },
       }
+    }
+
+    case 'node_deleted': {
+      return { type: 'graph.node_deleted', node_id: raw.node_id ?? '' }
     }
 
     case 'edge_removed': {
@@ -371,6 +382,17 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
           }
           pendingRef.current.addEdges.push(newEdge)
           scheduleFlush()
+          break
+        }
+
+        case 'graph.node_deleted': {
+          // Removed at once, as the backend says it is gone: a pending add or
+          // update for the same id must not resurrect it on the next flush.
+          const gone = event.node_id
+          pendingRef.current.addNodes = pendingRef.current.addNodes.filter((n) => n.id !== gone)
+          pendingRef.current.updateNodes.delete(gone)
+          setNodes((prev) => prev.filter((n) => n.id !== gone))
+          setEdges((prev) => prev.filter((e) => e.source !== gone && e.target !== gone))
           break
         }
 

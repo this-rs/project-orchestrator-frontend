@@ -90,6 +90,8 @@ export type PulsableGraphEvent =
   | { type: 'graph.reinforcement'; source: string; target: string }
   | { type: 'graph.activation' }
   | { type: 'graph.community_changed' }
+  // A deleted node has nothing left to pulse: it maps to no id (see default).
+  | { type: 'graph.node_deleted'; node_id: string }
 
 /** Ids a mapped graph event designates, or [] (activation / community are not pulses). */
 export function entityIdsOfGraphEvent(e: PulsableGraphEvent): string[] {

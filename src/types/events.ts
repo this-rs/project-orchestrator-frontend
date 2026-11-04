@@ -72,6 +72,7 @@ export type GraphLayer = 'code' | 'knowledge' | 'fabric' | 'neural' | 'skills' |
 export type GraphEventType =
   | 'node_created'
   | 'node_updated'
+  | 'node_deleted'
   | 'edge_created'
   | 'edge_removed'
   | 'reinforcement'
