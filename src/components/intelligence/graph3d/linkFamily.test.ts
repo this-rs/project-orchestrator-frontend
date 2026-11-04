@@ -7,6 +7,7 @@ import {
   computeLinkAlpha,
   LINK_ALPHA_FLOOR,
   LINK_FLOOR_MIN_SCALE,
+  LINK_DENSITY_FLOOR,
 } from './linkFamily'
 
 // The previous budget (before the ≈ ×0.7 cut), kept as anchors for the review.
@@ -31,10 +32,17 @@ describe('LINK_FAMILY_ALPHA — the named, documented link opacity table', () =>
 
   it('cuts every previous value by ≈ ×0.7 while keeping it above the floor', () => {
     for (const [type, prev] of Object.entries(PREVIOUS)) {
+      if (type === 'AGGREGATE') continue // raised on purpose since, see below
       const next = LINK_FAMILY_ALPHA[type]
       expect(next).toBeLessThanOrEqual(prev * 0.7 + 0.001)
       expect(next).toBeGreaterThanOrEqual(prev * 0.7 - 0.001)
     }
+  })
+
+  it('a trunk (AGGREGATE) weighs like the structure it bundles, not like tissue', () => {
+    // at 0.07 the trunks were the faintest web of the graph (04/11/2026)
+    expect(LINK_FAMILY_ALPHA.AGGREGATE).toBe(LINK_FAMILY_ALPHA.IMPORTS)
+    expect(LINK_FAMILY_ALPHA.AGGREGATE).toBeGreaterThan(LINK_FAMILY_ALPHA.DISCUSSED)
   })
 
   it('classifies every type into the family its budget belongs to', () => {
@@ -116,5 +124,14 @@ describe('the three link scales stay distinguishable at any link count', () => {
     for (const s of ['intra', 'neighbor', 'inter'] as const) {
       expect(at(s, 1e9)).toBeGreaterThan(0.01)
     }
+  })
+})
+
+describe('computeLinkAlpha — the resting web never fades below the density floor', () => {
+  it('at 9 000 links a resting link keeps the floor, not √(2000/9000) = 0.47', () => {
+    const at = (linkCount: number) => computeLinkAlpha({ familyAlpha: 0.1, weight: 1, colorAlpha: 1, linkCount, isInterCommunity: false, emphasised: false })
+    expect(at(9000)).toBeCloseTo(0.1 * LINK_DENSITY_FLOOR, 9)
+    expect(at(100_000)).toBeCloseTo(at(9000), 9)
+    expect(at(4000)).toBeGreaterThan(at(9000))
   })
 })

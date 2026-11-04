@@ -63,8 +63,10 @@ export const LINK_FAMILY_ALPHA: Record<string, number> = {
   CO_CHANGED: 0.038,
   TOUCHES: 0.035,
   CO_CHANGED_TRANSITIVE: 0.028,
-  // aggregated super-links (bundled structure between communities)
-  AGGREGATE: 0.07,
+  // aggregated super-links (bundled structure between communities): a trunk of
+  // imports is structure, not tissue — at 0.07 the trunks read as the faintest
+  // web of the graph (« les liens sont trop effacés », 04/11/2026)
+  AGGREGATE: 0.105,
 }
 
 const STRUCTURE_TYPES = new Set([
@@ -115,6 +117,13 @@ export const LINK_DENSITY_REFERENCE = 2000
 
 /** Ceiling of the density factor for a resting link (a sparse graph is still capped). */
 export const LINK_DENSITY_CEILING = 0.7
+
+/**
+ * Floor of the density factor: past ~11 000 links √(REFERENCE/E) kept falling
+ * (0.47 at 9 000, the dynamic scale's link budget) and the resting web faded
+ * out on exactly the graphs where the links matter most.
+ */
+export const LINK_DENSITY_FLOOR = 0.6
 
 /**
  * Floor of a link's final alpha for the REFERENCE presence
@@ -209,7 +218,7 @@ export function computeLinkAlpha(p: LinkAlphaParams): number {
   const densityBase = Math.max(1, p.densityCount ?? p.linkCount)
   const density = p.emphasised
     ? 1
-    : Math.min(LINK_DENSITY_CEILING, Math.sqrt(LINK_DENSITY_REFERENCE / densityBase))
+    : Math.min(LINK_DENSITY_CEILING, Math.max(LINK_DENSITY_FLOOR, Math.sqrt(LINK_DENSITY_REFERENCE / densityBase)))
   const bridge = p.isInterCommunity ? 1.7 : 1
   const focus = p.emphasised ? 2 : 1
   const gain = p.gain ?? 1

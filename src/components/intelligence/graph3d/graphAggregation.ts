@@ -614,7 +614,7 @@ function buildScaledGraphFrom(
     // law (linkRadius.ts); width/weight are relative, monotone, unclamped.
     weight: superEdgeWeight(e.count, tierMax),
     count: e.count,
-    color: 'rgba(148, 163, 184, 0.4)',
+    color: 'rgba(203, 213, 225, 0.9)',
     width: superEdgeWidth(e.count),
     particles: 0,
     particleSpeed: 0,

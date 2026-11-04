@@ -209,7 +209,10 @@ const FAMILY_RGB: Record<string, [number, number, number]> = {
   // Teintes FRANCHES : en additif, une teinte pastel se lave dès que deux
   // conduits se superposent. Les planches montrent des faisceaux nettement
   // colorés, pas des pastels.
-  IMPORTS: [0.0, 1.0, 0.62],
+  // light sky, not green: files are green (#3ecf8e), and IMPORTS — most of the
+  // links — drawn in the same green melted into the nodes they join (« les liens
+  // sont trop effacés… la couleur peut-être », 04/11/2026)
+  IMPORTS: [0.6, 0.85, 1.0],
   CALLS: [0.15, 0.55, 1.0],
   IMPLEMENTS: [0.55, 0.3, 1.0],
   EXTENDS: [0.8, 0.2, 1.0],
@@ -312,7 +315,10 @@ const FRAGMENT_SHADER = /* glsl */ `
       float shaped = 0.55 + 0.75 * smoothstep(0.0, 0.35, wave) * (1.0 - smoothstep(0.65, 1.0, wave));
       pulse = mix(1.0, shaped, uFlowOn);
     }
-    float e = (1.0 - exp(-2.0 * vEmit * vAlpha)) * pulse;
+    // 3.5, not 2: a resting core glowed at 0.63 and the trunks read as dull slate
+    // (« les liens sont trop effacés », 04/11/2026); a dimmed core (alpha ≈ 0)
+    // stays dark all the same
+    float e = (1.0 - exp(-3.5 * vEmit * vAlpha)) * pulse;
     vec3 col = surface * (1.0 - vEmit) + vColor * e;
     // Membrane FINE : transparente de face, lisible sur sa silhouette.
     float shell = ${MEMBRANE_FACING_ALPHA.toFixed(3)} + ${MEMBRANE_EDGE_ALPHA.toFixed(3)} * rim;

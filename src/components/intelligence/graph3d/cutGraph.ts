@@ -192,7 +192,9 @@ export function graphFromCut(
       layer: 'fabric',
       weight: superEdgeWeight(l.count, tierMax),
       count: l.count,
-      color: 'rgba(148, 163, 184, 0.4)',
+      // a light, near-opaque neutral: the colour's alpha multiplies the link's,
+      // and at 0.4 every trunk was pale before anything else dimmed it
+      color: 'rgba(203, 213, 225, 0.9)',
       width: superEdgeWidth(l.count),
       particles: 0,
       particleSpeed: 0,
