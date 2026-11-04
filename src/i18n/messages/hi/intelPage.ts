@@ -186,6 +186,14 @@ export default {
     exitFullscreen: 'फ़ुलस्क्रीन से बाहर निकलें',
     exitFullscreenEsc: 'फ़ुलस्क्रीन से बाहर निकलें (Esc)',
     spreadingActivation: 'सक्रियण प्रसार',
+    panels: {
+      collapse: 'समेटें',
+      expand: 'विस्तार करें',
+      legend: 'संकेत',
+      brightness: 'चमक',
+      scale: 'पैमाना',
+    },
+
     loadFailed: 'ग्राफ़ लोड नहीं हो सका',
     workspaceLoadFailed: 'वर्कस्पेस ग्राफ़ लोड नहीं हो सका',
     workspaceDataLoadFailed: 'वर्कस्पेस इंटेलिजेंस डेटा लोड नहीं हो सका',
@@ -235,5 +243,19 @@ export default {
     offlineTitle: 'WebSocket डिस्कनेक्ट — अपडेट रुके हुए हैं',
     live: 'लाइव',
     liveTitle: 'WebSocket कनेक्टेड — लाइव अपडेट मिल रहे हैं',
+  },
+  situation: {
+    aria: 'आप क्या देख रहे हैं',
+    nodes: 'नोड',
+    groups: 'समूह',
+    edges: 'एज',
+    layers: 'परतें',
+    tierDetail: 'विवरण',
+    tierGroups: 'समूह',
+  },
+  breadcrumb: {
+    aria: 'ग्राफ़ ब्रेडक्रंब',
+    all: 'संपूर्ण ग्राफ़',
+    group: 'समूह {id}',
   },
 } satisfies Translation<'intelPage'>

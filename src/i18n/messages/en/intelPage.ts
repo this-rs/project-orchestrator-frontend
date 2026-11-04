@@ -185,6 +185,14 @@ export default {
     exitFullscreen: 'Exit fullscreen',
     exitFullscreenEsc: 'Exit fullscreen (Esc)',
     spreadingActivation: 'Spreading Activation',
+    panels: {
+      collapse: 'Collapse',
+      expand: 'Expand',
+      legend: 'Legend',
+      brightness: 'Brightness',
+      scale: 'Scale',
+    },
+
     loadFailed: 'Failed to load graph',
     workspaceLoadFailed: 'Failed to load workspace graph',
     workspaceDataLoadFailed: 'Failed to load workspace intelligence data',
@@ -234,5 +242,19 @@ export default {
     offlineTitle: 'WebSocket disconnected — updates paused',
     live: 'Live',
     liveTitle: 'WebSocket connected — receiving live updates',
+  },
+  situation: {
+    aria: 'What you are looking at',
+    nodes: 'nodes',
+    groups: 'groups',
+    edges: 'edges',
+    layers: 'layers',
+    tierDetail: 'detail',
+    tierGroups: 'groups',
+  },
+  breadcrumb: {
+    aria: 'Graph breadcrumbs',
+    all: 'Entire graph',
+    group: 'Group {id}',
   },
 } as const

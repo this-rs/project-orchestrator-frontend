@@ -187,6 +187,14 @@ export default {
     exitFullscreen: 'Vollbild beenden',
     exitFullscreenEsc: 'Vollbild beenden (Esc)',
     spreadingActivation: 'Aktivierungsausbreitung',
+    panels: {
+      collapse: 'Einklappen',
+      expand: 'Ausklappen',
+      legend: 'Legende',
+      brightness: 'Helligkeit',
+      scale: 'Maßstab',
+    },
+
     loadFailed: 'Graph konnte nicht geladen werden',
     workspaceLoadFailed: 'Graph des Arbeitsbereichs konnte nicht geladen werden',
     workspaceDataLoadFailed: 'Intelligence-Daten des Arbeitsbereichs konnten nicht geladen werden',
@@ -236,5 +244,19 @@ export default {
     offlineTitle: 'WebSocket getrennt — Aktualisierungen pausiert',
     live: 'Live',
     liveTitle: 'WebSocket verbunden — Live-Aktualisierungen werden empfangen',
+  },
+  situation: {
+    aria: 'Was Sie ansehen',
+    nodes: 'Knoten',
+    groups: 'Gruppen',
+    edges: 'Kanten',
+    layers: 'Ebenen',
+    tierDetail: 'Detail',
+    tierGroups: 'Gruppen',
+  },
+  breadcrumb: {
+    aria: 'Navigationspfad des Graphen',
+    all: 'Gesamter Graph',
+    group: 'Gruppe {id}',
   },
 } satisfies Translation<'intelPage'>

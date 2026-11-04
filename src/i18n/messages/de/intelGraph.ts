@@ -56,6 +56,20 @@ export default {
     coChangeValue: 'mindestens {n} Co-Änderungen',
     coChangeTitle: 'CO_CHANGED-Kanten mit weniger als {n} Co-Änderungen ausblenden',
   },
+  scale: {
+    nodes: 'Knoten: {count}',
+    groups: 'Gruppen: {count}',
+  },
+  linkInspector: {
+    title: 'Verbindung',
+    aria: 'Beziehungen der ausgewählten Verbindung',
+    relations: '{count} Beziehungen',
+    families: 'Familien',
+    real: 'Tatsächliche Beziehungen',
+    more: '+ {count} weitere',
+    close: 'Schließen',
+  },
+
   inspector: {
     close: 'Schließen',
     chosenOption: 'Gewählte Option',

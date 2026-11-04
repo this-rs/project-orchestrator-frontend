@@ -45,7 +45,13 @@ export function SelfCorePrompt() {
       .read()
       .then((c) => {
         setCore(c)
-        setOpen(c.pinned.length === 0 && c.candidates.length > 0)
+        // A response without `pinned`/`candidates` is a shape this client does
+        // not know (older or newer backend, a proxy error body). It must not be
+        // able to throw during render: this component sits in the root tree, so
+        // an exception here blanks the WHOLE application — measured on the
+        // browser bench, where the fake backend answers everything with `{}`
+        // and the page rendered nothing at all.
+        setOpen((c.pinned?.length ?? 0) === 0 && (c.candidates?.length ?? 0) > 0)
       })
       .catch(() => {
         /* the fetch failed: nothing to ask */
@@ -53,7 +59,7 @@ export function SelfCorePrompt() {
   }, [canAnswer, onPublicPath])
 
   if (!core) return null
-  const notes = core.candidates
+  const notes = core.candidates ?? []
   const tooMany = notes.length > core.max_notes
 
   const later = () => {

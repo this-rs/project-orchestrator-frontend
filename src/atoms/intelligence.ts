@@ -9,6 +9,7 @@ import type {
   BackendGraphCommunity,
 } from '@/types/intelligence'
 import { LAYERS, LAYER_ORDER, ANIMATION, EDGE_RENDER_PRIORITY } from '@/constants/intelligence'
+import { currentDeviceBudget } from '@/components/intelligence/graph3d/deviceTier'
 
 // ============================================================================
 // INTELLIGENCE VISUALIZATION — Jotai Atoms
@@ -80,6 +81,9 @@ export const intelligenceErrorAtom = atom<string | null>(null)
 // ── Selection ────────────────────────────────────────────────────────────────
 
 /** Currently selected node ID */
+/** Community opened by a click on a super-node (aggregated view). null = closed. */
+export const drilledCommunityAtom = atom<number | null>(null)
+
 export const selectedNodeIdAtom = atom<string | null>(null)
 
 /** Derived: selected node object */
@@ -194,7 +198,22 @@ export const touchesHeatmapAtom = atom<boolean>(false)
 export const coChangeThresholdAtom = atom<number>(1)
 
 /** Community hulls toggle — show/hide convex hull overlays in 3D view */
-export const showCommunityHullsAtom = atom<boolean>(true)
+/**
+ * Community hulls are OFF by default.
+ *
+ * They were introduced when the graph had no shape of its own: a translucent
+ * envelope around a cluster was the only thing saying "these nodes belong
+ * together". The placement now draws that grouping itself — each group is a
+ * nebula with a dense core and a sparse halo, and related groups share their
+ * halos — so the hull adds nothing and costs a lot: on the browser bench, six
+ * overlapping envelopes at 5 000 nodes covered most of the frame with a green
+ * wash (qa-out/graph3d-organites.png), hiding the very relief they were meant
+ * to reveal.
+ *
+ * Kept as a switch, not deleted: on a small graph, or when explaining the
+ * grouping to someone, the envelope is still a useful read.
+ */
+export const showCommunityHullsAtom = atom<boolean>(false)
 
 /** Graph brightness (0→1) — controls ambient light intensity + background luminance */
 export const graphBrightnessAtom = atom<number>(0.5)
@@ -204,8 +223,31 @@ export const intelligenceCommunitiesAtom = atom<BackendGraphCommunity[]>([])
 
 // ── Graph node limit ────────────────────────────────────────────────────────
 
-/** Max nodes requested from the API (configurable, default 1000) */
-export const graphNodeLimitAtom = atom<number>(1000)
+/**
+ * Node budget for the whole graph — split across the categories the API serves
+ * (files, symbols, knowledge, skills, behavioural, pm) because its `limit` is
+ * per category. 20 000 is what a FULL graph needs on a high-tier device (the default
+ * follows the device tier: graph3d/deviceTier.ts, 20 000 / 8 000 / 4 000); the renderer stays light
+ * because above 2 000 nodes they are one `THREE.Points` (graph3d/nodePoints.ts)
+ * and above 2 000 (1 000 on a phone) the scale is dynamic: what is far is
+ * grouped, what is near is in detail. Lower it if the payload is too
+ * heavy for your backend.
+ */
+export const graphNodeLimitAtom = atom<number>(currentDeviceBudget().budget.nodeBudget)
+
+/**
+ * Former GLOBAL aggregation level of the 3D graph (0 = detail). The 3D view no
+ * longer steps it: the scale is dynamic (clusterTree / cutGraph) and what is
+ * drawn is published in graphDrawnAtom. Kept for the breadcrumb's drill-down.
+ */
+export const graphScaleAtom = atom<number>(0)
+
+/**
+ * What the 3D view DRAWS right now (written by IntelligenceGraph3D). With the
+ * dynamic scale the old global level stays 0 while groups are on screen, so a
+ * line reading it announced « détail » over a view of groups.
+ */
+export const graphDrawnAtom = atom<{ groups: number; nodes: number } | null>(null)
 
 // ── Search / filter ──────────────────────────────────────────────────────────
 

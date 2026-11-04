@@ -431,6 +431,7 @@
     "forms.placeholder.id",
     "forms.placeholder.modelPreference",
     "forms.resourceType.protobuf",
+    "fr:graph.unified.treemapView.notes",
     "fr:activity.hub.conversations",
     "fr:activity.param.agent",
     "fr:activity.param.workflow",

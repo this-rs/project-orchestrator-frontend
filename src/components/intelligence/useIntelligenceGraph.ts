@@ -8,8 +8,10 @@ import type {
   BackendGraphNode,
   BackendGraphEdge,
   IntelligenceRelationType,
+  ProjectGraphResponse,
 } from '@/types/intelligence'
-import { NODE_SIZES, EDGE_STYLES } from '@/constants/intelligence'
+import { EDGE_STYLES } from '@/constants/intelligence'
+import { graphCacheKey, graphCacheGet, graphCacheSet } from './graphCache'
 import {
   intelligenceNodesAtom,
   intelligenceEdgesAtom,
@@ -31,40 +33,6 @@ import {
 import { intelligenceApi } from '@/services/intelligence'
 import { VISIBILITY_PRESETS } from '@/constants/intelligence'
 import type { VisibilityMode } from '@/types/intelligence'
-
-// ── Dagre Web Worker ─────────────────────────────────────────────────────────
-
-/** Lazily create a single shared worker instance */
-let sharedWorker: Worker | null = null
-function getDagreWorker(): Worker {
-  if (!sharedWorker) {
-    sharedWorker = new Worker(
-      new URL('@/workers/dagreWorker.ts', import.meta.url),
-      { type: 'module' },
-    )
-  }
-  return sharedWorker
-}
-
-/** Terminate the shared worker to free resources (called on unmount) */
-function terminateDagreWorker(): void {
-  if (sharedWorker) {
-    sharedWorker.terminate()
-    sharedWorker = null
-  }
-}
-
-/**
- * Serialize ReactFlow nodes into the minimal {id, width, height} the worker expects.
- * Also pre-computes the size lookup so the worker doesn't need NODE_SIZES.
- */
-function serializeForWorker(nodes: IntelligenceNode[]) {
-  return nodes.map((node) => {
-    const entityType = (node.data as { entityType?: string }).entityType ?? 'file'
-    const size = NODE_SIZES[entityType as keyof typeof NODE_SIZES] ?? { width: 32, height: 32 }
-    return { id: node.id, width: size.width + 20, height: size.height + 20 }
-  })
-}
 
 // ── Transform backend data → ReactFlow ───────────────────────────────────────
 
@@ -149,7 +117,6 @@ function toReactFlowEdge(edge: BackendGraphEdge, index: number): IntelligenceEdg
 type Tr = ReturnType<typeof useT>['t']
 const countOf = (t: Tr, n: number, one: MessageKey, other: MessageKey) => t(n === 1 ? one : other, { count: n })
 const nodesText = (t: Tr, n: number) => countOf(t, n, 'intelPage.graph.stage.nodesOne', 'intelPage.graph.stage.nodesOther')
-const edgesText = (t: Tr, n: number) => countOf(t, n, 'intelPage.graph.stage.edgesOne', 'intelPage.graph.stage.edgesOther')
 
 export function useIntelligenceGraph(projectSlug: string | undefined) {
   const { t } = useT()
@@ -187,9 +154,22 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     limit: number,
     stageId?: string,
     signal?: AbortSignal,
+    force = false,
+    // How many layers share `limit`: ALL the layers of a progressive load, not
+    // only this call's. Each call used to split `limit` over its own layers,
+    // so code+fabric then the four others asked for 2× the limit.
+    budgetLayers = layers.length,
   ) => {
     if (!projectSlug || layers.length === 0) return
-    setLoading(true)
+    // Reuse a recently-loaded response for this exact (layers, limit) instead of
+    // hitting the network again — "don't reload a view already loaded".
+    // The API applies `limit` PER CATEGORY: asking 5000 with six layers can
+    // return ~30 000 nodes. The number the user sets is a TOTAL budget, so each
+    // layer gets its share of it — the share of every layer of the load, so
+    // that the calls of a progressive load add up to the budget, not beyond.
+    const perCategory = Math.max(1, Math.floor(limit / Math.max(1, budgetLayers, layers.length)))
+    const cacheKey = graphCacheKey('project', projectSlug, layers, perCategory)
+    const cached = force ? null : (graphCacheGet(cacheKey) as ProjectGraphResponse | null)
     setError(null)
     // Track per-layer loading state for UI indicators
     setLoadingLayers((prev: Set<string>) => {
@@ -197,9 +177,17 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
       layers.forEach((l) => next.add(l))
       return next
     })
-    if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
+    // Only flash the loading state (and the stages) when we actually go to the
+    // network; a cache hit resolves synchronously and must not blink a spinner.
+    if (!cached) {
+      setLoading(true)
+      if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
+    }
     try {
-      const data = await intelligenceApi.getGraph(projectSlug, { layers, limit }, signal)
+      const data =
+        cached ??
+        await intelligenceApi.getGraph(projectSlug, { layers, limit: perCategory }, signal)
+      if (!cached) graphCacheSet(cacheKey, data)
 
       const rfNodes = data.nodes.map(toReactFlowNode)
       const rfEdges = data.edges.map(toReactFlowEdge)
@@ -264,7 +252,8 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
   const fetchGraph = useCallback(async () => {
     const layers = Array.from(visibleLayers) as string[]
     fetchedLayersRef.current.clear()
-    await fetchGraphForLayers(layers, nodeLimit)
+    // Explicit refresh (retry button, WebSocket-driven) must bypass the cache.
+    await fetchGraphForLayers(layers, nodeLimit, undefined, undefined, true)
   }, [visibleLayers, nodeLimit, fetchGraphForLayers])
 
   // Fetch summary
@@ -297,6 +286,9 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     fetchedLayersRef.current.clear()
     setNodes([])
     setEdges([])
+    // A new project means the previously selected node no longer exists in the
+    // data: clear it so the inspector never shows an empty "fiche" for a stale id.
+    setSelectedNodeId(null)
     const layers = Array.from(visibleLayers) as string[]
 
     // Progressive loading: fetch primary layer first (code), then remaining layers.
@@ -319,9 +311,9 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     setStages(stages)
 
     if (primary.length > 0 && rest.length > 0) {
-      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary', signal).then(() => {
+      fetchGraphForLayers(primary, nodeLimit, 'fetch_primary', signal, false, layers.length).then(() => {
         if (!signal.aborted) {
-          fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary', signal)
+          fetchGraphForLayers(rest, nodeLimit, 'fetch_secondary', signal, false, layers.length)
         }
       })
     } else {
@@ -337,7 +329,6 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
       setSummary(null)
       setCommunities([])
       setStages([])
-      terminateDagreWorker()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only on slug change
   }, [projectSlug])
@@ -358,7 +349,7 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
           { id: 'layout', label: tRef.current('intelPage.graph.stage.computeLayout'), status: 'pending' },
         ]
         setStages(stages)
-        fetchGraphForLayers(needed, nodeLimit, stageId)
+        fetchGraphForLayers(needed, nodeLimit, stageId, undefined, false, visibleLayers.size)
       }
     }, 300)
     return () => {
@@ -390,119 +381,35 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     setVisibilityMode('custom')
   }, [setVisibleLayers, setVisibilityMode])
 
-  // ── Async dagre layout via Web Worker ─────────────────────────────────────
-  // Posts nodes/edges to the worker, receives progress + result messages.
-  // The worker splits into connected components and reports per-component progress.
+  // ── Layout: pass-through (no 2D dagre pass) ────────────────────────────────
+  // The dagre worker used to lay out every visible set on each load. Nothing on
+  // this page reads those positions (the 3D view places nodes itself, the code
+  // map lays out its own boxes), and dagre grows super-linearly: ~12 s at 500
+  // nodes, over two minutes at 2 000, so the "layout" stage never finished on a
+  // full graph. The visible set is passed straight through instead; the stage is
+  // kept so the progress panel still reads as complete.
   const [layoutedNodes, setLayoutedNodes] = useState<IntelligenceNode[]>([])
   const [layoutedEdges, setLayoutedEdges] = useState<IntelligenceEdge[]>([])
-  const [layouting, setLayouting] = useState(false)
-  const layoutVersionRef = useRef(0)
-
-  // Track node identity to detect edge-only changes (e.g. show-all-edges toggle)
-  const prevNodeFingerprintRef = useRef('')
-  const hasLayoutedOnceRef = useRef(false)
 
   useEffect(() => {
-    if (visibleNodes.length === 0) {
-      setLayoutedNodes([])
-      setLayoutedEdges([])
-      setLayouting(false)
-      prevNodeFingerprintRef.current = ''
-      hasLayoutedOnceRef.current = false
-      return
-    }
-
-    // Build a lightweight fingerprint of node IDs to detect node-set changes
-    const nodeFingerprint = visibleNodes.map((n) => n.id).sort().join(',')
-    const nodesChanged = nodeFingerprint !== prevNodeFingerprintRef.current
-    prevNodeFingerprintRef.current = nodeFingerprint
-
-    // If only edges changed (e.g. show-all-edges toggle, CO_CHANGED threshold),
-    // skip the full dagre re-layout — node positions don't change.
-    // Show a brief loading stage so the user sees feedback.
-    if (!nodesChanged && hasLayoutedOnceRef.current) {
-      const edgeCount = visibleEdges.length
-      const startedAt = Date.now()
-      setStages([
-        { id: 'update_edges', label: tRef.current('intelPage.graph.stage.updateEdges'), status: 'loading', startedAt, detail: edgesText(tRef.current, edgeCount) },
-      ])
-      // Use rAF to let the loading stage render before updating
-      requestAnimationFrame(() => {
-        setLayoutedEdges(visibleEdges)
-        setStages([
-          { id: 'update_edges', label: tRef.current('intelPage.graph.stage.updateEdges'), status: 'done', startedAt, completedAt: Date.now(), detail: edgesText(tRef.current, edgeCount) },
-        ])
-      })
-      return
-    }
-
-    const version = ++layoutVersionRef.current
-    setLayouting(true)
-    updateStage('layout', { status: 'loading', startedAt: Date.now() })
-
-    const worker = getDagreWorker()
-    const serializedNodes = serializeForWorker(visibleNodes)
-    const serializedEdges = visibleEdges.map((e) => ({ source: e.source, target: e.target }))
-
-    const handler = (event: MessageEvent<{ type: string; [key: string]: unknown }>) => {
-      if (version !== layoutVersionRef.current) return
-      const msg = event.data
-
-      if (msg.type === 'progress') {
-        const { done, total, nodesDone, nodesTotal } = msg as {
-          type: string; done: number; total: number; nodesDone: number; nodesTotal: number
-        }
-        updateStage('layout', {
-          status: 'loading',
-          detail: total > 1
-            ? tRef.current('intelPage.graph.stage.layoutClusters', { done, total, nodesDone, nodesTotal })
-            : tRef.current('intelPage.graph.stage.layoutNodes', { nodesDone, nodesTotal }),
-          progress: nodesDone,
-          progressTotal: nodesTotal,
-        })
-        return
-      }
-
-      if (msg.type === 'result') {
-        const { nodes: resultNodes, components } = msg as {
-          type: string; nodes: { id: string; x: number; y: number }[]; components: number
-        }
-        const positionMap = new Map(resultNodes.map((n) => [n.id, { x: n.x, y: n.y }]))
-
-        setLayoutedNodes(
-          visibleNodes.map((node) => {
-            const pos = positionMap.get(node.id)
-            return pos ? { ...node, position: pos } : node
-          }),
-        )
-        setLayoutedEdges(visibleEdges)
-        setLayouting(false)
-        hasLayoutedOnceRef.current = true
-        updateStage('layout', {
-          status: 'done',
-          completedAt: Date.now(),
-          detail: components > 1
-            ? tRef.current('intelPage.graph.stage.layoutDone', { nodes: nodesText(tRef.current, visibleNodes.length), clusters: components })
-            : nodesText(tRef.current, visibleNodes.length),
-          progress: visibleNodes.length,
-          progressTotal: visibleNodes.length,
-        })
-        worker.removeEventListener('message', handler)
-      }
-    }
-
-    worker.addEventListener('message', handler)
-    worker.postMessage({ nodes: serializedNodes, edges: serializedEdges })
-
-    return () => {
-      worker.removeEventListener('message', handler)
-    }
+    setLayoutedNodes(visibleNodes)
+    setLayoutedEdges(visibleEdges)
+    updateStage('layout', {
+      status: 'done',
+      // Honest duration: the pass-through costs nothing, but the stage used to
+      // be "loading" since the fetch began, so the panel reported the whole
+      // load as « disposition ».
+      startedAt: Date.now(),
+      completedAt: Date.now(),
+      detail: nodesText(tRef.current, visibleNodes.length),
+      progress: visibleNodes.length,
+      progressTotal: visibleNodes.length,
+    })
   }, [visibleNodes, visibleEdges, updateStage])
 
   return {
     nodes: layoutedNodes,
     edges: layoutedEdges,
-    layouting,
     allNodes: nodes,
     allEdges: edges,
     selectedNodeId,

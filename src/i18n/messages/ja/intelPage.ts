@@ -186,6 +186,14 @@ export default {
     exitFullscreen: '全画面を終了',
     exitFullscreenEsc: '全画面を終了（Esc）',
     spreadingActivation: '活性化拡散',
+    panels: {
+      collapse: '折りたたむ',
+      expand: '展開',
+      legend: '凡例',
+      brightness: '明るさ',
+      scale: '縮尺',
+    },
+
     loadFailed: 'グラフを読み込めませんでした',
     workspaceLoadFailed: 'ワークスペースのグラフを読み込めませんでした',
     workspaceDataLoadFailed: 'ワークスペースのインテリジェンスデータを読み込めませんでした',
@@ -235,5 +243,19 @@ export default {
     offlineTitle: 'WebSocket 切断中 — 更新は一時停止しています',
     live: 'ライブ',
     liveTitle: 'WebSocket 接続中 — ライブ更新を受信しています',
+  },
+  situation: {
+    aria: '表示中の内容',
+    nodes: 'ノード',
+    groups: 'グループ',
+    edges: 'エッジ',
+    layers: 'レイヤー',
+    tierDetail: '詳細',
+    tierGroups: 'グループ',
+  },
+  breadcrumb: {
+    aria: 'グラフのパンくずリスト',
+    all: 'グラフ全体',
+    group: 'グループ {id}',
   },
 } satisfies Translation<'intelPage'>

@@ -4,6 +4,9 @@
 //   node scripts/graph-perf.mjs                      vite build, preview, sizes 80/300/1000
 //   node scripts/graph-perf.mjs --no-build           reuse dist/
 //   … --sizes=300,1000   --chrome=<path>   --out=<file.json>
+//   … --mobile   phone profile: 390x844 @3x, touch (pointer: coarse), CPU x4, V8 heap capped at 512 MB
+//                (--heap-mb=N), deviceMemory 4 (--device-memory=N) / hardwareConcurrency 6. Reports renderer crash, WebGL context
+//                loss and JS errors.
 //
 // What it measures, per graph size, on the real page (IntelligenceGraph3D):
 //   - scene : objects in the three.js scene (Sprite / Mesh / Points / Line), lights, programs
@@ -30,9 +33,13 @@ const CHROME_CANDIDATES = [
 const args = Object.fromEntries(process.argv.slice(2).map((a) => { const m = /^--([^=]+)(?:=(.*))?$/.exec(a); return m ? [m[1], m[2] ?? true] : [a, true] }))
 const SIZES = String(args.sizes || '80,300,1000').split(',').map(Number).filter(Boolean)
 const ROUTE = '/workspace/acme-freelance/projects/billing/intelligence/graph'
-const VIEWPORT = { width: 1440, height: 900 }
+const MOBILE = Boolean(args.mobile)
+const VIEWPORT = MOBILE ? { width: 390, height: 844 } : { width: 1440, height: 900 }
+const DEVICE_MEMORY_GB = Number(args['device-memory'] || 4)
+const MOBILE_HEAP_MB = Number(args['heap-mb'] || 512)
 const SETTLE = Number(args.settle || 8000)
 
+const trace = (m) => { if (args.verbose) console.error('[graph-perf] ' + m) }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const freePort = () => new Promise((res, rej) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => res(port)) }); s.on('error', rej) })
 async function waitUp(url, ms = 20000) {
@@ -62,6 +69,17 @@ function makeGraph(n) {
   }
 }
 
+// The real API applies `limit` PER CATEGORY (layer): ask for 5000 with four layers, get up to 20 000. The
+// synthetic server does the same so a node budget requested by the page is visible in the bench.
+function applyLimit(graph, params) {
+  const limit = Number(params.get('limit'))
+  if (!Number.isFinite(limit) || limit <= 0) return graph
+  const seen = new Map()
+  const nodes = graph.nodes.filter((n) => { const c = (seen.get(n.layer) || 0) + 1; seen.set(n.layer, c); return c <= limit })
+  const ids = new Set(nodes.map((n) => n.id))
+  return { ...graph, nodes, edges: graph.edges.filter((e) => ids.has(e.source) && ids.has(e.target)) }
+}
+
 // ---------- build + preview ----------
 function build() {
   if (args['no-build'] && fs.existsSync(path.join(DIST, 'index.html'))) return
@@ -87,6 +105,7 @@ async function launchChrome(profileDir) {
   const child = spawn(chromePath(), [
     '--headless=new', `--remote-debugging-port=${port}`, '--no-first-run', '--no-default-browser-check', '--disable-extensions',
     '--hide-scrollbars', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
+    ...(MOBILE ? [`--js-flags=--max-old-space-size=${MOBILE_HEAP_MB}`] : []),
     `--window-size=${VIEWPORT.width},${VIEWPORT.height}`, `--user-data-dir=${profileDir}`, 'about:blank',
   ], { stdio: 'ignore' })
   const http = `http://127.0.0.1:${port}`
@@ -114,7 +133,9 @@ async function openTab(chrome) {
 // Installed before any page script: three then reports every renderer it creates.
 // Each renderer.render() call is timed (JS side: scene walk + command submission; with SwiftShader the
 // GPU work runs on the CPU too). Renders are counted by three's own info.render.frame, not by rAF.
-const DEVTOOLS_HOOK = `window.__THREE_DEVTOOLS__ = new EventTarget(); window.__RAF = null; (function raf(t) { if (window.__RAF) window.__RAF.push(t); requestAnimationFrame(raf); })(performance.now());
+const MOBILE_HOOK = `try { Object.defineProperty(navigator, 'deviceMemory', { get: () => ${DEVICE_MEMORY_GB} }); Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 6 }) } catch { /* */ }`
+const FAILURE_HOOK = `window.__FAIL = []; addEventListener('error', (e) => window.__FAIL.push('js: ' + e.message)); addEventListener('unhandledrejection', (e) => window.__FAIL.push('promise: ' + ((e.reason && e.reason.message) || e.reason))); document.addEventListener('webglcontextlost', () => window.__FAIL.push('webglcontextlost'), true);`
+const DEVTOOLS_HOOK = `window.__LT = []; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__LT.push(e.duration) }).observe({ type: 'longtask', buffered: true }) } catch { /* */ } window.__THREE_DEVTOOLS__ = new EventTarget(); window.__RAF = null; (function raf(t) { if (window.__RAF) window.__RAF.push(t); requestAnimationFrame(raf); })(performance.now());
 window.__POR = null; window.__RT = [];
 window.__THREE_DEVTOOLS__.addEventListener('observe', (e) => {
   const R = e.detail; window.__POR = R;
@@ -125,24 +146,27 @@ window.__THREE_DEVTOOLS__.addEventListener('observe', (e) => {
 // Renderer counters of the last frame (autoReset is on: `calls` is one frame's worth).
 const PROBE = `(() => {
   const R = window.__POR; if (!R) return null;
-  return { frame: R.info.render.frame, calls: R.info.render.calls, triangles: R.info.render.triangles, programs: R.info.programs ? R.info.programs.length : null, geometries: R.info.memory.geometries, textures: R.info.memory.textures };
+  return { frame: R.info.render.frame, calls: R.info.render.calls, points: R.info.render.points, triangles: R.info.render.triangles, programs: R.info.programs ? R.info.programs.length : null, geometries: R.info.memory.geometries, textures: R.info.memory.textures };
 })()`
 
 async function capture(chrome, base, n) {
   const tab = await openTab(chrome)
   const graph = makeGraph(n)
   const unfixtured = new Set()
-  let inflight = 0, lastNet = Date.now(), loaded = false
+  let inflight = 0, lastNet = Date.now(), loaded = false, crashed = false
+  const consoleErrors = []
   try {
     tab.on(async (msg) => {
       if (msg.method === 'Page.loadEventFired') loaded = true
+      else if (msg.method === 'Inspector.targetCrashed') crashed = true
+      else if (msg.method === 'Log.entryAdded' && msg.params.entry.level === 'error') consoleErrors.push(msg.params.entry.text.slice(0, 200))
       else if (msg.method === 'Fetch.requestPaused') {
         const { requestId, request } = msg.params
         const pathname = new URL(request.url).pathname
         if (/\.\w{1,5}$/.test(pathname)) { try { await tab.send('Fetch.continueRequest', { requestId }) } catch { /* */ } return }
         inflight++; lastNet = Date.now()
         let status = 200, body
-        if (/^\/api\/projects\/[^/]+\/graph$/.test(pathname)) body = graph
+        if (/^\/api\/projects\/[^/]+\/graph$/.test(pathname)) body = applyLimit(graph, new URL(request.url).searchParams)
         else { const r = respond('app', request.method, request.url); status = r.status; body = r.body; if (!r.matched) unfixtured.add(`${request.method} ${pathname}`) }
         try {
           await tab.send('Fetch.fulfillRequest', { requestId, responseCode: status, responseHeaders: [{ name: 'Content-Type', value: 'application/json' }], body: Buffer.from(JSON.stringify(body)).toString('base64') })
@@ -150,19 +174,53 @@ async function capture(chrome, base, n) {
         inflight--; lastNet = Date.now()
       }
     })
-    await tab.send('Page.enable'); await tab.send('Runtime.enable')
-    await tab.send('Page.addScriptToEvaluateOnNewDocument', { source: DEVTOOLS_HOOK })
+    await tab.send('Page.enable'); await tab.send('Runtime.enable'); await tab.send('Log.enable')
+    await tab.send('Page.addScriptToEvaluateOnNewDocument', { source: FAILURE_HOOK + (MOBILE ? MOBILE_HOOK : '') + DEVTOOLS_HOOK })
     await tab.send('Fetch.enable', { patterns: [{ urlPattern: '*/api/*', requestStage: 'Request' }, { urlPattern: '*/auth/*', requestStage: 'Request' }] })
-    await tab.send('Emulation.setDeviceMetricsOverride', { width: VIEWPORT.width, height: VIEWPORT.height, deviceScaleFactor: 1, mobile: false })
+    await tab.send('Emulation.setDeviceMetricsOverride', { width: VIEWPORT.width, height: VIEWPORT.height, deviceScaleFactor: MOBILE ? 3 : 1, mobile: MOBILE })
+    if (MOBILE) {
+      await tab.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 })
+      await tab.send('Emulation.setEmitTouchEventsForMouse', { enabled: true, configuration: 'mobile' })
+      await tab.send('Emulation.setCPUThrottlingRate', { rate: 4 })
+    }
+    trace('emulation set, navigating')
+    const tNav = Date.now()
     await tab.send('Page.navigate', { url: base + ROUTE })
+    // the user switches to 3D once the code map has its data (the real order): wait for the tiles
+    for (let i = 0; i < 150; i++) {
+      const tiles = await tab.evaluate(`[...document.querySelectorAll('button')].filter((b) => /^(Ouvrir|Open)/.test(b.getAttribute('aria-label') || '')).length`)
+      if (tiles > 0 && inflight === 0) break
+      await sleep(200)
+    }
+    trace('code map tiles waited')
+    // the code map is the default view now: switch the graph to 3D before measuring
+    for (let i = 0; i < 100; i++) {
+      const box = await tab.evaluate(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '3D'); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })()`)
+      if (box) {
+        trace('3D button at ' + JSON.stringify(box))
+        // touch emulation turns mouse events into touches the toggle may not take: click() works on both profiles
+        await tab.evaluate(`[...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '3D').click()`)
+        break
+      }
+      if (i % 20 === 19) trace('no 3D button yet; buttons: ' + JSON.stringify(await tab.evaluate(`[...document.querySelectorAll('button')].map((b) => (b.textContent || b.getAttribute('aria-label') || '').trim().slice(0, 14)).slice(0, 25)`)))
+      await sleep(200)
+    }
 
+    trace('3D button clicked')
     // wait: loaded, no API traffic, and a renderer observed with a stable draw-call count
     const t0 = Date.now()
-    while (Date.now() - t0 < 30000 && (!loaded || inflight > 0 || Date.now() - lastNet < 800 || !(await tab.evaluate(PROBE)))) await sleep(200)
+    while (Date.now() - t0 < 30000 && !crashed && (!loaded || inflight > 0 || Date.now() - lastNet < 800 || !(await tab.evaluate(PROBE)))) await sleep(200)
+    if (crashed) return { nodes: n, mobile: MOBILE, crashed: true, error: 'renderer process crashed (Inspector.targetCrashed) before the first stable render', consoleErrors: consoleErrors.slice(0, 5) }
+    // Time from navigation to a stable first render (includes ~0.8 s network-idle padding).
+    const loadMs = Date.now() - tNav
+    trace('first stable render after ' + loadMs + ' ms')
     // the force layout runs for cooldownTime (5 s) after mount: idle is only meaningful once it has stopped
     await sleep(SETTLE)
 
+    trace('settled')
     const probe0 = await tab.evaluate(PROBE)
+    // main-thread blocking during load (longtask API): the build's cost the user feels
+    const longTasks = await tab.evaluate('(() => { const d = (window.__LT || []).slice(); return { n: d.length, maxMs: d.length ? +Math.max(...d).toFixed(1) : 0, totalMs: +d.reduce((a, b) => a + b, 0).toFixed(1) } })()')
 
     // idle: frames in 3 s with no input
     const f0 = await tab.evaluate('window.__POR.info.render.frame')
@@ -174,15 +232,21 @@ async function capture(chrome, base, n) {
     if (!box) throw new Error('no canvas on the graph page')
     await tab.evaluate('window.__RT.length = 0; window.__RAF = []')
     await tab.evaluate('window.__CALLERS = []')
+    trace('dragging')
     const d0 = await tab.evaluate('window.__POR.info.render.frame')
-    await tab.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1 })
+    // phone profile: a finger (touch events), not a mouse — mouse events never complete under touch emulation
+    const touch = (type, x, y) => tab.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] })
+    if (MOBILE) await touch('touchStart', box.x, box.y)
+    else await tab.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: box.x, y: box.y, button: 'left', clickCount: 1 })
     const samples = []
     for (let i = 0; i < 40; i++) {
-      await tab.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: box.x + Math.sin(i / 4) * 120, y: box.y + i * 2, button: 'left', buttons: 1 })
+      if (MOBILE) await touch('touchMove', box.x + Math.sin(i / 4) * 120, box.y + i * 2)
+      else await tab.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: box.x + Math.sin(i / 4) * 120, y: box.y + i * 2, button: 'left', buttons: 1 })
       samples.push(await tab.evaluate(PROBE))
       await sleep(50)
     }
-    await tab.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1 })
+    if (MOBILE) await touch('touchEnd')
+    else await tab.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: box.x, y: box.y, button: 'left', clickCount: 1 })
     await sleep(300)
     const dragRenders = (await tab.evaluate('window.__POR.info.render.frame')) - d0
     const calls = samples.filter(Boolean).map((s) => s.calls)
@@ -192,6 +256,11 @@ async function capture(chrome, base, n) {
 
     return {
       nodes: n,
+      mobile: MOBILE,
+      failures: await tab.evaluate('window.__FAIL.slice(0, 8)'),
+      consoleErrors: consoleErrors.slice(0, 5),
+      loadMs,
+      longTasks,
       unfixtured: [...unfixtured].slice(0, 8),
       renderer: { ...probe0, drawCallsDrag: { min: Math.min(...calls), max: Math.max(...calls) } },
       idle: { passesIn3s: idleRenders },
@@ -214,7 +283,13 @@ try {
   chrome = await launchChrome(profile)
   const rows = []
   for (const n of SIZES) {
-    try { rows.push(await capture(chrome, server.base, n)) } catch (e) { rows.push({ nodes: n, error: String(e.message || e) }) }
+    // A crashed or wedged renderer never answers CDP again: bound each size so the bench reports instead of hanging.
+    const LIMIT = Number(args['size-timeout'] || 150000)
+    let timer
+    const watchdog = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(`no result after ${LIMIT / 1000}s (renderer wedged or crashed)`)), LIMIT) })
+    try { rows.push(await Promise.race([capture(chrome, server.base, n), watchdog])) } catch (e) { rows.push({ nodes: n, mobile: MOBILE, error: String(e.message || e) }) }
+    clearTimeout(timer)
+    console.error(`[graph-perf] ${n} nodes done`)
   }
   const doc = { when: new Date().toISOString(), viewport: VIEWPORT, rows }
   const text = JSON.stringify(doc, null, 2)

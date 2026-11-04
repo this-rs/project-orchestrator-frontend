@@ -56,6 +56,20 @@ export default {
     coChangeValue: '공동 변경 {n}회 이상',
     coChangeTitle: '공동 변경이 {n}회 미만인 CO_CHANGED 엣지 숨기기',
   },
+  scale: {
+    nodes: '노드: {count}',
+    groups: '그룹: {count}',
+  },
+  linkInspector: {
+    title: '연결',
+    aria: '선택한 링크의 관계',
+    relations: '관계 {count}개',
+    families: '패밀리',
+    real: '실제 관계',
+    more: '외 {count}개',
+    close: '닫기',
+  },
+
   inspector: {
     close: '닫기',
     chosenOption: '선택된 옵션',

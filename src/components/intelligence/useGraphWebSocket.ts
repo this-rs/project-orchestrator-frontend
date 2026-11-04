@@ -7,6 +7,8 @@ import type { GraphEvent as BackendGraphEvent } from '@/types'
 import type { IntelligenceNode, IntelligenceEdge, IntelligenceRelationType } from '@/types/intelligence'
 import { EDGE_STYLES } from '@/constants/intelligence'
 import { activationStateAtom, type ActivationState } from './SpreadingActivation'
+import { emitEntityPulse, entityIdsOfCrudEvent, entityIdsOfGraphEvent } from './livePulseBus'
+import type { CrudEvent } from '@/types'
 
 // ============================================================================
 // FRONTEND GRAPH EVENT TYPES (mapped from backend GraphEvent)
@@ -294,6 +296,9 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
     (event: FrontendGraphEvent) => {
       if (!mountedRef.current) return
       setLastEventAt(Date.now())
+      // Real-time pulse on the 3D graph: the entities this event designates
+      // (see livePulseBus for the inventory). Imperative, no React state.
+      emitEntityPulse(entityIdsOfGraphEvent(event))
 
       switch (event.type) {
         case 'graph.node_created': {
@@ -631,10 +636,20 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
       }
     })
 
+    // CRUD channel: a task updated, a note created, a commit linked... these
+    // name entities that are nodes of the graph. They do not change the graph
+    // atoms here (the REST reload owns that); they only pulse the node.
+    const unsubCrud = eventBus.on((raw: CrudEvent) => {
+      if (!mountedRef.current) return
+      if (projectId && raw.project_id && raw.project_id !== projectId) return
+      emitEntityPulse(entityIdsOfCrudEvent(raw))
+    })
+
     return () => {
       mountedRef.current = false
       unsubStatus()
       unsubGraph()
+      unsubCrud()
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
       activationTimersRef.current.forEach(clearTimeout)
       activationTimersRef.current = []

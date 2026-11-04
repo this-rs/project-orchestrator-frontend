@@ -56,6 +56,20 @@ export default {
     coChangeValue: 'щонайменше {n} спільних змін',
     coChangeTitle: 'Приховати ребра CO_CHANGED із кількістю спільних змін менше {n}',
   },
+  scale: {
+    nodes: 'Вузлів: {count}',
+    groups: 'Груп: {count}',
+  },
+  linkInspector: {
+    title: 'Зв’язок',
+    aria: 'Відношення вибраного зв’язку',
+    relations: 'Відношень: {count}',
+    families: 'Родини',
+    real: 'Справжні відношення',
+    more: 'і ще {count}',
+    close: 'Закрити',
+  },
+
   inspector: {
     close: 'Закрити',
     chosenOption: 'Обраний варіант',

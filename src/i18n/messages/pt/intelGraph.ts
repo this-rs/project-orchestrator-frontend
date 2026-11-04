@@ -56,6 +56,20 @@ export default {
     coChangeValue: 'pelo menos {n} co-alterações',
     coChangeTitle: 'Ocultar as arestas CO_CHANGED com menos de {n} co-alterações',
   },
+  scale: {
+    nodes: 'Nós: {count}',
+    groups: 'Grupos: {count}',
+  },
+  linkInspector: {
+    title: 'Conexão',
+    aria: 'Relações da ligação selecionada',
+    relations: '{count} relações',
+    families: 'Famílias',
+    real: 'Relações reais',
+    more: '+ {count} mais',
+    close: 'Fechar',
+  },
+
   inspector: {
     close: 'Fechar',
     chosenOption: 'Opção escolhida',

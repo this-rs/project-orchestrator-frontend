@@ -1,0 +1,229 @@
+import { describe, it, expect } from 'vitest'
+import { buildClusterTree, cutForView, type CutView } from './clusterTree'
+import { CLUSTER_NODE_PREFIX, closedGroupHullNodes, clusterIndexOf, graphFromCut } from './cutGraph'
+import { buildCorridors } from './linkRouting'
+import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
+
+/** `n` nodes in `comms` balls of radius 100 spread over 4 000; `e` links (no self-loops). */
+function synth(n: number, e: number, comms: number, seed0 = 7) {
+  let seed = seed0
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  const centres = Array.from({ length: comms }, () => [(rnd() - 0.5) * 4000, (rnd() - 0.5) * 4000, (rnd() - 0.5) * 4000])
+  const nodes: Graph3DNode[] = Array.from({ length: n }, (_, i) => {
+    const c = i % comms
+    return {
+      id: `n${i}`, label: `n${i}`, entityType: i % 3 ? 'file' : 'function', layer: 'code',
+      x: centres[c][0] + (rnd() - 0.5) * 200, y: centres[c][1] + (rnd() - 0.5) * 200, z: centres[c][2] + (rnd() - 0.5) * 200,
+      communityId: c, communityLabel: `module-${c}`, groupKey: `c${c}`, data: {},
+    }
+  })
+  const types = ['IMPORTS', 'CALLS', 'DISCUSSED']
+  const links: Graph3DLink[] = []
+  while (links.length < e) {
+    const a = Math.floor(rnd() * n)
+    const b = rnd() < 0.6 ? (a + comms * (1 + Math.floor(rnd() * 20))) % n : Math.floor(rnd() * n)
+    if (a === b) continue
+    links.push({ source: `n${a}`, target: `n${b}`, relationType: types[links.length % 3], layer: 'code', color: '#fff', width: 1, particles: 0, particleSpeed: 0, isInterCommunity: false })
+  }
+  return { nodes, links, centres }
+}
+
+const view = (x: number, y: number, z: number): CutView => ({ position: [x, y, z], fovDeg: 45, viewportHeightPx: 900 })
+const BIG = { maxNodes: 1e9, maxLinks: 1e9 }
+/** What the page uses: the budget is what keeps far regions grouped. */
+const PAGE = { maxNodes: 500, maxLinks: 1e9 }
+
+/** Relations the drawn graph carries: a real link is one, a bundle carries its count. */
+function carried(links: Graph3DLink[]): number {
+  return links.reduce((s, l) => s + (l.relationType === 'AGGREGATE' ? (l.count ?? 0) : 1), 0)
+}
+
+describe('graphFromCut', () => {
+  const { nodes, links, centres } = synth(3000, 6000, 12)
+  const tree = buildClusterTree(nodes, links)
+
+  it('loses and doubles nothing: drawn + collapsed relations = all relations, at any view', () => {
+    for (const v of [view(0, 0, 20000), view(centres[3][0], centres[3][1], centres[3][2] + 300), view(0, 0, 3000)]) {
+      const cut = cutForView(tree, v, BIG)
+      const g = graphFromCut(tree, cut, nodes, links)
+      let inside = 0
+      for (const c of cut.internal.values()) inside += c.count
+      expect(carried(g.links) + inside).toBe(tree.linkTotal)
+    }
+  })
+
+  it('shows detail near the camera and groups far away IN THE SAME graph', () => {
+    const [cx, cy, cz] = centres[3]
+    const g = graphFromCut(tree, cutForView(tree, view(cx, cy, cz + 300), PAGE), nodes, links)
+    const real = g.nodes.filter((n) => !n.id.startsWith(CLUSTER_NODE_PREFIX))
+    const groups = g.nodes.filter((n) => n.id.startsWith(CLUSTER_NODE_PREFIX))
+    expect(real.length).toBeGreaterThan(0)
+    expect(groups.length).toBeGreaterThan(0)
+    // the region looked at is in detail…
+    expect(real.filter((n) => n.communityId === 3).length).toBe(nodes.filter((n) => n.communityId === 3).length)
+    // …and the region furthest from the camera is still a group
+    const d = (c: number[]) => Math.hypot(c[0] - cx, c[1] - cy, c[2] - cz - 300)
+    const far = centres.map((c, i) => [d(c), i] as const).sort((p, q) => q[0] - p[0])[0][1]
+    expect(real.some((n) => n.communityId === far)).toBe(false)
+  })
+
+  it('a real node is the SAME object (selection, fiche, hover keep working)', () => {
+    const [cx, cy, cz] = centres[3]
+    const g = graphFromCut(tree, cutForView(tree, view(cx, cy, cz + 300), PAGE), nodes, links)
+    const byId = new Map(nodes.map((n) => [n.id, n]))
+    for (const n of g.nodes) if (!n.id.startsWith(CLUSTER_NODE_PREFIX)) expect(n).toBe(byId.get(n.id))
+  })
+
+  it('a link between two real nodes keeps its own relation type', () => {
+    const [cx, cy, cz] = centres[3]
+    const g = graphFromCut(tree, cutForView(tree, view(cx, cy, cz + 300), PAGE), nodes, links)
+    const realIds = new Set(g.nodes.filter((n) => !n.id.startsWith(CLUSTER_NODE_PREFIX)).map((n) => n.id))
+    const between = g.links.filter((l) => realIds.has(String(l.source)) && realIds.has(String(l.target)))
+    expect(between.length).toBeGreaterThan(0)
+    expect(between.every((l) => l.relationType !== 'AGGREGATE')).toBe(true)
+  })
+
+  it('a group carries its size, composition and a human name, and points back to the tree', () => {
+    const g = graphFromCut(tree, cutForView(tree, view(0, 0, 20000), BIG), nodes, links)
+    const groups = g.nodes.filter((n) => n.id.startsWith(CLUSTER_NODE_PREFIX))
+    expect(groups.length).toBeGreaterThan(0)
+    let total = 0
+    for (const s of groups) {
+      const count = (s.data as { count: number }).count
+      const byType = (s.data as { byType: Record<string, number> }).byType
+      expect(Object.values(byType).reduce((a, b) => a + b, 0)).toBe(count)
+      expect(s.label).not.toMatch(/^Cellule/)
+      expect(clusterIndexOf(s)).toBeGreaterThanOrEqual(0)
+      total += count
+    }
+    const realCount = g.nodes.length - groups.length
+    expect(total + realCount).toBe(nodes.length)
+  })
+
+  it('ids of groups are stable from one cut to the next', () => {
+    const a = graphFromCut(tree, cutForView(tree, view(0, 0, 20000), BIG), nodes, links)
+    const b = graphFromCut(tree, cutForView(tree, view(0, 0, 20000), BIG), nodes, links)
+    expect(a.nodes.map((n) => n.id)).toEqual(b.nodes.map((n) => n.id))
+  })
+})
+
+describe('graphFromCut — a part of a community is named by what it holds', () => {
+  // one community, 140 files: 70 in components/chat (left), 70 in components/graph (right)
+  const nodes: Graph3DNode[] = Array.from({ length: 140 }, (_, i) => {
+    const chat = i < 70
+    return {
+      id: `f${i}`, label: `f${i}`, entityType: 'file', layer: 'code',
+      x: (chat ? -500 : 500) + (i % 7) * 10, y: (i % 5) * 10, z: (i % 3) * 10,
+      communityId: 4, communityLabel: 'frontend/src/components', groupKey: 'c4',
+      data: { path: `frontend/src/components/${chat ? 'chat' : 'graph'}/f${i}.tsx` },
+    }
+  })
+  const tree = buildClusterTree(nodes, [])
+  const parts = tree.nodes.filter((t) => t.kind === 'split' && tree.nodes[t.parent].kind === 'community')
+  const cut = {
+    frontier: parts.map((t) => t.index).sort((a, b) => a - b),
+    open: new Set(tree.nodes.filter((t) => t.kind !== 'leaf' && t.kind !== 'split').map((t) => t.index)),
+    links: [],
+    internal: new Map(),
+  }
+
+  it('says the sub-directory, not the community again', () => {
+    const names = graphFromCut(tree, cut, nodes, []).nodes.map((n) => n.label)
+    expect(names.length).toBeGreaterThan(1)
+    expect(names.some((n) => n === 'components/chat')).toBe(true)
+    expect(names.some((n) => n === 'components/graph')).toBe(true)
+    expect(names.every((n) => !n.endsWith('· partie'))).toBe(true)
+  })
+})
+
+describe('graphFromCut — a drawing cap keeps the heaviest links and counts the rest', () => {
+  const { nodes, links, centres } = synth(3000, 6000, 12)
+  const tree = buildClusterTree(nodes, links)
+  const cut = cutForView(tree, view(centres[3][0], centres[3][1], centres[3][2] + 300), { maxNodes: 600, maxLinks: 1e9 })
+
+  it('draws at most maxLinks pairs, the heaviest first', () => {
+    const free = graphFromCut(tree, cut, nodes, links)
+    const capped = graphFromCut(tree, cut, nodes, links, 40)
+    const bundles = (g: { links: Graph3DLink[] }) => g.links.filter((l) => l.relationType === 'AGGREGATE')
+    expect(cut.links.length).toBeGreaterThan(40)
+    expect(new Set(capped.links.map((l) => `${l.source}|${l.target}`)).size).toBeLessThanOrEqual(40)
+    const keptMin = Math.min(...bundles(capped).map((l) => l.count ?? 1))
+    const droppedMax = Math.max(...bundles(free).filter((l) => !capped.links.some((c) => c.source === l.source && c.target === l.target)).map((l) => l.count ?? 1))
+    expect(keptMin).toBeGreaterThanOrEqual(droppedMax)
+  })
+
+  it('loses nothing silently: drawn + hidden + collapsed = all relations', () => {
+    const g = graphFromCut(tree, cut, nodes, links, 40)
+    let inside = 0
+    for (const c of cut.internal.values()) inside += c.count
+    expect(carried(g.links) + g.hiddenRelations + inside).toBe(tree.linkTotal)
+  })
+})
+
+describe('closedGroupHullNodes', () => {
+  const { nodes, links, centres } = synth(3000, 6000, 12)
+  const tree = buildClusterTree(nodes, links)
+
+  it('wraps exactly the members of the closed groups, biggest group first', () => {
+    const [cx, cy, cz] = centres[3]
+    const cut = cutForView(tree, view(cx, cy, cz + 300), PAGE)
+    const hull = closedGroupHullNodes(tree, cut, nodes)
+    const closed = cut.frontier.map((i) => tree.nodes[i]).filter((t) => t.kind !== 'leaf')
+    expect(closed.length).toBeGreaterThan(0)
+    expect(hull.length).toBe(closed.reduce((s, t) => s + t.count, 0))
+    // the real nodes drawn near the camera are not wrapped
+    const drawnReal = new Set(cut.frontier.filter((i) => tree.nodes[i].kind === 'leaf').map((i) => tree.nodes[i].id))
+    expect(hull.some((n) => drawnReal.has(`n:${n.id}`))).toBe(false)
+    // rank 0 is the biggest group
+    const size = new Map<number, number>()
+    for (const n of hull) size.set(n.communityId!, (size.get(n.communityId!) ?? 0) + 1)
+    const sizes = [...size.entries()].sort((a, b) => a[0] - b[0]).map(([, c]) => c)
+    expect(sizes).toEqual([...sizes].sort((a, b) => b - a))
+    // copies: the layout's nodes keep their own community
+    expect(nodes[0].communityId).toBe(0)
+  })
+
+  it('never wraps the whole scene: a cut closed at the root gives no envelope', () => {
+    const far = cutForView(tree, view(0, 0, 1e7), PAGE)
+    const kinds = new Set(far.frontier.map((i) => tree.nodes[i].kind))
+    expect(kinds.has('community') || kinds.has('split') || kinds.has('region')).toBe(false)
+    expect(closedGroupHullNodes(tree, far, nodes)).toEqual([])
+  })
+})
+
+describe('graphFromCut — a pair of modules is ONE trunk, whatever is open', () => {
+  // Real graph: components ↔ types carried 376 imports, drawn as dozens of
+  // corridors of 1 to 12 relations, because an aggregate link carried no
+  // community and the renderer bundles corridors per pair of communities.
+  const { nodes, links, centres } = synth(3000, 6000, 12)
+  const tree = buildClusterTree(nodes, links)
+  const [cx, cy, cz] = centres[3]
+  const cut = cutForView(tree, view(cx, cy, cz + 300), PAGE)
+  const g = graphFromCut(tree, cut, nodes, links)
+
+  it('every aggregate link names the communities of its two ends', () => {
+    const byId = new Map(g.nodes.map((n) => [n.id, n]))
+    const aggregates = g.links.filter((l) => l.relationType === 'AGGREGATE')
+    expect(aggregates.length).toBeGreaterThan(0)
+    for (const l of aggregates) {
+      expect(l.sourceCommunityId).toBe(byId.get(l.source as string)!.communityId)
+      expect(l.targetCommunityId).toBe(byId.get(l.target as string)!.communityId)
+      expect(l.isInterCommunity).toBe(l.sourceCommunityId !== l.targetCommunityId)
+    }
+  })
+
+  it('the corridors follow the pairs of communities: fewer, heavier trunks', () => {
+    // aggregates only: the layout gives the REAL links their communities (this
+    // fixture does not); the aggregates are what the cut builds
+    const aggregates = g.links.filter((l) => l.relationType === 'AGGREGATE')
+    const corridors = buildCorridors(aggregates)
+    const pairs = new Set(aggregates.map((l) => {
+      const a = l.sourceCommunityId ?? -1, b = l.targetCommunityId ?? -1
+      return a < b ? `${a}-${b}` : `${b}-${a}`
+    }))
+    expect(corridors.length).toBeLessThanOrEqual(pairs.size)
+    const heaviest = Math.max(...corridors.map((c) => Number(c.magnitude.exactCount)))
+    const heaviestLink = Math.max(...aggregates.map((l) => l.count ?? 1))
+    expect(heaviest).toBeGreaterThan(heaviestLink)
+  })
+})
