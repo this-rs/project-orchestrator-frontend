@@ -47,3 +47,59 @@ export function mergeGraphDelta(base: GraphSnapshot, delta: GraphDeltaAnswer): G
   const kept = [...edges.values()].filter((e) => nodes.has(e.source) && nodes.has(e.target))
   return { nodes: [...nodes.values()], edges: kept }
 }
+
+// ── Shared by the project and the workspace graph loaders ───────────────────
+
+/** How long a snapshot may live on deltas alone before the next load is a full one. */
+export const FULL_RELOAD_AFTER_MS = 10 * 60_000
+
+/**
+ * The layer groups of a progressive load: the code/fabric core first, then the
+ * rest — or one group when only one side is visible. Each group is cached under
+ * its own key, so a refresh must load the same groups as the initial load (the
+ * mount effect of each loader splits the same way).
+ */
+export function progressiveGroups(layers: string[]): string[][] {
+  const primary = layers.filter((l) => l === 'code' || l === 'fabric')
+  const rest = layers.filter((l) => l !== 'code' && l !== 'fabric')
+  return primary.length > 0 && rest.length > 0 ? [primary, rest] : [layers]
+}
+
+/**
+ * Fold an edge list with its deletions, WITHOUT the endpoint check of
+ * mergeGraphDelta: cross-project edges join nodes the list itself does not hold.
+ */
+export function mergeEdgeList(
+  base: readonly BackendGraphEdge[],
+  delta: readonly BackendGraphEdge[],
+  deleted: readonly { source: string; target: string; edge_type: string }[] = [],
+): BackendGraphEdge[] {
+  const edges = new Map(base.map((e) => [edgeKey(e), e] as const))
+  for (const d of deleted) edges.delete(edgeKey({ ...d, type: d.edge_type }))
+  for (const e of delta) edges.set(edgeKey(e), e)
+  return [...edges.values()]
+}
+
+export interface WorkspaceSnapshot<P> extends GraphSnapshot {
+  cross_project_edges: BackendGraphEdge[]
+  projects: P[]
+}
+
+export interface WorkspaceDeltaAnswer<P> extends GraphDeltaAnswer {
+  cross_project_edges?: BackendGraphEdge[]
+  projects?: P[]
+}
+
+/**
+ * Fold a workspace delta into a workspace snapshot: nodes and edges as for a
+ * project, the cross-project edges as an unchecked list (minus those touching a
+ * deleted node), and the project list taken from the delta when it carries one.
+ */
+export function mergeWorkspaceDelta<P>(base: WorkspaceSnapshot<P>, delta: WorkspaceDeltaAnswer<P>): WorkspaceSnapshot<P> {
+  const core = mergeGraphDelta(base, delta)
+  const gone = new Set((delta.deleted_nodes ?? []).map((d) => d.id))
+  const cross = mergeEdgeList(base.cross_project_edges, delta.cross_project_edges ?? [], delta.deleted_edges ?? []).filter(
+    (e) => !gone.has(e.source) && !gone.has(e.target),
+  )
+  return { ...core, cross_project_edges: cross, projects: delta.projects?.length ? delta.projects : base.projects }
+}

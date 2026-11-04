@@ -133,6 +133,10 @@ export const intelligenceApi = {
       layers?: string[]
       limit?: number
       community?: number
+      /** Cursor (`synced_at` of an earlier answer): only what changed since it. */
+      since?: string
+      /** Also list what disappeared since `since`. Asked on a full load too, so it yields a cursor. */
+      includeDeleted?: boolean
     } = {},
     signal?: AbortSignal,
   ) => {
@@ -140,8 +144,10 @@ export const intelligenceApi = {
       layers: params.layers?.join(','),
       limit: params.limit,
       community: params.community,
+      since: params.since,
+      include_deleted: params.includeDeleted ? 'true' : undefined,
     })
-    return api.get<WorkspaceGraphResponse>(
+    return api.get<WorkspaceGraphResponse & GraphSyncMeta>(
       `/workspaces/${workspaceSlug}/graph${query}`,
       signal,
     )

@@ -12,7 +12,7 @@ import type {
 } from '@/types/intelligence'
 import { EDGE_STYLES } from '@/constants/intelligence'
 import { graphCacheKey, graphCachePeek, graphCacheSet } from './graphCache'
-import { mergeGraphDelta } from './graphDelta'
+import { FULL_RELOAD_AFTER_MS, mergeGraphDelta, progressiveGroups } from './graphDelta'
 import {
   intelligenceNodesAtom,
   intelligenceEdgesAtom,
@@ -119,30 +119,19 @@ type Tr = ReturnType<typeof useT>['t']
 const countOf = (t: Tr, n: number, one: MessageKey, other: MessageKey) => t(n === 1 ? one : other, { count: n })
 const nodesText = (t: Tr, n: number) => countOf(t, n, 'intelPage.graph.stage.nodesOne', 'intelPage.graph.stage.nodesOther')
 
+// Shared with the workspace loader (graphDelta.ts); re-exported for the callers
+// and tests that import them from here.
+export { FULL_RELOAD_AFTER_MS, progressiveGroups }
+
+/** A cached project graph: the response, its sync cursor, and when it was last loaded in FULL. */
+export type CachedProjectGraph = ProjectGraphResponse & GraphSyncMeta & { loaded_full_at?: number }
+
 /**
  * Refresh a stale snapshot by its delta: only what changed since its cursor is
  * fetched and folded in. When the delta cannot vouch for the result (no cursor,
  * deletions not tracked, or the delta request failed), the graph is loaded in
  * full. An abort is never swallowed.
  */
-/**
- * The layer groups of a progressive load: the code/fabric core first, then the
- * rest — or one group when only one side is visible. Each group is cached under
- * its own key, so a refresh must load the same groups as the initial load (it
- * mirrors the split in the mount effect below).
- */
-export function progressiveGroups(layers: string[]): string[][] {
-  const primary = layers.filter((l) => l === 'code' || l === 'fabric')
-  const rest = layers.filter((l) => l !== 'code' && l !== 'fabric')
-  return primary.length > 0 && rest.length > 0 ? [primary, rest] : [layers]
-}
-
-/** How long a snapshot may live on deltas alone before the next load is a full one. */
-export const FULL_RELOAD_AFTER_MS = 10 * 60_000
-
-/** A cached project graph: the response, its sync cursor, and when it was last loaded in FULL. */
-export type CachedProjectGraph = ProjectGraphResponse & GraphSyncMeta & { loaded_full_at?: number }
-
 export async function refreshProjectGraph(
   slug: string,
   layers: string[],
