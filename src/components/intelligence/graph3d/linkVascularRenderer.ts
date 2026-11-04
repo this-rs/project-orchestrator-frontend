@@ -613,6 +613,16 @@ export const CAP_TRUNK_SHARE = 0.06
  * depuis son CENTRE (pour le LOD, lodOptionsForScene) et le type d'appareil.
  * Le renderer s'en sert ; un test qui veut l'estimation exacte aussi.
  */
+/**
+ * Plafond de triangles d'un appareil mobile, quand l'appelant n'en donne pas.
+ *
+ * Mesuré : le plafond poste fixe (240 000) est atteint sur toute vue d'ensemble
+ * (le budget agrège jusqu'à le remplir), dont ≈ 75 % de triangles
+ * translucides — du surdessin, ce qui chauffe un téléphone. Le quart suffit :
+ * le budget agrège davantage, aucune relation n'est perdue.
+ */
+export const MOBILE_MAX_TRIANGLES = 60_000
+
 export function vascularBudget(
   nodes: readonly { id: string; x: number; y: number; z: number }[],
   corridors: readonly Corridor[],
@@ -628,6 +638,7 @@ export function vascularBudget(
   return {
     ...budget,
     ...(sceneRadius > 0 ? { sceneRadius } : {}),
+    ...(MOBILE_LIKE && budget.maxTriangles === undefined ? { maxTriangles: MOBILE_MAX_TRIANGLES } : {}),
     mobile: MOBILE_LIKE,
     shapeOf: vascularShapeOf((id) => byId.get(id), corridors, MOBILE_LIKE),
   }
@@ -670,7 +681,8 @@ export function createVascularLinks(
     const corridors = buildCorridors(links)
     if (corridors.length === 0) return null
 
-    const system = buildLinkSystem(fromCorridors(corridors), vascularBudget(nodes, corridors, budget))
+    const effective = vascularBudget(nodes, corridors, budget)
+    const system = buildLinkSystem(fromCorridors(corridors), effective)
     if (system.bundles.length === 0) return null
 
     const corridorByKey = new Map(corridors.map((c) => [c.key, c]))
@@ -1047,7 +1059,7 @@ export function createVascularLinks(
     // PLAFOND DUR. Le modèle de coût partagé rend l'estimation exacte ; si un
     // écart réapparaissait (un bug du modèle), le budget reste un plafond : on
     // retire les plus petits faisceaux (fin de liste) jusqu'à rentrer dedans.
-    const maxTriangles = budget.maxTriangles ?? DEFAULT_SYSTEM_BUDGET.maxTriangles
+    const maxTriangles = effective.maxTriangles ?? DEFAULT_SYSTEM_BUDGET.maxTriangles
     if (index.length / 3 > maxTriangles) {
       if (import.meta.env?.DEV) {
         console.warn(`[linkVascular] ${index.length / 3} triangles produits pour un budget de ${maxTriangles} : troncature`)
