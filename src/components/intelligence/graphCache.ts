@@ -53,6 +53,20 @@ export function graphCacheGet(key: string, now: number = Date.now()): CachedGrap
   return entry.response
 }
 
+/**
+ * The entry under `key` whether it is fresh or not, without evicting it. A stale
+ * entry is not garbage: its `synced_at` cursor lets the next load ask only for
+ * what changed since (see graphDelta), instead of the whole graph again.
+ */
+export function graphCachePeek(
+  key: string,
+  now: number = Date.now(),
+): { response: CachedGraphResponse; fresh: boolean } | null {
+  const entry = cache.get(key)
+  if (!entry) return null
+  return { response: entry.response, fresh: now - entry.ts <= GRAPH_CACHE_TTL_MS }
+}
+
 /** Store a response under `key`, stamped now. */
 export function graphCacheSet(key: string, response: CachedGraphResponse, now: number = Date.now()): void {
   cache.set(key, { response, ts: now })

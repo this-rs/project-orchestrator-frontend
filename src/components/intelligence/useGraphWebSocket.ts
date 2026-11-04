@@ -8,6 +8,7 @@ import type { IntelligenceNode, IntelligenceEdge, IntelligenceRelationType } fro
 import { EDGE_STYLES } from '@/constants/intelligence'
 import { activationStateAtom, type ActivationState } from './SpreadingActivation'
 import { emitEntityPulse, entityIdsOfCrudEvent, entityIdsOfGraphEvent } from './livePulseBus'
+import { createRefreshScheduler, type RefreshScheduler } from './refreshScheduler'
 import type { CrudEvent } from '@/types'
 
 // ============================================================================
@@ -63,6 +64,18 @@ interface GraphActivation {
   scores?: Record<string, number>
 }
 
+/** A layer was rewritten in bulk (a sync): the graph on screen is out of date, one refresh brings it back. */
+interface GraphBatchCreated {
+  type: 'graph.batch_created'
+  layer: string
+}
+
+/** A node left the graph (note deleted, file dropped by a sync): it goes now, with its edges. */
+interface GraphNodeDeleted {
+  type: 'graph.node_deleted'
+  node_id: string
+}
+
 interface GraphCommunityChanged {
   type: 'graph.community_changed'
   node_ids: string[]
@@ -78,6 +91,8 @@ type FrontendGraphEvent =
   | GraphReinforcement
   | GraphActivation
   | GraphCommunityChanged
+  | GraphNodeDeleted
+  | GraphBatchCreated
 
 // ============================================================================
 // BACKEND → FRONTEND EVENT MAPPING
@@ -90,7 +105,7 @@ type FrontendGraphEvent =
  * The backend sends flat events with node_id, target_id, edge_type, delta fields.
  * The frontend expects structured events with nested objects (node, edge, etc.).
  */
-function mapBackendEvent(raw: BackendGraphEvent): FrontendGraphEvent | null {
+export function mapBackendEvent(raw: BackendGraphEvent): FrontendGraphEvent | null {
   const delta = raw.delta as Record<string, unknown> | null
 
   switch (raw.type) {
@@ -126,6 +141,14 @@ function mapBackendEvent(raw: BackendGraphEvent): FrontendGraphEvent | null {
           attributes: delta as Record<string, unknown> | undefined,
         },
       }
+    }
+
+    case 'node_deleted': {
+      return { type: 'graph.node_deleted', node_id: raw.node_id ?? '' }
+    }
+
+    case 'batch_created': {
+      return { type: 'graph.batch_created', layer: raw.layer }
     }
 
     case 'edge_removed': {
@@ -214,7 +237,29 @@ export interface GraphWsState {
  * (managed by EventBusClient) and buffered via requestAnimationFrame
  * to avoid excessive re-renders.
  */
-export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState {
+export interface GraphWsOptions {
+  /** The graph on screen is out of date (a sync rewrote a layer): reload it. */
+  onRefreshNeeded?: () => void
+}
+
+/** After the first batch event, wait this long for the rest of a sync's burst. */
+const REFRESH_SETTLE_MS = 2000
+
+export function useGraphWebSocket(projectSlug: string | undefined, options: GraphWsOptions = {}): GraphWsState {
+  const onRefreshNeededRef = useRef(options.onRefreshNeeded)
+  useEffect(() => {
+    onRefreshNeededRef.current = options.onRefreshNeeded
+  })
+  // One scheduler per project: a pending refresh belongs to the project that asked for it.
+  const refreshSchedulerRef = useRef<RefreshScheduler | null>(null)
+  useEffect(() => {
+    const scheduler = createRefreshScheduler(() => onRefreshNeededRef.current?.(), REFRESH_SETTLE_MS)
+    refreshSchedulerRef.current = scheduler
+    return () => {
+      scheduler.cancel()
+      refreshSchedulerRef.current = null
+    }
+  }, [projectSlug])
   const setNodes = useSetAtom(intelligenceNodesAtom)
   const setEdges = useSetAtom(intelligenceEdgesAtom)
   const setActivation = useSetAtom(activationStateAtom)
@@ -371,6 +416,25 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
           }
           pendingRef.current.addEdges.push(newEdge)
           scheduleFlush()
+          break
+        }
+
+        case 'graph.batch_created': {
+          // A sync rewrote a layer. Ask the page for ONE refresh, however many
+          // batch events the sync emits; it reads only the delta (see
+          // refreshProjectGraph) and runs when the tab is visible.
+          refreshSchedulerRef.current?.request()
+          break
+        }
+
+        case 'graph.node_deleted': {
+          // Removed at once, as the backend says it is gone: a pending add or
+          // update for the same id must not resurrect it on the next flush.
+          const gone = event.node_id
+          pendingRef.current.addNodes = pendingRef.current.addNodes.filter((n) => n.id !== gone)
+          pendingRef.current.updateNodes.delete(gone)
+          setNodes((prev) => prev.filter((n) => n.id !== gone))
+          setEdges((prev) => prev.filter((e) => e.source !== gone && e.target !== gone))
           break
         }
 
@@ -603,7 +667,7 @@ export function useGraphWebSocket(projectSlug: string | undefined): GraphWsState
         }
       }
     },
-    [scheduleFlush, setEdges, setActivation],
+    [scheduleFlush, setNodes, setEdges, setActivation],
   )
 
   // Subscribe to EventBus graph events (replaces direct WS connection)

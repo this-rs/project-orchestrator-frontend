@@ -29,9 +29,10 @@ import {
   graphLoadingStagesAtom,
   type LoadingStage,
 } from '@/atoms/intelligence'
-import { intelligenceApi } from '@/services/intelligence'
+import { intelligenceApi, type GraphSyncMeta } from '@/services/intelligence'
 import { VISIBILITY_PRESETS } from '@/constants/intelligence'
-import { graphCacheKey, graphCacheGet, graphCacheSet } from './graphCache'
+import { graphCacheKey, graphCachePeek, graphCacheSet } from './graphCache'
+import { FULL_RELOAD_AFTER_MS, mergeWorkspaceDelta, progressiveGroups } from './graphDelta'
 import type { VisibilityMode, WorkspaceGraphResponse } from '@/types/intelligence'
 
 // ── Transform backend data → ReactFlow ───────────────────────────────────────
@@ -110,6 +111,47 @@ type Tr = ReturnType<typeof useT>['t']
 const countOf = (t: Tr, n: number, one: MessageKey, other: MessageKey) => t(n === 1 ? one : other, { count: n })
 const nodesText = (t: Tr, n: number) => countOf(t, n, 'intelPage.graph.stage.nodesOne', 'intelPage.graph.stage.nodesOther')
 
+/** A cached workspace graph: the response, its sync cursor, and when it was last loaded in FULL. */
+export type CachedWorkspaceGraph = WorkspaceGraphResponse & GraphSyncMeta & { loaded_full_at?: number }
+
+/**
+ * Refresh a stale workspace snapshot by its delta (same rules as the project
+ * graph, see refreshProjectGraph): only what changed since its cursor is
+ * fetched and folded in; anything the delta cannot vouch for is loaded in full.
+ */
+export async function refreshWorkspaceGraph(
+  slug: string,
+  layers: string[],
+  limit: number,
+  stale: CachedWorkspaceGraph | null,
+  signal?: AbortSignal,
+  now: number = Date.now(),
+): Promise<CachedWorkspaceGraph> {
+  const withinBound = stale?.loaded_full_at != null && now - stale.loaded_full_at < FULL_RELOAD_AFTER_MS
+  if (stale?.synced_at && stale.deletions_tracked !== false && withinBound) {
+    try {
+      const delta = await intelligenceApi.getWorkspaceGraph(
+        slug,
+        { layers, limit, since: stale.synced_at, includeDeleted: true },
+        signal,
+      )
+      if (delta.deletions_tracked !== false) {
+        return {
+          ...stale,
+          ...delta,
+          ...mergeWorkspaceDelta(stale, delta),
+          communities: delta.communities?.length ? delta.communities : stale.communities,
+          loaded_full_at: stale.loaded_full_at,
+        }
+      }
+    } catch (err) {
+      if (signal?.aborted) throw err
+    }
+  }
+  const full = await intelligenceApi.getWorkspaceGraph(slug, { layers, limit, includeDeleted: true }, signal)
+  return { ...full, loaded_full_at: now }
+}
+
 export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined) {
   const { t } = useT()
   const tRef = useRef(t)
@@ -163,21 +205,27 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
     // that the calls of a progressive load add up to the budget, not beyond.
     const perCategory = Math.max(1, Math.floor(limit / Math.max(1, budgetLayers, layers.length)))
     const cacheKey = graphCacheKey('workspace', workspaceSlug, layers, perCategory)
-    const cached = force ? null : (graphCacheGet(cacheKey) as WorkspaceGraphResponse | null)
+    // A forced refresh ignores a FRESH entry but may still start from its
+    // snapshot: only the delta then crosses the wire, and nothing blinks (the
+    // graph is already on screen). A first load keeps its indicators.
+    const peeked = graphCachePeek(cacheKey)
+    const cached = !force && peeked?.fresh ? (peeked.response as WorkspaceGraphResponse) : null
+    const stale = peeked && !cached ? (peeked.response as CachedWorkspaceGraph) : null
+    const background = force && stale != null
     setError(null)
-    setLoadingLayers((prev: Set<string>) => {
-      const next = new Set(prev)
-      layers.forEach((l) => next.add(l))
-      return next
-    })
-    if (!cached) {
+    if (!background) {
+      setLoadingLayers((prev: Set<string>) => {
+        const next = new Set(prev)
+        layers.forEach((l) => next.add(l))
+        return next
+      })
+    }
+    if (!cached && !background) {
       setLoading(true)
       if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
     }
     try {
-      const data =
-        cached ??
-        await intelligenceApi.getWorkspaceGraph(workspaceSlug, { layers, limit: perCategory }, signal)
+      const data = cached ?? (await refreshWorkspaceGraph(workspaceSlug, layers, perCategory, stale, signal))
       if (!cached) graphCacheSet(cacheKey, data)
 
       // Store project metadata
@@ -242,8 +290,14 @@ export function useWorkspaceIntelligenceGraph(workspaceSlug: string | undefined)
   const fetchGraph = useCallback(async () => {
     const layers = Array.from(visibleLayers) as string[]
     fetchedLayersRef.current.clear()
-    // Explicit refresh must bypass the cache.
-    await fetchGraphForLayers(layers, nodeLimit, undefined, undefined, true)
+    // Explicit refresh must bypass a FRESH cache entry. It loads the same groups
+    // as the initial load, each with its own cache entry, so it can start from
+    // the snapshot that load left and read only the delta.
+    await Promise.all(
+      progressiveGroups(layers).map((group) =>
+        fetchGraphForLayers(group, nodeLimit, undefined, undefined, true, layers.length),
+      ),
+    )
   }, [visibleLayers, nodeLimit, fetchGraphForLayers])
 
   // Fetch workspace summary (aggregated)
