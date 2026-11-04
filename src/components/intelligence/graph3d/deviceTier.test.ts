@@ -97,6 +97,7 @@ describe('TIER_BUDGETS', () => {
 describe('readDeviceSignals / currentDeviceBudget', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.restoreAllMocks()
     resetDeviceBudgetCache()
   })
 
@@ -105,6 +106,10 @@ describe('readDeviceSignals / currentDeviceBudget', () => {
     // with vitest's file order it leaked into this one, so the suite passed
     // locally and failed in CI. Stub it out instead of assuming nothing set it.
     vi.stubGlobal('matchMedia', undefined)
+    // Same for the core count: jsdom forwards the HOST's, and a 4-core CI runner
+    // reads as medium (the gate failed on 04/11 with 5490 tests green). A desktop
+    // that reports no core count is the case this test pins.
+    vi.spyOn(navigator, 'hardwareConcurrency', 'get').mockReturnValue(undefined as unknown as number)
     resetDeviceBudgetCache()
     expect(readDeviceSignals().coarsePointer).toBe(false)
     expect(currentDeviceBudget().tier).toBe('high')
