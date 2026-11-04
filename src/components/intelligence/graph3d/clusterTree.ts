@@ -78,7 +78,7 @@ export const CHILD_SPACING_PX = 12
  * front never burst into its nodes (« je devrais pouvoir voir tout en éclaté
  * en face de moi »).
  */
-export const LEAF_SPACING_FACTOR = 0.5
+export const LEAF_SPACING_FACTOR = 0.25
 
 /** Projected radius, px, above which a node with `childCount` children opens. */
 export function openThresholdPx(tau: number, childCount: number, spacingPx = CHILD_SPACING_PX): number {

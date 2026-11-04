@@ -374,17 +374,21 @@ describe('cutForView — a group opens only when its children can be told apart'
     return cutForView(tree, view(community.x, community.y, community.z + d), BIG)
   }
 
-  it('stays one group at 40 px: 64 children would sit ~5 px apart', () => {
-    expect(at(40).frontier).toContain(community.index)
+  it('stays closed below the 24 px floor', () => {
+    expect(at(20).open.has(community.index)).toBe(false)
+  })
+
+  it('opens at 40 px: 64 real children sit ~3 px apart, points overlap slightly (accepted)', () => {
+    expect(at(40).open.has(community.index)).toBe(true)
   })
 
   it('opens once its children are ~12 px apart', () => {
     expect(at(12 * Math.sqrt(community.children.length) * 1.1).open.has(community.index)).toBe(true)
   })
 
-  it('bursts into its real nodes once they sit ~6 px apart (half the spacing of groups)', () => {
-    // all 64 children are files: at full spacing this needed 96 px, so the
-    // front never burst (measured: closed groups of real nodes at 27–38 px)
+  it('bursts into its real nodes at a quarter of the group spacing', () => {
+    // all 64 children are files: the leaf spacing is LEAF_SPACING_FACTOR of the
+    // group spacing, so the front bursts earlier (points may overlap slightly)
     expect(community.children.every((c) => tree.nodes[c].kind === 'leaf')).toBe(true)
     const px = 12 * LEAF_SPACING_FACTOR * Math.sqrt(community.children.length) * 1.1
     expect(px).toBeLessThan(12 * Math.sqrt(community.children.length))
@@ -402,10 +406,11 @@ describe('cutForView — a finger needs more room than a pointer', () => {
   }))
   const tree = buildClusterTree(nodes, [])
   const c = tree.nodes.find((t) => t.kind === 'community')!
-  // its children are real nodes, so the spacing needed is LEAF_SPACING_FACTOR
-  // of the budget's: seen where they sit ~7 px apart, a pointer (12 → 6 px)
-  // opens, a finger (18 → 9 px) waits
-  const px = 7 * Math.sqrt(c.children.length)
+  // its children are real nodes: the opening threshold is LEAF_SPACING_FACTOR ×
+  // the budget's spacing × √64 = 0.25 × 12 × 8 = 24 px for a pointer, and
+  // 0.25 × 18 × 8 = 36 px for a finger. Seen at 30 px: the pointer opens, the
+  // finger waits
+  const px = 30
   const d = (c.radius * 450) / (px * Math.tan((22.5 * Math.PI) / 180))
   const v = view(c.x, c.y, c.z + d)
 
@@ -446,7 +451,7 @@ describe('cutForView — foveated: the detail goes where the camera looks', () =
     // at half the spacing); the second ball ~41° off the line of sight, at the
     // edge of the view (half-diagonal 40°, +10 %) and beyond the full-weight
     // plateau (FOCUS_PLATEAU), so it gets less of the bonus
-    const nodes = [...ball(3, -3600, 0), ...ball(4, -3600, 3100)]
+    const nodes = [...ball(3, -7200, 0), ...ball(4, -7200, 6200)]
     const tree = buildClusterTree(nodes, [])
     const centre = tree.nodes.find((t) => t.kind === 'community' && t.id.endsWith('c3'))!
     const edge = tree.nodes.find((t) => t.kind === 'community' && t.id.endsWith('c4'))!
