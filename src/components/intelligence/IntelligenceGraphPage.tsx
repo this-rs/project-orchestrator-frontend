@@ -74,7 +74,8 @@ export default function IntelligenceGraphPage(props: IntelligenceGraphPageProps)
   } = useIntelligenceGraph(projectSlug)
 
   // Real-time WebSocket updates
-  useGraphWebSocket(projectSlug)
+  // A sync that rewrites a layer asks for ONE refresh; it reads only the delta.
+  useGraphWebSocket(projectSlug, { onRefreshNeeded: () => void fetchGraph() })
   // Protocol run events — update runStatus overlay on ProtocolNodes
   useProtocolRunEvents()
 

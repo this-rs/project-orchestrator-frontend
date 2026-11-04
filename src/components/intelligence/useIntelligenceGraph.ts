@@ -125,14 +125,37 @@ const nodesText = (t: Tr, n: number) => countOf(t, n, 'intelPage.graph.stage.nod
  * deletions not tracked, or the delta request failed), the graph is loaded in
  * full. An abort is never swallowed.
  */
+/**
+ * The layer groups of a progressive load: the code/fabric core first, then the
+ * rest — or one group when only one side is visible. Each group is cached under
+ * its own key, so a refresh must load the same groups as the initial load (it
+ * mirrors the split in the mount effect below).
+ */
+export function progressiveGroups(layers: string[]): string[][] {
+  const primary = layers.filter((l) => l === 'code' || l === 'fabric')
+  const rest = layers.filter((l) => l !== 'code' && l !== 'fabric')
+  return primary.length > 0 && rest.length > 0 ? [primary, rest] : [layers]
+}
+
+/** How long a snapshot may live on deltas alone before the next load is a full one. */
+export const FULL_RELOAD_AFTER_MS = 10 * 60_000
+
+/** A cached project graph: the response, its sync cursor, and when it was last loaded in FULL. */
+export type CachedProjectGraph = ProjectGraphResponse & GraphSyncMeta & { loaded_full_at?: number }
+
 export async function refreshProjectGraph(
   slug: string,
   layers: string[],
   limit: number,
-  stale: (ProjectGraphResponse & GraphSyncMeta) | null,
+  stale: CachedProjectGraph | null,
   signal?: AbortSignal,
-): Promise<ProjectGraphResponse & GraphSyncMeta> {
-  if (stale?.synced_at && stale.deletions_tracked !== false) {
+  now: number = Date.now(),
+): Promise<CachedProjectGraph> {
+  // A delta cannot see an edge created between two unchanged nodes (documented
+  // by the backend), and every merge re-stamps the cache: without a bound the
+  // gap would never close. A full load every FULL_RELOAD_AFTER_MS closes it.
+  const withinBound = stale?.loaded_full_at != null && now - stale.loaded_full_at < FULL_RELOAD_AFTER_MS
+  if (stale?.synced_at && stale.deletions_tracked !== false && withinBound) {
     try {
       const delta = await intelligenceApi.getGraph(
         slug,
@@ -147,13 +170,15 @@ export async function refreshProjectGraph(
           nodes: merged.nodes as ProjectGraphResponse['nodes'],
           edges: merged.edges as ProjectGraphResponse['edges'],
           communities: delta.communities?.length ? delta.communities : stale.communities,
+          loaded_full_at: stale.loaded_full_at,
         }
       }
     } catch (err) {
       if (signal?.aborted) throw err
     }
   }
-  return intelligenceApi.getGraph(slug, { layers, limit, includeDeleted: true }, signal)
+  const full = await intelligenceApi.getGraph(slug, { layers, limit, includeDeleted: true }, signal)
+  return { ...full, loaded_full_at: now }
 }
 
 export function useIntelligenceGraph(projectSlug: string | undefined) {
@@ -207,19 +232,28 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     // that the calls of a progressive load add up to the budget, not beyond.
     const perCategory = Math.max(1, Math.floor(limit / Math.max(1, budgetLayers, layers.length)))
     const cacheKey = graphCacheKey('project', projectSlug, layers, perCategory)
-    const peeked = force ? null : graphCachePeek(cacheKey)
-    const cached = peeked?.fresh ? (peeked.response as ProjectGraphResponse) : null
-    const stale = peeked && !peeked.fresh ? (peeked.response as ProjectGraphResponse & GraphSyncMeta) : null
+    // A forced refresh ignores a FRESH entry (it asked for the network) but may
+    // still start from its snapshot: only the delta then crosses the wire.
+    const peeked = graphCachePeek(cacheKey)
+    const cached = !force && peeked?.fresh ? (peeked.response as ProjectGraphResponse) : null
+    const stale = peeked && !cached ? (peeked.response as CachedProjectGraph) : null
+    // A forced refresh that starts from a snapshot is a BACKGROUND refresh: the
+    // graph is already on screen and only a delta crosses the wire, so nothing
+    // may blink. A first load (or a retry with nothing cached) still shows its
+    // indicators.
+    const background = force && stale != null
     setError(null)
     // Track per-layer loading state for UI indicators
-    setLoadingLayers((prev: Set<string>) => {
-      const next = new Set(prev)
-      layers.forEach((l) => next.add(l))
-      return next
-    })
+    if (!background) {
+      setLoadingLayers((prev: Set<string>) => {
+        const next = new Set(prev)
+        layers.forEach((l) => next.add(l))
+        return next
+      })
+    }
     // Only flash the loading state (and the stages) when we actually go to the
     // network; a cache hit resolves synchronously and must not blink a spinner.
-    if (!cached) {
+    if (!cached && !background) {
       setLoading(true)
       if (stageId) updateStage(stageId, { status: 'loading', startedAt: Date.now() })
     }
@@ -291,8 +325,15 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
   const fetchGraph = useCallback(async () => {
     const layers = Array.from(visibleLayers) as string[]
     fetchedLayersRef.current.clear()
-    // Explicit refresh (retry button, WebSocket-driven) must bypass the cache.
-    await fetchGraphForLayers(layers, nodeLimit, undefined, undefined, true)
+    // Explicit refresh (retry button, WebSocket-driven) must bypass a FRESH
+    // cache entry. It loads the same groups as the initial load, each with its
+    // own cache entry: that is what lets a refresh start from the snapshot the
+    // initial load left and read only the delta.
+    await Promise.all(
+      progressiveGroups(layers).map((group) =>
+        fetchGraphForLayers(group, nodeLimit, undefined, undefined, true, layers.length),
+      ),
+    )
   }, [visibleLayers, nodeLimit, fetchGraphForLayers])
 
   // Fetch summary

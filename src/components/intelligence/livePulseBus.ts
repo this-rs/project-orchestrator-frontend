@@ -92,6 +92,8 @@ export type PulsableGraphEvent =
   | { type: 'graph.community_changed' }
   // A deleted node has nothing left to pulse: it maps to no id (see default).
   | { type: 'graph.node_deleted'; node_id: string }
+  // A whole layer was rewritten (a sync): no single node to pulse, a refresh instead.
+  | { type: 'graph.batch_created'; layer: string }
 
 /** Ids a mapped graph event designates, or [] (activation / community are not pulses). */
 export function entityIdsOfGraphEvent(e: PulsableGraphEvent): string[] {

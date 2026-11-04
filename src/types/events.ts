@@ -73,6 +73,8 @@ export type GraphEventType =
   | 'node_created'
   | 'node_updated'
   | 'node_deleted'
+  | 'batch_created'
+  | 'scores_updated'
   | 'edge_created'
   | 'edge_removed'
   | 'reinforcement'
