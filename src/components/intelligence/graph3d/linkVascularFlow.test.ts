@@ -145,3 +145,44 @@ describe('flux éteint tant que personne ne l’anime', () => {
     expect(materialOf(r).uniforms.uFlowOn.value).toBe(1)
   })
 })
+
+/**
+ * Un tick de layout ne déplace que des POSITIONS : il ne doit téléverser que
+ * position / aNormal / aAxis, et ne pas recalculer une sphère englobante sur
+ * ~140 000 sommets (frustumCulled = false : personne ne la lit au rendu).
+ */
+describe('coût d’un tick de positions', () => {
+  it('ne téléverse que position, aNormal et aAxis', () => {
+    const { nodes, links } = synth(300)
+    const r = createVascularLinks(nodes, links)!
+    const attrs = (r.object as unknown as { children: { geometry: { attributes: Record<string, { version: number }> } }[] }).children[0].geometry.attributes
+    const before = Object.fromEntries(Object.entries(attrs).map(([k, a]) => [k, a.version]))
+    r.updatePositions()
+    const changed = Object.keys(attrs).filter((k) => attrs[k].version !== before[k]).sort()
+    expect(changed).toEqual(['aAxis', 'aNormal', 'position'])
+  })
+
+  it('ne recalcule pas la sphère englobante à chaque tick', () => {
+    const { nodes, links } = synth(300)
+    const r = createVascularLinks(nodes, links)!
+    const geometry = (r.object as unknown as { children: { geometry: { computeBoundingSphere: () => void; boundingSphere: unknown } }[] }).children[0].geometry
+    const spy = vi.spyOn(geometry, 'computeBoundingSphere')
+    r.updatePositions()
+    r.updatePositions()
+    expect(spy).not.toHaveBeenCalled()
+    // Invalidée : un lancer de rayon la recalculera, à la demande.
+    expect(geometry.boundingSphere).toBeNull()
+  })
+
+  it('les couleurs survivent au tick (rien n’est repeint ni perdu)', () => {
+    const { nodes, links } = synth(300)
+    const r = createVascularLinks(nodes, links)!
+    r.updateColors(() => ({ r: 1, g: 0.5, b: 0, a: 0.2 }))
+    const g = geometryOf(r)
+    const col = Float32Array.from(g.attributes.aColor.array)
+    const alp = Float32Array.from(g.attributes.aAlpha.array)
+    r.updatePositions()
+    expect(Float32Array.from(g.attributes.aColor.array)).toEqual(col)
+    expect(Float32Array.from(g.attributes.aAlpha.array)).toEqual(alp)
+  })
+})

@@ -1350,8 +1350,11 @@ export function createVascularLinks(
       return b
     }
 
-    /** Write one conduit's tube into the shared buffers. */
-    const fillConduit = (bundle: Bundle, conduit: Conduit, style: LinkStyle) => {
+    /**
+     * Write one conduit's tube into the shared buffers. `style` null = a
+     * positions-only tick: colours and opacities are left as they are.
+     */
+    const fillConduit = (bundle: Bundle, conduit: Conduit, style: LinkStyle | null) => {
       const s = nodeById.get(conduit.fromId)
       const t = nodeById.get(conduit.toId)
       if (!s || !t) {
@@ -1377,7 +1380,7 @@ export function createVascularLinks(
           points.push([s.x + dx * R * x, s.y + dy * R * x, s.z + dz * R * x])
         }
         writeRings(conduit, points, (u) => R * Math.sqrt(Math.max(0, 1 - (2 * u - 1) ** 2)), null, 0)
-        paintConduit(conduit, style)
+        if (style) paintConduit(conduit, style)
         return
       }
       const a: Vec3 = [s.x, s.y, s.z]
@@ -1399,7 +1402,7 @@ export function createVascularLinks(
         braidOf(conduit),
         trunkR * 0.5,
       )
-      paintConduit(conduit, style)
+      if (style) paintConduit(conduit, style)
     }
 
     /**
@@ -1448,20 +1451,32 @@ export function createVascularLinks(
       }
     }
 
-    const fillGeometry = () => {
+    /**
+     * `full` : construction (tout est écrit). Sinon, un tick de layout : seuls
+     * les anneaux bougent — position, normale et axe sont les seuls tampons
+     * téléversés (aColor, aAlpha, aEmit, aU, aPhase ne dépendent pas des
+     * positions), et la sphère englobante est seulement INVALIDÉE : le maillage
+     * n'est pas culled (frustumCulled = false), seul un lancer de rayon la lit,
+     * et three la recalcule alors à la demande.
+     */
+    const fillGeometry = (full: boolean) => {
       recomputeRadii()
       for (const bundle of bundles) {
-        for (const conduit of bundle.conduits) fillConduit(bundle, conduit, bundle.lastStyle)
+        for (const conduit of bundle.conduits) fillConduit(bundle, conduit, full ? bundle.lastStyle : null)
       }
       positionAttr.needsUpdate = true
-      colorAttr.needsUpdate = true
-      alphaAttr.needsUpdate = true
       normalAttr.needsUpdate = true
-      emitAttr.needsUpdate = true
-      curvAttr.needsUpdate = true
-      phaseAttr.needsUpdate = true
       axisAttr.needsUpdate = true
-      geometry.computeBoundingSphere()
+      if (full) {
+        colorAttr.needsUpdate = true
+        alphaAttr.needsUpdate = true
+        emitAttr.needsUpdate = true
+        curvAttr.needsUpdate = true
+        phaseAttr.needsUpdate = true
+        geometry.computeBoundingSphere()
+      } else {
+        geometry.boundingSphere = null
+      }
     }
 
     /**
@@ -1601,14 +1616,14 @@ export function createVascularLinks(
     }
 
     recomputeSubs()
-    fillGeometry()
+    fillGeometry(true)
 
     const totalTriangles = trianglesFromIndex(index.length)
     return {
       object: group,
       updatePositions: () => {
         recomputeAnchors()
-        fillGeometry()
+        fillGeometry(false)
       },
       updateColors: (styleFn: LinkStyleFn) => fillColors(bundles, (b) => styleFn(b.corridor.links[0])),
       updateColorsForNodes: (nodeIds: readonly string[], styleFn: LinkStyleFn) => {
