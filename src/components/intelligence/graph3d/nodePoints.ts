@@ -199,9 +199,17 @@ export function shapeGrow(spriteCssPx: number): number {
   return 1 + (SHAPE_GROW_SMALL - 1) * (t * t * (3 - 2 * t))
 }
 
-/** Draw order: edges first, then nodes on top (additive light cannot be hidden by a line). */
-export const LINK_RENDER_ORDER = 1
+/**
+ * Draw order: nodes first, then the LINKS IN FRONT of what they join (asked in
+ * the browser review: « les liaisons devant »). The nodes are additive glows; a
+ * link drawn after them stays readable across a dense module instead of being
+ * washed out by it. Agent markers (20) and labels (LABEL_RENDER_ORDER) stay on
+ * top of both.
+ */
 export const NODE_POINTS_RENDER_ORDER = 10
+export const LINK_RENDER_ORDER = 15
+/** Names are read last: above nodes, links and agent markers. */
+export const LABEL_RENDER_ORDER = 30
 
 /**
  * Node count at which the per-node gain is still 1. A 200-node graph must not

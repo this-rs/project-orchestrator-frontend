@@ -13,6 +13,7 @@
 import * as THREE from 'three'
 import SpriteText from 'three-spritetext'
 import type { Graph3DNode } from './useGraph3DLayout'
+import { LABEL_RENDER_ORDER } from './nodePoints'
 
 /** Maximum number of on-screen name labels at the aggregated tier. */
 export const SUPER_NODE_LABEL_LIMIT = 40
@@ -77,6 +78,7 @@ export function createSuperNodeLabels(nodes: Graph3DNode[], limit = SUPER_NODE_L
     sprite.padding = [LABEL_TEXT_HEIGHT * 0.5, LABEL_TEXT_HEIGHT * 0.25]
     sprite.borderRadius = LABEL_TEXT_HEIGHT * 0.3
     ;(sprite.material as THREE.SpriteMaterial).sizeAttenuation = false
+    sprite.renderOrder = LABEL_RENDER_ORDER
     group.add(sprite)
     sprites.push(sprite)
   }

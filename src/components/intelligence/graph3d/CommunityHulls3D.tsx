@@ -31,7 +31,7 @@ import { COMMUNITY_FILL_OPACITY_REST, COMMUNITY_WIRE_OPACITY_REST } from './comm
 import type { Graph3DNode } from './useGraph3DLayout'
 
 // ── Render order ────────────────────────────────────────────────────────────
-// Nodes (THREE.Points) render at NODE_POINTS_RENDER_ORDER = 10; links at 1.
+// Nodes (THREE.Points) render at NODE_POINTS_RENDER_ORDER = 10; links at 15, in front.
 // The envelope is a backdrop, so it must come first. Anything below 1 works.
 export const HULL_RENDER_ORDER = 0
 

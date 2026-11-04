@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import {
   createNodePoints, shapeForType, sizeForType, nodeGain, NODE_GAIN_REFERENCE, NODE_GAIN_FLOOR,
   NODE_MIN_SHAPE_PX, NODE_MIN_SPRITE_PX, NODE_SHAPE_MID_RADIUS, NODE_SHAPE_FRACTION_SMALL, NODE_POINTS_RENDER_ORDER,
-  LINK_RENDER_ORDER, nodeSpritePx, shapeGrow,
+  LINK_RENDER_ORDER, LABEL_RENDER_ORDER, nodeSpritePx, shapeGrow,
   densityAlphaK, densityDistanceFactor, DENS_K_MIN, DENS_DIST_MIN, DENS_DIST_FALLBACK_NEAR,
 } from './nodePoints'
 import { entityColor } from '@/constants/graphPalette'
@@ -335,8 +335,10 @@ describe('luminance floor at 20 000 nodes', () => {
 })
 
 describe('draw order', () => {
-  it('draws the nodes after the links', () => {
-    expect(NODE_POINTS_RENDER_ORDER).toBeGreaterThan(LINK_RENDER_ORDER)
+  it('draws the links in front of the nodes they join, labels above everything', () => {
+    expect(LINK_RENDER_ORDER).toBeGreaterThan(NODE_POINTS_RENDER_ORDER)
+    expect(LABEL_RENDER_ORDER).toBeGreaterThan(LINK_RENDER_ORDER)
+    expect(LABEL_RENDER_ORDER).toBeGreaterThan(20) // agent markers
     const np = createNodePoints([])
     expect(np.object.renderOrder).toBe(NODE_POINTS_RENDER_ORDER)
     np.dispose()

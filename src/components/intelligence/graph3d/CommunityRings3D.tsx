@@ -27,7 +27,7 @@ import {
 import type { Graph3DNode } from './useGraph3DLayout'
 
 // ── Render order ────────────────────────────────────────────────────────────
-// Nodes (THREE.Points) render at NODE_POINTS_RENDER_ORDER = 10, links at 1, the
+// Nodes (THREE.Points) render at NODE_POINTS_RENDER_ORDER = 10, links at 15, the
 // hull envelope at 0. The rings sit inside the envelope and must also come
 // before the nodes; 0 keeps them on the envelope's tier.
 export const RING_RENDER_ORDER = 0
