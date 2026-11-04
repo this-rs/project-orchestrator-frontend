@@ -48,6 +48,7 @@ import {
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
 import { buildClusterTree, cutForView, cutTransition, type ClusterCut, type ClusterTree } from './clusterTree'
+import { mainEnsembleOf } from './mainEnsemble'
 import { CLUSTER_NODE_PREFIX, closedGroupHullNodes, carriedPrevious, graphFromCut, openIdsOf } from './cutGraph'
 import type { VascularLinkRenderer } from './linkVascularRenderer'
 import { formatExactCount } from './linkMagnitude'
@@ -224,6 +225,20 @@ const DYNAMIC_MIN_NODES = isMobileLikeDevice() ? 1000 : 2000
 const HLOD_BUDGET = isMobileLikeDevice()
   ? { maxNodes: 4500, maxLinks: 3000, childSpacingPx: 12 }
   : { maxNodes: 5000, maxLinks: 9000, childSpacingPx: 12 }
+
+/**
+ * The main ensemble (mainEnsemble.ts) is looked for only once the camera is
+ * this close, as a share of the framing distance: the overview dims nothing.
+ */
+const ENSEMBLE_ZOOM_RATIO = 0.6
+/** Intensity of what lies outside the main ensemble (« le fond moins visible »). */
+const ENSEMBLE_BACKGROUND_ALPHA = 0.22
+
+/** `color` with its alpha multiplied by `k`. */
+function fadeColor(color: string, k: number): string {
+  const p = parseColor(color)
+  return `rgba(${Math.round(p.r * 255)}, ${Math.round(p.g * 255)}, ${Math.round(p.b * 255)}, ${p.a * k})`
+}
 
 /** Smallest closed group wrapped by an envelope at the dynamic scale (a solid hull needs 4 points). */
 const CUT_HULL_MIN_MEMBERS = 4
@@ -703,9 +718,20 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (clusterTree && clusterCut) openIdsRef.current = openIdsOf(clusterTree, clusterCut)
   }, [clusterTree, clusterCut])
   /** Re-cut the tree for the current camera, at the end of a gesture. */
+  // The ensemble looked at, once close enough (null = overview: nothing dimmed).
+  const [mainEnsemble, setMainEnsemble] = useState<number | null>(null)
   const recut = useCallback(() => {
     if (!clusterTree) return
     const view = currentView() ?? estimatedFramingView(clusterTree, cutHeight)
+    {
+      const fg = graphRef.current
+      const camera = fg && typeof fg.camera === 'function' ? (fg.camera() as THREE.PerspectiveCamera | null) : null
+      const target = fg && typeof fg.controls === 'function' ? (fg.controls() as { target?: THREE.Vector3 } | null)?.target : undefined
+      const framing = framingDistanceRef.current
+      const close = !!camera && !!target && framing > 0 && camera.position.distanceTo(target) < framing * ENSEMBLE_ZOOM_RATIO
+      const next = close ? mainEnsembleOf(treeNodesRef.current.nodes, view) : null
+      setMainEnsemble((prev) => (prev === next ? prev : next))
+    }
     const prev = clusterCutRef.current
     const next = cutForView(clusterTree, view, budgetFor(clusterTree), prev ?? undefined)
     if (sameFrontier(next, prev)) return
@@ -1349,11 +1375,20 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       return 'rgba(107, 114, 128, 0.03)'
     }
 
+    // The ensemble looked at: its own links as they are, those leaving it at half,
+    // the background's stepped back with its nodes.
+    if (mainEnsemble != null) {
+      const inS = link.sourceCommunityId === mainEnsemble
+      const inT = link.targetCommunityId === mainEnsemble
+      if (inS && inT) return link.color
+      return fadeColor(link.color, inS || inT ? 0.5 : ENSEMBLE_BACKGROUND_ALPHA)
+    }
+
     // Inter-community edges keep their relation colour: their SCALE (neighbor /
     // inter) raises the alpha in computeLinkStyle, never their hue.
 
     return link.color
-  }, [selectedNodeId, activation, showCommunityHulls, highlightedGroup])
+  }, [selectedNodeId, activation, showCommunityHulls, highlightedGroup, mainEnsemble])
 
   // ── Link colour for the sprite path (library cylinders) ───────────────
   // Hover (amber) takes visual priority over selection on shared edges and
@@ -1570,6 +1605,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       return { r: base.r, g: base.g, b: base.b, alpha: 0.25, size: size * 0.6, shape, act: 0 }
     }
 
+    // ── The ensemble looked at stays in front, the rest steps back ──
+    if (mainEnsemble != null && node.communityId !== mainEnsemble) {
+      return { r: base.r, g: base.g, b: base.b, alpha: ENSEMBLE_BACKGROUND_ALPHA, size: size * 0.85, shape, act: 0 }
+    }
+
     // A territory (closed group of the dynamic scale) is a big ADDITIVE sprite:
     // at full intensity, overlapping modules summed to a white blob in the
     // middle of the real graph (seen in the browser). It glows at
@@ -1581,7 +1621,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // opening view dull (seen in the browser).
     const restAlpha = isTerritory ? TERRITORY_ALPHA : 1
     return { r: base.r, g: base.g, b: base.b, alpha: restAlpha, size, shape, act: 0 }
-  }, [energyHeatmap, touchesHeatmap, activation, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes, baseNodeSize, aggregated, dynamicScale])
+  }, [energyHeatmap, touchesHeatmap, activation, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes, baseNodeSize, aggregated, dynamicScale, mainEnsemble])
 
   /** Always-current node style fn, so the structure effect can color without re-running on every hover. */
   const computeNodeStyleRef = useRef(computeNodeStyle)

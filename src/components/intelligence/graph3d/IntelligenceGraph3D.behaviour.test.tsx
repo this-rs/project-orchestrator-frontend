@@ -904,3 +904,45 @@ describe('IntelligenceGraph3D — community envelopes at the dynamic scale', () 
     expect(fills()).toEqual([])
   }, 60_000)
 })
+
+describe('IntelligenceGraph3D — the ensemble looked at stays in front', () => {
+  // « si je zoome sur un ensemble, le fond doit être moins visible pour que je
+  // voie mieux mon ensemble » — and an overview dims nothing.
+  it('zoomed onto one community, the others step back; framed, nothing is dimmed', async () => {
+    const g = makeGraph(3000)
+    for (const [i, n] of g.nodes.entries()) (n.data as Record<string, unknown>).community_id = Math.floor(i / 1000)
+    await mountGraph(g)
+    await flush(3000)
+    const alphas = () => {
+      const out: number[] = []
+      lib.fg.scene().traverse((o) => {
+        if (o instanceof THREE.Points) {
+          const a = (o.geometry as THREE.BufferGeometry).getAttribute('aAlpha') as THREE.BufferAttribute | undefined
+          if (a) for (let i = 0; i < a.count; i++) out.push(a.getX(i))
+        }
+      })
+      return out
+    }
+    const dimmed = (xs: number[]) => xs.filter((a) => a > 0 && a < 0.3).length
+    expect(alphas().length).toBeGreaterThan(0)
+    expect(dimmed(alphas())).toBe(0)
+
+    // fly close to the centroid of community 0, looking at it
+    const drawn = (lib.props.graphData as { nodes: Array<{ x: number; y: number; z: number; communityId?: number }> }).nodes
+    const mine = drawn.filter((n) => n.communityId === 0)
+    expect(mine.length).toBeGreaterThan(0)
+    const c = mine.reduce((s, n) => ({ x: s.x + n.x / mine.length, y: s.y + n.y / mine.length, z: s.z + n.z / mine.length }), { x: 0, y: 0, z: 0 })
+    const camera = lib.fg.camera()
+    const controls = lib.fg.controls()
+    const away = camera.position.clone().sub(controls.target).multiplyScalar(0.15)
+    controls.target.set(c.x, c.y, c.z)
+    camera.position.set(c.x + away.x, c.y + away.y, c.z + away.z)
+    camera.lookAt(c.x, c.y, c.z)
+    camera.updateMatrixWorld()
+    act(() => { controls.dispatchEvent({ type: 'end' }) })
+    await flush(600)
+    const after = alphas()
+    expect(dimmed(after)).toBeGreaterThan(0)
+    expect(after.some((a) => a > 0.9)).toBe(true)
+  }, 60_000)
+})
