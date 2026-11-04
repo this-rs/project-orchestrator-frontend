@@ -60,6 +60,15 @@ export default {
     nodes: 'नोड: {count}',
     groups: 'समूह: {count}',
   },
+  linkInspector: {
+    title: 'कनेक्शन',
+    aria: 'चयनित लिंक के संबंध',
+    relations: '{count} संबंध',
+    families: 'परिवार',
+    real: 'वास्तविक संबंध',
+    more: '+ {count} और',
+    close: 'बंद करें',
+  },
 
   inspector: {
     close: 'बंद करें',

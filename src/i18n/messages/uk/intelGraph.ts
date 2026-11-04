@@ -60,6 +60,15 @@ export default {
     nodes: 'Вузлів: {count}',
     groups: 'Груп: {count}',
   },
+  linkInspector: {
+    title: 'Зв’язок',
+    aria: 'Відношення вибраного зв’язку',
+    relations: 'Відношень: {count}',
+    families: 'Родини',
+    real: 'Справжні відношення',
+    more: 'і ще {count}',
+    close: 'Закрити',
+  },
 
   inspector: {
     close: 'Закрити',

@@ -946,3 +946,36 @@ describe('IntelligenceGraph3D — the ensemble looked at stays in front', () => 
     expect(after.some((a) => a > 0.9)).toBe(true)
   }, 60_000)
 })
+
+describe('IntelligenceGraph3D — a clicked link shows what it carries', () => {
+  // « Je dois pouvoir cliquer sur un lien et voir les relations, mettre en
+  // évidence la ramification des connexions de cette branche. »
+  it('a click on a trunk opens its relations; Escape closes them', async () => {
+    const view = await mountGraph(makeGraph(9000))
+    await flush(3000)
+    const camera = lib.fg.camera()
+    camera.aspect = 800 / 600
+    camera.updateProjectionMatrix()
+    camera.updateMatrixWorld()
+    const el = document.querySelector('.absolute.inset-0.overflow-hidden') as HTMLElement
+    // find a link the way a person does: hover until the count appears
+    let at: { x: number; y: number } | null = null
+    for (let y = 150; y <= 450 && !at; y += 12) {
+      for (let x = 200; x <= 600 && !at; x += 12) {
+        act(() => { el.dispatchEvent(new PointerEvent('pointermove', { clientX: x, clientY: y, buttons: 0, bubbles: true })) })
+        await flush(70)
+        if (view.container.querySelector('[data-testid="link-hover-count"]')) at = { x, y }
+      }
+    }
+    expect(at, 'no link under the pointer anywhere in the centre').not.toBeNull()
+    act(() => {
+      el.dispatchEvent(new MouseEvent('click', { clientX: at!.x, clientY: at!.y, bubbles: true }))
+    })
+    const panel = view.container.querySelector('[data-testid="link-inspector"]')
+    expect(panel, 'no inspector after a click on a trunk').not.toBeNull()
+    expect(view.container.querySelector('[data-testid="link-inspector-total"]')!.textContent).toMatch(/\d/)
+    expect(view.container.querySelectorAll('[data-testid="link-inspector-relation"]').length).toBeGreaterThan(0)
+    act(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })) })
+    expect(view.container.querySelector('[data-testid="link-inspector"]')).toBeNull()
+  }, 60_000)
+})

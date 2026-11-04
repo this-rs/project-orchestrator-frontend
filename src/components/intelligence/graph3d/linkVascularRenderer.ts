@@ -546,6 +546,12 @@ export interface VascularLinkRenderer extends LinkRenderer {
   bundleAt?: (faceIndex: number) => string | null
   /** Click callback, to be invoked by the DOM wiring. */
   onBundleClick?: (key: string) => void
+  /**
+   * The corridor a picked conduit belongs to (`ConduitPick.key`): its two ends,
+   * its relation families and the REAL relations it carries — what a click on
+   * a link shows. Null for an unknown key.
+   */
+  corridorOf?: (key: string) => Corridor | null
   /** Conduits dessinés et position courante de leurs ancres (tests, diagnostics). */
   inspect?: () => ConduitInfo[]
   /** Unité d'échelle courante d0 (distance médiane au plus proche voisin). */
@@ -1683,6 +1689,7 @@ export function createVascularLinks(
       },
       bundleAt: (faceIndex: number) => bundleAtTriangle(ranges, faceIndex),
       onBundleClick,
+      corridorOf: (key: string) => bundles.find((b) => b.corridor.key === key)?.corridor ?? null,
       inspect: () => {
         const at = (id: string): Vec3 => {
           const p = nodeById.get(id)

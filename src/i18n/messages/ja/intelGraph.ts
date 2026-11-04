@@ -60,6 +60,15 @@ export default {
     nodes: 'ノード: {count}',
     groups: 'グループ: {count}',
   },
+  linkInspector: {
+    title: '接続',
+    aria: '選択したリンクの関係',
+    relations: '{count} 件の関係',
+    families: 'ファミリー',
+    real: '実際の関係',
+    more: 'ほか {count} 件',
+    close: '閉じる',
+  },
 
   inspector: {
     close: '閉じる',

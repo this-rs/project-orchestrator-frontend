@@ -60,6 +60,15 @@ export default {
     nodes: 'Nút: {count}',
     groups: 'Nhóm: {count}',
   },
+  linkInspector: {
+    title: 'Kết nối',
+    aria: 'Các quan hệ của liên kết đã chọn',
+    relations: '{count} quan hệ',
+    families: 'Nhóm',
+    real: 'Quan hệ thực',
+    more: '+ {count} khác',
+    close: 'Đóng',
+  },
 
   inspector: {
     close: 'Đóng',

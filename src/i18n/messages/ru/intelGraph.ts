@@ -60,6 +60,15 @@ export default {
     nodes: 'Узлов: {count}',
     groups: 'Групп: {count}',
   },
+  linkInspector: {
+    title: 'Связь',
+    aria: 'Отношения выбранной связи',
+    relations: 'Отношений: {count}',
+    families: 'Семейства',
+    real: 'Реальные отношения',
+    more: 'и ещё {count}',
+    close: 'Закрыть',
+  },
 
   inspector: {
     close: 'Закрыть',

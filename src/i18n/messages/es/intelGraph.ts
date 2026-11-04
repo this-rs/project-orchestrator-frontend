@@ -60,6 +60,15 @@ export default {
     nodes: 'Nodos: {count}',
     groups: 'Grupos: {count}',
   },
+  linkInspector: {
+    title: 'Conexión',
+    aria: 'Relaciones del enlace seleccionado',
+    relations: '{count} relaciones',
+    families: 'Familias',
+    real: 'Relaciones reales',
+    more: '+ {count} más',
+    close: 'Cerrar',
+  },
 
   inspector: {
     close: 'Cerrar',

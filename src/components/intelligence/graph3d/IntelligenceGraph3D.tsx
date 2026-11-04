@@ -49,6 +49,8 @@ import {
 import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
 import { buildClusterTree, cutForView, cutTransition, type ClusterCut, type ClusterTree } from './clusterTree'
 import { mainEnsembleOf } from './mainEnsemble'
+import { LinkInspector } from './LinkInspector'
+import type { Corridor } from './linkRouting'
 import { CLUSTER_NODE_PREFIX, closedGroupHullNodes, carriedPrevious, graphFromCut, openIdsOf } from './cutGraph'
 import type { VascularLinkRenderer } from './linkVascularRenderer'
 import { formatExactCount } from './linkMagnitude'
@@ -233,6 +235,9 @@ const HLOD_BUDGET = isMobileLikeDevice()
 const ENSEMBLE_ZOOM_RATIO = 0.6
 /** Intensity of what lies outside the main ensemble (« le fond moins visible »). */
 const ENSEMBLE_BACKGROUND_ALPHA = 0.22
+
+/** Relations a clicked link lists; the rest is counted. */
+const LINK_INSPECTOR_MAX = 50
 
 /** `color` with its alpha multiplied by `k`. */
 function fadeColor(color: string, k: number): string {
@@ -720,6 +725,22 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   /** Re-cut the tree for the current camera, at the end of a gesture. */
   // The ensemble looked at, once close enough (null = overview: nothing dimmed).
   const [mainEnsemble, setMainEnsemble] = useState<number | null>(null)
+  // The link clicked: its corridor as it was at the click (the panel stays put
+  // while the cut changes) and the key that finds its conduits again.
+  const [inspectedLink, setInspectedLink] = useState<{ key: string; corridor: Corridor } | null>(null)
+  const pinnedConduitRef = useRef<{ key: string; id: number } | null>(null)
+  const closeLinkInspector = useCallback(() => {
+    pinnedConduitRef.current = null
+    ;(linkSegmentsRef.current as VascularLinkRenderer | null)?.highlightConduit?.(null)
+    setInspectedLink(null)
+    wake(WAKE_MUTATION_MS)
+  }, [wake])
+  useEffect(() => {
+    if (!inspectedLink) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeLinkInspector() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [inspectedLink, closeLinkInspector])
   const recut = useCallback(() => {
     if (!clusterTree) return
     const view = currentView() ?? estimatedFramingView(clusterTree, cutHeight)
@@ -2494,6 +2515,16 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     seg.updateColors(computeLinkStyleRef.current)
     scene.add(seg.object)
     linkSegmentsRef.current = seg
+    {
+      const pinned = pinnedConduitRef.current
+      const vascular = seg as VascularLinkRenderer
+      if (pinned && vascular.inspect && vascular.highlightConduit) {
+        const conduits = vascular.inspect().filter((c) => c.key === pinned.key)
+        const again = conduits.find((c) => c.kind === 'trunk') ?? conduits[0]
+        pinnedConduitRef.current = again ? { key: pinned.key, id: again.id } : null
+        vascular.highlightConduit(again ? again.id : null)
+      }
+    }
     // The dynamic scale replaced a layer that is still fading out: come in.
     const crossfade = crossfadeLinksRef.current
     if (crossfade) fadeLinkLayer(seg.object, 0, 1)
@@ -2923,7 +2954,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
 
     let litConduit: number | null = null
-    const lightConduit = (next: number | null) => {
+    const lightConduit = (hovered: number | null) => {
+      // a clicked link keeps its ramification lit while nothing else is hovered
+      const next = hovered ?? pinnedConduitRef.current?.id ?? null
       if (next === litConduit) return
       litConduit = next
       ;(linkSegmentsRef.current as VascularLinkRenderer | null)?.highlightConduit?.(next)
@@ -3038,6 +3071,21 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         return
       }
       if (!hit) {
+        // A link: its relations, and its ramification kept lit (« cliquer sur un
+        // lien et voir les relations, mettre en évidence la ramification »).
+        const link = pickLink(ev as PointerEvent)
+        const corridor = link ? (linkSegmentsRef.current as VascularLinkRenderer | null)?.corridorOf?.(link.key) : null
+        if (link && corridor) {
+          pinnedConduitRef.current = { key: link.key, id: link.id }
+          lightConduit(link.id)
+          setInspectedLink({ key: link.key, corridor })
+          return
+        }
+        if (pinnedConduitRef.current) {
+          pinnedConduitRef.current = null
+          lightConduit(null)
+          setInspectedLink(null)
+        }
         // No node: a hull face is still a target — frame the whole community.
         const hull = raycastHull()
         if (hull) { focusCommunityRef.current(hull.communityId, cutHullNodesRef.current ?? undefined); return }
@@ -3170,6 +3218,40 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           Same height and surface as the layer panel header, just to its right.
           Not on a portrait phone: beside « Couches » it had ~110 px and read
           « Groupes : … » — the situation line under it already says the groups. */}
+      {inspectedLink && (() => {
+        const byId = new Map<string, Graph3DNode>()
+        for (const n of graphData.nodes) byId.set(n.id, n)
+        for (const n of activeGraphData.nodes) byId.set(n.id, n)
+        const nameOfNode = (id: string) => {
+          const n = byId.get(id)
+          return (n?.data?.name as string | undefined) || n?.label || id
+        }
+        const nameOfEnd = (token: string) => {
+          if (token.startsWith('none:')) return nameOfNode(token.slice('none:'.length))
+          const id = Number(token)
+          const member = Number.isFinite(id) ? graphData.nodes.find((n) => n.communityId === id && n.communityLabel) : undefined
+          return member?.communityLabel ?? token
+        }
+        const c = inspectedLink.corridor
+        const endId = (e: unknown) => (typeof e === 'object' && e ? String((e as { id?: unknown }).id) : String(e))
+        const listed = c.links.slice(0, LINK_INSPECTOR_MAX).map((l) => ({
+          from: nameOfNode(endId(l.source)),
+          to: nameOfNode(endId(l.target)),
+          relation: l.relationType === 'AGGREGATE' ? `×${l.count ?? 1}` : l.relationType,
+        }))
+        return (
+          <LinkInspector
+            from={nameOfEnd(c.from)}
+            to={nameOfEnd(c.to)}
+            total={c.magnitude.exactCount}
+            families={c.families}
+            relations={listed}
+            more={Math.max(0, c.links.length - listed.length)}
+            onClose={closeLinkInspector}
+          />
+        )
+      })()}
+
       {graphData.nodes.length > 0 && (() => {
         const groups = activeGraphData.nodes.filter((n) => n.id.startsWith('cl:')).length
         const real = activeGraphData.nodes.length - groups

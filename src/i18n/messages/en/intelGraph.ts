@@ -58,6 +58,15 @@ export default {
     nodes: 'Nodes: {count}',
     groups: 'Groups: {count}',
   },
+  linkInspector: {
+    title: 'Connection',
+    aria: 'Relations of the selected link',
+    relations: '{count} relations',
+    families: 'Families',
+    real: 'Real relations',
+    more: '+ {count} more',
+    close: 'Close',
+  },
 
   inspector: {
     close: 'Close',
