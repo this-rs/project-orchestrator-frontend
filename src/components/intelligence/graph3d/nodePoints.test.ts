@@ -205,9 +205,11 @@ describe('nodePoints material', () => {
     return { np, material: np.object.material as THREE.ShaderMaterial }
   }
 
-  it('emits light additively instead of compositing', () => {
+  it('emits light, but overlapping glows keep the brightest instead of summing to white', () => {
     const { np, material } = mat(3)
-    expect(material.blending).toBe(THREE.AdditiveBlending)
+    // MAX: a dense module stays readable (additive summed it into a white blob)
+    expect(material.blending).toBe(THREE.CustomBlending)
+    expect(material.blendEquation).toBe(THREE.MaxEquation)
     expect(material.transparent).toBe(true)
     expect(material.depthWrite).toBe(false)
     np.dispose()

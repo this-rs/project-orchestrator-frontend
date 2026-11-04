@@ -1510,7 +1510,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // middle of the real graph (seen in the browser). It glows at
     // TERRITORY_ALPHA; its real nodes, once opened, are at full intensity.
     const isTerritory = dynamicScale && isSuper && typeof node.data.clusterRadius === 'number'
-    return { r: base.r, g: base.g, b: base.b, alpha: isTerritory ? TERRITORY_ALPHA : 1, size, shape, act: 0 }
+    // A node grown by its connections (up to ×3) is an ADDITIVE glow over a
+    // bigger area: at full intensity, close-up hubs summed to white (seen on a
+    // phone, pinched in). Intensity falls as 1/√gain — bigger, not brighter.
+    const grown = isSuper ? 1 : Math.max(1, size / Math.max(1e-6, sizeForType(entityType)))
+    const restAlpha = isTerritory ? TERRITORY_ALPHA : 1 / Math.sqrt(grown)
+    return { r: base.r, g: base.g, b: base.b, alpha: restAlpha, size, shape, act: 0 }
   }, [energyHeatmap, touchesHeatmap, activation, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes, baseNodeSize, aggregated, dynamicScale])
 
   /** Always-current node style fn, so the structure effect can color without re-running on every hover. */

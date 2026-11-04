@@ -473,9 +473,15 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
     fragmentShader: FRAGMENT_SHADER,
     transparent: true,
     depthWrite: false,
-    // Additive: the sprites EMIT light, so overlapping nodes brighten each other
-    // (po-graph's nodeMat, po-graph.js:461) instead of compositing into grey.
-    blending: THREE.AdditiveBlending,
+    // MAX, not ADD: the sprites still emit light (a glow over the dark
+    // background, never grey compositing), but where glows overlap the pixel
+    // keeps the BRIGHTEST one instead of their sum. Additive summed hundreds of
+    // overlapping glows of a dense module into a white blob (seen in a real
+    // browser on the real import graph, worst on a phone pinched in) — the
+    // structure inside disappeared. The shader premultiplies colour by alpha,
+    // so MAX of two glows is the brighter glow.
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.MaxEquation,
     uniforms: {
       // Device pixels per CSS pixel. gl_PointSize is in DEVICE pixels, so this is
       // the RENDERER's pixel ratio, never the screen's: the adaptive quality loop
