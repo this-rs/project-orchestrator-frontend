@@ -48,7 +48,7 @@ import {
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
 import { buildClusterTree, cutForView, cutTransition, type ClusterCut, type ClusterTree } from './clusterTree'
-import { CLUSTER_NODE_PREFIX, carriedPrevious, graphFromCut, openIdsOf } from './cutGraph'
+import { CLUSTER_NODE_PREFIX, closedGroupHullNodes, carriedPrevious, graphFromCut, openIdsOf } from './cutGraph'
 import type { VascularLinkRenderer } from './linkVascularRenderer'
 import { formatExactCount } from './linkMagnitude'
 import { nearestNeighbourScale } from './linkRadius'
@@ -225,6 +225,8 @@ const HLOD_BUDGET = isMobileLikeDevice()
   ? { maxNodes: 1500, maxLinks: 3000, childSpacingPx: 24 }
   : { maxNodes: 5000, maxLinks: 9000, childSpacingPx: 18 }
 
+/** Smallest closed group wrapped by an envelope at the dynamic scale (a solid hull needs 4 points). */
+const CUT_HULL_MIN_MEMBERS = 4
 /** Intensity of a closed group's territory sprite (MAX blending: no sum to white; a group reads softer than a real node). */
 const TERRITORY_ALPHA = 0.7
 
@@ -740,6 +742,20 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return m
   }, [clusterTree, clusterCut, graphData.nodes])
 
+  // Dynamic scale: the community envelopes wrap the CLOSED groups of the cut
+  // (the ground each single point stands for). Without this the toggle drew
+  // nothing at all once the global scale went: `scaleLevel` stays 0.
+  const cutHullNodes = useMemo(
+    () => (clusterTree && clusterCut ? closedGroupHullNodes(clusterTree, clusterCut, graphData.nodes) : null),
+    [clusterTree, clusterCut, graphData.nodes],
+  )
+  const cutHullKey = useMemo(() => {
+    if (!clusterTree || !clusterCut) return ''
+    let key = ''
+    for (const i of clusterCut.frontier) if (clusterTree.nodes[i].kind !== 'leaf') key += clusterTree.nodes[i].id + ','
+    return key
+  }, [clusterTree, clusterCut])
+
   const aggregated = dynamicScale
     ? clusterCut != null && clusterCut.frontier.some((i) => clusterTree!.nodes[i].kind !== 'leaf')
     : scaleLevel > 0
@@ -811,6 +827,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // A cheap, stable signature of "which communities exist and how big they are".
   // Positions are deterministic per node set, so this is all the hulls depend on.
   const hullSignature = useMemo(() => {
+    // Dynamic scale: one envelope per closed group of the cut.
+    if (dynamicScale) return cutHullKey ? `cut|${cutHullKey}` : ''
     // Hulls exist only at the aggregated tier, where the "communities" are the
     // capped semantic groups (community / directory), not the raw Louvain ids.
     if (!aggregated || scaleRes <= 0) return ''
@@ -824,7 +842,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
     for (const [id, c] of [...counts].sort((a, b) => a[0] - b[0])) seen += `${id}:${c},`
     return `${total}|${seen}`
-  }, [graphData.nodes, aggregated, scaleRes])
+  }, [graphData.nodes, aggregated, scaleRes, dynamicScale, cutHullKey])
 
   // Mark for rebuild when the toggle flips or the hulls' inputs change — the
   // group sizes (hullSignature) or the positions (nodeLayoutKey), not the
@@ -843,6 +861,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   useEffect(() => {
     scaleResRef.current = scaleRes
   }, [scaleRes])
+  const cutHullNodesRef = useRef(cutHullNodes)
+  useEffect(() => {
+    cutHullNodesRef.current = cutHullNodes
+  }, [cutHullNodes])
   useEffect(() => {
     nodesRef.current = graphData.nodes
   }, [graphData.nodes])
@@ -879,14 +901,19 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       // capped semantic groups (community / directory). At the detail tier every
       // node is its own cluster, so an envelope would swallow the graph — the
       // fan-triangulated hull of 02/11 covered the whole scene in solid colour.
-      if (!aggregated || scaleRes <= 0) return
+      // Dynamic scale: the closed groups of the cut (`closedGroupHullNodes`).
+      // Global scale: each capped group's REAL members (the super-nodes alone
+      // are 24 points); `groupHullNodes` renumbers the groups biggest-first so
+      // the envelope selection is stable and size-ordered.
+      const cutNodes = cutHullNodesRef.current
+      const hullNodes = cutNodes ?? (aggregated && scaleRes > 0 ? groupHullNodes(current, scaleRes) : null)
+      if (!hullNodes || hullNodes.length === 0) return
 
-      // Wrap each capped group's REAL members (the super-nodes alone are 24
-      // points): `groupHullNodes` renumbers the groups biggest-first so the
-      // envelope selection is stable and size-ordered.
-      const hullNodes = groupHullNodes(current, scaleRes)
-
-      const hullGroup = buildCommunityHulls(hullNodes, {})
+      // A closed group of the cut is ONE point however few members it holds: its
+      // ground is worth showing from 4 members (the smallest solid hull). The
+      // global tier keeps the default, sized for whole communities.
+      const hullOptions = cutNodes ? { minMembers: CUT_HULL_MIN_MEMBERS } : {}
+      const hullGroup = buildCommunityHulls(hullNodes, hullOptions)
       if (hullGroup.hulls.length > 0) {
         scene.add(hullGroup.group)
         communityHullsRef.current = hullGroup
@@ -895,7 +922,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
 
       // Two thin rings per community (p50 core, p90 halo), built once here with
       // the same member set and bounds as the envelopes — never in the loop.
-      const ringGroup = buildCommunityRings(hullNodes, {})
+      const ringGroup = buildCommunityRings(hullNodes, hullOptions)
       if (ringGroup.rings.length > 0) {
         scene.add(ringGroup.group)
         communityRingsRef.current = ringGroup
@@ -2003,10 +2030,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // going to one group. Distance scales with the cluster radius, so a big
   // community is framed from further away and a small one from up close.
   const focusCommunity = useCallback(
-    (communityId: number | undefined) => {
+    // `nodes`: the set `communityId` numbers. An envelope of the dynamic scale
+    // numbers its closed groups by rank (`closedGroupHullNodes`), not by the
+    // Louvain id the layout nodes carry.
+    (communityId: number | undefined, nodes: readonly Graph3DNode[] = graphData.nodes) => {
       const fg = graphRef.current
       if (!fg || typeof fg.cameraPosition !== 'function') return
-      const focus = communityFocus(graphData.nodes, communityId)
+      const focus = communityFocus(nodes as Graph3DNode[], communityId)
       if (!focus) return
       // Framing, not "reset": keep the CURRENT viewing direction (a hard-coded
       // +Z was the "camera gets off-axis" complaint) and never pull back
@@ -2967,7 +2997,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       if (!hit) {
         // No node: a hull face is still a target — frame the whole community.
         const hull = raycastHull()
-        if (hull) { focusCommunityRef.current(hull.communityId); return }
+        if (hull) { focusCommunityRef.current(hull.communityId, cutHullNodesRef.current ?? undefined); return }
         setSelectedNodeId(null)
         return
       }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildClusterTree, cutForView, type CutView } from './clusterTree'
-import { CLUSTER_NODE_PREFIX, clusterIndexOf, graphFromCut } from './cutGraph'
+import { CLUSTER_NODE_PREFIX, closedGroupHullNodes, clusterIndexOf, graphFromCut } from './cutGraph'
 import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
 
 /** `n` nodes in `comms` balls of radius 100 spread over 4 000; `e` links (no self-loops). */
@@ -156,5 +156,36 @@ describe('graphFromCut — a drawing cap keeps the heaviest links and counts the
     let inside = 0
     for (const c of cut.internal.values()) inside += c.count
     expect(carried(g.links) + g.hiddenRelations + inside).toBe(tree.linkTotal)
+  })
+})
+
+describe('closedGroupHullNodes', () => {
+  const { nodes, links, centres } = synth(3000, 6000, 12)
+  const tree = buildClusterTree(nodes, links)
+
+  it('wraps exactly the members of the closed groups, biggest group first', () => {
+    const [cx, cy, cz] = centres[3]
+    const cut = cutForView(tree, view(cx, cy, cz + 300), PAGE)
+    const hull = closedGroupHullNodes(tree, cut, nodes)
+    const closed = cut.frontier.map((i) => tree.nodes[i]).filter((t) => t.kind !== 'leaf')
+    expect(closed.length).toBeGreaterThan(0)
+    expect(hull.length).toBe(closed.reduce((s, t) => s + t.count, 0))
+    // the real nodes drawn near the camera are not wrapped
+    const drawnReal = new Set(cut.frontier.filter((i) => tree.nodes[i].kind === 'leaf').map((i) => tree.nodes[i].id))
+    expect(hull.some((n) => drawnReal.has(`n:${n.id}`))).toBe(false)
+    // rank 0 is the biggest group
+    const size = new Map<number, number>()
+    for (const n of hull) size.set(n.communityId!, (size.get(n.communityId!) ?? 0) + 1)
+    const sizes = [...size.entries()].sort((a, b) => a[0] - b[0]).map(([, c]) => c)
+    expect(sizes).toEqual([...sizes].sort((a, b) => b - a))
+    // copies: the layout's nodes keep their own community
+    expect(nodes[0].communityId).toBe(0)
+  })
+
+  it('never wraps the whole scene: a cut closed at the root gives no envelope', () => {
+    const far = cutForView(tree, view(0, 0, 1e7), PAGE)
+    const kinds = new Set(far.frontier.map((i) => tree.nodes[i].kind))
+    expect(kinds.has('community') || kinds.has('split') || kinds.has('region')).toBe(false)
+    expect(closedGroupHullNodes(tree, far, nodes)).toEqual([])
   })
 })

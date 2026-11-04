@@ -870,3 +870,27 @@ describe('IntelligenceGraph3D — the children of an opened group fly out of it'
     expect(offPlace()).toBe(0)
   }, 60_000)
 })
+
+describe('IntelligenceGraph3D — community envelopes at the dynamic scale', () => {
+  // The global scale is gone (nothing raises graphScaleAtom any more): the
+  // toggle used to draw nothing at all. The envelopes now wrap the CLOSED
+  // groups of the cut, each with the label of the group it stands for.
+  it('the toggle draws one envelope per closed group, and only while it is on', async () => {
+    const view = await mountGraph(makeGraph(4200))
+    await flush(3000)
+    const fills = () => {
+      const out: THREE.Mesh[] = []
+      lib.fg.scene().traverse((o) => {
+        if (o instanceof THREE.Mesh && typeof (o.userData as { communityId?: number }).communityId === 'number') out.push(o)
+      })
+      return out
+    }
+    expect(fills()).toEqual([])
+    act(() => { view.store.set(showCommunityHullsAtom, true) })
+    await flush(3000)
+    expect(fills().length).toBeGreaterThan(0)
+    act(() => { view.store.set(showCommunityHullsAtom, false) })
+    await flush(3000)
+    expect(fills()).toEqual([])
+  }, 60_000)
+})

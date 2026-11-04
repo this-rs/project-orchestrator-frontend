@@ -215,3 +215,32 @@ export function carriedPrevious(tree: ClusterTree, openIds: ReadonlySet<string>)
   for (const t of tree.nodes) if (openIds.has(t.id)) open.add(t.index)
   return { frontier: [], open, links: [], internal: new Map() }
 }
+
+/**
+ * The positioned members of every CLOSED group of `cut`, renumbered for the
+ * community envelopes: `communityId` is the group's rank by size (biggest
+ * first, tie broken on the tree id, so the selection the hull builder keeps is
+ * stable), `communityLabel` its drawn name.
+ *
+ * An envelope wraps a group that is drawn as ONE point, to show the ground it
+ * stands for. Open groups are not wrapped (their real nodes are on screen),
+ * nor the root and the layers: one envelope around the whole scene is the
+ * solid-colour sheet of 02/11. The nodes are copies; `source` is not touched.
+ */
+export function closedGroupHullNodes(
+  tree: ClusterTree,
+  cut: ClusterCut,
+  source: readonly Graph3DNode[],
+): Graph3DNode[] {
+  const groups = cut.frontier
+    .map((i) => tree.nodes[i])
+    .filter((t) => t.kind === 'community' || t.kind === 'split' || t.kind === 'region')
+    .sort((a, b) => b.count - a.count || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  const out: Graph3DNode[] = []
+  groups.forEach((t, rank) => {
+    const members = membersOf(tree, t.index).map((i) => source[i])
+    const name = groupName(t, members)
+    for (const m of members) out.push({ ...m, communityId: rank, communityLabel: name })
+  })
+  return out
+}
