@@ -114,6 +114,16 @@ export const CHANNEL_EXTENT = CHANNEL_ORBIT + MICRO_FIBER_RADIUS
 export const MEMBRANE_SKIN = 0.04
 
 /**
+ * Opacité d'une surface non émissive selon l'angle de vue (Fresnel) :
+ * `alpha × (FACING + EDGE × rim)`, rim = (1 − N·V)². De face (rim = 0) la
+ * membrane laisse voir ce qu'elle contient ; sur la silhouette (rim → 1) elle
+ * se lit comme un trait fin. Le mur PROCHE est dessiné (enroulement sortant) :
+ * sans ce profil, il voilait le cœur sur toute la largeur du tube.
+ */
+export const MEMBRANE_FACING_ALPHA = 0.3
+export const MEMBRANE_EDGE_ALPHA = 1.7
+
+/**
  * Les cinq identités géométriques d'un conduit (phase 5).
  *
  * Chacune a un rayon, une opacité et un rôle distincts :
@@ -179,7 +189,10 @@ export function layerSpecs(channelCount: number): LayerSpec[] {
     { kind: 'structure', radius: CHANNEL_EXTENT, alpha: 0.16, emit: false },
   ]
   for (let i = 0; i < channelCount; i++) {
-    out.push({ kind: 'channel', radius: MICRO_FIBER_RADIUS, alpha: 0.3, emit: false, channel: i })
+    // 0,45 et non 0,3 : le profil de Fresnel (MEMBRANE_FACING_ALPHA) divise
+    // par ~2 l'opacité moyenne d'un tube vu de face ; un canal garde sa
+    // présence d'avant.
+    out.push({ kind: 'channel', radius: MICRO_FIBER_RADIUS, alpha: 0.45, emit: false, channel: i })
   }
   out.push({ kind: 'core', radius: CORE_RADIUS, alpha: 0.7, emit: true })
   return out
@@ -318,7 +331,9 @@ const FRAGMENT_SHADER = /* glsl */ `
     }
     float e = (1.0 - exp(-2.0 * vEmit * vAlpha)) * pulse;
     vec3 col = surface * (1.0 - vEmit) + vColor * e;
-    float a = clamp(vAlpha * (1.0 - vEmit) * 1.0 + e, 0.0, 1.0);
+    // Membrane FINE : transparente de face, lisible sur sa silhouette.
+    float shell = ${MEMBRANE_FACING_ALPHA.toFixed(3)} + ${MEMBRANE_EDGE_ALPHA.toFixed(3)} * rim;
+    float a = clamp(vAlpha * (1.0 - vEmit) * shell + e, 0.0, 1.0);
     gl_FragColor = vec4(col, a * uFade);
   }
 `
@@ -897,7 +912,10 @@ export function createVascularLinks(
               const a1 = layerBase + i * TUBE_SEGMENTS + ((k + 1) % TUBE_SEGMENTS)
               const b0 = a0 + TUBE_SEGMENTS
               const b1 = a1 + TUBE_SEGMENTS
-              index.push(a0, b0, a1, a1, b0, b1)
+              // Enroulement SORTANT : (a1 − a0) × (b0 − a0) suit la normale
+              // d'anneau. Tourné vers l'intérieur, FrontSide ne dessinait que
+              // le mur du fond — normale dos à la vue, rim = 1 partout.
+              index.push(a0, a1, b0, a1, b1, b0)
             }
           }
           if (specs[layer].emit) coreTriangles += (c.samples - 1) * TUBE_SEGMENTS * 2
