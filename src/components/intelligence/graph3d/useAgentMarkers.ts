@@ -56,6 +56,12 @@ export interface AgentMarkersInput {
    * / heatmap restyle instead of being drawn once and overwritten.
    */
   overlayRef?: React.MutableRefObject<NodeStyleOverlay>
+  /**
+   * Entity id → id of the element drawn for it. With the dynamic scale an
+   * agent's session / task / plan is often inside a closed group: its marker
+   * then sits on THAT group (which really contains it) instead of vanishing.
+   */
+  aliases?: ReadonlyMap<string, string>
 }
 
 export interface AgentMarkersHandle {
@@ -68,7 +74,12 @@ export function useAgentMarkers(input: AgentMarkersInput): AgentMarkersHandle {
   const { data } = useLiveAgents()
   const agents = useMemo(() => (enabled ? data?.agents ?? [] : []), [enabled, data])
   const index = useMemo(() => buildPulseIndex(nodes), [nodes])
-  const placement = useMemo(() => placeAgents(agents, (id) => index.has(id)), [agents, index])
+  const aliases = input.aliases
+  const placement = useMemo(() => {
+    const drawn = (id: string) => (index.has(id) ? id : aliases?.get(id) ?? id)
+    const raw = placeAgents(agents, (id) => index.has(drawn(id)))
+    return { ...raw, placed: raw.placed.map((p) => ({ ...p, nodeId: drawn(p.nodeId) })) }
+  }, [agents, index, aliases])
 
   const baseNodeStyleRef = useRef(input.baseNodeStyle)
   useEffect(() => {

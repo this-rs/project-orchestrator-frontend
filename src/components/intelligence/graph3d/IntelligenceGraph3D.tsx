@@ -23,7 +23,7 @@ import {
 } from './useRenderLoop'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
 import { layerRgb, resolveNodeBaseRgb } from './layerColors'
-import { createLinkRenderer, parseColor, type LinkRenderer, type LinkStyle } from './linkSegments'
+import { createLinkRenderer, parseColor, setLinkFade, type LinkRenderer, type LinkStyle } from './linkSegments'
 import { computeLinkAlpha, linkFamilyAlpha, LINK_OPACITY } from './linkFamily'
 import { classifyLinkScale, linkScaleAlpha } from './linkScale'
 import { LINK_FOCUS_GAIN, classifyLinkFocus, countLinksByFocus } from './linkFocus'
@@ -48,7 +48,7 @@ import {
 import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
 import { nextScaleLevel, scaleYardstick } from './scaleDecision'
 import { buildClusterTree, cutForView, type ClusterCut, type ClusterTree } from './clusterTree'
-import { carriedPrevious, graphFromCut, openIdsOf } from './cutGraph'
+import { CLUSTER_NODE_PREFIX, carriedPrevious, graphFromCut, openIdsOf } from './cutGraph'
 import type { VascularLinkRenderer } from './linkVascularRenderer'
 import { formatExactCount } from './linkMagnitude'
 import { nearestNeighbourScale } from './linkRadius'
@@ -228,6 +228,13 @@ const TERRITORY_ALPHA = 0.35
 
 /** Screen tolerance around a link's axis for hover, px: a one-relation conduit is barely wider. */
 const LINK_PICK_TOLERANCE_PX = 6
+
+/**
+ * Cross-fade of the link layer when the dynamic scale changes what is drawn,
+ * ms: the old layer fades out while the new one fades in, so a trunk is seen
+ * dissolving into its branches (and back) instead of links popping.
+ */
+const LINK_CROSSFADE_MS = 380
 
 /** Quiet time after the last camera move before the cut follows it, ms. */
 const RECUT_SETTLE_MS = 200
@@ -657,6 +664,20 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (sameFrontier(next, prev)) return
     setGestureCut({ tree: clusterTree, cut: next })
   }, [clusterTree, currentView, cutHeight])
+
+  // Entity id → the closed group drawn for it (the real-time layer — agents,
+  // pulses — follows an entity into the group that holds it).
+  const drawnAliases = useMemo(() => {
+    const m = new Map<string, string>()
+    if (!clusterTree || !clusterCut) return m
+    for (const i of clusterCut.frontier) {
+      const t = clusterTree.nodes[i]
+      if (t.kind === 'leaf') continue
+      const groupId = CLUSTER_NODE_PREFIX + t.id
+      for (let k = t.memberStart; k < t.memberEnd; k++) m.set(graphData.nodes[clusterTree.order[k]].id, groupId)
+    }
+    return m
+  }, [clusterTree, clusterCut, graphData.nodes])
 
   const aggregated = dynamicScale
     ? clusterCut != null && clusterCut.frontier.some((i) => clusterTree!.nodes[i].kind !== 'leaf')
@@ -2278,6 +2299,45 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     setParticlesAnimating(particlesAnimating)
   }, [particlesAnimating, setParticlesAnimating])
 
+  // A change of the DYNAMIC cut cross-fades the link layer; anything else (a
+  // new dataset, a mode switch, unmount) replaces it at once.
+  const crossfadeLinksRef = useRef(false)
+  crossfadeLinksRef.current = dynamicScale
+  // One animation per layer: a new fade on a layer CANCELS the one running on
+  // it (two quick cuts fade a layer in, then out — without this the two fought
+  // and a layer could be left on screen at 0 opacity, never released).
+  const fadeTokensRef = useRef(new WeakMap<THREE.Object3D, number>())
+  const fadeLinkLayer = useCallback((object: THREE.Object3D, from: number, to: number, done?: () => void) => {
+    const token = (fadeTokensRef.current.get(object) ?? 0) + 1
+    fadeTokensRef.current.set(object, token)
+    const current = () => fadeTokensRef.current.get(object) === token
+    setLinkFade(object, from)
+    const t0 = performance.now()
+    let finished = false
+    const finish = () => {
+      if (finished) return
+      finished = true
+      // superseded: the newer animation owns the layer — but a release is never skipped
+      if (!current()) { done?.(); return }
+      setLinkFade(object, to)
+      done?.()
+      wake(WAKE_MUTATION_MS)
+    }
+    const step = () => {
+      if (finished) return
+      if (!current()) { finish(); return }
+      const t = Math.min(1, (performance.now() - t0) / LINK_CROSSFADE_MS)
+      const eased = t * t * (3 - 2 * t)
+      setLinkFade(object, from + (to - from) * eased)
+      wake(WAKE_MUTATION_MS)
+      if (t < 1) requestAnimationFrame(step)
+      else finish()
+    }
+    requestAnimationFrame(step)
+    // A hidden tab freezes rAF: the old layer is still released.
+    setTimeout(finish, LINK_CROSSFADE_MS + 200)
+  }, [wake])
+
   // ── Optimized link rendering — one LineSegments for all links ─────────
   // In the minimal-quality path (≥500 nodes) the library's per-link cylinders
   // (and their MeshLambertMaterial lights dependency) are suppressed via
@@ -2304,6 +2364,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     seg.updateColors(computeLinkStyleRef.current)
     scene.add(seg.object)
     linkSegmentsRef.current = seg
+    // The dynamic scale replaced a layer that is still fading out: come in.
+    const crossfade = crossfadeLinksRef.current
+    if (crossfade) fadeLinkLayer(seg.object, 0, 1)
     const bound = boundNodeArraysRef.current
     bound.set('links', data.nodes)
     // wake: edges were added to the scene.
@@ -2312,15 +2375,23 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     return () => {
       if (bound.get('links') === data.nodes) bound.delete('links')
       if (linkSegmentsRef.current === seg) {
-        scene.remove(seg.object)
-        seg.dispose()
         linkSegmentsRef.current = null
+        if (crossfadeLinksRef.current) {
+          // Leave it on screen and fade it out under the new layer.
+          fadeLinkLayer(seg.object, 1, 0, () => {
+            scene.remove(seg.object)
+            seg.dispose()
+          })
+        } else {
+          scene.remove(seg.object)
+          seg.dispose()
+        }
       }
     }
     // Keyed on the STRUCTURE, not on activeGraphData's identity (see above).
     // hasDimensions: the library mounts after the data when the 3D view opens
     // on a loaded graph; without it the links waited for the next flush.
-  }, [useOptimizedLinks, useTubes, activeNodeKey, activeLinkKey, wake, hasDimensions])
+  }, [useOptimizedLinks, useTubes, activeNodeKey, activeLinkKey, wake, hasDimensions, fadeLinkLayer])
 
   // ── Aggregated tier — super-edges as tubes ────────────────────────────
   // At scaleLevel ≥ 1 the super-edges are few enough (≤ TUBE_MAX_EDGES) to
@@ -2608,6 +2679,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     baseLinkStyle: liveBaseLinkStyle,
     animator,
     enabled: hasDimensions,
+    aliases: drawnAliases,
   })
 
   // Community glow: an event on an entity raises its community envelope
@@ -2620,8 +2692,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   })
 
   // Agents at work (GET /api/agents/live), on their chat_session / task / plan
-  // node. Off at the aggregated tiers: super-node ids are group keys, no agent
-  // resolves to one, and a marker on an invented spot would be a lie.
+  // node. Off at the OLD global aggregated tiers (a grid cell is an invented
+  // spot). With the dynamic scale every group is a real container: an agent
+  // whose node is inside a closed group shows on that group (drawnAliases).
+  // It was off whenever any group was drawn — that is, almost always: the
+  // real-time layer had disappeared.
   useAgentMarkers({
     graphRef,
     nodePointsRef,
@@ -2629,8 +2704,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     nodes: activeGraphData.nodes,
     baseNodeStyle: liveBaseNodeStyle,
     animator,
-    enabled: hasDimensions && !aggregated,
+    enabled: hasDimensions && (!aggregated || dynamicScale),
     overlayRef: agentOverlayRef,
+    aliases: drawnAliases,
   })
 
   // ── Overview tier — custom pick for hover / click ─────────────────────

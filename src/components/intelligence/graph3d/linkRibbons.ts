@@ -62,10 +62,11 @@ const VERTEX_SHADER = /* glsl */ `
 `
 
 const FRAGMENT_SHADER = /* glsl */ `
+  uniform float uFade;
   varying vec3 vColor;
   varying float vAlpha;
   void main() {
-    gl_FragColor = vec4(vColor, vAlpha);
+    gl_FragColor = vec4(vColor, vAlpha * uFade);
   }
 `
 
@@ -209,6 +210,7 @@ function buildRibbons(nodes: Graph3DNode[], links: Graph3DLink[]): LinkRenderer 
   const material = new THREE.ShaderMaterial({
     vertexShader: VERTEX_SHADER,
     fragmentShader: FRAGMENT_SHADER,
+    uniforms: { uFade: { value: 1 } },
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -245,6 +247,7 @@ function buildRibbons(nodes: Graph3DNode[], links: Graph3DLink[]): LinkRenderer 
         new THREE.ShaderMaterial({
           vertexShader: VERTEX_SHADER,
           fragmentShader: FRAGMENT_SHADER,
+          uniforms: { uFade: { value: 1 } },
           transparent: true,
           depthWrite: false,
         }),

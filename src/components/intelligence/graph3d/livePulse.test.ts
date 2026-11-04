@@ -164,3 +164,17 @@ describe('pulsedNodeStyle / pulsedLinkStyle', () => {
     expect(s.a).toBeGreaterThan(l.a)
   })
 })
+
+describe('resolvePulseTarget — an event inside a closed group pulses the group', () => {
+  const group = { id: 'cl:L:code|C:c4', label: 'g', entityType: 'file', layer: 'code', x: 0, y: 0, z: 0, data: {} } as Graph3DNode
+  const index = new Map([[group.id, group]])
+  const aliases = new Map([['src/a.ts', group.id]])
+
+  it('falls back to the group that holds the entity', () => {
+    expect(resolvePulseTarget('src/a.ts', index, aliases)).toBe(group)
+    expect(resolvePulseTarget('file:src/a.ts', index, aliases)).toBe(group)
+  })
+  it('still finds nothing for an entity the graph does not hold', () => {
+    expect(resolvePulseTarget('src/zzz.ts', index, aliases)).toBeNull()
+  })
+})

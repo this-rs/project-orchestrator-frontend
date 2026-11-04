@@ -93,10 +93,11 @@ const VERTEX_SHADER = /* glsl */ `
 `
 
 const FRAGMENT_SHADER = /* glsl */ `
+  uniform float uFade;
   varying vec3 vColor;
   varying float vAlpha;
   void main() {
-    gl_FragColor = vec4(vColor, vAlpha);
+    gl_FragColor = vec4(vColor, vAlpha * uFade);
   }
 `
 
@@ -142,6 +143,7 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
   const material = new THREE.ShaderMaterial({
     vertexShader: VERTEX_SHADER,
     fragmentShader: FRAGMENT_SHADER,
+    uniforms: { uFade: { value: 1 } },
     transparent: true,
     depthWrite: false,
   })
@@ -374,6 +376,24 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
  * magnitude is what the eye needs.
  */
 export const VASCULAR_MIN_LINKS = 3_000
+
+/**
+ * Global opacity of a link layer (0..1), whatever renderer drew it: every link
+ * shader multiplies its alpha by `uFade`. Used to CROSS-FADE two link layers
+ * when the dynamic scale changes what is drawn — a trunk dissolving into its
+ * branches instead of links popping in and out (« je ne m'explique pas les
+ * liens qui changent »).
+ */
+export function setLinkFade(object: THREE.Object3D, fade: number): void {
+  const f = Math.max(0, Math.min(1, fade))
+  object.traverse((o) => {
+    const mats = (o as THREE.Mesh).material
+    for (const m of Array.isArray(mats) ? mats : mats ? [mats] : []) {
+      const u = (m as THREE.ShaderMaterial).uniforms?.uFade
+      if (u) u.value = f
+    }
+  })
+}
 
 export function createLinkRenderer(nodes: Graph3DNode[], links: Graph3DLink[], frame?: VascularSceneFrame): LinkRenderer {
   // The organic hierarchy first (Organic Link Engine V2), and only where it

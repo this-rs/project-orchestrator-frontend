@@ -121,6 +121,8 @@ export interface LivePulseInput {
   animator: FrameAnimator
   /** False disables the hook entirely (nothing subscribed, nothing written). */
   enabled?: boolean
+  /** Entity id → id of the element drawn for it (a closed group of the dynamic scale). */
+  aliases?: ReadonlyMap<string, string>
 }
 
 export interface LivePulseHandle {
@@ -130,6 +132,8 @@ export interface LivePulseHandle {
 
 export function useLivePulse(input: LivePulseInput): LivePulseHandle {
   const { nodePointsRef, linkSegmentsRef, nodes, animator, enabled = true } = input
+  const aliasesRef = useRef(input.aliases)
+  aliasesRef.current = input.aliases
   const clockRef = useRef(new PulseClock())
   /** Node id → node, for the pulses in flight (resolved once, at trigger time). */
   const targetsRef = useRef(new Map<string, Graph3DNode>())
@@ -173,7 +177,7 @@ export function useLivePulse(input: LivePulseInput): LivePulseHandle {
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
       let started = false
       for (const raw of ids) {
-        const node = resolvePulseTarget(raw, index)
+        const node = resolvePulseTarget(raw, index, aliasesRef.current)
         if (!node) continue
         if (clockRef.current.trigger(node.id, now)) {
           targetsRef.current.set(node.id, node)

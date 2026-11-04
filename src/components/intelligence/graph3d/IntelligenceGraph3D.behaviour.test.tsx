@@ -728,3 +728,64 @@ describe('IntelligenceGraph3D — framing in portrait (a phone)', () => {
     expect(distance).toBeGreaterThanOrEqual(radius / Math.sin(hfov / 2))
   })
 })
+
+describe('IntelligenceGraph3D — the real-time layer survives the dynamic scale', () => {
+  it('an agent whose node is inside a closed group lights THAT group', async () => {
+    // agents on nodes spread over the whole graph: some end up inside closed groups
+    lib.agents = Array.from({ length: 10 }, (_, k) => ({ session_id: `n${k * 900 + 5}`, title: 'agent', state: 'waiting_input' }))
+    await mountGraph(makeGraph(9000))
+    await flush(3000)
+    const drawn = (lib.props.graphData as { nodes: Array<{ id: string }> }).nodes
+    const drawnIds = new Set(drawn.map((n) => n.id))
+    // at least one agent's own node is NOT drawn (it is inside a group)…
+    expect(lib.agents.some((a) => !drawnIds.has(a.session_id as string))).toBe(true)
+    // …and a group carries its activation instead of the agent vanishing
+    const points = lib.fg.scene().children.find((o) => o instanceof THREE.Points) as THREE.Points
+    const act = points.geometry.getAttribute('aAct') as THREE.BufferAttribute
+    const litGroups = drawn.filter((n, i) => n.id.startsWith('cl:') && act.getX(i) > 0.4)
+    expect(litGroups.length).toBeGreaterThan(0)
+  }, 60_000)
+})
+
+describe('IntelligenceGraph3D — links cross-fade when the dynamic cut changes', () => {
+  /** The link layers in the scene, with their current fade. */
+  const linkLayers = () => {
+    const out: number[] = []
+    for (const o of lib.fg.scene().children) {
+      let fade: number | null = null
+      o.traverse((c) => {
+        const m = (c as THREE.Mesh).material as THREE.ShaderMaterial | undefined
+        const u = m?.uniforms?.uFade
+        if (u && fade === null) fade = u.value as number
+      })
+      if (fade !== null) out.push(fade)
+    }
+    return out
+  }
+
+  it('the old layer fades out under the new one, then leaves', async () => {
+    await mountGraph(makeGraph(9000))
+    await flush(3000)
+    // the opening framing moved the camera and the cut followed: let that
+    // (legitimate) cross-fade finish before testing a new one
+    await flush(1000)
+    expect(linkLayers()).toEqual([1])
+    const groups = (lib.props.graphData as { nodes: Array<{ id: string; x: number; y: number; z: number; data: Record<string, unknown> }> }).nodes
+      .filter((n) => n.id.startsWith('cl:'))
+    const target = groups.sort((a, b) => (b.data.count as number) - (a.data.count as number))[0]
+    const camera = lib.fg.camera()
+    const controls = lib.fg.controls()
+    act(() => {
+      camera.position.set(target.x, target.y, target.z + Math.max(1, target.data.clusterRadius as number) * 1.5)
+      controls.target.set(target.x, target.y, target.z)
+      controls.dispatchEvent({ type: 'end' })
+    })
+    await flush(150)
+    // mid-fade: two layers, neither at full strength
+    const mid = linkLayers()
+    expect(mid.length).toBe(2)
+    expect(mid.every((f) => f > 0 && f < 1)).toBe(true)
+    await flush(1000)
+    expect(linkLayers()).toEqual([1])
+  }, 60_000)
+})

@@ -288,6 +288,7 @@ const VERTEX_SHADER = /* glsl */ `
 `
 
 const FRAGMENT_SHADER = /* glsl */ `
+  uniform float uFade;
   uniform vec3 uLightDir;
   uniform float uFlowTime;
   varying vec3 vColor;
@@ -318,7 +319,7 @@ const FRAGMENT_SHADER = /* glsl */ `
     float e = (1.0 - exp(-2.0 * vEmit * vAlpha)) * pulse;
     vec3 col = surface * (1.0 - vEmit) + vColor * e;
     float a = clamp(vAlpha * (1.0 - vEmit) * 1.0 + e, 0.0, 1.0);
-    gl_FragColor = vec4(col, a);
+    gl_FragColor = vec4(col, a * uFade);
   }
 `
 
@@ -1066,6 +1067,7 @@ export function createVascularLinks(
         uFlowTime: { value: 0 },
         uViewportH: { value: 0 },
         uPxFloor: { value: CORE_SCREEN_FLOOR_PX },
+        uFade: { value: 1 },
       },
     })
 

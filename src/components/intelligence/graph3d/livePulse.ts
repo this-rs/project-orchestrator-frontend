@@ -139,15 +139,23 @@ export function buildPulseIndex(nodes: readonly Graph3DNode[]): Map<string, Grap
 }
 
 /** The graph node an event id designates, or null when it is not on screen. */
-export function resolvePulseTarget(id: string, index: Map<string, Graph3DNode>): Graph3DNode | null {
+export function resolvePulseTarget(
+  id: string,
+  index: Map<string, Graph3DNode>,
+  aliases?: ReadonlyMap<string, string>,
+): Graph3DNode | null {
   const direct = index.get(id)
   if (direct) return direct
   const colon = id.indexOf(':')
-  if (colon !== -1) {
-    const bySuffix = index.get(id.slice(colon + 1))
+  const bare = colon !== -1 ? id.slice(colon + 1) : null
+  if (bare) {
+    const bySuffix = index.get(bare)
     if (bySuffix) return bySuffix
   }
-  return null
+  // Not drawn on its own (the dynamic scale holds it inside a closed group):
+  // the activity shows on the group that contains it.
+  const alias = aliases?.get(id) ?? (bare ? aliases?.get(bare) : undefined)
+  return alias ? index.get(alias) ?? null : null
 }
 
 // ── Style arithmetic ──────────────────────────────────────────────────────────
