@@ -84,6 +84,7 @@ import {
 } from '@/components/tasks/DetailRows'
 import { RowStateLink } from '@/components/tasks/RowStateLink'
 import { StatusBreakdown } from '@/components/tasks/StatusBreakdown'
+import { TaskVerdict } from '@/components/tasks/TaskVerdict'
 import type { Plan, Decision, DecisionStatus, DependencyGraph, Task, Constraint, Step, Commit, PlanStatus, TaskStatus, PaginatedResponse, Project } from '@/types'
 import type { KanbanTask } from '@/components/kanban'
 
@@ -1032,6 +1033,16 @@ function PlanTaskRow({
       {expanded && (
         <div className={`${rowInteractive} pl-1`}>
           <CompactStepList steps={steps} loading={loadingSteps} />
+          {/*
+            The human verdict lives where the work is already being read: on a task that
+            is done. It is the only signal the learning loop cannot give itself — an
+            agent's own "completed" is not counted (RM-7).
+          */}
+          {task.status === 'completed' && (
+            <div className="pt-2">
+              <TaskVerdict taskId={task.id} projectId={projectId} />
+            </div>
+          )}
         </div>
       )}
     </EntityRow>

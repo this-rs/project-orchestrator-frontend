@@ -1,6 +1,14 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // A human's verdict on whether the work delivered (RM-7).
+  verdict: {
+    prompt: '이 작업이 결과를 냈습니까?',
+    delivered: '납품됨',
+    missed: '미납품',
+    failed: '판정이 기록되지 않았습니다',
+    recorded: '판정이 기록되었습니다',
+  },
   actions: {
     edit: '편집',
     delete: '삭제',

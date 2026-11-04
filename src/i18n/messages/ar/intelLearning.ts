@@ -1,6 +1,13 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // What a person thought of the work the router rewarded (RM-7).
+  feedback: 'أحكام بشرية',
+  feedbackDescription: 'الرقم الوحيد الذي لا تستطيع الحلقة إعطاؤه لنفسها: "منجز" من وكيل لا يُحتسب.',
+  feedbackCount: 'أحكام',
+  feedbackAverage: 'المتوسط',
+  feedbackNone: 'لم يحكم أحد على مهمة بعد',
+  feedbackNoneDescription: 'على مهمة مكتملة، افتح سطرها وأجب "أُنجز" أو "لم يُنجز". حتى ذلك الحين تتعلّم المكافأة من لا شيء.',
   trajectory: {
     loadFailed: 'تعذّر تحميل المسار',
     openPlan: 'فتح الخطة {title}',

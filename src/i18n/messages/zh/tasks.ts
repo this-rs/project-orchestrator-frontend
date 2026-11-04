@@ -1,6 +1,14 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // A human's verdict on whether the work delivered (RM-7).
+  verdict: {
+    prompt: '这项工作交付了吗？',
+    delivered: '已交付',
+    missed: '未交付',
+    failed: '判定未记录',
+    recorded: '判定已记录',
+  },
   actions: {
     edit: '编辑',
     delete: '删除',

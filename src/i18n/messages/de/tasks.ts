@@ -1,6 +1,14 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // A human's verdict on whether the work delivered (RM-7).
+  verdict: {
+    prompt: 'Hat diese Arbeit geliefert?',
+    delivered: 'Geliefert',
+    missed: 'Nicht geliefert',
+    failed: 'Das Urteil wurde nicht gespeichert',
+    recorded: 'Urteil gespeichert',
+  },
   actions: {
     edit: 'Bearbeiten',
     delete: 'Löschen',

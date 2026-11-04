@@ -1,6 +1,13 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // What a person thought of the work the router rewarded (RM-7).
+  feedback: '인간 판정',
+  feedbackDescription: '루프가 스스로 줄 수 없는 유일한 숫자입니다. 에이전트의 "완료"는 계산되지 않습니다.',
+  feedbackCount: '판정 수',
+  feedbackAverage: '평균',
+  feedbackNone: '아직 아무도 작업을 평가하지 않았습니다',
+  feedbackNoneDescription: '완료된 작업의 행을 펼쳐 "납품됨" 또는 "미납품"을 선택하세요. 그때까지 보상은 아무것도 없는 상태에서 학습합니다.',
   trajectory: {
     loadFailed: '궤적을 불러오지 못했습니다',
     openPlan: '플랜 {title} 열기',

@@ -1,6 +1,13 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // What a person thought of the work the router rewarded (RM-7).
+  feedback: 'Оценки людей',
+  feedbackDescription: 'Единственное число, которое цикл не может дать себе сам: «готово» от агента не считается.',
+  feedbackCount: 'Оценки',
+  feedbackAverage: 'Среднее',
+  feedbackNone: 'Пока никто не оценил ни одной задачи',
+  feedbackNoneDescription: 'У завершённой задачи разверните строку и ответьте «Сдано» или «Не сдано». До этого награда учится ни на чём.',
   trajectory: {
     loadFailed: 'Не удалось загрузить траекторию',
     openPlan: 'Открыть план {title}',

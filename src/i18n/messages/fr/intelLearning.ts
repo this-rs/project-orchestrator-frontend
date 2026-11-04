@@ -1,6 +1,16 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // Ce qu'une PERSONNE a pensé du travail récompensé. Le seul chiffre que la boucle
+  // d'apprentissage ne peut pas produire seule.
+  feedback: 'Verdicts humains',
+  feedbackDescription:
+    'Le seul chiffre que la boucle ne peut pas se donner : le « terminé » d’un agent n’est jamais compté.',
+  feedbackCount: 'Nombre de verdicts',
+  feedbackAverage: 'Moyenne',
+  feedbackNone: 'Personne n’a encore jugé une tâche',
+  feedbackNoneDescription:
+    'Sur une tâche terminée, dépliez sa ligne et répondez « Livré » ou « Pas livré ». D’ici là, la récompense apprend sur du vide.',
   trajectory: {
     loadFailed: 'Impossible de charger la trajectoire',
     openPlan: 'Ouvrir le plan {title}',
