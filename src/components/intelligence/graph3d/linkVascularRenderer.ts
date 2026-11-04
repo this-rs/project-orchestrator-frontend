@@ -587,9 +587,20 @@ export interface VascularLinkRenderer extends LinkRenderer {
   pathOf?: (id: number) => number[]
   /** Allume le chemin de `id` (null = éteint). */
   highlightConduit?: (id: number | null) => void
+  /**
+   * Impose le ratio pixels du tampon / pixels CSS du plancher du cœur. Sans
+   * appel, le ratio du renderer (`getPixelRatio`) est lu à chaque rendu — le
+   * bon choix quand on dessine dans le canevas.
+   */
+  setPixelRatio?: (pixelRatio: number) => void
 }
 
-/** Plancher de rayon ÉCRAN du cœur, en pixels : un lien d'une relation reste visible. */
+/**
+ * Plancher de rayon ÉCRAN du cœur, en pixels CSS : un lien d'une relation reste
+ * visible (diamètre ≥ 1,2 px CSS). Converti en pixels du tampon par le ratio
+ * de pixels au moment du rendu : la taille à l'écran ne bouge pas quand le
+ * ratio adaptatif change.
+ */
 export const CORE_SCREEN_FLOOR_PX = 0.6
 /** Gain d'opacité d'un chemin survolé. */
 const GLOW_GAIN = 2.2
@@ -1135,11 +1146,15 @@ export function createVascularLinks(
     const mesh = new THREE.Mesh(geometry, material)
     mesh.renderOrder = LINK_RENDER_ORDER
     mesh.frustumCulled = false
-    // Le plancher écran du cœur a besoin de la hauteur réelle du tampon.
+    // Le plancher écran du cœur : hauteur réelle du tampon, et plancher CSS
+    // converti en pixels du tampon par le ratio courant.
     const drawSize = new THREE.Vector2()
+    let pixelRatioOverride: number | null = null
     mesh.onBeforeRender = (renderer) => {
       renderer.getDrawingBufferSize(drawSize)
       material.uniforms.uViewportH.value = drawSize.y
+      const ratio = pixelRatioOverride ?? (typeof renderer.getPixelRatio === 'function' ? renderer.getPixelRatio() : 1)
+      material.uniforms.uPxFloor.value = CORE_SCREEN_FLOOR_PX * (Number.isFinite(ratio) && ratio > 0 ? ratio : 1)
     }
     const group = new THREE.Group()
     group.add(mesh)
@@ -1585,6 +1600,9 @@ export function createVascularLinks(
         layers: allConduits.reduce((m, c) => Math.max(m, c.layers), 0),
         // Tout est translucide sauf le cœur émissif : compté sur l'index réel.
         transparentTriangles: totalTriangles - coreTriangles,
+      },
+      setPixelRatio: (pixelRatio: number) => {
+        pixelRatioOverride = Number.isFinite(pixelRatio) && pixelRatio > 0 ? pixelRatio : null
       },
       setFlowTime: (turns: number) => {
         flowTime = Number.isFinite(turns) ? turns % 1 : 0

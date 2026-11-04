@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createVascularLinks, layerSpecs, MEMBRANE_FACING_ALPHA, MEMBRANE_EDGE_ALPHA } from './linkVascularRenderer'
+import { CORE_SCREEN_FLOOR_PX, createVascularLinks, layerSpecs, MEMBRANE_FACING_ALPHA, MEMBRANE_EDGE_ALPHA } from './linkVascularRenderer'
 import { synthGraph } from './linkVascularFixture'
 
 type Attr = { array: Float32Array }
@@ -103,5 +103,49 @@ describe('opacité pilotée par le style', () => {
     expect(rest).toBeGreaterThan(dim * 3)
     expect(full).toBeGreaterThan(rest)
     expect(full).toBeLessThanOrEqual(layerSpecs(5).at(-1)!.alpha + 1e-6)
+  })
+})
+
+/**
+ * Le plancher de rayon écran du cœur est exprimé en pixels CSS. Exprimé en
+ * pixels du tampon, 0,6 px valait 0,4 px CSS à un ratio de 1,5 (sous-pixel,
+ * scintillement) et changeait de taille à chaque mouvement du ratio adaptatif.
+ */
+describe('plancher écran du cœur en pixels CSS', () => {
+  type Uniforms = Record<string, { value: number }>
+  const setup = () => {
+    const { nodes, links } = synthGraph(400, [0, 0, 0], 2)
+    const r = createVascularLinks(nodes, links)!
+    const mesh = (r.object as unknown as { children: { onBeforeRender: (...a: unknown[]) => void; material: { uniforms: Uniforms } }[] }).children[0]
+    const render = (ratio: number) => {
+      const fake = {
+        getPixelRatio: () => ratio,
+        getDrawingBufferSize: (v: { set: (x: number, y: number) => void }) => { v.set(1280 * ratio, 720 * ratio); return v },
+      }
+      mesh.onBeforeRender(fake, null, null, null, null, null)
+      const u = mesh.material.uniforms
+      // Rayon plancher en fraction de la hauteur d'écran : ce que voit l'œil.
+      return u.uPxFloor.value / u.uViewportH.value
+    }
+    return { r, render, uniforms: mesh.material.uniforms }
+  }
+
+  it('garde la même taille à l’écran quel que soit le ratio de pixels', () => {
+    const { render } = setup()
+    const at1 = render(1)
+    expect(at1).toBeCloseTo(CORE_SCREEN_FLOOR_PX / 720, 9)
+    expect(render(1.5)).toBeCloseTo(at1, 9)
+    expect(render(2)).toBeCloseTo(at1, 9)
+  })
+
+  it('n’est jamais sous-pixel en CSS', () => {
+    expect(2 * CORE_SCREEN_FLOOR_PX).toBeGreaterThanOrEqual(1)
+  })
+
+  it('setPixelRatio impose le ratio (rendu dans une cible d’une autre résolution)', () => {
+    const { r, render, uniforms } = setup()
+    r.setPixelRatio!(2)
+    render(1)
+    expect(uniforms.uPxFloor.value).toBeCloseTo(2 * CORE_SCREEN_FLOOR_PX, 9)
   })
 })
