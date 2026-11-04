@@ -11,7 +11,8 @@ import type {
   ProjectGraphResponse,
 } from '@/types/intelligence'
 import { EDGE_STYLES } from '@/constants/intelligence'
-import { graphCacheKey, graphCacheGet, graphCacheSet } from './graphCache'
+import { graphCacheKey, graphCachePeek, graphCacheSet } from './graphCache'
+import { mergeGraphDelta } from './graphDelta'
 import {
   intelligenceNodesAtom,
   intelligenceEdgesAtom,
@@ -30,7 +31,7 @@ import {
   graphLoadingStagesAtom,
   type LoadingStage,
 } from '@/atoms/intelligence'
-import { intelligenceApi } from '@/services/intelligence'
+import { intelligenceApi, type GraphSyncMeta } from '@/services/intelligence'
 import { VISIBILITY_PRESETS } from '@/constants/intelligence'
 import type { VisibilityMode } from '@/types/intelligence'
 
@@ -118,6 +119,43 @@ type Tr = ReturnType<typeof useT>['t']
 const countOf = (t: Tr, n: number, one: MessageKey, other: MessageKey) => t(n === 1 ? one : other, { count: n })
 const nodesText = (t: Tr, n: number) => countOf(t, n, 'intelPage.graph.stage.nodesOne', 'intelPage.graph.stage.nodesOther')
 
+/**
+ * Refresh a stale snapshot by its delta: only what changed since its cursor is
+ * fetched and folded in. When the delta cannot vouch for the result (no cursor,
+ * deletions not tracked, or the delta request failed), the graph is loaded in
+ * full. An abort is never swallowed.
+ */
+export async function refreshProjectGraph(
+  slug: string,
+  layers: string[],
+  limit: number,
+  stale: (ProjectGraphResponse & GraphSyncMeta) | null,
+  signal?: AbortSignal,
+): Promise<ProjectGraphResponse & GraphSyncMeta> {
+  if (stale?.synced_at && stale.deletions_tracked !== false) {
+    try {
+      const delta = await intelligenceApi.getGraph(
+        slug,
+        { layers, limit, since: stale.synced_at, includeDeleted: true },
+        signal,
+      )
+      if (delta.deletions_tracked !== false) {
+        const merged = mergeGraphDelta(stale, delta)
+        return {
+          ...stale,
+          ...delta,
+          nodes: merged.nodes as ProjectGraphResponse['nodes'],
+          edges: merged.edges as ProjectGraphResponse['edges'],
+          communities: delta.communities?.length ? delta.communities : stale.communities,
+        }
+      }
+    } catch (err) {
+      if (signal?.aborted) throw err
+    }
+  }
+  return intelligenceApi.getGraph(slug, { layers, limit, includeDeleted: true }, signal)
+}
+
 export function useIntelligenceGraph(projectSlug: string | undefined) {
   const { t } = useT()
   const tRef = useRef(t)
@@ -169,7 +207,9 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     // that the calls of a progressive load add up to the budget, not beyond.
     const perCategory = Math.max(1, Math.floor(limit / Math.max(1, budgetLayers, layers.length)))
     const cacheKey = graphCacheKey('project', projectSlug, layers, perCategory)
-    const cached = force ? null : (graphCacheGet(cacheKey) as ProjectGraphResponse | null)
+    const peeked = force ? null : graphCachePeek(cacheKey)
+    const cached = peeked?.fresh ? (peeked.response as ProjectGraphResponse) : null
+    const stale = peeked && !peeked.fresh ? (peeked.response as ProjectGraphResponse & GraphSyncMeta) : null
     setError(null)
     // Track per-layer loading state for UI indicators
     setLoadingLayers((prev: Set<string>) => {
@@ -185,8 +225,7 @@ export function useIntelligenceGraph(projectSlug: string | undefined) {
     }
     try {
       const data =
-        cached ??
-        await intelligenceApi.getGraph(projectSlug, { layers, limit: perCategory }, signal)
+        cached ?? (await refreshProjectGraph(projectSlug, layers, perCategory, stale, signal))
       if (!cached) graphCacheSet(cacheKey, data)
 
       const rfNodes = data.nodes.map(toReactFlowNode)
