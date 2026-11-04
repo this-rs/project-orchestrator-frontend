@@ -840,3 +840,33 @@ describe('IntelligenceGraph3D — the wheel and new data', () => {
   }, 60_000)
 })
 
+
+describe('IntelligenceGraph3D — the children of an opened group fly out of it', () => {
+  it('mid-transition some points are between the group centre and their place; then all are placed', async () => {
+    await mountGraph(makeGraph(9000))
+    await flush(4000)
+    const groups = (lib.props.graphData as { nodes: Array<{ id: string; x: number; y: number; z: number; data: Record<string, unknown> }> }).nodes
+      .filter((n) => n.id.startsWith('cl:'))
+    const target = groups.sort((a, b) => (b.data.count as number) - (a.data.count as number))[0]
+    const camera = lib.fg.camera()
+    const controls = lib.fg.controls()
+    act(() => {
+      camera.position.set(target.x, target.y, target.z + Math.max(1, target.data.clusterRadius as number) * 1.5)
+      controls.target.set(target.x, target.y, target.z)
+      controls.dispatchEvent({ type: 'end' })
+    })
+    await flush(300) // the cut follows once the camera settles; the morph starts there
+    await flush(150) // half-way through
+    const offPlace = () => {
+      const points = lib.fg.scene().children.find((o) => o instanceof THREE.Points) as THREE.Points
+      const pos = points.geometry.getAttribute('position') as THREE.BufferAttribute
+      const drawn = (lib.props.graphData as { nodes: Array<{ x: number; y: number; z: number }> }).nodes
+      let off = 0
+      drawn.forEach((n, i) => { if (Math.hypot(pos.getX(i) - n.x, pos.getY(i) - n.y, pos.getZ(i) - n.z) > 1e-3) off++ })
+      return off
+    }
+    expect(offPlace()).toBeGreaterThan(0)
+    await flush(1000)
+    expect(offPlace()).toBe(0)
+  }, 60_000)
+})

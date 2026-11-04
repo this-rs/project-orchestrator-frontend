@@ -416,6 +416,13 @@ export interface NodePoints {
   readonly object: THREE.Points
   setData: (nodes: Graph3DNode[]) => void
   updatePositions: () => void
+  /**
+   * Draw the listed nodes at start + (position − start)·t instead of their
+   * position (t from 0 to 1), without touching the node objects (they are the
+   * layout's). The dynamic scale uses it to let the children of an opened
+   * group fly out of its centre; t = 1 is exactly updatePositions().
+   */
+  setMorph: (starts: ReadonlyMap<string, readonly [number, number, number]>, t: number) => void
   updateStyles: (fn: NodeStyleFn) => void
   /** Index of a node id in the current buffer, or -1 when absent. */
   indexOf: (id: string) => number
@@ -552,6 +559,20 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
     ;(geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
   }
 
+  const setMorph = (starts: ReadonlyMap<string, readonly [number, number, number]>, t: number) => {
+    const k = Math.max(0, Math.min(1, t))
+    const pos = (geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array
+    for (let i = 0; i < nodeList.length; i++) {
+      const n = nodeList[i]
+      const s = starts.get(n.id)
+      const x = n.x ?? 0, y = n.y ?? 0, z = n.z ?? 0
+      pos[i * 3] = s ? s[0] + (x - s[0]) * k : x
+      pos[i * 3 + 1] = s ? s[1] + (y - s[1]) * k : y
+      pos[i * 3 + 2] = s ? s[2] + (z - s[2]) * k : z
+    }
+    ;(geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
+  }
+
   const updateStyles = (fn: NodeStyleFn) => {
     const col = (geometry.getAttribute('aColor') as THREE.BufferAttribute).array as Float32Array
     const alp = (geometry.getAttribute('aAlpha') as THREE.BufferAttribute).array as Float32Array
@@ -625,5 +646,5 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
 
   setData(nodes)
 
-  return { object, setData, updatePositions, updateStyles, indexOf, updateStyleAt, pick, setPixelRatio, setCameraDistance, setFramingDistance, getPixelRatio, dispose }
+  return { object, setData, updatePositions, setMorph, updateStyles, indexOf, updateStyleAt, pick, setPixelRatio, setCameraDistance, setFramingDistance, getPixelRatio, dispose }
 }

@@ -47,7 +47,7 @@ import {
   drilledCommunityAtom,
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
-import { buildClusterTree, cutForView, type ClusterCut, type ClusterTree } from './clusterTree'
+import { buildClusterTree, cutForView, cutTransition, type ClusterCut, type ClusterTree } from './clusterTree'
 import { CLUSTER_NODE_PREFIX, carriedPrevious, graphFromCut, openIdsOf } from './cutGraph'
 import type { VascularLinkRenderer } from './linkVascularRenderer'
 import { formatExactCount } from './linkMagnitude'
@@ -2330,6 +2330,27 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     setParticlesAnimating(particlesAnimating)
   }, [particlesAnimating, setParticlesAnimating])
 
+  // The cut the Points were last built from, and the tree it belongs to.
+  const morphFromRef = useRef<{ tree: ClusterTree; cut: ClusterCut } | null>(null)
+  const clusterTreeRef = useRef<ClusterTree | null>(null)
+  clusterTreeRef.current = clusterTree
+  /** Children fly from their parent's centre to their place over the cross-fade. */
+  const morphNodes = useCallback((np: NodePoints, starts: ReadonlyMap<string, readonly [number, number, number]>) => {
+    np.setMorph(starts, 0)
+    const t0 = performance.now()
+    const step = () => {
+      if (nodePointsRef.current !== np) return
+      const t = Math.min(1, (performance.now() - t0) / LINK_CROSSFADE_MS)
+      np.setMorph(starts, t * t * (3 - 2 * t))
+      wake(WAKE_MUTATION_MS)
+      if (t < 1) requestAnimationFrame(step)
+      else np.updatePositions()
+    }
+    requestAnimationFrame(step)
+    // a hidden tab freezes rAF: the nodes still end at their place
+    setTimeout(() => { if (nodePointsRef.current === np) np.updatePositions() }, LINK_CROSSFADE_MS + 200)
+  }, [wake])
+
   // A change of the DYNAMIC cut cross-fades the link layer; anything else (a
   // new dataset, a mode switch, unmount) replaces it at once.
   const crossfadeLinksRef = useRef(false)
@@ -2480,6 +2501,25 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     scene.add(np.object)
     nodePointsRef.current = np
     wake(WAKE_MUTATION_MS)
+    // A group opened by a gesture: its children FLY OUT of its centre, in step
+    // with the links' cross-fade, instead of popping into place.
+    const tree = clusterTreeRef.current
+    const cutNow = clusterCutRef.current
+    const before = morphFromRef.current
+    if (crossfadeLinksRef.current && tree && cutNow && before && before.tree === tree) {
+      const starts = new Map<string, [number, number, number]>()
+      for (const sp of cutTransition(tree, before.cut, cutNow).splits) {
+        const p = tree.nodes[sp.parent]
+        for (const c of sp.children) {
+          const t = tree.nodes[c]
+          // a leaf's tree id is `n:<node id>`; a group is drawn as `cl:<tree id>`
+          const id = t.kind === 'leaf' ? t.id.slice(2) : CLUSTER_NODE_PREFIX + t.id
+          if (id) starts.set(id, [p.x, p.y, p.z])
+        }
+      }
+      if (starts.size > 0) morphNodes(np, starts)
+    }
+    morphFromRef.current = tree && cutNow ? { tree, cut: cutNow } : null
 
     return () => {
       if (nodePointsRef.current === np) {

@@ -416,3 +416,21 @@ describe('densityAlphaK (uDensK)', () => {
     np.dispose()
   })
 })
+
+describe('nodePoints — setMorph (children flying out of an opened group)', () => {
+  it('draws listed nodes between their start and their place, never moving the node objects', () => {
+    const nodes = [mk('a', 10, 0, 0), mk('b', 20, 0, 0)]
+    const np = createNodePoints(nodes)
+    const pos = () => Array.from((np.object.geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array)
+    const starts = new Map([['a', [0, 0, 0] as [number, number, number]]])
+    np.setMorph(starts, 0)
+    expect(pos().slice(0, 3)).toEqual([0, 0, 0]) // a at its start
+    expect(pos().slice(3, 6)).toEqual([20, 0, 0]) // b untouched
+    np.setMorph(starts, 0.5)
+    expect(pos()[0]).toBeCloseTo(5)
+    np.setMorph(starts, 1)
+    expect(pos().slice(0, 3)).toEqual([10, 0, 0])
+    expect(nodes[0].x).toBe(10) // the layout's node never moved
+    np.dispose()
+  })
+})
