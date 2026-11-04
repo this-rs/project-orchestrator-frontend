@@ -51,6 +51,7 @@ import { buildClusterTree, cutForView, type ClusterCut, type ClusterTree } from 
 import { carriedPrevious, graphFromCut, openIdsOf } from './cutGraph'
 import type { VascularLinkRenderer } from './linkVascularRenderer'
 import { formatExactCount } from './linkMagnitude'
+import { nearestNeighbourScale } from './linkRadius'
 import type { MessageKey } from '@/i18n'
 import { zoomAdaptivePixelRatioCeiling } from './pixelRatioZoom'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
@@ -956,6 +957,24 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // re-frames exactly once per dataset.
   const nodeSetKey = useMemo(() => nodeSetSignature(graphData.nodes), [graphData.nodes])
 
+  // ── The frame the link law is measured in: the WHOLE graph ──────────────
+  // Unit (d0) and centre come from every node, once per layout — never from
+  // the drawn set, which changes at every cut of the dynamic scale (see
+  // VascularSceneFrame): the tubes then only grow and shrink with the zoom.
+  const graphNodesRef = useRef(graphData.nodes)
+  graphNodesRef.current = graphData.nodes
+  const linkFrame = useMemo(() => {
+    const nodes = graphNodesRef.current
+    if (nodes.length === 0) return undefined
+    let x = 0, y = 0, z = 0
+    for (const n of nodes) { x += n.x; y += n.y; z += n.z }
+    const c = nodes.length
+    return { unit: nearestNeighbourScale(nodes), center: [x / c, y / c, z / c] as [number, number, number] }
+    // keyed on what changes positions, not on the array identity a flush renews
+  }, [nodeSetKey, layoutRevision])
+  const linkFrameRef = useRef(linkFrame)
+  linkFrameRef.current = linkFrame
+
   // ── Frame the graph after every layout ───────────────────────────────────
   // `zoomToFit` lived only in `onEngineStop`. The simulation is FROZEN here
   // (cooldownTicks/TIME/warmup all 0), so that event may never fire: the camera
@@ -1348,8 +1367,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       const bySize = 3 + 2.6 * Math.sqrt(count)
       return typeof r === 'number' && r > 0 ? Math.max(sizeForType(node.entityType) * 1.5, r * TERRITORY_SIZE_PER_RADIUS) : bySize
     }
+    // What a link joins is bigger the more it is connected (asked in the
+    // browser review: « ce qu'elle lie devrait être plus gros en fonction de son
+    // nombre de connexions »): ×1 alone, ×2 at 8 links, ×3 from 64.
     const deg = (node.degree ?? 0) as number
-    const weightGain = 1 + 0.55 * Math.log1p(deg) / Math.log1p(24)
+    const weightGain = 1 + 2 * Math.min(1, Math.log1p(deg) / Math.log1p(64))
     return sizeForType(node.entityType) * weightGain
   }, [])
 
@@ -2253,7 +2275,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const data = activeGraphDataRef.current
     if (!useOptimizedLinks || useTubes || data.links.length === 0) return
 
-    const seg = createLinkRenderer(data.nodes, data.links)
+    const seg = createLinkRenderer(data.nodes, data.links, linkFrameRef.current)
     seg.updateColors(computeLinkStyleRef.current)
     scene.add(seg.object)
     linkSegmentsRef.current = seg

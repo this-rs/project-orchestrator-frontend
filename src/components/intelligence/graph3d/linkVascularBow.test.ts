@@ -28,8 +28,12 @@ describe('ventre des troncs', () => {
       // Composante radiale (depuis le centre) du déplacement du milieu.
       const rl = Math.hypot(...chordMid)
       const radialPush = (push[0] * chordMid[0] + push[1] * chordMid[1] + push[2] * chordMid[2]) / rl
-      expect(radialPush).toBeGreaterThan(0.08 * len)
-      expect(Math.hypot(push[0], push[1], push[2])).toBeLessThan(0.25 * len)
+      // Outward (never through the centre)…
+      expect(radialPush).toBeGreaterThan(0.02 * len)
+      // …but CLOSE to what it joins: at 0.16 of the chord the links made wide
+      // loops around the graph (browser review, « les liaisons sont trop
+      // grandes »). The middle moves less than 6 % of the chord.
+      expect(Math.hypot(push[0], push[1], push[2])).toBeLessThan(0.06 * len)
     }
   })
 

@@ -59,7 +59,13 @@ import { linkRadiusFor, nearestNeighbourScale, softCap } from './linkRadius'
 /** Radial segments. Eight reads round at these widths and stays cheap. */
 const TUBE_SEGMENTS = SECTION_SEGMENTS
 /** Share of the link length used as the spline's bow. */
-const BOW = 0.16
+/**
+ * Share of the chord used as the outward bow. It was 0.16: seen in the browser
+ * on the real graph, the links made wide loops far around what they join (« les
+ * liaisons sont trop grandes »). A link stays close to its two ends; the small
+ * bow only keeps parallel trunks from lying on each other.
+ */
+const BOW = 0.05
 /**
  * Fibres internes d'un conduit.
  *
@@ -593,11 +599,27 @@ export function vascularBudget(
 /**
  * Build the vascular link layer, or null when the data cannot carry it.
  */
+/**
+ * The frame the link law is measured in, taken from the WHOLE graph by the
+ * caller. With the dynamic scale the drawn set changes at every cut (60 spread
+ * groups ↔ hundreds of close files): a unit and a centre measured on what is
+ * drawn collapsed and moved at each zoom step, and every tube changed width and
+ * place — « les tubes bougent pendant le zoom ». Given, they never move: a zoom
+ * only makes the tubes grow and shrink on screen.
+ */
+export interface VascularSceneFrame {
+  /** d0 of the whole graph (median nearest-neighbour distance). */
+  unit: number
+  /** Centre of the whole graph (the outward bow is measured from it). */
+  center: Vec3
+}
+
 export function createVascularLinks(
   nodes: Graph3DNode[],
   links: Graph3DLink[],
   budget: Partial<SystemBudget> = {},
   onBundleClick?: (key: string) => void,
+  frame?: VascularSceneFrame,
 ): VascularLinkRenderer | null {
   try {
     if (!Array.isArray(nodes) || !Array.isArray(links) || links.length === 0) return null
@@ -657,6 +679,13 @@ export function createVascularLinks(
     let d0Extent = -1
     const sceneCenter: Vec3 = [0, 0, 0]
     const recomputeScale = () => {
+      if (frame && frame.unit > 0) {
+        d0 = frame.unit
+        sceneCenter[0] = frame.center[0]
+        sceneCenter[1] = frame.center[1]
+        sceneCenter[2] = frame.center[2]
+        return
+      }
       let minX = Infinity, minY = Infinity, minZ = Infinity
       let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity
       let gx = 0, gy = 0, gz = 0

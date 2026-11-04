@@ -28,7 +28,7 @@ import {
 import { classifyLinkScale, interpolateRgb, linkScaleCurvature } from './linkScale'
 import type { LinkStyle, LinkStyleFn } from './linkRibbon'
 import { createLinkRibbons, type LinkRenderer } from './linkRibbons'
-import { createVascularLinks } from './linkVascularRenderer'
+import { createVascularLinks, type VascularSceneFrame } from './linkVascularRenderer'
 
 /**
  * Line segments drawn per link's stroke: CURVE_SUBDIVISIONS − 1 bowed
@@ -375,7 +375,7 @@ export function createLinkSegments(nodes: Graph3DNode[], links: Graph3DLink[]): 
  */
 export const VASCULAR_MIN_LINKS = 3_000
 
-export function createLinkRenderer(nodes: Graph3DNode[], links: Graph3DLink[]): LinkRenderer {
+export function createLinkRenderer(nodes: Graph3DNode[], links: Graph3DLink[], frame?: VascularSceneFrame): LinkRenderer {
   // The organic hierarchy first (Organic Link Engine V2), and only where it
   // earns its keep: corridors, exact magnitudes, per-bundle morphology and LOD,
   // vascular strands — one batched geometry whose cost depends on the number of
@@ -388,7 +388,7 @@ export function createLinkRenderer(nodes: Graph3DNode[], links: Graph3DLink[]): 
   // fell under the 3 000-link threshold, and the trunks between modules came
   // out as one-pixel threads — the scale law never applied where it matters.
   const carriesAggregates = links.some((l) => (l.count ?? 1) > 1)
-  const vascular = links.length > VASCULAR_MIN_LINKS || carriesAggregates ? createVascularLinks(nodes, links) : null
+  const vascular = links.length > VASCULAR_MIN_LINKS || carriesAggregates ? createVascularLinks(nodes, links, {}, undefined, frame) : null
   if (vascular) return vascular
   // Then the ribbon renderer, then the LineSegments of last resort. Each step is
   // a strict fallback: the graph never disappears because a path could not build.
