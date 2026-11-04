@@ -21,7 +21,9 @@ describe('arbre vasculaire', () => {
     // les deux capsules qui ferment les ports).
     expect(info.filter((c) => c.kind === 'capillary')).toHaveLength(0)
     expect(info.filter((c) => c.kind !== 'junction').map((c) => c.kind).sort()).toEqual(['artery', 'artery', 'trunk'])
-  })
+    // the FIRST test of the file pays the renderer's module load: 20 s were seen
+    // under a loaded machine with nothing wrong in the code
+  }, 60_000)
 
   it('sur un vrai graphe, aucun conduit ne relie deux points confondus', () => {
     const { nodes, links } = synthGraph(3001)
