@@ -690,3 +690,39 @@ describe('IntelligenceGraph3D — a late re-placement re-frames, unless the user
     expect(lib.fg.cameraPosition.mock.calls.length).toBe(framings)
   })
 })
+
+describe('IntelligenceGraph3D — the scale is read, not pressed', () => {
+  it('shows what is drawn (nodes · groups) as a status next to the layers, with no button', async () => {
+    await mountGraph(makeGraph(5000))
+    await flush(3000)
+    const el = document.querySelector('[data-testid="graph-scale-indicator"]') as HTMLElement
+    expect(el).not.toBeNull()
+    expect(el.getAttribute('role')).toBe('status')
+    expect(el.querySelector('button')).toBeNull()
+    expect(el.className).toMatch(/top-3/)
+    const nodes = (lib.props.graphData as { nodes: Array<{ id: string }> }).nodes
+    const groups = nodes.filter((n) => n.id.startsWith('cl:')).length
+    expect(groups).toBeGreaterThan(0)
+    expect(el.textContent).toContain(String(groups))
+  })
+})
+
+describe('IntelligenceGraph3D — framing in portrait (a phone)', () => {
+  it('backs off enough for the graph to fit the NARROW horizontal angle', async () => {
+    rect = { width: 390, height: 844 }
+    await mountGraph(makeGraph(300))
+    const camera = lib.fg.camera()
+    camera.aspect = 390 / 844
+    camera.updateProjectionMatrix()
+    await flush(3000)
+    const target = lib.fg.controls().target
+    const nodes = (lib.props.graphData as { nodes: Array<{ x: number; y: number; z: number }> }).nodes
+    let radius = 0
+    for (const n of nodes) radius = Math.max(radius, Math.hypot(n.x - target.x, n.y - target.y, n.z - target.z))
+    const vfov = (camera.fov * Math.PI) / 180
+    const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect)
+    const distance = camera.position.distanceTo(target)
+    // the whole sphere inside the horizontal angle (the vertical alone let it overflow)
+    expect(distance).toBeGreaterThanOrEqual(radius / Math.sin(hfov / 2))
+  })
+})

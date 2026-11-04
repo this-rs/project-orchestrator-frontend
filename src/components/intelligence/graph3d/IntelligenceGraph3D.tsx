@@ -67,7 +67,7 @@ import type { NodeStyleOverlay } from './useAgentMarkers'
 import { communityFocus, nodeSetSignature } from './useGraph3DLayout'
 import { labelStructureKey, linkStructureKey, nodeStructureKey } from './graphStructureKey'
 import { activationStateAtom } from '../SpreadingActivation'
-import { GraphPanel } from '../GraphPanel'
+import { graphFloat } from '../graphSurface'
 import type { IntelligenceNode, IntelligenceEdge } from '@/types/intelligence'
 
 /** True when a key event came from a text-entry field (search, chat, select). */
@@ -215,8 +215,10 @@ const AUTO_AGGREGATE_ABOVE = 4000
  * screen, so what is close is in detail and what is far stays grouped, in the
  * same frame. Below it everything fits: the raw graph is drawn as is.
  */
+// On a phone the children of a group must be a FINGER apart, not a pointer
+// apart: a group opens later (18 px between children instead of 12).
 const HLOD_BUDGET = isMobileLikeDevice()
-  ? { maxNodes: 1200, maxLinks: 2500 }
+  ? { maxNodes: 1200, maxLinks: 2500, childSpacingPx: 18 }
   : { maxNodes: 3000, maxLinks: 6000 }
 
 /** Intensity of a closed group's territory sprite (additive): overlapping modules must not sum to white. */
@@ -394,6 +396,16 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // scene, mirroring the Points / LineSegments lifecycle below.
   const superLinkTubesRef = useRef<SuperLinkTubes | null>(null)
   const superNodeLabelsRef = useRef<SuperNodeLabels | null>(null)
+  /** Hide the names that would overlap a bigger group's (camera settled, labels rebuilt). */
+  const declutterLabelsRef = useRef<() => void>(() => {})
+  declutterLabelsRef.current = () => {
+    const fg = graphRef.current
+    const labels = superNodeLabelsRef.current
+    const el = containerRef.current
+    if (!fg || !labels || !el || typeof fg.camera !== 'function') return
+    labels.declutter(fg.camera(), el.clientWidth, el.clientHeight)
+    wake(WAKE_MUTATION_MS)
+  }
   // Live agents' labels (useAgentMarkers fills it; declared here so the
   // engine-tick callback below can re-anchor them like the other overlays).
   const agentMarkersRef = useRef<AgentMarkers | null>(null)
@@ -919,11 +931,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // every 200 ms of motion would stutter the whole flight.
     let recutTimer: ReturnType<typeof setTimeout> | null = null
     const scheduleRecut = () => {
-      if (!dynamicScale) return
       if (recutTimer) clearTimeout(recutTimer)
       recutTimer = setTimeout(() => {
         recutTimer = null
-        recut()
+        if (dynamicScale) recut()
+        declutterLabelsRef.current()
       }, RECUT_SETTLE_MS)
     }
     const onChange = () => {
@@ -1025,7 +1037,13 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         for (const n of nodes) {
           radius = Math.max(radius, Math.hypot(n.x - cx, n.y - cy, n.z - cz))
         }
-        const fov = ((camera?.fov ?? 45) * Math.PI) / 180
+        // The narrower of the two angles frames the sphere: in PORTRAIT (a phone)
+        // the horizontal one is much smaller than the vertical fov, and a framing
+        // on the vertical alone let the graph run off both sides of the screen.
+        const vfov = ((camera?.fov ?? 45) * Math.PI) / 180
+        const aspect = camera?.aspect && camera.aspect > 0 ? camera.aspect : 1
+        const hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect)
+        const fov = Math.min(vfov, hfov)
         const distance = (radius / Math.sin(fov / 2)) * 1.06
         // This is the FRAMING distance: what is nearer than it stays sharp, so
         // the density distance factor uses it as its near bound (see nodePoints).
@@ -2423,6 +2441,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (labels.count === 0) return
     scene.add(labels.group)
     superNodeLabelsRef.current = labels
+    labels.declutter(fg.camera(), containerRef.current?.clientWidth ?? 0, containerRef.current?.clientHeight ?? 0)
     const bound = boundNodeArraysRef.current
     bound.set('labels', labelNodes)
     wake(WAKE_MUTATION_MS)
@@ -2950,49 +2969,35 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         </div>
       )}
 
-      {/* ── Scale stepper (multi-scale aggregation) — collapsible ───────── */}
-      {graphData.nodes.length > 0 && (
-        <GraphPanel
-          id="scale"
-          title={t('intelPage.graph.panels.scale')}
-          icon={<ZoomIn size={12} className="text-[var(--text-tertiary)]" aria-hidden="true" />}
-          className="absolute right-3 top-[4.5rem]"
-        >
-          {dynamicScale ? (
-            <div className="px-2 py-1.5 text-xs text-[var(--text-secondary)] tabular-nums" aria-live="polite">
-              {t('intelGraph.scale.groups', { count: activeGraphData.nodes.length })}
-            </div>
-          ) : (
-          <div className="flex items-center gap-1 p-0.5">
-            <button
-              type="button"
-              aria-label={t('intelGraph.vector.zoomIn')}
-              title={t('intelGraph.vector.zoomIn')}
-              onClick={() => setScaleLevel((v) => Math.max(0, v - 1))}
-              disabled={scaleLevel === 0}
-              className="px-2 py-1.5 rounded-md text-[var(--text-secondary)] text-xs hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              −
-            </button>
-            <span className="px-1 text-xs text-[var(--text-secondary)] tabular-nums" aria-live="polite">
-              {scaleLevel === 0
-                ? t('intelGraph.scale.nodes', { count: graphData.nodes.length })
-                : t('intelGraph.scale.groups', { count: activeGraphData.nodes.length })}
+      {/* ── Scale: what is drawn, read on the same line as « Couches » ─────
+          Not a button any more: the camera chooses the scale (dynamic scale),
+          so there is nothing to press — only what the view shows right now.
+          Same height and surface as the layer panel header, just to its right. */}
+      {graphData.nodes.length > 0 && (() => {
+        const groups = activeGraphData.nodes.filter((n) => n.id.startsWith('cl:')).length
+        const real = activeGraphData.nodes.length - groups
+        return (
+          <div
+            data-testid="graph-scale-indicator"
+            role="status"
+            aria-live="polite"
+            className={`${graphFloat} shadow-[var(--shadow-md)] pointer-events-none absolute top-3 z-40 flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] tabular-nums whitespace-nowrap overflow-hidden text-ellipsis`}
+            style={{
+              left: 'calc(0.75rem + min(15.5rem, 100% - 1.5rem) + 0.5rem)',
+              maxWidth: 'calc(100% - min(15.5rem, 100% - 1.5rem) - 2rem)',
+            }}
+          >
+            <ZoomIn size={12} className="shrink-0 text-[var(--text-tertiary)]" aria-hidden="true" />
+            <span className="truncate">
+              {/* the groups first: on a phone the line is cut, and « 0 nodes »
+                  was all that showed at the opening */}
+              {[groups > 0 ? t('intelGraph.scale.groups', { count: groups }) : null, real > 0 || groups === 0 ? t('intelGraph.scale.nodes', { count: real }) : null]
+                .filter(Boolean)
+                .join(' · ')}
             </span>
-            <button
-              type="button"
-              aria-label={t('intelGraph.vector.zoomOut')}
-              title={t('intelGraph.vector.zoomOut')}
-              onClick={() => setScaleLevel((v) => Math.min(MAX_SCALE, v + 1))}
-              disabled={scaleLevel >= MAX_SCALE}
-              className="px-2 py-1.5 rounded-md text-[var(--text-secondary)] text-xs hover:text-[var(--text-primary)] hover:bg-surface-highlight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-light)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              +
-            </button>
           </div>
-          )}
-        </GraphPanel>
-      )}
+        )
+      })()}
     </div>
   )
 }

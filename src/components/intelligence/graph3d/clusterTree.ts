@@ -51,8 +51,8 @@ export const CUT_HYSTERESIS = 1.5
 export const CHILD_SPACING_PX = 12
 
 /** Projected radius, px, above which a node with `childCount` children opens. */
-export function openThresholdPx(tau: number, childCount: number): number {
-  return Math.max(tau, CHILD_SPACING_PX * Math.sqrt(Math.max(1, childCount)))
+export function openThresholdPx(tau: number, childCount: number, spacingPx = CHILD_SPACING_PX): number {
+  return Math.max(tau, spacingPx * Math.sqrt(Math.max(1, childCount)))
 }
 
 export type ClusterKind = 'root' | 'layer' | 'community' | 'split' | 'leaf'
@@ -387,6 +387,8 @@ export interface CutBudget {
   maxLinks: number
   /** Opening threshold, px (default DEFAULT_OPEN_PX). */
   openPx?: number
+  /** Screen gap between the children of an opened group, px (default CHILD_SPACING_PX). */
+  childSpacingPx?: number
 }
 
 export interface CutLink {
@@ -529,7 +531,7 @@ export function cutForView(
   const consider = (i: number) => {
     if (nodes[i].children.length === 0) return
     const px = pxOf(i)
-    const base = openThresholdPx(tau, nodes[i].children.length)
+    const base = openThresholdPx(tau, nodes[i].children.length, budget.childSpacingPx)
     const threshold = previous?.open.has(i) ? base / CUT_HYSTERESIS : base
     if (px >= threshold) heap.push({ px, i })
   }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { selectLabeledNodes, SUPER_NODE_LABEL_LIMIT } from './superNodeLabels'
+import { declutterRects, selectLabeledNodes, SUPER_NODE_LABEL_LIMIT } from './superNodeLabels'
 import type { Graph3DNode } from './useGraph3DLayout'
 
 const superNode = (id: string, count: number): Graph3DNode => ({
@@ -34,5 +34,22 @@ describe('selectLabeledNodes', () => {
   it('returns the whole population when it is smaller than the limit', () => {
     const nodes = [superNode('a', 8), superNode('b', 6)]
     expect(selectLabeledNodes(nodes, 40)).toHaveLength(2)
+  })
+})
+
+describe('declutterRects — names never pile up', () => {
+  it('keeps the biggest group\'s name and hides the ones overlapping it', () => {
+    const show = declutterRects([
+      { x: 100, y: 100, w: 80, h: 14 }, // biggest group
+      { x: 120, y: 104, w: 80, h: 14 }, // overlaps it → hidden
+      { x: 100, y: 140, w: 80, h: 14 }, // below, clear → shown
+      null, // behind the camera
+    ])
+    expect(show).toEqual([true, false, true, false])
+  })
+
+  it('a gap separates two names that merely touch', () => {
+    expect(declutterRects([{ x: 0, y: 0, w: 50, h: 10 }, { x: 52, y: 0, w: 50, h: 10 }], 4)).toEqual([true, false])
+    expect(declutterRects([{ x: 0, y: 0, w: 50, h: 10 }, { x: 60, y: 0, w: 50, h: 10 }], 4)).toEqual([true, true])
   })
 })

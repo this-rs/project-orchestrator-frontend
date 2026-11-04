@@ -366,3 +366,26 @@ describe('cutForView — a group opens only when its children can be told apart'
     expect(at(12 * Math.sqrt(community.children.length) * 1.1).open.has(community.index)).toBe(true)
   })
 })
+
+describe('cutForView — a finger needs more room than a pointer', () => {
+  let seed = 13
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  const nodes: Graph3DNode[] = Array.from({ length: 64 }, (_, i) => ({
+    id: `p${i}`, label: '', entityType: 'file', layer: 'code',
+    x: (rnd() - 0.5) * 140, y: (rnd() - 0.5) * 140, z: (rnd() - 0.5) * 140,
+    communityId: 2, groupKey: 'c2', data: {},
+  }))
+  const tree = buildClusterTree(nodes, [])
+  const c = tree.nodes.find((t) => t.kind === 'community')!
+  // seen at a size where children sit ~14 px apart: a pointer opens, a finger waits
+  const px = 14 * Math.sqrt(c.children.length)
+  const d = (c.radius * 450) / (px * Math.tan((22.5 * Math.PI) / 180))
+  const v = view(c.x, c.y, c.z + d)
+
+  it('opens for a pointer (12 px between children)', () => {
+    expect(cutForView(tree, v, BIG).open.has(c.index)).toBe(true)
+  })
+  it('stays closed for a finger (18 px between children)', () => {
+    expect(cutForView(tree, v, { ...BIG, childSpacingPx: 18 }).open.has(c.index)).toBe(false)
+  })
+})

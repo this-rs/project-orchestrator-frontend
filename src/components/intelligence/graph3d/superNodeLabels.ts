@@ -53,6 +53,28 @@ export function selectLabeledNodes(
     .slice(0, Math.max(0, limit))
 }
 
+/** A label's rectangle on screen, CSS px (centre x/y, width, height). */
+export interface ScreenRect { x: number; y: number; w: number; h: number }
+
+/**
+ * Which labels to show: greedy in PRIORITY order (the biggest groups first), a
+ * label is kept only if its rectangle (plus `gapPx`) overlaps none already
+ * kept. Seen in the browser: in a dense module the names piled up into an
+ * unreadable block, on the desktop and worse on a 390 px phone. `null` = off
+ * screen (behind the camera): never shown.
+ */
+export function declutterRects(rects: ReadonlyArray<ScreenRect | null>, gapPx = 4): boolean[] {
+  const kept: ScreenRect[] = []
+  return rects.map((r) => {
+    if (!r) return false
+    for (const k of kept) {
+      if (Math.abs(r.x - k.x) * 2 < r.w + k.w + gapPx * 2 && Math.abs(r.y - k.y) * 2 < r.h + k.h + gapPx * 2) return false
+    }
+    kept.push(r)
+    return true
+  })
+}
+
 export interface SuperNodeLabels {
   /** The group holding every label sprite. Add to the scene once. */
   readonly group: THREE.Group
@@ -60,6 +82,8 @@ export interface SuperNodeLabels {
   readonly count: number
   /** Re-anchor each label above its (mutable) super-node position. */
   updatePositions: () => void
+  /** Hide the labels that would overlap a bigger group's name on screen. */
+  declutter: (camera: THREE.Camera, viewportWidthPx: number, viewportHeightPx: number) => void
   dispose: () => void
 }
 
@@ -104,5 +128,20 @@ export function createSuperNodeLabels(nodes: Graph3DNode[], limit = SUPER_NODE_L
     }
   }
 
-  return { group, count: sprites.length, updatePositions, dispose }
+  const v = new THREE.Vector3()
+  const declutter = (camera: THREE.Camera, width: number, height: number) => {
+    if (width <= 0 || height <= 0) return
+    // With sizeAttenuation off a sprite of height h covers h·P11·H/2 px.
+    const p11 = (camera as THREE.PerspectiveCamera).projectionMatrix?.elements?.[5] ?? 2.414
+    const rects = sprites.map((sp) => {
+      v.copy(sp.position).project(camera)
+      if (v.z > 1 || v.z < -1) return null
+      const k = (p11 * height) / 2
+      return { x: ((v.x + 1) / 2) * width, y: ((1 - v.y) / 2) * height, w: sp.scale.x * k, h: sp.scale.y * k }
+    })
+    const show = declutterRects(rects)
+    for (let i = 0; i < sprites.length; i++) sprites[i].visible = show[i]
+  }
+
+  return { group, count: sprites.length, updatePositions, declutter, dispose }
 }
