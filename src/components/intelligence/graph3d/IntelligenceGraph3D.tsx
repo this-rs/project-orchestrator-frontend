@@ -699,7 +699,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
     if (dynamicScale) {
       if (!clusterTree || !clusterCut) return graphData
-      return graphFromCut(clusterTree, clusterCut, graphData.nodes, graphData.links)
+      return graphFromCut(clusterTree, clusterCut, graphData.nodes, graphData.links, HLOD_BUDGET.maxLinks)
     }
     if (!aggregated || scaleRes <= 0 || graphData.nodes.length === 0) return graphData
     return buildGroupedGraph(graphData, scaleRes)

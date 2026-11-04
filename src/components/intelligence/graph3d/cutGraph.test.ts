@@ -134,3 +134,27 @@ describe('graphFromCut — a part of a community is named by what it holds', () 
     expect(names.every((n) => !n.endsWith('· partie'))).toBe(true)
   })
 })
+
+describe('graphFromCut — a drawing cap keeps the heaviest links and counts the rest', () => {
+  const { nodes, links, centres } = synth(3000, 6000, 12)
+  const tree = buildClusterTree(nodes, links)
+  const cut = cutForView(tree, view(centres[3][0], centres[3][1], centres[3][2] + 300), { maxNodes: 600, maxLinks: 1e9 })
+
+  it('draws at most maxLinks pairs, the heaviest first', () => {
+    const free = graphFromCut(tree, cut, nodes, links)
+    const capped = graphFromCut(tree, cut, nodes, links, 40)
+    const bundles = (g: { links: Graph3DLink[] }) => g.links.filter((l) => l.relationType === 'AGGREGATE')
+    expect(cut.links.length).toBeGreaterThan(40)
+    expect(new Set(capped.links.map((l) => `${l.source}|${l.target}`)).size).toBeLessThanOrEqual(40)
+    const keptMin = Math.min(...bundles(capped).map((l) => l.count ?? 1))
+    const droppedMax = Math.max(...bundles(free).filter((l) => !capped.links.some((c) => c.source === l.source && c.target === l.target)).map((l) => l.count ?? 1))
+    expect(keptMin).toBeGreaterThanOrEqual(droppedMax)
+  })
+
+  it('loses nothing silently: drawn + hidden + collapsed = all relations', () => {
+    const g = graphFromCut(tree, cut, nodes, links, 40)
+    let inside = 0
+    for (const c of cut.internal.values()) inside += c.count
+    expect(carried(g.links) + g.hiddenRelations + inside).toBe(tree.linkTotal)
+  })
+})

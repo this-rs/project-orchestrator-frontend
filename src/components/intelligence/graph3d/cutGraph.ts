@@ -112,7 +112,8 @@ export function graphFromCut(
   cut: ClusterCut,
   source: readonly Graph3DNode[],
   links: readonly Graph3DLink[],
-): { nodes: Graph3DNode[]; links: Graph3DLink[] } {
+  maxLinks = Infinity,
+): { nodes: Graph3DNode[]; links: Graph3DLink[]; hiddenRelations: number } {
   const idOf = new Map<number, string>()
   const nodes: Graph3DNode[] = []
   for (const index of cut.frontier) {
@@ -143,10 +144,21 @@ export function graphFromCut(
     return realByPair.get(pairKey(a, b)) ?? []
   }
 
+  // The HEAVIEST pairs are drawn first, up to maxLinks: a trunk of 300
+  // relations before a single thread between two far groups. What is left out
+  // is counted (hiddenRelations), never silently lost. Ties: frontier order.
+  const ranked = cut.links.length > maxLinks
+    ? [...cut.links].sort((p, q) => q.count - p.count || p.a - q.a || p.b - q.b).slice(0, Math.max(0, maxLinks))
+    : cut.links
+  let hiddenRelations = 0
+  if (ranked !== cut.links) {
+    const kept = new Set(ranked)
+    for (const l of cut.links) if (!kept.has(l)) hiddenRelations += l.count
+  }
   let tierMax = 1
-  for (const l of cut.links) if (l.count > tierMax) tierMax = l.count
+  for (const l of ranked) if (l.count > tierMax) tierMax = l.count
   const out: Graph3DLink[] = []
-  for (const l of cut.links) {
+  for (const l of ranked) {
     const a = idOf.get(l.a)
     const b = idOf.get(l.b)
     if (a == null || b == null) continue
@@ -172,7 +184,7 @@ export function graphFromCut(
       isInterCommunity: true,
     })
   }
-  return { nodes, links: out }
+  return { nodes, links: out, hiddenRelations }
 }
 
 /** The tree index a drawn node stands for, or -1 for a real node. */

@@ -36,10 +36,29 @@ import { linkFamilyOf, type LinkFamily } from './linkFamily'
 export const GROUP_CAP = 64
 /** Parts per spatial split: three median cuts (2 × 2 × 2). */
 const SPLIT_CUTS = 3
-/** Projected radius (px) above which a tree node opens. */
+/** Projected radius (px) below which nothing opens, whatever its children. */
 export const DEFAULT_OPEN_PX = 24
-/** An OPEN node only closes below DEFAULT_OPEN_PX / CUT_HYSTERESIS. */
+/**
+ * An OPEN node stays open down to its opening threshold / CUT_HYSTERESIS, and
+ * that threshold is taken at the BEST focus (centre of the view) — so turning
+ * the camera does not close what is already open. The audit measured, without
+ * it, a frontier changing on 9 of 9 rotation steps of 10° (the focus weight
+ * moves the threshold by √3, more than the old hysteresis of 1.5): every one
+ * rebuilt the whole link layer — « les liens qui changent ».
+ */
 export const CUT_HYSTERESIS = 1.5
+/**
+ * Most children a tree node may have. A layer used to hold ALL its communities
+ * as children (225 on a real graph): opening it overflowed the link budget at
+ * once, and the cut stopped there — at 20 000 nodes on a phone no real node
+ * could ever be reached, not even by zooming into a community. Above this, the
+ * communities are grouped into spatial REGIONS (median cuts on their centres).
+ */
+export const MAX_CHILDREN = 16
+/** Pairs kept while cutting, per drawn link (memory bound, not a drawing rule). */
+export const LINK_PAIR_HEADROOM = 8
+/** Priority bonus of an already-open group when the node budget is short. */
+export const STICKY_BONUS = 1.5
 /**
  * Opening a group shows its CHILDREN: it is only worth it when they will be
  * told apart on screen. k children spread over a projected radius R sit about
@@ -55,7 +74,7 @@ export function openThresholdPx(tau: number, childCount: number, spacingPx = CHI
   return Math.max(tau, spacingPx * Math.sqrt(Math.max(1, childCount)))
 }
 
-export type ClusterKind = 'root' | 'layer' | 'community' | 'split' | 'leaf'
+export type ClusterKind = 'root' | 'layer' | 'region' | 'community' | 'split' | 'leaf'
 
 export interface LinkAggregate {
   /** Exact number of relations. */
@@ -251,9 +270,46 @@ export function buildClusterTree(
     const L = make(`L:${layer}`, root, 'layer')
     nodes[L].memberStart = cursor
     const communities = byLayer.get(layer)!
-    for (const key of [...communities.keys()].sort(cmpStr)) {
-      group(make(`L:${layer}|C:${key}`, L, 'community'), communities.get(key)!)
+    // centre of each community, for the spatial regions
+    const centre = new Map<string, [number, number, number]>()
+    for (const [key, members] of communities) {
+      let cx = 0, cy = 0, cz = 0
+      for (const i of members) { cx += xs[i]; cy += ys[i]; cz += zs[i] }
+      centre.set(key, [cx / members.length, cy / members.length, cz / members.length])
     }
+    /** Communities under `parent`; above MAX_CHILDREN, spatial regions first. */
+    const place = (parent: number, keys: string[]) => {
+      if (keys.length <= MAX_CHILDREN) {
+        for (const key of keys) group(make(`L:${layer}|C:${key}`, parent, 'community'), communities.get(key)!)
+        return
+      }
+      let parts = [keys]
+      for (let c = 0; c < SPLIT_CUTS; c++) {
+        const next: string[][] = []
+        for (const part of parts) {
+          if (part.length < 2) { next.push(part); continue }
+          const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity]
+          for (const k of part) {
+            const q = centre.get(k)!
+            for (let d = 0; d < 3; d++) { if (q[d] < lo[d]) lo[d] = q[d]; if (q[d] > hi[d]) hi[d] = q[d] }
+          }
+          const ext = [hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]]
+          const axis = ext[0] >= ext[1] && ext[0] >= ext[2] ? 0 : ext[1] >= ext[2] ? 1 : 2
+          const sorted = [...part].sort((a, b) => centre.get(a)![axis] - centre.get(b)![axis] || cmpStr(a, b))
+          const half = Math.ceil(sorted.length / 2)
+          next.push(sorted.slice(0, half).sort(cmpStr))
+          next.push(sorted.slice(half).sort(cmpStr))
+        }
+        parts = next
+      }
+      parts.filter((p) => p.length > 0).forEach((part, k) => {
+        const R = make(`${nodes[parent].id}|r${k}`, parent, 'region')
+        nodes[R].memberStart = cursor
+        place(R, part)
+        nodes[R].memberEnd = cursor
+      })
+    }
+    place(L, [...communities.keys()].sort(cmpStr))
     nodes[L].memberEnd = cursor
   }
   nodes[root].memberEnd = cursor
@@ -417,12 +473,21 @@ export function focusWeight(
 export interface CutBudget {
   /** Most frontier elements drawn. */
   maxNodes: number
-  /** Most aggregated links drawn between frontier elements. */
+  /**
+   * Links DRAWN between frontier elements (the heaviest first, see
+   * graphFromCut). It no longer limits what OPENS: measured on the audit's
+   * graph (20 000 nodes), 69 % of the pairs carried one relation and filled
+   * this budget long before the node budget — 200 to 400 elements on screen,
+   * the detail could not open. Opening is bounded by maxNodes; pairs only by
+   * maxLinks × LINK_PAIR_HEADROOM, for memory.
+   */
   maxLinks: number
   /** Opening threshold, px (default DEFAULT_OPEN_PX). */
   openPx?: number
   /** Screen gap between the children of an opened group, px (default CHILD_SPACING_PX). */
   childSpacingPx?: number
+  /** Leaves (tree indices) that must be drawn as themselves: their ancestors open first. */
+  keepVisible?: readonly number[]
 }
 
 export interface CutLink {
@@ -516,6 +581,12 @@ export function cutForView(
   const maxLinks = Math.max(0, Math.floor(budget.maxLinks))
   const { nodes, order, edgeA, edgeB, edgeFamily, incident } = tree
   const M = nodes.length
+  // The ancestors of the leaves that must stay visible (the selected node):
+  // opened whatever their size, so a selection never melts into a group.
+  const mustOpen = new Set<number>()
+  for (const leaf of budget.keepVisible ?? []) {
+    for (let p = nodes[leaf]?.parent ?? -1; p >= 0; p = nodes[p].parent) mustOpen.add(p)
+  }
   const [cx, cy, cz] = view.position
   const vHalf = (view.fovDeg * Math.PI) / 360
   const halfDiag = Math.atan(Math.tan(vHalf) * Math.sqrt(1 + (view.aspect ?? 1) ** 2))
@@ -572,12 +643,23 @@ export function cutForView(
     if (nodes[i].children.length === 0) return
     const px = pxOf(i)
     const base = openThresholdPx(tau, nodes[i].children.length, budget.childSpacingPx)
+    const wasOpen = previous?.open.has(i) ?? false
+    const forced = mustOpen.has(i)
     const w = weightOf(i)
-    if (w <= 0) return
-    const focused = base / Math.sqrt(w)
-    const threshold = previous?.open.has(i) ? focused / CUT_HYSTERESIS : focused
-    // the heap orders by WEIGHTED screen size: the centre of the view first
-    if (px >= threshold) heap.push({ px: px * w, i })
+    // Out of view: never opened — but what is already open stays open (a
+    // rotation must not close it) as long as it is still big enough.
+    if (w <= 0 && !wasOpen && !forced) return
+    const focused = wasOpen
+      ? base / Math.sqrt(1 + FOCUS_GAIN) / CUT_HYSTERESIS // sticky: best focus + hysteresis
+      : base / Math.sqrt(Math.max(1, w))
+    if (!forced && px < focused) return
+    // Heap order: forced (the selection) first; then by weighted screen size,
+    // with a BONUS (not a rank) for what was already open. An absolute rank
+    // for the open groups was tried: once the node budget was full, zooming
+    // onto a group could no longer open it — the budget stayed with what was
+    // open elsewhere. What you look at must win when the budget is short.
+    const stick = wasOpen ? STICKY_BONUS : 1
+    heap.push({ px: (forced ? 1e12 : 0) + px * Math.max(1, w) * stick, i })
   }
   consider(tree.root)
 
@@ -588,14 +670,15 @@ export function cutForView(
     for (const e of incident[i]) apply(e, -1)
     setRep(i, true)
     for (const e of incident[i]) apply(e, 1)
-    if (pairs.size > maxLinks) {
-      // Over the link budget: undo and STOP. Everything still queued has a
-      // smaller screen error, and retrying each would cost two passes over its
-      // relations for, at best, a smaller gain.
+    if (pairs.size > maxLinks * LINK_PAIR_HEADROOM) {
+      // Over the link budget: undo this opening.
       for (const e of incident[i]) apply(e, -1)
       setRep(i, false)
       for (const e of incident[i]) apply(e, 1)
-      break
+      // Skip THIS one and go on: with MAX_CHILDREN an opening is small, and a
+      // single refused group must not freeze the rest of the cut (it used to
+      // `break`: one oversized layer and nothing else could ever open).
+      continue
     }
     open.add(i)
     frontierSize += kids.length - 1

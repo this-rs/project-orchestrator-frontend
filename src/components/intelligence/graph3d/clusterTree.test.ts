@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   CUT_HYSTERESIS,
+  MAX_CHILDREN,
+  LINK_PAIR_HEADROOM,
   DEFAULT_OPEN_PX,
   buildClusterTree,
   cutForView,
@@ -223,7 +225,8 @@ describe('cutForView — one cut, several scales at once', () => {
     const tight = cutForView(tree, near, budget)
     expect(free.frontier.length).toBeGreaterThan(budget.maxNodes)
     expect(tight.frontier.length).toBeLessThanOrEqual(budget.maxNodes)
-    expect(tight.links.length).toBeLessThanOrEqual(budget.maxLinks)
+    // pairs are bounded for memory only; what is DRAWN is capped by graphFromCut
+    expect(tight.links.length).toBeLessThanOrEqual(budget.maxLinks * LINK_PAIR_HEADROOM)
     expect(accounted(tree, tight)).toBe(tree.linkTotal)
     // the element the camera sits in is opened before anything else
     const near3 = tight.frontier.filter((f) => g.nodes[membersOf(tree, f)[0]].communityId === 3)
@@ -430,5 +433,81 @@ describe('cutForView — foveated: the detail goes where the camera looks', () =
     const front = tree.nodes.find((t) => t.kind === 'community' && t.id.endsWith('c5'))!
     const cut = cutForView(tree, look(0, 0, -1), { maxNodes: 70, maxLinks: 1e9 })
     expect(cut.open.has(front.index)).toBe(true)
+  })
+})
+
+describe('cutForView — what the audit measured on a big graph (20 000 nodes, 250 communities)', () => {
+  const { nodes, links } = synth(20000, 40000, 250, 31)
+  const tree = buildClusterTree(nodes, links)
+  const PHONE = { maxNodes: 1500, maxLinks: 3000, childSpacingPx: 18 }
+  const look = (from: [number, number, number], at: [number, number, number]): CutView => {
+    const d = [at[0] - from[0], at[1] - from[1], at[2] - from[2]]
+    const l = Math.hypot(d[0], d[1], d[2]) || 1
+    return { position: from, fovDeg: 45, viewportHeightPx: 844, forward: [d[0] / l, d[1] / l, d[2] / l], aspect: 390 / 844 }
+  }
+
+  it('no layer or region holds more than MAX_CHILDREN children', () => {
+    // a literal, not the constant: retuning MAX_CHILDREN up must show here
+    for (const t of tree.nodes) if (t.kind === 'layer' || t.kind === 'region') expect(t.children.length).toBeLessThanOrEqual(16)
+    expect(MAX_CHILDREN).toBeLessThanOrEqual(16)
+  })
+
+  it('zooming into the biggest community on a phone reaches its real nodes (it reached none)', () => {
+    // the audit's own graph: power-law community sizes, 300 communities
+    let seed = 5
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+    const C = 300, N = 20000
+    const cs = Array.from({ length: C }, () => [(rnd() - 0.5) * 4000, (rnd() - 0.5) * 4000, (rnd() - 0.5) * 4000])
+    const wts = Array.from({ length: C }, (_, i) => 1 / (i + 1))
+    const W = wts.reduce((x, y) => x + y, 0)
+    const ns: Graph3DNode[] = Array.from({ length: N }, (_, i) => {
+      let r = rnd() * W, c = 0
+      while (r > wts[c] && c < C - 1) { r -= wts[c]; c++ }
+      const spread = 100 * Math.cbrt((wts[c] * N) / W / 10)
+      return { id: `n${i}`, label: '', entityType: 'file', layer: c % 4 === 0 ? 'knowledge' : 'code',
+        x: cs[c][0] + (rnd() - 0.5) * spread, y: cs[c][1] + (rnd() - 0.5) * spread, z: cs[c][2] + (rnd() - 0.5) * spread,
+        communityId: c, groupKey: `c${c}`, data: {} }
+    })
+    const byC = new Map<number, number[]>()
+    ns.forEach((nd, i) => { const l = byC.get(nd.communityId!) ?? []; l.push(i); byC.set(nd.communityId!, l) })
+    const ls: Graph3DLink[] = Array.from({ length: 40000 }, () => {
+      const a = Math.floor(rnd() * N)
+      const same = byC.get(ns[a].communityId!)!
+      const b = rnd() < 0.7 ? same[Math.floor(rnd() * same.length)] : Math.floor(rnd() * N)
+      return { source: `n${a}`, target: `n${b}`, relationType: 'IMPORTS', layer: 'code', color: '#fff', width: 1, particles: 0, particleSpeed: 0, isInterCommunity: false }
+    })
+    const t = buildClusterTree(ns, ls)
+    const c0 = cs[0] as [number, number, number]
+    let best = 0
+    for (const d of [10, 30, 60, 120, 240]) {
+      const cut = cutForView(t, look([c0[0], c0[1], c0[2] + d], c0), PHONE)
+      best = Math.max(best, cut.frontier.filter((i) => t.nodes[i].kind === 'leaf').length)
+    }
+    // measured: 805 to 1 341 now; 198 to 346 while the LINK budget still gated opening
+    expect(best).toBeGreaterThan(600)
+  })
+
+  it('orbiting keeps what is shown: new regions coming into view open, almost nothing closes', () => {
+    // Measured before the sticky cut: Jaccard down to 0.53 per 10° step, the
+    // whole link layer rebuilt each time. What may change now is mostly
+    // ADDITIONS (what enters the view); what was shown stays (removals ≤ 3 %).
+    const r = 4000
+    let prev: ReturnType<typeof cutForView> | undefined
+    for (let k = 0; k <= 9; k++) {
+      const a = (k * 10 * Math.PI) / 180
+      const cut = cutForView(tree, look([Math.sin(a) * r, 0, Math.cos(a) * r], [0, 0, 0]), { maxNodes: 5000, maxLinks: 9000 }, prev)
+      if (prev) {
+        const now = new Set(cut.frontier)
+        const removed = prev.frontier.filter((x) => !now.has(x)).length
+        expect(removed / prev.frontier.length).toBeLessThanOrEqual(0.03)
+      }
+      prev = cut
+    }
+  })
+
+  it('the selected node stays drawn as itself, even far from the view', () => {
+    const leaf = tree.leafOf[12345]
+    const cut = cutForView(tree, look([0, 0, 9000], [0, 0, 0]), { ...PHONE, keepVisible: [leaf] })
+    expect(cut.frontier).toContain(leaf)
   })
 })
