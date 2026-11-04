@@ -393,14 +393,14 @@
       "message": "the credential vault is locked: the turn resumes when it is unlocked",
       "severity": "action_required",
       "data": {
-        "provider_id": "openai",
-        "wait_secs": 930
+        "provider": "native",
+        "waited_ms": 372000
       }
     },
     {
       "type": "provider_notice",
-      "kind": "model_retry",
-      "message": "retrying on fallback model",
+      "kind": "model_recovered",
+      "message": "The model answers again.",
       "severity": "latency"
     },
     {
