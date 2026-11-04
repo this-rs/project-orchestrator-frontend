@@ -876,7 +876,9 @@ describe('IntelligenceGraph3D — community envelopes at the dynamic scale', () 
   // toggle used to draw nothing at all. The envelopes now wrap the CLOSED
   // groups of the cut, each with the label of the group it stands for.
   it('the toggle draws one envelope per closed group, and only while it is on', async () => {
-    const view = await mountGraph(makeGraph(4200))
+    // 3 000: above the dynamic threshold (2 000) and under the envelope cap of
+    // EVERY tier but the lowest (4 000 on a 4-core CI runner, which failed at 4 200).
+    const view = await mountGraph(makeGraph(3000))
     await flush(3000)
     const fills = () => {
       const out: THREE.Mesh[] = []
