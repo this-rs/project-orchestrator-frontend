@@ -239,6 +239,7 @@ const VERTEX_SHADER = /* glsl */ `
   attribute float aU;
   attribute float aPhase;
   attribute vec3 aAxis;
+  attribute float aFloor;
   uniform float uViewportH;
   uniform float uPxFloor;
   varying vec3 vColor;
@@ -260,7 +261,9 @@ const VERTEX_SHADER = /* glsl */ `
       float worldPerPx = 2.0 * depth / (projectionMatrix[1][1] * uViewportH);
       vec3 radial = position - aAxis;
       float len = length(radial);
-      float floorR = uPxFloor * worldPerPx;
+      // aFloor = coreFloorScale(n): the floor grows like the radius law, so a
+      // trunk still reads bigger than a capillary when both sit on the floor.
+      float floorR = uPxFloor * aFloor * worldPerPx;
       if (len > 1e-9 && len < floorR) p = aAxis + radial * (floorR / len);
     }
     vec4 wp = modelMatrix * vec4(p, 1.0);
@@ -579,6 +582,24 @@ export interface VascularLinkRenderer extends LinkRenderer {
  * ratio adaptatif change.
  */
 export const CORE_SCREEN_FLOOR_PX = 0.6
+
+/** Largest multiple of the floor a conduit gets (n ≥ 8³ = 512 relations). */
+export const CORE_FLOOR_MAX_SCALE = 8
+
+/**
+ * How many times CORE_SCREEN_FLOOR_PX the core of a conduit of `n` relations is
+ * held to on screen: ∛n (the radius law r ∝ n^(1/3)), between 1 and
+ * CORE_FLOOR_MAX_SCALE. Asked on 04/11/2026: « que les liens soient visibles même
+ * à une échelle éloignée, afin de se rendre compte des plus grosses connexions ».
+ * Far away every core sat on the SAME 0.6 px floor — one relation and five
+ * hundred looked alike. Near, the world radius exceeds the floor and takes over:
+ * the same proportions at every scale.
+ */
+export function coreFloorScale(n: bigint | number): number {
+  const v = typeof n === 'bigint' ? Number(n) : n
+  if (!Number.isFinite(v) || v <= 1) return 1
+  return Math.min(CORE_FLOOR_MAX_SCALE, Math.cbrt(v))
+}
 /** Gain d'opacité d'un chemin survolé. */
 const GLOW_GAIN = 2.2
 
@@ -594,6 +615,40 @@ const GLOW_GAIN = 2.2
  * `max(0,6, …)` laissait chaque tube à 0,42 quel que soit le focus.
  */
 export const VASCULAR_ALPHA_GAIN = 3.5
+
+/**
+ * Largest presence gain of a conduit (reached at 1 000 relations). Kept so a
+ * trunk at rest stays BELOW the layer's full opacity (rest 0.42 × 2 = 0.84):
+ * at 4 it was already saturated, and a hover or a selection could no longer
+ * lift it.
+ */
+export const PRESENCE_MAX_GAIN = 2
+
+/**
+ * Presence gain of a conduit of `n` relations: 1 + log10(n) / 3, at most
+ * PRESENCE_MAX_GAIN — ×1 for one relation, ×1.33 for 10, ×1.67 for 100, ×2 for
+ * 1 000. The style
+ * alpha is calibrated for ONE link, so far away a trunk of five hundred was as
+ * pale as a capillary (« me rendre compte des plus grosses connexions »).
+ */
+export function presenceGain(n: bigint | number): number {
+  const v = typeof n === 'bigint' ? Number(n) : n
+  if (!Number.isFinite(v) || v <= 1) return 1
+  return Math.min(PRESENCE_MAX_GAIN, 1 + Math.log10(v) / 3)
+}
+
+/**
+ * presenceGain applied only to a link that is SHOWN: none under a dimmed style
+ * (a ≤ 0.03 — selection, legend, focus elsewhere: it must really go dark), all
+ * of it from the resting presence up (a ≥ 0.12), smooth in between. Monotone
+ * in the style alpha, so a more present link is never paler.
+ */
+export function restingPresenceGain(n: bigint | number, styleAlpha: number): number {
+  const a = Number.isFinite(styleAlpha) ? styleAlpha : 0
+  const t = Math.max(0, Math.min(1, (a - 0.03) / (0.12 - 0.03)))
+  const s = t * t * (3 - 2 * t)
+  return 1 + (presenceGain(n) - 1) * s
+}
 
 export function vascularPresence(styleAlpha: number): number {
   const a = Number.isFinite(styleAlpha) ? styleAlpha : 0
@@ -1134,6 +1189,7 @@ export function createVascularLinks(
     const curvAttr = dyn(new Float32Array(vertexTotal), 1)
     const phaseAttr = dyn(new Float32Array(vertexTotal), 1)
     const axisAttr = dyn(new Float32Array(vertexTotal * 3), 3)
+    const floorAttr = dyn(new Float32Array(vertexTotal).fill(1), 1)
     geometry.setAttribute('position', positionAttr)
     geometry.setAttribute('aColor', colorAttr)
     geometry.setAttribute('aAlpha', alphaAttr)
@@ -1142,6 +1198,7 @@ export function createVascularLinks(
     geometry.setAttribute('aU', curvAttr)
     geometry.setAttribute('aPhase', phaseAttr)
     geometry.setAttribute('aAxis', axisAttr)
+    geometry.setAttribute('aFloor', floorAttr)
     geometry.setIndex(index)
 
     const material = new THREE.ShaderMaterial({
@@ -1252,6 +1309,13 @@ export function createVascularLinks(
       const crv = curvAttr.array as Float32Array
       const pha = phaseAttr.array as Float32Array
       const axs = axisAttr.array as Float32Array
+      const flo = floorAttr.array as Float32Array
+      // the floor depends on the relations only: written once, never per tick
+      const floorScale = Math.fround(coreFloorScale(conduit.n))
+      if (flo[conduit.vertexStart] !== floorScale) {
+        flo.fill(floorScale, conduit.vertexStart, conduit.vertexStart + conduit.vertexCount)
+        floorAttr.needsUpdate = true
+      }
       const specs = conduit.specs
       const channelCount = specs.filter((s) => s.kind === 'channel').length
       const outer = specs[0].radius
@@ -1397,7 +1461,7 @@ export function createVascularLinks(
       const sr = style.r, sg = style.g, sb = style.b
       const sr2 = style.r2 ?? sr, sg2 = style.g2 ?? sg, sb2 = style.b2 ?? sb
       const specs = conduit.specs
-      const baseAlpha = vascularPresence(style.a)
+      const baseAlpha = Math.min(1, vascularPresence(style.a) * restingPresenceGain(conduit.n, style.a))
       const glow = conduit.glow
       const lift = glow > 1 ? 0.35 : 0
       const samplesPerLayer = conduit.samples * TUBE_SEGMENTS

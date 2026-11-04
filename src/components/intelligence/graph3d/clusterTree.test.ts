@@ -11,6 +11,8 @@ import {
   projectedRadiusPx,
   openThresholdPx,
   focusWeightRect,
+  focusCentrality,
+  FOCUS_PLATEAU,
   FOCUS_GAIN,
   type ClusterTree,
   type CutView,
@@ -612,5 +614,15 @@ describe('focusWeightRect — the view is a rectangle, not a cone', () => {
   it('the line of sight weighs the most, behind weighs nothing', () => {
     expect(focusWeightRect(0, 0, -1000, 1, F, U, V, H)).toBeCloseTo(1 + FOCUS_GAIN, 9)
     expect(focusWeightRect(0, 0, 1000, 1, F, U, V, H)).toBe(0)
+  })
+})
+
+describe('focusCentrality — the detail opens over a zone, not a spot', () => {
+  it('the whole centre half of the view gets the full weight, then it falls to the edge', () => {
+    expect(focusCentrality(0)).toBe(1)
+    expect(focusCentrality(FOCUS_PLATEAU)).toBe(1)
+    expect(focusCentrality((1 + FOCUS_PLATEAU) / 2)).toBeCloseTo(0.5, 9)
+    expect(focusCentrality(1)).toBe(0)
+    expect(focusCentrality(2)).toBe(0)
   })
 })

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildClusterTree, cutForView, type CutView } from './clusterTree'
 import { CLUSTER_NODE_PREFIX, closedGroupHullNodes, clusterIndexOf, graphFromCut } from './cutGraph'
+import { buildCorridors } from './linkRouting'
 import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
 
 /** `n` nodes in `comms` balls of radius 100 spread over 4 000; `e` links (no self-loops). */
@@ -187,5 +188,42 @@ describe('closedGroupHullNodes', () => {
     const kinds = new Set(far.frontier.map((i) => tree.nodes[i].kind))
     expect(kinds.has('community') || kinds.has('split') || kinds.has('region')).toBe(false)
     expect(closedGroupHullNodes(tree, far, nodes)).toEqual([])
+  })
+})
+
+describe('graphFromCut — a pair of modules is ONE trunk, whatever is open', () => {
+  // Real graph: components ↔ types carried 376 imports, drawn as dozens of
+  // corridors of 1 to 12 relations, because an aggregate link carried no
+  // community and the renderer bundles corridors per pair of communities.
+  const { nodes, links, centres } = synth(3000, 6000, 12)
+  const tree = buildClusterTree(nodes, links)
+  const [cx, cy, cz] = centres[3]
+  const cut = cutForView(tree, view(cx, cy, cz + 300), PAGE)
+  const g = graphFromCut(tree, cut, nodes, links)
+
+  it('every aggregate link names the communities of its two ends', () => {
+    const byId = new Map(g.nodes.map((n) => [n.id, n]))
+    const aggregates = g.links.filter((l) => l.relationType === 'AGGREGATE')
+    expect(aggregates.length).toBeGreaterThan(0)
+    for (const l of aggregates) {
+      expect(l.sourceCommunityId).toBe(byId.get(l.source as string)!.communityId)
+      expect(l.targetCommunityId).toBe(byId.get(l.target as string)!.communityId)
+      expect(l.isInterCommunity).toBe(l.sourceCommunityId !== l.targetCommunityId)
+    }
+  })
+
+  it('the corridors follow the pairs of communities: fewer, heavier trunks', () => {
+    // aggregates only: the layout gives the REAL links their communities (this
+    // fixture does not); the aggregates are what the cut builds
+    const aggregates = g.links.filter((l) => l.relationType === 'AGGREGATE')
+    const corridors = buildCorridors(aggregates)
+    const pairs = new Set(aggregates.map((l) => {
+      const a = l.sourceCommunityId ?? -1, b = l.targetCommunityId ?? -1
+      return a < b ? `${a}-${b}` : `${b}-${a}`
+    }))
+    expect(corridors.length).toBeLessThanOrEqual(pairs.size)
+    const heaviest = Math.max(...corridors.map((c) => Number(c.magnitude.exactCount)))
+    const heaviestLink = Math.max(...aggregates.map((l) => l.count ?? 1))
+    expect(heaviest).toBeGreaterThan(heaviestLink)
   })
 })

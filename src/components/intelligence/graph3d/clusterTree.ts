@@ -460,6 +460,27 @@ export interface CutView {
  */
 export const FOCUS_GAIN = 2
 
+/**
+ * Share of the half-view (from its centre) that gets the FULL focus weight;
+ * beyond it the weight falls linearly to 1 at the edge. Asked twice (« ma zone
+ * qui dégrossit plus grande autour de moi », « pas satisfait de la zone où ça
+ * dégrossit »): with a pure linear falloff only the very centre got the full
+ * bonus — the detail opened in a spot, not in the view.
+ */
+export const FOCUS_PLATEAU = 0.5
+
+/**
+ * Focus centrality of an element `x` half-views from the centre (0 = centre,
+ * 1 = edge), in [0, 1]. It sets the OPENING threshold only: the budget PRIORITY
+ * keeps the linear falloff, so when nodes run short the centre is still served
+ * first (a plateau for both took the phone budget off the line of sight).
+ */
+export function focusCentrality(x: number): number {
+  const v = Math.max(0, x)
+  if (v <= FOCUS_PLATEAU) return 1
+  return Math.max(0, Math.min(1, 1 - (v - FOCUS_PLATEAU) / (1 - FOCUS_PLATEAU)))
+}
+
 /** Weight of an element for the view (0 = out of view: never opened). */
 export function focusWeight(
   dx: number, dy: number, dz: number, radius: number,
@@ -687,12 +708,15 @@ export function cutForView(
     const wasOpen = previous?.open.has(i) ?? false
     const forced = mustOpen.has(i)
     const w = weightOf(i)
+    // the opening threshold reads the PLATEAU weight (a wider detailed zone);
+    // the heap below keeps the linear one (the centre first when short)
+    const wOpen = w > 0 ? 1 + FOCUS_GAIN * focusCentrality(1 - (w - 1) / FOCUS_GAIN) : 0
     // Out of view: never opened — but what is already open stays open (a
     // rotation must not close it) as long as it is still big enough.
     if (w <= 0 && !wasOpen && !forced) return
     const focused = wasOpen
       ? base / Math.sqrt(1 + FOCUS_GAIN) / CUT_HYSTERESIS // sticky: best focus + hysteresis
-      : base / Math.sqrt(Math.max(1, w))
+      : base / Math.sqrt(Math.max(1, wOpen))
     if (!forced && px < focused) return
     // Heap order: forced (the selection) first; then by weighted screen size,
     // with a BONUS (not a rank) for what was already open. An absolute rank

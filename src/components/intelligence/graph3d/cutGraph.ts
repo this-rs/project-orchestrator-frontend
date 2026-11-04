@@ -117,16 +117,21 @@ export function graphFromCut(
   maxLinks = Infinity,
 ): { nodes: Graph3DNode[]; links: Graph3DLink[]; hiddenRelations: number } {
   const idOf = new Map<number, string>()
+  // The community each drawn element stands in: the link renderer bundles a
+  // corridor (one trunk that branches) per PAIR OF COMMUNITIES.
+  const communityOf = new Map<number, number | undefined>()
   const nodes: Graph3DNode[] = []
   for (const index of cut.frontier) {
     const t = tree.nodes[index]
     if (t.kind === 'leaf') {
       const node = source[tree.order[t.memberStart]]
       idOf.set(index, node.id)
+      communityOf.set(index, node.communityId)
       nodes.push(node)
     } else {
       const sn = superNode(tree, index, source)
       idOf.set(index, sn.id)
+      communityOf.set(index, sn.communityId)
       nodes.push(sn)
     }
   }
@@ -172,9 +177,17 @@ export function graphFromCut(
         continue
       }
     }
+    // Without the two communities each aggregate was a corridor of its own: a
+    // pair of modules with 376 imports (components ↔ types, real graph) was
+    // drawn as dozens of threads of 1 to 12 relations — never as one trunk, so
+    // the big connections could not be seen from afar.
+    const ca = communityOf.get(l.a)
+    const cb = communityOf.get(l.b)
     out.push({
       source: a,
       target: b,
+      sourceCommunityId: ca,
+      targetCommunityId: cb,
       relationType: 'AGGREGATE',
       layer: 'fabric',
       weight: superEdgeWeight(l.count, tierMax),
@@ -183,7 +196,7 @@ export function graphFromCut(
       width: superEdgeWidth(l.count),
       particles: 0,
       particleSpeed: 0,
-      isInterCommunity: true,
+      isInterCommunity: ca == null || cb == null || ca !== cb,
     })
   }
   return { nodes, links: out, hiddenRelations }
