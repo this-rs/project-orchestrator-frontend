@@ -57,7 +57,6 @@ import type { MessageKey } from '@/i18n'
 import { zoomAdaptivePixelRatioCeiling } from './pixelRatioZoom'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
 import { currentDeviceBudget } from './deviceTier'
-import { createSuperLinkTubes, TUBE_MAX_EDGES, type SuperLinkTubes } from './superLinkTubes'
 import { FrameAnimator } from './frameAnimator'
 import { useLivePulse } from './useLivePulse'
 import { useCommunityActivity } from './useCommunityActivity'
@@ -421,7 +420,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // At scaleLevel ≥ 1 the super-edges become tubes and the largest super-nodes
   // get a billboard name. Both are imperative groups added to / removed from the
   // scene, mirroring the Points / LineSegments lifecycle below.
-  const superLinkTubesRef = useRef<SuperLinkTubes | null>(null)
   const superNodeLabelsRef = useRef<SuperNodeLabels | null>(null)
   /** Hide the names that would overlap a bigger group's (camera settled, labels rebuilt). */
   const declutterLabelsRef = useRef<() => void>(() => {})
@@ -931,7 +929,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // state.layout.tick()), so the single LineSegments / Points must re-read positions.
     linkSegmentsRef.current?.updatePositions()
     nodePointsRef.current?.updatePositions()
-    superLinkTubesRef.current?.updatePositions()
     superNodeLabelsRef.current?.updatePositions()
     agentMarkersRef.current?.updatePositions()
   }, [setEngineRunning])
@@ -2307,14 +2304,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     )
   }, [aggregatedEmpty, graphData.nodes.length, graphData.links.length, scaleLevel, scaleRes])
 
-  // The aggregated tier draws its super-edges as TUBES (see superLinkTubes.ts)
-  // while there are few enough of them; beyond TUBE_MAX_EDGES it falls back to
-  // the single LineSegments (cheap for thousands of 1-px lines). The two are
-  // mutually exclusive: never draw the same bundle twice.
-  // Tubes belong to the old global staircase: under the dynamic scale every
-  // aggregate goes to the vascular layer (scale law, scene frame, cross-fade,
-  // picking). A cut of ≤ 400 bundles used to fall to tubes and lose all four.
-  const useTubes = !dynamicScale && aggregated && activeGraphData.links.length > 0 && activeGraphData.links.length <= TUBE_MAX_EDGES
 
   // ── Quality-adaptive render settings ──────────────────────────────────
   const quality = getNodeQuality()
@@ -2400,7 +2389,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
 
     const data = activeGraphDataRef.current
-    if (!useOptimizedLinks || useTubes || data.links.length === 0) return
+    if (!useOptimizedLinks || data.links.length === 0) return
 
     // The camera distance reaches the link system: its LOD was frozen at the
     // default distance (the budget always passed {}).
@@ -2438,45 +2427,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // Keyed on the STRUCTURE, not on activeGraphData's identity (see above).
     // hasDimensions: the library mounts after the data when the 3D view opens
     // on a loaded graph; without it the links waited for the next flush.
-  }, [useOptimizedLinks, useTubes, activeNodeKey, activeLinkKey, wake, hasDimensions, fadeLinkLayer])
+  }, [useOptimizedLinks, activeNodeKey, activeLinkKey, wake, hasDimensions, fadeLinkLayer])
 
-  // ── Aggregated tier — super-edges as tubes ────────────────────────────
-  // At scaleLevel ≥ 1 the super-edges are few enough (≤ TUBE_MAX_EDGES) to
-  // afford one cylinder each; the LineSegments effect above is skipped while
-  // useTubes is true so a bundle is never drawn twice. Falls back to segments
-  // automatically when the bundle count exceeds the bound (useTubes → false).
-  useEffect(() => {
-    const fg = graphRef.current
-    if (!fg || typeof fg.scene !== 'function') return
-    const scene = fg.scene()
-    if (!scene) return
-
-    if (superLinkTubesRef.current) {
-      scene.remove(superLinkTubesRef.current.group)
-      superLinkTubesRef.current.dispose()
-      superLinkTubesRef.current = null
-    }
-
-    if (!useTubes) return
-
-    const tubeNodes = activeGraphDataRef.current.nodes
-    const tubes = createSuperLinkTubes(tubeNodes, activeGraphDataRef.current.links)
-    if (!tubes) return
-    scene.add(tubes.group)
-    superLinkTubesRef.current = tubes
-    const bound = boundNodeArraysRef.current
-    bound.set('tubes', tubeNodes)
-    wake(WAKE_MUTATION_MS)
-
-    return () => {
-      if (bound.get('tubes') === tubeNodes) bound.delete('tubes')
-      if (superLinkTubesRef.current === tubes) {
-        scene.remove(tubes.group)
-        tubes.dispose()
-        superLinkTubesRef.current = null
-      }
-    }
-  }, [useTubes, activeNodeKey, activeLinkKey, wake, hasDimensions])
 
   // ── Recolor links when highlight state changes ────────────────────────
   // linkColor (and thus computeLinkStyle) depends on hover / selection /
@@ -3055,7 +3007,6 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
           // Dragged node moves without a force tick — keep edges attached.
           syncBoundPosition(node)
           linkSegmentsRef.current?.updatePositions()
-          superLinkTubesRef.current?.updatePositions()
           superNodeLabelsRef.current?.updatePositions()
           agentMarkersRef.current?.updatePositions()
           wake(WAKE_MUTATION_MS)

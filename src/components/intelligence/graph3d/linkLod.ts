@@ -67,7 +67,7 @@ export const DEFAULT_LOD_OPTIONS: LodOptions = {
 
 /**
  * Seuils RELATIFS à la scène, en rayons de scène. Le cadrage place la caméra à
- * ≈ 2,77 R (FRAMING_DISTANCE_RATIO, scaleDecision.ts) : 905 pour 2 000 nœuds,
+ * ≈ 2,77 R (R / sin(fov/2) × 1,06) : 905 pour 2 000 nœuds,
  * 2 703 pour 20 000. Les seuils absolus 400 / 600 laissaient donc le LOD à 0
  * sur toute scène réelle, même zoomé dans le graphe.
  *
