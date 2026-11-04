@@ -48,7 +48,7 @@ import {
 } from '@/atoms/intelligence'
 import { buildGroupedGraph, resolutionForLevel, groupHullNodes } from './graphAggregation'
 import { buildClusterTree, cutForView, cutTransition, type ClusterCut, type ClusterTree } from './clusterTree'
-import { mainEnsembleOf } from './mainEnsemble'
+import { inBubble, mainEnsembleOf, type Bubble } from './mainEnsemble'
 import { LinkInspector } from './LinkInspector'
 import type { Corridor } from './linkRouting'
 import { CLUSTER_NODE_PREFIX, closedGroupHullNodes, carriedPrevious, graphFromCut, openIdsOf } from './cutGraph'
@@ -235,6 +235,15 @@ const HLOD_BUDGET = isMobileLikeDevice()
 const ENSEMBLE_ZOOM_RATIO = 0.6
 /** Intensity of what lies outside the main ensemble (« le fond moins visible »). */
 const ENSEMBLE_BACKGROUND_ALPHA = 0.22
+/**
+ * Radius of the visibility bubble around the point looked at, as a share of
+ * the camera's distance to it: inside, nothing is dimmed whatever its ensemble.
+ * Asked: « ma bulle de visibilité doit être beaucoup plus étendue, et sur
+ * mobile aussi » — dimming everything outside ONE community reduced the
+ * bubble to that community, even right next to the camera.
+ */
+const VISIBILITY_BUBBLE_RATIO = 1.2
+
 
 /** Relations a clicked link lists; the rest is counted. */
 const LINK_INSPECTOR_MAX = 50
@@ -725,6 +734,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   /** Re-cut the tree for the current camera, at the end of a gesture. */
   // The ensemble looked at, once close enough (null = overview: nothing dimmed).
   const [mainEnsemble, setMainEnsemble] = useState<number | null>(null)
+  // The bubble that is never dimmed: around the point looked at (null = overview).
+  const [visibilityBubble, setVisibilityBubble] = useState<Bubble | null>(null)
+  // Positions of what is drawn (groups included), for the bubble test of a link.
+  const drawnPositionsRef = useRef<Map<string, { x: number; y: number; z: number }>>(new Map())
   // The link clicked: its corridor as it was at the click (the panel stays put
   // while the cut changes) and the key that finds its conduits again.
   const [inspectedLink, setInspectedLink] = useState<{ key: string; corridor: Corridor } | null>(null)
@@ -752,6 +765,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       const close = !!camera && !!target && framing > 0 && camera.position.distanceTo(target) < framing * ENSEMBLE_ZOOM_RATIO
       const next = close ? mainEnsembleOf(treeNodesRef.current.nodes, view) : null
       setMainEnsemble((prev) => (prev === next ? prev : next))
+      const bubble = close && next != null && camera && target
+        ? { x: target.x, y: target.y, z: target.z, r2: (camera.position.distanceTo(target) * VISIBILITY_BUBBLE_RATIO) ** 2 }
+        : null
+      setVisibilityBubble((prev) =>
+        prev && bubble && prev.x === bubble.x && prev.y === bubble.y && prev.z === bubble.z && prev.r2 === bubble.r2 ? prev : bubble)
     }
     const prev = clusterCutRef.current
     const next = cutForView(clusterTree, view, budgetFor(clusterTree), prev ?? undefined)
@@ -1402,6 +1420,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       const inS = link.sourceCommunityId === mainEnsemble
       const inT = link.targetCommunityId === mainEnsemble
       if (inS && inT) return link.color
+      // inside the bubble a link is shown as it is, whatever its ensemble
+      const pos = drawnPositionsRef.current
+      const ends = [link.source, link.target].map((e) => (typeof e === 'object' && e ? e as { x?: number; y?: number; z?: number } : pos.get(String(e))))
+      if (inBubble(visibilityBubble, ends[0]) && inBubble(visibilityBubble, ends[1])) return link.color
       return fadeColor(link.color, inS || inT ? 0.5 : ENSEMBLE_BACKGROUND_ALPHA)
     }
 
@@ -1409,7 +1431,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // inter) raises the alpha in computeLinkStyle, never their hue.
 
     return link.color
-  }, [selectedNodeId, activation, showCommunityHulls, highlightedGroup, mainEnsemble])
+  }, [selectedNodeId, activation, showCommunityHulls, highlightedGroup, mainEnsemble, visibilityBubble])
 
   // ── Link colour for the sprite path (library cylinders) ───────────────
   // Hover (amber) takes visual priority over selection on shared edges and
@@ -1627,7 +1649,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     }
 
     // ── The ensemble looked at stays in front, the rest steps back ──
-    if (mainEnsemble != null && node.communityId !== mainEnsemble) {
+    if (mainEnsemble != null && node.communityId !== mainEnsemble && !inBubble(visibilityBubble, node)) {
       return { r: base.r, g: base.g, b: base.b, alpha: ENSEMBLE_BACKGROUND_ALPHA, size: size * 0.85, shape, act: 0 }
     }
 
@@ -1642,7 +1664,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // opening view dull (seen in the browser).
     const restAlpha = isTerritory ? TERRITORY_ALPHA : 1
     return { r: base.r, g: base.g, b: base.b, alpha: restAlpha, size, shape, act: 0 }
-  }, [energyHeatmap, touchesHeatmap, activation, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes, baseNodeSize, aggregated, dynamicScale, mainEnsemble])
+  }, [energyHeatmap, touchesHeatmap, activation, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes, baseNodeSize, aggregated, dynamicScale, mainEnsemble, visibilityBubble])
 
   /** Always-current node style fn, so the structure effect can color without re-running on every hover. */
   const computeNodeStyleRef = useRef(computeNodeStyle)
@@ -2350,6 +2372,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // rebuilds the links, the Points, the tubes and the labels (a canvas texture
   // each); what changed is applied in place (Points.setData + restyle).
   const activeNodeKey = useMemo(() => nodeStructureKey(activeGraphData.nodes), [activeGraphData.nodes])
+  useEffect(() => {
+    const m = new Map<string, { x: number; y: number; z: number }>()
+    for (const n of activeGraphData.nodes) m.set(n.id, n)
+    drawnPositionsRef.current = m
+  }, [activeGraphData.nodes])
   const activeLinkKey = useMemo(() => linkStructureKey(activeGraphData.links), [activeGraphData.links])
   const activeLabelKey = useMemo(
     () => (aggregated ? labelStructureKey(activeGraphData.nodes) : ''),

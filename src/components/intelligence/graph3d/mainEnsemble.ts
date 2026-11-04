@@ -77,3 +77,15 @@ export function mainEnsembleOf(
   }
   return best != null && bestW / total >= minShare ? best : null
 }
+
+/** The visibility bubble: a sphere around the point looked at (squared radius). */
+export type Bubble = { x: number; y: number; z: number; r2: number }
+
+/** Whether `p` lies in the bubble (false without a bubble or a position). */
+export function inBubble(b: Bubble | null, p: { x?: number; y?: number; z?: number } | undefined): boolean {
+  if (!b || !p || typeof p.x !== 'number' || typeof p.y !== 'number' || typeof p.z !== 'number') return false
+  const dx = p.x - b.x
+  const dy = p.y - b.y
+  const dz = p.z - b.z
+  return dx * dx + dy * dy + dz * dz <= b.r2
+}

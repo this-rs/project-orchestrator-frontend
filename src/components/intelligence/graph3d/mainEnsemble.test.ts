@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mainEnsembleOf, type EnsembleView } from './mainEnsemble'
+import { inBubble, mainEnsembleOf, type EnsembleView } from './mainEnsemble'
 
 const view = (z: number): EnsembleView => ({ position: [0, 0, z], forward: [0, 0, -1], up: [0, 1, 0], fovDeg: 45, aspect: 16 / 9 })
 /** `n` nodes of community `c` in a ball of radius `r` around (x, y, 0). */
@@ -30,5 +30,19 @@ describe('mainEnsembleOf — the ensemble in front of the camera', () => {
   it('no forward or up: no answer rather than a guess', () => {
     expect(mainEnsembleOf(ball(1, 0, 0, 10), { position: [0, 0, 300], fovDeg: 45 })).toBeNull()
     expect(mainEnsembleOf([], view(300))).toBeNull()
+  })
+})
+
+describe('inBubble — nothing near the point looked at is dimmed', () => {
+  const b = { x: 10, y: 0, z: 0, r2: 25 }
+  it('inside and on the edge are in, beyond is out', () => {
+    expect(inBubble(b, { x: 10, y: 0, z: 0 })).toBe(true)
+    expect(inBubble(b, { x: 15, y: 0, z: 0 })).toBe(true)
+    expect(inBubble(b, { x: 16, y: 0, z: 0 })).toBe(false)
+  })
+  it('no bubble (overview) or no position: never in', () => {
+    expect(inBubble(null, { x: 10, y: 0, z: 0 })).toBe(false)
+    expect(inBubble(b, undefined)).toBe(false)
+    expect(inBubble(b, { x: 10 })).toBe(false)
   })
 })

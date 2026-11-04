@@ -58,7 +58,7 @@ export const MAX_CHILDREN = 16
 /** Pairs kept while cutting, per drawn link (memory bound, not a drawing rule). */
 export const LINK_PAIR_HEADROOM = 8
 /** Priority bonus of an already-open group when the node budget is short. */
-export const STICKY_BONUS = 1.5
+export const STICKY_BONUS = 3
 /**
  * Opening a group shows its CHILDREN: it is only worth it when they will be
  * told apart on screen. k children spread over a projected radius R sit about
@@ -469,7 +469,7 @@ export interface CutView {
  * 1 + FOCUS_GAIN: it is opened first, and at a threshold √(1 + FOCUS_GAIN)
  * times lower; the weight falls linearly to 1 at the edge of the view.
  */
-export const FOCUS_GAIN = 2
+export const FOCUS_GAIN = 6
 
 /**
  * Share of the half-view (from its centre) that gets the FULL focus weight;
@@ -478,7 +478,7 @@ export const FOCUS_GAIN = 2
  * dégrossit »): with a pure linear falloff only the very centre got the full
  * bonus — the detail opened in a spot, not in the view.
  */
-export const FOCUS_PLATEAU = 0.5
+export const FOCUS_PLATEAU = 0.9
 
 /**
  * Focus centrality of an element `x` half-views from the centre (0 = centre,

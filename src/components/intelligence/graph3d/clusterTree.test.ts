@@ -443,8 +443,10 @@ describe('cutForView — foveated: the detail goes where the camera looks', () =
   it('the centre of the screen opens earlier than its edge', () => {
     // same distance, one on the line of sight, one near the edge of the view
     // far enough that the centre needs its focus bonus to open (real nodes open
-    // at half the spacing): the second ball ~34° off the line of sight
-    const nodes = [...ball(3, -3600, 0), ...ball(4, -3600, 2430)]
+    // at half the spacing); the second ball ~41° off the line of sight, at the
+    // edge of the view (half-diagonal 40°, +10 %) and beyond the full-weight
+    // plateau (FOCUS_PLATEAU), so it gets less of the bonus
+    const nodes = [...ball(3, -3600, 0), ...ball(4, -3600, 3100)]
     const tree = buildClusterTree(nodes, [])
     const centre = tree.nodes.find((t) => t.kind === 'community' && t.id.endsWith('c3'))!
     const edge = tree.nodes.find((t) => t.kind === 'community' && t.id.endsWith('c4'))!
