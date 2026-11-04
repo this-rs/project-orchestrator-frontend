@@ -104,10 +104,11 @@ export function sizeForType(entityType: string): number {
 //     compositing toward grey;
 //   * a HALO `(1-d²)²` that dies smoothly at the sprite edge, plus a narrow
 //     bright CORE — every node reads as a small light source;
-//   * a GLOBAL GAIN `uGlobal ≈ √(NREF/N)` (po-graph's `uGlobal`, see
-//     po-graph.js:4185: `S.light / sqrt(pt*uN)`): two thousand overlapping
-//     halos at full gain IS the "blanc laiteux" the user reported, so per-node
-//     light falls off as the crate fills up;
+//   * (a GLOBAL GAIN `√(NREF/N)` came with the additive blending — two thousand
+//     overlapping halos summed to the "blanc laiteux". It is gone with the MAX
+//     blending, where an overlap no longer adds up: kept, it only darkened every
+//     node as the detail opened — 0.32 × the density factor at 4 000 nodes, the
+//     « peu de visibilité » of 04/11/2026);
 //   * SPRITE_HEADROOM — the visible shape is drawn at ~0.4 of the sprite and the
 //     sprite is twice as large as before, so the halo has a band of its own
 //     outside the core while the node keeps its apparent radius.
@@ -211,49 +212,6 @@ export const LINK_RENDER_ORDER = 15
 /** Names are read last: above nodes, links and agent markers. */
 export const LABEL_RENDER_ORDER = 30
 
-/**
- * Node count at which the per-node gain is still 1. A 200-node graph must not
- * pay for a 4000-node one, so nothing is dimmed below this count.
- */
-export const NODE_GAIN_REFERENCE = 400
-
-/**
- * Floor on the per-node light gain.
- *
- * Above ~10k nodes `√(NREF/count)` keeps falling — at 40k nodes it is 0.1 —
- * and a fully-lit node then emits a tenth of its colour, which reads as black
- * on the dark canvas; a dimmed (alpha 0.3) node emits 3 % and is invisible.
- * This is the "the elements should also be visible" failure. The floor keeps a
- * lit node at least this bright while `1/√N` still damps the aggregate above
- * the reference.
- *
- * VALUE. 0.2 → 0.3. At 20 000 nodes `√(400/20000)` = 0.141, floored to 0.2. A
- * disc centre emits (colour·1.658 + 0.22)·gain; against #0f1117 the worst
- * palette colour (plan #0ea5e9) gives a contrast of 2.27:1 at 0.2 and 3.65:1 at
- * 0.3 (WCAG ≥ 3:1 needs ≥ ~0.26). TRADE-OFF: the floor now bites from
- * `400/0.3²` = 4 444 nodes (was 10 000), so between 4.4k and 20k the aggregate
- * is 1.5× brighter than pure 1/√N — slightly more "milky" where halos overlap.
- * Accepted: the milk was mostly the LINKS (now faded by density), whereas an
- * unreadable node is a total loss.
- */
-export const NODE_GAIN_FLOOR = 0.3
-
-/**
- * Per-node light gain for a graph of `count` nodes:
- * `min(1, max(FLOOR, √(NREF/count)))`.
- *
- * WHY √ AND NOT 1/N. Halo brightness adds linearly in the number of sprites,
- * but two nodes only overlap when they are close, and d3 spreads them out as
- * the count grows. 1/N would make a large graph not merely calm but dark; 1/√N
- * is the compromise po-graph settled on, and it is what stops a 5k-node graph
- * from saturating to white. It is the same shape of formula as po-graph's
- * `uGlobal`, normalised so that a small graph is left untouched.
- */
-export function nodeGain(count: number): number {
-  const n = Number.isFinite(count) && count > 0 ? count : 1
-  return Math.min(1, Math.max(NODE_GAIN_FLOOR, Math.sqrt(NODE_GAIN_REFERENCE / n)))
-}
-
 /** Under this many nodes the density attenuation is exactly 1 (an isolated point keeps its opacity). */
 export const DENS_FREE_COUNT = 1000
 /** Floor of the density factor: a point is never dimmed below 35 % of its alpha. */
@@ -336,7 +294,6 @@ const VERTEX_SHADER = /* glsl */ `
 `
 
 const FRAGMENT_SHADER = /* glsl */ `
-  uniform float uGlobal;
   uniform float uDensK;
   varying vec3 vColor;
   varying float vAlpha;
@@ -403,9 +360,9 @@ const FRAGMENT_SHADER = /* glsl */ `
     // Colour × shape, plus a white centre that aAct drives (po-graph does the
     // same with m*(.08+vAct*.8)), so activation both enlarges and brightens.
     vec3 c = vColor * lum + vec3(1.0) * (core * 0.22 + m * vAct * 0.75);
-    // uGlobal caps the total emitted light as the node count grows; vAlpha is
-    // the caller's per-node opacity (hover, dimming, legend, activation).
-    c *= vAlpha * uGlobal * uDensK;
+    // vAlpha is the caller's per-node opacity (hover, dimming, legend,
+    // activation); uDensK the density and distance fade.
+    c *= vAlpha * uDensK;
     // Additive blending: alpha is 1 and the intensity lives in the colour, so
     // overlapping nodes brighten each other instead of occluding each other.
     gl_FragColor = vec4(min(c, vec3(4.0)), 1.0);
@@ -496,7 +453,6 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
       // change their on-screen size whenever the ratio changes.
       uPx: { value: typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio || 1, 1.5) },
       // Per-node light gain, recomputed from the node count by setData().
-      uGlobal: { value: nodeGain(nodes.length) },
       // Density attenuation of the alpha (1 = untouched), see densityAlphaK().
       uDensK: { value: densityAlphaK(nodes.length, 0, 0) },
     },
@@ -536,7 +492,6 @@ export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
     // The gain is a property of the crate, not of a node: recompute it here,
     // once per data change, so a filtered or aggregated graph is not lit like
     // the full one it came from.
-    material.uniforms.uGlobal.value = nodeGain(next.length)
     material.uniforms.uDensK.value = densityAlphaK(next.length, camDistance, camFramingDistance)
     if (next.length !== (geometry.getAttribute('position') as THREE.BufferAttribute).count) {
       geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(next.length * 3), 3))

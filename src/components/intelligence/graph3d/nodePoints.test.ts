@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import {
-  createNodePoints, shapeForType, sizeForType, nodeGain, NODE_GAIN_REFERENCE, NODE_GAIN_FLOOR,
-  NODE_MIN_SHAPE_PX, NODE_MIN_SPRITE_PX, NODE_SHAPE_MID_RADIUS, NODE_SHAPE_FRACTION_SMALL, NODE_POINTS_RENDER_ORDER,
+  createNodePoints, shapeForType, sizeForType, NODE_MIN_SHAPE_PX, NODE_MIN_SPRITE_PX, NODE_SHAPE_MID_RADIUS, NODE_SHAPE_FRACTION_SMALL, NODE_POINTS_RENDER_ORDER,
   LINK_RENDER_ORDER, LABEL_RENDER_ORDER, nodeSpritePx, shapeGrow,
   densityAlphaK, densityDistanceFactor, DENS_K_MIN, DENS_DIST_MIN, DENS_DIST_FALLBACK_NEAR,
 } from './nodePoints'
@@ -165,39 +164,9 @@ describe('createNodePoints', () => {
 // ── The look, asserted where it can be ───────────────────────────────────────
 // A test cannot see a glow. What it CAN pin down is everything that made the
 // previous version flat, so a silent revert fails here instead of in the user's
-// eyes: additive emission, a global gain tied to the node count, a halo that
+// eyes: the emission, no global gain tied to the node count, a halo that
 // reaches the sprite edge, and uPx kept in lockstep with the renderer.
 
-describe('nodeGain', () => {
-  it('leaves a small graph untouched', () => {
-    expect(nodeGain(1)).toBe(1)
-    expect(nodeGain(50)).toBe(1)
-    expect(nodeGain(NODE_GAIN_REFERENCE)).toBe(1)
-  })
-
-  it('falls off as 1/√N above the reference, then floors at NODE_GAIN_FLOOR', () => {
-    expect(nodeGain(NODE_GAIN_REFERENCE * 4)).toBeCloseTo(0.5, 6)
-    // 40k nodes: 1/√N would be 0.1, but the floor keeps a lit node visible.
-    expect(nodeGain(NODE_GAIN_REFERENCE * 100)).toBeCloseTo(NODE_GAIN_FLOOR, 6)
-  })
-
-  it('never increases as the graph grows, and never drops below the floor', () => {
-    const counts = [400, 1_000, 4_000, 16_000, 64_000, 250_000]
-    const gains = counts.map(nodeGain)
-    for (let i = 1; i < gains.length; i++) {
-      expect(gains[i]).toBeLessThanOrEqual(gains[i - 1])
-    }
-    for (const g of gains) {
-      expect(g).toBeGreaterThanOrEqual(NODE_GAIN_FLOOR)
-    }
-  })
-
-  it('survives nonsense counts', () => {
-    expect(nodeGain(0)).toBe(1)
-    expect(nodeGain(-12)).toBe(1)
-    expect(nodeGain(Number.NaN)).toBe(1)
-  })
-})
 
 describe('nodePoints material', () => {
   const mat = (n: number) => {
@@ -215,21 +184,14 @@ describe('nodePoints material', () => {
     np.dispose()
   })
 
-  it('carries a density gain that shrinks with the node count', () => {
-    const small = mat(100)
-    const large = mat(10_000)
-    const gain = (m: THREE.ShaderMaterial) => m.uniforms.uGlobal.value as number
-    expect(gain(small.material)).toBe(1)
-    expect(gain(large.material)).toBeLessThan(0.5)
-    small.np.dispose()
-    large.np.dispose()
-  })
-
-  it('recomputes the gain when the data changes size', () => {
+  it("no global gain: a node keeps its light however many are drawn", () => {
+    // √(400/N) was the additive blending's guard against summing to white. Under
+    // MAX blending it only dimmed every node as the detail opened: at 4 000
+    // drawn nodes a node lit at 0.32 × the density factor (« peu de visibilité »).
     const { np, material } = mat(10)
-    expect(material.uniforms.uGlobal.value).toBe(1)
     np.setData(Array.from({ length: 4_000 }, (_, i) => mk(`x${i}`, i, 0, 0)))
-    expect(material.uniforms.uGlobal.value).toBeLessThan(0.4)
+    expect(material.uniforms.uGlobal).toBeUndefined()
+    expect(material.fragmentShader).not.toMatch(/uGlobal/)
     np.dispose()
   })
 
@@ -248,7 +210,7 @@ describe('nodePoints material', () => {
   it('keeps the halo, the core and the per-node alpha in the fragment shader', () => {
     const { np, material } = mat(2)
     const fs = material.fragmentShader
-    expect(fs).toContain('uGlobal')
+    expect(fs).toContain('uDensK')
     expect(fs).toContain('vAlpha')
     expect(fs).toContain('vAct')
     // halo = q² with q = 1-d²: the smooth radial falloff the flat version lacked
@@ -322,8 +284,9 @@ describe('minimum on-screen size', () => {
 
 describe('luminance floor at 20 000 nodes', () => {
   it('keeps the dimmest palette colour at >= 3:1 against the canvas', () => {
-    const gain = nodeGain(20_000)
-    expect(gain).toBeCloseTo(NODE_GAIN_FLOOR, 6) // 1/√N = 0.141 is under the floor
+    // the dimmest the renderer itself makes a node: the density floor (there is
+    // no global gain any more, it was 0.3 at 20 000 nodes)
+    const gain = DENS_K_MIN
     // disc centre of the fragment shader: m = 1.10, halo = 0.62·0.9, core adds 0.22 white
     const centre = 1.1 + 0.62 * 0.9
     let worst = Infinity

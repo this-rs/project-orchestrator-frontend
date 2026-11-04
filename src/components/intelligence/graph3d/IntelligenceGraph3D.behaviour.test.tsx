@@ -876,10 +876,18 @@ describe('IntelligenceGraph3D — community envelopes at the dynamic scale', () 
   // toggle used to draw nothing at all. The envelopes now wrap the CLOSED
   // groups of the cut, each with the label of the group it stands for.
   it('the toggle draws one envelope per closed group, and only while it is on', async () => {
-    // 3 000: above the dynamic threshold (2 000) and under the envelope cap of
-    // EVERY tier but the lowest (4 000 on a 4-core CI runner, which failed at 4 200).
-    const view = await mountGraph(makeGraph(3000))
+    // 3 900: above the dynamic threshold (2 000), under the envelope cap of every
+    // tier but the lowest (4 000 on a 4-core CI runner, which failed at 4 200),
+    // and big enough that some groups stay closed (at 3 000 everything opened
+    // once the threshold went to 12 px: nothing to wrap).
+    const view = await mountGraph(makeGraph(3900))
     await flush(3000)
+    // Back away, so the cut has closed groups to wrap whatever the framing.
+    const camera = lib.fg.camera()
+    const controls = lib.fg.controls()
+    camera.position.copy(controls.target).add(camera.position.clone().sub(controls.target).multiplyScalar(10))
+    act(() => { controls.dispatchEvent({ type: 'end' }) })
+    await flush(500)
     const fills = () => {
       const out: THREE.Mesh[] = []
       lib.fg.scene().traverse((o) => {
