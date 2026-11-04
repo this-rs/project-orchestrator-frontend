@@ -133,7 +133,10 @@ export interface LivePulseHandle {
 export function useLivePulse(input: LivePulseInput): LivePulseHandle {
   const { nodePointsRef, linkSegmentsRef, nodes, animator, enabled = true } = input
   const aliasesRef = useRef(input.aliases)
-  aliasesRef.current = input.aliases
+  // the latest aliases for the event callback, written after render (not during it)
+  useEffect(() => {
+    aliasesRef.current = input.aliases
+  }, [input.aliases])
   const clockRef = useRef(new PulseClock())
   /** Node id → node, for the pulses in flight (resolved once, at trigger time). */
   const targetsRef = useRef(new Map<string, Graph3DNode>())
