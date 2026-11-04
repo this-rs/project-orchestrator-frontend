@@ -114,3 +114,62 @@ describe('interaction', () => {
     for (let d = 0; d < 3; d++) expect(axis[v * 3 + d]).toBeCloseTo(center[d], 3)
   })
 })
+
+/**
+ * La tolérance de picking est en PIXELS. Un écart en x se convertit avec la
+ * moitié de la LARGEUR, pas de la hauteur : en portrait (390 × 844) un
+ * pointeur à 4 px d'un axe vertical était compté à 8,7 px et raté.
+ */
+describe('picking en viewport non carré', () => {
+  const W = 390
+  const H = 844
+  // Deux nœuds l'un au-dessus de l'autre : un seul conduit, vertical à l'écran.
+  const nodes = [
+    { id: 'a', label: '', entityType: 'file', layer: 'code', x: 0, y: -300, z: 0, communityId: 0, data: {} },
+    { id: 'b', label: '', entityType: 'file', layer: 'code', x: 0, y: 300, z: 0, communityId: 1, data: {} },
+  ] as never[]
+  const links = [{
+    source: 'a', target: 'b', relationType: 'IMPORTS', layer: 'code', sourceCommunityId: 0, targetCommunityId: 1,
+    color: '#fff', width: 1, particles: 0, particleSpeed: 0, isInterCommunity: true, count: 40,
+  }] as never[]
+  const r = createVascularLinks(nodes, links)!
+  const camera = new THREE.PerspectiveCamera(50, W / H, 1, 100000)
+  camera.position.set(0, 0, 1500)
+  camera.lookAt(0, 0, 0)
+  camera.updateMatrixWorld()
+  camera.updateProjectionMatrix()
+  const axis = attrs(r).aAxis.array
+  /** Milieu de l'axe du cœur du tronc, projeté. */
+  const middle = () => {
+    const c = r.inspect!().find((x) => x.kind === 'trunk')!
+    const i = Math.floor(c.samples / 2)
+    const v = c.vertexStart + (c.layers - 1) * c.samples * SEG + i * SEG
+    const p = new THREE.Vector3(axis[v * 3], axis[v * 3 + 1], axis[v * 3 + 2]).project(camera)
+    const q = new THREE.Vector3(axis[(v + SEG) * 3], axis[(v + SEG) * 3 + 1], axis[(v + SEG) * 3 + 2]).project(camera)
+    return { c, p, q }
+  }
+
+  it('le tronc est vertical à l’écran (prémisse du test)', () => {
+    const { p, q } = middle()
+    expect(Math.abs((q.x - p.x) * W)).toBeLessThan(0.05 * Math.abs((q.y - p.y) * H))
+  })
+
+  it('un pointeur à 4 px de l’axe le touche, à 4 px', () => {
+    const { c, p } = middle()
+    const pick = r.pickAt!(p.x + 4 / (W / 2), p.y, camera, H, 6, W)
+    expect(pick).not.toBeNull()
+    expect(pick!.id).toBe(c.id)
+    expect(pick!.distancePx).toBeGreaterThan(3.8)
+    expect(pick!.distancePx).toBeLessThan(4.05)
+    // À 8 px, hors tolérance.
+    expect(r.pickAt!(p.x + 8 / (W / 2), p.y, camera, H, 6, W)).toBeNull()
+  })
+
+  it('sans largeur, la signature d’avant tient (largeur = hauteur)', () => {
+    const { p } = middle()
+    const a = r.pickAt!(p.x + 2 / (H / 2), p.y, camera, H)
+    const b = r.pickAt!(p.x + 2 / (H / 2), p.y, camera, H, 6, H)
+    expect(a).not.toBeNull()
+    expect(a).toEqual(b)
+  })
+})

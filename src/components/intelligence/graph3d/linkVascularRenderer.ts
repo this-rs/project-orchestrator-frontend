@@ -574,7 +574,15 @@ export interface VascularLinkRenderer extends LinkRenderer {
    * Conduit le plus proche du pointeur, en distance ÉCRAN le long des axes
    * (un capillaire fin ne se rate plus au lancer de rayon). `ndc` en [-1, 1].
    */
-  pickAt?: (ndcX: number, ndcY: number, camera: THREE.Camera, viewportHeightPx: number, tolerancePx?: number) => ConduitPick | null
+  pickAt?: (
+    ndcX: number,
+    ndcY: number,
+    camera: THREE.Camera,
+    viewportHeightPx: number,
+    tolerancePx?: number,
+    /** Largeur du viewport (px CSS) ; par défaut la hauteur (signature d'avant). */
+    viewportWidthPx?: number,
+  ) => ConduitPick | null
   /** Conduits allumés quand on survole `id` : ancêtres jusqu'au tronc, et descendants. */
   pathOf?: (id: number) => number[]
   /** Allume le chemin de `id` (null = éteint). */
@@ -1482,12 +1490,14 @@ export function createVascularLinks(
       camera: THREE.Camera,
       viewportHeightPx: number,
       tolerancePx = 6,
+      viewportWidthPx = viewportHeightPx,
     ): ConduitPick | null => {
       if (!(viewportHeightPx > 0)) return null
-      // Pixels par unité NDC : la moitié de la hauteur (l'aspect est absorbé
-      // par la projection ; une distance en x est comptée à la même échelle,
-      // ce qui reste une tolérance de l'ordre du pixel).
-      const half = viewportHeightPx / 2
+      // Pixels par unité NDC : la moitié de la LARGEUR en x, de la HAUTEUR en
+      // y. Une seule échelle (la hauteur) comptait un écart horizontal ×H/W :
+      // 4 px devenaient 8,7 px en portrait, 2,2 px en 16:9.
+      const halfW = (viewportWidthPx > 0 ? viewportWidthPx : viewportHeightPx) / 2
+      const halfH = viewportHeightPx / 2
       let best: ConduitPick | null = null
       let px = 0, py = 0, pvalid = false
       for (const c of allConduits) {
@@ -1498,11 +1508,11 @@ export function createVascularLinks(
           if (!Number.isFinite(x)) { pvalid = false; continue }
           projected.set(x, c.axis[i * 3 + 1], c.axis[i * 3 + 2]).project(camera)
           const inFront = projected.z >= -1 && projected.z <= 1
-          const qx = projected.x * half
-          const qy = projected.y * half
+          const qx = projected.x * halfW
+          const qy = projected.y * halfH
           if (inFront && pvalid) {
             // Distance du pointeur au segment écran [p, q].
-            const mx = ndcX * half, my = ndcY * half
+            const mx = ndcX * halfW, my = ndcY * halfH
             const sx = qx - px, sy = qy - py
             const l2 = sx * sx + sy * sy
             const t = l2 > 0 ? Math.max(0, Math.min(1, ((mx - px) * sx + (my - py) * sy) / l2)) : 0
