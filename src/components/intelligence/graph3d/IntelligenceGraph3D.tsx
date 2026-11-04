@@ -656,12 +656,15 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (!camera) return null
     const dir = new THREE.Vector3()
     camera.getWorldDirection(dir)
+    // the screen's up (trackball controls roll the camera: not the world's +Y)
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion)
     return {
       position: [camera.position.x, camera.position.y, camera.position.z] as [number, number, number],
       fovDeg: camera.fov || 45,
       viewportHeightPx: cutHeight,
       forward: [dir.x, dir.y, dir.z] as [number, number, number],
       aspect: camera.aspect || 1,
+      up: [up.x, up.y, up.z] as [number, number, number],
     }
   }, [cutHeight])
   // The cut of a NEW tree (a WebSocket flush, a new dataset) is computed right

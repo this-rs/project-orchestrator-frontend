@@ -443,6 +443,13 @@ export interface CutView {
   forward?: readonly [number, number, number]
   /** Viewport width / height (the horizontal angle of view). */
   aspect?: number
+  /**
+   * The SCREEN's up (unit vector, the camera's local +Y in world space). With
+   * `forward` it gives the view its real rectangle: without it the view is a
+   * circular cone of the half-diagonal, which on a portrait phone (±10.9°
+   * across, ±22.5° up and down) counted everything to the sides as in view.
+   */
+  up?: readonly [number, number, number]
 }
 
 /**
@@ -467,6 +474,36 @@ export function focusWeight(
   // out of view (with a small margin so an element half on screen still opens)
   if (angle - angular > halfDiagRad * 1.1) return 0
   const centrality = Math.max(0, Math.min(1, 1 - Math.max(0, angle - angular) / halfDiagRad))
+  return 1 + FOCUS_GAIN * centrality
+}
+
+/**
+ * `focusWeight` against the view's RECTANGLE: the horizontal and the vertical
+ * angles are each held to their own half-opening (`hHalfRad`, `vHalfRad`), with
+ * the same 10 % margin and the element's angular radius. Measured on a phone
+ * (390×844, real graph, 04/11/2026): with the circular cone the out-of-view
+ * leaves grew from 184 to 877 while zooming in, taking the node budget from what
+ * is in front.
+ */
+export function focusWeightRect(
+  dx: number, dy: number, dz: number, radius: number,
+  forward: readonly [number, number, number], up: readonly [number, number, number],
+  vHalfRad: number, hHalfRad: number,
+): number {
+  const dist = Math.hypot(dx, dy, dz)
+  if (dist <= radius || dist === 0) return 1 + FOCUS_GAIN // the camera is inside it
+  // camera frame: depth along forward, x along right = forward × up, y along up
+  const rx = forward[1] * up[2] - forward[2] * up[1]
+  const ry = forward[2] * up[0] - forward[0] * up[2]
+  const rz = forward[0] * up[1] - forward[1] * up[0]
+  const depth = dx * forward[0] + dy * forward[1] + dz * forward[2]
+  const x = dx * rx + dy * ry + dz * rz
+  const y = dx * up[0] + dy * up[1] + dz * up[2]
+  const angular = Math.asin(Math.min(1, radius / dist))
+  const ax = Math.max(0, Math.atan2(Math.abs(x), depth) - angular)
+  const ay = Math.max(0, Math.atan2(Math.abs(y), depth) - angular)
+  if (ax > hHalfRad * 1.1 || ay > vHalfRad * 1.1) return 0
+  const centrality = Math.max(0, Math.min(1, 1 - Math.max(ax / hHalfRad, ay / vHalfRad)))
   return 1 + FOCUS_GAIN * centrality
 }
 
@@ -590,9 +627,13 @@ export function cutForView(
   const [cx, cy, cz] = view.position
   const vHalf = (view.fovDeg * Math.PI) / 360
   const halfDiag = Math.atan(Math.tan(vHalf) * Math.sqrt(1 + (view.aspect ?? 1) ** 2))
+  const hHalf = Math.atan(Math.tan(vHalf) * (view.aspect ?? 1))
+  const rect = view.forward && view.up ? { f: view.forward, u: view.up } : null
   const weightOf = (i: number) => {
     const t = nodes[i]
-    return focusWeight(t.x - cx, t.y - cy, t.z - cz, t.radius, view.forward, halfDiag)
+    return rect
+      ? focusWeightRect(t.x - cx, t.y - cy, t.z - cz, t.radius, rect.f, rect.u, vHalf, hHalf)
+      : focusWeight(t.x - cx, t.y - cy, t.z - cz, t.radius, view.forward, halfDiag)
   }
   const pxOf = (i: number) => {
     const t = nodes[i]
@@ -658,6 +699,17 @@ export function cutForView(
     // for the open groups was tried: once the node budget was full, zooming
     // onto a group could no longer open it — the budget stayed with what was
     // open elsewhere. What you look at must win when the budget is short.
+    //
+    // Out of view, an open group keeps its place only with what the view
+    // leaves: it is served AFTER everything in view (a negative priority, still
+    // ordered by size among themselves). Measured on a phone (04/11/2026): near
+    // the camera the groups to the side are as close, so as big, as the one
+    // looked at — with the bonus they kept the whole budget (out-of-view leaves
+    // 220 → 854 while zooming) and a 418 px group in front stayed closed.
+    if (w <= 0 && !forced) {
+      heap.push({ px: -1 / (1 + px), i })
+      return
+    }
     const stick = wasOpen ? STICKY_BONUS : 1
     heap.push({ px: (forced ? 1e12 : 0) + px * Math.max(1, w) * stick, i })
   }

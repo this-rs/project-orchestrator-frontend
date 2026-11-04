@@ -9,6 +9,9 @@ import {
   cutTransition,
   membersOf,
   projectedRadiusPx,
+  openThresholdPx,
+  focusWeightRect,
+  FOCUS_GAIN,
   type ClusterTree,
   type CutView,
 } from './clusterTree'
@@ -516,5 +519,98 @@ describe('cutForView — what the audit measured on a big graph (20 000 nodes, 2
     const leaf = tree.leafOf[12345]
     const cut = cutForView(tree, look([0, 0, 9000], [0, 0, 0]), { ...PHONE, keepVisible: [leaf] })
     expect(cut.frontier).toContain(leaf)
+  })
+})
+
+describe('cutForView — a pinch on a phone opens what is in front, not what is beside', () => {
+  // Measured on the real graph (2 851 files, phone 390×844, 04/11/2026): while
+  // zooming in, the out-of-view leaves kept by the sticky rule grew from 220 to
+  // 854 and took the whole node budget; in front, a 418 px group stayed closed.
+  // Near the camera, the groups to the SIDE (a portrait view is 22° wide) are as
+  // close — as big — as the one looked at.
+  // A DENSE graph, as the layout produces it: 250 communities packed in a
+  // 1 200 cube, so each has neighbours a few radii away (synth() spreads them
+  // over 4 000, where nothing is beside anything and this never shows).
+  const { nodes: sparse, links, centres: far } = synth(20000, 40000, 250, 31)
+  const K = 1200 / 4000
+  const centres = far.map((c) => c.map((x) => x * K))
+  const nodes = sparse.map((n, i) => {
+    const c = far[i % 250]
+    return { ...n, x: c[0] * K + (n.x - c[0]), y: c[1] * K + (n.y - c[1]), z: c[2] * K + (n.z - c[2]) }
+  })
+  const tree = buildClusterTree(nodes, links)
+  const PHONE = { maxNodes: 1500, maxLinks: 3000, childSpacingPx: 24 }
+  const ASPECT = 390 / 844
+  const look = (from: number[], at: number[]): CutView => {
+    const d = [at[0] - from[0], at[1] - from[1], at[2] - from[2]]
+    const l = Math.hypot(d[0], d[1], d[2]) || 1
+    const f = [d[0] / l, d[1] / l, d[2] / l]
+    // the screen up, as the page passes it: world +Y made orthogonal to forward
+    const u = [-f[1] * f[0], 1 - f[1] * f[1], -f[1] * f[2]]
+    const ul = Math.hypot(u[0], u[1], u[2]) || 1
+    return {
+      position: from as [number, number, number], fovDeg: 45, viewportHeightPx: 844, aspect: ASPECT,
+      forward: f as [number, number, number], up: [u[0] / ul, u[1] / ul, u[2] / ul],
+    }
+  }
+  const inCone = (t: { x: number; y: number; z: number }, v: CutView, deg: number) => {
+    const d = [t.x - v.position[0], t.y - v.position[1], t.z - v.position[2]]
+    const l = Math.hypot(d[0], d[1], d[2]) || 1
+    return (d[0] * v.forward![0] + d[1] * v.forward![1] + d[2] * v.forward![2]) / l > Math.cos((deg * Math.PI) / 180)
+  }
+  /**
+   * Closed groups surely on screen (within 10° of the line of sight) whose
+   * children are already far enough apart to be told apart: each WANTS to open
+   * (its own threshold, without the centre bonus) and was refused.
+   */
+  const starvedInFront = (cut: ReturnType<typeof cutForView>, v: CutView) =>
+    cut.frontier.filter((i) => {
+      const t = tree.nodes[i]
+      if (t.kind === 'leaf' || !inCone(t, v, 10)) return false
+      const l = Math.hypot(t.x - v.position[0], t.y - v.position[1], t.z - v.position[2])
+      return projectedRadiusPx(t.radius, l, 45, 844) >= openThresholdPx(DEFAULT_OPEN_PX, t.children.length, PHONE.childSpacingPx)
+    }).length
+  /** Real nodes drawn outside a 30° cone: budget spent where nobody looks. */
+  const leavesAside = (cut: ReturnType<typeof cutForView>, v: CutView) =>
+    cut.frontier.filter((i) => tree.nodes[i].kind === 'leaf' && !inCone(tree.nodes[i], v, 30)).length
+
+  it('every step of the pinch carries the previous cut, as the page does — and the front still opens', () => {
+    const target = centres[7]
+    let prev: ReturnType<typeof cutForView> | undefined
+    let cut!: ReturnType<typeof cutForView>
+    let v!: CutView
+    let starved = 0
+    for (const d of [6000, 3500, 2000, 1200, 700, 400, 250, 150]) {
+      v = look([target[0] + d * 0.3, target[1] + d * 0.2, target[2] + d], target)
+      cut = cutForView(tree, v, PHONE, prev)
+      starved += starvedInFront(cut, v)
+      prev = cut
+    }
+    // Measured on this pinch (sum over the 8 steps / real nodes aside at the end):
+    // before 53 / 238; out of view served last 23 / 221; + the view rectangle 5 / 140.
+    expect(starved).toBeLessThan(10)
+    expect(leavesAside(cut, v)).toBeLessThan(180)
+  })
+})
+
+describe('focusWeightRect — the view is a rectangle, not a cone', () => {
+  // portrait phone: 45° vertical, aspect 390/844 → ±10.9° across, ±22.5° up and down
+  const V = (22.5 * Math.PI) / 180
+  const H = Math.atan(Math.tan(V) * (390 / 844))
+  const F: [number, number, number] = [0, 0, -1]
+  const U: [number, number, number] = [0, 1, 0]
+  const at = (deg: number, axis: 'x' | 'y') => {
+    const a = (deg * Math.PI) / 180
+    return axis === 'x' ? [Math.sin(a) * 1000, 0, -Math.cos(a) * 1000] : [0, Math.sin(a) * 1000, -Math.cos(a) * 1000]
+  }
+  it('15° to the side is off a portrait screen; 15° up is on it', () => {
+    const [sx, sy, sz] = at(15, 'x')
+    const [ux, uy, uz] = at(15, 'y')
+    expect(focusWeightRect(sx, sy, sz, 1, F, U, V, H)).toBe(0)
+    expect(focusWeightRect(ux, uy, uz, 1, F, U, V, H)).toBeGreaterThan(1)
+  })
+  it('the line of sight weighs the most, behind weighs nothing', () => {
+    expect(focusWeightRect(0, 0, -1000, 1, F, U, V, H)).toBeCloseTo(1 + FOCUS_GAIN, 9)
+    expect(focusWeightRect(0, 0, 1000, 1, F, U, V, H)).toBe(0)
   })
 })
