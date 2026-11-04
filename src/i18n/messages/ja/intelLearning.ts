@@ -1,6 +1,13 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // What a person thought of the work the router rewarded (RM-7).
+  feedback: '人による判定',
+  feedbackDescription: 'ループが自分自身に与えられない唯一の数値です。エージェントの「完了」は数えません。',
+  feedbackCount: '判定数',
+  feedbackAverage: '平均',
+  feedbackNone: 'まだ誰も作業を評価していません',
+  feedbackNoneDescription: '完了した作業の行を開き、「納品済み」か「未達」を選んでください。それまで報酬は何もないところから学びます。',
   trajectory: {
     loadFailed: '軌跡を読み込めませんでした',
     openPlan: 'プラン {title} を開く',

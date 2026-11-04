@@ -331,19 +331,19 @@ export function NeuralRoutingPage() {
 
       {/* ── What a person thought ── */}
       <Section
-        title={t('intelLearning.neural.feedback')}
-        description={t('intelLearning.neural.feedbackDescription')}
+        title={t('intelLearning.feedback')}
+        description={t('intelLearning.feedbackDescription')}
       >
         {feedback && feedback.total_feedback_count > 0 ? (
           <Facts
             columns={1}
             items={[
               {
-                label: t('intelLearning.neural.feedbackCount'),
+                label: t('intelLearning.feedbackCount'),
                 value: <span className="tabular-nums">{num(feedback.total_feedback_count)}</span>,
               },
               {
-                label: t('intelLearning.neural.feedbackAverage'),
+                label: t('intelLearning.feedbackAverage'),
                 value: (
                   <span className="tabular-nums">
                     {Number.isFinite(feedback.avg_score) ? feedback.avg_score.toFixed(2) : '—'}
@@ -355,8 +355,8 @@ export function NeuralRoutingPage() {
         ) : (
           <EmptyState
             size="sm"
-            title={t('intelLearning.neural.feedbackNone')}
-            description={t('intelLearning.neural.feedbackNoneDescription')}
+            title={t('intelLearning.feedbackNone')}
+            description={t('intelLearning.feedbackNoneDescription')}
           />
         )}
       </Section>

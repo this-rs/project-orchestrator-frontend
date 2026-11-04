@@ -1,6 +1,14 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // A human's verdict on whether the work delivered (RM-7).
+  verdict: {
+    prompt: 'Công việc này có bàn giao không?',
+    delivered: 'Đã bàn giao',
+    missed: 'Chưa bàn giao',
+    failed: 'Phán quyết chưa được ghi',
+    recorded: 'Đã ghi phán quyết',
+  },
   actions: {
     edit: 'Chỉnh sửa',
     delete: 'Xóa',

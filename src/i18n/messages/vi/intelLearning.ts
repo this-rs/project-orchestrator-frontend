@@ -1,6 +1,13 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // What a person thought of the work the router rewarded (RM-7).
+  feedback: 'Phán quyết của con người',
+  feedbackDescription: 'Con số duy nhất mà vòng lặp không thể tự cho mình: chữ "hoàn tất" của một tác nhân không bao giờ được tính.',
+  feedbackCount: 'Phán quyết',
+  feedbackAverage: 'Trung bình',
+  feedbackNone: 'Chưa ai đánh giá một công việc nào',
+  feedbackNoneDescription: 'Với một công việc đã xong, mở dòng của nó và trả lời "Đã bàn giao" hoặc "Chưa bàn giao". Cho đến lúc đó, phần thưởng học từ hư không.',
   trajectory: {
     loadFailed: 'Không thể tải lộ trình',
     openPlan: 'Mở kế hoạch {title}',

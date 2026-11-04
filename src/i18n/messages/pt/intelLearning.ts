@@ -1,6 +1,13 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // What a person thought of the work the router rewarded (RM-7).
+  feedback: 'Vereditos humanos',
+  feedbackDescription: 'O único número que o ciclo não consegue dar a si próprio: o «concluído» de um agente nunca conta.',
+  feedbackCount: 'Vereditos',
+  feedbackAverage: 'Média',
+  feedbackNone: 'Ninguém avaliou uma tarefa ainda',
+  feedbackNoneDescription: 'Numa tarefa concluída, abra a sua linha e responda «Entregue» ou «Não entregue». Até lá, a recompensa aprende do nada.',
   trajectory: {
     loadFailed: 'Não foi possível carregar a trajetória',
     openPlan: 'Abrir o plano {title}',
