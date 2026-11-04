@@ -304,6 +304,7 @@ const FRAGMENT_SHADER = /* glsl */ `
   uniform float uFade;
   uniform vec3 uLightDir;
   uniform float uFlowTime;
+  uniform float uFlowOn;
   varying vec3 vColor;
   varying float vAlpha;
   varying vec3 vNormal;
@@ -323,11 +324,13 @@ const FRAGMENT_SHADER = /* glsl */ `
     // dizaines de couches ne peuvent plus saturer le meme pixel.
     // LE FLUX VIT ICI. Impulsions fines, décalées par conduit, qui avancent avec
     // uFlowTime : la géométrie et les couleurs ne bougent jamais pendant
-    // l'animation — c'est la phase 7 du plan.
+    // l'animation — c'est la phase 7 du plan. ÉTEINT tant que personne n'anime
+    // (uFlowOn = 0) : une vague figée peignait des bandes fixes sur chaque cœur.
     float pulse = 1.0;
     if (vEmit > 0.5) {
       float wave = fract(vU * 6.0 - uFlowTime + vPhase);
-      pulse = 0.55 + 0.75 * smoothstep(0.0, 0.35, wave) * smoothstep(1.0, 0.65, wave);
+      float shaped = 0.55 + 0.75 * smoothstep(0.0, 0.35, wave) * smoothstep(1.0, 0.65, wave);
+      pulse = mix(1.0, shaped, uFlowOn);
     }
     float e = (1.0 - exp(-2.0 * vEmit * vAlpha)) * pulse;
     vec3 col = surface * (1.0 - vEmit) + vColor * e;
@@ -1101,6 +1104,8 @@ export function createVascularLinks(
       uniforms: {
         uLightDir: { value: new THREE.Vector3(0.45, 0.8, 0.6).normalize() },
         uFlowTime: { value: 0 },
+        // 0 tant que setFlowTime n'a pas été appelé : cœur uniforme, sans bandes figées.
+        uFlowOn: { value: 0 },
         uViewportH: { value: 0 },
         uPxFloor: { value: CORE_SCREEN_FLOOR_PX },
         uFade: { value: 1 },
@@ -1562,6 +1567,7 @@ export function createVascularLinks(
       setFlowTime: (turns: number) => {
         flowTime = Number.isFinite(turns) ? turns % 1 : 0
         material.uniforms.uFlowTime.value = flowTime
+        material.uniforms.uFlowOn.value = 1
       },
       dispose: () => {
         // Retirer de la scène AVANT de libérer : un groupe laissé attaché

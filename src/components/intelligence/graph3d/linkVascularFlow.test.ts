@@ -122,3 +122,26 @@ describe('flux animé (phase 7)', () => {
     expect(m.uniforms.uFlowTime.value).toBe(0)
   })
 })
+
+/**
+ * Aucun appelant n'anime le flux en production. Avec uFlowTime = 0, la vague
+ * peignait pourtant ~6 bandes FIXES claires/sombres (×2,4) le long de chaque
+ * cœur. Sans animation, le cœur est uniforme ; setFlowTime allume le flux.
+ */
+describe('flux éteint tant que personne ne l’anime', () => {
+  it('uFlowOn vaut 0 à la construction, et le shader ne module le cœur que sous uFlowOn', () => {
+    const { nodes, links } = synth(150)
+    const r = createVascularLinks(nodes, links)!
+    const m = materialOf(r) as unknown as { uniforms: Record<string, { value: unknown }>; fragmentShader: string }
+    expect(m.uniforms.uFlowOn.value).toBe(0)
+    // pulse = mix(1, vague, uFlowOn) : à 0, exactement 1 partout.
+    expect(m.fragmentShader).toMatch(/pulse\s*=\s*mix\(1\.0,\s*[^;]+,\s*uFlowOn\)/)
+  })
+
+  it('setFlowTime allume le flux', () => {
+    const { nodes, links } = synth(150)
+    const r = createVascularLinks(nodes, links)!
+    r.setFlowTime!(0.4)
+    expect(materialOf(r).uniforms.uFlowOn.value).toBe(1)
+  })
+})
