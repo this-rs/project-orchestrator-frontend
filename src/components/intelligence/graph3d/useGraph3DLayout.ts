@@ -393,7 +393,7 @@ export function groupRadius(mass: number): number {
  */
 export function deterministicPlacement(
   nodes: Graph3DNode[],
-  edges: IntelligenceEdge[],
+  edges: readonly { source: string; target: string }[],
 ): Map<string, { x: number; y: number; z: number }> {
   return placeGroups(nodes, edges).positions
 }
@@ -411,7 +411,7 @@ export function placementKey(n: Graph3DNode): string {
  */
 export function placeGroups(
   nodes: Graph3DNode[],
-  edges: IntelligenceEdge[],
+  edges: readonly { source: string; target: string }[],
   fixedCentres?: Map<string, { x: number; y: number; z: number }>,
 ): {
   positions: Map<string, { x: number; y: number; z: number }>
