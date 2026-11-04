@@ -70,3 +70,38 @@ describe('membranes fines', () => {
     expect(MEMBRANE_FACING_ALPHA + MEMBRANE_EDGE_ALPHA).toBeGreaterThanOrEqual(4 * MEMBRANE_FACING_ALPHA)
   })
 })
+
+/**
+ * L'opacité d'un faisceau suit computeLinkAlpha (densité, focus, sélection,
+ * légende) : un lien atténué DOIT s'éteindre. Un plancher fixe (0,6) laissait
+ * tous les tubes à 0,42 quel que soit le focus.
+ */
+describe('opacité pilotée par le style', () => {
+  const maxAlpha = (r: ReturnType<typeof createVascularLinks>) => {
+    let m = 0
+    for (const v of meshOf(r).geometry.attributes.aAlpha.array) m = Math.max(m, v)
+    return m
+  }
+
+  it('un style presque éteint (a = 0,02) éteint toutes les couches', () => {
+    const { nodes, links } = synthGraph(1600, [0, 0, 0], 2)
+    const r = createVascularLinks(nodes, links)!
+    r.updateColors(() => ({ r: 1, g: 1, b: 1, a: 0.02 }))
+    expect(maxAlpha(r)).toBeLessThanOrEqual(0.05)
+  })
+
+  it('reste monotone : un lien plus présent est plus opaque, jamais au-delà de la spec', () => {
+    const { nodes, links } = synthGraph(1600, [0, 0, 0], 2)
+    const r = createVascularLinks(nodes, links)!
+    const at = (a: number) => {
+      r.updateColors(() => ({ r: 1, g: 1, b: 1, a }))
+      return maxAlpha(r)
+    }
+    const dim = at(0.02)
+    const rest = at(0.12)
+    const full = at(1)
+    expect(rest).toBeGreaterThan(dim * 3)
+    expect(full).toBeGreaterThan(rest)
+    expect(full).toBeLessThanOrEqual(layerSpecs(5).at(-1)!.alpha + 1e-6)
+  })
+})

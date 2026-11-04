@@ -582,6 +582,24 @@ export interface VascularLinkRenderer extends LinkRenderer {
 export const CORE_SCREEN_FLOOR_PX = 0.6
 /** Gain d'opacité d'un chemin survolé. */
 const GLOW_GAIN = 2.2
+
+/**
+ * Gain entre l'opacité d'un lien (`style.a`, sortie de computeLinkAlpha) et la
+ * présence d'un faisceau vasculaire, dans [0, 1].
+ *
+ * `style.a` est calibré pour UN trait (un pont au repos ≈ 0,15, un lien de
+ * tissu ≈ 0,03, un lien hors focus ≈ 0,02) ; un faisceau répartit déjà son
+ * opacité entre ses couches (layerSpecs). Le gain ramène un pont au repos à la
+ * présence d'avant (≈ 0,5) SANS plancher : un lien atténué par la densité, la
+ * sélection, la légende ou le focus de groupe s'éteint vraiment. L'ancien
+ * `max(0,6, …)` laissait chaque tube à 0,42 quel que soit le focus.
+ */
+export const VASCULAR_ALPHA_GAIN = 3.5
+
+export function vascularPresence(styleAlpha: number): number {
+  const a = Number.isFinite(styleAlpha) ? styleAlpha : 0
+  return Math.max(0, Math.min(1, a * VASCULAR_ALPHA_GAIN))
+}
 /** Plafond : part du rayon du plus petit groupe touché, et de la longueur du tronc. */
 export const CAP_GROUP_SHARE = 0.15
 export const CAP_TRUNK_SHARE = 0.06
@@ -1009,8 +1027,8 @@ export function createVascularLinks(
       bundles.push({
         corridor,
         drawable,
-        color: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.3 },
-        lastStyle: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.3 },
+        color: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.17 },
+        lastStyle: { r: 0.35, g: 0.85, b: 0.75, r2: 0.55, g2: 0.95, b2: 0.85, a: 0.17 },
         bowSeed: hashKey(corridor.key),
         conduits,
         hubA: corridor.from,
@@ -1302,7 +1320,7 @@ export function createVascularLinks(
       const sr = style.r, sg = style.g, sb = style.b
       const sr2 = style.r2 ?? sr, sg2 = style.g2 ?? sg, sb2 = style.b2 ?? sb
       const specs = conduit.specs
-      const baseAlpha = Math.max(0.6, Math.max(0.3, style.a))
+      const baseAlpha = vascularPresence(style.a)
       const glow = conduit.glow
       const lift = glow > 1 ? 0.35 : 0
       const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
