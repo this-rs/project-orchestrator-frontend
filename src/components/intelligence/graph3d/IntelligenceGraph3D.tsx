@@ -217,9 +217,11 @@ const AUTO_AGGREGATE_ABOVE = 4000
  */
 // On a phone the children of a group must be a FINGER apart, not a pointer
 // apart: a group opens later (18 px between children instead of 12).
+// The cut is foveated (it knows where the camera looks): the budget goes to
+// what is in view, so a desktop can afford a wider detail zone around it.
 const HLOD_BUDGET = isMobileLikeDevice()
-  ? { maxNodes: 1200, maxLinks: 2500, childSpacingPx: 18 }
-  : { maxNodes: 3000, maxLinks: 6000 }
+  ? { maxNodes: 1500, maxLinks: 3000, childSpacingPx: 18 }
+  : { maxNodes: 5000, maxLinks: 9000 }
 
 /** Intensity of a closed group's territory sprite (additive): overlapping modules must not sum to white. */
 const TERRITORY_ALPHA = 0.35
@@ -246,6 +248,7 @@ function estimatedFramingView(tree: ClusterTree, heightPx: number) {
     position: [root.x, root.y, root.z + distance] as [number, number, number],
     fovDeg: 45,
     viewportHeightPx: Math.max(1, heightPx),
+    forward: [0, 0, -1] as [number, number, number],
   }
 }
 
@@ -616,10 +619,14 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const fg = graphRef.current
     const camera = fg && typeof fg.camera === 'function' ? (fg.camera() as THREE.PerspectiveCamera | null) : null
     if (!camera) return null
+    const dir = new THREE.Vector3()
+    camera.getWorldDirection(dir)
     return {
       position: [camera.position.x, camera.position.y, camera.position.z] as [number, number, number],
       fovDeg: camera.fov || 45,
       viewportHeightPx: cutHeight,
+      forward: [dir.x, dir.y, dir.z] as [number, number, number],
+      aspect: camera.aspect || 1,
     }
   }, [cutHeight])
   // The cut of a NEW tree (a WebSocket flush, a new dataset) is computed right

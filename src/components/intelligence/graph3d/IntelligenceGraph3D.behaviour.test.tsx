@@ -564,16 +564,18 @@ describe('IntelligenceGraph3D — dynamic scale (HLOD)', () => {
   const isGroup = (id: string) => id.startsWith('cl:')
 
   it('a big graph opens as groups AND details chosen per element, not one global level', async () => {
-    await mountGraph(makeGraph(5000))
+    await mountGraph(makeGraph(9000))
     await flush(3000)
     const g = drawn()
     expect(g.nodes.length).toBeGreaterThan(0)
-    expect(g.nodes.length).toBeLessThan(5000)
+    // within the drawing budget (5 000 elements on a desktop), far below the 9 000 nodes
+    expect(g.nodes.length).toBeLessThanOrEqual(5000)
+    expect(g.nodes.length).toBeLessThan(9000)
     expect(g.nodes.some((n) => isGroup(n.id))).toBe(true)
   })
 
   it('flying close to a group opens it into its real nodes; the rest stays grouped', async () => {
-    await mountGraph(makeGraph(5000))
+    await mountGraph(makeGraph(9000))
     await flush(3000)
     const before = drawn()
     const target = before.nodes.filter((n) => isGroup(n.id)).sort((a, b) => (b.data.count as number) - (a.data.count as number))[0]
@@ -594,7 +596,7 @@ describe('IntelligenceGraph3D — dynamic scale (HLOD)', () => {
   })
 
   it('an orbit that changes nothing on screen does not rebuild the drawn graph', async () => {
-    await mountGraph(makeGraph(5000))
+    await mountGraph(makeGraph(9000))
     await flush(3000)
     const before = drawn()
     act(() => { lib.fg.controls().dispatchEvent({ type: 'end' }) })
@@ -603,7 +605,7 @@ describe('IntelligenceGraph3D — dynamic scale (HLOD)', () => {
   })
 
   it('clicking a group flies the camera to it, and the group opens in place', async () => {
-    await mountGraph(makeGraph(5000))
+    await mountGraph(makeGraph(9000))
     await flush(3000)
     const camera = lib.fg.camera()
     camera.aspect = 800 / 600
@@ -632,7 +634,7 @@ describe('IntelligenceGraph3D — dynamic scale (HLOD)', () => {
   })
 
   it('a moving camera does not re-cut (no rebuild mid-flight); the cut follows once it settles', async () => {
-    await mountGraph(makeGraph(5000))
+    await mountGraph(makeGraph(9000))
     await flush(3000)
     const camera = lib.fg.camera()
     const controls = lib.fg.controls()
@@ -693,7 +695,7 @@ describe('IntelligenceGraph3D — a late re-placement re-frames, unless the user
 
 describe('IntelligenceGraph3D — the scale is read, not pressed', () => {
   it('shows what is drawn (nodes · groups) as a status next to the layers, with no button', async () => {
-    await mountGraph(makeGraph(5000))
+    await mountGraph(makeGraph(9000))
     await flush(3000)
     const el = document.querySelector('[data-testid="graph-scale-indicator"]') as HTMLElement
     expect(el).not.toBeNull()

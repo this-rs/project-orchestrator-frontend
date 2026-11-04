@@ -378,6 +378,40 @@ export interface CutView {
   fovDeg: number
   /** Viewport height, CSS px. */
   viewportHeightPx: number
+  /**
+   * Where the camera LOOKS (unit vector). Without it the budget was spent as
+   * much behind the camera and off screen as in front of it. With it the cut
+   * is foveated: what is out of view does not open, what is near the centre
+   * of the screen opens earlier and first (see FOCUS_GAIN).
+   */
+  forward?: readonly [number, number, number]
+  /** Viewport width / height (the horizontal angle of view). */
+  aspect?: number
+}
+
+/**
+ * How much the centre of the screen is favoured (asked: « ma zone qui dégrossit
+ * plus grande autour de moi »). An element on the line of sight weighs
+ * 1 + FOCUS_GAIN: it is opened first, and at a threshold √(1 + FOCUS_GAIN)
+ * times lower; the weight falls linearly to 1 at the edge of the view.
+ */
+export const FOCUS_GAIN = 2
+
+/** Weight of an element for the view (0 = out of view: never opened). */
+export function focusWeight(
+  dx: number, dy: number, dz: number, radius: number,
+  forward: readonly [number, number, number] | undefined, halfDiagRad: number,
+): number {
+  if (!forward) return 1
+  const dist = Math.hypot(dx, dy, dz)
+  if (dist <= radius || dist === 0) return 1 + FOCUS_GAIN // the camera is inside it
+  const cos = (dx * forward[0] + dy * forward[1] + dz * forward[2]) / dist
+  const angle = Math.acos(Math.max(-1, Math.min(1, cos)))
+  const angular = Math.asin(Math.min(1, radius / dist))
+  // out of view (with a small margin so an element half on screen still opens)
+  if (angle - angular > halfDiagRad * 1.1) return 0
+  const centrality = Math.max(0, Math.min(1, 1 - Math.max(0, angle - angular) / halfDiagRad))
+  return 1 + FOCUS_GAIN * centrality
 }
 
 export interface CutBudget {
@@ -483,6 +517,12 @@ export function cutForView(
   const { nodes, order, edgeA, edgeB, edgeFamily, incident } = tree
   const M = nodes.length
   const [cx, cy, cz] = view.position
+  const vHalf = (view.fovDeg * Math.PI) / 360
+  const halfDiag = Math.atan(Math.tan(vHalf) * Math.sqrt(1 + (view.aspect ?? 1) ** 2))
+  const weightOf = (i: number) => {
+    const t = nodes[i]
+    return focusWeight(t.x - cx, t.y - cy, t.z - cz, t.radius, view.forward, halfDiag)
+  }
   const pxOf = (i: number) => {
     const t = nodes[i]
     return projectedRadiusPx(t.radius, Math.hypot(t.x - cx, t.y - cy, t.z - cz), view.fovDeg, view.viewportHeightPx)
@@ -532,8 +572,12 @@ export function cutForView(
     if (nodes[i].children.length === 0) return
     const px = pxOf(i)
     const base = openThresholdPx(tau, nodes[i].children.length, budget.childSpacingPx)
-    const threshold = previous?.open.has(i) ? base / CUT_HYSTERESIS : base
-    if (px >= threshold) heap.push({ px, i })
+    const w = weightOf(i)
+    if (w <= 0) return
+    const focused = base / Math.sqrt(w)
+    const threshold = previous?.open.has(i) ? focused / CUT_HYSTERESIS : focused
+    // the heap orders by WEIGHTED screen size: the centre of the view first
+    if (px >= threshold) heap.push({ px: px * w, i })
   }
   consider(tree.root)
 

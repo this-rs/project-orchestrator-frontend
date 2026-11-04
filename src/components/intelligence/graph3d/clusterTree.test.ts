@@ -389,3 +389,46 @@ describe('cutForView — a finger needs more room than a pointer', () => {
     expect(cutForView(tree, v, { ...BIG, childSpacingPx: 18 }).open.has(c.index)).toBe(false)
   })
 })
+
+describe('cutForView — foveated: the detail goes where the camera looks', () => {
+  // two identical communities of 64 files: A at (0,0,-1000), B at (0,0,+1000)
+  let seed = 17
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  const ball = (c: number, z0: number, x0 = 0): Graph3DNode[] => Array.from({ length: 64 }, (_, i) => ({
+    id: `b${c}-${i}`, label: '', entityType: 'file', layer: 'code',
+    x: x0 + (rnd() - 0.5) * 140, y: (rnd() - 0.5) * 140, z: z0 + (rnd() - 0.5) * 140,
+    communityId: c, groupKey: `c${c}`, data: {},
+  }))
+  const look = (fx: number, fy: number, fz: number): CutView => ({
+    position: [0, 0, 0], fovDeg: 45, viewportHeightPx: 900, forward: [fx, fy, fz], aspect: 16 / 9,
+  })
+
+  it('what is behind the camera never opens', () => {
+    const nodes = [...ball(1, -400), ...ball(2, 400)]
+    const tree = buildClusterTree(nodes, [])
+    const a = tree.nodes.find((t) => t.kind === 'community' && t.id.endsWith('c1'))!
+    const b = tree.nodes.find((t) => t.kind === 'community' && t.id.endsWith('c2'))!
+    const cut = cutForView(tree, look(0, 0, -1), BIG)
+    expect(cut.open.has(a.index)).toBe(true) // in front
+    expect(cut.open.has(b.index)).toBe(false) // behind
+  })
+
+  it('the centre of the screen opens earlier than its edge', () => {
+    // same distance, one on the line of sight, one near the edge of the view
+    const nodes = [...ball(3, -1800, 0), ...ball(4, -1800, 1200)] // the second ~34° off the line of sight
+    const tree = buildClusterTree(nodes, [])
+    const centre = tree.nodes.find((t) => t.kind === 'community' && t.id.endsWith('c3'))!
+    const edge = tree.nodes.find((t) => t.kind === 'community' && t.id.endsWith('c4'))!
+    const cut = cutForView(tree, look(0, 0, -1), BIG)
+    expect(cut.open.has(centre.index)).toBe(true)
+    expect(cut.open.has(edge.index)).toBe(false)
+  })
+
+  it('a tight budget is spent in front, not behind', () => {
+    const nodes = [...ball(5, -300), ...ball(6, 300)]
+    const tree = buildClusterTree(nodes, [])
+    const front = tree.nodes.find((t) => t.kind === 'community' && t.id.endsWith('c5'))!
+    const cut = cutForView(tree, look(0, 0, -1), { maxNodes: 70, maxLinks: 1e9 })
+    expect(cut.open.has(front.index)).toBe(true)
+  })
+})
