@@ -57,6 +57,14 @@ export default {
     reward: 'reward',
     noQueries: 'No queries recorded',
     noQueriesDescription: 'Turn routing on, then work with your assistants: the figures appear here.',
+    // What a PERSON thought of the work the router rewarded. The only figure here that
+    // the learning loop cannot produce on its own.
+    feedback: 'Human verdicts',
+    feedbackDescription: 'The one figure the loop cannot give itself: an agent’s own “completed” is never counted.',
+    feedbackCount: 'Verdicts',
+    feedbackAverage: 'Average',
+    feedbackNone: 'Nobody has judged a task yet',
+    feedbackNoneDescription: 'On a completed task, open its row and answer “Delivered” or “Not delivered”. Until then the reward learns from nothing.',
     parameters: 'Parameters',
     parametersDescription: 'Advanced settings — the defaults are fine in most cases.',
     save: 'Save',

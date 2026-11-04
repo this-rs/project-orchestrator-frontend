@@ -17,6 +17,8 @@ import {
 import { SettingRow, SettingsList } from '@/components/settings/SettingRow'
 import { useToast } from '@/hooks'
 import { neuralRoutingApi } from '@/services/neuralRouting'
+import { feedbackApi } from '@/services/feedback'
+import type { FeedbackStatsResponse } from '@/services/feedback'
 import type { NeuralRoutingStatus, NeuralRoutingConfig, UpdateConfigRequest } from '@/services/neuralRouting'
 import { NOMENCLATURE } from '@/constants/nomenclature'
 import { useT } from '@/i18n'
@@ -44,6 +46,11 @@ export function NeuralRoutingPage() {
   const loadedRef = useRef(false)
   const [toggling, setToggling] = useState(false)
   const [saving, setSaving] = useState(false)
+  /**
+   * What people thought of the work the router rewarded. `null` means "not read yet",
+   * which is different from zero: zero verdicts is the finding, not an absence of data.
+   */
+  const [feedback, setFeedback] = useState<FeedbackStatsResponse | null>(null)
 
   // ── Config edit state ──
   const [editMode, setEditMode] = useState<string>('')
@@ -53,6 +60,12 @@ export function NeuralRoutingPage() {
   const [editMaxAge, setEditMaxAge] = useState('')
 
   const fetchData = useCallback(async () => {
+    // Read on its own: a feedback endpoint that fails must never turn the routing page
+    // into an error state. Its absence is information, not a failure of this page.
+    feedbackApi
+      .stats()
+      .then(setFeedback)
+      .catch(() => {})
     try {
       const [statusRes, configRes] = await Promise.all([neuralRoutingApi.getStatus(), neuralRoutingApi.getConfig()])
       setStatus(statusRes)
@@ -312,6 +325,38 @@ export function NeuralRoutingPage() {
             size="sm"
             title={t('intelLearning.neural.noQueries')}
             description={t('intelLearning.neural.noQueriesDescription')}
+          />
+        )}
+      </Section>
+
+      {/* ── What a person thought ── */}
+      <Section
+        title={t('intelLearning.neural.feedback')}
+        description={t('intelLearning.neural.feedbackDescription')}
+      >
+        {feedback && feedback.total_feedback_count > 0 ? (
+          <Facts
+            columns={1}
+            items={[
+              {
+                label: t('intelLearning.neural.feedbackCount'),
+                value: <span className="tabular-nums">{num(feedback.total_feedback_count)}</span>,
+              },
+              {
+                label: t('intelLearning.neural.feedbackAverage'),
+                value: (
+                  <span className="tabular-nums">
+                    {Number.isFinite(feedback.avg_score) ? feedback.avg_score.toFixed(2) : '—'}
+                  </span>
+                ),
+              },
+            ]}
+          />
+        ) : (
+          <EmptyState
+            size="sm"
+            title={t('intelLearning.neural.feedbackNone')}
+            description={t('intelLearning.neural.feedbackNoneDescription')}
           />
         )}
       </Section>
