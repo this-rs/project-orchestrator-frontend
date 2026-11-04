@@ -52,6 +52,7 @@ import { CLUSTER_NODE_PREFIX, carriedPrevious, graphFromCut, openIdsOf } from '.
 import type { VascularLinkRenderer } from './linkVascularRenderer'
 import { formatExactCount } from './linkMagnitude'
 import { nearestNeighbourScale } from './linkRadius'
+import { vascularGroupFrames } from './linkVascularRenderer'
 import type { MessageKey } from '@/i18n'
 import { zoomAdaptivePixelRatioCeiling } from './pixelRatioZoom'
 import { createSuperNodeLabels, type SuperNodeLabels } from './superNodeLabels'
@@ -222,11 +223,11 @@ function readCssColor(name: string, fallback: string): string {
 const DYNAMIC_MIN_NODES = isMobileLikeDevice() ? 1000 : 2000
 
 const HLOD_BUDGET = isMobileLikeDevice()
-  ? { maxNodes: 1500, maxLinks: 3000, childSpacingPx: 18 }
-  : { maxNodes: 5000, maxLinks: 9000 }
+  ? { maxNodes: 1500, maxLinks: 3000, childSpacingPx: 24 }
+  : { maxNodes: 5000, maxLinks: 9000, childSpacingPx: 18 }
 
-/** Intensity of a closed group's territory sprite (additive): overlapping modules must not sum to white. */
-const TERRITORY_ALPHA = 0.35
+/** Intensity of a closed group's territory sprite (MAX blending: no sum to white; a group reads softer than a real node). */
+const TERRITORY_ALPHA = 0.7
 
 /** Screen tolerance around a link's axis for hover, px: a one-relation conduit is barely wider. */
 const LINK_PICK_TOLERANCE_PX = 6
@@ -1044,7 +1045,9 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     let x = 0, y = 0, z = 0
     for (const n of nodes) { x += n.x; y += n.y; z += n.z }
     const c = nodes.length
-    return { unit: nearestNeighbourScale(nodes), center: [x / c, y / c, z / c] as [number, number, number] }
+    // groups: a STABLE radius and centre per community, from the whole graph —
+    // the trunk cap (rMax) no longer moves when a neighbour group opens
+    return { unit: nearestNeighbourScale(nodes), center: [x / c, y / c, z / c] as [number, number, number], groups: vascularGroupFrames(nodes) }
     // keyed on what changes positions, not on the array identity a flush renews
   }, [nodeSetKey, layoutRevision])
   const linkFrameRef = useRef(linkFrame)
@@ -1545,11 +1548,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     // middle of the real graph (seen in the browser). It glows at
     // TERRITORY_ALPHA; its real nodes, once opened, are at full intensity.
     const isTerritory = dynamicScale && isSuper && typeof node.data.clusterRadius === 'number'
-    // A node grown by its connections (up to ×3) is an ADDITIVE glow over a
-    // bigger area: at full intensity, close-up hubs summed to white (seen on a
-    // phone, pinched in). Intensity falls as 1/√gain — bigger, not brighter.
-    const grown = isSuper ? 1 : Math.max(1, size / Math.max(1e-6, sizeForType(entityType)))
-    const restAlpha = isTerritory ? TERRITORY_ALPHA : 1 / Math.sqrt(grown)
+    // The nodes blend by MAX (nodePoints): overlapping glows no longer sum to
+    // white, so neither a big hub nor a territory needs dimming any more — the
+    // earlier 1/√gain and 0.35 (made for ADDITIVE blending) only made the
+    // opening view dull (seen in the browser).
+    const restAlpha = isTerritory ? TERRITORY_ALPHA : 1
     return { r: base.r, g: base.g, b: base.b, alpha: restAlpha, size, shape, act: 0 }
   }, [energyHeatmap, touchesHeatmap, activation, selectedNodeId, legendHoveredType, hoveredProjectSlug, highlightedGroup, dimmedEntityTypes, baseNodeSize, aggregated, dynamicScale])
 
@@ -2399,7 +2402,12 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const data = activeGraphDataRef.current
     if (!useOptimizedLinks || useTubes || data.links.length === 0) return
 
-    const seg = createLinkRenderer(data.nodes, data.links, linkFrameRef.current)
+    // The camera distance reaches the link system: its LOD was frozen at the
+    // default distance (the budget always passed {}).
+    const camera = typeof fg.camera === 'function' ? fg.camera() : null
+    const frame = linkFrameRef.current
+    const cameraDistance = camera && frame ? camera.position.distanceTo(new THREE.Vector3(...frame.center)) : undefined
+    const seg = createLinkRenderer(data.nodes, data.links, frame, cameraDistance !== undefined ? { cameraDistance } : {})
     seg.updateColors(computeLinkStyleRef.current)
     scene.add(seg.object)
     linkSegmentsRef.current = seg
@@ -2865,7 +2873,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         return null
       }
       const rect = el.getBoundingClientRect()
-      const pick = seg.pickAt(ndcVec.x, ndcVec.y, camera, rect.height, LINK_PICK_TOLERANCE_PX)
+      // the width too: x was measured with H/2 (2.8 px of tolerance in portrait)
+      const pick = seg.pickAt(ndcVec.x, ndcVec.y, camera, rect.height, LINK_PICK_TOLERANCE_PX, rect.width)
       lightConduit(pick?.id ?? null)
       if (!pick) {
         setHoveredLink(null)
