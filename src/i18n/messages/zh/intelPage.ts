@@ -186,6 +186,14 @@ export default {
     exitFullscreen: '退出全屏',
     exitFullscreenEsc: '退出全屏（Esc）',
     spreadingActivation: '扩散激活',
+    panels: {
+      collapse: '折叠',
+      expand: '展开',
+      legend: '图例',
+      brightness: '亮度',
+      scale: '缩放',
+    },
+
     loadFailed: '无法加载图谱',
     workspaceLoadFailed: '无法加载工作区图谱',
     workspaceDataLoadFailed: '无法加载工作区智能数据',
@@ -235,5 +243,19 @@ export default {
     offlineTitle: 'WebSocket 已断开——更新已暂停',
     live: '实时',
     liveTitle: 'WebSocket 已连接——正在接收实时更新',
+  },
+  situation: {
+    aria: '当前视图',
+    nodes: '节点',
+    groups: '分组',
+    edges: '边',
+    layers: '图层',
+    tierDetail: '详细',
+    tierGroups: '分组',
+  },
+  breadcrumb: {
+    aria: '图导航路径',
+    all: '整个图谱',
+    group: '组 {id}',
   },
 } satisfies Translation<'intelPage'>

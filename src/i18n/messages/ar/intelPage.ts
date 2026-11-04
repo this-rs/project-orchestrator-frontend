@@ -186,6 +186,14 @@ export default {
     exitFullscreen: 'الخروج من ملء الشاشة',
     exitFullscreenEsc: 'الخروج من ملء الشاشة (Esc)',
     spreadingActivation: 'انتشار التنشيط',
+    panels: {
+      collapse: 'طي',
+      expand: 'توسيع',
+      legend: 'وسيلة الإيضاح',
+      brightness: 'السطوع',
+      scale: 'مقياس',
+    },
+
     loadFailed: 'تعذّر تحميل المخطط',
     workspaceLoadFailed: 'تعذّر تحميل مخطط مساحة العمل',
     workspaceDataLoadFailed: 'تعذّر تحميل بيانات الذكاء لمساحة العمل',
@@ -235,5 +243,19 @@ export default {
     offlineTitle: 'انقطع اتصال WebSocket — التحديثات متوقفة',
     live: 'مباشر',
     liveTitle: 'WebSocket متصل — تُستلم التحديثات مباشرة',
+  },
+  situation: {
+    aria: 'ما تشاهده',
+    nodes: 'عقد',
+    groups: 'مجموعات',
+    edges: 'حواف',
+    layers: 'طبقات',
+    tierDetail: 'تفصيل',
+    tierGroups: 'مجموعات',
+  },
+  breadcrumb: {
+    aria: 'مسار تنقل الرسم البياني',
+    all: 'الرسم البياني بالكامل',
+    group: 'مجموعة {id}',
   },
 } satisfies Translation<'intelPage'>

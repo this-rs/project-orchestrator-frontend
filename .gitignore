@@ -43,3 +43,6 @@ qa-out/
 # tsc -b incremental cache, rewritten on every build
 *.tsbuildinfo
 .graph-perf-profile/
+
+# Chrome profile left by scripts/graph-fullscreen-check.mjs — never commit it.
+.graph-fs-profile/

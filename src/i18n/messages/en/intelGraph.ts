@@ -54,6 +54,20 @@ export default {
     coChangeValue: 'at least {n} co-changes',
     coChangeTitle: 'Hide CO_CHANGED edges with fewer than {n} co-changes',
   },
+  scale: {
+    nodes: 'Nodes: {count}',
+    groups: 'Groups: {count}',
+  },
+  linkInspector: {
+    title: 'Connection',
+    aria: 'Relations of the selected link',
+    relations: '{count} relations',
+    families: 'Families',
+    real: 'Real relations',
+    more: '+ {count} more',
+    close: 'Close',
+  },
+
   inspector: {
     close: 'Close',
     chosenOption: 'Chosen Option',

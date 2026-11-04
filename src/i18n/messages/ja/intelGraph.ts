@@ -56,6 +56,20 @@ export default {
     coChangeValue: '共変更が {n} 回以上',
     coChangeTitle: '共変更が {n} 回未満の CO_CHANGED エッジを非表示',
   },
+  scale: {
+    nodes: 'ノード: {count}',
+    groups: 'グループ: {count}',
+  },
+  linkInspector: {
+    title: '接続',
+    aria: '選択したリンクの関係',
+    relations: '{count} 件の関係',
+    families: 'ファミリー',
+    real: '実際の関係',
+    more: 'ほか {count} 件',
+    close: '閉じる',
+  },
+
   inspector: {
     close: '閉じる',
     chosenOption: '選択された案',

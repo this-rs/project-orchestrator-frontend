@@ -56,6 +56,20 @@ export default {
     coChangeValue: 'ít nhất {n} lần đồng thay đổi',
     coChangeTitle: 'Ẩn các cạnh CO_CHANGED có ít hơn {n} lần đồng thay đổi',
   },
+  scale: {
+    nodes: 'Nút: {count}',
+    groups: 'Nhóm: {count}',
+  },
+  linkInspector: {
+    title: 'Kết nối',
+    aria: 'Các quan hệ của liên kết đã chọn',
+    relations: '{count} quan hệ',
+    families: 'Nhóm',
+    real: 'Quan hệ thực',
+    more: '+ {count} khác',
+    close: 'Đóng',
+  },
+
   inspector: {
     close: 'Đóng',
     chosenOption: 'Phương án được chọn',

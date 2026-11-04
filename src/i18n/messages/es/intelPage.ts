@@ -187,6 +187,14 @@ export default {
     exitFullscreen: 'Salir de pantalla completa',
     exitFullscreenEsc: 'Salir de pantalla completa (Esc)',
     spreadingActivation: 'Propagación de activación',
+    panels: {
+      collapse: 'Plegar',
+      expand: 'Desplegar',
+      legend: 'Leyenda',
+      brightness: 'Brillo',
+      scale: 'Escala',
+    },
+
     loadFailed: 'No se pudo cargar el grafo',
     workspaceLoadFailed: 'No se pudo cargar el grafo del espacio de trabajo',
     workspaceDataLoadFailed: 'No se pudieron cargar los datos de inteligencia del espacio de trabajo',
@@ -236,5 +244,19 @@ export default {
     offlineTitle: 'WebSocket desconectado — actualizaciones en pausa',
     live: 'En vivo',
     liveTitle: 'WebSocket conectado — recibiendo actualizaciones en vivo',
+  },
+  situation: {
+    aria: 'Lo que está viendo',
+    nodes: 'nodos',
+    groups: 'grupos',
+    edges: 'aristas',
+    layers: 'capas',
+    tierDetail: 'detalle',
+    tierGroups: 'grupos',
+  },
+  breadcrumb: {
+    aria: 'Ruta de navegación del grafo',
+    all: 'Todo el grafo',
+    group: 'Grupo {id}',
   },
 } satisfies Translation<'intelPage'>

@@ -9,6 +9,7 @@ import { useT } from '@/i18n'
 import { Button, ConceptIntro, EntityList, EntityListSkeleton, EntityRow, ErrorState, Fact, Input, RelativeTime, surface } from '@/components/ui'
 import type { ConceptExplain } from '@/constants/nomenclature'
 import { ProductMark, ScreenHeader, StandaloneScreen, StatusBanner } from '@/pages/setup'
+import { WorkspacesBackdrop } from '@/components/intelligence/WorkspacesBackdrop'
 import type { Workspace } from '@/types'
 
 /**
@@ -97,7 +98,10 @@ export function WorkspaceSelectorPage() {
   }
 
   return (
-    <StandaloneScreen width="sm">
+    <div className="relative isolate min-h-dvh bg-surface-base">
+      <WorkspacesBackdrop slugs={workspaces.map((w) => w.slug)} />
+      <div className="relative z-10">
+    <StandaloneScreen width="sm" background={false}>
       {header}
 
       <div className="mt-6 space-y-4">
@@ -136,6 +140,8 @@ export function WorkspaceSelectorPage() {
         <InlineCreateWorkspace navigate={navigate} setWorkspacesAtom={setWorkspacesAtom} />
       </div>
     </StandaloneScreen>
+      </div>
+    </div>
   )
 }
 

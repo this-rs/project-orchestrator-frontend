@@ -186,6 +186,14 @@ export default {
     exitFullscreen: 'Выйти из полноэкранного режима',
     exitFullscreenEsc: 'Выйти из полноэкранного режима (Esc)',
     spreadingActivation: 'Распространение активации',
+    panels: {
+      collapse: 'Свернуть',
+      expand: 'Развернуть',
+      legend: 'Легенда',
+      brightness: 'Яркость',
+      scale: 'Масштаб',
+    },
+
     loadFailed: 'Не удалось загрузить граф',
     workspaceLoadFailed: 'Не удалось загрузить граф рабочего пространства',
     workspaceDataLoadFailed: 'Не удалось загрузить данные аналитики рабочего пространства',
@@ -235,5 +243,19 @@ export default {
     offlineTitle: 'WebSocket отключён — обновления приостановлены',
     live: 'В эфире',
     liveTitle: 'WebSocket подключён — получение обновлений в реальном времени',
+  },
+  situation: {
+    aria: 'Что вы видите',
+    nodes: 'узлов',
+    groups: 'групп',
+    edges: 'рёбер',
+    layers: 'слоёв',
+    tierDetail: 'детали',
+    tierGroups: 'группы',
+  },
+  breadcrumb: {
+    aria: 'Навигационная цепочка графа',
+    all: 'Весь граф',
+    group: 'Группа {id}',
   },
 } satisfies Translation<'intelPage'>

@@ -1,16 +1,17 @@
-import { memo } from 'react'
+import { memo, type ReactNode } from 'react'
 import { useT } from '@/i18n'
 import { statusLabel } from './statusLabel'
 import { CostDisplay } from '@/components/ui/CostDisplay'
 import { costReport, hasCost } from '@/utils/cost'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { selectedNodeAtom, selectedNodeIdAtom } from '@/atoms/intelligence'
-import { ENTITY_COLORS } from '@/constants/intelligence'
+import { entityColor } from '@/constants/graphPalette'
 import type { IntelligenceNodeData, FileNodeData, NoteNodeData, DecisionNodeData, SkillNodeData, ProtocolNodeData, PlanNodeData, TaskNodeData, ChatSessionNodeData } from '@/types/intelligence'
 import { FileContextCard } from './cards/FileContextCard'
 import { NoteContextCard } from './cards/NoteContextCard'
 import { SkillContextCard } from './cards/SkillContextCard'
 import { ProtocolContextCard } from './cards/ProtocolContextCard'
+import { graphFloat, graphFieldLabel, graphField, graphValue, graphControl } from './graphSurface'
 import {
   FileCode2,
   Box,
@@ -56,34 +57,46 @@ const entityIcons: Record<string, typeof Box> = {
 // STATUS BADGE
 // ============================================================================
 
-const statusColors: Record<string, { bg: string; text: string; border: string }> = {
-  active: { bg: '#052e16', text: '#4ade80', border: '#166534' },
-  accepted: { bg: '#052e16', text: '#4ade80', border: '#166534' },
-  proposed: { bg: '#422006', text: '#fbbf24', border: '#854d0e' },
-  emerging: { bg: '#422006', text: '#fbbf24', border: '#854d0e' },
-  deprecated: { bg: '#450a0a', text: '#f87171', border: '#991b1b' },
+type Tone = { bg: string; text: string; border: string }
+
+/** Neutral states (draft, pending, archived…) take the PO surface and text tokens, not a grey hex. */
+const NEUTRAL_TONE: Tone = { bg: 'var(--color-surface-highlight)', text: 'var(--text-secondary)', border: 'var(--border-default)' }
+const DIM_TONE: Tone = { ...NEUTRAL_TONE, text: 'var(--text-tertiary)' }
+/** Semantic tones: a status is its tone (green = done, amber = in motion, red = stopped). */
+const GOOD: Tone = { bg: '#052e16', text: '#4ade80', border: '#166534' }
+const WARN: Tone = { bg: '#422006', text: '#fbbf24', border: '#854d0e' }
+const BAD: Tone = { bg: '#450a0a', text: '#f87171', border: '#991b1b' }
+const REVIEW: Tone = { bg: '#431407', text: '#fb923c', border: '#9a3412' }
+const INFO: Tone = { bg: '#1e3a5f', text: '#60a5fa', border: '#1e40af' }
+
+const statusColors: Record<string, Tone> = {
+  active: GOOD,
+  accepted: GOOD,
+  proposed: WARN,
+  emerging: WARN,
+  deprecated: BAD,
   superseded: { bg: '#1e1b4b', text: '#a5b4fc', border: '#3730a3' },
-  dormant: { bg: '#1e293b', text: '#94a3b8', border: '#334155' },
-  archived: { bg: '#1e293b', text: '#64748b', border: '#334155' },
-  needs_review: { bg: '#431407', text: '#fb923c', border: '#9a3412' },
-  stale: { bg: '#431407', text: '#fb923c', border: '#9a3412' },
+  dormant: NEUTRAL_TONE,
+  archived: DIM_TONE,
+  needs_review: REVIEW,
+  stale: REVIEW,
   // PM statuses
-  draft: { bg: '#1e293b', text: '#94a3b8', border: '#334155' },
-  approved: { bg: '#1e3a5f', text: '#60a5fa', border: '#1e40af' },
-  in_progress: { bg: '#422006', text: '#fbbf24', border: '#854d0e' },
-  completed: { bg: '#052e16', text: '#4ade80', border: '#166534' },
-  cancelled: { bg: '#450a0a', text: '#f87171', border: '#991b1b' },
-  pending: { bg: '#1e293b', text: '#94a3b8', border: '#334155' },
-  blocked: { bg: '#450a0a', text: '#f87171', border: '#991b1b' },
-  failed: { bg: '#450a0a', text: '#f87171', border: '#991b1b' },
-  skipped: { bg: '#1e293b', text: '#64748b', border: '#334155' },
-  planned: { bg: '#1e293b', text: '#94a3b8', border: '#334155' },
-  released: { bg: '#052e16', text: '#4ade80', border: '#166534' },
+  draft: NEUTRAL_TONE,
+  approved: INFO,
+  in_progress: WARN,
+  completed: GOOD,
+  cancelled: BAD,
+  pending: NEUTRAL_TONE,
+  blocked: BAD,
+  failed: BAD,
+  skipped: DIM_TONE,
+  planned: NEUTRAL_TONE,
+  released: GOOD,
 }
 
 function StatusBadge({ status }: { status: string }) {
   const { t } = useT()
-  const colors = statusColors[status] ?? { bg: '#1e293b', text: '#94a3b8', border: '#334155' }
+  const colors = statusColors[status] ?? NEUTRAL_TONE
   return (
     <span
       className="inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-md border"
@@ -95,18 +108,33 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ============================================================================
+// SHARED FIELD — one hierarchy for every detail: label (level 3) then value (level 4)
+// ============================================================================
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className={graphField}>
+      <p className={`${graphFieldLabel} mb-1`}>{label}</p>
+      <div className={`${graphValue} whitespace-pre-wrap`}>{children}</div>
+    </div>
+  )
+}
+
+// ============================================================================
 // DECISION DETAIL PANEL
 // ============================================================================
 
 function DecisionDetailPanel({ data }: { data: DecisionNodeData }) {
   const { t } = useT()
+  /** Status dot: semantic for the four decision states, the decision hue for an unknown one. */
   const decisionStatusColors: Record<string, string> = {
     accepted: '#22C55E',
     proposed: '#F59E0B',
     deprecated: '#EF4444',
-    superseded: '#6B7280',
+    superseded: 'var(--text-tertiary)',
   }
-  const statusColor = decisionStatusColors[data.status] ?? '#8B5CF6'
+  const statusColor = decisionStatusColors[data.status] ?? entityColor('decision')
+  const decisionHue = entityColor('decision')
 
   return (
     <div className="space-y-3">
@@ -119,21 +147,21 @@ function DecisionDetailPanel({ data }: { data: DecisionNodeData }) {
         />
       </div>
 
-      {/* Chosen option */}
+      {/* Chosen option — the decision's own hue, so it reads as the decision */}
       {data.chosenOption && (
-        <div className="bg-violet-950/30 rounded-md p-2 border border-violet-800/40">
-          <p className="text-[10px] text-violet-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.chosenOption')}</p>
-          <p className="text-xs text-slate-300 leading-relaxed">{data.chosenOption}</p>
+        <div
+          className="rounded-lg border p-2.5"
+          style={{ backgroundColor: `${decisionHue}14`, borderColor: `${decisionHue}55` }}
+        >
+          <p className={`${graphFieldLabel} mb-1`} style={{ color: decisionHue }}>{t('intelGraph.inspector.chosenOption')}</p>
+          <p className={graphValue}>{data.chosenOption}</p>
         </div>
       )}
 
       {/* Description (from label) */}
-      <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.description')}</p>
-        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-6">
-          {data.label}
-        </p>
-      </div>
+      <Field label={t('intelGraph.inspector.description')}>
+        <span className="block line-clamp-6">{data.label}</span>
+      </Field>
     </div>
   )
 }
@@ -148,18 +176,15 @@ function PlanDetailPanel({ data }: { data: PlanNodeData }) {
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <StatusBadge status={data.status} />
-        <span className="text-[10px] text-slate-500">{t('intelGraph.inspector.priority', { value: data.priority })}</span>
+        <span className="text-[10px] text-[var(--text-tertiary)]">{t('intelGraph.inspector.priority', { value: data.priority })}</span>
       </div>
       {data.taskCount !== undefined && (
-        <div className="flex items-center gap-2 text-xs text-slate-400">
+        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
           <Target size={12} />
           <span>{t(data.taskCount === 1 ? 'intelGraph.inspector.tasksOne' : 'intelGraph.inspector.tasksOther', { n: data.taskCount })}</span>
         </div>
       )}
-      <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.title')}</p>
-        <p className="text-xs text-slate-300 leading-relaxed">{data.label}</p>
-      </div>
+      <Field label={t('intelGraph.inspector.title')}>{data.label}</Field>
     </div>
   )
 }
@@ -171,13 +196,10 @@ function TaskDetailPanel({ data }: { data: TaskNodeData }) {
       <div className="flex items-center gap-2">
         <StatusBadge status={data.status} />
         {data.priority !== undefined && (
-          <span className="text-[10px] text-slate-500">{t('intelGraph.inspector.priority', { value: data.priority })}</span>
+          <span className="text-[10px] text-[var(--text-tertiary)]">{t('intelGraph.inspector.priority', { value: data.priority })}</span>
         )}
       </div>
-      <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.title')}</p>
-        <p className="text-xs text-slate-300 leading-relaxed">{data.label}</p>
-      </div>
+      <Field label={t('intelGraph.inspector.title')}>{data.label}</Field>
     </div>
   )
 }
@@ -194,14 +216,15 @@ function ChatSessionDetailPanel({ data }: { data: ChatSessionNodeData }) {
   const sessionCost = costReport(data.totalCostUsd, data.costBasis)
   return (
     <div className="space-y-3">
+      {/* Key figures — two tiles, the label above the value */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="bg-indigo-950/30 rounded-md p-2 border border-indigo-800/40">
-          <p className="text-[10px] text-indigo-400 font-medium">{t('intelGraph.inspector.messages')}</p>
-          <p className="text-sm text-slate-200 font-semibold">{data.messageCount}</p>
+        <div className="rounded-lg bg-[var(--color-primary-muted)] border border-[var(--color-primary)]/30 p-2.5">
+          <p className={`${graphFieldLabel} text-[var(--color-primary-light)]`}>{t('intelGraph.inspector.messages')}</p>
+          <p className="text-sm text-[var(--text-primary)] font-semibold">{data.messageCount}</p>
         </div>
-        <div className="bg-indigo-950/30 rounded-md p-2 border border-indigo-800/40">
-          <p className="text-[10px] text-indigo-400 font-medium">{t('intelGraph.inspector.cost')}</p>
-          <p className="text-sm text-slate-200 font-semibold">
+        <div className="rounded-lg bg-[var(--color-primary-muted)] border border-[var(--color-primary)]/30 p-2.5">
+          <p className={`${graphFieldLabel} text-[var(--color-primary-light)]`}>{t('intelGraph.inspector.cost')}</p>
+          <p className="text-sm text-[var(--text-primary)] font-semibold">
             {hasCost(sessionCost, SESSION_COST_FORMAT) ? (
               <CostDisplay cost={sessionCost} {...SESSION_COST_FORMAT} />
             ) : (
@@ -212,15 +235,12 @@ function ChatSessionDetailPanel({ data }: { data: ChatSessionNodeData }) {
         </div>
       </div>
       {data.model && (
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <span className="text-[10px] text-slate-500">{t('intelGraph.inspector.model')}</span>
-          <span className="font-mono text-slate-300">{data.model}</span>
+        <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
+          <span className={graphFieldLabel}>{t('intelGraph.inspector.model')}</span>
+          <span className="font-mono text-[var(--text-secondary)]">{data.model}</span>
         </div>
       )}
-      <div className="bg-slate-800/50 rounded-md p-2 border border-slate-700/50">
-        <p className="text-[10px] text-slate-400 mb-1 font-medium uppercase tracking-wider">{t('intelGraph.inspector.title')}</p>
-        <p className="text-xs text-slate-300 leading-relaxed">{data.label}</p>
-      </div>
+      <Field label={t('intelGraph.inspector.title')}>{data.label}</Field>
     </div>
   )
 }
@@ -243,10 +263,10 @@ function GenericPropertiesPanel({ data }: { data: Record<string, unknown> }) {
           typeof value === 'object' ? JSON.stringify(value) : String(value)
         return (
           <div key={key} className="flex items-start gap-2">
-            <span className="text-[10px] font-mono text-slate-500 shrink-0 pt-0.5 min-w-[80px]">
+            <span className="text-[10px] font-mono text-[var(--text-tertiary)] shrink-0 pt-0.5 min-w-[80px]">
               {key}
             </span>
-            <span className="text-xs text-slate-300 break-all">
+            <span className="text-xs text-[var(--text-secondary)] break-all">
               {displayValue}
             </span>
           </div>
@@ -254,7 +274,7 @@ function GenericPropertiesPanel({ data }: { data: Record<string, unknown> }) {
       })}
 
       {properties.length === 0 && (
-        <p className="text-xs text-slate-500 italic">{t('intelGraph.inspector.noProperties')}</p>
+        <p className="text-xs text-[var(--text-tertiary)] italic">{t('intelGraph.inspector.noProperties')}</p>
       )}
     </div>
   )
@@ -277,33 +297,33 @@ function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
 
   const data = node.data as IntelligenceNodeData & Record<string, unknown>
   const entityType = data.entityType ?? 'file'
-  const color = ENTITY_COLORS[entityType as keyof typeof ENTITY_COLORS] ?? '#6B7280'
+  const color = entityColor(entityType)
   const Icon = entityIcons[entityType] ?? Box
 
   return (
-    <div className={`absolute top-14 right-3 z-30 overflow-y-auto rounded-lg bg-slate-900/95 backdrop-blur-sm border border-slate-700 shadow-xl ${
-      isFullscreen ? 'w-96 max-h-[calc(100%-120px)]' : 'w-80 max-h-[calc(100%-124px)]'
+    <div className={`absolute top-14 right-3 z-30 overflow-y-auto ${graphFloat} shadow-[var(--shadow-md)] max-w-[calc(100vw-1.5rem)] ${
+      isFullscreen ? 'w-96 max-h-[calc(100%-120px)]' : 'w-72 max-h-[calc(100%-124px)]'
     }`}>
-      {/* Header */}
-      <div className="flex items-center gap-2 p-3 border-b border-slate-700">
+      {/* Header — title (level 1), then the kind · layer line (level 2) */}
+      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border-subtle">
         <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+          className="size-7 rounded-lg flex items-center justify-center shrink-0"
           style={{ backgroundColor: `${color}20` }}
         >
-          <Icon size={16} color={color} />
+          <Icon size={14} color={color} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-200 truncate" title={data.label}>
+          <p className="text-[13px] font-medium text-[var(--text-primary)] truncate" title={data.label}>
             {data.label}
           </p>
-          <p className="text-[10px] text-slate-500 uppercase tracking-wider">
+          <p className="text-[11px] text-[var(--text-tertiary)] truncate">
             {entityType} · {data.layer}
           </p>
         </div>
         <button
           onClick={() => setSelectedNodeId(null)}
           aria-label={t('intelGraph.inspector.close')}
-          className="p-1 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+          className={`p-1.5 rounded-md text-[var(--text-secondary)] ${graphControl}`}
         >
           <X size={14} />
         </button>
@@ -333,8 +353,8 @@ function NodeInspectorComponent({ isFullscreen }: NodeInspectorProps) {
       </div>
 
       {/* Entity ID (footer) */}
-      <div className="px-3 py-2 border-t border-slate-700">
-        <p className="text-[9px] font-mono text-slate-600 truncate" title={data.entityId}>
+      <div className="px-3 py-1.5 border-t border-border-subtle">
+        <p className="text-[10px] font-mono text-[var(--text-tertiary)] truncate" title={data.entityId}>
           {data.entityId}
         </p>
       </div>

@@ -35,6 +35,13 @@ export interface LiveAgent {
   total_cost_usd: number | null
   /** Where `total_cost_usd` comes from. Absent = `reported` (Claude Code). */
   cost_basis?: CostBasis | null
+  /**
+   * Tasks this session declared it works on (`ASSOCIATED_WITH`, set when the
+   * agent moves a task to `in_progress`). Absent on an older server.
+   */
+  associated_task_ids?: string[] | null
+  /** Plans associated directly, or as the plan of an associated task. Absent on an older server. */
+  associated_plan_ids?: string[] | null
 }
 
 export interface LiveAgentsResponse {

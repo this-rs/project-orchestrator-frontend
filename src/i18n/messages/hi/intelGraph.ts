@@ -56,6 +56,20 @@ export default {
     coChangeValue: 'कम से कम {n} सह-परिवर्तन',
     coChangeTitle: '{n} से कम सह-परिवर्तन वाले CO_CHANGED एज छिपाएँ',
   },
+  scale: {
+    nodes: 'नोड: {count}',
+    groups: 'समूह: {count}',
+  },
+  linkInspector: {
+    title: 'कनेक्शन',
+    aria: 'चयनित लिंक के संबंध',
+    relations: '{count} संबंध',
+    families: 'परिवार',
+    real: 'वास्तविक संबंध',
+    more: '+ {count} और',
+    close: 'बंद करें',
+  },
+
   inspector: {
     close: 'बंद करें',
     chosenOption: 'चुना गया विकल्प',
