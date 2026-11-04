@@ -24,6 +24,7 @@ import type { FrameAnimator } from './frameAnimator'
 import { breathEnvelope, buildPulseIndex } from './livePulse'
 import { agentRgb, createAgentMarkers, placeAgents, type AgentMarkers, type PlacedAgent } from './agentMarkers'
 import { activatedNodeStyle, writeNodeActivation } from './useLivePulse'
+import { useAgentActivity } from './useAgentActivity'
 
 /** Applies something on top of a node's bulk style (identity when nothing applies). */
 export type NodeStyleOverlay = (node: Graph3DNode, style: NodeStyle) => NodeStyle
@@ -73,6 +74,11 @@ export function useAgentMarkers(input: AgentMarkersInput): AgentMarkersHandle {
   const { graphRef, nodePointsRef, markersRef, overlayRef, nodes, animator, enabled = true } = input
   const { data } = useLiveAgents()
   const agents = useMemo(() => (enabled ? data?.agents ?? [] : []), [enabled, data])
+  // What each of them touches, as it happens (the poll above only says who works).
+  useAgentActivity(
+    agents.map((a) => a.session_id),
+    enabled,
+  )
   const index = useMemo(() => buildPulseIndex(nodes), [nodes])
   const aliases = input.aliases
   const placement = useMemo(() => {
