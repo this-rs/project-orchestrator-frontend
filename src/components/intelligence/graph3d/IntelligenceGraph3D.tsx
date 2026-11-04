@@ -203,13 +203,6 @@ function readCssColor(name: string, fallback: string): string {
 }
 
 /**
- * Node count above which the 3D view opens in the aggregated step instead of
- * the raw cloud. Below it the detail is legible; above it the same picture is a
- * texture and the user has no way to tell a community from a neighbour.
- */
-const AUTO_AGGREGATE_ABOVE = 4000
-
-/**
  * Dynamic scale (HLOD, decision b7e6a1ad): above this many nodes the scene is no
  * longer ONE global level — the cluster tree is cut per element by its size on
  * screen, so what is close is in detail and what is far stays grouped, in the
@@ -219,6 +212,15 @@ const AUTO_AGGREGATE_ABOVE = 4000
 // apart: a group opens later (18 px between children instead of 12).
 // The cut is foveated (it knows where the camera looks): the budget goes to
 // what is in view, so a desktop can afford a wider detail zone around it.
+/**
+ * ONE scale system: above this many nodes the scale is dynamic; below it the
+ * whole graph is drawn as is. It used to switch on the budget (5 000 nodes or
+ * 9 000 links) while the OLD global staircase still auto-aggregated from 4 000
+ * — two systems, two looks, swapping on a flush around the thresholds (audit).
+ * Nodes only: a small graph with many relations stays whole.
+ */
+const DYNAMIC_MIN_NODES = isMobileLikeDevice() ? 1000 : 2000
+
 const HLOD_BUDGET = isMobileLikeDevice()
   ? { maxNodes: 1500, maxLinks: 3000, childSpacingPx: 18 }
   : { maxNodes: 5000, maxLinks: 9000 }
@@ -235,6 +237,22 @@ const LINK_PICK_TOLERANCE_PX = 6
  * dissolving into its branches (and back) instead of links popping.
  */
 const LINK_CROSSFADE_MS = 380
+
+/** The fade a link layer is at right now (1 when it has none). */
+function currentLinkFade(object: THREE.Object3D): number {
+  let f = 1
+  object.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.ShaderMaterial | undefined
+    const u = m?.uniforms?.uFade
+    if (u) f = u.value as number
+  })
+  return f
+}
+
+/** The user asked the system for less motion: no cross-fade, a plain swap. */
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && !!window.matchMedia('(prefers-reduced-motion: reduce)')?.matches
+}
 
 /** Quiet time after the last camera move before the cut follows it, ms. */
 const RECUT_SETTLE_MS = 200
@@ -609,12 +627,18 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // turns 40 000 threads into thirty readable strands. A node with no
   // `groupKey` still falls back to the grid (see aggregateByGroup).
   // ── Dynamic scale: the cluster tree and its current cut ──────────────────
-  const clusterTree = useMemo(
-    () =>
-      graphData.nodes.length > HLOD_BUDGET.maxNodes || graphData.links.length > HLOD_BUDGET.maxLinks
-        ? buildClusterTree(graphData.nodes, graphData.links)
-        : null,
+  // Keyed on the STRUCTURE (ids, positions, relations), not on the arrays'
+  // identity: every WebSocket flush hands over new arrays, and rebuilding the
+  // tree each time cost 80–257 ms at 20 000 nodes for an unchanged graph.
+  const treeNodesRef = useRef(graphData)
+  treeNodesRef.current = graphData
+  const treeKey = useMemo(
+    () => (graphData.nodes.length > DYNAMIC_MIN_NODES ? nodeStructureKey(graphData.nodes) + '#' + linkStructureKey(graphData.links) : ''),
     [graphData],
+  )
+  const clusterTree = useMemo(
+    () => (treeKey ? buildClusterTree(treeNodesRef.current.nodes, treeNodesRef.current.links) : null),
+    [treeKey],
   )
   const dynamicScale = clusterTree != null
   // The viewport height the cut is measured against. Before the container is
@@ -642,11 +666,27 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // The groups open in the cut on screen, by stable id: a new tree of the same
   // graph keeps them open (hysteresis carried across the rebuild).
   const openIdsRef = useRef<Set<string>>(new Set())
+  // The selected node is drawn as itself: its ancestors open first (keepVisible),
+  // or a selection near a group's edge melted into the group after a focus.
+  const selectedRef = useRef(selectedNodeId)
+  selectedRef.current = selectedNodeId
+  const budgetFor = useCallback((tree: ClusterTree) => {
+    const id = selectedRef.current
+    if (!id) return HLOD_BUDGET
+    const nodes = treeNodesRef.current.nodes
+    const i = nodes.findIndex((n) => n.id === id)
+    const leaf = i >= 0 ? tree.leafOf[i] : -1
+    return leaf >= 0 ? { ...HLOD_BUDGET, keepVisible: [leaf] } : HLOD_BUDGET
+  }, [])
+  // Where the last cut change came from: only a GESTURE cross-fades the links;
+  // a new dataset replaces them at once.
+  const cutSourceRef = useRef<'gesture' | 'data'>('data')
   const treeCut = useMemo(() => {
     if (!clusterTree) return null
+    cutSourceRef.current = 'data'
     const view = currentView() ?? estimatedFramingView(clusterTree, cutHeight)
-    return cutForView(clusterTree, view, HLOD_BUDGET, carriedPrevious(clusterTree, openIdsRef.current))
-  }, [clusterTree, currentView, cutHeight])
+    return cutForView(clusterTree, view, budgetFor(clusterTree), carriedPrevious(clusterTree, openIdsRef.current))
+  }, [clusterTree, currentView, cutHeight, budgetFor])
   // A gesture's cut, tagged with the tree it belongs to (indices are per tree).
   const [gestureCut, setGestureCut] = useState<{ tree: ClusterTree; cut: ClusterCut } | null>(null)
   const clusterCut = gestureCut && gestureCut.tree === clusterTree ? gestureCut.cut : treeCut
@@ -660,10 +700,16 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     if (!clusterTree) return
     const view = currentView() ?? estimatedFramingView(clusterTree, cutHeight)
     const prev = clusterCutRef.current
-    const next = cutForView(clusterTree, view, HLOD_BUDGET, prev ?? undefined)
+    const next = cutForView(clusterTree, view, budgetFor(clusterTree), prev ?? undefined)
     if (sameFrontier(next, prev)) return
+    cutSourceRef.current = 'gesture'
     setGestureCut({ tree: clusterTree, cut: next })
-  }, [clusterTree, currentView, cutHeight])
+  }, [clusterTree, currentView, cutHeight, budgetFor])
+  // A new selection must be drawn as itself, and a new viewport height (full
+  // screen) changes every projected size: re-cut, the gesture cut is stale.
+  useEffect(() => {
+    recut()
+  }, [selectedNodeId, cutHeight, recut])
 
   // Entity id → the closed group drawn for it (the real-time layer — agents,
   // pulses — follows an entity into the group that holds it).
@@ -878,14 +924,8 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // opens one step aggregated (≈5:1 per cell) ONCE per graph size, so the user
   // still sees everything — grouped — and can come back to detail with the
   // stepper. The ref keeps it from fighting a manual choice.
-  const autoScaledForRef = useRef(0)
-  useEffect(() => {
-    const count = graphData.nodes.length
-    if (count <= AUTO_AGGREGATE_ABOVE || dynamicScale) return
-    if (autoScaledForRef.current === count) return
-    autoScaledForRef.current = count
-    if (scaleLevel === 0) setScaleLevel(1)
-  }, [graphData.nodes.length, scaleLevel, setScaleLevel, dynamicScale])
+  // (Removed: the old global auto-aggregation. Above DYNAMIC_MIN_NODES the
+  // dynamic scale groups what is far and opens what is near.)
 
   // ── Manual-interaction guard: an automatic re-frame never fights a gesture ─
   // OrbitControls fires `start` when the user begins orbiting/panning/zooming
@@ -918,7 +958,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const onEnd = () => {
       userInteractingRef.current = false
       if (dynamicScale) {
-        recut()
+        // OrbitControls sends start+end for EVERY wheel notch: a direct re-cut
+        // here rebuilt the links (~220 ms) at each notch. Wait for the camera
+        // to settle, like any other move.
+        scheduleRecut()
         return
       }
       const camera = typeof fg.camera === 'function' ? fg.camera() : null
@@ -2277,7 +2320,10 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // while there are few enough of them; beyond TUBE_MAX_EDGES it falls back to
   // the single LineSegments (cheap for thousands of 1-px lines). The two are
   // mutually exclusive: never draw the same bundle twice.
-  const useTubes = aggregated && activeGraphData.links.length > 0 && activeGraphData.links.length <= TUBE_MAX_EDGES
+  // Tubes belong to the old global staircase: under the dynamic scale every
+  // aggregate goes to the vascular layer (scale law, scene frame, cross-fade,
+  // picking). A cut of ≤ 400 bundles used to fall to tubes and lose all four.
+  const useTubes = !dynamicScale && aggregated && activeGraphData.links.length > 0 && activeGraphData.links.length <= TUBE_MAX_EDGES
 
   // ── Quality-adaptive render settings ──────────────────────────────────
   const quality = getNodeQuality()
@@ -2307,7 +2353,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // A change of the DYNAMIC cut cross-fades the link layer; anything else (a
   // new dataset, a mode switch, unmount) replaces it at once.
   const crossfadeLinksRef = useRef(false)
-  crossfadeLinksRef.current = dynamicScale
+  crossfadeLinksRef.current = dynamicScale && cutSourceRef.current === 'gesture' && !prefersReducedMotion()
   // One animation per layer: a new fade on a layer CANCELS the one running on
   // it (two quick cuts fade a layer in, then out — without this the two fought
   // and a layer could be left on screen at 0 opacity, never released).
@@ -2383,7 +2429,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
         linkSegmentsRef.current = null
         if (crossfadeLinksRef.current) {
           // Leave it on screen and fade it out under the new layer.
-          fadeLinkLayer(seg.object, 1, 0, () => {
+          fadeLinkLayer(seg.object, currentLinkFade(seg.object), 0, () => {
             scene.remove(seg.object)
             seg.dispose()
           })

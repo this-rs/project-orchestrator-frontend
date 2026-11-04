@@ -131,7 +131,7 @@ export const TIER_BUDGETS: Record<DeviceTier, TierBudget> = {
   },
   medium: {
     nodeBudget: 8_000,
-    maxNodesForHulls: 4_000, // = AUTO_AGGREGATE_ABOVE: one mesh + label texture per community (766 textures at 5 000 nodes, measured)
+    maxNodesForHulls: 4_000, // one mesh + label texture per community (766 textures at 5 000 nodes, measured)
     maxNodesForLabels: 8_000,
     labelLimit: 20,
     maxNodesForCommunityDetection: 8_000,

@@ -482,9 +482,13 @@ describe('IntelligenceGraph3D — a kept scene follows a drag after a flush', ()
 })
 
 describe('IntelligenceGraph3D — an agent waiting on the user stays lit', () => {
-  const actOf = (index: number) => {
+  /** Highest activation drawn — on the agent's node, or on the group that holds it. */
+  const actOf = (_index: number) => {
     const points = lib.fg.scene().children.find((o) => o instanceof THREE.Points) as THREE.Points
-    return (points.geometry.getAttribute('aAct') as THREE.BufferAttribute).getX(index)
+    const act = points.geometry.getAttribute('aAct') as THREE.BufferAttribute
+    let max = 0
+    for (let k = 0; k < act.count; k++) max = Math.max(max, act.getX(k))
+    return max
   }
 
   it('a bulk restyle (selection) keeps the waiting_input activation on its node', async () => {
@@ -588,7 +592,8 @@ describe('IntelligenceGraph3D — dynamic scale (HLOD)', () => {
       controls.target.set(target.x, target.y, target.z)
       controls.dispatchEvent({ type: 'end' })
     })
-    await flush(100)
+    // the cut follows once the camera settles (RECUT_SETTLE_MS = 200)
+    await flush(400)
     const after = drawn()
     expect(after.nodes.some((n) => n.id === target.id)).toBe(false)
     expect(after.nodes.some((n) => !isGroup(n.id))).toBe(true)
@@ -780,6 +785,9 @@ describe('IntelligenceGraph3D — links cross-fade when the dynamic cut changes'
       controls.target.set(target.x, target.y, target.z)
       controls.dispatchEvent({ type: 'end' })
     })
+    // the cut follows once the camera settles (200 ms); React applies it at
+    // the end of that act, and the 380 ms cross-fade starts there
+    await flush(300)
     await flush(150)
     // mid-fade: two layers, neither at full strength
     const mid = linkLayers()
@@ -787,5 +795,47 @@ describe('IntelligenceGraph3D — links cross-fade when the dynamic cut changes'
     expect(mid.every((f) => f > 0 && f < 1)).toBe(true)
     await flush(1000)
     expect(linkLayers()).toEqual([1])
+  }, 60_000)
+})
+
+describe('IntelligenceGraph3D — the wheel and new data', () => {
+  it('a burst of wheel notches (start+end each) re-cuts once, after the camera settles', async () => {
+    await mountGraph(makeGraph(9000))
+    await flush(4000)
+    const camera = lib.fg.camera()
+    const controls = lib.fg.controls()
+    const target = controls.target.clone()
+    const home = camera.position.clone()
+    const before = lib.props.graphData
+    // OrbitControls: every notch is a start + end
+    for (let k = 1; k <= 6; k++) {
+      camera.position.copy(target).add(home.clone().sub(target).multiplyScalar(1 - k * 0.1))
+      act(() => {
+        controls.dispatchEvent({ type: 'start' })
+        controls.dispatchEvent({ type: 'change' })
+        controls.dispatchEvent({ type: 'end' })
+      })
+      await flush(60)
+      expect(lib.props.graphData).toBe(before)
+    }
+    await flush(400)
+    expect(lib.props.graphData).not.toBe(before)
+  }, 60_000)
+
+  it('a NEW dataset replaces the links at once (no cross-fade)', async () => {
+    const view = await mountGraph(makeGraph(9000))
+    await flush(4000)
+    view.rerender(makeGraph(9000, 'm'))
+    await flush(100)
+    const fades: number[] = []
+    for (const o of lib.fg.scene().children) {
+      let f: number | null = null
+      o.traverse((c) => {
+        const u = ((c as THREE.Mesh).material as THREE.ShaderMaterial | undefined)?.uniforms?.uFade
+        if (u && f === null) f = u.value as number
+      })
+      if (f !== null) fades.push(f)
+    }
+    expect(fades).toEqual([1])
   }, 60_000)
 })
