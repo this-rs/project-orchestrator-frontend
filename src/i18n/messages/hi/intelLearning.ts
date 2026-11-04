@@ -1,6 +1,13 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // What a person thought of the work the router rewarded (RM-7).
+  feedback: 'मानवीय निर्णय',
+  feedbackDescription: 'यही एक आंकड़ा है जो लूप खुद को नहीं दे सकता: किसी एजेंट का "पूरा हुआ" कभी नहीं गिना जाता।',
+  feedbackCount: 'निर्णय',
+  feedbackAverage: 'औसत',
+  feedbackNone: 'अभी तक किसी ने कार्य का मूल्यांकन नहीं किया',
+  feedbackNoneDescription: 'किसी पूरे हुए कार्य की पंक्ति खोलें और "पूरा हुआ" या "पूरा नहीं हुआ" चुनें। तब तक इनाम कुछ नहीं से सीखता है।',
   trajectory: {
     loadFailed: 'ट्रैजेक्टरी लोड नहीं हो सकी',
     openPlan: 'प्लान {title} खोलें',

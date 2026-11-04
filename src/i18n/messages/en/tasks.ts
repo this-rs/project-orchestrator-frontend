@@ -11,6 +11,15 @@ export default {
     statusUpdated: 'Status updated',
     statusFailed: 'Failed to update status',
   },
+  // A human's verdict on whether the work delivered. It is the only signal the learning
+  // loop cannot give itself: an agent's own "completed" is not counted (see RM-7).
+  verdict: {
+    prompt: 'Did this work deliver?',
+    delivered: 'Delivered',
+    missed: 'Not delivered',
+    failed: 'The verdict was not recorded',
+    recorded: 'Verdict recorded',
+  },
   list: {
     description: 'Manage tasks across all plans',
     allStatuses: 'All statuses',

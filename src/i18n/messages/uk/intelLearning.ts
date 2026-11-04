@@ -1,6 +1,13 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // What a person thought of the work the router rewarded (RM-7).
+  feedback: 'Оцінки людей',
+  feedbackDescription: 'Єдине число, яке цикл не може дати собі сам: «готово» від агента не рахується.',
+  feedbackCount: 'Оцінки',
+  feedbackAverage: 'Середнє',
+  feedbackNone: 'Поки ніхто не оцінив жодного завдання',
+  feedbackNoneDescription: 'У завершеного завдання розгорніть рядок і дайте відповідь «Здано» або «Не здано». До того нагорода вчиться ні на чому.',
   trajectory: {
     loadFailed: 'Не вдалося завантажити траєкторію',
     openPlan: 'Відкрити план {title}',

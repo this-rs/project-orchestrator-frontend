@@ -1,6 +1,13 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // What a person thought of the work the router rewarded (RM-7).
+  feedback: '人类判定',
+  feedbackDescription: '循环唯一无法自己给出的数字：代理的“已完成”从不计入。',
+  feedbackCount: '判定数',
+  feedbackAverage: '平均值',
+  feedbackNone: '还没有人评价过任何任务',
+  feedbackNoneDescription: '在已完成的任务上展开该行，选择“已交付”或“未交付”。在此之前，奖励是在空无一物上学习。',
   trajectory: {
     loadFailed: '无法加载轨迹',
     openPlan: '打开计划 {title}',

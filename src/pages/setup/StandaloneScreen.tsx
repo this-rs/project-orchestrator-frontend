@@ -10,6 +10,8 @@ interface StandaloneScreenProps {
   /** Rendered under the content, outside the column (the « Made by » line). */
   footer?: ReactNode
   className?: string
+  /** Paint the opaque page background. Off when something sits behind the screen (the selector's graph). */
+  background?: boolean
 }
 
 /**
@@ -20,9 +22,9 @@ interface StandaloneScreenProps {
  * on these routes, so there is still a single listener). No horizontal scroll:
  * the column is `min-w-0` and every child wraps.
  */
-export function StandaloneScreen({ children, width = 'narrow', center = false, footer, className = '' }: StandaloneScreenProps) {
+export function StandaloneScreen({ children, width = 'narrow', center = false, footer, className = '', background = true }: StandaloneScreenProps) {
   return (
-    <div className={`flex min-h-dvh w-full min-w-0 flex-col bg-surface-base px-4 text-gray-100 md:px-6 ${className}`}>
+    <div className={`flex min-h-dvh w-full min-w-0 flex-col ${background ? 'bg-surface-base' : ''} px-4 text-gray-100 md:px-6 ${className}`}>
       <HaloPointer />
       <div className={`flex min-w-0 flex-1 flex-col ${center ? 'justify-center' : ''}`}>
         <PageContainer width="narrow" className={width === 'xs' ? 'max-w-sm!' : width === 'sm' ? 'max-w-md!' : ''}>

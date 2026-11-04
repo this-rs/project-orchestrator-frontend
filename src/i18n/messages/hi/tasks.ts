@@ -1,6 +1,14 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // A human's verdict on whether the work delivered (RM-7).
+  verdict: {
+    prompt: 'क्या इस काम ने पूरा किया?',
+    delivered: 'पूरा हुआ',
+    missed: 'पूरा नहीं हुआ',
+    failed: 'निर्णय दर्ज नहीं हुआ',
+    recorded: 'निर्णय दर्ज हुआ',
+  },
   actions: {
     edit: 'संपादित करें',
     delete: 'हटाएँ',

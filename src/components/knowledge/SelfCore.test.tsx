@@ -181,6 +181,30 @@ describe('SelfCorePanel', () => {
     expect(pin).toHaveBeenCalledTimes(1)
   })
 
+  it('a payload without pinned/candidates asks nothing and does not throw', async () => {
+    // Regression: `core.candidates.length` ran during render, so a partial
+    // response from the backend blanked the entire application (this component
+    // is in the root tree).
+    read.mockResolvedValue({ scope: 'global', level: 4 } as never)
+    const store = createStore()
+    store.set(currentUserAtom, { id: 'u', email: 'root@x', name: 'Root', is_root: true } as never)
+    // A sibling marker: an uncaught render error unmounts the WHOLE root, so
+    // the marker disappearing is the failure signal. Without it the test passes
+    // on the broken code too — React swallows the throw of an async re-render
+    // and `render()` has already returned.
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/today']}>
+          <SelfCorePrompt />
+          <span data-testid="alive" />
+        </MemoryRouter>
+      </Provider>,
+    )
+    await waitFor(() => expect(read).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByTestId('alive')).toBeTruthy())
+    expect(screen.queryByTestId('self-core-prompt')).toBeNull()
+  })
+
   it('more candidates than max_notes: the action is disabled, no request is sent', async () => {
     read.mockResolvedValue(core({ max_notes: 2 }))
     mountSettings(<SelfCorePanel />)

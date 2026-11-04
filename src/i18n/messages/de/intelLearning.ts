@@ -1,6 +1,13 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // What a person thought of the work the router rewarded (RM-7).
+  feedback: 'Menschliche Urteile',
+  feedbackDescription: 'Die einzige Zahl, die sich die Schleife nicht selbst geben kann: das „erledigt“ eines Agenten zählt nie.',
+  feedbackCount: 'Urteile',
+  feedbackAverage: 'Durchschnitt',
+  feedbackNone: 'Noch niemand hat eine Aufgabe bewertet',
+  feedbackNoneDescription: 'Öffne bei einer erledigten Aufgabe die Zeile und antworte „Geliefert“ oder „Nicht geliefert“. Bis dahin lernt die Belohnung aus dem Nichts.',
   trajectory: {
     loadFailed: 'Verlauf konnte nicht geladen werden',
     openPlan: 'Plan {title} öffnen',

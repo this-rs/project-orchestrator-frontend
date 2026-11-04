@@ -1,0 +1,605 @@
+// ============================================================================
+// nodePoints — every graph node drawn as ONE THREE.Points (1 draw call)
+// ============================================================================
+//
+// The sprite path (nodeObjects.ts) builds a Group with several billboard
+// Sprites per node — an emoji texture, a ring/label texture, an invisible
+// hitbox — so a 1k-node graph issues ~3k draw calls and a 50k-node graph
+// would issue ~150k, which WebGL cannot sustain. This module is the po-graph
+// answer: one THREE.Points whose per-node color, size, shape, alpha and
+// activation are vertex attributes, rewritten in place from the live d3-force
+// positions. One draw call for any number of nodes.
+//
+// WHAT IS LOST vs the sprite path: emoji + circular text labels + native
+// library hover. Nodes become procedural shapes (disc / ring / diamond /
+// square, by entity type) with color carrying the identity. This tier is for
+// large graphs where a per-node texture budget is impossible anyway.
+// ============================================================================
+
+import * as THREE from 'three'
+import { markFullUpload, markRangeUpload } from './bufferUpload'
+import type { Graph3DNode } from './useGraph3DLayout'
+
+/** Final per-node appearance the shader consumes. */
+export interface NodeStyle {
+  /** Normalized RGB. */
+  r: number
+  g: number
+  b: number
+  /** Opacity 0..1. */
+  alpha: number
+  /** Base point size (world-ish units, scaled by perspective in the shader). */
+  size: number
+  /** 0 disc · 1 ring · 2 diamond · 3 square. */
+  shape: number
+  /** Activation glow 0..1 (brightens + enlarges). */
+  act: number
+}
+
+export type NodeStyleFn = (node: Graph3DNode) => NodeStyle
+
+/** Default shape by entity type (disc / ring / diamond / square). */
+export function shapeForType(entityType: string): number {
+  switch (entityType) {
+    case 'function':
+    case 'step':
+    case 'commit':
+    case 'protocol_state':
+      return 1 // ring
+    case 'decision':
+      return 2 // diamond
+    case 'plan':
+    case 'task':
+    case 'milestone':
+    case 'release':
+    case 'skill':
+    case 'protocol':
+    case 'chat_session':
+      return 3 // square
+    default:
+      return 0 // disc (file, struct, trait, enum, note, constraint, feature_graph)
+  }
+}
+
+/** Default base size by entity type (mirrors the sprite path's nodeVal). */
+export function sizeForType(entityType: string): number {
+  switch (entityType) {
+    case 'plan':
+    case 'skill':
+    case 'protocol':
+    case 'feature_graph':
+      return 6
+    case 'task':
+    case 'decision':
+    case 'file':
+      return 4
+    case 'milestone':
+      return 3.5
+    case 'release':
+    case 'note':
+    case 'struct':
+    case 'protocol_state':
+      return 3
+    case 'trait':
+      return 2.5
+    case 'commit':
+      return 1.5
+    default:
+      return 2
+  }
+}
+
+// ============================================================================
+// Shader — a lit point, not a flat polygon (ported from po-graph's nodeMat)
+// ============================================================================
+//
+// WHAT WAS WRONG. The first version drew a hard-edged mask (`smoothstep` of a
+// distance, normal alpha blending, nothing else): a disc of flat colour with a
+// ~1 px ramp. Above ~8 px it reads as a sticker, and a dense graph turns into a
+// milky sheet because every sprite composites its full opacity onto the frame.
+//
+// WHAT REPLACES IT, in po-graph's terms (po-graph.js:461-481):
+//   * ADDITIVE blending — the sprite EMITS light instead of covering pixels, so
+//     overlapping nodes brighten each other (the nebula look) instead of
+//     compositing toward grey;
+//   * a HALO `(1-d²)²` that dies smoothly at the sprite edge, plus a narrow
+//     bright CORE — every node reads as a small light source;
+//   * (a GLOBAL GAIN `√(NREF/N)` came with the additive blending — two thousand
+//     overlapping halos summed to the "blanc laiteux". It is gone with the MAX
+//     blending, where an overlap no longer adds up: kept, it only darkened every
+//     node as the detail opened — 0.32 × the density factor at 4 000 nodes, the
+//     « peu de visibilité » of 04/11/2026);
+//   * SPRITE_HEADROOM — the visible shape is drawn at ~0.4 of the sprite and the
+//     sprite is twice as large as before, so the halo has a band of its own
+//     outside the core while the node keeps its apparent radius.
+//
+// aAlpha and aAct remain the contract with the caller: aAlpha scales the emitted
+// light (hover / dimming / legend highlighting keep working), aAct enlarges the
+// node (vertex stage) and pushes its core to white (fragment stage).
+
+/**
+ * How much larger the sprite is than the shape drawn inside it.
+ *
+ * The footprints in the fragment shader are expressed in
+ * `p = (gl_PointCoord - 0.5) * 2` space, where 1.0 is the sprite edge, and the
+ * shapes are drawn at about 0.42 of that. Multiplying `gl_PointSize` by 2 gives
+ * the halo the outer 58 % of the sprite to fade through, and keeps the APPARENT
+ * radius of a node where the hard-edged version had it:
+ *
+ *     new: 0.42 (p-space) × (2·S/2) px  =  0.42·S px
+ *     old: 0.80 (uv-space) × (S)   px    =  0.40·S px
+ *
+ * i.e. the same footprint, but soft: the glow reaches exactly where the old hard
+ * edge was, and the visible shape is its middle.
+ */
+const SPRITE_SCALE = 2.0
+
+/**
+ * aSize per world unit of radius for a node that stands for a TERRITORY (a
+ * closed group of the dynamic scale), so its sprite covers its real extent.
+ *
+ * The vertex shader sizes a sprite as aSize × (900 / depth) × SPRITE_SCALE; a
+ * sphere of radius r projects to 2r·(H/2)/(depth·tan(fov/2)) px — 2 173·r/depth
+ * at the reference view (fov 45°, H 900). Asking the sprite for 0.9 of that
+ * (its visible disc is about half the sprite: the core of the territory)
+ * gives aSize = 0.9 × 2 173 / (900 × SPRITE_SCALE) ≈ 1.086 per unit of radius.
+ * Measured in a real browser: groups sized by member count alone came out the
+ * size of a single file once the 5 px floor lifted the files.
+ */
+export const TERRITORY_SIZE_PER_RADIUS = (0.9 * (2 * 450) / Math.tan((22.5 * Math.PI) / 180)) / (900 * SPRITE_SCALE)
+
+/**
+ * Smallest ON-SCREEN size of a node's visible shape, in CSS pixels.
+ *
+ * Measured on a 20 000-node graph framed by the camera (fov 50, uPx 1.5): a
+ * `function` node (size 2) came out as a 3.6-px sprite whose shape is 0.43·S =
+ * 1.5 px, and a `commit` (size 1.5) as 1.2 px — below one pixel the additive
+ * light is spread over a pixel that never reaches the threshold, so the node is
+ * simply not there. Below this size a node stops shrinking: the overview needs
+ * to see every point, even when the camera is far.
+ */
+export const NODE_MIN_SHAPE_PX = 4
+
+/**
+ * Diameter of the visible shape as a fraction of the sprite, at the small end.
+ * At big sizes it is 0.43 (disc edge, see the fragment shader). When the sprite
+ * is small the shapes are enlarged by up to SHAPE_GROW_SMALL so the core
+ * keeps its pixels instead of being eaten by the halo: radius 0.36 (mid-ramp of
+ * the disc) × 1.6 = 0.576 of the half-sprite, i.e. 0.576·S px across.
+ */
+/** Mid-ramp radius of the disc, as a fraction of the half-sprite. */
+export const NODE_SHAPE_MID_RADIUS = 0.36
+const SHAPE_GROW_SMALL = 1.6
+export const NODE_SHAPE_FRACTION_SMALL = NODE_SHAPE_MID_RADIUS * SHAPE_GROW_SMALL
+/** Sprite size (CSS px) under which shapes grow, fully grown at the lower bound. */
+const SHAPE_GROW_FROM_PX = 20
+const SHAPE_GROW_FULL_PX = 8
+
+/**
+ * Sprite floor in CSS px: the sprite for which a fully-grown shape measures
+ * NODE_MIN_SHAPE_PX. 3 / 0.576 = 5.21 px. (It was 2.5 DEVICE px = 1.7 CSS px.)
+ */
+export const NODE_MIN_SPRITE_PX = NODE_MIN_SHAPE_PX / NODE_SHAPE_FRACTION_SMALL
+/** Sprite ceiling in CSS px. */
+export const NODE_MAX_SPRITE_PX = 160
+
+/**
+ * CPU mirror of the vertex shader's `gl_PointSize` (device px), so the bounds
+ * are testable without a GPU. `viewDepth` is the distance along the view axis
+ * (`-mv.z`).
+ */
+export function nodeSpritePx(size: number, viewDepth: number, uPx: number, act = 0): number {
+  const persp = Math.min(24, Math.max(0, 900 / Math.max(1, viewDepth)))
+  const raw = size * persp * uPx * SPRITE_SCALE * (1 + act * 1.2)
+  return Math.min(NODE_MAX_SPRITE_PX * uPx, Math.max(NODE_MIN_SPRITE_PX * uPx, raw))
+}
+
+/** CPU mirror of the fragment shader's shape growth factor (1 → SHAPE_GROW_SMALL). */
+export function shapeGrow(spriteCssPx: number): number {
+  const t = Math.min(1, Math.max(0, (SHAPE_GROW_FROM_PX - spriteCssPx) / (SHAPE_GROW_FROM_PX - SHAPE_GROW_FULL_PX)))
+  return 1 + (SHAPE_GROW_SMALL - 1) * (t * t * (3 - 2 * t))
+}
+
+/**
+ * Draw order: nodes first, then the LINKS IN FRONT of what they join (asked in
+ * the browser review: « les liaisons devant »). The nodes are additive glows; a
+ * link drawn after them stays readable across a dense module instead of being
+ * washed out by it. Agent markers (20) and labels (LABEL_RENDER_ORDER) stay on
+ * top of both.
+ */
+export const NODE_POINTS_RENDER_ORDER = 10
+export const LINK_RENDER_ORDER = 15
+/** Names are read last: above nodes, links and agent markers. */
+export const LABEL_RENDER_ORDER = 30
+
+/** Under this many nodes the density attenuation is exactly 1 (an isolated point keeps its opacity). */
+export const DENS_FREE_COUNT = 1000
+/** Floor of the density factor: a point is never dimmed below 35 % of its alpha. */
+export const DENS_K_MIN = 0.6
+/** Smallest distance factor: far away, alpha is multiplied by at most this much less. Never 0. */
+export const DENS_DIST_MIN = 0.7
+/** Near-bound fallback (scene units) used before the frame pass has measured the cloud. */
+export const DENS_DIST_FALLBACK_NEAR = 300
+/** The far bound is this many × the framing distance; the factor reaches DENS_DIST_MIN there. */
+export const DENS_DIST_FAR_RATIO = 4
+
+/**
+ * Distance factor in [DENS_DIST_MIN, 1].
+ *
+ * The near bound is the FRAMING distance — the camera distance at which the
+ * cloud fills the viewport. At that distance or closer the factor is exactly
+ * 1.0: what is near the viewer stays sharp ("si je me rapproche d'un ensemble
+ * de nœuds, je veux que ce soit plus net"), never faded by the distance. Only
+ * beyond it does the factor decay, linearly, to DENS_DIST_MIN at
+ * `framingDistance × DENS_DIST_FAR_RATIO` — so at 3× the framing distance it
+ * is already below 1 (the far cloud melts into the background). Never 0, never
+ * > 1.
+ */
+export function densityDistanceFactor(distance: number, framingDistance: number): number {
+  const near = Number.isFinite(framingDistance) && framingDistance > 0 ? framingDistance : DENS_DIST_FALLBACK_NEAR
+  const far = near * DENS_DIST_FAR_RATIO
+  const d = Number.isFinite(distance) && distance > 0 ? distance : 0
+  const t = Math.min(1, Math.max(0, (d - near) / (far - near)))
+  return 1 - (1 - DENS_DIST_MIN) * t
+}
+
+/**
+ * Density attenuation `uDensK` applied to the points' alpha (po-graph's uDensK,
+ * which also scales with camera distance):
+ *
+ *     count <= 1000 : 1.0                     (nothing is touched)
+ *     otherwise     : clamp( √(1000/count) × densityDistanceFactor(dist, framing), 0.35, 1 )
+ *
+ * More nodes and a farther camera ⇒ lower alpha, bounded below by 0.35 so the
+ * overview never vanishes. Monotone non-increasing in `count` and `distance`.
+ */
+export function densityAlphaK(count: number, distance: number, framingDistance: number): number {
+  if (!Number.isFinite(count) || count <= DENS_FREE_COUNT) return 1
+  return Math.min(1, Math.max(DENS_K_MIN, Math.sqrt(DENS_FREE_COUNT / count) * densityDistanceFactor(distance, framingDistance)))
+}
+
+const VERTEX_SHADER = /* glsl */ `
+  attribute vec3 aColor;
+  attribute float aAlpha;
+  attribute float aSize;
+  attribute float aShape;
+  attribute float aAct;
+  uniform float uPx;
+  varying vec3 vColor;
+  varying float vAlpha;
+  varying float vShape;
+  varying float vAct;
+  varying float vSprite;
+  void main() {
+    vColor = aColor;
+    vAlpha = aAlpha;
+    vShape = aShape;
+    vAct = aAct;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    float persp = clamp(900.0 / max(1.0, -mv.z), 0.0, 24.0);
+    // The sprite is SPRITE_SCALE times the size a hard-edged disc of the same
+    // apparent radius needed: the halo lives in the extra room, the shape keeps
+    // its footprint (see SPRITE_SCALE). gl_PointSize is in DEVICE pixels,
+    // therefore uPx must stay in lockstep with the renderer's pixel ratio (see
+    // createNodePoints().setPixelRatio) — otherwise the ratio drop makes every
+    // point grow by the factor the renderer lost.
+    const float headroom = ${SPRITE_SCALE.toFixed(1)};
+    // Floor = NODE_MIN_SPRITE_PX CSS px (≈ 3 px of visible shape, see
+    // NODE_MIN_SHAPE_PX): a smaller sprite would fade the node away entirely.
+    float sprite = clamp(aSize * persp * uPx * headroom * (1.0 + aAct * 1.2), ${NODE_MIN_SPRITE_PX.toFixed(3)} * uPx, ${NODE_MAX_SPRITE_PX.toFixed(1)} * uPx);
+    gl_PointSize = sprite;
+    vSprite = sprite / uPx;
+    gl_Position = projectionMatrix * mv;
+  }
+`
+
+const FRAGMENT_SHADER = /* glsl */ `
+  uniform float uDensK;
+  varying vec3 vColor;
+  varying float vAlpha;
+  varying float vShape;
+  varying float vAct;
+  varying float vSprite;
+
+  /** Soft annulus of radius r and half-width w, in sprite space (d in 0..1). */
+  float ring(float d, float r, float w) {
+    return smoothstep(w, w * 0.25, abs(d - r));
+  }
+
+  void main() {
+    // Sprite space: 0 at the centre, 1 on the edge, so the footprints below read
+    // as "radius, as a fraction of the sprite".
+    vec2 p = (gl_PointCoord - 0.5) * 2.0;
+    float d = length(p);
+    // The corners of the square sprite sit at d = √2; max() keeps the halo from
+    // going negative there (a squared negative would bloom INTO the corners).
+    float q = max(0.0, 1.0 - d * d);
+
+    // SMALL SPRITES. The halo takes the outer 58 % of the sprite; at 5-8 px that
+    // leaves the shape 1-2 px. Keep the halo's APPARENT radius (it stays in d)
+    // but enlarge shape and core: ps is p seen through a magnifier that grows
+    // from 1 (sprite >= ${SHAPE_GROW_FROM_PX.toFixed(0)} px) to ${SHAPE_GROW_SMALL.toFixed(1)} (sprite <= ${SHAPE_GROW_FULL_PX.toFixed(0)} px).
+    float grow = 1.0 + ${(SHAPE_GROW_SMALL - 1).toFixed(2)} * smoothstep(${SHAPE_GROW_FROM_PX.toFixed(1)}, ${SHAPE_GROW_FULL_PX.toFixed(1)}, vSprite);
+    vec2 ps = p / grow;
+    float ds = length(ps);
+
+    // Halo: quadratic falloff — no shoulder, no visible edge, zero at the rim.
+    float halo = q * q * 0.62;
+    // Core: the hot centre of a light source. Narrower than any shape, so it
+    // reads as brightness rather than as an outline.
+    float core = smoothstep(0.26, 0.0, ds);
+
+    // The four shapes are kept, with a ramp about 1.4× wider than the old
+    // hard-edged masks: what used to be a 1-pixel step is now a graded edge that
+    // the halo continues outward.
+    float m = 0.0;
+    if (vShape < 0.5) {
+      // disc
+      m = smoothstep(0.43, 0.29, ds) * 1.10;
+    } else if (vShape < 1.5) {
+      // ring (hollow disc) — the outline IS the identity, so the halo steps back
+      m = ring(ds, 0.34, 0.12) * 0.95 + core * 0.30;
+      halo *= 0.40;
+    } else if (vShape < 2.5) {
+      // diamond — |x|+|y| = 0.46 stays well inside the sprite
+      float dd = abs(ps.x) + abs(ps.y);
+      m = smoothstep(0.53, 0.37, dd) * 0.85 + ring(dd, 0.46, 0.11) * 0.35 + core * 0.55;
+    } else {
+      // square — max(|x|,|y|) = 0.48, so its corners sit at d = 0.68
+      float sq = max(abs(ps.x), abs(ps.y));
+      m = smoothstep(0.53, 0.40, sq) * 0.85 + ring(sq, 0.48, 0.10) * 0.35 + core * 0.55;
+    }
+
+    float lum = m + halo * 0.9;
+    // Discard instead of blending a zero: on a 5k-node graph the empty part of
+    // each sprite is most of its fill rate. vAlpha is folded in here because a
+    // dimmed node (legend hover, group dimming: alpha 0.06) contributes nothing
+    // the eye can see, so its whole sprite may be skipped.
+    if (lum * vAlpha < 0.004) discard;
+
+    // Colour × shape, plus a white centre that aAct drives (po-graph does the
+    // same with m*(.08+vAct*.8)), so activation both enlarges and brightens.
+    vec3 c = vColor * lum + vec3(1.0) * (core * 0.22 + m * vAct * 0.75);
+    // vAlpha is the caller's per-node opacity (hover, dimming, legend,
+    // activation); uDensK the density and distance fade.
+    c *= vAlpha * uDensK;
+    // Additive blending: alpha is 1 and the intensity lives in the colour, so
+    // overlapping nodes brighten each other instead of occluding each other.
+    gl_FragColor = vec4(min(c, vec3(4.0)), 1.0);
+  }
+`
+
+export interface NodePoints {
+  readonly object: THREE.Points
+  setData: (nodes: Graph3DNode[]) => void
+  updatePositions: () => void
+  /**
+   * Draw the listed nodes at start + (position − start)·t instead of their
+   * position (t from 0 to 1), without touching the node objects (they are the
+   * layout's). The dynamic scale uses it to let the children of an opened
+   * group fly out of its centre; t = 1 is exactly updatePositions().
+   */
+  setMorph: (starts: ReadonlyMap<string, readonly [number, number, number]>, t: number) => void
+  updateStyles: (fn: NodeStyleFn) => void
+  /** Index of a node id in the current buffer, or -1 when absent. */
+  indexOf: (id: string) => number
+  /**
+   * Targeted in-place write of ONE node's style attributes. Uses per-attribute
+   * `addUpdateRange` so only this vertex is re-uploaded to the GPU — the
+   * counterpart to `updateStyles`'s full-buffer rewrite, for the transient
+   * hover spotlight (O(1) instead of O(N) per hover change).
+   */
+  updateStyleAt: (index: number, style: NodeStyle) => void
+  /**
+   * Return the node under a prepared raycaster (three.js Points.raycast).
+   * The caller sets `raycaster.params.Points.threshold` from camera distance
+   * and throttles the calls (~16/s) — see po-graph's onMove.
+   */
+  pick: (raycaster: THREE.Raycaster) => Graph3DNode | null
+  /**
+   * Keep the shader's `uPx` equal to the renderer's pixel ratio.
+   *
+   * `gl_PointSize` is expressed in DEVICE pixels, so a renderer that drops from
+   * ratio 1.5 to 1.0 while `uPx` stays at 1.5 makes every point 1.5× larger on
+   * screen. The two must move together — see useRenderLoop's frame budget.
+   */
+  setPixelRatio: (pixelRatio: number) => void
+  /** Feed the camera→target distance; recomputes `uDensK` only when it moves. */
+  setCameraDistance: (distance: number) => void
+  /** Feed the framing distance (bounding sphere → camera): the near bound of the distance factor. */
+  setFramingDistance: (framingDistance: number) => void
+  /** Current `uPx`, for tests and for wiring a newly created Points. */
+  getPixelRatio: () => number
+  dispose: () => void
+}
+
+export function createNodePoints(nodes: Graph3DNode[]): NodePoints {
+  let nodeList = nodes
+  /** id → index into the attribute arrays, rebuilt by setData. */
+  let indexById = new Map<string, number>()
+  const geometry = new THREE.BufferGeometry()
+  const positions = new Float32Array(nodes.length * 3)
+  const colors = new Float32Array(nodes.length * 3)
+  const alphas = new Float32Array(nodes.length)
+  const sizes = new Float32Array(nodes.length)
+  const shapes = new Float32Array(nodes.length)
+  const acts = new Float32Array(nodes.length)
+
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3))
+  geometry.setAttribute('aAlpha', new THREE.BufferAttribute(alphas, 1))
+  geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1))
+  geometry.setAttribute('aShape', new THREE.BufferAttribute(shapes, 1))
+  geometry.setAttribute('aAct', new THREE.BufferAttribute(acts, 1))
+
+  const material = new THREE.ShaderMaterial({
+    vertexShader: VERTEX_SHADER,
+    fragmentShader: FRAGMENT_SHADER,
+    transparent: true,
+    depthWrite: false,
+    // MAX, not ADD: the sprites still emit light (a glow over the dark
+    // background, never grey compositing), but where glows overlap the pixel
+    // keeps the BRIGHTEST one instead of their sum. Additive summed hundreds of
+    // overlapping glows of a dense module into a white blob (seen in a real
+    // browser on the real import graph, worst on a phone pinched in) — the
+    // structure inside disappeared. The shader premultiplies colour by alpha,
+    // so MAX of two glows is the brighter glow.
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.MaxEquation,
+    uniforms: {
+      // Device pixels per CSS pixel. gl_PointSize is in DEVICE pixels, so this is
+      // the RENDERER's pixel ratio, never the screen's: the adaptive quality loop
+      // moves both together (see `setPixelRatio` below), otherwise the points
+      // change their on-screen size whenever the ratio changes.
+      uPx: { value: typeof window === 'undefined' ? 1 : Math.min(window.devicePixelRatio || 1, 1.5) },
+      // Per-node light gain, recomputed from the node count by setData().
+      // Density attenuation of the alpha (1 = untouched), see densityAlphaK().
+      uDensK: { value: densityAlphaK(nodes.length, 0, 0) },
+    },
+  })
+
+  const object = new THREE.Points(geometry, material)
+  object.frustumCulled = false
+  object.renderOrder = NODE_POINTS_RENDER_ORDER
+
+  const setPixelRatio = (pixelRatio: number) => {
+    const px = Number.isFinite(pixelRatio) && pixelRatio > 0 ? pixelRatio : 1
+    material.uniforms.uPx.value = px
+  }
+
+  let camDistance = 0
+  let camFramingDistance = 0
+  /** Camera→target distance changed: refresh uDensK (called per state change, never per frame). */
+  const setCameraDistance = (distance: number) => {
+    camDistance = distance
+    const k = densityAlphaK(nodeList.length, distance, camFramingDistance)
+    if (Math.abs(k - (material.uniforms.uDensK.value as number)) > 0.002) material.uniforms.uDensK.value = k
+  }
+  /** Framing distance changed (once per dataset): refresh uDensK with the new near bound. */
+  const setFramingDistance = (framingDistance: number) => {
+    camFramingDistance = framingDistance
+    const k = densityAlphaK(nodeList.length, camDistance, framingDistance)
+    if (Math.abs(k - (material.uniforms.uDensK.value as number)) > 0.002) material.uniforms.uDensK.value = k
+  }
+
+  const getPixelRatio = () => material.uniforms.uPx.value as number
+
+  const setData = (next: Graph3DNode[]) => {
+    nodeList = next
+    const idx = new Map<string, number>()
+    for (let i = 0; i < next.length; i++) idx.set(next[i].id, i)
+    indexById = idx
+    // The gain is a property of the crate, not of a node: recompute it here,
+    // once per data change, so a filtered or aggregated graph is not lit like
+    // the full one it came from.
+    material.uniforms.uDensK.value = densityAlphaK(next.length, camDistance, camFramingDistance)
+    if (next.length !== (geometry.getAttribute('position') as THREE.BufferAttribute).count) {
+      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(next.length * 3), 3))
+      geometry.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(next.length * 3), 3))
+      geometry.setAttribute('aAlpha', new THREE.BufferAttribute(new Float32Array(next.length), 1))
+      geometry.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(next.length), 1))
+      geometry.setAttribute('aShape', new THREE.BufferAttribute(new Float32Array(next.length), 1))
+      geometry.setAttribute('aAct', new THREE.BufferAttribute(new Float32Array(next.length), 1))
+    }
+    updatePositions()
+  }
+
+  const updatePositions = () => {
+    const pos = (geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array
+    for (let i = 0; i < nodeList.length; i++) {
+      pos[i * 3] = nodeList[i].x ?? 0
+      pos[i * 3 + 1] = nodeList[i].y ?? 0
+      pos[i * 3 + 2] = nodeList[i].z ?? 0
+    }
+    ;(geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
+  }
+
+  const setMorph = (starts: ReadonlyMap<string, readonly [number, number, number]>, t: number) => {
+    const k = Math.max(0, Math.min(1, t))
+    const pos = (geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array
+    for (let i = 0; i < nodeList.length; i++) {
+      const n = nodeList[i]
+      const s = starts.get(n.id)
+      const x = n.x ?? 0, y = n.y ?? 0, z = n.z ?? 0
+      pos[i * 3] = s ? s[0] + (x - s[0]) * k : x
+      pos[i * 3 + 1] = s ? s[1] + (y - s[1]) * k : y
+      pos[i * 3 + 2] = s ? s[2] + (z - s[2]) * k : z
+    }
+    ;(geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true
+  }
+
+  const updateStyles = (fn: NodeStyleFn) => {
+    const col = (geometry.getAttribute('aColor') as THREE.BufferAttribute).array as Float32Array
+    const alp = (geometry.getAttribute('aAlpha') as THREE.BufferAttribute).array as Float32Array
+    const siz = (geometry.getAttribute('aSize') as THREE.BufferAttribute).array as Float32Array
+    const shp = (geometry.getAttribute('aShape') as THREE.BufferAttribute).array as Float32Array
+    const act = (geometry.getAttribute('aAct') as THREE.BufferAttribute).array as Float32Array
+    for (let i = 0; i < nodeList.length; i++) {
+      const s = fn(nodeList[i])
+      col[i * 3] = s.r; col[i * 3 + 1] = s.g; col[i * 3 + 2] = s.b
+      alp[i] = s.alpha
+      siz[i] = s.size
+      shp[i] = s.shape
+      act[i] = s.act
+    }
+    // A full upload: it must beat any ranged update queued in the same frame.
+    for (const name of ['aColor', 'aAlpha', 'aSize', 'aShape', 'aAct']) {
+      markFullUpload(geometry.getAttribute(name) as THREE.BufferAttribute)
+    }
+  }
+
+  const indexOf = (id: string): number => indexById.get(id) ?? -1
+
+  const updateStyleAt = (index: number, s: NodeStyle) => {
+    if (index < 0 || index >= nodeList.length) return
+    const col = geometry.getAttribute('aColor') as THREE.BufferAttribute
+    const alp = geometry.getAttribute('aAlpha') as THREE.BufferAttribute
+    const siz = geometry.getAttribute('aSize') as THREE.BufferAttribute
+    const shp = geometry.getAttribute('aShape') as THREE.BufferAttribute
+    const act = geometry.getAttribute('aAct') as THREE.BufferAttribute
+    col.setXYZ(index, s.r, s.g, s.b)
+    alp.setX(index, s.alpha)
+    siz.setX(index, s.size)
+    shp.setX(index, s.shape)
+    act.setX(index, s.act)
+    // Single-vertex GPU upload. Ranges are counted in ELEMENTS, so a vec3
+    // attribute spans `itemSize` elements per vertex; scalars span one. A full
+    // restyle still pending wins (bufferUpload.ts): the range is then dropped.
+    markRangeUpload(col, index * col.itemSize, col.itemSize)
+    markRangeUpload(alp, index, 1)
+    markRangeUpload(siz, index, 1)
+    markRangeUpload(shp, index, 1)
+    markRangeUpload(act, index, 1)
+  }
+
+  // A large, static bounding sphere so Points.raycast never early-rejects on a
+  // stale (position-dependent) sphere. frustumCulled is off, so the sphere is
+  // only read by the raycaster.
+  geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e7)
+
+  /**
+   * Pick the node under a prepared raycaster. Uses three.js's built-in
+   * Points.raycast (per-point ray distance, cheap) instead of projecting every
+   * node to NDC — the caller must set `raycaster.params.Points.threshold`
+   * (scaled by camera distance) and throttle the calls (po-graph: ≤16/s).
+   */
+  const pick = (raycaster: THREE.Raycaster): Graph3DNode | null => {
+    object.updateMatrixWorld()
+    const hits = raycaster.intersectObject(object)
+    for (const h of hits) {
+      if (typeof h.index === 'number' && h.index >= 0 && h.index < nodeList.length) {
+        return nodeList[h.index]
+      }
+    }
+    return null
+  }
+
+  const dispose = () => {
+    geometry.dispose()
+    material.dispose()
+  }
+
+  setData(nodes)
+
+  return { object, setData, updatePositions, setMorph, updateStyles, indexOf, updateStyleAt, pick, setPixelRatio, setCameraDistance, setFramingDistance, getPixelRatio, dispose }
+}

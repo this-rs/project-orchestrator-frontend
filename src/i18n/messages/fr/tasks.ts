@@ -13,6 +13,15 @@ export default {
     statusUpdated: 'Statut mis à jour',
     statusFailed: 'Impossible de mettre à jour le statut',
   },
+  // Le verdict d'un humain sur la livraison. C'est le seul signal que la boucle
+  // d'apprentissage ne peut pas se donner à elle-même (voir RM-7).
+  verdict: {
+    prompt: 'Ce travail a-t-il livré ?',
+    delivered: 'Livré',
+    missed: 'Pas livré',
+    failed: "Le verdict n'a pas été enregistré",
+    recorded: 'Verdict enregistré',
+  },
   list: {
     description: 'Gérez les tâches de tous les plans',
     allStatuses: 'Tous les statuts',

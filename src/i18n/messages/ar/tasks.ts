@@ -1,6 +1,14 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  // A human's verdict on whether the work delivered (RM-7).
+  verdict: {
+    prompt: 'هل أنجز هذا العمل ما وُعد به؟',
+    delivered: 'أُنجز',
+    missed: 'لم يُنجز',
+    failed: 'لم يُسجَّل الحكم',
+    recorded: 'سُجِّل الحكم',
+  },
   actions: {
     edit: 'تعديل',
     delete: 'حذف',

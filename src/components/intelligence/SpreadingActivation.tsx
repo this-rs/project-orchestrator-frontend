@@ -1,3 +1,4 @@
+import { graphFloat, graphControl } from './graphSurface'
 import { memo, useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { atom } from 'jotai'
@@ -208,9 +209,9 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
   if (!isOpen) return null
 
   return (
-    <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 w-[28rem]">
-      <div className="flex items-center gap-2 rounded-xl bg-slate-900/95 backdrop-blur-md border border-slate-600 shadow-2xl shadow-cyan-500/10 px-4 py-3 ring-1 ring-cyan-500/20">
-        <Search size={16} className="text-cyan-400/70 shrink-0" />
+    <div className={`absolute top-14 left-1/2 -translate-x-1/2 z-50 w-[min(24rem,calc(100vw-1.5rem))] overflow-hidden ${graphFloat} shadow-[var(--shadow-md)] focus-within:ring-2 focus-within:ring-[var(--color-primary-light)]`}>
+      <div className="flex items-center gap-2 px-3 py-2">
+        <Search size={14} className="text-[var(--text-tertiary)] shrink-0" aria-hidden="true" />
         <input
           ref={inputRef}
           type="text"
@@ -218,28 +219,28 @@ function SpreadingActivationComponent({ projectSlug }: SpreadingActivationProps)
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={t('intelDashboard.activation.placeholder')}
-          className="flex-1 bg-transparent text-sm text-slate-200 placeholder:text-slate-400 outline-none"
+          className="flex-1 bg-transparent text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] outline-none"
         />
         {searching && (
-          <Zap size={14} className="text-cyan-400 animate-pulse shrink-0" />
+          <Zap size={14} className="text-[var(--color-primary-light)] animate-pulse shrink-0" aria-hidden="true" />
         )}
         <button
           onClick={handleClose}
           aria-label={t('intelDashboard.activation.close')}
-          className="p-0.5 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition-colors"
+          className={`p-1 rounded-md text-[var(--text-tertiary)] ${graphControl}`}
         >
           <X size={14} />
         </button>
       </div>
 
       {/* Activation legend */}
-      <div className="flex items-center gap-3 mt-2 px-4 text-[10px] text-slate-500">
+      <div className="flex items-center gap-3 border-t border-border-subtle px-3 py-1.5 text-[10px] text-[var(--text-tertiary)]">
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400/50" />
+          <span className="size-2 rounded-full bg-cyan-400" />
           {t('intelDashboard.activation.direct')}
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-violet-400 shadow-sm shadow-violet-400/50" />
+          <span className="size-2 rounded-full bg-violet-400" />
           {t('intelDashboard.activation.propagated')}
         </span>
         <span className="ml-auto opacity-60">{t('intelDashboard.activation.hint')}</span>

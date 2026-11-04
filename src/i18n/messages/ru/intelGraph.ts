@@ -56,6 +56,20 @@ export default {
     coChangeValue: 'не менее {n} совместных изменений',
     coChangeTitle: 'Скрыть рёбра CO_CHANGED с числом совместных изменений меньше {n}',
   },
+  scale: {
+    nodes: 'Узлов: {count}',
+    groups: 'Групп: {count}',
+  },
+  linkInspector: {
+    title: 'Связь',
+    aria: 'Отношения выбранной связи',
+    relations: 'Отношений: {count}',
+    families: 'Семейства',
+    real: 'Реальные отношения',
+    more: 'и ещё {count}',
+    close: 'Закрыть',
+  },
+
   inspector: {
     close: 'Закрыть',
     chosenOption: 'Выбранный вариант',
