@@ -133,10 +133,18 @@ export function createSuperNodeLabels(nodes: Graph3DNode[], limit = SUPER_NODE_L
     if (width <= 0 || height <= 0) return
     // With sizeAttenuation off a sprite of height h covers h·P11·H/2 px.
     const p11 = (camera as THREE.PerspectiveCamera).projectionMatrix?.elements?.[5] ?? 2.414
+    // Re-calibrate to the REAL camera and viewport: LABEL_TEXT_HEIGHT assumes
+    // fov 45° and H 900, the library camera is 50° and phones are shorter —
+    // measured 7.7 px in portrait, 4.6 px in landscape instead of 12.
+    const k = (p11 * height) / 2
+    const factor = LABEL_SCREEN_PX / (LABEL_TEXT_HEIGHT * k)
+    for (const sp of sprites) {
+      const base = (sp.userData.baseScale as THREE.Vector3 | undefined) ?? (sp.userData.baseScale = sp.scale.clone())
+      sp.scale.set(base.x * factor, base.y * factor, 1)
+    }
     const rects = sprites.map((sp) => {
       v.copy(sp.position).project(camera)
       if (v.z > 1 || v.z < -1) return null
-      const k = (p11 * height) / 2
       return { x: ((v.x + 1) / 2) * width, y: ((1 - v.y) / 2) * height, w: sp.scale.x * k, h: sp.scale.y * k }
     })
     const show = declutterRects(rects)

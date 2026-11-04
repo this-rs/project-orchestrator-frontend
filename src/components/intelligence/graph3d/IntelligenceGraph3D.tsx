@@ -426,6 +426,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   const superNodeLabelsRef = useRef<SuperNodeLabels | null>(null)
   /** Hide the names that would overlap a bigger group's (camera settled, labels rebuilt). */
   const declutterLabelsRef = useRef<() => void>(() => {})
+  // A new viewport (resize, full screen, rotation of a phone) changes every label's
+  // screen size and place: re-calibrate and re-declutter.
+  useEffect(() => {
+    declutterLabelsRef.current()
+  }, [dimensions.width, dimensions.height])
   declutterLabelsRef.current = () => {
     const fg = graphRef.current
     const labels = superNodeLabelsRef.current
