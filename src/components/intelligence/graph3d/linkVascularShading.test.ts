@@ -149,3 +149,15 @@ describe('plancher écran du cœur en pixels CSS', () => {
     expect(uniforms.uPxFloor.value).toBeCloseTo(2 * CORE_SCREEN_FLOOR_PX, 9)
   })
 })
+
+/** GLSL : smoothstep(edge0, edge1, x) est INDÉFINI quand edge0 ≥ edge1. */
+describe('shader vasculaire bien défini', () => {
+  it('aucun smoothstep à bords inversés', () => {
+    const { nodes, links } = synthGraph(200, [0, 0, 0], 2)
+    const r = createVascularLinks(nodes, links)!
+    const m = (r.object as unknown as { children: { material: { vertexShader: string; fragmentShader: string } }[] }).children[0].material
+    const calls = [...(m.vertexShader + m.fragmentShader).matchAll(/smoothstep\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*,/g)]
+    expect(calls.length).toBeGreaterThan(0)
+    for (const [, e0, e1] of calls) expect(Number(e0)).toBeLessThan(Number(e1))
+  })
+})

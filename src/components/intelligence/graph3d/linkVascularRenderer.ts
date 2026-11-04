@@ -56,9 +56,8 @@ import { distributePorts, pairDirection, placePort, type GroupEnvelope, type Gro
 import { linkRadiusFor, nearestNeighbourScale, softCap } from './linkRadius'
 
 
-/** Radial segments. Eight reads round at these widths and stays cheap. */
+/** Radial segments (SECTION_SEGMENTS, shared with the cost model). */
 const TUBE_SEGMENTS = SECTION_SEGMENTS
-/** Share of the link length used as the spline's bow. */
 /**
  * Share of the chord used as the outward bow. It was 0.16: seen in the browser
  * on the real graph, the links made wide loops far around what they join (« les
@@ -66,16 +65,6 @@ const TUBE_SEGMENTS = SECTION_SEGMENTS
  * bow only keeps parallel trunks from lying on each other.
  */
 const BOW = 0.05
-/**
- * Fibres internes d'un conduit.
- *
- * Les planches ne montrent pas un tube : elles montrent un FAISCEAU — une gaine
- * translucide dans laquelle on voit courir des dizaines de fibres parallèles.
- * C'est cette structure interne qui fait lire « vaisseau » et non « fil ». Elles
- * tournent en hélice lente autour de l'axe, donc la lumière accroche par
- * intermittence, comme dans les références. Au plus MAX_CONDUIT_CHANNELS
- * (linkGeometryCost), selon ce que porte le conduit (conduitChannels).
- */
 /**
  * Budget réduit sur mobile.
  *
@@ -242,18 +231,6 @@ function familyRgb(relation: string | null | undefined): [number, number, number
  */
 const FAMILY_TINT = 0.3
 
-/** Sheath alpha, and how much brighter the core is. */
-const SHEATH_ALPHA = 1.0
-/**
- * Budget de lumière d'un conduit, réparti entre ses couches.
- *
- * Chaque couche ajoutait son opacité à la précédente (halo + gaine + strates +
- * cœur) : la somme dépassait 1 et le tronc virait au blanc plein — le rendu
- * additif sature. Un conduit a désormais un budget FIXE, partagé
- * proportionnellement entre ses couches : plus il a de strates, plus chacune est
- * discrète, et l'ensemble reste dans la plage lisible.
- */
-
 const VERTEX_SHADER = /* glsl */ `
   attribute vec3 aColor;
   attribute float aAlpha;
@@ -329,7 +306,7 @@ const FRAGMENT_SHADER = /* glsl */ `
     float pulse = 1.0;
     if (vEmit > 0.5) {
       float wave = fract(vU * 6.0 - uFlowTime + vPhase);
-      float shaped = 0.55 + 0.75 * smoothstep(0.0, 0.35, wave) * smoothstep(1.0, 0.65, wave);
+      float shaped = 0.55 + 0.75 * smoothstep(0.0, 0.35, wave) * (1.0 - smoothstep(0.65, 1.0, wave));
       pulse = mix(1.0, shaped, uFlowOn);
     }
     float e = (1.0 - exp(-2.0 * vEmit * vAlpha)) * pulse;
@@ -664,9 +641,6 @@ export function vascularBudget(
 }
 
 /**
- * Build the vascular link layer, or null when the data cannot carry it.
- */
-/**
  * The frame the link law is measured in, taken from the WHOLE graph by the
  * caller. With the dynamic scale the drawn set changes at every cut (60 spread
  * groups ↔ hundreds of close files): a unit and a centre measured on what is
@@ -725,6 +699,9 @@ export function vascularGroupFrames(
   return out
 }
 
+/**
+ * Build the vascular link layer, or null when the data cannot carry it.
+ */
 export function createVascularLinks(
   nodes: Graph3DNode[],
   links: Graph3DLink[],
@@ -1425,7 +1402,7 @@ export function createVascularLinks(
       const lift = glow > 1 ? 0.35 : 0
       const samplesPerLayer = conduit.samples * TUBE_SEGMENTS
       for (let layer = 0; layer < specs.length; layer++) {
-        const layerAlpha = Math.min(1, specs[layer].alpha * baseAlpha * SHEATH_ALPHA * glow)
+        const layerAlpha = Math.min(1, specs[layer].alpha * baseAlpha * glow)
         const layerBase = conduit.vertexStart + layer * samplesPerLayer
         for (let i = 0; i < conduit.samples; i++) {
           const u = conduit.samples === 1 ? 0 : i / (conduit.samples - 1)
