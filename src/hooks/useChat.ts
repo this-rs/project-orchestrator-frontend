@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pickModelResolver } from '@/constants/providers'
 import { distinctModels } from '@/utils/routingSelection'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom, chatOneOffProviderPickAtom, usablePickedProvider, dropStalePickAtom, clearOneOffProviderPickAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatVaultWaitAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom, chatOneOffProviderPickAtom, usablePickedProvider, dropStalePickAtom, clearOneOffProviderPickAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -32,6 +32,7 @@ import {
   sessionErrorText,
   sessionErrorMetadata,
   refusedSendMetadata,
+  resultErrorToProviderError,
   toolsCancelledText,
   sessionEventBlock,
   readSystemInitRuntime,
@@ -511,6 +512,7 @@ export function useChat() {
   const setBackgroundTasks = useSetAtom(chatBackgroundTasksAtom)
   /** Pending vault requests of this session — see `chatSecretRequestsAtom`. */
   const setSecretRequests = useSetAtom(chatSecretRequestsAtom)
+  const setVaultWait = useSetAtom(chatVaultWaitAtom)
 
   // Debounce ref for sendContinue (prevents double-sends on manual Continue button)
   const continueDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1522,12 +1524,21 @@ export function useChat() {
             rSubtype === 'error_during_execution' &&
             !isUserStoppedTurn(rData as Record<string, unknown>)
           ) {
+            // Build provider_error metadata if the error_code is a known provider error
+            // This enables ProviderStateCard rendering for actionable errors (e.g. credentials_locked)
+            const providerError = resultErrorToProviderError(rData as Record<string, unknown>)
             lastMsg.blocks.push({
               id: nextBlockId(),
               type: 'result_error',
               content: rErrorMessage ?? rResultText ?? tr('app.chat.executionError'),
               metadata: withCreatedAt(
-                { result_text: rResultText, error_code: rErrorCode, error_message: rErrorMessage },
+                {
+                  result_text: rResultText,
+                  error_code: rErrorCode,
+                  error_message: rErrorMessage,
+                  // A live failure can be acted on (unlock, then resend); a replayed one is history.
+                  ...(providerError ? { provider_error: providerError, live_notice: !event.replaying } : {}),
+                },
                 serverTime,
               ),
             })
@@ -1537,6 +1548,7 @@ export function useChat() {
           // During replay (Phase 1 or Phase 1.5), a historical result event
           // must not override the streaming_status sent for mid-stream join.
           if (!event.replaying) {
+            setVaultWait(null) // the turn ended: nothing holds it any more
             setIsStreaming(false)
             setIsCompacting(false) // safety net: reset compaction flag on result
             // Auto-continue is now handled by the backend — no local setTimeout needed
@@ -1600,6 +1612,52 @@ export function useChat() {
           break
         }
 
+        case 'provider_notice': {
+          // T2 (Coffre verrouillé): a provider notice with an actionable code
+          // (e.g. credentials_locked) is rendered as a provider state card.
+          // severity: 'action_required' or 'latency' (diagnostic never reaches here).
+          const pnData = event.replaying
+            ? ((event as { data?: Record<string, unknown> }).data ?? event)
+            : event
+          const pnCode = (pnData as { code?: string }).code
+          const pnMessage = (pnData as { message?: string }).message ?? ''
+          const pnKind = (pnData as { kind?: string }).kind
+          const pnSeverity = (pnData as { severity?: string }).severity
+          // The composer's "vault locked, waiting since …" state: LIVE notices only — a
+          // notice replayed from history must never invent a wait after a reload.
+          if (!event.replaying) {
+            if (pnSeverity === 'action_required' && (pnCode === 'credentials_locked' || pnKind === 'credentials_locked')) {
+              setVaultWait((cur) => cur ?? { sessionId: store.get(chatSessionIdAtom), since: Date.now() })
+            } else if (pnKind === 'model_recovered') {
+              setVaultWait(null)
+            }
+          }
+          const pnProviderError = resultErrorToProviderError({
+            error_code: pnCode,
+            error_message: pnMessage,
+            ...(pnData as Record<string, unknown>),
+          })
+          if (pnProviderError && pnSeverity === 'action_required') {
+            // Show as a result_error block with provider_error metadata
+            // so ProviderStateCard renders the unlock/action card
+            lastMsg.blocks.push({
+              id: nextBlockId(),
+              type: 'result_error',
+              content: pnMessage,
+              metadata: withCreatedAt({
+                error_code: pnCode,
+                provider_error: pnProviderError,
+                notice_kind: pnKind,
+                notice_severity: pnSeverity,
+                // Mark as live notice for potential resend behavior
+                live_notice: !event.replaying,
+              }, serverTime),
+            })
+          }
+          // latency notices are not rendered as blocks (just acknowledged)
+          break
+        }
+
         default:
           // Unknown event type — ignore gracefully
           break
@@ -1608,7 +1666,7 @@ export function useChat() {
       return finalize(updated)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
-  }, [setIsStreaming, setPermissionOverride, setSessionModel, setIsCompacting, setBackgroundTasks, setSecretRequests, applySessionRuntime, releaseScopedAnswer, stampPermissionBlocks])
+  }, [setIsStreaming, setPermissionOverride, setSessionModel, setIsCompacting, setBackgroundTasks, setSecretRequests, setVaultWait, store, applySessionRuntime, releaseScopedAnswer, stampPermissionBlocks])
 
   // ========================================================================
   // REST resync — after a reconnect that the server cannot replay
@@ -2537,6 +2595,7 @@ export function useChat() {
 
   const interrupt = useCallback(async () => {
     if (!sessionId) return
+    setVaultWait(null) // Stop abandons the wait whatever the server answers
     const ws = getWs()
 
     // `send()` returns false on a dead socket — and schedules a reconnect.
@@ -2561,7 +2620,7 @@ export function useChat() {
       interruptWatchdogRef.current = null
       if (store.get(chatStreamingAtom)) void interruptOverRest(sessionId)
     }, INTERRUPT_ACK_TIMEOUT_MS)
-  }, [sessionId, getWs, store, interruptOverRest])
+  }, [sessionId, getWs, store, interruptOverRest, setVaultWait])
 
   useEffect(() => () => {
     if (interruptWatchdogRef.current) clearTimeout(interruptWatchdogRef.current)

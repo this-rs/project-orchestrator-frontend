@@ -5,6 +5,12 @@ export default {
     neutral: "مكان محايد",
     neutralHint: "تعمل في مجلد فارغ أنشأه الخادم، خارج أي مشروع. تُحذف الملفات المكتوبة فيه عند إغلاق المحادثة.",
   },
+  vaultWait: {
+    banner: "الخزنة مقفلة — في الانتظار منذ {elapsed}",
+    seconds: "{s} ث",
+    minutes: "{m} د {s} ث",
+    unlock: "فتح القفل",
+  },
   lockedVault: {
     resent: "تم فتح الخزنة: تتم إعادة إرسال رسالتك.",
     fallbacksLabel: "أو المتابعة دون الخزنة:",

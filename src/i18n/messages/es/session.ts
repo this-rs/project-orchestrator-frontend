@@ -5,6 +5,12 @@ export default {
     neutral: "Lugar neutro",
     neutralHint: "Se ejecuta en una carpeta vacía creada por el servidor, fuera de cualquier proyecto. Los archivos escritos allí se eliminan al cerrar la conversación.",
   },
+  vaultWait: {
+    banner: "Caja fuerte bloqueada — esperando desde hace {elapsed}",
+    seconds: "{s} s",
+    minutes: "{m} min {s} s",
+    unlock: "Desbloquear",
+  },
   lockedVault: {
     resent: "Bóveda desbloqueada: tu mensaje se está enviando de nuevo.",
     fallbacksLabel: "O continuar sin la bóveda:",

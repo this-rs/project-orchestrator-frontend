@@ -513,6 +513,37 @@ export function refusedSendMetadata(evt: unknown): { code: string; provider_erro
 }
 
 /**
+ * Extract a provider error from a result event's data (error_during_execution).
+ * The result event may carry `error_code` as a flat field rather than as `code`
+ * in a nested object, so we build a suitable object for `readProviderError`.
+ *
+ * Returns `null` when the error code is not a known provider error.
+ * Used by useChat to add `provider_error` metadata to `result_error` blocks,
+ * enabling ProviderStateCard rendering for actionable errors (e.g. credentials_locked).
+ */
+export function resultErrorToProviderError(data: Record<string, unknown>): ProviderErrorInfo | null {
+  // The result event uses `error_code` and `error_message` as field names
+  const code = data.error_code
+  const message = data.error_message ?? data.result_text ?? ''
+  if (typeof code !== 'string' || code === '') return null
+  // Build an object that readProviderError can parse
+  const obj = {
+    code,
+    message,
+    provider_id: data.provider_id,
+    // Forward any additional fields the backend may have sent
+    ...(typeof data.fallbacks !== 'undefined' ? { fallbacks: data.fallbacks } : {}),
+    ...(typeof data.login_hint !== 'undefined' ? { login_hint: data.login_hint } : {}),
+    ...(typeof data.detail !== 'undefined' ? { detail: data.detail } : {}),
+    ...(typeof data.origin !== 'undefined' ? { origin: data.origin } : {}),
+    ...(typeof data.project_slug !== 'undefined' ? { project_slug: data.project_slug } : {}),
+    ...(typeof data.consent_scope !== 'undefined' ? { consent_scope: data.consent_scope } : {}),
+    ...(typeof data.candidates !== 'undefined' ? { candidates: data.candidates } : {}),
+  }
+  return readProviderError(obj)
+}
+
+/**
  * The block of a session-level event the transcript states on its own line:
  * `conversation_relayed` (the conversation moved to another provider),
  * `session_closed` (the server closed the session), `compaction_recovery`
@@ -971,6 +1002,36 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
         break
       }
 
+      case 'provider_notice': {
+        // T2/T3 (Coffre verrouillé): a provider notice with an actionable code
+        // Replayed notices are informative only (no resend action)
+        const pnCode = (evt as { code?: string }).code
+        const pnMessage = (evt as { message?: string }).message ?? ''
+        const pnKind = (evt as { kind?: string }).kind
+        const pnSeverity = (evt as { severity?: string }).severity
+        const pnProviderError = resultErrorToProviderError({
+          error_code: pnCode,
+          error_message: pnMessage,
+          ...(evt as Record<string, unknown>),
+        })
+        if (pnProviderError && pnSeverity === 'action_required') {
+          lastAssistant(createdAt).blocks.push({
+            id: nextBlockId(),
+            type: 'result_error',
+            content: pnMessage,
+            metadata: withCreatedAt({
+              error_code: pnCode,
+              provider_error: pnProviderError,
+              notice_kind: pnKind,
+              notice_severity: pnSeverity,
+              // Replayed notices do not trigger resend (informative only)
+              live_notice: false,
+            }, stamp),
+          })
+        }
+        break
+      }
+
       case 'model_changed': {
         const msg = lastAssistant(createdAt)
         const changedModel = (evt.model as string) ?? 'unknown'
@@ -1053,12 +1114,19 @@ export function historyEventsToWindow(events: any[], opts: { refsEnabled?: boole
           })
           lastEventWasMaxTurns = true
         } else if (rSubtype === 'error_during_execution' && !isUserStoppedTurn(evt)) {
+          // Build provider_error metadata if the error_code is a known provider error
+          const providerError = resultErrorToProviderError(evt as Record<string, unknown>)
           rMsg.blocks.push({
             id: nextBlockId(),
             type: 'result_error',
             content: rErrorMessage ?? rResultText ?? tr('app.chat.executionError'),
             metadata: withCreatedAt(
-              { result_text: rResultText, error_code: rErrorCode, error_message: rErrorMessage },
+              {
+                result_text: rResultText,
+                error_code: rErrorCode,
+                error_message: rErrorMessage,
+                ...(providerError ? { provider_error: providerError } : {}),
+              },
               stamp,
             ),
           })

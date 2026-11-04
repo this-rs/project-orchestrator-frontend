@@ -32,6 +32,8 @@ interface ChatMessagesProps {
   onRespondPermission: (toolCallId: string, allowed: boolean, scope?: PermissionScope) => boolean | void
   onRespondInput: (requestId: string, response: string) => boolean | void
   onContinue?: () => void
+  /** Resend the last user message after vault unlock (for credentials_locked errors). */
+  onResend?: () => void
   /** Quick action callback — inserts prompt into chat textarea */
   onQuickAction?: (prompt: string, cursorOffset?: number) => void
   /** Resume a previous conversation from welcome screen */
@@ -64,6 +66,7 @@ export const ChatMessages = memo(function ChatMessages({
   onRespondPermission,
   onRespondInput,
   onContinue,
+  onResend,
   onQuickAction,
   onSelectSession,
   selectedProject,
@@ -398,6 +401,7 @@ export const ChatMessages = memo(function ChatMessages({
             onRespondPermission={onRespondPermission}
             onRespondInput={onRespondInput}
             onContinue={onContinue}
+            onResend={onResend}
           />
         </div>
       ))}

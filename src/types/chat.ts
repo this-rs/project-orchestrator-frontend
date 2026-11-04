@@ -788,6 +788,30 @@ export type ChatEvent =
   | { type: 'secret_request_resolved'; id: string; outcome: string }
   /** A message relayed from a peer session of the same team (TEAM-1). `from_session_id` is asserted by the backend. Typed for the contract; not drawn yet. */
   | { type: 'team_message'; from_session_id: string; from_name: string; content: string }
+  /**
+   * The harness' own advisory during a turn (backend `provider_notice`).
+   *
+   * `severity` says what the client must do with it: `action_required` becomes a
+   * provider state card (`credentials_locked` → unlock and resend), `latency` is
+   * acknowledged silently, `diagnostic` never reaches the live stream.
+   * `code` is the stable, error-like identifier — the same vocabulary as
+   * `result_error.error_code` — and `data` is the harness' structured detail
+   * (counters, delays, instance id), kept as it came.
+   *
+   * Shape taken from the backend's own definition (`ChatEvent::ProviderNotice`,
+   * `backend/src/chat/types.rs`), not guessed: `kind`, `code?`, `message`,
+   * `severity`, `data?`.
+   */
+  | {
+      type: 'provider_notice'
+      /** The harness' own name for the advisory (`credentials_locked`, `model_retry`, …). */
+      kind: string
+      code?: string
+      /** One sentence, already safe (no URL, no path, no credential). */
+      message: string
+      severity: 'action_required' | 'latency' | 'diagnostic'
+      data?: Record<string, unknown>
+    }
 
 export type ChatEventType = ChatEvent['type']
 
@@ -872,6 +896,7 @@ export const CHAT_EVENT_FIELDS = {
   secret_request: { id: 'required', name: 'required', reason: 'required', exists: 'required' },
   secret_request_resolved: { id: 'required', outcome: 'required' },
   team_message: { from_session_id: 'required', from_name: 'required', content: 'required' },
+  provider_notice: { kind: 'required', code: 'optional', message: 'required', severity: 'required', data: 'optional' },
 } as const satisfies EventFieldTables
 
 /**

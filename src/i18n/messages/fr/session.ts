@@ -5,6 +5,12 @@ export default {
     neutral: "Lieu neutre",
     neutralHint: "S’exécute dans un dossier vide créé par le serveur, hors de tout projet. Les fichiers qui y sont écrits sont supprimés à la fermeture de la conversation.",
   },
+  vaultWait: {
+    banner: "Coffre verrouillé — attente depuis {elapsed}",
+    seconds: "{s} s",
+    minutes: "{m} min {s} s",
+    unlock: "Déverrouiller",
+  },
   lockedVault: {
     resent: "Coffre déverrouillé : votre message est renvoyé.",
     fallbacksLabel: "Ou continuer sans le coffre :",
