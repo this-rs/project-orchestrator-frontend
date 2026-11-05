@@ -144,6 +144,23 @@ export function curveControlPoint(
   return vAdd(mid, vScale(perp, offset))
 }
 
+
+/**
+ * Déplacement d'ONDE le long d'un lien, en fraction de sa longueur.
+ *
+ * Un arc de Bézier ne sait faire qu'une bosse : un lien fort et un lien faible ne
+ * différaient donc que par la hauteur d'une même courbure. Ici la déformée est une
+ * sinusoïde amortie aux extrémités (sin(πt) garantit zéro aux deux bouts, donc le
+ * lien reste attaché à ses nœuds), dont le nombre de crêtes et l'amplitude croissent
+ * avec le volume. Pur, sans état, testable.
+ */
+export function waveOffset(volume: number, t: number): number {
+  const v = Math.min(1, Math.max(0, volume))
+  const crests = 1 + Math.floor(v * 3)          // 1 à 4 crêtes
+  const amp = 0.012 + 0.055 * v                 // 1,2 % à 6,7 % de la longueur
+  return Math.sin(Math.PI * crests * t) * Math.sin(Math.PI * t) * amp
+}
+
 /** Point at parameter t∈[0,1] on the quadratic Bézier (s, control, t). */
 export function bezierPoint(s: Vec3, control: Vec3, t3: Vec3, t: number): Vec3 {
   const u = 1 - t
@@ -204,7 +221,16 @@ export function sampleLinkPath(
   const pts: Vec3[] = []
   if (curved) {
     const control = curveControlPoint(s, t, volume, sourceId, targetId, amplitude)
-    for (let i = 0; i < n; i++) pts.push(bezierPoint(s, control, t, i / (n - 1)))
+    const d = vSub(t, s)
+    const len = vLen(d)
+    const dir: Vec3 = len > 1e-6 ? [d[0] / len, d[1] / len, d[2] / len] : [1, 0, 0]
+    const perp = perpendicular(dir)
+    for (let i = 0; i < n; i++) {
+      const u = i / (n - 1)
+      const p = bezierPoint(s, control, t, u)
+      const w = waveOffset(volume, u) * len
+      pts.push(w === 0 ? p : [p[0] + perp[0] * w, p[1] + perp[1] * w, p[2] + perp[2] * w])
+    }
   } else {
     for (let i = 0; i < n; i++) {
       const u = i / (n - 1)

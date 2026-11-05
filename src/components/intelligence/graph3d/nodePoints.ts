@@ -383,6 +383,13 @@ const FRAGMENT_SHADER = /* glsl */ `
     // Colour × shape, plus a white centre that aAct drives (po-graph does the
     // same with m*(.08+vAct*.8)), so activation both enlarges and brightens.
     vec3 c = vColor * lum + vec3(1.0) * (core * 0.22 + m * vAct * 0.75);
+    // FRANGE SPECTRALE : la couronne d'un nœud prend la teinte voisine sur le cercle
+    // chromatique, décalée par sa propre couleur et par le rayon. Un point isolé reste
+    // de sa couleur ; un amas se lit comme un prisme (demande du 05/11 : « plus onde et
+    // spectrale »). Coefficient faible (0,22) : c'est une frange, pas un feu d'artifice.
+    float hue0 = dot(vColor, vec3(0.3333));
+    vec3 prism = 0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + hue0 + ds * 0.18));
+    c += prism * halo * 0.22 * vAlpha;
     // vAlpha is the caller's per-node opacity (hover, dimming, legend,
     // activation); uDensK the density and distance fade.
     c *= vAlpha * uDensK;
