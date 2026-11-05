@@ -22,7 +22,7 @@ import {
   WAKE_MUTATION_MS,
 } from './useRenderLoop'
 import { createNodeObject, disposeNodeCaches, setNodeQuality, getNodeQuality } from './nodeObjects'
-import { layerRgb, resolveNodeBaseRgb } from './layerColors'
+import { layerRgb } from './layerColors'
 import { createLinkRenderer, parseColor, setLinkFade, type LinkRenderer, type LinkStyle } from './linkSegments'
 import { computeLinkAlpha, linkFamilyAlpha, LINK_OPACITY } from './linkFamily'
 import { classifyLinkScale, linkScaleAlpha } from './linkScale'
@@ -1578,14 +1578,17 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
   // never re-evaluates the whole crate.)
   const computeNodeStyle = useCallback((node: Graph3DNode): NodeStyle => {
     const entityType = node.entityType
-    // Colour channel: LAYER when aggregated (scale ≥ 1), entity TYPE in detail.
-    // Super-nodes (aggregated) are sized by how many nodes they bundle (area ∝
-    // count), coloured/shaped by their dominant type. Individual nodes use the
-    // per-type size. With the dynamic scale a frame mixes both: the channel is
-    // chosen PER NODE (a group by layer, a real node by type).
+    // Colour channel: the FAMILY of the entity type, in EVERY display mode —
+    // a clarity step of one of the 5 family hues (graphPalette.ts). The LAYER
+    // is read on the community enclosure (CommunityHulls3D), never on the node.
+    // Measured on 05/11/2026: the previous rule ("LAYER when aggregated, TYPE in
+    // detail, chosen PER NODE") put two meanings for one hue inside the same
+    // frame — a channel whose sense depends on the zoom cannot be learned.
+    // Super-nodes stay coloured by their dominant type (family shade) and draw
+    // as an enclosure ring; individual nodes use the per-type clarity step.
     const count = node.data.count as number | undefined
     const isSuper = typeof count === 'number' && count > 1
-    const base = resolveNodeBaseRgb(dynamicScale ? isSuper : aggregated, node.layer, ENTITY_RGB[entityType] ?? DEFAULT_NODE_RGB)
+    const base = ENTITY_RGB[entityType] ?? DEFAULT_NODE_RGB
     const shape = isSuper ? 1 : shapeForType(entityType)   // un groupe est une ENCEINTE (anneau), pas un disque plein : un disque recouvrait ses propres membres
     const size = baseNodeSize(node)
     const energy = Math.min(1, Math.max(0, (node.data.energy as number) ?? 0))
