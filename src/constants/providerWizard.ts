@@ -16,7 +16,7 @@ import { ApiError, apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import type { MessageKey } from '@/i18n/catalog'
 import type { Translator } from '@/i18n/translate'
-import { providerErrorExplanation } from './providerErrors'
+import { authRequiredFix, providerErrorExplanation } from './providerErrors'
 import type {
   CostBasis,
   ProviderErrorInfo,
@@ -269,9 +269,11 @@ export function instanceStatus(instance: ProviderInstance, health: ProviderHealt
   if (code === 'unauthorized')
     return { key: 'key_refused', label: 'providerAdmin.common.status.keyRefused', variant: 'error' }
   if (health.status === 'auth_required' || code === 'auth_required') {
-    // A key reference that cannot be read (missing from the vault, not granted) vs. a program to sign in to.
+    // A key reference that cannot be read (missing from the vault, not granted, expired) vs. a program to sign in to.
+    // The server DOES send a hint for an unreadable vault key (a sentence, not a command), so "no hint" is not the test.
     const usesKey = !!instance.credential_ref && instance.credential_ref !== 'none'
-    return usesKey && !health.login_hint
+    const fix = authRequiredFix({ login_hint: health.login_hint })
+    return usesKey && (!health.login_hint || fix.kind === 'vault' || fix.kind === 'env')
       ? { key: 'key_missing', label: 'providerAdmin.common.status.keyMissing', variant: 'warning' }
       : { key: 'login_required', label: 'providerAdmin.common.status.loginRequired', variant: 'warning' }
   }

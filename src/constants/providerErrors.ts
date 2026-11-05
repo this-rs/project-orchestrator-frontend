@@ -137,6 +137,29 @@ export function formatRetryDelay(ms: number): string {
   return tr('providerErrors.delay.minutes', { n: Math.ceil(seconds / 60) })
 }
 
+/** Why a provider asks for a sign-in, and so what the person has to do. */
+export type AuthFix =
+  | { kind: 'vault' }
+  | { kind: 'env'; variable: string }
+  | { kind: 'login'; command: string }
+  | { kind: 'unknown' }
+
+/**
+ * Reads the server's `login_hint` (`action`) of an `auth_required` failure.
+ * It is a COMMAND only for a CLI sign-in; for a key that cannot be read the backend
+ * writes a sentence (`credentials.rs`: "store the provider key in the vault…",
+ * "set the environment variable X on the server"). Showing that sentence as a
+ * copyable command misleads, so the three cases are told apart here, once.
+ */
+export function authRequiredFix(error: { login_hint?: string | null }): AuthFix {
+  const hint = error.login_hint?.trim()
+  if (!hint) return { kind: 'unknown' }
+  if (hint.startsWith('store the provider key in the vault')) return { kind: 'vault' }
+  const env = /^set the environment variable (\S+) on the server$/.exec(hint)
+  if (env) return { kind: 'env', variable: env[1] }
+  return { kind: 'login', command: hint }
+}
+
 /** What happened and what to do, in one or two sentences. Never carries a credential. */
 export function providerErrorExplanation(
   error: ProviderErrorInfo,
@@ -192,8 +215,14 @@ export function providerErrorExplanation(
           : tr('providerErrors.explain.credentialsLockedAuto')
       }
       return tr('providerErrors.explain.credentials_locked')
+    case 'auth_required': {
+      // What to do depends on WHY: a key that cannot be read (vault / env), or a program to sign in to.
+      const fix = authRequiredFix(error)
+      if (fix.kind === 'vault') return tr('providerErrors.explain.auth_required_vault')
+      if (fix.kind === 'env') return tr('providerErrors.explain.auth_required_env', { variable: fix.variable })
+      return tr('providerErrors.explain.auth_required')
+    }
     case 'no_provider':
-    case 'auth_required':
     case 'unauthorized':
     case 'endpoint_unreachable':
     case 'instance_not_found':

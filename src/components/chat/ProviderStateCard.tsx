@@ -13,6 +13,7 @@ import {
   providerConsentPath,
   providerErrorExplanation,
   providerInstancePath,
+  authRequiredFix,
   isSandboxRefusal,
   harnessGapOf,
 } from '@/constants/providerErrors'
@@ -122,7 +123,7 @@ type Recheck = { state: 'idle' } | { state: 'checking' } | { state: 'done'; text
  * Ask the server for the instance's health NOW and reload the list. PO never
  * drives a CLI login: the user runs the command, this only looks again.
  */
-function RecheckButton({ providerId }: { providerId?: string }) {
+function RecheckButton({ providerId, onRecovered }: { providerId?: string; onRecovered?: () => void }) {
   const refresh = useRefreshProviders()
   const [recheck, setRecheck] = useState<Recheck>({ state: 'idle' })
   const actionClass = useActionClass()
@@ -131,6 +132,8 @@ function RecheckButton({ providerId }: { providerId?: string }) {
     try {
       const health = providerId ? await providersApi.status(providerId) : null
       await refresh()
+      // The card must say it is over: a small line under a red "sign-in required" reads as "not seen".
+      if (health?.status === 'healthy') onRecovered?.()
       const text = !health
         ? 'Provider list reloaded.'
         : health.status === 'healthy'
@@ -142,7 +145,7 @@ function RecheckButton({ providerId }: { providerId?: string }) {
     } catch {
       setRecheck({ state: 'done', text: 'The status could not be checked.' })
     }
-  }, [providerId, refresh])
+  }, [providerId, refresh, onRecovered])
   return (
     <>
       <button type="button" onClick={run} disabled={recheck.state === 'checking'} className={actionClass}>
@@ -191,7 +194,9 @@ export function ProviderStateCard({
   // transcript renders it without handlers) leave the user blocked: an error.
   const offersFallbacks =
     error.code === 'credentials_locked' && !!onRetry && !!onRetryWith && (error.fallbacks?.length ?? 0) > 0
-  const tone: ProviderCardTone = toneProp ?? (offersFallbacks ? 'warning' : 'error')
+  // `auth_required` whose re-check came back healthy: the card says the way is open again.
+  const [recovered, setRecovered] = useState(false)
+  const tone: ProviderCardTone = recovered ? 'warning' : (toneProp ?? (offersFallbacks ? 'warning' : 'error'))
   const actionClass = tone === 'warning' ? ACTION_CLASS_WARNING : ACTION_CLASS_ERROR
   const setModeOverride = useSetAtom(chatSessionPermissionOverrideAtom)
   const sandboxRefusal = isSandboxRefusal(error)
@@ -213,10 +218,18 @@ export function ProviderStateCard({
   const harnessGap = harnessGapOf(error, degraded)
   const harnessNote = harnessGap ? t('session.errors.harnessGap', { feature: humanizeFeature(harnessGap) }) : null
   // An `unsupported` on an engine feature would otherwise blame the provider: the note replaces it.
-  const explanation =
-    harnessNote && error.code === 'unsupported' ? harnessNote : providerErrorExplanation(shown, projectSlug)
+  const explanation = recovered
+    ? t('providerErrors.recovered.body')
+    : harnessNote && error.code === 'unsupported'
+      ? harnessNote
+      : providerErrorExplanation(shown, projectSlug)
   // The French explanation of a sandbox refusal says it all: no raw English sentence under it.
-  const serverSentence = error.message && error.message !== explanation && !isSandboxRefusal(error) ? error.message : null
+  const serverSentence =
+    !recovered && error.message && error.message !== explanation && !isSandboxRefusal(error) ? error.message : null
+  // Why a sign-in is asked (a CLI to log in to, a key in the vault, an env variable) decides what is shown.
+  const authFix = error.code === 'auth_required' && !recovered ? authRequiredFix(error) : null
+  const credentialRef = instance?.credential_ref
+  const secretName = credentialRef?.startsWith('vault:') ? credentialRef.slice('vault:'.length) : null
   const canRetry =
     error.code === 'endpoint_unreachable' ||
     (error.retryable === true &&
@@ -275,7 +288,17 @@ export function ProviderStateCard({
       )
       break
     case 'auth_required':
-      action = <RecheckButton providerId={error.provider_id} />
+      action = (
+        <>
+          <RecheckButton providerId={error.provider_id} onRecovered={() => setRecovered(true)} />
+          {recovered && onRetry && (
+            <button type="button" onClick={onRetry} className={actionClass}>
+              <RefreshCw className="h-3 w-3" aria-hidden="true" />
+              {t('providerErrors.recovered.resend')}
+            </button>
+          )}
+        </>
+      )
       break
     case 'credentials_locked':
       // Where the message can be sent again: unlock right here, then it goes out;
@@ -367,7 +390,11 @@ export function ProviderStateCard({
         <AlertTriangle className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${iconColor}`} aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <p className={`font-medium ${textPrimary}`}>
-            {sandboxRefusal ? 'Mode « Rock’n roll » refusé' : providerErrorTitle(error)}
+            {sandboxRefusal
+              ? 'Mode « Rock’n roll » refusé'
+              : recovered
+                ? t('providerErrors.recovered.title')
+                : providerErrorTitle(error)}
           </p>
           {providerName && error.code !== 'provider_not_chosen' && error.code !== 'no_provider' && (
             <p data-testid="provider-error-provider" className={`mt-0.5 break-words ${textSecondary70}`}>
@@ -382,7 +409,22 @@ export function ProviderStateCard({
           )}
           {/* The server's own sentence (already redacted), when it adds something. */}
           {serverSentence && <p className={`mt-0.5 break-words ${textSecondary70}`}>{serverSentence}</p>}
-          {error.code === 'auth_required' && error.login_hint && <LoginCommand command={error.login_hint} />}
+          {authFix?.kind === 'login' && <LoginCommand command={authFix.command} />}
+          {authFix?.kind === 'vault' && (
+            <ol data-testid="auth-vault-steps" className={`mt-1.5 list-decimal space-y-1.5 pl-4 ${textSecondary90}`}>
+              <li>
+                {secretName
+                  ? t('providerErrors.authSteps.vaultCheckKnown', { secret: secretName })
+                  : t('providerErrors.authSteps.vaultCheck')}{' '}
+                <SettingsLink to={VAULT_PATH}>{t('providerErrors.authSteps.openVault')}</SettingsLink>
+              </li>
+              <li>
+                {t('providerErrors.authSteps.grant')}{' '}
+                <SettingsLink to={providerInstancePath(error.provider_id)}>{t('providerErrors.authSteps.openInstance')}</SettingsLink>
+              </li>
+              <li>{t('providerErrors.authSteps.recheck')}</li>
+            </ol>
+          )}
           {showDetail && (
             <pre className={`mt-1.5 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded bg-black/40 px-2 py-1 font-mono text-[11px] ${textPrimary90}`}>
               {error.detail}
