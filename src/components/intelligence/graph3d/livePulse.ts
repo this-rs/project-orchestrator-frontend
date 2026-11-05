@@ -41,10 +41,41 @@ const PEAK = (() => {
  * Pulse envelope: 0 at t=0, two fading beats, 0 at t≥1, peak exactly 1.
  * `t` is the fraction of PULSE_MS elapsed.
  */
-export function pulseEnvelope(t: number): number {
+/**
+ * Enveloppe d'une impulsion, avec une ONDE qui dépend de l'ampleur de l'entité.
+ *
+ * Avant : deux battements identiques pour tout le monde — un hub de 200 liens
+ * pulsait comme une note isolée. Ici, `amplitude` (0..1, calculée par l'appelant
+ * à partir du degré ou du compte) ajoute des crêtes et un amortissement : une
+ * note isolée fait un battement, un hub fait une onde de plusieurs crêtes qui
+ * s'éteint. C'est la même famille de forme que `waveOffset` côté liens : une
+ * sinusoïde amortie, pas un clignotement.
+ */
+export function pulseEnvelope(t: number, amplitude = 0): number {
   if (!(t > 0) || t >= 1) return 0
-  const v = Math.abs(Math.sin(Math.PI * PULSE_BEATS * t)) * (1 - t) / PEAK
-  return Math.min(1, Math.max(0, v))
+  const a = Math.min(1, Math.max(0, amplitude))
+  const beats = PULSE_BEATS + Math.round(a * 3)                                  // 2 → 5 crêtes
+  const decayExp = 1 / Math.max(0.35, 1 - a * 0.45)                              // un hub s'éteint moins vite
+  const decay = 1 - Math.pow(t, decayExp)
+  const v = Math.abs(Math.sin(Math.PI * beats * t)) * decay
+  const peak = PEAK_FOR(beats, decayExp)
+  return Math.min(1, Math.max(0, v / peak))
+}
+
+/** Le maximum de |sin(π·beats·t)|·(1−t) : calculé une fois par nombre de crêtes. */
+const PEAKS = new Map<number, number>()
+function PEAK_FOR(beats: number, decayExp: number): number {
+  const key = beats * 100 + Math.round(decayExp * 100)
+  const memo = PEAKS.get(key)
+  if (memo !== undefined) return memo
+  let max = 0
+  for (let i = 1; i < 2000; i++) {
+    const t = i / 2000
+    const v = Math.abs(Math.sin(Math.PI * beats * t)) * (1 - Math.pow(t, decayExp))
+    if (v > max) max = v
+  }
+  PEAKS.set(key, max || 1)
+  return PEAKS.get(key) as number
 }
 
 /** A slow breathing (0..1) for a marker that stays lit, e.g. a working agent. */
@@ -166,17 +197,30 @@ export function resolvePulseTarget(
  * from the BASE so a dimmed node still shows its pulse. At `act = 0` this is
  * exactly `base` — the return to rest is not a special case.
  */
+/**
+ * Ampleur d une impulsion, déduite de la TAILLE de base du nœud : une note isolée
+ * (size 3) bat simplement, un hub (size 6+) fait une onde de plusieurs crêtes.
+ * Sans ça, `pulseEnvelope` reste appelée avec son amplitude par défaut et le hub
+ * pulse exactement comme une feuille — le paramètre existerait pour rien.
+ */
+export function pulseAmplitudeOf(base: Pick<NodeStyle, 'size'>): number {
+  return Math.min(1, Math.max(0, (base.size - 2) / 6))
+}
+
 export function pulsedNodeStyle(base: NodeStyle, act: number): NodeStyle {
   const a = Math.min(1, Math.max(0, act))
   if (a === 0) return base
+  const amp = pulseAmplitudeOf(base)
+  const wave = pulseEnvelope(a, amp) / Math.max(1e-6, a)
+  const lift = a * (1 + 0.35 * wave)   /* l onde AJOUTE au battement, elle ne le retire jamais */
   return {
     r: base.r,
     g: base.g,
     b: base.b,
-    alpha: Math.max(base.alpha, a),
-    size: base.size * (1 + 0.45 * a),
+    alpha: Math.max(base.alpha, lift),
+    size: base.size * (1 + 0.45 * lift),
     shape: base.shape,
-    act: Math.max(base.act, 0.95 * a),
+    act: Math.max(base.act, 0.95 * lift),
   }
 }
 
