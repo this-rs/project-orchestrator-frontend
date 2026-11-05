@@ -75,6 +75,7 @@ export default {
     claudeCodeDescription: 'Nutzt die auf diesem Rechner installierte Claude-Code-CLI.',
     otherLabel: 'Anderer Provider (später einrichten)',
     otherDescription: 'Vorerst überspringen: Fügen Sie nach der Einrichtung unter Einstellungen → Provider eine Engine hinzu.',
+    codexDescription: 'Das codex-Programm dieses Computers, angemeldet mit Ihrem OpenAI-Konto.',
     noEngineNote: 'Hier ist keine Engine eingerichtet. Die Claude-Code-CLI ist nicht erforderlich: Fügen Sie unter Einstellungen → Provider einen Provider hinzu, sobald die App läuft.',
     launchSummary: 'In Einstellungen → Provider einzurichten',
     cliAbsentNote: "Claude Code ist auf diesem Computer nicht installiert. Es ist optional: Wählen Sie es oben, wenn Sie es nutzen möchten – die App kann es für Sie installieren.",

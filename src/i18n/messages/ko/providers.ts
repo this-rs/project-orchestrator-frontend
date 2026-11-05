@@ -75,6 +75,7 @@ export default {
     claudeCodeDescription: '이 컴퓨터에 설치된 Claude Code CLI를 사용합니다.',
     otherLabel: '다른 제공자(나중에 구성)',
     otherDescription: '지금은 건너뛰기: 설정이 끝난 뒤 설정 → 제공자에서 엔진을 추가하세요.',
+    codexDescription: '이 컴퓨터의 codex 프로그램, 본인의 OpenAI 계정으로 로그인.',
     noEngineNote: '여기에는 설정된 엔진이 없습니다. Claude Code CLI는 필수가 아닙니다. 앱이 실행되면 설정 → 제공자에서 제공자를 추가하세요.',
     launchSummary: '설정 → 제공자에서 구성할 항목',
     cliAbsentNote: "이 컴퓨터에 Claude Code가 설치되어 있지 않습니다. 선택 사항입니다. 사용하려면 위에서 선택하세요. 앱이 대신 설치할 수 있습니다.",

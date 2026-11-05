@@ -75,6 +75,7 @@ export default {
     claudeCodeDescription: 'Utilise le CLI Claude Code installé sur cette machine.',
     otherLabel: 'Un autre provider (à configurer plus tard)',
     otherDescription: 'Passer pour l\'instant : ajoutez un moteur dans Réglages → Providers après l\'installation.',
+    codexDescription: 'Le programme codex de cet ordinateur, connecté à votre compte OpenAI.',
     noEngineNote: 'Aucun moteur n\'est configuré ici. Le CLI Claude Code n\'est pas obligatoire : ajoutez un provider dans Réglages → Providers une fois l\'application lancée.',
     launchSummary: 'À configurer dans Réglages → Providers',
     cliAbsentNote: "Claude Code n’est pas installé sur cet ordinateur. Il est facultatif : choisissez-le ci-dessus si vous voulez l’utiliser, l’application peut l’installer pour vous.",

@@ -75,6 +75,7 @@ export default {
     claudeCodeDescription: 'Dùng Claude Code CLI đã cài trên máy này.',
     otherLabel: 'Nhà cung cấp khác (cấu hình sau)',
     otherDescription: 'Bỏ qua lúc này: thêm một công cụ trong Cài đặt → Nhà cung cấp sau khi thiết lập.',
+    codexDescription: 'Chương trình codex trên máy này, đăng nhập bằng tài khoản OpenAI của bạn.',
     noEngineNote: 'Chưa thiết lập công cụ nào ở đây. Không bắt buộc có Claude Code CLI: hãy thêm nhà cung cấp trong Cài đặt → Nhà cung cấp khi ứng dụng đã chạy.',
     launchSummary: 'Cần cấu hình trong Cài đặt → Nhà cung cấp',
     cliAbsentNote: "Claude Code chưa được cài trên máy tính này. Nó là tùy chọn: chọn nó ở trên nếu bạn muốn dùng, ứng dụng có thể cài giúp bạn.",

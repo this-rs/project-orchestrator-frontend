@@ -11,7 +11,39 @@ import { modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
 import type { CliVersionStatus } from '@/types'
 import { POLICY_TO_LEGACY_MODE, toToolPolicyMode } from '@/types/provider'
 import { setupModeOptions } from '@/constants/toolPolicy'
-import { setupChatEngineOptions, setupChatTexts, setupNoEngineNote } from '@/constants/setupProviders'
+import { setupChatEngineOptions, setupChatTexts, setupNoEngineNote, type SetupEngineChoice } from '@/constants/setupProviders'
+import { pendingSetupProviderAtom } from '@/atoms/setupProvider'
+import {
+  CODEX_PENDING,
+  SETUP_OTHER_PRESETS,
+  formFromPreset,
+  pendingFromForm,
+  validateOtherProviderForm,
+  type OtherProviderForm,
+} from '@/constants/setupProviderDraft'
+
+/** What the `check_codex_status` probe reports about the `codex` program on the PATH. */
+interface CodexProbe {
+  installed: boolean
+  version: string | null
+  path: string | null
+}
+
+/** The codex probe. A missing or failing command reads as "not installed". */
+async function probeCodex(invoke: (cmd: string) => Promise<unknown>): Promise<CodexProbe> {
+  try {
+    const status = await invoke('check_codex_status')
+    return (status as CodexProbe | null) ?? { installed: false, version: null, path: null }
+  } catch {
+    return { installed: false, version: null, path: null }
+  }
+}
+
+function codexLine(codex: CodexProbe | null | undefined): string {
+  if (!codex) return 'Looking for the codex program on this computer…'
+  if (!codex.installed) return 'codex was not found on the PATH. Install it, then come back to this step.'
+  return codex.version ? `codex ${codex.version} found on this computer.` : 'codex found on this computer.'
+}
 
 /** Format bytes into a human-readable string (KB, MB, GB). */
 function formatBytes(bytes: number): string {
@@ -81,6 +113,40 @@ export function ChatPage() {
   const update = (patch: Partial<typeof config>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
 
+  // Codex is a program of this machine, chosen by its own card: the config stays on
+  // `none` and the provider waits in `pendingSetupProviderAtom` until the app runs.
+  const [pendingProvider, setPendingProvider] = useAtom(pendingSetupProviderAtom)
+  const engine: SetupEngineChoice = pendingProvider?.kind === 'codex' ? 'codex' : config.chatProvider
+  const [other, setOther] = useState<OtherProviderForm>(() => formFromPreset(SETUP_OTHER_PRESETS[0]))
+  const [codex, setCodex] = useState<CodexProbe | null>(null)
+  const otherPreset = SETUP_OTHER_PRESETS.find((p) => p.key === other.presetKey) ?? SETUP_OTHER_PRESETS[0]
+  const otherError = engine === 'none' ? validateOtherProviderForm(other, otherPreset) : null
+
+  // The pending provider follows the engine: the "another provider" form while that card
+  // is selected, nothing for Codex (its own card set it), nothing left behind for Claude Code
+  // (the CLI detection can select it without going through a click).
+  useEffect(() => {
+    if (engine === 'none') {
+      const next = pendingFromForm(other)
+      if (JSON.stringify(next) !== JSON.stringify(pendingProvider)) setPendingProvider(next)
+    } else if (engine === 'claude-code' && pendingProvider !== null) {
+      setPendingProvider(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the engine and the form, not on the stored value
+  }, [engine, other])
+
+
+  const chooseEngine = (value: SetupEngineChoice) => {
+    setEngineChosen(true)
+    if (value === 'codex') {
+      update({ chatProvider: 'none' })
+      setPendingProvider(CODEX_PENDING)
+      return
+    }
+    setPendingProvider(null)
+    update({ chatProvider: value })
+  }
+
   // ── Auto-detect CLI at mount ──────────────────────────────────────
   // Claude Code is preselected only when its CLI is here; otherwise the step
   // stays on "another provider". A choice the user made (or a config being
@@ -97,9 +163,12 @@ export function ChatPage() {
         setCliStatus(status)
         detected = status.installed === true
         setCliDetected(detected)
+        // Codex is probed read-only, in the same detection: its state shows under its card.
+        setCodex(await probeCodex(invoke))
       } catch {
         if (!cancelled) {
           setCliDetected(false)
+          setCodex({ installed: false, version: null, path: null })
         }
       } finally {
         if (!cancelled) {
@@ -400,33 +469,33 @@ export function ChatPage() {
 
   return (
     <div className="space-y-6">
-      {/* Engine choice: Claude Code keeps the original path, anything else is configured later */}
+      {/* Engine choice: Claude Code keeps the original path; Codex and another provider are added once the app runs */}
       <fieldset className={`${surface} space-y-3 p-4 md:p-5`}>
         <legend className="px-1 text-sm font-semibold text-gray-200">{TEXT.engine}</legend>
-        <div role="radiogroup" aria-label={TEXT.engine} className="grid gap-3 sm:grid-cols-2">
-          {setupChatEngineOptions().map((opt) => {
-            const selected = config.chatProvider === opt.value
-            return (
-              <ChoiceCard
-                key={opt.value}
-                role="radio"
-                selected={selected}
-                onClick={() => {
-                  setEngineChosen(true)
-                  update({ chatProvider: opt.value })
-                }}
-                title={opt.label}
-                description={opt.description}
-              />
-            )
-          })}
+        <div role="radiogroup" aria-label={TEXT.engine} className="grid gap-3 sm:grid-cols-3">
+          {setupChatEngineOptions().map((opt) => (
+            <ChoiceCard
+              key={opt.value}
+              role="radio"
+              selected={engine === opt.value}
+              onClick={() => chooseEngine(opt.value)}
+              title={opt.label}
+              description={opt.description}
+            />
+          ))}
         </div>
+        {isTauri && (
+          <p className="text-xs leading-4 text-gray-400" role="status" data-testid="setup-codex-status">
+            {codexLine(codex)}
+          </p>
+        )}
+        {engine === 'none' && <OtherProviderFields form={other} onChange={setOther} error={otherError} />}
         {!isClaude && (
           <p className="text-xs leading-4 text-gray-400" data-testid="setup-no-engine-note">
             {setupNoEngineNote()}
           </p>
         )}
-        {!isClaude && isTauri && cliAutoChecked && !cliDetected && (
+        {engine === 'none' && isTauri && cliAutoChecked && !cliDetected && (
           <p className="text-xs leading-4 text-gray-400" data-testid="setup-cli-absent-note">
             {texts.cliAbsentNote}
           </p>
@@ -984,6 +1053,60 @@ export function ChatPage() {
  * button in the glass sense), the chosen one says so with a glyph and
  * `aria-pressed` / `aria-checked`, never with colour alone.
  */
+/**
+ * The fields of "another provider": a preset, its id and address, its model, and the vault
+ * name of its key. The key itself is never typed here: it goes into the vault after launch.
+ */
+function OtherProviderFields({
+  form,
+  onChange,
+  error,
+}: {
+  form: OtherProviderForm
+  onChange: (next: OtherProviderForm) => void
+  error: string | null
+}) {
+  const preset = SETUP_OTHER_PRESETS.find((p) => p.key === form.presetKey) ?? SETUP_OTHER_PRESETS[0]
+  const pickPreset = (key: string) => {
+    const next = SETUP_OTHER_PRESETS.find((p) => p.key === key) ?? SETUP_OTHER_PRESETS[0]
+    onChange({ ...formFromPreset(next), vaultName: '' })
+  }
+  return (
+    <div className="space-y-3" data-testid="setup-other-provider">
+      <label className="block space-y-1">
+        <span className="text-xs font-medium text-gray-300">Provider</span>
+        <select
+          className="w-full rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-gray-200"
+          value={form.presetKey}
+          onChange={(e) => pickPreset(e.target.value)}
+        >
+          {SETUP_OTHER_PRESETS.map((p) => (
+            <option key={p.key} value={p.key}>{p.label}</option>
+          ))}
+        </select>
+      </label>
+      <Field label="Id" value={form.id} onChange={(v) => onChange({ ...form, id: v })} placeholder="deepseek" mono />
+      <Field label="Address" value={form.baseUrl} onChange={(v) => onChange({ ...form, baseUrl: v })} placeholder="https://api.example.com/v1" mono />
+      <Field label="Model" value={form.model} onChange={(v) => onChange({ ...form, model: v })} placeholder={preset.model_hint ?? 'model name'} />
+      {preset.credential_kind === 'vault' && (
+        <Field
+          label="Key name in the vault (optional)"
+          value={form.vaultName}
+          onChange={(v) => onChange({ ...form, vaultName: v })}
+          placeholder="deepseek-key"
+          mono
+          hint="Only the name. The key is typed into the vault after launch, never here."
+        />
+      )}
+      {error && (
+        <p className="text-xs leading-4 text-amber-300" role="alert" data-testid="setup-other-provider-error">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function ChoiceCard({
   selected,
   onClick,

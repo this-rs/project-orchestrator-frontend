@@ -75,6 +75,7 @@ export default {
     claudeCodeDescription: '使用本机已安装的 Claude Code CLI。',
     otherLabel: '其他提供方（稍后配置）',
     otherDescription: '暂时跳过：完成设置后，在“设置 → 提供方”中添加引擎。',
+    codexDescription: '本机的 codex 程序，使用您自己的 OpenAI 账户登录。',
     noEngineNote: '此处尚未设置任何引擎。Claude Code CLI 并非必需：应用运行后，在“设置 → 提供方”中添加提供方即可。',
     launchSummary: '待在“设置 → 提供方”中配置',
     cliAbsentNote: "这台电脑上没有安装 Claude Code。它是可选的：如果想用，请在上方选择它，应用可以帮你安装。",
