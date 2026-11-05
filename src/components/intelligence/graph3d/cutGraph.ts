@@ -22,6 +22,7 @@
 import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
 import { membersOf, type ClusterCut, type ClusterNode, type ClusterTree } from './clusterTree'
 import { superEdgeWeight, superEdgeWidth } from './graphAggregation'
+import { communityFallbackLabel, groupLabel, layerLabel, partLabel, wholeGraphLabel } from './labelText'
 
 /** Prefix of a closed group's node id. */
 export const CLUSTER_NODE_PREFIX = 'cl:'
@@ -65,15 +66,15 @@ function partName(base: string, members: readonly Graph3DNode[]): string {
   // Every file sits in the community's own directory: name the part by its
   // first file, alphabetically — stable, and tells two parts apart.
   const first = members.map((m) => pathOf(m) ?? m.label).filter(Boolean).sort()[0]
-  return first ? `${tail(base, 1)} · ${tail(first, 1)}…` : `${base} · partie`
+  return first ? `${tail(base, 1)} · ${tail(first, 1)}…` : `${base} · ${partLabel()}`
 }
 
 function groupName(t: ClusterNode, members: readonly Graph3DNode[]): string {
-  // the whole graph (the camera turned away from it): never « Communauté 1 »
-  if (t.kind === 'root') return 'Tout le graphe'
-  if (t.kind === 'layer') return `Couche ${members[0]?.layer ?? ''}`.trim()
+  // the whole graph (the camera turned away from it): never a community number
+  if (t.kind === 'root') return wholeGraphLabel()
+  if (t.kind === 'layer') return layerLabel(members[0]?.layer ?? '').trim()
   const label = members.find((m) => m.communityLabel)?.communityLabel?.trim()
-  const base = label || (members[0]?.communityId != null ? `Communauté ${members[0].communityId}` : 'Groupe')
+  const base = label || (members[0]?.communityId != null ? communityFallbackLabel(members[0].communityId) : groupLabel())
   return t.kind === 'split' || t.kind === 'region' ? partName(base, members) : base
 }
 

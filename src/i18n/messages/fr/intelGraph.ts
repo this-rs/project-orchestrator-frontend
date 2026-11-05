@@ -223,4 +223,17 @@ export default {
     reinforced: '{boosted} renforcés, {synapses} synapses',
     reinforceFailed: 'Échec du renforcement',
   },
+  labels: {
+    group: 'Groupe',
+    whole: 'Tout le graphe',
+    layer: 'Couche {layer}',
+    part: 'partie',
+    members: '{count} {kind}',
+    kind: {
+      file: 'fichiers', function: 'fonctions', struct: 'structures', trait: 'traits', enum: 'énums',
+      note: 'notes', decision: 'décisions', constraint: 'contraintes', plan: 'plans', task: 'tâches',
+      step: 'étapes', milestone: 'jalons', release: 'versions', commit: 'commits', skill: 'compétences',
+      protocol: 'protocoles', protocol_state: 'états', chat_session: 'discussions', feature_graph: 'fonctionnalités',
+    },
+  },
 } satisfies Translation<'intelGraph'>

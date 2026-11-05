@@ -221,4 +221,17 @@ export default {
     reinforced: '{boosted} boosted, {synapses} synapses',
     reinforceFailed: 'Reinforce failed',
   },
+  labels: {
+    group: 'Group',
+    whole: 'Whole graph',
+    layer: 'Layer {layer}',
+    part: 'part',
+    members: '{count} {kind}',
+    kind: {
+      file: 'files', function: 'functions', struct: 'structures', trait: 'traits', enum: 'enums',
+      note: 'notes', decision: 'decisions', constraint: 'constraints', plan: 'plans', task: 'tasks',
+      step: 'steps', milestone: 'milestones', release: 'releases', commit: 'commits', skill: 'skills',
+      protocol: 'protocols', protocol_state: 'states', chat_session: 'conversations', feature_graph: 'feature graphs',
+    },
+  },
 }
