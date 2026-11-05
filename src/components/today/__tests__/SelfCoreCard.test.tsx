@@ -83,8 +83,8 @@ describe('SelfCoreCard', () => {
 
   it('a note that does not fit is visibly marked as not landing', async () => {
     mountCard()
-    await screen.findByTestId('self-core-card')
-    const third = screen.getByTestId('self-core-entry-2')
+    // The card's shell (and its testid) exists while it is still loading: wait for the ENTRY, not the card.
+    const third = await screen.findByTestId('self-core-entry-2')
     expect(third.getAttribute('data-lands')).toBe('false')
     expect(third.textContent).toContain('Does not land')
     expect(screen.getByTestId('self-core-entry-0').textContent).not.toContain('Does not land')

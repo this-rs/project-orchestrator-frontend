@@ -85,7 +85,8 @@ describe('a picture', () => {
     const dialog = await screen.findByRole('dialog')
     // The dialog has its OWN object URL: each component that draws the bytes
     // owns the one it revokes, and a Blob can back as many as it needs.
-    expect(dialog.querySelector('img')?.getAttribute('src')).toMatch(/^blob:/)
+    // The dialog opens before its object URL is set: wait for the src instead of reading it at once.
+    await waitFor(() => expect(dialog.querySelector('img')?.getAttribute('src')).toMatch(/^blob:/))
     expect(dialog.querySelector('img')?.getAttribute('alt')).toBe('shot.png')
 
     unmount()
