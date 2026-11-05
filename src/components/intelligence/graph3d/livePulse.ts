@@ -27,16 +27,6 @@ export const PULSE_MS = 2000
 /** Beats inside one pulse: the node throbs twice, then rests. */
 export const PULSE_BEATS = 2
 
-/** Peak of |sin(π·BEATS·t)|·(1−t) over t∈[0,1], so the envelope reaches 1. */
-const PEAK = (() => {
-  let max = 0
-  for (let i = 1; i < 1000; i++) {
-    const t = i / 1000
-    max = Math.max(max, Math.abs(Math.sin(Math.PI * PULSE_BEATS * t)) * (1 - t))
-  }
-  return max
-})()
-
 /**
  * Pulse envelope: 0 at t=0, two fading beats, 0 at t≥1, peak exactly 1.
  * `t` is the fraction of PULSE_MS elapsed.
@@ -235,4 +225,59 @@ export function pulsedLinkStyle(base: LinkStyle, act: number): LinkStyle {
     b: base.b + (1 - base.b) * k,
     a: Math.min(1, Math.max(base.a, 0.08) + 0.7 * a),
   }
+}
+
+// ---------------------------------------------------------------------------
+// Propagation — un événement n'allume pas UN nœud, il traverse son voisinage
+// ---------------------------------------------------------------------------
+
+/** Délai d'un saut, ms. En dessous de ~70 ms, l'onde se lit comme un clignotement. */
+export const PROPAGATION_STEP_MS = 90
+/** Nombre de sauts au-delà du nœud touché. */
+export const PROPAGATION_HOPS = 3
+/**
+ * Plafond du nombre de nœuds atteints par une onde. SANS lui, un événement sur un hub
+ * de 5 000 liens planifierait 5 000 impulsions : le coût par image de `PulseClock.tick`
+ * (un parcours de la table) et des écritures `updateStyleAt` exploserait pour une
+ * animation que personne ne peut lire. 240 nœuds = onde visible, coût borné.
+ */
+export const PROPAGATION_MAX = 240
+
+export interface PropagationHit {
+  /** Id du nœud atteint. */
+  readonly id: string
+  /** Distance en sauts depuis la graine (1 = voisin direct). */
+  readonly hops: number
+}
+
+/**
+ * Plan d'onde depuis un nœud : parcours en largeur borné (sauts ET nœuds), dans un
+ * ordre déterministe. Pur : il ne touche ni au temps ni au rendu, il rend la LISTE des
+ * nœuds à réveiller et le saut auquel ils le sont. L'appelant décale chaque impulsion
+ * de `hops × PROPAGATION_STEP_MS` — la forme d'onde est celle de `pulseEnvelope`.
+ */
+export function propagationPlan(
+  seedId: string,
+  neighboursOf: (id: string) => readonly string[],
+  maxHops: number = PROPAGATION_HOPS,
+  maxNodes: number = PROPAGATION_MAX,
+): PropagationHit[] {
+  const seen = new Set<string>([seedId])
+  const out: PropagationHit[] = []
+  let frontier: string[] = [seedId]
+  for (let hop = 1; hop <= maxHops && frontier.length && out.length < maxNodes; hop++) {
+    const next: string[] = []
+    for (const id of frontier) {
+      for (const nb of neighboursOf(id)) {
+        if (!nb || seen.has(nb)) continue
+        seen.add(nb)
+        out.push({ id: nb, hops: hop })
+        next.push(nb)
+        if (out.length >= maxNodes) break
+      }
+      if (out.length >= maxNodes) break
+    }
+    frontier = next
+  }
+  return out
 }

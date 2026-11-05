@@ -2849,6 +2849,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     nodePointsRef,
     linkSegmentsRef,
     nodes: activeGraphData.nodes,
+    links: activeGraphData.links,
     baseNodeStyle: pulseBaseNodeStyle,
     baseLinkStyle: liveBaseLinkStyle,
     animator,
