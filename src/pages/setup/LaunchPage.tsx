@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAtom, useSetAtom } from 'jotai'
 import { Loader2, Rocket, RefreshCw } from 'lucide-react'
 import { setupConfigAtom, configExistsAtom, withSetupModelFallback } from '@/atoms/setup'
+import { pendingSetupProviderAtom } from '@/atoms/setupProvider'
 import { toToolPolicyMode } from '@/types/provider'
 import { SETUP_MODE_SUMMARIES } from '@/constants/toolPolicy'
 import { isTauri } from '@/services/env'
@@ -38,6 +39,7 @@ const TEXT = {
 
 export function LaunchPage() {
   const [config, setConfig] = useAtom(setupConfigAtom)
+  const [pendingProvider] = useAtom(pendingSetupProviderAtom)
   const setConfigExists = useSetAtom(configExistsAtom)
   const [phase, setPhase] = useState<LaunchPhase>('review')
   const [configPath, setConfigPath] = useState<string>('')
@@ -157,7 +159,14 @@ export function LaunchPage() {
 
           <SummaryGroup>
             {config.chatProvider === 'none' ? (
-              <SummaryRow label="Chat provider" value={setupLaunchNoEngineSummary()} />
+              <SummaryRow
+                label="Chat provider"
+                value={
+                  pendingProvider
+                    ? `${pendingProvider.label}: added once the app runs`
+                    : setupLaunchNoEngineSummary()
+                }
+              />
             ) : (
               <>
                 <SummaryRow label="Chat Model" value={config.chatModel || 'Not selected'} />

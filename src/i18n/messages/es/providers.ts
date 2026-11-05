@@ -75,6 +75,7 @@ export default {
     claudeCodeDescription: 'Usa la CLI de Claude Code instalada en esta máquina.',
     otherLabel: 'Otro proveedor (configurar después)',
     otherDescription: 'Omitir por ahora: añade un motor en Ajustes → Proveedores después de la configuración.',
+    codexDescription: 'El programa codex de este equipo, con tu cuenta de OpenAI.',
     noEngineNote: 'Aquí no hay ningún motor configurado. La CLI de Claude Code no es obligatoria: añade un proveedor en Ajustes → Proveedores una vez que la aplicación esté en marcha.',
     launchSummary: 'Para configurar en Ajustes → Proveedores',
     cliAbsentNote: "Claude Code no está instalado en este ordenador. Es opcional: elígelo arriba si quieres usarlo, la aplicación puede instalarlo por ti.",

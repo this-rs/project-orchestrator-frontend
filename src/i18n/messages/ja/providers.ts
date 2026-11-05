@@ -75,6 +75,7 @@ export default {
     claudeCodeDescription: 'このマシンにインストールされた Claude Code CLI を使います。',
     otherLabel: '別のプロバイダー（後で設定）',
     otherDescription: '今はスキップ：セットアップ後に「設定 → プロバイダー」でエンジンを追加します。',
+    codexDescription: 'このコンピューターの codex プログラム。ご自身の OpenAI アカウントでサインイン。',
     noEngineNote: 'ここではエンジンが設定されていません。Claude Code CLI は必須ではありません：アプリの起動後に「設定 → プロバイダー」でプロバイダーを追加してください。',
     launchSummary: '「設定 → プロバイダー」で設定してください',
     cliAbsentNote: "このコンピューターには Claude Code がインストールされていません。任意です。使う場合は上で選択してください。アプリがインストールできます。",

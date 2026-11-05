@@ -19,7 +19,7 @@ export function setupChatEngineOptions(): ReadonlyArray<{
     {
       value: 'codex',
       label: 'Codex',
-      description: 'The codex program of this computer, signed in to your own OpenAI account.',
+      description: tr('providers.setup.codexDescription'),
     },
     {
       value: 'none',
