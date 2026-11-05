@@ -17,6 +17,7 @@ import { BudgetEditor } from './BudgetEditor'
 import { LiveProgress } from './LiveProgress'
 import { formatElapsed } from './shared'
 import type { RunSnapshot, ActiveAgentSnapshot } from '@/services/runner'
+import { useT } from '@/i18n'
 
 export interface StatsRowProps {
   effectiveSnapshot: RunSnapshot
@@ -30,6 +31,7 @@ export interface StatsRowProps {
 const LIVE = new Set(['spawning', 'running', 'verifying'])
 
 export function StatsRow({ effectiveSnapshot, isRunning, resolvedAgents, wavesTotal, planId, onBudgetSave }: StatsRowProps) {
+  const { t } = useT()
   const done = effectiveSnapshot.tasks_completed ?? 0
   const total = effectiveSnapshot.tasks_total ?? 0
   const pct = Math.round(effectiveSnapshot.progress_pct ?? 0)
@@ -52,34 +54,34 @@ export function StatsRow({ effectiveSnapshot, isRunning, resolvedAgents, wavesTo
           size="sm"
           items={[
             <span key="t" className="tabular-nums text-gray-300">
-              {done}/{total} tasks
+              {t('siteOps.statsRow.tasksProgress', { done, total })}
             </span>,
             <span key="p" className="tabular-nums">{pct}%</span>,
-            failed > 0 ? <span key="f" className="text-red-400">{failed} failed</span> : null,
+            failed > 0 ? <span key="f" className="text-red-400">{t('siteOps.statsRow.failed', { count: failed })}</span> : null,
             <span key="e" className="font-mono tabular-nums">{formatElapsed(effectiveSnapshot.elapsed_secs)}</span>,
           ]}
         />
-        <LiveProgress done={done} failed={Math.min(failed, Math.max(0, total - done))} total={total} label="Run progress" />
+        <LiveProgress done={done} failed={Math.min(failed, Math.max(0, total - done))} total={total} label={t('siteOps.statsRow.runProgress')} />
       </div>
 
       <Facts
         columns={3}
         items={[
           {
-            label: 'Budget',
+            label: t('siteOps.statsRow.budget'),
             value: <BudgetEditor costUsd={effectiveSnapshot.cost_usd} costBasis={effectiveSnapshot.cost_basis} maxCostUsd={effectiveSnapshot.max_cost_usd} onSave={handleBudgetSave} />,
           },
           {
-            label: 'Agents',
+            label: t('siteOps.statsRow.agents'),
             value: (
               <span className="tabular-nums">
                 {resolvedAgents.length}
-                {isRunning && live > 0 && <span className="text-indigo-300"> · {live} running</span>}
+                {isRunning && live > 0 && <span className="text-indigo-300"> · {t('siteOps.statsRow.running', { count: live })}</span>}
               </span>
             ),
           },
           {
-            label: 'Wave',
+            label: t('siteOps.statsRow.wave'),
             value: currentWave != null ? <span className="tabular-nums">{currentWave}{wavesTotal ? ` / ${wavesTotal}` : ''}</span> : '—',
           },
         ]}

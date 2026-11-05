@@ -5,6 +5,7 @@ import { hasKnownPrice } from '@/constants/runProviders'
 import { useRunTarget } from '@/hooks/useRunTarget'
 import type { PendingRun } from '@/hooks/useRunTargetGate'
 import { RunTargetPicker } from './RunTargetPicker'
+import { useT } from '@/i18n'
 
 interface RunTargetDialogProps {
   pending: PendingRun | null
@@ -22,6 +23,7 @@ export function RunTargetDialog({ pending, onCancel }: RunTargetDialogProps) {
 }
 
 function OpenRunTargetDialog({ pending, onCancel }: { pending: PendingRun; onCancel: () => void }) {
+  const { t } = useT()
   const target = useRunTarget(pending.projectSlug)
   const [busy, setBusy] = useState(false)
   const unpriced = target.visible && !hasKnownPrice(target.instance)
@@ -50,14 +52,14 @@ function OpenRunTargetDialog({ pending, onCancel }: { pending: PendingRun; onCan
       className="fixed inset-0 z-50 flex items-center justify-center"
       role="dialog"
       aria-modal="true"
-      aria-label="Choose where to run"
+      aria-label={t('siteOps.runTargetDialog.ariaLabel')}
       onKeyDown={(e) => {
         if (e.key === 'Escape' && !busy) onCancel()
       }}
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={busy ? undefined : onCancel} />
       <div ref={panel} tabIndex={-1} className="relative outline-none bg-[#1a1a2e] border border-white/[0.08] rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 space-y-4">
-        <h3 className="text-lg font-semibold text-gray-100">Run on which provider?</h3>
+        <h3 className="text-lg font-semibold text-gray-100">{t('siteOps.runTargetDialog.title')}</h3>
         <p className="text-sm text-gray-400 truncate">{pending.title}</p>
         {(pending.projectName || pending.folder) && (
           <p className="text-xs text-gray-500">
@@ -69,11 +71,11 @@ function OpenRunTargetDialog({ pending, onCancel }: { pending: PendingRun; onCan
         <RunTargetPicker target={target} />
         <div className="flex items-center justify-end gap-2 pt-2">
           <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
-            Cancel
+            {t('siteOps.runTargetDialog.cancel')}
           </Button>
           <Button variant="primary" size="sm" onClick={confirm} loading={busy}>
             <Rocket className="w-4 h-4 mr-1.5" />
-            Launch
+            {t('siteOps.runTargetDialog.launch')}
           </Button>
         </div>
       </div>

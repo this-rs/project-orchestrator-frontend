@@ -33,13 +33,13 @@ import {
   ToneText,
   groupBy,
   inlineLink,
-  pluralize,
   rowInteractive,
   Button,
 } from '@/components/ui'
 import { Explainer } from '@/components/protocols/Explainer'
 import { iconButton } from '@/components/ui/classes'
 import { useToast, useWorkspaceSlug } from '@/hooks'
+import { useT, activeTranslator } from '@/i18n'
 import { workspacePath } from '@/utils/paths'
 import { NOMENCLATURE } from '@/constants/nomenclature'
 
@@ -49,10 +49,11 @@ import { NOMENCLATURE } from '@/constants/nomenclature'
 
 type StatusFilter = 'all' | 'enabled' | 'disabled'
 
+// Getters: the labels follow the active language at read time, not at module load.
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'enabled', label: 'Enabled' },
-  { value: 'disabled', label: 'Disabled' },
+  { value: 'all', get label() { return activeTranslator().t('siteOps.triggers.allStatuses') } },
+  { value: 'enabled', get label() { return activeTranslator().t('siteOps.triggers.enabled') } },
+  { value: 'disabled', get label() { return activeTranslator().t('siteOps.triggers.disabled') } },
 ]
 
 const GROUP_ORDER = ['enabled', 'disabled'] as const
@@ -77,6 +78,7 @@ function matches(t: EventTrigger, protocolName: string | undefined, q: string): 
 // ---------------------------------------------------------------------------
 
 export function TriggerDashboardPage() {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const toast = useToast()
 
@@ -115,7 +117,7 @@ export function TriggerDashboardPage() {
       )
       setProtocols(map)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load triggers')
+      setError(err instanceof Error ? err.message : t('siteOps.triggers.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -137,9 +139,9 @@ export function TriggerDashboardPage() {
           ? { ...prev, enabled: prev.enabled + (trigger.enabled ? -1 : 1), disabled: prev.disabled + (trigger.enabled ? 1 : -1) }
           : prev,
       )
-      toast.success(trigger.enabled ? `Trigger “${trigger.name}” disabled` : `Trigger “${trigger.name}” enabled`)
+      toast.success(trigger.enabled ? t('siteOps.triggers.disabledToast', { name: trigger.name }) : t('siteOps.triggers.enabledToast', { name: trigger.name }))
     } catch {
-      toast.error('Failed to update the trigger')
+      toast.error(t('siteOps.triggers.updateFailed'))
       fetchData()
     } finally {
       setBusyId(null)
@@ -160,9 +162,9 @@ export function TriggerDashboardPage() {
             }
           : prev,
       )
-      toast.success('Trigger deleted')
+      toast.success(t('siteOps.triggers.deleted'))
     } catch {
-      toast.error('Failed to delete the trigger')
+      toast.error(t('siteOps.triggers.deleteFailed'))
     }
   }
 
@@ -176,12 +178,12 @@ export function TriggerDashboardPage() {
     // stats.by_entity_type may know types the (deduped) list does not
     for (const e of stats?.by_entity_type ?? []) if (!counts.has(e.entity_type)) counts.set(e.entity_type, e.count)
     return [
-      { value: 'all', label: 'All entity types' },
+      { value: 'all', label: t('siteOps.triggers.allEntityTypes') },
       ...[...counts.entries()]
         .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([k, n]) => ({ value: k, label: `${patternLabel(k) === 'any' ? 'Any entity' : k} (${n})` })),
+        .map(([k, n]) => ({ value: k, label: `${patternLabel(k) === 'any' ? t('siteOps.triggers.anyEntity') : k} (${n})` })),
     ]
-  }, [triggers, stats])
+  }, [triggers, stats, t])
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -218,7 +220,7 @@ export function TriggerDashboardPage() {
           <FilterBar
             search={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Search triggers…"
+            searchPlaceholder={t('siteOps.triggers.searchPlaceholder')}
             activeCount={activeCount}
             activeLabels={activeLabels}
             onClear={clearFilters}
@@ -233,7 +235,7 @@ export function TriggerDashboardPage() {
                 type="button"
                 onClick={fetchData}
                 disabled={loading}
-                aria-label="Refresh"
+                aria-label={t('siteOps.triggers.refresh')}
                 className={`${iconButton('ghost', 'size-9 md:size-8')} text-gray-400`}
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
@@ -241,24 +243,22 @@ export function TriggerDashboardPage() {
             }
           />
           <Explainer>
-            A trigger is a persistent rule: an event of the project (an entity type and an action, with optional
-            conditions on the payload and a cooldown) starts a run of the protocol it names, a procedure the assistant
-            follows step by step. Enable or disable a trigger from its ⋯ menu.
+            {t('siteOps.triggers.explainer')}
           </Explainer>
         </div>
       }
     >
       {error ? (
-        <ErrorState title="Failed to load triggers" description={error} onRetry={fetchData} />
+        <ErrorState title={t('siteOps.triggers.loadFailed')} description={error} onRetry={fetchData} />
       ) : loading ? (
         <EntityListSkeleton rows={5} />
       ) : visible.length === 0 ? (
         <EmptyState
-          title={pristine ? 'No triggers yet' : 'No matching triggers'}
+          title={pristine ? t('siteOps.triggers.emptyTitle') : t('siteOps.triggers.noMatchTitle')}
           description={
             pristine
-              ? 'Ask an assistant to create one, from a protocol: it appears here as soon as it is saved.'
-              : 'Try another search or clear the filters.'
+              ? t('siteOps.triggers.emptyHint')
+              : t('siteOps.triggers.noMatchHint')
           }
           action={
             pristine ? undefined : (
@@ -274,9 +274,9 @@ export function TriggerDashboardPage() {
             <MetaLine
               className="px-1"
               items={[
-                <ToneText key="on" tone="success" label={`${stats.enabled} enabled`} />,
-                <ToneText key="off" tone="muted" label={`${stats.disabled} disabled`} />,
-                stats.by_entity_type.length > 0 ? pluralize(stats.by_entity_type.length, 'entity type') : null,
+                <ToneText key="on" tone="success" label={t('siteOps.triggers.enabledCount', { count: stats.enabled })} />,
+                <ToneText key="off" tone="muted" label={t('siteOps.triggers.disabledCount', { count: stats.disabled })} />,
+                stats.by_entity_type.length > 0 ? (stats.by_entity_type.length === 1 ? t('siteOps.triggers.entityTypeOne') : t('siteOps.triggers.entityTypeOther', { count: stats.by_entity_type.length })) : null,
               ]}
             />
           )}
@@ -284,7 +284,7 @@ export function TriggerDashboardPage() {
             {groups.map(({ key, items }) => (
               <ListGroup
                 key={key}
-                title={key === 'enabled' ? 'Enabled' : 'Disabled'}
+                title={key === 'enabled' ? t('siteOps.triggers.enabled') : t('siteOps.triggers.disabled')}
                 count={items.length}
                 collapsible={key === 'disabled'}
               >
@@ -322,6 +322,7 @@ interface TriggerRowProps {
 }
 
 function TriggerRow({ trigger, protocol, protocolHref, busy, onToggle, onDelete }: TriggerRowProps) {
+  const { t } = useT()
   const conditions = trigger.payload_conditions ? Object.keys(trigger.payload_conditions).length : 0
   return (
     <EntityRow
@@ -329,48 +330,48 @@ function TriggerRow({ trigger, protocol, protocolHref, busy, onToggle, onDelete 
       muted={!trigger.enabled}
       tone={trigger.enabled ? 'success' : 'muted'}
       trailing={<RelativeTime date={trigger.updated_at} />}
-      status={[<ToneText key="s" tone={trigger.enabled ? 'success' : 'muted'} icon label={trigger.enabled ? 'Enabled' : 'Disabled'} />]}
+      status={[<ToneText key="s" tone={trigger.enabled ? 'success' : 'muted'} icon label={trigger.enabled ? t('siteOps.triggers.enabled') : t('siteOps.triggers.disabled')} />]}
       meta={[
         <span key="on" className="break-words">
-          on <span className="text-gray-300">{patternLabel(trigger.entity_type_pattern)}</span>
+          {t('siteOps.triggers.on')} <span className="text-gray-300">{patternLabel(trigger.entity_type_pattern)}</span>
           {' · '}
           <span className="font-mono text-gray-300">{patternLabel(trigger.action_pattern)}</span>
         </span>,
         trigger.project_scope ? (
-          <Fact key="scope" icon={FolderKanban} title="Project scope">
-            {`scope ${trigger.project_scope}`}
+          <Fact key="scope" icon={FolderKanban} title={t('siteOps.triggers.projectScope')}>
+            {t('siteOps.triggers.scopeFact', { scope: trigger.project_scope })}
           </Fact>
         ) : null,
         trigger.cooldown_secs > 0 ? (
-          <Fact key="cd" icon={Timer} title="Cooldown">
-            {`${trigger.cooldown_secs}s cooldown`}
+          <Fact key="cd" icon={Timer} title={t('siteOps.triggers.cooldown')}>
+            {t('siteOps.triggers.cooldownFact', { secs: trigger.cooldown_secs })}
           </Fact>
         ) : null,
-        conditions > 0 ? pluralize(conditions, 'condition') : null,
+        conditions > 0 ? (conditions === 1 ? t('siteOps.triggers.conditionOne') : t('siteOps.triggers.conditionOther', { count: conditions })) : null,
       ]}
       context={
         <Link to={protocolHref} className={`${rowInteractive} ${inlineLink} inline-flex items-center gap-1 text-[11px] leading-4 min-w-0 max-w-full`}>
           <Workflow className="w-3 h-3 shrink-0 text-gray-500" aria-hidden="true" />
-          <span className="text-gray-500">Starts</span>{' '}
-          <span className="truncate">{protocol?.name ?? `protocol ${trigger.protocol_id.slice(0, 8)}…`}</span>
+          <span className="text-gray-500">{t('siteOps.triggers.starts')}</span>{' '}
+          <span className="truncate">{protocol?.name ?? t('siteOps.triggers.protocolFallback', { id: trigger.protocol_id.slice(0, 8) })}</span>
         </Link>
       }
       actions={[
         {
-          label: trigger.enabled ? 'Disable' : 'Enable',
+          label: trigger.enabled ? t('siteOps.triggers.disable') : t('siteOps.triggers.enable'),
           icon: trigger.enabled ? ZapOff : Zap,
           disabled: busy,
           onClick: onToggle,
         },
         {
-          label: 'Delete',
+          label: t('siteOps.triggers.delete'),
           icon: Trash2,
           variant: 'danger',
           onClick: onDelete,
           confirm: {
-            title: 'Delete trigger?',
-            description: `“${trigger.name}” will stop starting its protocol. This cannot be undone.`,
-            confirmLabel: 'Delete',
+            title: t('siteOps.triggers.deleteTitle'),
+            description: t('siteOps.triggers.deleteDescription', { name: trigger.name }),
+            confirmLabel: t('siteOps.triggers.delete'),
           },
         },
       ]}

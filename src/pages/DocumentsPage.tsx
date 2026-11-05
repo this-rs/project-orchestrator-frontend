@@ -27,23 +27,24 @@ import {
 } from '@/components/ui'
 import { fetchAllPages } from '@/services/paginate'
 import { useToast, useWorkspaceSlug } from '@/hooks'
+import { useT, activeTranslator } from '@/i18n'
 import { documentsApi } from '@/services/documents'
 import { workspacesApi } from '@/services/workspaces'
 import type { DocumentSummary, Project } from '@/types'
 import { NOMENCLATURE } from '@/constants/nomenclature'
-import { READABLE_FORMATS, uploadFailureText, uploadOutcomeNote } from './documents/uploadOutcome'
+import { readableFormats, uploadFailureText, uploadOutcomeNote } from './documents/uploadOutcome'
 
 type Kind = 'spreadsheet' | 'presentation' | 'text' | 'other'
 
 /** Server format ("xlsx", "pptx", "markdown"…) → what the person calls it. */
 export function documentKind(format: string): { kind: Kind; label: string; icon: LucideIcon } {
   const f = (format || '').toLowerCase()
-  if (['xlsx', 'xls', 'csv', 'ods', 'spreadsheet'].includes(f)) return { kind: 'spreadsheet', label: 'Spreadsheet', icon: FileSpreadsheet }
-  if (['pptx', 'ppt', 'odp', 'presentation'].includes(f)) return { kind: 'presentation', label: 'Presentation', icon: Presentation }
+  if (['xlsx', 'xls', 'csv', 'ods', 'spreadsheet'].includes(f)) return { kind: 'spreadsheet', label: activeTranslator().t('siteOps.documents.kindSpreadsheet'), icon: FileSpreadsheet }
+  if (['pptx', 'ppt', 'odp', 'presentation'].includes(f)) return { kind: 'presentation', label: activeTranslator().t('siteOps.documents.kindPresentation'), icon: Presentation }
   if (['docx', 'doc', 'odt', 'pdf', 'markdown', 'md', 'txt', 'text', 'html', 'rtf'].includes(f)) {
-    return { kind: 'text', label: f === 'pdf' ? 'PDF' : 'Document', icon: FileText }
+    return { kind: 'text', label: f === 'pdf' ? 'PDF' : activeTranslator().t('siteOps.documents.kindDocument'), icon: FileText }
   }
-  return { kind: 'other', label: f && f !== 'binary' ? f.toUpperCase() : 'File', icon: FileIcon }
+  return { kind: 'other', label: f && f !== 'binary' ? f.toUpperCase() : activeTranslator().t('siteOps.documents.kindFile'), icon: FileIcon }
 }
 
 export function formatBytes(n: number): string {
@@ -58,6 +59,7 @@ export function formatBytes(n: number): string {
  * filterable by project. Uploading reads the text so assistants can use it.
  */
 export function DocumentsPage() {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const toast = useToast()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -86,7 +88,7 @@ export function DocumentsPage() {
       setDocs(merged)
       setProjects(proj)
     } catch {
-      setError('Could not load the documents')
+      setError(t('siteOps.documents.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -125,7 +127,7 @@ export function DocumentsPage() {
       setProgress(null)
       if (inputRef.current) inputRef.current.value = ''
       if (ok > 0) {
-        toast.success(ok === 1 ? 'Document added' : `${ok} documents added`)
+        toast.success(ok === 1 ? t('siteOps.documents.added') : t('siteOps.documents.addedMany', { count: ok }))
         await load()
       }
     },
@@ -136,10 +138,10 @@ export function DocumentsPage() {
     async (doc: DocumentSummary) => {
       try {
         await documentsApi.remove(doc.id)
-        toast.success('Document deleted')
+        toast.success(t('siteOps.documents.deleted'))
         await load()
       } catch {
-        toast.error('Could not delete the document')
+        toast.error(t('siteOps.documents.deleteFailed'))
       }
     },
     [load, toast],
@@ -153,7 +155,7 @@ export function DocumentsPage() {
   const showProjectFilter = projects.length > 1
   const activeCount = projectId ? 1 : 0
   const pristine = docs.length === 0 && !projectId && !search
-  const uploadLabel = progress ? (progress.total > 1 ? `Uploading ${Math.min(progress.done + 1, progress.total)} of ${progress.total}…` : 'Uploading…') : 'Upload'
+  const uploadLabel = progress ? (progress.total > 1 ? t('siteOps.documents.uploadingOf', { current: Math.min(progress.done + 1, progress.total), total: progress.total }) : t('siteOps.documents.uploading')) : t('siteOps.documents.upload')
   const openPicker = () => inputRef.current?.click()
 
   return (
@@ -167,15 +169,15 @@ export function DocumentsPage() {
         <FilterBar
           search={search}
           onSearchChange={setSearch}
-          searchPlaceholder="Search documents…"
-          searchLabel="Search documents"
+          searchPlaceholder={t('siteOps.documents.searchPlaceholder')}
+          searchLabel={t('siteOps.documents.searchLabel')}
           activeCount={activeCount}
           activeLabels={[projectId ? projectName.get(projectId) ?? '' : '']}
           onClear={() => setProjectId('')}
           filters={
             showProjectFilter ? (
               <Select
-                options={[{ value: '', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+                options={[{ value: '', label: t('siteOps.documents.allProjects') }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
                 value={projectId}
                 onChange={setProjectId}
                 icon={<Folder className="w-3 h-3" />}
@@ -191,14 +193,14 @@ export function DocumentsPage() {
             type="file"
             multiple
             hidden
-            aria-label="Choose files to upload"
+            aria-label={t('siteOps.documents.chooseFiles')}
             onChange={(e) => onFiles(e.target.files)}
           />
           <Button
             size="sm"
             loading={uploading}
             disabled={!canUpload}
-            title={canUpload ? undefined : 'Choose a project first — documents are filed under a project'}
+            title={canUpload ? undefined : t('siteOps.documents.chooseProjectFirst')}
             onClick={openPicker}
           >
             {!uploading && <Upload className="w-4 h-4 mr-1.5" aria-hidden="true" />}
@@ -215,22 +217,22 @@ export function DocumentsPage() {
         pristine ? (
           <EmptyState
             size="page"
-            title="No documents yet"
+            title={t('siteOps.documents.emptyTitle')}
             description={
               canUpload
-                ? `Upload a spreadsheet, a deck, a PDF or a note: it is filed with the project, assistants read its text, and the original stays with you. This server reads ${READABLE_FORMATS}.`
-                : `Choose a project, then upload a spreadsheet, a deck, a PDF or a note: it is filed with the project, assistants read its text, and the original stays with you.`
+                ? t('siteOps.documents.emptyUpload', { formats: readableFormats() })
+                : t('siteOps.documents.emptyChoose')
             }
             action={
               <Button size="sm" disabled={!canUpload} onClick={openPicker}>
-                Upload
+                {t('siteOps.documents.upload')}
               </Button>
             }
           />
         ) : (
           <EmptyState
-            title="No matching documents"
-            description="No document matches the search or the project filter."
+            title={t('siteOps.documents.noMatchTitle')}
+            description={t('siteOps.documents.noMatchDescription')}
             action={
               <Button
                 size="sm"
@@ -240,17 +242,17 @@ export function DocumentsPage() {
                   setProjectId('')
                 }}
               >
-                Clear
+                {t('siteOps.documents.clear')}
               </Button>
             }
           />
         )
       ) : (
-        <EntityList aria-label="Documents">
+        <EntityList aria-label={t('siteOps.documents.listLabel')}>
           {filtered.map((doc) => {
             const k = documentKind(doc.format)
             const Icon = k.icon
-            const pages = doc.page_count > 0 ? `${doc.page_count} ${doc.page_count === 1 ? 'page' : 'pages'}` : null
+            const pages = doc.page_count > 0 ? (doc.page_count === 1 ? t('siteOps.documents.pageOne') : t('siteOps.documents.pageOther', { count: doc.page_count })) : null
             const unreadable = doc.extracted === false
             return (
               <EntityRow
@@ -258,33 +260,33 @@ export function DocumentsPage() {
                 title={doc.filename}
                 leading={<Icon className="w-4 h-4 text-indigo-400" aria-hidden="true" />}
                 trailing={doc.created_at ? <RelativeTime date={doc.created_at} /> : undefined}
-                status={unreadable ? [<ToneText key="u" tone="muted" icon label="Stored, not readable" />] : undefined}
+                status={unreadable ? [<ToneText key="u" tone="muted" icon label={t('siteOps.documents.notReadable')} />] : undefined}
                 meta={[
-                  <Fact key="kind" icon={Icon} title="Type">
+                  <Fact key="kind" icon={Icon} title={t('siteOps.documents.typeLabel')}>
                     {k.label}
                   </Fact>,
                   pages,
                   formatBytes(doc.size_bytes),
                   doc.project_id && projectName.get(doc.project_id) ? (
-                    <Fact key="project" icon={FolderKanban} title="Project" truncateAt="max-w-[12rem]">
+                    <Fact key="project" icon={FolderKanban} title={t('siteOps.documents.projectLabel')} truncateAt="max-w-[12rem]">
                       {projectName.get(doc.project_id)}
                     </Fact>
                   ) : null,
                 ]}
                 actions={[
                   {
-                    label: 'Open original',
+                    label: t('siteOps.documents.openOriginal'),
                     icon: ExternalLink,
                     onClick: () => {
                       window.open(documentsApi.rawUrl(doc.id), '_blank', 'noopener')
                     },
                   },
                   {
-                    label: 'Delete',
+                    label: t('siteOps.documents.delete'),
                     icon: Trash2,
                     variant: 'danger',
                     onClick: () => remove(doc),
-                    confirm: { title: 'Delete document?', description: `“${doc.filename}” will be permanently deleted.` },
+                    confirm: { title: t('siteOps.documents.deleteTitle'), description: t('siteOps.documents.deleteDescription', { name: doc.filename }) },
                   },
                 ]}
               />

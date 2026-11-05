@@ -7,6 +7,7 @@ import { focusRing, inlineLink } from '@/components/ui/classes'
 import { ReplyAction } from '@/components/today/ThreadRow'
 import { useAttentionDigest, useRequestAttentionRefresh } from '@/hooks/useAttentionCount'
 import { useToast } from '@/hooks/useToast'
+import { activeTranslator, useT } from '@/i18n'
 import { attentionApi } from '@/services/attention'
 import { planRunTarget, runnerApi } from '@/services/runner'
 import { workspacePath } from '@/utils/paths'
@@ -29,17 +30,15 @@ import { useLinkedForest, type LinkedEntity } from './useLinkedForest'
  * - Limits of the server are written in the footer, not hidden.
  */
 
+// Read at call time, like ATTACH_TEXT: the getters follow the language on screen.
 export const LINKED_TEXT = {
-  empty: 'Aucune discussion liée à ce plan, cette tâche ou ce run.',
-  emptyHelp:
-    "Les discussions se lient seules quand le runner exécute une tâche, ou à la main depuis une conversation (« Rattacher à… »).",
-  limits:
-    "Rattacher : un plan ou une tâche du même projet seulement ; un run se retrouve par son plan. Détacher : le serveur n'a pas de route de détachement, un rattachement ne peut donc pas être annulé depuis l'application.",
-  treeErrors: (n: number) =>
-    `${n} arbre${n > 1 ? 's' : ''} de sous-discussions n'${n > 1 ? 'ont' : 'a'} pas pu être lu${n > 1 ? 's' : ''} : ${n > 1 ? 'ces sessions sont' : 'cette session est'} affichée${n > 1 ? 's' : ''} sans ${n > 1 ? 'leurs' : 'sa'} descendance.`,
-  resumeStarted: 'Reprise lancée.',
-  retryStarted: 'Tâche relancée.',
-  actionFailed: "L'action a échoué.",
+  get empty() { return activeTranslator().t('siteChat.linked.empty') },
+  get emptyHelp() { return activeTranslator().t('siteChat.linked.emptyHelp') },
+  get limits() { return activeTranslator().t('siteChat.linked.limits') },
+  treeErrors: (n: number) => activeTranslator().t(n === 1 ? 'siteChat.linked.treeErrors.one' : 'siteChat.linked.treeErrors.other', { count: n }),
+  get resumeStarted() { return activeTranslator().t('siteChat.linked.resumeStarted') },
+  get retryStarted() { return activeTranslator().t('siteChat.linked.retryStarted') },
+  get actionFailed() { return activeTranslator().t('siteChat.linked.actionFailed') },
 }
 
 export interface LinkedDiscussionsProps {
@@ -138,6 +137,7 @@ function ActionButton({
 }
 
 export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlug, resume, hideCount, onCountChange, onChanged }: LinkedDiscussionsProps) {
+  const { t } = useT()
   const { forest, isLoading, error, treeErrors, refresh } = useLinkedForest(entity)
   const digest = useAttentionDigest()
   const requestAttentionRefresh = useRequestAttentionRefresh()
@@ -202,11 +202,11 @@ export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlu
   if (error && !forest) {
     return (
       <EmptyState
-        title="Discussions indisponibles"
+        title={t('siteChat.linked.unavailable')}
         description={error}
         action={
           <Button size="sm" variant="secondary" onClick={refresh}>
-            Réessayer
+            {t('siteChat.linked.retry')}
           </Button>
         }
       />
@@ -215,7 +215,7 @@ export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlu
   if (isLoading && !forest) {
     return (
       <div className="flex items-center gap-2 py-6 text-sm text-gray-400" role="status">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Chargement des discussions…
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {t('siteChat.linked.loading')}
       </div>
     )
   }
@@ -234,7 +234,6 @@ export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlu
           isLoading={isLoading}
           onRefresh={refresh}
           renderActions={renderActions}
-          title="Arbre de discussions"
           headerExtra={hideCount ? undefined : <span className="text-xs tabular-nums text-gray-400">{count}</span>}
         />
       )}
@@ -245,7 +244,7 @@ export function LinkedDiscussions({ entity, projectId, projectSlug, workspaceSlu
       )}
       <details className="text-xs text-gray-400" data-testid="linked-limits">
         <summary className={`inline-flex min-h-9 cursor-pointer items-center rounded text-gray-400 hover:text-gray-200 ${focusRing}`}>
-          Limites du rattachement
+          {t('siteChat.linked.limitsSummary')}
         </summary>
         <p className="pb-2">{LINKED_TEXT.limits}</p>
       </details>

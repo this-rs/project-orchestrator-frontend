@@ -8,11 +8,13 @@
 import type { ToolRendererProps } from './types'
 import { detectLanguage, tokenizeLine, getExtBadgeColor, getFileExtension } from './syntax'
 import { toolImageDataUrl, toolResultImages } from './toolResultImages'
+import { useT } from '@/i18n'
 
 /** Max lines to preview in expanded view */
 const MAX_PREVIEW_LINES = 25
 
 export function ReadToolRenderer({ toolInput, resultContent, isError, isLoading }: ToolRendererProps) {
+  const { t } = useT()
   const filePath = (toolInput.file_path as string) ?? ''
   // An image the agent read is shown as the picture, never as its base64 text.
   const images = !isLoading && !isError ? toolResultImages(resultContent) : []
@@ -50,7 +52,7 @@ export function ReadToolRenderer({ toolInput, resultContent, isError, isLoading 
       {/* File path header */}
       <div className="flex items-center gap-2 px-3 py-1.5 bg-black/30 rounded-t-md font-mono text-xs text-gray-500">
         <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-900/40 text-blue-400 border border-blue-800/30">
-          READ
+          {t('siteChat.toolRender.read')}
         </span>
         {ext && (
           <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${badgeColor}`}>
@@ -68,7 +70,7 @@ export function ReadToolRenderer({ toolInput, resultContent, isError, isLoading 
               key={i}
               data-testid="tool-result-image"
               src={toolImageDataUrl(image)}
-              alt={filePath || 'image'}
+              alt={filePath || t('siteChat.toolRender.imageAlt')}
               className="block max-w-full max-h-96 h-auto rounded border border-white/[0.06] bg-black/30 object-contain"
             />
           ))}
@@ -106,7 +108,7 @@ export function ReadToolRenderer({ toolInput, resultContent, isError, isLoading 
             })}
             {truncated > 0 && (
               <div className="text-gray-600 italic select-none pl-2 py-0.5">
-                ... {truncated} more line{truncated > 1 ? 's' : ''}
+                {t(truncated === 1 ? 'siteChat.toolRender.moreLines.one' : 'siteChat.toolRender.moreLines.other', { count: truncated })}
               </div>
             )}
           </pre>
@@ -116,13 +118,13 @@ export function ReadToolRenderer({ toolInput, resultContent, isError, isLoading 
       {/* Empty result */}
       {!isLoading && resultContent != null && resultContent.length === 0 && (
         <div className="border-t border-white/[0.04] rounded-b-md bg-black/20 px-3 py-1.5">
-          <span className="text-xs text-gray-600 italic">empty file</span>
+          <span className="text-xs text-gray-600 italic">{t('siteChat.toolRender.emptyFile')}</span>
         </div>
       )}
 
       {isLoading && (
         <div className="border-t border-white/[0.04] rounded-b-md bg-black/20 px-3 py-1.5">
-          <span className="text-xs text-gray-600 animate-pulse">reading...</span>
+          <span className="text-xs text-gray-600 animate-pulse">{t('siteChat.toolRender.reading')}</span>
         </div>
       )}
     </div>

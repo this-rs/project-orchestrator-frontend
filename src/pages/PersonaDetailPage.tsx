@@ -22,7 +22,6 @@ import {
   formatCost,
   formatDurationMs,
   getStatusMeta,
-  pluralize,
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui'
 import {
@@ -39,6 +38,12 @@ import { useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { Persona, PersonaOrigin, PersonaStatus, PersonaSubgraph, PersonaSubgraphRelation } from '@/types'
 import { decisionTitle, noteTitle } from '@/components/knowledge/noteMeta'
+import { activeTranslator, useT, type MessageKey } from '@/i18n'
+
+type Translate = ReturnType<typeof useT>['t']
+type Noun = 'member' | 'activation' | 'day' | 'hop'
+/** `1 activation` / `2 activations`, from the `nouns` keys. */
+const count = (t: Translate, n: number, noun: Noun) => t(`siteSkills.nouns.${noun}.${n === 1 ? 'one' : 'other'}`, { count: n })
 
 // ── Relation kinds ──────────────────────────────────────────────────────
 
@@ -46,7 +51,8 @@ type RelationKey = 'files' | 'functions' | 'notes' | 'decisions' | 'skills' | 'p
 
 interface RelationKind {
   key: RelationKey
-  label: string
+  /** Translation key of the group title. */
+  labelKey: MessageKey
   /** Detail route of the target, if any (workspace-relative). */
   route?: (id: string) => string
   /** The target id is a code path (rendered mono, not resolved). */
@@ -54,20 +60,20 @@ interface RelationKind {
 }
 
 const RELATION_KINDS: RelationKind[] = [
-  { key: 'files', label: 'Files', code: true },
-  { key: 'functions', label: 'Functions', code: true },
-  { key: 'notes', label: 'Notes' },
-  { key: 'decisions', label: 'Decisions', route: (id) => `/decisions/${id}` },
-  { key: 'skills', label: 'Skills', route: (id) => `/skills/${id}` },
-  { key: 'protocols', label: 'Protocols', route: (id) => `/protocols/${id}` },
-  { key: 'parents', label: 'Extends (inherits from)', route: (id) => `/personas/${id}` },
-  { key: 'children', label: 'Extended by', route: (id) => `/personas/${id}` },
+  { key: 'files', labelKey: 'siteSkills.personaDetail.relations.files', code: true },
+  { key: 'functions', labelKey: 'siteSkills.personaDetail.relations.functions', code: true },
+  { key: 'notes', labelKey: 'siteSkills.personaDetail.relations.notes' },
+  { key: 'decisions', labelKey: 'siteSkills.personaDetail.relations.decisions', route: (id) => `/decisions/${id}` },
+  { key: 'skills', labelKey: 'siteSkills.personaDetail.relations.skills', route: (id) => `/skills/${id}` },
+  { key: 'protocols', labelKey: 'siteSkills.personaDetail.relations.protocols', route: (id) => `/protocols/${id}` },
+  { key: 'parents', labelKey: 'siteSkills.personaDetail.relations.parents', route: (id) => `/personas/${id}` },
+  { key: 'children', labelKey: 'siteSkills.personaDetail.relations.children', route: (id) => `/personas/${id}` },
 ]
 
-const ORIGIN_LABEL: Record<PersonaOrigin, string> = {
-  manual: 'Manual',
-  auto_build: 'Auto-built',
-  imported: 'Imported',
+const ORIGIN_LABEL: Record<PersonaOrigin, MessageKey> = {
+  manual: 'siteSkills.personaDetail.origin.manual',
+  auto_build: 'siteSkills.personaDetail.origin.autoBuild',
+  imported: 'siteSkills.personaDetail.origin.imported',
 }
 
 /** Max targets resolved to a readable name per relation kind. */
@@ -78,13 +84,15 @@ const RESOLVE_CAP = 50
  * `45s`, `1m 30s`, `5m`, `1h 5m`. Measured averages keep `formatDurationMs`.
  */
 function formatSecondsExact(secs: number): string {
+  const t = activeTranslator().t
+  const [unitS, unitM, unitH] = [t('siteRest.units.s'), t('siteRest.units.m'), t('siteRest.units.h')]
   const s = Math.max(0, Math.round(secs))
-  if (s < 60) return `${s}s`
+  if (s < 60) return `${s}${unitS}`
   const m = Math.floor(s / 60)
   const rest = s % 60
-  if (m < 60) return rest ? `${m}m ${rest}s` : `${m}m`
+  if (m < 60) return rest ? `${m}${unitM} ${rest}${unitS}` : `${m}${unitM}`
   const h = Math.floor(m / 60)
-  return m % 60 ? `${h}h ${m % 60}m` : `${h}h`
+  return m % 60 ? `${h}${unitH} ${m % 60}${unitM}` : `${h}${unitH}`
 }
 
 interface Resolved {
@@ -101,6 +109,7 @@ export function PersonaDetailPage() {
   const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
   const toast = useToast()
+  const { t } = useT()
 
   const [persona, setPersona] = useState<Persona | null>(null)
   const [subgraph, setSubgraph] = useState<PersonaSubgraph | null>(null)
@@ -193,9 +202,9 @@ export function PersonaDetailPage() {
     if (!persona) return
     try {
       setPersona(await personasApi.update(persona.id, { status }))
-      toast.success(`Status changed to ${getStatusMeta('persona', status).label}`)
+      toast.success(t('siteSkills.common.statusChanged', { status: getStatusMeta('persona', status).label }))
     } catch {
-      toast.error('Failed to update status')
+      toast.error(t('siteSkills.common.statusFailed'))
     }
   }
 
@@ -203,7 +212,7 @@ export function PersonaDetailPage() {
     if (!persona) return
     // Errors are surfaced by FormDialog (toast, dialog stays open)
     setPersona(await personasApi.update(persona.id, data))
-    toast.success('Persona updated')
+    toast.success(t('siteSkills.personaDetail.saved'))
   }
 
   const handleActivate = async () => {
@@ -211,10 +220,10 @@ export function PersonaDetailPage() {
     setActivating(true)
     try {
       await personasApi.activate(persona.id)
-      toast.success('Persona activated')
+      toast.success(t('siteSkills.personaDetail.activated'))
       await loadPersona()
     } catch {
-      toast.error('Failed to activate persona')
+      toast.error(t('siteSkills.personaDetail.activateFailed'))
     } finally {
       setActivating(false)
     }
@@ -224,10 +233,10 @@ export function PersonaDetailPage() {
     if (!persona) return
     try {
       await personasApi.delete(persona.id)
-      toast.success(`Persona “${persona.name}” deleted`)
+      toast.success(t('siteSkills.personas.toast.deleted', { name: persona.name }))
       navigate(workspacePath(wsSlug, '/personas'))
     } catch {
-      toast.error('Failed to delete persona')
+      toast.error(t('siteSkills.personas.toast.deleteFailed'))
     }
   }
 
@@ -250,9 +259,9 @@ export function PersonaDetailPage() {
     try {
       await remove(entityId)
       setSubgraph((sg) => (sg ? { ...sg, [kind.key]: (sg[kind.key] ?? []).filter((r) => r.entity_id !== entityId) } : sg))
-      toast.success('Link removed')
+      toast.success(t('siteSkills.personaDetail.linkRemoved'))
     } catch {
-      toast.error('Failed to remove link')
+      toast.error(t('siteSkills.personaDetail.linkRemoveFailed'))
     }
   }
 
@@ -275,18 +284,19 @@ export function PersonaDetailPage() {
       <PageContainer width="wide">
         <ErrorState
           icon={<Users className="w-8 h-8" />}
-          title="Persona not found"
-          description="The persona could not be loaded."
+          title={t('siteSkills.personaDetail.notFound')}
+          description={t('siteSkills.personaDetail.notFoundHint')}
           onRetry={loadPersona}
         />
       </PageContainer>
     )
   }
 
+  const originLabel = ORIGIN_LABEL[persona.origin] ? t(ORIGIN_LABEL[persona.origin]) : persona.origin
   const parentLinks: ParentLink[] = [
-    { icon: Users, label: 'Personas', name: 'All personas', href: workspacePath(wsSlug, '/personas') },
+    { icon: Users, label: t('siteSkills.personaDetail.personas'), name: t('siteSkills.personaDetail.allPersonas'), href: workspacePath(wsSlug, '/personas') },
     ...(project && persona.project_id
-      ? [{ icon: Box, label: 'Project', name: project.name, href: workspacePath(wsSlug, `/projects/${project.slug}`) }]
+      ? [{ icon: Box, label: t('siteSkills.common.project'), name: project.name, href: workspacePath(wsSlug, `/projects/${project.slug}`) }]
       : []),
   ]
 
@@ -301,112 +311,119 @@ export function PersonaDetailPage() {
         parentLinks={parentLinks}
         status={<StatusMenu kind="persona" status={persona.status} onChange={handleStatusChange} />}
         meta={[
-          ORIGIN_LABEL[persona.origin] ?? persona.origin,
-          persona.project_id ? null : 'global',
-          pluralize(persona.activation_count ?? 0, 'activation'),
-          persona.last_activated ? <RelativeTime key="la" date={persona.last_activated} prefix="used " /> : 'never used',
+          originLabel,
+          persona.project_id ? null : t('siteSkills.common.global'),
+          count(t, persona.activation_count ?? 0, 'activation'),
+          persona.last_activated ? (
+            <RelativeTime key="la" date={persona.last_activated} prefix={`${t('siteSkills.personaDetail.used')} `} />
+          ) : (
+            t('siteSkills.common.neverUsed')
+          ),
         ]}
         actions={
           <Button size="sm" onClick={handleActivate} loading={activating}>
             {!activating && <Zap className="w-4 h-4 mr-1.5" aria-hidden="true" />}
-            Activate
+            {t('siteSkills.common.activate')}
           </Button>
         }
         overflowActions={[
-          { label: 'Edit', icon: Pencil, onClick: () => setEditOpen(true) },
+          { label: t('siteSkills.common.edit'), icon: Pencil, onClick: () => setEditOpen(true) },
           {
-            label: 'Delete',
+            label: t('siteSkills.common.delete'),
             icon: Trash2,
             variant: 'danger',
             onClick: handleDelete,
             confirm: {
-              title: `Delete “${persona.name}”?`,
-              description: 'This removes the persona and all its relations. This action cannot be undone.',
+              title: t('siteSkills.personas.deleteTitle', { name: persona.name }),
+              description: t('siteSkills.personas.deleteDescription'),
             },
           },
         ]}
       />
 
-      <Explainer>
-        An assistant that takes this persona on receives the knowledge listed under “What it knows” first and runs with
-        the settings below. “Activate” loads it by hand (it counts as an activation and revives its energy). The weight of
-        a link (0–100%) says how much that knowledge matters to it and evolves with use; unlinking never deletes the
-        element itself.
-      </Explainer>
+      <Explainer>{t('siteSkills.personaDetail.explainer')}</Explainer>
 
       {/* ── Vital signs ─────────────────────────────────────────── */}
-      <Section title="Vital signs" description="What the indicators of this persona measure.">
+      <Section title={t('siteSkills.personaDetail.vitalSigns')} description={t('siteSkills.personaDetail.vitalSignsHint')}>
         <MetricList
           items={[
             {
-              label: 'Energy',
+              label: t('siteSkills.common.energy'),
               value: pct(persona.energy),
               level: energyLevel(persona.energy ?? 0),
               ratio: persona.energy ?? 0,
               hint: PERSONA_HINTS.energy,
             },
             {
-              label: 'Cohesion',
+              label: t('siteSkills.common.cohesion'),
               value: pct(persona.cohesion),
               level: cohesionLevel(persona.cohesion ?? 0),
               ratio: persona.cohesion ?? 0,
               hint: PERSONA_HINTS.cohesion,
             },
             {
-              label: 'Success rate',
+              label: t('siteSkills.personaDetail.metrics.successRate'),
               value: pct(persona.success_rate),
               level: (persona.activation_count ?? 0) > 0 ? ratioLevel(persona.success_rate ?? 0) : undefined,
               ratio: persona.success_rate ?? 0,
               hint: PERSONA_HINTS.successRate,
             },
-            { label: 'Activations', value: persona.activation_count ?? 0, hint: PERSONA_HINTS.activations },
+            { label: t('siteSkills.personaDetail.metrics.activations'), value: persona.activation_count ?? 0, hint: PERSONA_HINTS.activations },
             {
-              label: 'Avg. duration',
+              label: t('siteSkills.personaDetail.metrics.avgDuration'),
               value: persona.avg_duration_secs ? formatDurationMs(persona.avg_duration_secs * 1000) : '—',
               hint: PERSONA_HINTS.avgDuration,
             },
             {
-              label: 'Coverage',
+              label: t('siteSkills.personaDetail.metrics.coverage'),
               value: pct(stats?.coverage_score),
               ratio: stats?.coverage_score ?? 0,
               hint: PERSONA_HINTS.coverage,
               hidden: !stats,
             },
             {
-              label: 'Freshness',
+              label: t('siteSkills.personaDetail.metrics.freshness'),
               value: pct(stats?.freshness),
               level: stats ? ratioLevel(stats.freshness) : undefined,
               ratio: stats?.freshness ?? 0,
               hint: PERSONA_HINTS.freshness,
               hidden: !stats,
             },
-            { label: 'Linked entities', value: stats?.total_entities ?? 0, hint: PERSONA_HINTS.entities, hidden: !stats },
+            {
+              label: t('siteSkills.personaDetail.metrics.linkedEntities'),
+              value: stats?.total_entities ?? 0,
+              hint: PERSONA_HINTS.entities,
+              hidden: !stats,
+            },
           ]}
         />
       </Section>
 
       {/* ── Execution settings ──────────────────────────────────── */}
       <Section
-        title="Execution settings"
-        description="Settings applied when an assistant runs a task with this persona (empty = the default of Automation)."
+        title={t('siteSkills.personaDetail.executionSettings')}
+        description={t('siteSkills.personaDetail.executionSettingsHint')}
         action={
           <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)}>
             <Pencil className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
-            Edit
+            {t('siteSkills.common.edit')}
           </Button>
         }
       >
         <Facts
           items={[
-            { label: 'Model', value: persona.model_preference || 'Default' },
-            { label: 'Complexity', value: persona.complexity_default || 'Automatic' },
-            { label: 'Timeout', value: persona.timeout_secs ? formatSecondsExact(persona.timeout_secs) : 'Default' },
-            { label: 'Max cost', value: formatCost(persona.max_cost_usd) ?? 'No limit' },
+            { label: t('siteSkills.personaDetail.settings.model'), value: persona.model_preference || t('siteSkills.personaDetail.settings.modelDefault') },
+            { label: t('siteSkills.personaDetail.settings.complexity'), value: persona.complexity_default || t('siteSkills.personaDetail.settings.complexityAutomatic') },
+            {
+              label: t('siteSkills.personaDetail.settings.timeout'),
+              value: persona.timeout_secs ? formatSecondsExact(persona.timeout_secs) : t('siteSkills.personaDetail.settings.timeoutDefault'),
+            },
+            { label: t('siteSkills.personaDetail.settings.maxCost'), value: formatCost(persona.max_cost_usd) ?? t('siteSkills.personaDetail.settings.noLimit') },
           ]}
         />
         {persona.system_prompt_override && (
           <div className="mt-3">
-            <p className="mb-1 text-xs text-gray-500">System prompt override</p>
+            <p className="mb-1 text-xs text-gray-500">{t('siteSkills.personaDetail.systemPrompt')}</p>
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-sm">
               <CollapsibleMarkdown content={persona.system_prompt_override} />
             </div>
@@ -416,17 +433,21 @@ export function PersonaDetailPage() {
 
       {/* ── Knowledge ───────────────────────────────────────────── */}
       <Section
-        title="What it knows"
+        title={t('siteSkills.personaDetail.knows')}
         count={subgraph ? totalLinks : undefined}
-        description="Files, functions, notes, decisions, skills and protocols linked to this persona, with the weight of each link."
+        description={t('siteSkills.personaDetail.knowsHint')}
       >
         {!subgraph ? (
-          <EmptyState size="sm" title="Relations unavailable" description="The persona subgraph could not be loaded." />
+          <EmptyState
+            size="sm"
+            title={t('siteSkills.personaDetail.relationsUnavailable')}
+            description={t('siteSkills.personaDetail.relationsUnavailableHint')}
+          />
         ) : totalLinks === 0 ? (
           <EmptyState
             size="sm"
-            title="Nothing linked yet"
-            description="Ask an assistant to link files, notes or skills to it, or build it again from the code."
+            title={t('siteSkills.personaDetail.nothingLinked')}
+            description={t('siteSkills.personaDetail.nothingLinkedHint')}
           />
         ) : (
           <div>
@@ -436,7 +457,7 @@ export function PersonaDetailPage() {
               return (
                 <ListGroup
                   key={kind.key}
-                  title={kind.label}
+                  title={t(kind.labelKey)}
                   count={rels.length}
                   collapsible={rels.length > 10}
                   defaultOpen={rels.length <= 10}
@@ -459,15 +480,21 @@ export function PersonaDetailPage() {
       </Section>
 
       {/* ── Details ─────────────────────────────────────────────── */}
-      <Section title="Details">
+      <Section title={t('siteSkills.personaDetail.details')}>
         <Facts
           items={[
-            { label: 'Project', value: persona.project_id ? project?.name ?? persona.project_id : 'Global (whole workspace)' },
-            { label: 'Origin', value: ORIGIN_LABEL[persona.origin] ?? persona.origin },
-            { label: 'Created', value: formatAbsolute(persona.created_at) },
-            { label: 'Updated', value: persona.updated_at ? formatAbsolute(persona.updated_at) : null },
-            { label: 'Last used', value: persona.last_activated ? formatAbsolute(persona.last_activated) : 'Never' },
-            { label: 'ID', value: <span className="font-mono text-xs break-all">{persona.id}</span> },
+            {
+              label: t('siteSkills.common.project'),
+              value: persona.project_id ? project?.name ?? persona.project_id : t('siteSkills.personaDetail.facts.projectGlobal'),
+            },
+            { label: t('siteSkills.personaDetail.facts.origin'), value: originLabel },
+            { label: t('siteSkills.personaDetail.facts.created'), value: formatAbsolute(persona.created_at) },
+            { label: t('siteSkills.personaDetail.facts.updated'), value: persona.updated_at ? formatAbsolute(persona.updated_at) : null },
+            {
+              label: t('siteSkills.personaDetail.facts.lastUsed'),
+              value: persona.last_activated ? formatAbsolute(persona.last_activated) : t('siteSkills.common.never'),
+            },
+            { label: t('siteSkills.personaDetail.facts.id'), value: <span className="font-mono text-xs break-all">{persona.id}</span> },
           ]}
         />
       </Section>
@@ -490,6 +517,7 @@ interface RelationRowProps {
 }
 
 function RelationRow({ kind, rel, resolved, href, onRemove }: RelationRowProps) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const expandable = Boolean(resolved?.body)
   const title = kind.code ? (
@@ -513,20 +541,20 @@ function RelationRow({ kind, rel, resolved, href, onRemove }: RelationRowProps) 
       expanded={expandable ? open : undefined}
       href={href}
       onClick={!href && expandable ? () => setOpen((v) => !v) : undefined}
-      trailing={<span title={`Link weight ${rel.weight.toFixed(2)}`}>{pct(rel.weight)}</span>}
+      trailing={<span title={t('siteSkills.personaDetail.linkWeight', { weight: rel.weight.toFixed(2) })}>{pct(rel.weight)}</span>}
       meta={[resolved?.sub, rel.relation_type]}
       actions={
         onRemove
           ? [
               {
-                label: 'Unlink',
+                label: t('siteSkills.personaDetail.unlink'),
                 icon: Unlink,
                 variant: 'danger',
                 onClick: onRemove,
                 confirm: {
-                  title: 'Unlink this element?',
-                  description: 'The persona forgets this element; the element itself is not deleted.',
-                  confirmLabel: 'Unlink',
+                  title: t('siteSkills.personaDetail.unlinkTitle'),
+                  description: t('siteSkills.personaDetail.unlinkDescription'),
+                  confirmLabel: t('siteSkills.personaDetail.unlink'),
                 },
               },
             ]
@@ -555,9 +583,10 @@ function EditPersonaDialog({
   onClose: () => void
   onSubmit: (data: EditPersonaFormData) => Promise<void>
 }) {
+  const { t } = useT()
   const form = EditPersonaForm({ initial: persona, onSubmit })
   return (
-    <FormDialog open={open} onClose={onClose} onSubmit={form.submit} title="Edit persona" submitLabel="Save" size="lg">
+    <FormDialog open={open} onClose={onClose} onSubmit={form.submit} title={t('siteSkills.personaDetail.editTitle')} submitLabel={t('siteSkills.common.save')} size="lg">
       {form.fields}
     </FormDialog>
   )

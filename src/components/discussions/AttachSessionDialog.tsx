@@ -8,6 +8,7 @@ import { plansApi } from '@/services/plans'
 import { tasksApi } from '@/services/tasks'
 import { projectsApi } from '@/services/projects'
 import { workspacesApi } from '@/services/workspaces'
+import { activeTranslator, useT } from '@/i18n'
 
 /**
  * "Rattacher à…": link a session to a plan or a task OF THE SAME PROJECT
@@ -18,16 +19,15 @@ import { workspacesApi } from '@/services/workspaces'
  * - there is no detach route: an attachment made here cannot be undone from the app.
  */
 
+// Read at call time (`AttachSessionButton` reads `title` outside a render): the getters follow the language on screen.
 export const ATTACH_TEXT = {
-  title: 'Rattacher à…',
-  limits:
-    "Le serveur rattache une session à un plan ou à une tâche, pas à un run : un run se retrouve par son plan.",
-  noDetach:
-    "Il n'existe pas de détachement côté serveur : un rattachement fait ici ne peut pas être annulé depuis l'application.",
-  unknownProject: 'Le projet de cette session est inconnu : impossible de proposer des plans ou des tâches du même projet.',
-  loadFailed: 'Impossible de charger les plans et les tâches du projet.',
-  attachFailed: 'Le rattachement a échoué.',
-  nothing: 'Ce projet ne contient aucun plan ni aucune tâche.',
+  get title() { return activeTranslator().t('siteChat.attach.title') },
+  get limits() { return activeTranslator().t('siteChat.attach.limits') },
+  get noDetach() { return activeTranslator().t('siteChat.attach.noDetach') },
+  get unknownProject() { return activeTranslator().t('siteChat.attach.unknownProject') },
+  get loadFailed() { return activeTranslator().t('siteChat.attach.loadFailed') },
+  get attachFailed() { return activeTranslator().t('siteChat.attach.attachFailed') },
+  get nothing() { return activeTranslator().t('siteChat.attach.nothing') },
 }
 
 export interface AttachSessionDialogProps {
@@ -56,6 +56,7 @@ interface Choice {
 }
 
 export function AttachSessionDialog({ open, onClose, sessionId, projectId, projectSlug, workspaceSlug, onAttached }: AttachSessionDialogProps) {
+  const { t } = useT()
   const [kind, setKind] = useState<'Plan' | 'Task'>('Plan')
   const [plans, setPlans] = useState<Choice[]>([])
   const [tasks, setTasks] = useState<Choice[]>([])
@@ -148,10 +149,10 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
     <Dialog open={open} onClose={onClose} title={ATTACH_TEXT.title} size="sm">
       <div className="space-y-3" data-testid="attach-dialog">
         {/* One plain sentence up front; the server's limits are a tap away, not a wall of text. */}
-        <p className="text-sm text-gray-300">Choisis le plan ou la tâche à laquelle cette discussion appartient.</p>
+        <p className="text-sm text-gray-300">{t('siteChat.attach.intro')}</p>
         <details className="text-xs text-gray-400">
           <summary className={`inline-flex min-h-9 cursor-pointer items-center rounded hover:text-gray-200 ${focusRing}`}>
-            Ce que le serveur permet
+            {t('siteChat.attach.serverAllows')}
           </summary>
           <p>{ATTACH_TEXT.limits}</p>
           <p className="pb-1" data-testid="attach-no-detach">
@@ -161,7 +162,7 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
 
         {loading ? (
           <div className="flex items-center gap-2 py-2 text-sm text-gray-400">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Chargement…
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {t('siteChat.attach.loading')}
           </div>
         ) : unknownProject ? (
           <p role="alert" className="text-sm text-amber-400">
@@ -174,7 +175,7 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
         ) : (
           <>
             <fieldset className="flex gap-4">
-              <legend className="sr-only">Rattacher à</legend>
+              <legend className="sr-only">{t('siteChat.attach.attachTo')}</legend>
               {(['Plan', 'Task'] as const).map((k) => (
                 <label key={k} className="inline-flex min-h-9 items-center gap-2 text-sm text-gray-200">
                   <input
@@ -186,7 +187,7 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
                       setTargetId('')
                     }}
                   />
-                  {k === 'Plan' ? 'Un plan' : 'Une tâche'}
+                  {k === 'Plan' ? t('siteChat.attach.onePlan') : t('siteChat.attach.oneTask')}
                 </label>
               ))}
             </fieldset>
@@ -195,8 +196,8 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
             ) : (
               <div>
                 <label htmlFor={selectId} className="mb-1 block text-xs text-gray-400">
-                  {kind === 'Plan' ? 'Plan' : 'Tâche'}
-                  {grouped ? ', par projet (tous les projets du workspace)' : ' du même projet'}
+                  {kind === 'Plan' ? t('siteChat.attach.planLabel') : t('siteChat.attach.taskLabel')}
+                  {grouped ? t('siteChat.attach.groupedByProject') : t('siteChat.attach.sameProject')}
                 </label>
                 <select
                   id={selectId}
@@ -204,7 +205,7 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
                   onChange={(e) => setTargetId(e.target.value)}
                   className={`min-h-10 w-full rounded-lg border border-white/[0.1] bg-surface-base px-3 text-base text-gray-100 md:text-sm ${focusRing}`}
                 >
-                  <option value="">Choisir…</option>
+                  <option value="">{t('siteChat.attach.choose')}</option>
                   {grouped
                     ? projectNames.map((name) => (
                         <optgroup key={name} label={name}>
@@ -225,10 +226,10 @@ export function AttachSessionDialog({ open, onClose, sessionId, projectId, proje
         )}
         <div className="flex justify-end gap-2">
           <Button size="sm" variant="ghost" onClick={onClose}>
-            Annuler
+            {t('siteChat.attach.cancel')}
           </Button>
           <Button size="sm" onClick={submit} disabled={!targetId} loading={sending}>
-            Rattacher
+            {t('siteChat.attach.submit')}
           </Button>
         </div>
       </div>

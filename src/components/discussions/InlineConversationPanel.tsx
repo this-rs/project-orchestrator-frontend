@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react'
+import { useT } from '@/i18n'
 import { Button } from '@/components/ui'
 import { glassFlat, iconButton } from '@/components/ui/classes'
 import {
@@ -36,11 +37,12 @@ const noopRespond = () => {}
 // ---------------------------------------------------------------------------
 
 function StatusIndicator({ status }: { status: WsStatus }) {
+  const { t } = useT()
   if (status === 'connected') {
     return (
       <span className="flex items-center gap-1.5 text-[11px] text-green-400">
         <Wifi className="w-3 h-3" />
-        En direct
+        {t('siteChat.discussions.live')}
       </span>
     )
   }
@@ -48,14 +50,14 @@ function StatusIndicator({ status }: { status: WsStatus }) {
     return (
       <span className="flex items-center gap-1.5 text-[11px] text-yellow-400">
         <Loader2 className="w-3 h-3 animate-spin" />
-        {status === 'connecting' ? 'Connexion…' : 'Reconnexion…'}
+        {status === 'connecting' ? t('siteChat.discussions.connecting') : t('siteChat.discussions.reconnecting')}
       </span>
     )
   }
   return (
     <span className="flex items-center gap-1.5 text-[11px] text-gray-400">
       <WifiOff className="w-3 h-3" />
-      Déconnecté
+      {t('siteChat.discussions.disconnected')}
     </span>
   )
 }
@@ -71,6 +73,7 @@ interface InlineConversationPanelProps {
 }
 
 export function InlineConversationPanel({ sessionId, title, onClose }: InlineConversationPanelProps) {
+  const { t } = useT()
   const { messages, status } = useConversationWs(sessionId)
   // Follows the live conversation, but never pulls back a reader who scrolled up.
   const { scrollRef } = useStickToBottom<HTMLDivElement>(messages)
@@ -92,11 +95,15 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
       const outcome = await chatApi.interruptSession(sessionId)
       if (!outcome?.delivered) {
         // Not an error (the session may already have stopped), but never look like a successful stop.
-        setStopNote("Rien n'a été interrompu : la session était peut-être déjà arrêtée.")
+        setStopNote(t('siteChat.discussions.nothingInterrupted'))
       }
       setConfirmStop(false)
     } catch (err) {
-      setStopNote(`L'arrêt a échoué${err instanceof Error && err.message ? ` : ${err.message}` : ''}. Réessaie.`)
+      setStopNote(
+        err instanceof Error && err.message
+          ? t('siteChat.discussions.stopFailedReason', { reason: err.message })
+          : t('siteChat.discussions.stopFailed'),
+      )
     } finally {
       setStopping(false)
     }
@@ -125,10 +132,10 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
                 setConfirmStop(true)
               }}
               className="gap-1.5 text-xs"
-              aria-label="Arrêter l'assistant de cette session"
+              aria-label={t('siteChat.discussions.stopSessionAria')}
             >
               <Square className="w-4 h-4" aria-hidden="true" />
-              Arrêter
+              {t('siteChat.discussions.stopShort')}
             </Button>
           )}
           <AddToChatButton entity={{ kind: 'conversation', id: sessionId, label: title }} />
@@ -136,8 +143,8 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
             type="button"
             onClick={handleViewFull}
             className={`${iconButton('ghost', 'w-9 h-9 md:w-8 md:h-8')} ${glassFlat}`}
-            aria-label="Ouvrir la conversation complète"
-            title="Ouvrir la conversation complète"
+            aria-label={t('siteChat.discussions.openFull')}
+            title={t('siteChat.discussions.openFull')}
           >
             <ExternalLink className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -145,20 +152,20 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
             type="button"
             onClick={onClose}
             className={`${iconButton('ghost', 'w-9 h-9 md:w-8 md:h-8')} ${glassFlat}`}
-            aria-label="Fermer la conversation"
-            title="Fermer"
+            aria-label={t('siteChat.discussions.closeConversation')}
+            title={t('siteChat.discussions.close')}
           >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
         {isLive && confirmStop && (
-          <div role="alertdialog" aria-label="Confirmer l'arrêt" className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-red-500/30 bg-red-500/[0.06] px-3 py-2">
-            <p className="min-w-0 flex-1 basis-48 text-sm text-gray-200">Arrêter l'assistant ? Le travail en cours est interrompu.</p>
+          <div role="alertdialog" aria-label={t('siteChat.discussions.confirmStopDialog')} className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-red-500/30 bg-red-500/[0.06] px-3 py-2">
+            <p className="min-w-0 flex-1 basis-48 text-sm text-gray-200">{t('siteChat.discussions.confirmStopText')}</p>
             <Button size="sm" variant="ghost" flat onClick={() => setConfirmStop(false)} disabled={stopping}>
-              Annuler
+              {t('siteChat.discussions.cancel')}
             </Button>
             <Button size="sm" variant="danger" flat onClick={handleStop} loading={stopping}>
-              Arrêter l'assistant
+              {t('siteChat.discussions.stopAssistant')}
             </Button>
           </div>
         )}
@@ -175,10 +182,10 @@ export function InlineConversationPanel({ sessionId, title, onClose }: InlineCon
           <div className="flex items-center justify-center h-full">
             <p className="text-sm text-gray-400">
               {status === 'connected'
-                ? 'En attente de messages…'
+                ? t('siteChat.discussions.waiting')
                 : status === 'connecting'
-                  ? 'Connexion à la session…'
-                  : 'Aucun message pour le moment'}
+                  ? t('siteChat.discussions.connectingSession')
+                  : t('siteChat.discussions.noMessages')}
             </p>
           </div>
         ) : (

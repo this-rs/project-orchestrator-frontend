@@ -29,6 +29,7 @@ import {
 import { glass, glassFlat, iconButton } from '@/components/ui/classes'
 import { useConfirmDialog, useToast } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { useT } from '@/i18n'
 import { NoteTypeLabel } from './NoteTypeLabel'
 import { noteTitle } from './noteMeta'
 import type { NeuronSearchResult, NeuronSearchResponse } from '@/types'
@@ -163,9 +164,10 @@ interface NeuronDetailProps {
 function NeuronDetail({ neuron, href, selected, onToggleSelect, onClose }: NeuronDetailProps) {
   const title = noteTitle(neuron.content)
   const source = useReferenceSource({ kind: 'note', id: neuron.id, label: title })
+  const { t } = useT()
   return (
     <aside
-      aria-label="Neuron detail"
+      aria-label={t('siteKnowledge.neurons.detailAria')}
       {...source}
       className={`absolute z-10 inset-x-2 bottom-2 sm:inset-x-auto sm:right-2 sm:top-2 sm:bottom-auto sm:w-80 rounded-xl ${glass} shadow-2xl overflow-hidden`}
     >
@@ -186,7 +188,7 @@ function NeuronDetail({ neuron, href, selected, onToggleSelect, onClose }: Neuro
               <NoteTypeLabel key="t" type={neuron.note_type} />,
               <StatusText key="i" kind="importance" status={neuron.importance} dot={false} />,
               <span key="s" className={neuron.source.type === 'direct' ? TONE_CLASSES.progress.text : TONE_CLASSES.warning.text}>
-                {neuron.source.type}
+                {t(`siteKnowledge.neurons.source.${neuron.source.type}`)}
               </span>,
             ]}
           />
@@ -196,7 +198,7 @@ function NeuronDetail({ neuron, href, selected, onToggleSelect, onClose }: Neuro
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close neuron detail"
+          aria-label={t('siteKnowledge.neurons.closeDetail')}
           className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} -mr-1.5 -mt-1 shrink-0`}
         >
           <X className="w-4 h-4" aria-hidden="true" />
@@ -205,15 +207,15 @@ function NeuronDetail({ neuron, href, selected, onToggleSelect, onClose }: Neuro
       <div className="px-3 py-2 space-y-2 max-h-64 sm:max-h-80 overflow-y-auto">
         <dl className="grid grid-cols-2 gap-x-3 text-xs">
           <div className="flex items-baseline justify-between gap-2">
-            <dt className="text-gray-500">Activation</dt>
+            <dt className="text-gray-500">{t('siteKnowledge.neurons.activation')}</dt>
             <dd className="text-gray-200 tabular-nums">{(neuron.activation_score * 100).toFixed(0)}%</dd>
           </div>
           <div className="flex items-baseline justify-between gap-2">
-            <dt className="text-gray-500">Energy</dt>
+            <dt className="text-gray-500">{t('siteKnowledge.neurons.energy')}</dt>
             <dd className="text-gray-200 tabular-nums">{(neuron.energy * 100).toFixed(0)}%</dd>
           </div>
         </dl>
-        <Meter size="bar" value={neuron.energy} tone={ratioTone(neuron.energy)} label="Energy" />
+        <Meter size="bar" value={neuron.energy} tone={ratioTone(neuron.energy)} label={t('siteKnowledge.neurons.energy')} />
         <CollapsibleMarkdown content={neuron.content} maxHeight={120} />
         {neuron.tags.length > 0 && <p className={`${metaText} break-words`}>{neuron.tags.map((t) => `#${t}`).join(' ')}</p>}
       </div>
@@ -224,11 +226,11 @@ function NeuronDetail({ neuron, href, selected, onToggleSelect, onClose }: Neuro
           ) : (
             <Square className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
           )}
-          {selected ? 'Selected' : 'Select'}
+          {selected ? t('siteKnowledge.neurons.selectedButton') : t('siteKnowledge.neurons.selectButton')}
         </Button>
         {href && (
           <Link to={href} className={`ml-auto text-xs ${inlineLink}`}>
-            Open note
+            {t('siteKnowledge.neurons.openNote')}
           </Link>
         )}
       </div>
@@ -251,6 +253,7 @@ export function NeuronExplorer({ workspaceSlug, projectSlug }: NeuronExplorerPro
   const [selectedNeuronIds, setSelectedNeuronIds] = useState<Set<string>>(new Set())
   const [detailNeuron, setDetailNeuron] = useState<NeuronSearchResult | null>(null)
   const toast = useToast()
+  const { t } = useT()
   const confirmDialog = useConfirmDialog()
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
@@ -269,13 +272,13 @@ export function NeuronExplorer({ workspaceSlug, projectSlug }: NeuronExplorerPro
         setSearchResponse(res)
         setHasSearched(true)
       } catch {
-        toast.error('Neuron search failed')
+        toast.error(t('siteKnowledge.neurons.searchFailed'))
         setSearchResponse(null)
       } finally {
         setSearching(false)
       }
     },
-    [projectSlug, toast],
+    [projectSlug, toast, t],
   )
 
   const handleSearchChange = (value: string) => {
@@ -327,29 +330,29 @@ export function NeuronExplorer({ workspaceSlug, projectSlug }: NeuronExplorerPro
   const handleReinforce = async () => {
     const ids = Array.from(selectedNeuronIds)
     if (ids.length < 2) {
-      toast.error('Select at least 2 neurons to reinforce')
+      toast.error(t('siteKnowledge.neurons.selectAtLeastTwo'))
       return
     }
     try {
       const res = await notesApi.reinforceNeurons({ note_ids: ids })
-      toast.success(`Reinforced ${res.neurons_boosted} neurons`)
+      toast.success(t('siteKnowledge.neurons.reinforced', { count: res.neurons_boosted }))
     } catch {
-      toast.error('Reinforcement failed')
+      toast.error(t('siteKnowledge.neurons.reinforceFailed'))
     }
   }
 
   const handleDecay = () => {
     confirmDialog.open({
-      title: 'Decay synapses?',
-      description: 'Every link between notes is weakened a little and the weakest are removed. This applies to every note of the workspace.',
-      confirmLabel: 'Decay',
+      title: t('siteKnowledge.neurons.decayTitle'),
+      description: t('siteKnowledge.neurons.decayDescription'),
+      confirmLabel: t('siteKnowledge.neurons.decayConfirm'),
       variant: 'warning',
       onConfirm: async () => {
         try {
           const res = await notesApi.decaySynapses()
-          toast.success(`Decayed ${res.synapses_decayed} synapses, pruned ${res.synapses_pruned}`)
+          toast.success(t('siteKnowledge.neurons.decayed', { decayed: res.synapses_decayed, pruned: res.synapses_pruned }))
         } catch {
-          toast.error('Decay failed')
+          toast.error(t('siteKnowledge.neurons.decayFailed'))
         }
       },
     })
@@ -358,9 +361,9 @@ export function NeuronExplorer({ workspaceSlug, projectSlug }: NeuronExplorerPro
   const handleUpdateEnergy = async () => {
     try {
       const res = await notesApi.updateEnergy()
-      toast.success(`Updated energy for ${res.notes_updated} notes`)
+      toast.success(t('siteKnowledge.neurons.energyUpdated', { count: res.notes_updated }))
     } catch {
-      toast.error('Energy update failed')
+      toast.error(t('siteKnowledge.neurons.energyFailed'))
     }
   }
 
@@ -373,8 +376,8 @@ export function NeuronExplorer({ workspaceSlug, projectSlug }: NeuronExplorerPro
     body = (
       <EmptyState
         variant="search"
-        title="No neurons activated"
-        description="Try another wording — a note lights up when it matches, and the notes used with it light up next."
+        title={t('siteKnowledge.neurons.noneTitle')}
+        description={t('siteKnowledge.neurons.noneDescription')}
       />
     )
   } else if (results.length > 0) {
@@ -414,23 +417,23 @@ export function NeuronExplorer({ workspaceSlug, projectSlug }: NeuronExplorerPro
 
         <div
           className={`absolute top-2 left-2 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 px-2.5 py-1.5 rounded-lg ${glass} ${metaText}`}
-          aria-label="Legend"
+          aria-label={t('siteKnowledge.neurons.legend')}
         >
           <span className="inline-flex items-center gap-1">
             <span className="w-2 h-2 rounded-full" style={{ background: SOURCE_COLORS.direct }} aria-hidden="true" />
-            direct
+            {t('siteKnowledge.neurons.source.direct')}
           </span>
           <span className="inline-flex items-center gap-1">
             <span className="w-2 h-2 rounded-full" style={{ background: SOURCE_COLORS.propagated }} aria-hidden="true" />
-            propagated
+            {t('siteKnowledge.neurons.source.propagated')}
           </span>
           <span className="inline-flex items-center gap-1">
             <span className="w-2 h-2 rounded-full" style={{ background: energyColor(0) }} aria-hidden="true" />
-            low energy
+            {t('siteKnowledge.neurons.lowEnergy')}
           </span>
           <span className="inline-flex items-center gap-1">
             <span className="w-2 h-2 rounded-full" style={{ background: energyColor(1) }} aria-hidden="true" />
-            high energy
+            {t('siteKnowledge.neurons.highEnergy')}
           </span>
         </div>
       </div>
@@ -439,8 +442,8 @@ export function NeuronExplorer({ workspaceSlug, projectSlug }: NeuronExplorerPro
     body = (
       <EmptyState
         icon={<Search className="w-8 h-8 text-gray-500" />}
-        title="Search a concept"
-        description="Notes are neurons linked by weighted synapses. Type a concept to see which ones light up, then select several to reinforce their connections."
+        title={t('siteKnowledge.neurons.emptyTitle')}
+        description={t('siteKnowledge.neurons.emptyDescription')}
       />
     )
   }
@@ -450,21 +453,21 @@ export function NeuronExplorer({ workspaceSlug, projectSlug }: NeuronExplorerPro
       <FilterBar
         search={query}
         onSearchChange={handleSearchChange}
-        searchPlaceholder="Search neurons by concept…"
-        searchLabel="Search neurons"
+        searchPlaceholder={t('siteKnowledge.neurons.searchPlaceholder')}
+        searchLabel={t('siteKnowledge.neurons.searchLabel')}
         trailing={
           <>
             {selectionCount >= 2 && (
               <Button size="sm" onClick={handleReinforce}>
                 <Zap className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
-                Reinforce {selectionCount}
+                {t('siteKnowledge.neurons.reinforceButton', { count: selectionCount })}
               </Button>
             )}
             <OverflowMenu
-              label="Neural maintenance"
+              label={t('siteKnowledge.neurons.maintenance')}
               actions={[
-                { label: 'Update energy', icon: RefreshCw, onClick: handleUpdateEnergy },
-                { label: 'Decay synapses', icon: TrendingDown, onClick: handleDecay },
+                { label: t('siteKnowledge.neurons.updateEnergy'), icon: RefreshCw, onClick: handleUpdateEnergy },
+                { label: t('siteKnowledge.neurons.decaySynapses'), icon: TrendingDown, onClick: handleDecay },
               ]}
             />
           </>
@@ -475,22 +478,22 @@ export function NeuronExplorer({ workspaceSlug, projectSlug }: NeuronExplorerPro
         <MetaLine
           className="px-1"
           items={[
-            `${metadata.total_activated} activated`,
+            t('siteKnowledge.neurons.activated', { count: metadata.total_activated }),
             <span key="d" className={TONE_CLASSES.progress.text}>
-              {metadata.direct_matches} direct
+              {t('siteKnowledge.neurons.directCount', { count: metadata.direct_matches })}
             </span>,
             <span key="p" className={TONE_CLASSES.warning.text}>
-              {metadata.propagated_matches} propagated
+              {t('siteKnowledge.neurons.propagatedCount', { count: metadata.propagated_matches })}
             </span>,
-            `${metadata.query_time_ms} ms`,
-            selectionCount > 0 ? `${selectionCount} selected` : null,
+            t('siteKnowledge.neurons.queryTime', { ms: metadata.query_time_ms }),
+            selectionCount > 0 ? t('siteKnowledge.neurons.selectedCount', { count: selectionCount }) : null,
           ]}
         />
       )}
 
       {!searching && lowQuality && results.length > 0 && (
         <p className={`px-1 text-xs ${TONE_CLASSES.warning.text}`}>
-          Low confidence — all results score almost the same, the query may not match any note in particular.
+          {t('siteKnowledge.neurons.lowConfidence')}
         </p>
       )}
 

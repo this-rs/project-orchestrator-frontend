@@ -8,7 +8,8 @@
  */
 
 import { GitBranch } from 'lucide-react'
-import { EntityRow, RelativeTime, StatusDot, formatDurationMs, pluralize, ToneText } from '@/components/ui'
+import { EntityRow, RelativeTime, StatusDot, formatDurationMs, ToneText } from '@/components/ui'
+import { useT } from '@/i18n'
 import type { PlanRun } from '@/services/runner'
 import { LiveProgress } from './LiveProgress'
 import { planRunElapsedSecs, planRunTriggerLabel, runCost, runStateMeta } from './shared'
@@ -24,6 +25,7 @@ interface PlanRunRowProps {
 }
 
 export function PlanRunRow({ run, title, href }: PlanRunRowProps) {
+  const { t } = useT()
   const meta = runStateMeta(run.status)
   const running = run.status === 'running'
   const done = run.completed_tasks.length
@@ -48,14 +50,14 @@ export function PlanRunRow({ run, title, href }: PlanRunRowProps) {
             <span className="truncate max-w-[10rem] sm:max-w-[16rem]">{run.git_branch}</span>
           </span>
         ) : null,
-        <span key="t" className="tabular-nums">{done}/{run.total_tasks} tasks</span>,
-        failed > 0 ? <span key="f" className="text-red-400">{failed} failed</span> : null,
+        <span key="t" className="tabular-nums">{t('siteRest.planRun.tasks', { done, total: run.total_tasks })}</span>,
+        failed > 0 ? <span key="f" className="text-red-400">{t('siteRest.planRun.failed', { count: failed })}</span> : null,
         <span key="d" className="tabular-nums">{formatDurationMs(elapsed * 1000)}</span>,
         // Amount by basis; a run with no known cost shows none — never `$0.00`.
         hasCost(cost, { format: formatUsd2 }) ? (
           <CostDisplay key="c" cost={cost} format={formatUsd2} className="font-mono tabular-nums" />
         ) : null,
-        running && agents > 0 ? pluralize(agents, 'agent') : null,
+        running && agents > 0 ? t(agents === 1 ? 'siteRest.planRun.agents.one' : 'siteRest.planRun.agents.other', { count: agents }) : null,
       ]}
       context={
         running && run.total_tasks > 0 ? (

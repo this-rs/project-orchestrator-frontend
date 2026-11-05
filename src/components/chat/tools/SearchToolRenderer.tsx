@@ -14,6 +14,7 @@ import React from 'react'
 import type { ToolRendererProps } from './types'
 import { detectLanguage, tokenizeLine } from './syntax'
 import type { Token } from './syntax'
+import { useT } from '@/i18n'
 
 /** Max result items to display before truncating */
 const MAX_RESULTS = 50
@@ -178,6 +179,7 @@ function GrepContentView({ groups, unparsed, pattern, truncatedCount }: {
   pattern: string
   truncatedCount: number
 }) {
+  const { t } = useT()
   return (
     <div className="py-1">
       {groups.map((group, gi) => {
@@ -235,7 +237,7 @@ function GrepContentView({ groups, unparsed, pattern, truncatedCount }: {
 
       {truncatedCount > 0 && (
         <div className="px-3 py-1 text-gray-600 italic select-none text-[10px]">
-          ... {truncatedCount} more result{truncatedCount > 1 ? 's' : ''}
+          {t(truncatedCount === 1 ? 'siteChat.search.moreResults.one' : 'siteChat.search.moreResults.other', { count: truncatedCount })}
         </div>
       )}
     </div>
@@ -244,6 +246,7 @@ function GrepContentView({ groups, unparsed, pattern, truncatedCount }: {
 
 /** Grep files_with_matches mode: simple file list with icons */
 function GrepFilesView({ files, truncatedCount }: { files: string[]; truncatedCount: number }) {
+  const { t } = useT()
   return (
     <div className="py-1">
       {files.map((file, i) => (
@@ -254,7 +257,7 @@ function GrepFilesView({ files, truncatedCount }: { files: string[]; truncatedCo
       ))}
       {truncatedCount > 0 && (
         <div className="px-3 py-1 text-gray-600 italic select-none text-[10px]">
-          ... {truncatedCount} more file{truncatedCount > 1 ? 's' : ''}
+          {t(truncatedCount === 1 ? 'siteChat.search.moreFiles.one' : 'siteChat.search.moreFiles.other', { count: truncatedCount })}
         </div>
       )}
     </div>
@@ -263,6 +266,7 @@ function GrepFilesView({ files, truncatedCount }: { files: string[]; truncatedCo
 
 /** Grep count mode: file:count table */
 function GrepCountView({ entries, truncatedCount }: { entries: { file: string; count: string }[]; truncatedCount: number }) {
+  const { t } = useT()
   // Find max count width for alignment
   const maxCountWidth = Math.max(...entries.map(e => e.count.length), 1)
 
@@ -281,7 +285,7 @@ function GrepCountView({ entries, truncatedCount }: { entries: { file: string; c
       ))}
       {truncatedCount > 0 && (
         <div className="px-3 py-1 text-gray-600 italic select-none text-[10px]">
-          ... {truncatedCount} more entr{truncatedCount > 1 ? 'ies' : 'y'}
+          {t(truncatedCount === 1 ? 'siteChat.search.moreEntries.one' : 'siteChat.search.moreEntries.other', { count: truncatedCount })}
         </div>
       )}
     </div>
@@ -290,6 +294,7 @@ function GrepCountView({ entries, truncatedCount }: { entries: { file: string; c
 
 /** Glob directory-grouped tree view */
 function GlobTreeView({ groups, truncatedCount }: { groups: GlobDirectoryGroup[]; truncatedCount: number }) {
+  const { t } = useT()
   return (
     <div className="py-1">
       {groups.map((group, gi) => (
@@ -317,7 +322,7 @@ function GlobTreeView({ groups, truncatedCount }: { groups: GlobDirectoryGroup[]
       ))}
       {truncatedCount > 0 && (
         <div className="px-3 py-1 text-gray-600 italic select-none text-[10px]">
-          ... {truncatedCount} more file{truncatedCount > 1 ? 's' : ''}
+          {t(truncatedCount === 1 ? 'siteChat.search.moreFiles.one' : 'siteChat.search.moreFiles.other', { count: truncatedCount })}
         </div>
       )}
     </div>
@@ -329,6 +334,7 @@ function GlobTreeView({ groups, truncatedCount }: { groups: GlobDirectoryGroup[]
 // ---------------------------------------------------------------------------
 
 export function SearchToolRenderer({ toolName, toolInput, resultContent, isError, isLoading }: ToolRendererProps) {
+  const { t } = useT()
   const isGrep = toolName === 'Grep'
   const pattern = (toolInput.pattern as string) ?? ''
   const globPattern = (toolInput.pattern as string) ?? ''
@@ -346,13 +352,9 @@ export function SearchToolRenderer({ toolName, toolInput, resultContent, isError
   const displayLines = truncatedCount > 0 ? resultLines.slice(0, MAX_RESULTS) : resultLines
 
   // Result count label for the header badge
-  const countLabel = isGrep
-    ? (outputMode === 'files_with_matches'
-      ? `${totalCount} file${totalCount !== 1 ? 's' : ''}`
-      : outputMode === 'count'
-        ? `${totalCount} file${totalCount !== 1 ? 's' : ''}`
-        : `${totalCount} result${totalCount !== 1 ? 's' : ''}`)
-    : `${totalCount} file${totalCount !== 1 ? 's' : ''}`
+  const countLabel = isGrep && outputMode !== 'files_with_matches' && outputMode !== 'count'
+    ? t(totalCount === 1 ? 'siteChat.search.results.one' : 'siteChat.search.results.other', { count: totalCount })
+    : t(totalCount === 1 ? 'siteChat.search.files.one' : 'siteChat.search.files.other', { count: totalCount })
 
   return (
     <div className="space-y-0">
@@ -361,11 +363,11 @@ export function SearchToolRenderer({ toolName, toolInput, resultContent, isError
         {/* Tool badge */}
         {isGrep ? (
           <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-900/40 text-indigo-400 border border-indigo-800/30">
-            SEARCH
+            {t('siteChat.search.badgeSearch')}
           </span>
         ) : (
           <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-cyan-900/40 text-cyan-400 border border-cyan-800/30">
-            GLOB
+            {t('siteChat.search.badgeGlob')}
           </span>
         )}
 
@@ -393,12 +395,12 @@ export function SearchToolRenderer({ toolName, toolInput, resultContent, isError
       {/* Search filter badges */}
       {(path || (outputMode && isGrep) || glob || fileType) && (
         <div className="flex flex-wrap gap-2 px-3 py-1 bg-black/20 border-t border-white/[0.02] text-[10px] text-gray-600 font-mono">
-          {path && <span>in {path}</span>}
+          {path && <span>{t('siteChat.search.inPath', { path })}</span>}
           {outputMode && isGrep && (
             <span className="px-1 rounded bg-white/[0.04]">{outputMode}</span>
           )}
-          {glob && <span>glob: {glob}</span>}
-          {fileType && <span>type: {fileType}</span>}
+          {glob && <span>{t('siteChat.search.globFilter', { glob })}</span>}
+          {fileType && <span>{t('siteChat.search.typeFilter', { type: fileType })}</span>}
         </div>
       )}
 
@@ -452,13 +454,13 @@ export function SearchToolRenderer({ toolName, toolInput, resultContent, isError
       {/* No results */}
       {!isLoading && resultContent != null && resultContent.trim().length === 0 && (
         <div className="border-t border-white/[0.04] rounded-b-md bg-black/20 px-3 py-1.5">
-          <span className="text-xs text-gray-600 italic">no matches</span>
+          <span className="text-xs text-gray-600 italic">{t('siteChat.search.noMatches')}</span>
         </div>
       )}
 
       {isLoading && (
         <div className="border-t border-white/[0.04] rounded-b-md bg-black/20 px-3 py-1.5">
-          <span className="text-xs text-gray-600 animate-pulse">searching...</span>
+          <span className="text-xs text-gray-600 animate-pulse">{t('siteChat.search.searching')}</span>
         </div>
       )}
     </div>

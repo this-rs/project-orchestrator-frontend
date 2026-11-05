@@ -7,11 +7,13 @@
 
 import type { ToolRendererProps } from './types'
 import { detectLanguage, tokenizeLine, getExtBadgeColor, getFileExtension } from './syntax'
+import { useT } from '@/i18n'
 
 /** Max lines to preview in expanded view */
 const MAX_PREVIEW_LINES = 25
 
 export function WriteToolRenderer({ toolInput, resultContent, isError, isLoading }: ToolRendererProps) {
+  const { t } = useT()
   const filePath = (toolInput.file_path as string) ?? ''
   const content = (toolInput.content as string) ?? ''
 
@@ -38,7 +40,7 @@ export function WriteToolRenderer({ toolInput, resultContent, isError, isLoading
       {/* File path header + stats */}
       <div className="flex items-center gap-2 px-3 py-1.5 bg-black/30 rounded-t-md font-mono text-xs text-gray-500">
         <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-900/40 text-green-400 border border-green-800/30">
-          {isNewFile ? 'CREATE' : 'WRITE'}
+          {isNewFile ? t('siteChat.toolRender.create') : t('siteChat.toolRender.write')}
         </span>
         {ext && (
           <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold border ${badgeColor}`}>
@@ -47,7 +49,7 @@ export function WriteToolRenderer({ toolInput, resultContent, isError, isLoading
         )}
         <span className="truncate">{filePath}</span>
         <span className="shrink-0 text-gray-600 text-[10px]">
-          {totalLines} line{totalLines !== 1 ? 's' : ''}, {totalChars.toLocaleString()} chars
+          {t(totalLines === 1 ? 'siteChat.toolRender.fileStats.one' : 'siteChat.toolRender.fileStats.other', { count: totalLines, chars: totalChars.toLocaleString() })}
         </span>
       </div>
 
@@ -80,7 +82,7 @@ export function WriteToolRenderer({ toolInput, resultContent, isError, isLoading
             })}
             {truncated > 0 && (
               <div className="text-gray-600 italic select-none pl-2 py-0.5">
-                ... {truncated} more line{truncated > 1 ? 's' : ''}
+                {t(truncated === 1 ? 'siteChat.toolRender.moreLines.one' : 'siteChat.toolRender.moreLines.other', { count: truncated })}
               </div>
             )}
           </pre>
@@ -95,14 +97,14 @@ export function WriteToolRenderer({ toolInput, resultContent, isError, isLoading
             : 'border-white/[0.04] bg-black/20 text-gray-600'
         }`}>
           {resultContent.length > 500
-            ? resultContent.slice(0, 500) + '... (truncated)'
+            ? resultContent.slice(0, 500) + t('siteChat.toolRender.truncatedInline')
             : resultContent}
         </div>
       )}
 
       {isLoading && (
         <div className="border-t border-white/[0.04] rounded-b-md bg-black/20 px-3 py-1.5">
-          <span className="text-xs text-gray-600 animate-pulse">writing...</span>
+          <span className="text-xs text-gray-600 animate-pulse">{t('siteChat.toolRender.writing')}</span>
         </div>
       )}
     </div>

@@ -7,6 +7,7 @@ import { StatusBanner } from './StatusBanner'
 import { setupConfigAtom, chatValidAtom, chatEngineChosenAtom, setupAuthReady, setupStepAtom, trayNavigationAtom, type McpSetupStatus } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
 import { useToast } from '@/hooks'
+import { activeTranslator, useT } from '@/i18n'
 import { modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
 import type { CliVersionStatus } from '@/types'
 import { POLICY_TO_LEGACY_MODE, toToolPolicyMode } from '@/types/provider'
@@ -40,7 +41,7 @@ async function probeCodex(invoke: (cmd: string) => Promise<unknown>): Promise<Co
 }
 
 function codexLine(codex: CodexProbe | null | undefined): string {
-  if (!codex) return 'Looking for the codex program on this computer…'
+  if (!codex) return activeTranslator().t('siteSetup.wizardExtra.codexLooking')
   if (!codex.installed) return 'codex was not found on the PATH. Install it, then come back to this step.'
   return codex.version ? `codex ${codex.version} found on this computer.` : 'codex found on this computer.'
 }
@@ -53,25 +54,8 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
-// i18n after #252 — the words of this step. Banner titles the tests read (« Claude Code CLI is required »…) stay inline.
-const TEXT = {
-  engine: 'Chat engine',
-  modelHint: 'The model of chat sessions. It runs through the Claude Code CLI, signed in to your own account.',
-  maxSessions: 'Max concurrent sessions',
-  maxSessionsHint: 'How many chat sessions can run at the same time.',
-  maxTurns: 'Max turns per message',
-  maxTurnsHint: 'How many tool calls the assistant may chain for one message.',
-  permissions: 'Permission mode',
-  permissionsHint: 'Whether Claude asks for your approval before it edits files or runs shell commands.',
-  embedding: 'Search by meaning',
-  embeddingHint: 'A small model turns notes into vectors, so a search finds a note by its meaning and related notes link up by themselves.',
-  searchModel: 'Search model',
-  cliHint: 'The chat runs through Claude Code on this computer, signed in to your own Claude account. The AI itself is not included.',
-  mcp: 'MCP server',
-  mcpHint: 'Lets Claude Code reach your projects, plans and notes from this app, as tools.',
-} as const
-
 export function ChatPage() {
+  const { t } = useT()
   const [config, setConfig] = useAtom(setupConfigAtom)
   const setChatValid = useSetAtom(chatValidAtom)
   const isTrayNavigation = useAtomValue(trayNavigationAtom)
@@ -286,11 +270,11 @@ export function ChatPage() {
     } catch (e) {
       update({
         mcpSetupStatus: 'error' as McpSetupStatus,
-        mcpSetupMessage: e instanceof Error ? e.message : 'Unknown error',
+        mcpSetupMessage: e instanceof Error ? e.message : t('siteSetup.chat.unknownError'),
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- update is a local helper that changes on every render
-  }, [config.serverPort])
+  }, [config.serverPort, t])
 
   // Detect PATH from login shell (Tauri-only, no backend needed)
   const handleDetectPath = useCallback(async () => {
@@ -301,17 +285,17 @@ export function ChatPage() {
       const path = await invoke<string | null>('detect_shell_path')
       if (path) {
         update({ chatProcessPath: path })
-        toast.success('PATH detected from login shell')
+        toast.success(t('siteSetup.chat.toastPathDetected'))
       } else {
-        toast.error('Could not detect PATH from login shell')
+        toast.error(t('siteSetup.chat.toastPathNotDetected'))
       }
     } catch {
-      toast.error('Failed to detect PATH')
+      toast.error(t('siteSetup.chat.toastPathFailed'))
     } finally {
       setDetectingPath(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- update is a local helper
-  }, [toast])
+  }, [toast, t])
 
   // Check CLI version via Tauri invoke (no backend/auth required)
   const handleCheckCli = useCallback(async () => {
@@ -324,15 +308,15 @@ export function ChatPage() {
         setCliDetected(status.installed)
         setConfig((prev) => ({ ...prev, claudeCodeDetected: status.installed }))
       } else {
-        toast.error('CLI check is only available in the desktop app')
+        toast.error(t('siteSetup.chat.toastCliDesktopOnly'))
       }
     } catch {
-      toast.error('Failed to check CLI status')
+      toast.error(t('siteSetup.chat.toastCliCheckFailed'))
     } finally {
       setCheckingCli(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setConfig changes on render
-  }, [toast])
+  }, [toast, t])
 
   // Install/update CLI via Tauri invoke (no backend/auth required)
   const handleInstallCli = useCallback(async (version?: string) => {
@@ -355,7 +339,7 @@ export function ChatPage() {
         }
 
         if (result.success || status?.installed) {
-          toast.success(result.success ? result.message : 'Claude Code detected successfully')
+          toast.success(result.success ? result.message : t('siteSetup.chat.toastCliDetected'))
           if (status) {
             setCliStatus(status)
             setCliDetected(status.installed)
@@ -371,14 +355,14 @@ export function ChatPage() {
         }
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to install CLI'
+      const msg = e instanceof Error ? e.message : t('siteSetup.chat.installFailed')
       setInstallError(msg)
       toast.error(msg)
     } finally {
       setInstallingCli(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- setConfig changes on render
-  }, [toast])
+  }, [toast, t])
 
   // ── Download local ONNX model ────────────────────────────────────
   const handleDownloadModel = useCallback(async () => {
@@ -408,13 +392,13 @@ export function ChatPage() {
       if (result.success) {
         setEmbeddingModelAvailable(true)
         setEmbeddingReady(true)
-        toast.success('Embedding model downloaded successfully')
+        toast.success(t('siteSetup.chat.toastModelDownloaded'))
       } else {
-        setDownloadError(result.error || 'Download failed')
-        toast.error(result.error || 'Download failed')
+        setDownloadError(result.error || t('siteSetup.chat.downloadFailed'))
+        toast.error(result.error || t('siteSetup.chat.downloadFailed'))
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Download failed'
+      const msg = e instanceof Error ? e.message : t('siteSetup.chat.downloadFailed')
       setDownloadError(msg)
       toast.error(msg)
     } finally {
@@ -422,7 +406,7 @@ export function ChatPage() {
       setDownloadingModel(false)
       setDownloadProgress(null)
     }
-  }, [config.embeddingFastembedModel, toast])
+  }, [config.embeddingFastembedModel, toast, t])
 
   // ── Test HTTP embedding endpoint ────────────────────────────────────
   const handleTestEmbedding = useCallback(async () => {
@@ -447,20 +431,20 @@ export function ChatPage() {
         if (result.dimensions) {
           update({ embeddingDimensions: result.dimensions })
         }
-        toast.success(`Endpoint OK — ${result.dimensions}d, ${result.latencyMs}ms`)
+        toast.success(t('siteSetup.chat.endpointOkToast', { dimensions: result.dimensions ?? '', ms: result.latencyMs }))
       } else {
         setEmbeddingReady(false)
-        toast.error(result.error || 'Test failed')
+        toast.error(result.error || t('siteSetup.chat.testFailed'))
       }
     } catch (e) {
       setEmbeddingTestResult({ success: false })
       setEmbeddingReady(false)
-      toast.error(e instanceof Error ? e.message : 'Test failed')
+      toast.error(e instanceof Error ? e.message : t('siteSetup.chat.testFailed'))
     } finally {
       setTestingEmbedding(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- update changes on render
-  }, [config.embeddingUrl, config.embeddingModel, config.embeddingApiKey, toast])
+  }, [config.embeddingUrl, config.embeddingModel, config.embeddingApiKey, toast, t])
 
   const mcpSuccess =
     config.mcpSetupStatus === 'configured' || config.mcpSetupStatus === 'already_configured'
@@ -471,8 +455,8 @@ export function ChatPage() {
     <div className="space-y-6">
       {/* Engine choice: Claude Code keeps the original path; Codex and another provider are added once the app runs */}
       <fieldset className={`${surface} space-y-3 p-4 md:p-5`}>
-        <legend className="px-1 text-sm font-semibold text-gray-200">{TEXT.engine}</legend>
-        <div role="radiogroup" aria-label={TEXT.engine} className="grid gap-3 sm:grid-cols-3">
+        <legend className="px-1 text-sm font-semibold text-gray-200">{t('siteSetup.chat.engine')}</legend>
+        <div role="radiogroup" aria-label={t('siteSetup.chat.engine')} className="grid gap-3 sm:grid-cols-3">
           {setupChatEngineOptions().map((opt) => (
             <ChoiceCard
               key={opt.value}
@@ -521,15 +505,15 @@ export function ChatPage() {
       {/* Model selection */}
       <div className={`${surface} space-y-5 p-4 md:p-5`}>
         <div>
-          <p className="mb-3 text-sm font-semibold text-gray-200">Default Model</p>
+          <p className="mb-3 text-sm font-semibold text-gray-200">{t('siteSetup.chat.defaultModel')}</p>
           {availableModels.length === 0 && (
             <p className="text-xs leading-4 text-gray-500">
               {catalogLoaded
-                ? 'No models available — check the backend connection.'
-                : 'Loading models…'}
+                ? t('siteSetup.chat.noModels')
+                : t('siteSetup.chat.loadingModels')}
             </p>
           )}
-          <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label="Default Model">
+          <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label={t('siteSetup.chat.defaultModel')}>
             {availableModels.map((m) => (
               <ChoiceCard
                 key={m.id}
@@ -537,17 +521,17 @@ export function ChatPage() {
                 onClick={() => update({ chatModel: m.id })}
                 title={m.fullLabel}
                 description={m.description}
-                tag={m.tier === 'legacy' ? 'legacy' : undefined}
+                tag={m.tier === 'legacy' ? t('siteSetup.chat.legacy') : undefined}
               />
             ))}
           </div>
-          <p className="mt-3 text-xs leading-4 text-gray-500">{TEXT.modelHint}</p>
+          <p className="mt-3 text-xs leading-4 text-gray-500">{t('siteSetup.chat.modelHint')}</p>
         </div>
 
         {/* Max sessions */}
         <div>
           <label htmlFor="setup-max-sessions" className="mb-1.5 block text-sm font-medium text-gray-300">
-            {TEXT.maxSessions}
+            {t('siteSetup.chat.maxSessions')}
           </label>
           <div className="flex items-center gap-4">
             <input
@@ -563,13 +547,13 @@ export function ChatPage() {
               {config.chatMaxSessions}
             </span>
           </div>
-          <p className="mt-1.5 text-xs leading-4 text-gray-500">{TEXT.maxSessionsHint}</p>
+          <p className="mt-1.5 text-xs leading-4 text-gray-500">{t('siteSetup.chat.maxSessionsHint')}</p>
         </div>
 
         {/* Max turns */}
         <div>
           <label htmlFor="setup-max-turns" className="mb-1.5 block text-sm font-medium text-gray-300">
-            {TEXT.maxTurns}
+            {t('siteSetup.chat.maxTurns')}
           </label>
           <div className="flex items-center gap-4">
             <input
@@ -585,15 +569,15 @@ export function ChatPage() {
               {config.chatMaxTurns}
             </span>
           </div>
-          <p className="mt-1.5 text-xs leading-4 text-gray-500">{TEXT.maxTurnsHint}</p>
+          <p className="mt-1.5 text-xs leading-4 text-gray-500">{t('siteSetup.chat.maxTurnsHint')}</p>
         </div>
       </div>
 
       {/* Permission mode */}
       <div className={`${surface} p-4 md:p-5`}>
-        <p className="text-sm font-semibold text-gray-200">{TEXT.permissions}</p>
-        <p className="mb-3 mt-1 text-xs leading-4 text-gray-500">{TEXT.permissionsHint}</p>
-        <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label={TEXT.permissions}>
+        <p className="text-sm font-semibold text-gray-200">{t('siteSetup.chat.permissions')}</p>
+        <p className="mb-3 mt-1 text-xs leading-4 text-gray-500">{t('siteSetup.chat.permissionsHint')}</p>
+        <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label={t('siteSetup.chat.permissions')}>
           {setupModeOptions().map((m) => {
             // The config file keeps the legacy Claude string: the desktop (Rust) reads it.
             const selected = toToolPolicyMode(config.chatPermissionMode) === m.mode
@@ -615,16 +599,16 @@ export function ChatPage() {
       {/* Embedding Provider */}
       <div className={`${surface} space-y-4 p-4 md:p-5`}>
         <div>
-          <h3 className="text-sm font-semibold text-gray-200">{TEXT.embedding}</h3>
-          <p className="mt-1 text-xs leading-4 text-gray-500">{TEXT.embeddingHint}</p>
+          <h3 className="text-sm font-semibold text-gray-200">{t('siteSetup.chat.embedding')}</h3>
+          <p className="mt-1 text-xs leading-4 text-gray-500">{t('siteSetup.chat.embeddingHint')}</p>
         </div>
 
         {/* Provider selection */}
-        <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label={TEXT.embedding}>
+        <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label={t('siteSetup.chat.embedding')}>
           {([
-            { value: 'local' as const, label: 'On this computer', description: 'The search model runs here (fastembed, ONNX). Nothing leaves your computer.' },
-            { value: 'http' as const, label: 'HTTP API', description: 'An OpenAI-compatible endpoint (Ollama, OpenAI, vLLM…).' },
-            { value: 'disabled' as const, label: 'Off', description: 'No search by meaning.' },
+            { value: 'local' as const, label: t('siteSetup.chat.embeddingLocal'), description: t('siteSetup.chat.embeddingLocalDesc') },
+            { value: 'http' as const, label: t('siteSetup.chat.embeddingHttp'), description: t('siteSetup.chat.embeddingHttpDesc') },
+            { value: 'disabled' as const, label: t('siteSetup.chat.embeddingOff'), description: t('siteSetup.chat.embeddingOffDesc') },
           ]).map((p) => (
             <ChoiceCard
               key={p.value}
@@ -641,7 +625,7 @@ export function ChatPage() {
           <div className="space-y-3 border-t border-white/[0.06] pt-4">
             <div>
               <label htmlFor="setup-fastembed-model" className="mb-1 block text-sm font-medium text-gray-300">
-                {TEXT.searchModel}
+                {t('siteSetup.chat.searchModel')}
               </label>
               {/* Native select: the `Select` primitive has no option groups (reported) */}
               <select
@@ -650,26 +634,28 @@ export function ChatPage() {
                 onChange={(e) => update({ embeddingFastembedModel: e.target.value })}
                 className="w-full rounded-lg border border-border-default bg-surface-base px-3 py-2 text-base text-gray-100 input-focus-glow md:text-sm"
               >
-                <optgroup label="Multilingual (recommended)">
+                <optgroup label={t('siteSetup.chat.groupMultilingual')}>
                   <option value="multilingual-e5-base">multilingual-e5-base (768d, ~1.1 GB)</option>
                   <option value="multilingual-e5-small">multilingual-e5-small (384d, ~500 MB)</option>
                   <option value="multilingual-e5-large">multilingual-e5-large (1024d, ~2.3 GB)</option>
                 </optgroup>
-                <optgroup label="English only">
+                <optgroup label={t('siteSetup.chat.groupEnglish')}>
                   <option value="bge-small-en-v1.5">bge-small-en-v1.5 (384d, ~150 MB)</option>
                   <option value="bge-base-en-v1.5">bge-base-en-v1.5 (768d, ~450 MB)</option>
                   <option value="all-minilm-l6-v2">all-MiniLM-L6-v2 (384d, ~100 MB)</option>
                   <option value="nomic-embed-text-v1.5">nomic-embed-text-v1.5 (768d, ~550 MB)</option>
                   <option value="gte-base-en-v1.5">gte-base-en-v1.5 (768d, ~550 MB)</option>
                 </optgroup>
-                <optgroup label="Large / High-quality">
-                  <option value="bge-m3">bge-m3 (1024d, multilingual)</option>
+                <optgroup label={t('siteSetup.chat.groupLarge')}>
+                  <option value="bge-m3">{t('siteSetup.chat.optionBgeM3')}</option>
                   <option value="bge-large-en-v1.5">bge-large-en-v1.5 (1024d)</option>
                   <option value="snowflake-arctic-embed-l">snowflake-arctic-embed-l (1024d)</option>
                 </optgroup>
               </select>
               <p className="mt-1 text-xs leading-4 text-gray-500">
-                Default: <span className="font-mono">multilingual-e5-base</span>, French and English, 768 dimensions.
+                {t('siteSetup.chat.searchModelDefaultBefore')}{' '}
+                <span className="font-mono">multilingual-e5-base</span>
+                {t('siteSetup.chat.searchModelDefaultAfter')}
               </p>
             </div>
 
@@ -677,35 +663,37 @@ export function ChatPage() {
             {isTauri && !embeddingModelChecked && (
               <StatusBanner
                 tone="neutral"
-                title="Checking the model cache…"
+                title={t('siteSetup.chat.checkingModel')}
                 role="status"
                 icon={<Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-gray-400" aria-hidden="true" />}
               />
             )}
 
             {isTauri && embeddingModelChecked && embeddingModelAvailable && (
-              <StatusBanner tone="success" title="Search model downloaded and ready" role="status" />
+              <StatusBanner tone="success" title={t('siteSetup.chat.modelReady')} role="status" />
             )}
 
             {isTauri && embeddingModelChecked && !embeddingModelAvailable && (
               <StatusBanner
                 tone="warning"
-                title="The search model is not downloaded yet"
+                title={t('siteSetup.chat.modelMissing')}
                 role="status"
                 action={
                   !downloadingModel && (
                     <Button variant="secondary" size="sm" onClick={handleDownloadModel}>
                       <Download className="h-3.5 w-3.5" aria-hidden="true" />
                       {downloadError
-                        ? 'Retry download'
-                        : `Download the model${embeddingEstimatedSize > 0 ? ` (~${sizeLabel(embeddingEstimatedSize)})` : ''}`}
+                        ? t('siteSetup.chat.retryDownload')
+                        : embeddingEstimatedSize > 0
+                          ? t('siteSetup.chat.downloadModelSize', { size: sizeLabel(embeddingEstimatedSize) })
+                          : t('siteSetup.chat.downloadModel')}
                     </Button>
                   )
                 }
               >
                 <p>
-                  It is downloaded once; search by meaning works without it only after that.
-                  {embeddingEstimatedSize > 0 && <span className="ml-1 text-gray-500">About {sizeLabel(embeddingEstimatedSize)}.</span>}
+                  {t('siteSetup.chat.modelOnce')}
+                  {embeddingEstimatedSize > 0 && <span className="ml-1 text-gray-500">{t('siteSetup.chat.modelAbout', { size: sizeLabel(embeddingEstimatedSize) })}</span>}
                 </p>
                 <p data-testid="setup-embedding-later">{texts.embeddingLater}</p>
                 {downloadError && (
@@ -717,7 +705,7 @@ export function ChatPage() {
                   <div className="space-y-1.5">
                     {downloadProgress && downloadProgress.totalBytes > 0 ? (
                       <>
-                        <ProgressLine value={downloadProgress.percentage} label="Model download" size="md" />
+                        <ProgressLine value={downloadProgress.percentage} label={t('siteSetup.chat.progressLabel')} size="md" />
                         <p className="flex justify-between text-xs leading-4 text-gray-400 tabular-nums">
                           <span>{formatBytes(downloadProgress.downloadedBytes)} / {formatBytes(downloadProgress.totalBytes)}</span>
                           <span>{Math.min(100, downloadProgress.percentage).toFixed(0)}%</span>
@@ -727,8 +715,8 @@ export function ChatPage() {
                       <p className="flex items-center gap-2 text-xs leading-4 text-gray-400">
                         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                         {downloadProgress && downloadProgress.downloadedBytes > 0
-                          ? `${formatBytes(downloadProgress.downloadedBytes)} downloaded…`
-                          : 'Preparing the download…'}
+                          ? t('siteSetup.chat.downloadedSoFar', { size: formatBytes(downloadProgress.downloadedBytes) })
+                          : t('siteSetup.chat.preparingDownload')}
                       </p>
                     )}
                   </div>
@@ -742,16 +730,16 @@ export function ChatPage() {
         {config.embeddingProvider === 'http' && (
           <div className="space-y-3 border-t border-white/[0.06] pt-4">
             <Field
-              label="Endpoint URL"
+              label={t('siteSetup.chat.endpointUrl')}
               value={config.embeddingUrl}
               onChange={(v) => update({ embeddingUrl: v })}
               placeholder="http://localhost:11434/v1/embeddings"
               mono
             />
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Model" value={config.embeddingModel} onChange={(v) => update({ embeddingModel: v })} placeholder="nomic-embed-text" mono />
+              <Field label={t('siteSetup.chat.model')} value={config.embeddingModel} onChange={(v) => update({ embeddingModel: v })} placeholder="nomic-embed-text" mono />
               <Field
-                label="Dimensions"
+                label={t('siteSetup.chat.dimensions')}
                 type="number"
                 value={String(config.embeddingDimensions)}
                 onChange={(v) => update({ embeddingDimensions: parseInt(v) || 768 })}
@@ -760,12 +748,12 @@ export function ChatPage() {
               />
             </div>
             <Field
-              label="API key"
+              label={t('siteSetup.chat.apiKey')}
               type="password"
               value={config.embeddingApiKey}
               onChange={(v) => update({ embeddingApiKey: v })}
-              placeholder={config.hasEmbeddingApiKey ? '••••••••' : 'Optional (for OpenAI, Voyage…)'}
-              hint={config.hasEmbeddingApiKey && !config.embeddingApiKey ? 'A key is already configured — leave blank to keep it' : undefined}
+              placeholder={config.hasEmbeddingApiKey ? '••••••••' : t('siteSetup.chat.apiKeyOptional')}
+              hint={config.hasEmbeddingApiKey && !config.embeddingApiKey ? t('siteSetup.chat.keyConfigured') : undefined}
               mono
             />
 
@@ -780,33 +768,33 @@ export function ChatPage() {
                 {testingEmbedding ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                    Testing endpoint…
+                    {t('siteSetup.chat.testingEndpoint')}
                   </>
                 ) : (
                   <>
                     <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
-                    {embeddingTestResult ? 'Re-test endpoint' : 'Test endpoint'}
+                    {embeddingTestResult ? t('siteSetup.chat.retestEndpoint') : t('siteSetup.chat.testEndpoint')}
                   </>
                 )}
               </Button>
 
               {embeddingTestResult && embeddingTestResult.success && (
-                <StatusBanner tone="success" title="Endpoint OK" role="status">
+                <StatusBanner tone="success" title={t('siteSetup.chat.endpointOk')} role="status">
                   <p className="tabular-nums">
-                    {embeddingTestResult.dimensions && <>{embeddingTestResult.dimensions} dimensions</>}
+                    {embeddingTestResult.dimensions && <>{t('siteSetup.chat.dimensionsCount', { count: embeddingTestResult.dimensions })}</>}
                     {embeddingTestResult.latencyMs != null && <> · {embeddingTestResult.latencyMs} ms</>}
                   </p>
                 </StatusBanner>
               )}
 
               {embeddingTestResult && !embeddingTestResult.success && (
-                <StatusBanner tone="danger" title="Test failed" role="alert">
-                  <p>Check the URL, the model name and the API key.</p>
+                <StatusBanner tone="danger" title={t('siteSetup.chat.testFailed')} role="alert">
+                  <p>{t('siteSetup.chat.testFailedHint')}</p>
                 </StatusBanner>
               )}
 
               {!embeddingTestResult && !testingEmbedding && (
-                <p className="text-xs leading-4 text-gray-500">A successful test is required before continuing.</p>
+                <p className="text-xs leading-4 text-gray-500">{t('siteSetup.chat.testRequired')}</p>
               )}
             </div>
           </div>
@@ -819,13 +807,13 @@ export function ChatPage() {
         {/* CLI status banner */}
         <div>
           <h3 className="text-sm font-semibold text-gray-200">Claude Code CLI</h3>
-          <p className="mt-1 text-xs leading-4 text-gray-500">{TEXT.cliHint}</p>
+          <p className="mt-1 text-xs leading-4 text-gray-500">{t('siteSetup.chat.cliHint')}</p>
         </div>
 
         {isTauri && !cliAutoChecked && (
           <StatusBanner
             tone="neutral"
-            title="Detecting Claude Code CLI..."
+            title={t('siteSetup.chat.detectingCli')}
             role="status"
             icon={<Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-gray-400" aria-hidden="true" />}
           />
@@ -841,12 +829,12 @@ export function ChatPage() {
                 {installingCli ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    Installing via the official installer...
+                    {t('siteSetup.chat.installOfficial')}
                   </>
                 ) : (
                   <>
                     <Download className="h-4 w-4" aria-hidden="true" />
-                    {installError ? 'Retry Install' : 'Install Claude Code CLI'}
+                    {installError ? t('siteSetup.chat.retryInstall') : t('siteSetup.chat.installCli')}
                   </>
                 )}
               </Button>
@@ -860,7 +848,7 @@ export function ChatPage() {
         )}
 
         {isTauri && cliAutoChecked && cliDetected && (
-          <StatusBanner tone="success" title="Claude Code CLI is installed" role="status">
+          <StatusBanner tone="success" title={t('siteSetup.chat.cliInstalled')} role="status">
             {cliStatus?.installed_version && (
               <p className="font-mono text-xs leading-4 text-gray-400">v{cliStatus.installed_version}</p>
             )}
@@ -872,44 +860,44 @@ export function ChatPage() {
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-0 flex-1 basis-56">
               <Input
-                label="Process PATH"
+                label={t('siteSetup.chat.processPath')}
                 value={config.chatProcessPath}
                 onChange={(e) => update({ chatProcessPath: e.target.value })}
-                placeholder="Inherited from system"
+                placeholder={t('siteSetup.chat.inheritedPath')}
                 className="font-mono"
               />
             </div>
             <Button variant="secondary" size="sm" flat onClick={handleDetectPath} disabled={detectingPath} className="mb-px">
               {detectingPath ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />}
-              Detect
+              {t('siteSetup.chat.detect')}
             </Button>
           </div>
           <p className="text-xs leading-4 text-gray-500">
-            {config.chatProcessPath ? 'The PATH Claude’s shell commands run with.' : 'No custom PATH: Claude’s shell commands inherit the app’s.'}
+            {config.chatProcessPath ? t('siteSetup.chat.pathUsed') : t('siteSetup.chat.pathInherited')}
           </p>
         </div>
 
         {/* Claude CLI Path */}
         <Field
-          label="Claude CLI path"
+          label={t('siteSetup.chat.cliPath')}
           value={config.chatClaudeCliPath}
           onChange={(v) => update({ chatClaudeCliPath: v })}
-          placeholder="Auto-detected"
-          hint="Explicit path to the Claude binary (optional)."
+          placeholder={t('siteSetup.chat.autoDetected')}
+          hint={t('siteSetup.chat.cliPathHint')}
           mono
         />
 
         {/* CLI Version Management */}
         <div className="border-t border-white/[0.06] pt-4">
-          <h4 className="mb-2 text-sm font-medium text-gray-300">CLI version</h4>
+          <h4 className="mb-2 text-sm font-medium text-gray-300">{t('siteSetup.chat.cliVersion')}</h4>
 
           <div className="space-y-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-3">
             {cliStatus === null ? (
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs leading-4 text-gray-500">Check which version is installed.</p>
+                <p className="text-xs leading-4 text-gray-500">{t('siteSetup.chat.checkVersion')}</p>
                 <Button variant="secondary" size="sm" flat onClick={handleCheckCli} disabled={checkingCli}>
                   {checkingCli ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />}
-                  Check
+                  {t('siteSetup.chat.check')}
                 </Button>
               </div>
             ) : (
@@ -919,11 +907,11 @@ export function ChatPage() {
                     <span className={`h-2 w-2 shrink-0 rounded-full ${cliStatus.installed ? 'bg-emerald-400' : 'bg-red-400'}`} aria-hidden="true" />
                     <span className="text-xs leading-4 text-gray-300">
                       {cliStatus.installed
-                        ? <>Version <span className="font-mono text-gray-200">{cliStatus.installed_version}</span></>
-                        : 'Not installed'}
+                        ? <>{t('siteSetup.chat.versionWord')}{' '}<span className="font-mono text-gray-200">{cliStatus.installed_version}</span></>
+                        : t('siteSetup.chat.notInstalled')}
                     </span>
                     {cliStatus.is_local_build && (
-                      <span className="rounded border border-white/[0.08] px-1.5 text-[11px] text-gray-400">Local build</span>
+                      <span className="rounded border border-white/[0.08] px-1.5 text-[11px] text-gray-400">{t('siteSetup.chat.localBuild')}</span>
                     )}
                   </div>
                   <Button
@@ -932,8 +920,8 @@ export function ChatPage() {
                     flat
                     onClick={handleCheckCli}
                     disabled={checkingCli}
-                    aria-label="Check the CLI version again"
-                    title="Check again"
+                    aria-label={t('siteSetup.chat.checkAgainLabel')}
+                    title={t('siteSetup.chat.checkAgainTitle')}
                     className="btn-icon size-9 p-0! md:size-8"
                   >
                     {checkingCli ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />}
@@ -942,9 +930,9 @@ export function ChatPage() {
 
                 {cliStatus.latest_version && (
                   <p className="text-xs leading-4 text-gray-500">
-                    Latest: <span className="font-mono">{cliStatus.latest_version}</span>
+                    {t('siteSetup.chat.latestWord')}{' '}<span className="font-mono">{cliStatus.latest_version}</span>
                     {cliStatus.update_available && !cliStatus.is_local_build && (
-                      <span className="ml-1.5 text-emerald-400">— an update is available</span>
+                      <span className="ml-1.5 text-emerald-400">{t('siteSetup.chat.updateAvailable')}</span>
                     )}
                   </p>
                 )}
@@ -953,10 +941,10 @@ export function ChatPage() {
                   <Button variant="secondary" size="sm" flat onClick={() => handleInstallCli(cliStatus.latest_version ?? undefined)} disabled={installingCli}>
                     {installingCli ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Download className="h-3.5 w-3.5" aria-hidden="true" />}
                     {installingCli
-                      ? 'Installing...'
+                      ? t('siteSetup.chat.installing')
                       : cliStatus.is_local_build
-                        ? 'Install via npm'
-                        : `Install ${cliStatus.latest_version}`}
+                        ? t('siteSetup.chat.installViaNpm')
+                        : t('siteSetup.chat.installVersion', { version: String(cliStatus.latest_version) })}
                   </Button>
                 )}
 
@@ -977,8 +965,8 @@ export function ChatPage() {
             onChange={(checked) => update({ chatAutoUpdateCli: checked })}
             label={
               <span className="block min-w-0 text-sm">
-                <span className="block font-medium text-gray-200">Update Claude Code when the app starts</span>
-                <span className="mt-0.5 block text-xs leading-4 text-gray-500">Keeps the CLI at its latest version for you.</span>
+                <span className="block font-medium text-gray-200">{t('siteSetup.chat.updateOnStart')}</span>
+                <span className="mt-0.5 block text-xs leading-4 text-gray-500">{t('siteSetup.chat.updateOnStartHint')}</span>
               </span>
             }
           />
@@ -989,14 +977,14 @@ export function ChatPage() {
       <div className={`${surface} space-y-3 p-4 md:p-5`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1 basis-56">
-            <h3 className="text-sm font-semibold text-gray-200">{TEXT.mcp}</h3>
-            <p className="mt-1 text-xs leading-4 text-gray-500">{TEXT.mcpHint}</p>
+            <h3 className="text-sm font-semibold text-gray-200">{t('siteSetup.chat.mcp')}</h3>
+            <p className="mt-1 text-xs leading-4 text-gray-500">{t('siteSetup.chat.mcpHint')}</p>
           </div>
           <div className="flex items-center gap-2">
             {mcpSuccess && (
               <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
                 <Check className="h-4 w-4" aria-hidden="true" />
-                {config.mcpSetupStatus === 'already_configured' ? 'Already configured' : 'Configured'}
+                {config.mcpSetupStatus === 'already_configured' ? t('siteSetup.chat.alreadyConfigured') : t('siteSetup.chat.configured')}
               </span>
             )}
             <Button
@@ -1008,10 +996,10 @@ export function ChatPage() {
               {config.mcpSetupStatus === 'configuring' ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                  Configuring…
+                  {t('siteSetup.chat.configuring')}
                 </>
               ) : (
-                'Configure MCP'
+                t('siteSetup.chat.configureMcp')
               )}
             </Button>
           </div>
@@ -1019,7 +1007,7 @@ export function ChatPage() {
 
         {/* Status message */}
         {config.mcpSetupStatus === 'error' && (
-          <StatusBanner tone="danger" title="MCP configuration failed" role="alert">
+          <StatusBanner tone="danger" title={t('siteSetup.chat.mcpFailed')} role="alert">
             <p className="break-words">{config.mcpSetupMessage}</p>
           </StatusBanner>
         )}
@@ -1034,9 +1022,9 @@ export function ChatPage() {
       <div className={`${surface} flex gap-3 p-4`}>
         <Info className="mt-0.5 h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
         <p className="min-w-0 text-xs leading-relaxed text-gray-500">
-          These settings can be changed at any time in{' '}
+          {t('siteSetup.chat.infoBefore')}{' '}
           <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">config.yaml</code>
-          . If you don&apos;t use the chat, you can skip this step. The MCP server can also be configured later by running{' '}
+          {t('siteSetup.chat.infoMiddle')}{' '}
           <code className="rounded bg-white/[0.06] px-1 py-0.5 text-gray-400">orchestrator setup-claude</code>.
         </p>
       </div>
@@ -1066,6 +1054,7 @@ function OtherProviderFields({
   onChange: (next: OtherProviderForm) => void
   error: string | null
 }) {
+  const { t } = useT()
   const preset = SETUP_OTHER_PRESETS.find((p) => p.key === form.presetKey) ?? SETUP_OTHER_PRESETS[0]
   const pickPreset = (key: string) => {
     const next = SETUP_OTHER_PRESETS.find((p) => p.key === key) ?? SETUP_OTHER_PRESETS[0]
@@ -1090,12 +1079,12 @@ function OtherProviderFields({
       <Field label="Model" value={form.model} onChange={(v) => onChange({ ...form, model: v })} placeholder={preset.model_hint ?? 'model name'} />
       {preset.credential_kind === 'vault' && (
         <Field
-          label="Key name in the vault (optional)"
+          label={t('siteSetup.wizardExtra.vaultNameLabel')}
           value={form.vaultName}
           onChange={(v) => onChange({ ...form, vaultName: v })}
           placeholder="deepseek-key"
           mono
-          hint="Only the name. The key is typed into the vault after launch, never here."
+          hint={t('siteSetup.wizardExtra.vaultNameHint')}
         />
       )}
       {error && (

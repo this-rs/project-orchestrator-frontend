@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react'
 import { Download, Globe, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { registryApi } from '@/services'
-import { Button, Dialog, MetaLine, Select, Spinner, pluralize } from '@/components/ui'
+import { Button, Dialog, MetaLine, Select, Spinner } from '@/components/ui'
 import { TrustScoreBar } from './TrustBadge'
 import { TagChips } from './concepts'
+import { useT } from '@/i18n'
 import type { PublishedSkillSummary, PublishedSkill, SkillImportResult } from '@/types'
+
+type Translate = ReturnType<typeof useT>['t']
+type Noun = 'note' | 'decision' | 'protocol' | 'synapse'
+/** `1 note` / `2 notes`, from the `nouns` keys. */
+const count = (t: Translate, n: number, noun: Noun) => t(`siteSkills.nouns.${noun}.${n === 1 ? 'one' : 'other'}`, { count: n })
 
 // ── Conflict strategy options ─────────────────────────────────────────────
 
-const strategyOptions = [
-  { value: 'skip', label: 'Skip (keep existing)' },
-  { value: 'merge', label: 'Merge (add new notes)' },
-  { value: 'replace', label: 'Replace (overwrite)' },
-]
+const strategyKeys = ['skip', 'merge', 'replace'] as const
 
 // ── Import Wizard Dialog ──────────────────────────────────────────────────
 
@@ -39,6 +41,7 @@ export function ImportWizard({ skill, projects, defaultProjectId, onImported, on
   const [projectId, setProjectId] = useState<string>('')
   const [result, setResult] = useState<SkillImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { t } = useT()
 
   // Fetch full skill details when a skill is selected
   useEffect(() => {
@@ -76,7 +79,7 @@ export function ImportWizard({ skill, projects, defaultProjectId, onImported, on
       setStep('success')
       onImported(importResult)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import failed')
+      setError(err instanceof Error ? err.message : t('siteSkills.importWizard.failed'))
       setStep('error')
     }
   }
@@ -84,7 +87,7 @@ export function ImportWizard({ skill, projects, defaultProjectId, onImported, on
   if (!skill) return null
 
   return (
-    <Dialog open={!!skill} onClose={onClose} title="Import skill" size="md">
+    <Dialog open={!!skill} onClose={onClose} title={t('siteSkills.importWizard.title')} size="md">
       {step === 'preview' && (
         <PreviewStep
           skill={skill}
@@ -102,44 +105,44 @@ export function ImportWizard({ skill, projects, defaultProjectId, onImported, on
       {step === 'importing' && (
         <div className="flex flex-col items-center justify-center py-8 text-center">
           <Spinner size="lg" className="mb-4" />
-          <p className="text-sm text-gray-200 break-words">Importing “{skill.name}”…</p>
-          <p className="mt-1 text-xs text-gray-500">Creating the skill, its notes and decisions in your project.</p>
+          <p className="text-sm text-gray-200 break-words">{t('siteSkills.importWizard.importing', { name: skill.name })}</p>
+          <p className="mt-1 text-xs text-gray-500">{t('siteSkills.importWizard.importingHint')}</p>
         </div>
       )}
       {step === 'success' && result && (
         <div className="flex flex-col items-center justify-center py-6 text-center">
           <CheckCircle2 className="w-8 h-8 text-emerald-400 mb-3" aria-hidden="true" />
-          <p className="text-sm text-gray-100 break-words">“{skill.name}” imported</p>
+          <p className="text-sm text-gray-100 break-words">{t('siteSkills.importWizard.imported', { name: skill.name })}</p>
           <MetaLine
             size="sm"
             className="justify-center mt-2 mb-4"
             items={[
-              pluralize(result.notes_created, 'note') + ' created',
-              pluralize(result.decisions_imported, 'decision'),
-              pluralize(result.synapses_created, 'synapse'),
+              t('siteSkills.importWizard.created', { notes: count(t, result.notes_created, 'note') }),
+              count(t, result.decisions_imported, 'decision'),
+              count(t, result.synapses_created, 'synapse'),
             ]}
           />
           {result.conflict && (
             <p className="mb-4 text-xs text-amber-400">
-              Conflict resolved: {result.conflict.strategy_applied} for the existing skill
+              {t('siteSkills.importWizard.conflict', { strategy: result.conflict.strategy_applied })}
             </p>
           )}
           <Button size="sm" onClick={onClose}>
-            Done
+            {t('siteSkills.common.done')}
           </Button>
         </div>
       )}
       {step === 'error' && (
         <div className="flex flex-col items-center justify-center py-6 text-center">
           <AlertTriangle className="w-8 h-8 text-red-400 mb-3" aria-hidden="true" />
-          <p className="text-sm text-gray-100">Import failed</p>
+          <p className="text-sm text-gray-100">{t('siteSkills.importWizard.failed')}</p>
           <p className="mt-1 mb-4 text-xs text-gray-400 max-w-xs break-words">{error}</p>
           <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" onClick={onClose}>
-              Cancel
+              {t('siteSkills.common.cancel')}
             </Button>
             <Button size="sm" onClick={handleImport}>
-              Retry
+              {t('siteSkills.common.retry')}
             </Button>
           </div>
         </div>
@@ -175,6 +178,8 @@ function PreviewStep({
   onImport,
   onCancel,
 }: PreviewStepProps) {
+  const { t } = useT()
+  const strategyOptions = strategyKeys.map((value) => ({ value, label: t(`siteSkills.importWizard.strategy.${value}`) }))
   const notes = fullSkill?.package?.notes ?? []
   const noteCount = fullSkill?.package?.notes?.length ?? skill.note_count
   const protocolCount = fullSkill?.package?.protocols?.length ?? skill.protocol_count
@@ -187,14 +192,14 @@ function PreviewStep({
         {skill.description && <p className="text-xs text-gray-400 break-words">{skill.description}</p>}
         <MetaLine
           items={[
-            <span key="src" className="break-all">from {skill.source_project_name}</span>,
+            <span key="src" className="break-all">{t('siteSkills.common.from', { source: skill.source_project_name })}</span>,
             skill.is_remote ? (
               <span key="remote" className="inline-flex items-center gap-1">
                 <Globe className="w-3 h-3" aria-hidden="true" />
-                Remote
+                {t('siteSkills.common.remote')}
               </span>
             ) : null,
-            skill.import_count > 0 ? `imported ${skill.import_count}×` : null,
+            skill.import_count > 0 ? t('siteSkills.importWizard.importedCount', { count: skill.import_count }) : null,
           ]}
         />
       </div>
@@ -202,13 +207,13 @@ function PreviewStep({
       <TrustScoreBar trustScore={skill.trust_score} trustLevel={skill.trust_level} />
 
       {/* Package contents */}
-      <section aria-label="Package contents" className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-2">
+      <section aria-label={t('siteSkills.importWizard.packageContents')} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-2">
         <MetaLine
           size="sm"
           items={[
-            pluralize(noteCount, 'note'),
-            pluralize(decisionCount, 'decision'),
-            pluralize(protocolCount, 'protocol'),
+            count(t, noteCount, 'note'),
+            count(t, decisionCount, 'decision'),
+            count(t, protocolCount, 'protocol'),
           ]}
         />
         {notes.length > 0 && (
@@ -219,13 +224,13 @@ function PreviewStep({
                 {note.content}
               </li>
             ))}
-            {notes.length > 5 && <li className="text-[11px] text-gray-500">+{notes.length - 5} more</li>}
+            {notes.length > 5 && <li className="text-[11px] text-gray-500">{t('siteSkills.common.more', { count: notes.length - 5 })}</li>}
           </ul>
         )}
         {loadingDetail && (
           <p className="flex items-center gap-2 text-xs text-gray-500">
             <Spinner size="sm" />
-            Loading package details…
+            {t('siteSkills.importWizard.loadingDetails')}
           </p>
         )}
       </section>
@@ -234,22 +239,22 @@ function PreviewStep({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Select
-          label="Destination project"
+          label={t('siteSkills.importWizard.destination')}
           options={projects.map((p) => ({ value: p.id, label: p.name }))}
           value={projectId}
           onChange={onProjectChange}
-          placeholder="Choose a project"
+          placeholder={t('siteSkills.importWizard.chooseProject')}
         />
-        <Select label="If the skill already exists" options={strategyOptions} value={strategy} onChange={onStrategyChange} />
+        <Select label={t('siteSkills.importWizard.ifExists')} options={strategyOptions} value={strategy} onChange={onStrategyChange} />
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-white/[0.06]">
         <Button variant="secondary" size="sm" onClick={onCancel}>
-          Cancel
+          {t('siteSkills.common.cancel')}
         </Button>
         <Button size="sm" onClick={onImport} disabled={!projectId}>
           <Download className="w-4 h-4 mr-1.5" aria-hidden="true" />
-          Import skill
+          {t('siteSkills.importWizard.importAction')}
         </Button>
       </div>
     </div>

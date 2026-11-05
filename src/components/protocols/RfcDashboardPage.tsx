@@ -26,10 +26,10 @@ import {
   getStatusMeta,
   getStatusOptions,
   groupBy,
-  pluralize,
   type OverflowMenuAction,
 } from '@/components/ui'
 import { iconButton } from '@/components/ui/classes'
+import { useT } from '@/i18n'
 import { useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import {
@@ -274,6 +274,7 @@ interface RfcRowProps {
 }
 
 function RfcRow({ rfc, href, onClick, onAction }: RfcRowProps) {
+  const { t } = useT()
   const state = rfcState(rfc)
   const actions: OverflowMenuAction[] = rfcTransitions(rfc).map((t) => {
     const destructive = isDestructiveTrigger(t.trigger)
@@ -300,7 +301,7 @@ function RfcRow({ rfc, href, onClick, onAction }: RfcRowProps) {
         rfc.importance === 'high' || rfc.importance === 'critical' ? (
           <StatusText key="i" kind="importance" status={rfc.importance} dot={false} label={`${getStatusMeta('importance', rfc.importance).label} importance`} />
         ) : null,
-        rfc.sections.length > 1 ? pluralize(rfc.sections.length, 'section') : null,
+        rfc.sections.length > 1 ? t(rfc.sections.length === 1 ? 'siteRest.rfc.sections.one' : 'siteRest.rfc.sections.other', { count: rfc.sections.length }) : null,
         tags.length > 0 ? <span key="t">{tags.slice(0, 2).map((t) => `#${t}`).join(' ')}{tags.length > 2 ? ` +${tags.length - 2}` : ''}</span> : null,
       ]}
       actions={actions.length > 0 ? actions : undefined}

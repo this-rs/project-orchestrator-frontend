@@ -6,6 +6,7 @@
  */
 
 import type { ToolRendererProps } from './types'
+import { useT } from '@/i18n'
 
 interface TodoItem {
   content: string
@@ -38,11 +39,12 @@ const STATUS_CONFIG = {
 } as const
 
 export function TodoWriteRenderer({ toolInput }: ToolRendererProps) {
+  const { t } = useT()
   const todos = (toolInput.todos as TodoItem[]) ?? []
 
   if (todos.length === 0) {
     return (
-      <div className="text-xs text-gray-600 italic py-1">No tasks</div>
+      <div className="text-xs text-gray-600 italic py-1">{t('siteChat.toolRender.noTasks')}</div>
     )
   }
 

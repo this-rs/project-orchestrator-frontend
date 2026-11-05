@@ -19,7 +19,6 @@ import {
   PriorityText,
   getStatusMeta,
   formatDay,
-  pluralize,
   focusRing,
   metaText,
   ProgressLine,
@@ -27,6 +26,7 @@ import {
 import { tasksApi, projectsApi } from '@/services'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
+import { useT, activeTranslator } from '@/i18n'
 import type {
   Plan,
   Task,
@@ -100,11 +100,20 @@ export const stepStatusColors: Record<StepStatus, string> = {
   skipped: 'bg-gray-600',
 }
 
+// Getters: the labels follow the active language at read time, not at module load.
 export const stepStatusLabels: Record<StepStatus, string> = {
-  pending: 'Pending',
-  in_progress: 'In progress',
-  completed: 'Done',
-  skipped: 'Skipped',
+  get pending() {
+    return activeTranslator().t('siteOps.expandable.stepStatus.pending')
+  },
+  get in_progress() {
+    return activeTranslator().t('siteOps.expandable.stepStatus.in_progress')
+  },
+  get completed() {
+    return activeTranslator().t('siteOps.expandable.stepStatus.completed')
+  },
+  get skipped() {
+    return activeTranslator().t('siteOps.expandable.stepStatus.skipped')
+  },
 }
 
 // ── Step rows (read-only) ────────────────────────────────────────────────────
@@ -120,6 +129,7 @@ function StepRowBase({
   status: string
   verification?: string
 }) {
+  const { t } = useT()
   const label = getStatusMeta('step', status).label
   return (
     <EntityRow
@@ -127,7 +137,7 @@ function StepRowBase({
       leading={<StatusDot kind="step" status={status} label={label} />}
       title={description}
       muted={status === 'completed' || status === 'skipped'}
-      description={verification ? `Verify: ${verification}` : undefined}
+      description={verification ? t('siteOps.expandable.verify', { text: verification }) : undefined}
       meta={[
         <StatusText key="s" kind="step" status={status} dot={false} />,
         <span key="n" className="tabular-nums">
@@ -200,6 +210,7 @@ function TaskRowBase({
   onToggle: () => void
   nested?: boolean
 }) {
+  const { t } = useT()
   const done = steps.filter((s) => s.status === 'completed').length
   return (
     <EntityRow
@@ -210,7 +221,7 @@ function TaskRowBase({
       muted={status === 'completed'}
       leading={
         steps.length > 0 ? (
-          <Disclosure expanded={expanded} onToggle={onToggle} label={`${expanded ? 'Hide' : 'Show'} steps of ${title}`} />
+          <Disclosure expanded={expanded} onToggle={onToggle} label={expanded ? t('siteOps.expandable.hideSteps', { title }) : t('siteOps.expandable.showSteps', { title })} />
         ) : (
           <LeadingSpacer />
         )
@@ -220,13 +231,13 @@ function TaskRowBase({
         <PriorityText key="p" priority={priority} />,
         steps.length > 0 ? (
           <span key="st" className="tabular-nums">
-            {done}/{pluralize(steps.length, 'step')}
+            {done}/{steps.length === 1 ? t('siteOps.expandable.stepOne') : t('siteOps.expandable.stepOther', { count: steps.length })}
           </span>
         ) : null,
       ]}
     >
       {expanded && steps.length > 0 && (
-        <NestedList label={`Steps of ${title}`}>
+        <NestedList label={t('siteOps.expandable.stepsOf', { title })}>
           {steps.map((step, i) => (
             <StepRowBase
               key={step.id || `${id}-${i}`}
@@ -335,6 +346,7 @@ export function ExpandablePlanRow({
   /** Extra state to pass to the plan Link (e.g. project context) */
   linkState?: Record<string, unknown>
 }) {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const [expanded, setExpanded] = useExpandSignals(expandAllSignal, collapseAllSignal)
   const [tasks, setTasks] = useState<Task[]>([])
@@ -361,16 +373,16 @@ export function ExpandablePlanRow({
       description={plan.description || undefined}
       muted={plan.status === 'completed' || plan.status === 'cancelled'}
       leading={
-        <Disclosure expanded={expanded} onToggle={() => setExpanded((v) => !v)} label={`${expanded ? 'Hide' : 'Show'} tasks of ${plan.title}`} />
+        <Disclosure expanded={expanded} onToggle={() => setExpanded((v) => !v)} label={expanded ? t('siteOps.expandable.hideTasks', { title: plan.title }) : t('siteOps.expandable.showTasks', { title: plan.title })} />
       }
       meta={[
         <StatusMenu key="s" kind="plan" status={plan.status} onChange={onStatusChange} />,
         <PriorityText key="p" priority={plan.priority} />,
-        tasks.length > 0 ? pluralize(tasks.length, 'task') : null,
+        tasks.length > 0 ? (tasks.length === 1 ? t('siteOps.expandable.taskOne') : t('siteOps.expandable.taskOther', { count: tasks.length })) : null,
       ]}
     >
       {expanded && (
-        <NestedList label={`Tasks of ${plan.title}`}>
+        <NestedList label={t('siteOps.expandable.tasksOf', { title: plan.title })}>
           {tasks.length > 0 ? (
             tasks.map((task) => (
               <NestedTaskRow
@@ -384,7 +396,7 @@ export function ExpandablePlanRow({
               />
             ))
           ) : (
-            <NestedEmpty>No tasks</NestedEmpty>
+            <NestedEmpty>{t('siteOps.expandable.noTasks')}</NestedEmpty>
           )}
         </NestedList>
       )}
@@ -394,6 +406,7 @@ export function ExpandablePlanRow({
 
 /** Plan of a milestone (enriched data: tasks + steps already loaded). */
 export function MilestonePlanRow({ plan, wsSlug, nested }: { plan: MilestonePlanSummary; wsSlug: string; nested?: boolean }) {
+  const { t } = useT()
   const [expanded, setExpanded] = useState(false)
   const total = plan.tasks.length
   const done = plan.tasks.filter((t) => t.status === 'completed').length
@@ -407,7 +420,7 @@ export function MilestonePlanRow({ plan, wsSlug, nested }: { plan: MilestonePlan
       muted={plan.status === 'completed' || plan.status === 'cancelled'}
       leading={
         total > 0 ? (
-          <Disclosure expanded={expanded} onToggle={() => setExpanded((v) => !v)} label={`${expanded ? 'Hide' : 'Show'} tasks of ${plan.title}`} />
+          <Disclosure expanded={expanded} onToggle={() => setExpanded((v) => !v)} label={expanded ? t('siteOps.expandable.hideTasks', { title: plan.title }) : t('siteOps.expandable.showTasks', { title: plan.title })} />
         ) : (
           <LeadingSpacer />
         )
@@ -416,15 +429,15 @@ export function MilestonePlanRow({ plan, wsSlug, nested }: { plan: MilestonePlan
         plan.status ? <StatusText key="s" kind="plan" status={plan.status} /> : null,
         total > 0 ? (
           <span key="t" className="tabular-nums">
-            {done}/{pluralize(total, 'task')}
+            {done}/{total === 1 ? t('siteOps.expandable.taskOne') : t('siteOps.expandable.taskOther', { count: total })}
           </span>
         ) : (
-          'No tasks'
+          t('siteOps.expandable.noTasks')
         ),
       ]}
     >
       {expanded && total > 0 && (
-        <NestedList label={`Tasks of ${plan.title}`}>
+        <NestedList label={t('siteOps.expandable.tasksOf', { title: plan.title })}>
           {plan.tasks.map((task) => (
             <MilestoneTaskRow key={task.id} task={task} wsSlug={wsSlug} />
           ))}
@@ -449,6 +462,7 @@ export function ExpandableMilestoneRow({
   refreshTrigger?: number
   linkState?: Record<string, unknown>
 }) {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const [expanded, setExpanded] = useState(false)
   const [plans, setPlans] = useState<MilestonePlanSummary[]>([])
@@ -492,22 +506,22 @@ export function ExpandableMilestoneRow({
       href={workspacePath(wsSlug, `/project-milestones/${milestone.id}`)}
       muted={milestone.status === 'completed' || milestone.status === 'closed'}
       leading={
-        <Disclosure expanded={expanded} onToggle={handleToggle} label={`${expanded ? 'Hide' : 'Show'} plans of ${milestone.title}`} />
+        <Disclosure expanded={expanded} onToggle={handleToggle} label={expanded ? t('siteOps.expandable.hidePlans', { title: milestone.title }) : t('siteOps.expandable.showPlans', { title: milestone.title })} />
       }
       trailing={total > 0 ? `${Math.round(progress?.percentage ?? 0)}%` : undefined}
       meta={[
         <StatusText key="s" kind="milestone" status={milestone.status} />,
         total > 0 ? (
           <span key="p" className="tabular-nums">
-            {completed}/{pluralize(total, 'task')}
+            {completed}/{total === 1 ? t('siteOps.expandable.taskOne') : t('siteOps.expandable.taskOther', { count: total })}
           </span>
         ) : null,
-        milestone.target_date ? `due ${formatDay(milestone.target_date)}` : null,
+        milestone.target_date ? t('siteOps.expandable.due', { date: formatDay(milestone.target_date) }) : null,
       ]}
-      context={total > 0 ? <ProgressLine value={progress?.percentage ?? 0} label={`${milestone.title} progress`} /> : undefined}
+      context={total > 0 ? <ProgressLine value={progress?.percentage ?? 0} label={t('siteOps.expandable.progress', { title: milestone.title })} /> : undefined}
     >
       {expanded && (
-        <NestedList label={`Plans of ${milestone.title}`}>
+        <NestedList label={t('siteOps.expandable.plansOf', { title: milestone.title })}>
           {loading && !loaded ? (
             <li className="!px-0">
               <EntityRowSkeleton />
@@ -515,7 +529,7 @@ export function ExpandableMilestoneRow({
           ) : plans.length > 0 ? (
             plans.map((plan) => <MilestonePlanRow key={plan.id} plan={plan} wsSlug={wsSlug} nested />)
           ) : (
-            <NestedEmpty>No plans linked</NestedEmpty>
+            <NestedEmpty>{t('siteOps.expandable.noPlans')}</NestedEmpty>
           )}
         </NestedList>
       )}

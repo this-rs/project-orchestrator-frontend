@@ -20,9 +20,9 @@ import {
   StatusText,
   ToneText,
   getStatusMeta,
-  pluralize,
 } from '@/components/ui'
 import { formatRunDuration } from './RunTreeView'
+import { useT } from '@/i18n'
 import type { Protocol, ProtocolRun } from '@/types/protocol'
 
 // ---------------------------------------------------------------------------
@@ -55,6 +55,7 @@ export function runStateName(run: Pick<ProtocolRun, 'current_state_name' | 'stat
 // ---------------------------------------------------------------------------
 
 export function RecentRunsPanel({ protocols, maxRuns = 25, runHref, onRunClick, className = '' }: RecentRunsPanelProps) {
+  const { t } = useT()
   const [runs, setRuns] = useState<RunWithProtocol[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -93,8 +94,8 @@ export function RecentRunsPanel({ protocols, maxRuns = 25, runHref, onRunClick, 
     return (
       <EmptyState
         className={className}
-        title="No runs yet"
-        description="Runs appear here as protocols execute. Start one from a protocol page, or trigger a scheduled protocol."
+        title={t('siteKnowledge.runs.emptyTitle')}
+        description={t('siteKnowledge.runs.emptyDescription')}
       />
     )
   }
@@ -104,12 +105,14 @@ export function RecentRunsPanel({ protocols, maxRuns = 25, runHref, onRunClick, 
       <MetaLine
         className="px-1"
         items={[
-          runningCount > 0 ? <ToneText key="running" tone="progress" pulse label={`${runningCount} running`} /> : null,
-          failedCount > 0 ? <ToneText key="failed" tone="danger" icon label={`${failedCount} failed`} /> : null,
-          <span key="total" className="tabular-nums">{pluralize(runs.length, 'recent run')}</span>,
+          runningCount > 0 ? <ToneText key="running" tone="progress" pulse label={t('siteKnowledge.runs.running', { count: runningCount })} /> : null,
+          failedCount > 0 ? <ToneText key="failed" tone="danger" icon label={t('siteKnowledge.runs.failed', { count: failedCount })} /> : null,
+          <span key="total" className="tabular-nums">
+            {runs.length === 1 ? t('siteKnowledge.runs.total.one', { n: 1 }) : t('siteKnowledge.runs.total.other', { n: runs.length })}
+          </span>,
         ]}
       />
-      <EntityList aria-label="Recent runs">
+      <EntityList aria-label={t('siteKnowledge.runs.aria')}>
         {runs.map(({ run, protocolName, protocolId }) => {
           const running = run.status === 'running'
           const state = runStateName(run)
@@ -130,7 +133,7 @@ export function RecentRunsPanel({ protocols, maxRuns = 25, runHref, onRunClick, 
                   </span>
                 ) : null,
                 <span key="d" className="tabular-nums">{formatRunDuration(run.started_at, run.completed_at)}</span>,
-                visited > 0 ? pluralize(visited, 'state') + ' visited' : null,
+                visited > 0 ? (visited === 1 ? t('siteKnowledge.shared.stateVisited.one', { n: 1 }) : t('siteKnowledge.shared.stateVisited.other', { n: visited })) : null,
                 <span key="id" className="font-mono text-gray-600">{run.id.slice(0, 8)}</span>,
               ]}
               context={

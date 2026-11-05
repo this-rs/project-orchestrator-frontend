@@ -11,6 +11,7 @@ import { CostDisplay } from '@/components/ui/CostDisplay'
 import { costReport, formatUsd2 } from '@/utils/cost'
 import { chatApi, getEventBus, workspacesApi } from '@/services'
 import { useActiveRunTracker, useDetachedRuns, useWorkspaceSlug } from '@/hooks'
+import { activeTranslator, useT } from '@/i18n'
 import type {
   ChatSession,
   ChatLinkedPlan,
@@ -60,7 +61,6 @@ import {
   formatRelativeShort,
   groupSessionsByDate,
   permissionModeMeta,
-  pluralize,
   sessionDisplayTitle,
   sessionPreview,
   sessionScope,
@@ -122,10 +122,10 @@ const COMPACT_THRESHOLD = 3 // total linked entities to trigger compact mode
 
 type LinkedKind = 'plan' | 'rfc' | 'task'
 
-const LINK_META: Record<LinkedKind, { icon: typeof ClipboardList; color: string; label: string; path: string }> = {
-  plan: { icon: ClipboardList, color: 'text-blue-400', label: 'Plan', path: 'plans' },
-  rfc: { icon: ScrollText, color: 'text-purple-400', label: 'RFC', path: 'notes' },
-  task: { icon: ListChecks, color: 'text-amber-400/80', label: 'Task', path: 'tasks' },
+const LINK_META: Record<LinkedKind, { icon: typeof ClipboardList; color: string; readonly label: string; path: string }> = {
+  plan: { icon: ClipboardList, color: 'text-blue-400', get label() { return activeTranslator().t('siteRest.links.label.plan') }, path: 'plans' },
+  rfc: { icon: ScrollText, color: 'text-purple-400', get label() { return activeTranslator().t('siteRest.links.label.rfc') }, path: 'notes' },
+  task: { icon: ListChecks, color: 'text-amber-400/80', get label() { return activeTranslator().t('siteRest.links.label.task') }, path: 'tasks' },
 }
 
 /* po-ref: plan rfc task */
@@ -153,10 +153,14 @@ function EntityLink({ kind, id, title, source, wsSlug }: { kind: LinkedKind; id:
 }
 
 function CountChip({ kind, count }: { kind: LinkedKind; count: number }) {
+  const { t } = useT()
   const meta = LINK_META[kind]
   const Icon = meta.icon
   return (
-    <span className="inline-flex items-center gap-0.5 tabular-nums text-gray-400" aria-label={pluralize(count, meta.label)}>
+    <span
+      className="inline-flex items-center gap-0.5 tabular-nums text-gray-400"
+      aria-label={t(count === 1 ? `siteRest.links.${kind}.one` : `siteRest.links.${kind}.other`, { count })}
+    >
       <Icon className={`w-3 h-3 ${meta.color}`} aria-hidden="true" />
       {count}
     </span>
@@ -618,6 +622,7 @@ export const SessionRow = memo(function SessionRow({
 // ============================================================================
 
 export const SessionList = memo(function SessionList({ activeSessionId, onSelect, onClose, embedded }: SessionListProps) {
+  const { t } = useT()
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [loading, setLoading] = useState(true)
   const [hasMoreSessions, setHasMoreSessions] = useState(false)
@@ -1158,16 +1163,16 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
           ) : searchResults.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-gray-600 text-sm">
               <Search className="w-6 h-6 mb-2 text-gray-700" />
-              No results for &ldquo;{debouncedQuery}&rdquo;
+              {t('siteRest.sessions.noResults', { query: debouncedQuery })}
             </div>
           ) : (
             <div className="pb-2">
               <h3 className="px-3 pt-3 pb-1 text-[11px] font-medium text-gray-500">
-                {pluralize(searchResults.length, 'session')} found
+                {t(searchResults.length === 1 ? 'siteRest.sessions.sessionsFound.one' : 'siteRest.sessions.sessionsFound.other', { count: searchResults.length })}
               </h3>
               <ul>
                 {searchResults.map((result) => {
-                  const resultTitle = result.session_title || `Session ${result.session_id.slice(0, 8)}`
+                  const resultTitle = result.session_title || t('siteRest.sessions.untitled', { id: result.session_id.slice(0, 8) })
                   const resultScope = sessionScope(result)
                   return (
                     <li key={result.session_id || result.conversation_id} className="py-1">
@@ -1179,7 +1184,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
                       >
                         <div className="text-sm text-gray-200 truncate">{resultTitle}</div>
                         <div className={`${META} mt-0.5 flex items-center min-w-0`}>
-                          <span className="tabular-nums whitespace-nowrap">{pluralize(result.hits.length, 'match', 'matches')}</span>
+                          <span className="tabular-nums whitespace-nowrap">{t(result.hits.length === 1 ? 'siteRest.sessions.matches.one' : 'siteRest.sessions.matches.other', { count: result.hits.length })}</span>
                           {resultScope && (
                             <>
                               <Sep />
@@ -1225,7 +1230,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
                           onClick={() => onSelect(result.session_id, undefined, result.session_title)}
                           className={`${META} w-full text-left pl-6 pr-3 py-1 hover:text-gray-300 transition-colors`}
                         >
-                          <span className="pl-2.5">+{pluralize(result.hits.length - 3, 'more match', 'more matches')}…</span>
+                          <span className="pl-2.5">+{t(result.hits.length - 3 === 1 ? 'siteRest.sessions.moreMatches.one' : 'siteRest.sessions.moreMatches.other', { count: result.hits.length - 3 })}…</span>
                         </button>
                       )}
                     </li>
@@ -1271,7 +1276,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
                           <Play className="w-3 h-3 text-amber-400/70 shrink-0" aria-hidden="true" />
                           <span className="flex-1 min-w-0 text-sm text-gray-200 truncate">{parentTitle}</span>
                           <span className="shrink-0 text-[11px] tabular-nums text-amber-400/70">
-                            {pluralize(info.runCount, 'run')} in progress
+                            {t(info.runCount === 1 ? 'siteRest.sessions.runsInProgress.one' : 'siteRest.sessions.runsInProgress.other', { count: info.runCount })}
                           </span>
                         </button>
                       </li>

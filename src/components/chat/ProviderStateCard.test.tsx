@@ -362,9 +362,9 @@ describe('ProviderStateCard — trust refused for lack of a sandbox', () => {
       err('unsupported', { capability: 'sandbox', message: 'The provider does not support this capability: sandbox.' }),
       { onRetry },
     )
-    expect(card.textContent).toContain('Mode « Rock’n roll » refusé')
+    expect(card.textContent).toContain('“Rock’n roll” mode refused')
     expect(card.textContent).toContain(sandboxTrustRefusedText())
-    fireEvent.click(within(card).getByRole('button', { name: 'Passer en mode « Demander »' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Switch to Ask mode' }))
     expect(store.get(chatSessionPermissionOverrideAtom)).toBe('ask')
     expect(onRetry).toHaveBeenCalled()
   })

@@ -7,6 +7,7 @@ import type { ActiveAgentSnapshot, PlanRun } from '@/services/runner'
 import type { AgentExecution } from '@/types'
 import type { StatusTone } from '@/components/ui/statusMeta'
 import { costReport, formatUsd2, type CostReport } from '@/utils/cost'
+import { activeTranslator, type MessageKey } from '@/i18n'
 
 // ---------------------------------------------------------------------------
 // Format helpers
@@ -61,13 +62,14 @@ export interface StatusStyle {
   pulse?: boolean
 }
 
-const statusConfig: Record<AgentExecution['status'], StatusStyle> = {
-  running:     { label: 'Running',     bg: 'bg-blue-500/15',   text: 'text-blue-400',   dot: 'bg-blue-400',   pulse: true },
-  completed:   { label: 'Completed',   bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400' },
-  failed:      { label: 'Failed',      bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400' },
-  timeout:     { label: 'Timeout',     bg: 'bg-amber-500/15',  text: 'text-amber-400',  dot: 'bg-amber-400' },
+/** Labels are keys: read in the language on screen at the moment a status is shown. */
+const statusConfig: Record<AgentExecution['status'], Omit<StatusStyle, 'label'> & { labelKey: MessageKey }> = {
+  running:     { labelKey: 'siteRest.runner.execState.running',     bg: 'bg-blue-500/15',   text: 'text-blue-400',   dot: 'bg-blue-400',   pulse: true },
+  completed:   { labelKey: 'siteRest.runner.execState.completed',   bg: 'bg-green-500/15',  text: 'text-green-400',  dot: 'bg-green-400' },
+  failed:      { labelKey: 'siteRest.runner.execState.failed',      bg: 'bg-red-500/15',    text: 'text-red-400',    dot: 'bg-red-400' },
+  timeout:     { labelKey: 'siteRest.runner.execState.timeout',     bg: 'bg-amber-500/15',  text: 'text-amber-400',  dot: 'bg-amber-400' },
   // Left `running` by a process that is gone: whether it finished is unknown.
-  interrupted: { label: 'Interrupted', bg: 'bg-orange-500/15', text: 'text-orange-400', dot: 'bg-orange-400' },
+  interrupted: { labelKey: 'siteRest.runner.execState.interrupted', bg: 'bg-orange-500/15', text: 'text-orange-400', dot: 'bg-orange-400' },
 }
 
 /** A status this UI does not know is shown as it is, never as `running`. */
@@ -78,19 +80,23 @@ const UNKNOWN_STATUS_STYLE: Omit<StatusStyle, 'label'> = {
 }
 
 export function statusStyle(status: string): StatusStyle {
-  return (statusConfig as Record<string, StatusStyle>)[status] ?? { label: status, ...UNKNOWN_STATUS_STYLE }
+  const config = (statusConfig as Record<string, (typeof statusConfig)[AgentExecution['status']]>)[status]
+  if (!config) return { label: status, ...UNKNOWN_STATUS_STYLE }
+  const { labelKey, ...style } = config
+  return { ...style, label: activeTranslator().t(labelKey) }
 }
 
 /** `Manual` · `Chat` · `Schedule` · `Webhook` · `Event` — how a plan run was started. */
 export function planRunTriggerLabel(triggered_by: PlanRun['triggered_by']): string {
+  const t = activeTranslator().t
   if (typeof triggered_by === 'string') {
-    return triggered_by ? triggered_by.charAt(0).toUpperCase() + triggered_by.slice(1) : 'Unknown'
+    return triggered_by ? triggered_by.charAt(0).toUpperCase() + triggered_by.slice(1) : t('siteRest.runner.trigger.unknown')
   }
-  if ('chat' in triggered_by) return 'Chat'
-  if ('schedule' in triggered_by) return 'Schedule'
-  if ('webhook' in triggered_by) return 'Webhook'
-  if ('event' in triggered_by) return 'Event'
-  return 'Unknown'
+  if ('chat' in triggered_by) return t('siteRest.runner.trigger.chat')
+  if ('schedule' in triggered_by) return t('siteRest.runner.trigger.schedule')
+  if ('webhook' in triggered_by) return t('siteRest.runner.trigger.webhook')
+  if ('event' in triggered_by) return t('siteRest.runner.trigger.event')
+  return t('siteRest.runner.trigger.unknown')
 }
 
 // ---------------------------------------------------------------------------
@@ -123,41 +129,55 @@ export interface ToneMeta {
   live?: boolean
 }
 
-const RUN_META: Record<string, ToneMeta> = {
-  running: { label: 'Running', tone: 'progress', live: true },
-  completed: { label: 'Completed', tone: 'success' },
-  failed: { label: 'Failed', tone: 'danger' },
-  cancelled: { label: 'Cancelled', tone: 'muted' },
-  budget_exceeded: { label: 'Budget exceeded', tone: 'warning' },
-  interrupted: { label: 'Interrupted', tone: 'warning' },
+/** Table entries hold the key of the label, not the label: it is read when the status is asked for. */
+interface ToneMetaKey extends Omit<ToneMeta, 'label'> {
+  labelKey: MessageKey
 }
 
-const AGENT_META: Record<string, ToneMeta> = {
-  spawning: { label: 'Starting', tone: 'progress', live: true },
-  running: { label: 'Running', tone: 'progress', live: true },
-  verifying: { label: 'Verifying', tone: 'progress', live: true },
-  completed: { label: 'Completed', tone: 'success' },
-  failed: { label: 'Failed', tone: 'danger' },
-  interrupted: { label: 'Interrupted', tone: 'warning' },
+const RUN_META: Record<string, ToneMetaKey> = {
+  running: { labelKey: 'siteRest.runner.runState.running', tone: 'progress', live: true },
+  completed: { labelKey: 'siteRest.runner.runState.completed', tone: 'success' },
+  failed: { labelKey: 'siteRest.runner.runState.failed', tone: 'danger' },
+  cancelled: { labelKey: 'siteRest.runner.runState.cancelled', tone: 'muted' },
+  budget_exceeded: { labelKey: 'siteRest.runner.runState.budgetExceeded', tone: 'warning' },
+  interrupted: { labelKey: 'siteRest.runner.runState.interrupted', tone: 'warning' },
 }
 
-const WAVE_META: Record<WaveStatus, ToneMeta> = {
-  active: { label: 'Running', tone: 'progress', live: true },
-  completed: { label: 'Completed', tone: 'success' },
-  failed: { label: 'Has failures', tone: 'danger' },
-  pending: { label: 'Waiting', tone: 'neutral' },
-  partial: { label: 'Partial', tone: 'warning' },
+const AGENT_META: Record<string, ToneMetaKey> = {
+  spawning: { labelKey: 'siteRest.runner.agentState.starting', tone: 'progress', live: true },
+  running: { labelKey: 'siteRest.runner.agentState.running', tone: 'progress', live: true },
+  verifying: { labelKey: 'siteRest.runner.agentState.verifying', tone: 'progress', live: true },
+  completed: { labelKey: 'siteRest.runner.agentState.completed', tone: 'success' },
+  failed: { labelKey: 'siteRest.runner.agentState.failed', tone: 'danger' },
+  interrupted: { labelKey: 'siteRest.runner.agentState.interrupted', tone: 'warning' },
+}
+
+const WAVE_META: Record<WaveStatus, ToneMetaKey> = {
+  active: { labelKey: 'siteRest.runner.waveState.active', tone: 'progress', live: true },
+  completed: { labelKey: 'siteRest.runner.waveState.completed', tone: 'success' },
+  failed: { labelKey: 'siteRest.runner.waveState.failed', tone: 'danger' },
+  pending: { labelKey: 'siteRest.runner.waveState.waiting', tone: 'neutral' },
+  partial: { labelKey: 'siteRest.runner.waveState.partial', tone: 'warning' },
+}
+
+function metaOf(entry: ToneMetaKey): ToneMeta {
+  const { labelKey, ...rest } = entry
+  return { ...rest, label: activeTranslator().t(labelKey) }
 }
 
 /** Plan run / runner run status (`running`, `completed`, `failed`, `cancelled`, `budget_exceeded`, `interrupted`). */
 export function runStateMeta(status: string | null | undefined): ToneMeta {
-  return RUN_META[status ?? ''] ?? { label: status ? status.replace(/_/g, ' ') : 'Unknown', tone: 'neutral' }
+  const entry = RUN_META[status ?? '']
+  if (entry) return metaOf(entry)
+  return { label: status ? status.replace(/_/g, ' ') : activeTranslator().t('siteRest.runner.runState.unknown'), tone: 'neutral' }
 }
 
 export function agentStateMeta(status: string | null | undefined): ToneMeta {
-  return AGENT_META[status ?? ''] ?? { label: status ?? 'Unknown', tone: 'neutral' }
+  const entry = AGENT_META[status ?? '']
+  if (entry) return metaOf(entry)
+  return { label: status ?? activeTranslator().t('siteRest.runner.agentState.unknown'), tone: 'neutral' }
 }
 
 export function waveStateMeta(status: WaveStatus): ToneMeta {
-  return WAVE_META[status]
+  return metaOf(WAVE_META[status])
 }

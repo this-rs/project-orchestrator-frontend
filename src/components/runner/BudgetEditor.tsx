@@ -9,6 +9,7 @@ import { Button, focusRing, hitArea, textLink } from '@/components/ui'
 import { formatCost } from './shared'
 import { costReport, costToText, formatUsd2 } from '@/utils/cost'
 import type { CostBasis } from '@/types/provider'
+import { useT } from '@/i18n'
 
 interface BudgetEditorProps {
   /** `null` = the run has no known cost (never `$0.00`). */
@@ -21,6 +22,7 @@ interface BudgetEditorProps {
 
 export function BudgetEditor({ costUsd, costBasis, maxCostUsd, onSave }: BudgetEditorProps) {
   // What was spent, by basis ("$1.20", "$1.20 est.", "local"…). No figure is "—", never "$0.00".
+  const { t } = useT()
   const spent = costToText(costReport(costUsd, costBasis), { format: formatUsd2 }) ?? '—'
   const [editing, setEditing] = useState(false)
   const [input, setInput] = useState('')
@@ -51,7 +53,7 @@ export function BudgetEditor({ costUsd, costBasis, maxCostUsd, onSave }: BudgetE
         <span className="font-mono tabular-nums text-gray-300">{spent} /</span>
         <label className="inline-flex items-center gap-1">
           <span className="text-gray-500">$</span>
-          <span className="sr-only">Budget limit in dollars</span>
+          <span className="sr-only">{t('siteOps.budgetEditor.limitLabel')}</span>
           <input
             type="number"
             inputMode="decimal"
@@ -68,10 +70,10 @@ export function BudgetEditor({ costUsd, costBasis, maxCostUsd, onSave }: BudgetE
             className={`w-20 h-9 md:h-8 px-2 rounded-md bg-white/[0.05] border border-white/[0.1] text-base md:text-sm font-mono tabular-nums text-gray-200 ${focusRing}`}
           />
         </label>
-        <Button size="sm" variant="secondary" onClick={() => void save()} loading={saving} aria-label="Save budget" className="!px-2">
+        <Button size="sm" variant="secondary" onClick={() => void save()} loading={saving} aria-label={t('siteOps.budgetEditor.save')} className="!px-2">
           {!saving && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => setEditing(false)} aria-label="Cancel budget edit" className="!px-2">
+        <Button size="sm" variant="ghost" onClick={() => setEditing(false)} aria-label={t('siteOps.budgetEditor.cancel')} className="!px-2">
           <X className="w-3.5 h-3.5" aria-hidden="true" />
         </Button>
       </span>
@@ -86,7 +88,7 @@ export function BudgetEditor({ costUsd, costBasis, maxCostUsd, onSave }: BudgetE
       </span>
       <button type="button" onClick={start} className={`${hitArea} inline-flex items-center gap-1 text-xs ${textLink}`}>
         <Pencil className="w-3 h-3" aria-hidden="true" />
-        {maxCostUsd > 0 ? 'Edit budget' : 'Set budget'}
+        {maxCostUsd > 0 ? t('siteOps.budgetEditor.edit') : t('siteOps.budgetEditor.set')}
       </button>
     </span>
   )

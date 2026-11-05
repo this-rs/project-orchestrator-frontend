@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAtom } from 'jotai'
 import { KeyRound, Eye, EyeOff, Lock, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useT } from '@/i18n'
 import { panelGlass } from '@/components/ui/panelGlass'
 import { chatSecretRequestsAtom, type PendingSecretRequest } from '@/atoms'
 import {
@@ -92,6 +93,7 @@ interface CardProps {
 }
 
 export function SecretRequestCard({ request, sessionId, projectSlug, overview, onDone }: CardProps) {
+  const { t } = useT()
   const [value, setValue] = useState('')
   const [reveal, setReveal] = useState(false)
   const [passphrase, setPassphrase] = useState('')
@@ -151,17 +153,17 @@ export function SecretRequestCard({ request, sessionId, projectSlug, overview, o
         <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="text-gray-200">
-            The agent asks for the secret <code className="text-amber-300">{request.name}</code>
+            {t('siteChat.secretTray.askFor')} <code className="text-amber-300">{request.name}</code>
           </p>
-          {request.reason && <p className="mt-0.5 text-xs text-gray-400">« {request.reason} »</p>}
+          {request.reason && <p className="mt-0.5 text-xs text-gray-400">{t('siteChat.secretTray.reason', { reason: request.reason })}</p>}
         </div>
         <button
           type="button"
           className="rounded p-1 text-gray-500 hover:bg-white/5 hover:text-gray-300"
           onClick={() => void submit('decline')}
           disabled={busy}
-          aria-label="Decline the request"
-          title="Decline"
+          aria-label={t('siteChat.secretTray.declineAria')}
+          title={t('siteChat.secretTray.decline')}
         >
           <X className="h-4 w-4" />
         </button>
@@ -169,36 +171,36 @@ export function SecretRequestCard({ request, sessionId, projectSlug, overview, o
 
       {!initialized ? (
         <p className="mt-2 text-xs text-gray-400">
-          No vault exists yet.{' '}
+          {t('siteChat.secretTray.noVault')}{' '}
           <Link to="/vault" className="text-amber-300 underline">
-            Create the vault
+            {t('siteChat.secretTray.createVault')}
           </Link>{' '}
-          then come back here.
+          {t('siteChat.secretTray.comeBack')}
         </p>
       ) : (
         <div className="mt-2 space-y-2">
           {needsPass && (
             <label className="flex flex-wrap items-center gap-2">
               <Lock className="h-3.5 w-3.5 text-gray-500" aria-hidden />
-              <span className="text-xs text-gray-400">{locked ? 'Vault locked' : 'Confirm with'}</span>
+              <span className="text-xs text-gray-400">{locked ? t('siteChat.secretTray.vaultLocked') : t('siteChat.secretTray.confirmWith')}</span>
               <input
                 type="password"
                 autoComplete="current-password"
                 className="min-w-0 flex-1 rounded border border-gray-700 bg-gray-900 px-2 py-1 text-gray-100"
-                placeholder="Vault passphrase"
+                placeholder={t('siteChat.secretTray.passphrase')}
                 value={passphrase}
                 onChange={(e) => setPassphrase(e.target.value)}
-                aria-label="Vault passphrase"
+                aria-label={t('siteChat.secretTray.passphrase')}
               />
               <select
                 className="rounded border border-gray-700 bg-gray-900 px-1 py-1 text-xs text-gray-300"
                 value={unlockMinutes}
                 onChange={(e) => setUnlockMinutes(Number(e.target.value))}
-                aria-label="Unlock duration"
+                aria-label={t('siteChat.secretTray.unlockDuration')}
               >
                 {DURATION_CHOICES.map((d) => (
                   <option key={d.minutes} value={d.minutes}>
-                    open {d.label}
+                    {t('siteChat.secretTray.unlockOpen', { label: d.label })}
                   </option>
                 ))}
               </select>
@@ -207,9 +209,9 @@ export function SecretRequestCard({ request, sessionId, projectSlug, overview, o
 
           {offerGrant ? (
             <p className="text-xs text-gray-400">
-              This secret is already in the vault.{' '}
+              {t('siteChat.secretTray.alreadyInVault')}{' '}
               <button type="button" className="text-amber-300 underline" onClick={() => setReplace(true)}>
-                Replace its value
+                {t('siteChat.secretTray.replaceValue')}
               </button>
             </p>
           ) : (
@@ -219,16 +221,16 @@ export function SecretRequestCard({ request, sessionId, projectSlug, overview, o
                 autoComplete="off"
                 spellCheck={false}
                 className="min-w-0 flex-1 rounded border border-gray-700 bg-gray-900 px-2 py-1 font-mono text-gray-100"
-                placeholder="Value (8 characters minimum)"
+                placeholder={t('siteChat.secretTray.valuePlaceholder')}
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
-                aria-label={`Value of secret ${request.name}`}
+                aria-label={t('siteChat.secretTray.valueAria', { name: request.name })}
               />
               <button
                 type="button"
                 className="rounded p-1 text-gray-500 hover:text-gray-300"
                 onClick={() => setReveal((r) => !r)}
-                aria-label={reveal ? 'Hide value' : 'Show value'}
+                aria-label={reveal ? t('siteChat.secretTray.hideValue') : t('siteChat.secretTray.showValue')}
               >
                 {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -236,21 +238,21 @@ export function SecretRequestCard({ request, sessionId, projectSlug, overview, o
           )}
 
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-400">
-            <span>Access for</span>
+            <span>{t('siteChat.secretTray.accessFor')}</span>
             <select
               className="rounded border border-gray-700 bg-gray-900 px-1 py-1 text-gray-300"
               value={scopeKind}
               onChange={(e) => setScopeKind(e.target.value as 'session' | 'project')}
-              aria-label="Access scope"
+              aria-label={t('siteChat.secretTray.accessScope')}
             >
-              <option value="session">this conversation</option>
-              {projectSlug && <option value="project">project {projectSlug}</option>}
+              <option value="session">{t('siteChat.secretTray.scopeConversation')}</option>
+              {projectSlug && <option value="project">{t('siteChat.secretTray.scopeProject', { slug: projectSlug })}</option>}
             </select>
             <select
               className="rounded border border-gray-700 bg-gray-900 px-1 py-1 text-gray-300"
               value={grantMinutes}
               onChange={(e) => setGrantMinutes(Number(e.target.value))}
-              aria-label="Access duration"
+              aria-label={t('siteChat.secretTray.accessDuration')}
             >
               {GRANT_DURATION_CHOICES.map((d) => (
                 <option key={d.minutes} value={d.minutes}>
@@ -263,7 +265,7 @@ export function SecretRequestCard({ request, sessionId, projectSlug, overview, o
               disabled={!canSubmit}
               className="ml-auto rounded bg-amber-500/80 px-3 py-1 font-medium text-gray-950 hover:bg-amber-400 disabled:opacity-40"
             >
-              {busy ? '…' : offerGrant ? 'Allow' : 'Provide'}
+              {busy ? '…' : offerGrant ? t('siteChat.secretTray.allow') : t('siteChat.secretTray.provide')}
             </button>
           </div>
         </div>

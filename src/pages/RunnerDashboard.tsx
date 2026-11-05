@@ -32,12 +32,14 @@ import { RunTargetDialog } from '@/components/runner/RunTargetDialog'
 import { launchRun, useRunTargetGate } from '@/hooks/useRunTargetGate'
 import { workspacePath } from '@/utils/paths'
 import { useAgentExecutionsMap, useLatestPlanRun, useWavesData } from '@/hooks/runner'
+import { useT } from '@/i18n'
 
 type DashboardTab = 'waves' | 'discussions'
 
 export function RunnerDashboard() {
   const { planId } = useParams<{ planId: string }>()
   const wsSlug = useWorkspaceSlug()
+  const { t } = useT()
   const toast = useToast()
   const { snapshot, isRunning, error, refresh } = useRunnerStatus(planId)
   const latestRun = useLatestPlanRun(planId)
@@ -101,10 +103,10 @@ export function RunnerDashboard() {
     if (!planId) return
     try {
       await runnerApi.updateBudget(planId, value)
-      toast.success('Budget updated')
+      toast.success(t('siteOps.runnerDashboard.budgetUpdated'))
       refresh()
     } catch {
-      toast.error('Failed to update the budget')
+      toast.error(t('siteOps.runnerDashboard.budgetFailed'))
       throw new Error('budget')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
@@ -188,10 +190,10 @@ export function RunnerDashboard() {
     setRetryingTaskId(taskId)
     try {
       await runnerApi.retryTask(planId, taskId)
-      toast.success(`Retrying “${taskTitle}”`)
+      toast.success(t('siteOps.runnerDashboard.retrying', { title: taskTitle }))
       refresh()
     } catch {
-      toast.error('Failed to retry the task')
+      toast.error(t('siteOps.runnerDashboard.retryFailed'))
     } finally {
       setRetryingTaskId(null)
     }
@@ -203,17 +205,17 @@ export function RunnerDashboard() {
   const handleRetryRun = useCallback(async () => {
     if (!planId || retryingRun) return
     await runGate.ask({
-      title: planTitle ?? `Plan ${planId.slice(0, 8)}…`,
+      title: planTitle ?? t('siteOps.runnerDashboard.planFallback', { id: planId.slice(0, 8) }),
       projectSlug: project?.slug,
       run: async (options, unpriced) => {
         setRetryingRun(true)
         try {
           // An unpriced instance cannot honour a USD budget: it is left out.
           await launchRun(planId, '.', undefined, options, unpriced ? undefined : effectiveSnapshot?.max_cost_usd)
-          toast.success('Run started')
+          toast.success(t('siteOps.runnerDashboard.runStarted'))
           refresh()
         } catch {
-          toast.error('Failed to start the run')
+          toast.error(t('siteOps.runnerDashboard.runFailed'))
         } finally {
           setRetryingRun(false)
         }
@@ -233,7 +235,7 @@ export function RunnerDashboard() {
   if (error && !snapshot && !latestRun) {
     return (
       <PageContainer width="wide">
-        <ErrorState title="Runner not available" description={error} onRetry={refresh} />
+        <ErrorState title={t('siteOps.runnerDashboard.unavailable')} description={error} onRetry={refresh} />
       </PageContainer>
     )
   }
@@ -247,7 +249,7 @@ export function RunnerDashboard() {
     )
   }
 
-  const title = planTitle ?? effectiveSnapshot.current_task_title ?? `Plan ${planId?.slice(0, 8)}…`
+  const title = planTitle ?? effectiveSnapshot.current_task_title ?? t('siteOps.runnerDashboard.planFallback', { id: (planId ?? '').slice(0, 8) })
   const failedCount = resolvedAgents.filter((a) => a.status === 'failed').length
   const anyActive = orderedWaves.some((w) => getWaveStatus(w.agents) === 'active')
 
@@ -269,21 +271,19 @@ export function RunnerDashboard() {
 
       <div className="space-y-3">
         <ViewTabs
-          label="Runner views"
+          label={t('siteOps.runnerDashboard.viewsLabel')}
           value={activeTab}
           onChange={setActiveTab}
           tabs={[
-            { id: 'waves', label: 'Waves', count: orderedWaves.length || undefined },
-            { id: 'discussions', label: 'Discussion tree' },
+            { id: 'waves', label: t('siteOps.runnerDashboard.waves'), count: orderedWaves.length || undefined },
+            { id: 'discussions', label: t('siteOps.runnerDashboard.discussionTree') },
           ]}
         />
 
         {activeTab === 'waves' ? (
           <>
             <Explainer>
-              A run executes the plan wave by wave: the tasks of a wave run at the same time, each one by its own
-              assistant, and the next wave starts once the previous one is checked. Open an assistant's conversation to
-              follow it live; retry a failed task from its row.
+              {t('siteOps.runnerDashboard.explainer')}
             </Explainer>
             {wavesLoading && orderedWaves.length === 0 ? (
               <EntityListSkeleton rows={4} />
@@ -306,11 +306,11 @@ export function RunnerDashboard() {
               </div>
             ) : (
               <EmptyState
-                title={effectiveSnapshot.running ? 'Waiting for the assistants to start…' : 'No assistant ran'}
+                title={effectiveSnapshot.running ? t('siteOps.runnerDashboard.waiting') : t('siteOps.runnerDashboard.noAssistant')}
                 description={
                   effectiveSnapshot.running
-                    ? 'The first wave is being prepared. Assistants appear here as soon as they start.'
-                    : 'Nothing was executed in this run. Retry the run to start it again.'
+                    ? t('siteOps.runnerDashboard.firstWave')
+                    : t('siteOps.runnerDashboard.nothingRan')
                 }
               />
             )}
@@ -329,7 +329,7 @@ export function RunnerDashboard() {
             }}
           />
         ) : (
-          <EmptyState title="No discussion sessions" description="No conversation was recorded for this run." />
+          <EmptyState title={t('siteOps.runnerDashboard.noDiscussions')} description={t('siteOps.runnerDashboard.noConversation')} />
         )}
       </div>
     </PageContainer>

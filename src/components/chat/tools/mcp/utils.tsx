@@ -10,6 +10,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { workspacePath } from '@/utils/paths'
 import { useReferenceSource } from '@/refs/source'
+import { useT } from '@/i18n'
 
 // ---------------------------------------------------------------------------
 // Entity quick-link — maps entity types to workspace-scoped frontend routes
@@ -494,13 +495,15 @@ import { parseCompactYaml } from '@/utils/compactYamlParser'
 /**
  * Collapsible list: shows first `limit` items, with expand toggle.
  */
-export function CollapsibleList<T>({ items, limit = 3, renderItem, label = 'items' }: {
+export function CollapsibleList<T>({ items, limit = 3, renderItem, label }: {
   items: T[]
   limit?: number
   renderItem: (item: T, index: number) => React.ReactNode
   label?: string
 }) {
+  const { t } = useT()
   const [expanded, setExpanded] = useState(false)
+  const itemsLabel = label ?? t('siteRest.collapsible.items')
   const showAll = expanded || items.length <= limit
   const visible = showAll ? items : items.slice(0, limit)
   const remaining = items.length - limit
@@ -513,7 +516,7 @@ export function CollapsibleList<T>({ items, limit = 3, renderItem, label = 'item
           onClick={() => setExpanded(true)}
           className="text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors py-0.5"
         >
-          + {remaining} more {label}
+          {t('siteRest.collapsible.more', { count: remaining, label: itemsLabel })}
         </button>
       )}
       {expanded && items.length > limit && (
@@ -521,7 +524,7 @@ export function CollapsibleList<T>({ items, limit = 3, renderItem, label = 'item
           onClick={() => setExpanded(false)}
           className="text-[10px] text-gray-500 hover:text-gray-400 transition-colors py-0.5"
         >
-          show less
+          {t('siteRest.collapsible.showLess')}
         </button>
       )}
     </>

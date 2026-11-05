@@ -62,6 +62,12 @@ import type anchors from './messages/en/anchors.ts'
 import type apiTokens from './messages/en/apiTokens.ts'
 import type execConfirm from './messages/en/execConfirm.ts'
 import type selfCore from './messages/en/selfCore.ts'
+import type siteSetup from './messages/en/siteSetup.ts'
+import type siteSkills from './messages/en/siteSkills.ts'
+import type siteKnowledge from './messages/en/siteKnowledge.ts'
+import type siteChat from './messages/en/siteChat.ts'
+import type siteOps from './messages/en/siteOps.ts'
+import type siteRest from './messages/en/siteRest.ts'
 
 interface EnglishMessages {
   auth: typeof auth
@@ -122,6 +128,12 @@ interface EnglishMessages {
   apiTokens: typeof apiTokens
   execConfirm: typeof execConfirm
   selfCore: typeof selfCore
+  siteSetup: typeof siteSetup
+  siteSkills: typeof siteSkills
+  siteKnowledge: typeof siteKnowledge
+  siteChat: typeof siteChat
+  siteOps: typeof siteOps
+  siteRest: typeof siteRest
 }
 
 export type Ns = keyof EnglishMessages
@@ -133,6 +145,7 @@ export const NAMESPACES = [
   'auth', 'workspaceSelector', 'settingsPage', 'settingsShared', 'vault', 'sharing', 'admin', 'mcpFederation', 'providerWizard', 'providerAdmin', 'networkTools', 'anchors',
   'chatA-activity', 'chatA-input', 'chatA-messages', 'chatA-page', 'chatA-tools',
   'apiTokens', 'execConfirm', 'selfCore',
+  'siteSetup', 'siteSkills', 'siteKnowledge', 'siteChat', 'siteOps', 'siteRest',
 ] as const satisfies readonly Ns[]
 
 /** Every other language is a (possibly partial) overlay of the same shape. */

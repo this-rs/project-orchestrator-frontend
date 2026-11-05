@@ -13,7 +13,12 @@
  */
 import type { ChatMessage, ContentBlock } from '@/types'
 import type { RoutingDecision } from '@/types/routing'
+import { activeTranslator } from '@/i18n'
 import { pairOutages, readOutageEvent, type OutageEvent } from './outage'
+
+/** A label of the timeline in the language on screen (this module is not a component). */
+const tl = (key: 'request' | 'error' | 'cancel' | 'waiting' | 'compacted' | 'conversation' | 'workLane') =>
+  activeTranslator().t(`siteKnowledge.timeline.${key}`)
 
 /** `unknown`: a call that never got a result and is not being streamed (a background task, an interrupted call). */
 export type TimelineStatus = 'running' | 'done' | 'error' | 'blocked' | 'cancelled' | 'pending' | 'unknown'
@@ -292,14 +297,14 @@ function buildWorkLane(work: TimelineWork, sessionId: string): { lane: TimelineL
     })
   }
   const active = work.tasks.find((t) => t.status === 'in_progress') ?? (work.tasks.length === 1 ? work.tasks[0] : undefined)
-  return { lane: { id: laneId, title: 'Plan · Task · Step', items }, activeTaskId: active?.id }
+  return { lane: { id: laneId, title: tl('workLane'), items }, activeTaskId: active?.id }
 }
 
 /** Build the lanes and the flat item list. */
 export function buildTimeline(input: TimelineInput): Timeline {
   const { messages, sessionId, isStreaming = false } = input
   const now = input.now ?? Date.now()
-  const mainLane: TimelineLane = { id: sessionId, title: input.title?.trim() || 'Conversation', items: [], context: input.session }
+  const mainLane: TimelineLane = { id: sessionId, title: input.title?.trim() || tl('conversation'), items: [], context: input.session }
   const byId = new Map<string, TimelineItem>()
   /** `tool_timing` of each call (on its tool_use block), when the backend sent one. */
   const timings = new Map<string, unknown>()
@@ -361,7 +366,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
         id: requestId,
         kind: 'request',
         status: 'done',
-        label: clip(text) || 'Request',
+        label: clip(text) || tl('request'),
         startedAt: msgTime,
         laneId: sessionId,
         input: text,
@@ -446,7 +451,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
           status: block.metadata?.decided === true || block.metadata?.submitted === true
             ? (block.metadata?.decision === 'denied' ? 'cancelled' : 'done')
             : 'blocked',
-          label: clip(block.content) || 'Waiting for you',
+          label: clip(block.content) || tl('waiting'),
           startedAt: blockTime(block, msgTime),
           laneId: sessionId,
           parentId: byId.has(aboutCall) ? aboutCall : requestId,
@@ -462,7 +467,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
           id: stableId(block),
           kind: 'marker',
           status: 'done',
-          label: clip(block.content) || 'Cancel',
+          label: clip(block.content) || tl('cancel'),
           startedAt: blockTime(block, msgTime),
           laneId: sessionId,
           parentId: requestId,
@@ -475,7 +480,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
           id: stableId(block),
           kind: 'error',
           status: 'error',
-          label: clip(block.content) || 'Error',
+          label: clip(block.content) || tl('error'),
           startedAt: blockTime(block, msgTime),
           laneId: sessionId,
           parentId: requestId,
@@ -491,7 +496,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
           id: stableId(block),
           kind: 'marker',
           status: 'done',
-          label: `Model → ${shortModel(next)}`,
+          label: activeTranslator().t('siteKnowledge.timeline.modelChanged', { model: shortModel(next) }),
           startedAt: blockTime(block, msgTime),
           laneId: sessionId,
           requestId,
@@ -504,7 +509,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
           id: stableId(block),
           kind: 'marker',
           status: 'done',
-          label: clip(block.content) || `→ ${to ?? ''}`,
+          label: clip(block.content) || activeTranslator().t('siteKnowledge.timeline.relayed', { to: to ?? '' }),
           startedAt: blockTime(block, msgTime),
           laneId: sessionId,
           requestId,
@@ -516,7 +521,7 @@ export function buildTimeline(input: TimelineInput): Timeline {
           id: stableId(block),
           kind: 'marker',
           status: 'done',
-          label: 'Context compacted',
+          label: tl('compacted'),
           startedAt: blockTime(block, msgTime),
           laneId: sessionId,
           requestId,

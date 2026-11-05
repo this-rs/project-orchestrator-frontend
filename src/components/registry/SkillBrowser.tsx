@@ -11,21 +11,22 @@ import {
   LoadMoreSentinel,
   RelativeTime,
   Select,
-  pluralize,
 } from '@/components/ui'
 import { TrustBadge } from './TrustBadge'
 import { tagSummary } from './metrics'
 import { useInfiniteList } from '@/hooks'
+import { useT } from '@/i18n'
 import type { PublishedSkillSummary, PaginatedResponse } from '@/types'
+
+type Translate = ReturnType<typeof useT>['t']
+type Noun = 'note' | 'protocol' | 'import' | 'publishedSkill'
+/** `1 note` / `2 notes`, from the `nouns` keys. */
+const count = (t: Translate, n: number, noun: Noun) => t(`siteSkills.nouns.${noun}.${n === 1 ? 'one' : 'other'}`, { count: n })
 
 // ── Filter options ────────────────────────────────────────────────────────
 
-const trustOptions = [
-  { value: 'all', label: 'Any trust' },
-  { value: '0.8', label: 'High (80%+)' },
-  { value: '0.5', label: 'Medium (50%+)' },
-  { value: '0.3', label: 'Low (30%+)' },
-]
+const trustValues = ['all', '0.8', '0.5', '0.3'] as const
+const trustKeys = { all: 'any', '0.8': 'high', '0.5': 'medium', '0.3': 'low' } as const
 
 // ── Main browser ──────────────────────────────────────────────────────────
 
@@ -43,6 +44,11 @@ export function SkillBrowser({ onImport }: SkillBrowserProps) {
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [minTrust, setMinTrust] = useState<string>('all')
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const { t } = useT()
+  const trustOptions = trustValues.map((value) => ({
+    value,
+    label: t(`siteSkills.skillBrowser.trust.${trustKeys[value]}`),
+  }))
 
   useEffect(() => () => clearTimeout(debounceRef.current), [])
 
@@ -96,7 +102,7 @@ export function SkillBrowser({ onImport }: SkillBrowserProps) {
       <FilterBar
         search={searchQuery}
         onSearchChange={handleSearchChange}
-        searchPlaceholder="Search the shared catalog…"
+        searchPlaceholder={t('siteSkills.skillBrowser.searchPlaceholder')}
         activeCount={trustActive ? 1 : 0}
         activeLabels={[trustActive ? trustOptions.find((o) => o.value === minTrust)?.label ?? '' : '']}
         onClear={() => setMinTrust('all')}
@@ -104,7 +110,7 @@ export function SkillBrowser({ onImport }: SkillBrowserProps) {
       />
 
       {!loading && skills.length > 0 && (
-        <p className="px-1 text-[11px] tabular-nums text-gray-500">{pluralize(total, 'published skill')}</p>
+        <p className="px-1 text-[11px] tabular-nums text-gray-500">{count(t, total, 'publishedSkill')}</p>
       )}
 
       {loading ? (
@@ -112,23 +118,21 @@ export function SkillBrowser({ onImport }: SkillBrowserProps) {
       ) : skills.length === 0 ? (
         <EmptyState
           icon={<Globe className="w-8 h-8" />}
-          title={filtered ? 'No matching skills' : 'No published skills yet'}
+          title={filtered ? t('siteSkills.skillBrowser.noMatching') : t('siteSkills.skillBrowser.noPublished')}
           description={
-            filtered
-              ? 'Try different search terms or lower the trust filter.'
-              : 'No skill has been published yet. Publish skills from your projects to share them with other workspaces.'
+            filtered ? t('siteSkills.skillBrowser.tryDifferent') : t('siteSkills.skillBrowser.noPublishedHint')
           }
           action={
             filtered ? (
               <Button variant="secondary" size="sm" onClick={clearAll}>
-                Clear
+                {t('siteSkills.common.clear')}
               </Button>
             ) : undefined
           }
         />
       ) : (
         <>
-          <EntityList aria-label="Published skills">
+          <EntityList aria-label={t('siteSkills.skillBrowser.listLabel')}>
             {skills.map((skill) => (
               <PublishedSkillRow key={skill.id} skill={skill} onImport={() => onImport(skill)} />
             ))}
@@ -143,6 +147,7 @@ export function SkillBrowser({ onImport }: SkillBrowserProps) {
 // ── Published skill row ───────────────────────────────────────────────────
 
 function PublishedSkillRow({ skill, onImport }: { skill: PublishedSkillSummary; onImport: () => void }) {
+  const { t } = useT()
   return (
     <EntityRow
       title={skill.name}
@@ -151,21 +156,21 @@ function PublishedSkillRow({ skill, onImport }: { skill: PublishedSkillSummary; 
       trailing={<RelativeTime date={skill.published_at} />}
       meta={[
         <TrustBadge key="trust" trustScore={skill.trust_score} trustLevel={skill.trust_level} />,
-        <span key="src" className="truncate max-w-[12rem]" title={`Source project: ${skill.source_project_name}`}>
-          from {skill.source_project_name}
+        <span key="src" className="truncate max-w-[12rem]" title={t('siteSkills.skillBrowser.sourceTitle', { name: skill.source_project_name })}>
+          {t('siteSkills.common.from', { source: skill.source_project_name })}
         </span>,
         skill.is_remote ? (
           <span key="remote" className="inline-flex items-center gap-1">
             <Globe className="w-3 h-3" aria-hidden="true" />
-            Remote
+            {t('siteSkills.common.remote')}
           </span>
         ) : null,
-        pluralize(skill.note_count, 'note'),
-        skill.protocol_count > 0 ? pluralize(skill.protocol_count, 'protocol') : null,
-        skill.import_count > 0 ? pluralize(skill.import_count, 'import') : null,
+        count(t, skill.note_count, 'note'),
+        skill.protocol_count > 0 ? count(t, skill.protocol_count, 'protocol') : null,
+        skill.import_count > 0 ? count(t, skill.import_count, 'import') : null,
         tagSummary(skill.tags, 4),
       ]}
-      actions={[{ label: 'Import', icon: Download, onClick: onImport }]}
+      actions={[{ label: t('siteSkills.common.import'), icon: Download, onClick: onImport }]}
     />
   )
 }

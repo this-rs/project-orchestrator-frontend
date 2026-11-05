@@ -3,6 +3,7 @@ import { useAtom, useAtomValue } from 'jotai'
 import { chatPermissionConfigAtom, chatProviderTargetAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import { useToast } from '@/hooks'
+import { activeTranslator, useT, type MessageKey } from '@/i18n'
 import type { PermissionMode } from '@/types'
 import type { ToolPolicyMode } from '@/types/provider'
 import {
@@ -26,25 +27,25 @@ import { glassFlat, iconButton } from '@/components/ui/classes'
 // ---------------------------------------------------------------------------
 
 interface ToolPreset {
-  label: string
+  labelKey: MessageKey
   patterns: string[]
 }
 
 const ALLOWED_PRESETS: ToolPreset[] = [
-  { label: 'MCP tools', patterns: ['mcp__project-orchestrator__*'] },
-  { label: 'Git commands', patterns: ['Bash(git *)'] },
-  { label: 'Cargo commands', patterns: ['Bash(cargo *)'] },
-  { label: 'npm commands', patterns: ['Bash(npm *)'] },
-  { label: 'Read files', patterns: ['Read'] },
-  { label: 'Edit files', patterns: ['Edit'] },
-  { label: 'Web search', patterns: ['WebSearch'] },
+  { labelKey: 'siteChat.permissions.presets.mcpTools', patterns: ['mcp__project-orchestrator__*'] },
+  { labelKey: 'siteChat.permissions.presets.git', patterns: ['Bash(git *)'] },
+  { labelKey: 'siteChat.permissions.presets.cargo', patterns: ['Bash(cargo *)'] },
+  { labelKey: 'siteChat.permissions.presets.npm', patterns: ['Bash(npm *)'] },
+  { labelKey: 'siteChat.permissions.presets.readFiles', patterns: ['Read'] },
+  { labelKey: 'siteChat.permissions.presets.editFiles', patterns: ['Edit'] },
+  { labelKey: 'siteChat.permissions.presets.webSearch', patterns: ['WebSearch'] },
 ]
 
 const DISALLOWED_PRESETS: ToolPreset[] = [
-  { label: 'Destructive rm', patterns: ['Bash(rm -rf *)'] },
-  { label: 'Sudo commands', patterns: ['Bash(sudo *)'] },
-  { label: 'Curl commands', patterns: ['Bash(curl *)'] },
-  { label: 'Env files', patterns: ['Read(.env*)'] },
+  { labelKey: 'siteChat.permissions.presets.destructiveRm', patterns: ['Bash(rm -rf *)'] },
+  { labelKey: 'siteChat.permissions.presets.sudo', patterns: ['Bash(sudo *)'] },
+  { labelKey: 'siteChat.permissions.presets.curl', patterns: ['Bash(curl *)'] },
+  { labelKey: 'siteChat.permissions.presets.envFiles', patterns: ['Read(.env*)'] },
 ]
 
 // ---------------------------------------------------------------------------
@@ -52,6 +53,7 @@ const DISALLOWED_PRESETS: ToolPreset[] = [
 // ---------------------------------------------------------------------------
 
 function PatternChip({ value, onRemove, danger }: { value: string; onRemove: () => void; danger?: boolean }) {
+  const { t } = useT()
   return (
     <span
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono ${
@@ -64,8 +66,8 @@ function PatternChip({ value, onRemove, danger }: { value: string; onRemove: () 
       <button
         onClick={onRemove}
         className="ml-0.5 hover:text-white transition-colors"
-        title="Remove"
-        aria-label={`Remove ${value}`}
+        title={t('siteChat.permissions.chipRemove')}
+        aria-label={t('siteChat.permissions.chipRemoveAria', { value })}
         type="button"
       >
         <X className="w-3 h-3" />
@@ -89,6 +91,7 @@ function PatternListEditor({
   presets: ToolPreset[]
   danger?: boolean
 }) {
+  const { t } = useT()
   const [input, setInput] = useState('')
   const [showPresets, setShowPresets] = useState(false)
   const presetsRef = useRef<HTMLDivElement>(null)
@@ -137,17 +140,17 @@ function PatternListEditor({
             onClick={() => setShowPresets(!showPresets)}
             className="text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors"
           >
-            + Presets
+            {t('siteChat.permissions.presetsButton')}
           </button>
           {showPresets && (
             <div className="absolute right-0 top-full mt-1 z-20 w-44 bg-surface-popover border border-white/[0.08] rounded-lg shadow-xl py-1">
               {presets.map((preset) => (
                 <button
-                  key={preset.label}
+                  key={preset.labelKey}
                   onClick={() => addPreset(preset)}
                   className="w-full text-left px-3 py-1.5 text-xs text-gray-300 hover:bg-white/[0.04] transition-colors"
                 >
-                  {preset.label}
+                  {t(preset.labelKey)}
                   <span className="block text-[10px] text-gray-500 font-mono">{preset.patterns.join(', ')}</span>
                 </button>
               ))}
@@ -176,11 +179,11 @@ function PatternListEditor({
               addPattern(input)
             }
           }}
-          placeholder="e.g. Bash(git *)"
+          placeholder={t('siteChat.permissions.patternPlaceholder')}
 className="flex-1 min-w-0 bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1 text-base md:text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-indigo-500/40 font-mono"
         />
         <Button size="sm" variant="secondary" flat onClick={() => addPattern(input)} disabled={!input.trim()} className="text-xs">
-          Add
+          {t('siteChat.permissions.add')}
         </Button>
       </div>
     </div>
@@ -203,6 +206,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
   const modeOptions = settingsModeOptions(modeLabelSet(providerTarget.isClaudeCode))
   const trustAllowed = isTrustAllowed(providerTarget)
   const trustHelpId = useId()
+  const { t } = useT()
 
   // Local working copy — permissions. The mode is held neutral; the server's
   // own string (legacy or neutral) stays in `serverConfig`.
@@ -260,7 +264,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
         setLocalDisallowed([...disallowedTools])
       } catch (err) {
         if (cancelled) return
-        setError(err instanceof Error ? err.message : 'Failed to load chat config')
+        setError(err instanceof Error ? err.message : activeTranslator().t('siteChat.permissions.loadFailed'))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -318,13 +322,13 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
           default_model: saved.default_model,
         })
       }
-      toast.success('Settings saved')
+      toast.success(t('siteChat.permissions.saved'))
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save')
+      toast.error(err instanceof Error ? err.message : t('siteChat.permissions.saveFailed'))
     } finally {
       setSaving(false)
     }
-  }, [localMode, localAllowed, localDisallowed, serverConfig, providerTarget.neutralWire, setServerConfig, toast])
+  }, [localMode, localAllowed, localDisallowed, serverConfig, providerTarget.neutralWire, setServerConfig, toast, t])
 
   const handleCancel = () => {
     if (serverConfig) {
@@ -344,9 +348,9 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06] shrink-0">
           <div className="flex items-center gap-2">
             <Settings className="w-4 h-4 text-gray-400" />
-            <span className="text-sm font-medium text-gray-300">Permission Settings</span>
+            <span className="text-sm font-medium text-gray-300">{t('siteChat.permissions.title')}</span>
           </div>
-          <button type="button" onClick={onClose} className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} text-gray-400`} title="Close settings" aria-label="Close settings">
+          <button type="button" onClick={onClose} className={`${iconButton('ghost', 'size-9 md:size-8')} ${glassFlat} text-gray-400`} title={t('siteChat.permissions.closeSettings')} aria-label={t('siteChat.permissions.closeSettings')}>
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
@@ -370,7 +374,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
           <>
             {/* --- Permission mode selector --- */}
             <section>
-              <h3 className="text-xs font-semibold text-gray-400 mb-2">Permission Mode</h3>
+              <h3 className="text-xs font-semibold text-gray-400 mb-2">{t('siteChat.permissions.modeTitle')}</h3>
               <div className="grid grid-cols-2 gap-2">
                 {modeOptions.map((m) => {
                   const isActive = localMode === m.mode
@@ -418,8 +422,8 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
                 {/* --- Allowed tools --- */}
                 <section>
                   <PatternListEditor
-                    label="Allowed Tools"
-                    description="Tool patterns to auto-approve"
+                    label={t('siteChat.permissions.allowedLabel')}
+                    description={t('siteChat.permissions.allowedDescription')}
                     patterns={localAllowed}
                     onChange={setLocalAllowed}
                     presets={ALLOWED_PRESETS}
@@ -429,8 +433,8 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
                 {/* --- Disallowed tools --- */}
                 <section>
                   <PatternListEditor
-                    label="Disallowed Tools"
-                    description="Tool patterns to always block"
+                    label={t('siteChat.permissions.disallowedLabel')}
+                    description={t('siteChat.permissions.disallowedDescription')}
                     patterns={localDisallowed}
                     onChange={setLocalDisallowed}
                     presets={DISALLOWED_PRESETS}
@@ -443,7 +447,7 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
               // provider does not read: offering them would be a control that
               // silently does nothing.
               <section>
-                <h3 className="text-xs font-semibold text-gray-400 mb-2">Tool rules</h3>
+                <h3 className="text-xs font-semibold text-gray-400 mb-2">{t('siteChat.permissions.toolRules')}</h3>
                 <p className="text-xs text-gray-500 leading-snug">{rulesUnsupportedText()}</p>
               </section>
             )}
@@ -455,13 +459,13 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
             {activeModeInfo && (
               <div className="rounded-lg bg-white/[0.02] border border-white/[0.06] px-3 py-2">
                 <p className="text-[10px] text-gray-500">
-                  <span className="font-medium text-gray-400">Active:</span>{' '}
-                  {activeModeInfo.label} &mdash; {activeModeInfo.description}
+                  <span className="font-medium text-gray-400">{t('siteChat.permissions.activeLabel')}</span>{' '}
+                  {t('siteChat.permissions.activeSummary', { label: activeModeInfo.label, description: activeModeInfo.description })}
                   {providerTarget.ruleScopes && localAllowed.length > 0 && (
-                    <> &middot; {localAllowed.length} allowed pattern{localAllowed.length > 1 ? 's' : ''}</>
+                    <> &middot; {t(localAllowed.length === 1 ? 'siteChat.permissions.allowedPatterns.one' : 'siteChat.permissions.allowedPatterns.other', { count: localAllowed.length })}</>
                   )}
                   {providerTarget.ruleScopes && localDisallowed.length > 0 && (
-                    <> &middot; {localDisallowed.length} blocked pattern{localDisallowed.length > 1 ? 's' : ''}</>
+                    <> &middot; {t(localDisallowed.length === 1 ? 'siteChat.permissions.blockedPatterns.one' : 'siteChat.permissions.blockedPatterns.other', { count: localDisallowed.length })}</>
                   )}
                 </p>
               </div>
@@ -475,11 +479,11 @@ export function PermissionSettingsPanel({ onClose }: PermissionSettingsPanelProp
         <div className="px-4 py-3 border-t border-white/[0.06] flex items-center justify-end gap-2 shrink-0">
           {hasChanges && (
             <Button size="sm" variant="ghost" onClick={handleCancel} className="text-xs">
-              Cancel
+              {t('siteChat.permissions.cancel')}
             </Button>
           )}
           <Button size="sm" onClick={handleSave} disabled={!hasChanges} loading={saving} className="text-xs">
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? t('siteChat.permissions.saving') : t('siteChat.permissions.save')}
           </Button>
         </div>
       )}

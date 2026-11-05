@@ -3,6 +3,7 @@ import { useAtom, useSetAtom, useAtomValue } from 'jotai'
 import { Package, Link as LinkIcon, Info, Globe, Loader2, Wifi, Check, X, Download, Play } from 'lucide-react'
 import { setupConfigAtom, infraValidAtom, trayNavigationAtom } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
+import { useT } from '@/i18n'
 import { Button, Switch, surface } from '@/components/ui'
 import { Field } from './Field'
 import { StatusBanner } from './StatusBanner'
@@ -20,30 +21,8 @@ type ConnectionTestMap = {
 type ConnectionDetail = { hint: string | null; verifiedBy: string | null }
 type ConnectionDetailMap = Partial<Record<keyof ConnectionTestMap, ConnectionDetail | null>>
 
-// i18n after #252 — the words of this step that are not a Docker state (those stay in DockerBanner).
-const TEXT = {
-  modeDocker: 'Docker (recommended)',
-  modeDockerDesc: 'The app starts Neo4j, Meilisearch and NATS in Docker containers for you. It needs Docker Desktop.',
-  modeExternal: 'External servers',
-  modeExternalDesc: 'Connect to Neo4j, Meilisearch and NATS servers you already run elsewhere.',
-  dockerInfoTitle: 'What Docker runs',
-  dockerInfo: 'Neo4j, Meilisearch and NATS start as containers when the app launches, and stop with it. Keep Docker Desktop running.',
-  ports: (api: number) => `Ports: Neo4j 7474 and 7687 · Meilisearch 7700 · NATS 4222 · the app ${api}`,
-  neo4j: 'Neo4j connection',
-  meilisearch: 'Meilisearch connection',
-  nats: 'NATS connection',
-  portLabel: 'App port',
-  portHint: 'The port the app’s own server listens on.',
-  serveFrontend: 'Open the web interface on this port',
-  serveFrontendHint: (port: number) =>
-    `Reach the app from any browser at http://localhost:${port}, including other devices on the same network.`,
-  publicUrl: 'Public URL (optional)',
-  publicUrlHint: 'Behind a reverse proxy (Cloudflare Tunnel, ngrok, ffs.dev…), the address people use. Needed for sign-in callbacks and CORS.',
-  local: 'Local',
-  public: 'Public',
-} as const
-
 export function InfrastructurePage() {
+  const { t } = useT()
   const [config, setConfig] = useAtom(setupConfigAtom)
   const setInfraValid = useSetAtom(infraValidAtom)
   const isTrayNavigation = useAtomValue(trayNavigationAtom)
@@ -218,19 +197,19 @@ export function InfrastructurePage() {
   return (
     <div className="space-y-6">
       {/* Mode selection */}
-      <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="How to run the services">
+      <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label={t('siteSetup.infra.modeGroup')}>
         <ModeCard
           active={config.infraMode === 'docker'}
           onClick={() => update({ infraMode: 'docker' })}
-          title={TEXT.modeDocker}
-          description={TEXT.modeDockerDesc}
+          title={t('siteSetup.infra.modeDocker')}
+          description={t('siteSetup.infra.modeDockerDesc')}
           icon={<Package className="h-5 w-5" aria-hidden="true" />}
         />
         <ModeCard
           active={config.infraMode === 'external'}
           onClick={() => update({ infraMode: 'external' })}
-          title={TEXT.modeExternal}
-          description={TEXT.modeExternalDesc}
+          title={t('siteSetup.infra.modeExternal')}
+          description={t('siteSetup.infra.modeExternalDesc')}
           icon={<LinkIcon className="h-5 w-5" aria-hidden="true" />}
         />
       </div>
@@ -240,7 +219,7 @@ export function InfrastructurePage() {
         <div className={`${surface} space-y-6 p-4 md:p-5`}>
           <section>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-gray-200">{TEXT.neo4j}</h3>
+              <h3 className="text-sm font-semibold text-gray-200">{t('siteSetup.infra.neo4jConnection')}</h3>
               <TestConnectionButton service="neo4j" url={config.neo4jUri} tested={connectionTested.neo4j} onResult={(ok, detail) => handleConnectionTestResult('neo4j', ok, detail)} />
             </div>
             <ConnectionHint tested={connectionTested.neo4j} detail={connectionDetail.neo4j} />
@@ -252,18 +231,18 @@ export function InfrastructurePage() {
                 placeholder="bolt://localhost:7687"
               />
               <Field
-                label="User"
+                label={t('siteSetup.infra.user')}
                 value={config.neo4jUser}
                 onChange={(v) => update({ neo4jUser: v })}
                 placeholder="neo4j"
               />
               <Field
-                label="Password"
+                label={t('siteSetup.infra.password')}
                 type="password"
                 value={config.neo4jPassword}
                 onChange={(v) => update({ neo4jPassword: v })}
-                placeholder={config.hasNeo4jPassword ? '(unchanged)' : 'Enter password'}
-                hint={config.hasNeo4jPassword ? 'A password is already configured — leave blank to keep it' : undefined}
+                placeholder={config.hasNeo4jPassword ? t('siteSetup.infra.unchanged') : t('siteSetup.infra.enterPassword')}
+                hint={config.hasNeo4jPassword ? t('siteSetup.infra.passwordConfigured') : undefined}
                 className="sm:col-span-2"
               />
             </div>
@@ -271,7 +250,7 @@ export function InfrastructurePage() {
 
           <section className="border-t border-white/[0.06] pt-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-gray-200">{TEXT.meilisearch}</h3>
+              <h3 className="text-sm font-semibold text-gray-200">{t('siteSetup.infra.meilisearchConnection')}</h3>
               <TestConnectionButton service="meilisearch" url={config.meilisearchUrl} tested={connectionTested.meilisearch} onResult={(ok, detail) => handleConnectionTestResult('meilisearch', ok, detail)} />
             </div>
             <ConnectionHint tested={connectionTested.meilisearch} detail={connectionDetail.meilisearch} />
@@ -283,12 +262,12 @@ export function InfrastructurePage() {
                 placeholder="http://localhost:7700"
               />
               <Field
-                label="API key"
+                label={t('siteSetup.infra.apiKey')}
                 type="password"
                 value={config.meilisearchKey}
                 onChange={(v) => update({ meilisearchKey: v })}
-                placeholder={config.hasMeilisearchKey ? '(unchanged)' : 'Master key'}
-                hint={config.hasMeilisearchKey ? 'A key is already configured — leave blank to keep it' : undefined}
+                placeholder={config.hasMeilisearchKey ? t('siteSetup.infra.unchanged') : t('siteSetup.infra.masterKey')}
+                hint={config.hasMeilisearchKey ? t('siteSetup.infra.keyConfigured') : undefined}
               />
             </div>
           </section>
@@ -296,7 +275,7 @@ export function InfrastructurePage() {
           {/* NATS connection */}
           <section className="border-t border-white/[0.06] pt-6">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-gray-200">{TEXT.nats}</h3>
+              <h3 className="text-sm font-semibold text-gray-200">{t('siteSetup.infra.natsConnection')}</h3>
               <TestConnectionButton service="nats" url={config.natsUrl || 'nats://localhost:4222'} tested={connectionTested.nats} onResult={(ok, detail) => handleConnectionTestResult('nats', ok, detail)} />
             </div>
             <ConnectionHint tested={connectionTested.nats} detail={connectionDetail.nats} />
@@ -332,9 +311,9 @@ export function InfrastructurePage() {
           <div className={`${surface} flex gap-3 p-4`}>
             <Info className="mt-0.5 h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
             <div className="min-w-0 text-sm text-gray-300">
-              <p className="font-medium text-gray-200">{TEXT.dockerInfoTitle}</p>
-              <p className="mt-1 text-gray-400">{TEXT.dockerInfo}</p>
-              <p className="mt-2 break-words text-xs leading-4 text-gray-500 tabular-nums">{TEXT.ports(config.serverPort)}</p>
+              <p className="font-medium text-gray-200">{t('siteSetup.infra.dockerInfoTitle')}</p>
+              <p className="mt-1 text-gray-400">{t('siteSetup.infra.dockerInfo')}</p>
+              <p className="mt-2 break-words text-xs leading-4 text-gray-500 tabular-nums">{t('siteSetup.infra.ports', { api: config.serverPort })}</p>
             </div>
           </div>
         </div>
@@ -342,12 +321,12 @@ export function InfrastructurePage() {
 
       {/* Server port */}
       <Field
-        label={TEXT.portLabel}
+        label={t('siteSetup.infra.portLabel')}
         type="number"
         value={String(config.serverPort)}
         onChange={(v) => update({ serverPort: parseInt(v) || 6600 })}
         placeholder="6600"
-        hint={TEXT.portHint}
+        hint={t('siteSetup.infra.portHint')}
         className="max-w-xs"
       />
 
@@ -358,8 +337,8 @@ export function InfrastructurePage() {
           onChange={(checked) => update({ serveFrontend: checked })}
           label={
             <span className="block min-w-0 text-sm">
-              <span className="block font-medium text-gray-200">{TEXT.serveFrontend}</span>
-              <span className="mt-0.5 block break-words text-xs leading-4 text-gray-500">{TEXT.serveFrontendHint(config.serverPort)}</span>
+              <span className="block font-medium text-gray-200">{t('siteSetup.infra.serveFrontend')}</span>
+              <span className="mt-0.5 block break-words text-xs leading-4 text-gray-500">{t('siteSetup.infra.serveFrontendHint', { port: config.serverPort })}</span>
             </span>
           }
         />
@@ -369,20 +348,20 @@ export function InfrastructurePage() {
       {config.serveFrontend && (
         <div>
           <Field
-            label={TEXT.publicUrl}
+            label={t('siteSetup.infra.publicUrl')}
             value={config.publicUrl}
             onChange={(v) => update({ publicUrl: v })}
             placeholder="https://myapp.example.com"
-            hint={TEXT.publicUrlHint}
+            hint={t('siteSetup.infra.publicUrlHint')}
           />
           {config.publicUrl.trim() && (
             <p className="mt-3 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-4 text-gray-400">
               <Globe className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
               <span>
-                {TEXT.local}: <code className="break-all text-gray-300">http://localhost:{config.serverPort}</code>
+                {t('siteSetup.infra.localLine')} <code className="break-all text-gray-300">http://localhost:{config.serverPort}</code>
               </span>
               <span>
-                {TEXT.public}: <code className="break-all text-gray-300">{config.publicUrl.trim().replace(/\/+$/, '')}</code>
+                {t('siteSetup.infra.publicLine')} <code className="break-all text-gray-300">{config.publicUrl.trim().replace(/\/+$/, '')}</code>
               </span>
             </p>
           )}
@@ -463,11 +442,12 @@ function DockerBanner({
   onInstall: () => void
   onOpen: () => void
 }) {
+  const { t } = useT()
   if (checking || status === 'unknown') {
     return (
       <StatusBanner
         tone="neutral"
-        title="Detecting Docker Desktop..."
+        title={t('siteSetup.infra.docker.detecting')}
         role="status"
         icon={<Loader2 className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-gray-400" aria-hidden="true" />}
       />
@@ -478,15 +458,15 @@ function DockerBanner({
     return (
       <StatusBanner
         tone="warning"
-        title="Could not check Docker"
+        title={t('siteSetup.infra.docker.checkFailedTitle')}
         role="alert"
         action={
           <Button variant="secondary" size="sm" onClick={onRetry}>
-            Check again
+            {t('siteSetup.infra.docker.checkAgain')}
           </Button>
         }
       >
-        <p>Docker may well be installed: the check itself failed, so nothing is known about it. The app retries by itself.</p>
+        <p>{t('siteSetup.infra.docker.checkFailedBody')}</p>
         {error && <p className="break-words font-mono text-xs leading-4 text-gray-500">{error}</p>}
       </StatusBanner>
     )
@@ -496,27 +476,24 @@ function DockerBanner({
     return (
       <StatusBanner
         tone="danger"
-        title="Docker Desktop is required"
+        title={t('siteSetup.infra.docker.notInstalledTitle')}
         role="alert"
         action={
           <Button variant="secondary" size="sm" onClick={onInstall}>
             <Download className="h-4 w-4" aria-hidden="true" />
-            Install Docker Desktop
+            {t('siteSetup.infra.docker.installDocker')}
           </Button>
         }
       >
-        <p>The database and the search engine run in Docker. Install Docker Desktop, then come back: the app detects it by itself.</p>
+        <p>{t('siteSetup.infra.docker.notInstalledBody')}</p>
       </StatusBanner>
     )
   }
 
   if (status === 'unresponsive' && servicesUp) {
     return (
-      <StatusBanner tone="success" title="Docker Desktop is running your services" role="status">
-        <p>
-          Neo4j, Meilisearch and NATS answer, but Docker Desktop&apos;s control API does not. You can continue. Do not restart
-          Docker Desktop for this: it would stop them.
-        </p>
+      <StatusBanner tone="success" title={t('siteSetup.infra.docker.servicesUpTitle')} role="status">
+        <p>{t('siteSetup.infra.docker.servicesUpBody')}</p>
       </StatusBanner>
     )
   }
@@ -525,19 +502,16 @@ function DockerBanner({
     return (
       <StatusBanner
         tone="warning"
-        title="Docker Desktop is not responding"
+        title={t('siteSetup.infra.docker.unresponsiveTitle')}
         role="alert"
         action={
           <Button variant="secondary" size="sm" onClick={onOpen}>
             <Play className="h-4 w-4" aria-hidden="true" />
-            Open Docker Desktop
+            {t('siteSetup.infra.docker.openDocker')}
           </Button>
         }
       >
-        <p>
-          Docker Desktop is open and holds its socket, but does not answer. If it has just started, wait a moment. Otherwise quit it
-          (Cmd+Q, or Force Quit) and open it again: the app detects it by itself.
-        </p>
+        <p>{t('siteSetup.infra.docker.unresponsiveBody')}</p>
       </StatusBanner>
     )
   }
@@ -546,22 +520,22 @@ function DockerBanner({
     return (
       <StatusBanner
         tone="warning"
-        title="Docker Desktop is not running"
+        title={t('siteSetup.infra.docker.installedTitle')}
         role="alert"
         action={
           <Button variant="secondary" size="sm" onClick={onOpen}>
             <Play className="h-4 w-4" aria-hidden="true" />
-            Open Docker Desktop
+            {t('siteSetup.infra.docker.openDocker')}
           </Button>
         }
       >
-        <p>Docker Desktop is installed but not started. Start it to continue: the app detects it by itself.</p>
+        <p>{t('siteSetup.infra.docker.installedBody')}</p>
       </StatusBanner>
     )
   }
 
   // running
-  return <StatusBanner tone="success" title="Docker Desktop is running" role="status" />
+  return <StatusBanner tone="success" title={t('siteSetup.infra.docker.runningTitle')} role="status" />
 }
 
 // ============================================================================
@@ -585,6 +559,7 @@ function TestConnectionButton({
   tested: boolean | null
   onResult: (success: boolean, detail?: ConnectionDetail) => void
 }) {
+  const { t } = useT()
   const [testing, setTesting] = useState(false)
 
   const handleTest = async () => {
@@ -622,13 +597,13 @@ function TestConnectionButton({
       {tested === true && (
         <span className="flex items-center gap-1 text-xs font-medium text-emerald-400">
           <Check className="h-3.5 w-3.5" aria-hidden="true" />
-          Connected
+          {t('siteSetup.infra.connected')}
         </span>
       )}
       {tested === false && (
         <span className="flex items-center gap-1 text-xs font-medium text-red-400">
           <X className="h-3.5 w-3.5" aria-hidden="true" />
-          Failed
+          {t('siteSetup.infra.failed')}
         </span>
       )}
       {/* Test button: flat — three of them sit in the same card */}
@@ -639,17 +614,17 @@ function TestConnectionButton({
         flat
         onClick={handleTest}
         disabled={testing}
-        title={`Test ${service} connection`}
+        title={t('siteSetup.infra.testConnectionTitle', { service })}
       >
         {testing ? (
           <>
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-            Testing...
+            {t('siteSetup.infra.testing')}
           </>
         ) : (
           <>
             <Wifi className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
-            {tested !== null ? 'Re-test' : 'Test'}
+            {tested !== null ? t('siteSetup.infra.retest') : t('siteSetup.infra.test')}
           </>
         )}
       </Button>
@@ -660,6 +635,7 @@ function TestConnectionButton({
 /** The reason a test failed (a refused port, an unreachable host, the macOS local-network
  * permission...), or what could not be checked on a TLS address. */
 function ConnectionHint({ tested, detail }: { tested: boolean | null; detail?: ConnectionDetail | null }) {
+  const { t } = useT()
   if (!isTauri || !detail) return null
   if (tested === false && detail.hint) {
     return (
@@ -671,7 +647,7 @@ function ConnectionHint({ tested, detail }: { tested: boolean | null; detail?: C
   if (tested === true && detail.verifiedBy === 'tcp') {
     return (
       <p className="mt-2 text-xs leading-relaxed text-gray-500">
-        Reachable. This address uses TLS, so the handshake itself was not checked.
+        {t('siteSetup.infra.reachableTls')}
       </p>
     )
   }

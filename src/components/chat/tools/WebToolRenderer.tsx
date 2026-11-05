@@ -284,7 +284,7 @@ export function WebToolRenderer({ toolName, toolInput, resultContent, isError, i
           <>
             {/* Badge row */}
             <div className="flex items-center gap-1.5 flex-wrap mb-1">
-              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-900/40 text-green-400 border border-green-800/30">SEARCH</span>
+              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-900/40 text-green-400 border border-green-800/30">{t('siteChat.webTool.badgeSearch')}</span>
               {allowedDomains && Array.isArray(allowedDomains) && allowedDomains.map((d, i) => (
                 <span key={`a-${i}`} className="shrink-0 px-1.5 py-0.5 rounded text-[10px] bg-emerald-900/25 text-emerald-500/80 border border-emerald-800/20 select-none">
                   +{String(d)}
@@ -297,7 +297,7 @@ export function WebToolRenderer({ toolName, toolInput, resultContent, isError, i
               ))}
             </div>
             <div className="text-gray-400">
-              <span className="text-gray-600 select-none">query: </span>
+              <span className="text-gray-600 select-none">{t('siteChat.webTool.query')}</span>
               <span className="text-blue-400/80">{query}</span>
             </div>
           </>
@@ -305,7 +305,7 @@ export function WebToolRenderer({ toolName, toolInput, resultContent, isError, i
           <>
             {/* Badge row */}
             <div className="flex items-center gap-1.5 mb-1">
-              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-900/40 text-blue-400 border border-blue-800/30">FETCH</span>
+              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-900/40 text-blue-400 border border-blue-800/30">{t('siteChat.webTool.badgeFetch')}</span>
             </div>
             <div className="text-blue-400/80 truncate">
               {url}
@@ -375,7 +375,7 @@ export function WebToolRenderer({ toolName, toolInput, resultContent, isError, i
             {/* Truncation notice (only for non-parsed views) */}
             {!parsedSearch && truncated > 0 && !expanded && (
               <div className="text-gray-600 italic select-none mt-1">
-                ... {truncated} more line{truncated > 1 ? 's' : ''}
+                {t(truncated === 1 ? 'siteChat.webTool.moreLines.one' : 'siteChat.webTool.moreLines.other', { count: truncated })}
               </div>
             )}
           </div>
@@ -391,7 +391,7 @@ export function WebToolRenderer({ toolName, toolInput, resultContent, isError, i
             ))}
             {truncated > 0 && !expanded && (
               <div className="text-gray-600 italic select-none">
-                ... {truncated} more line{truncated > 1 ? 's' : ''}
+                {t(truncated === 1 ? 'siteChat.webTool.moreLines.one' : 'siteChat.webTool.moreLines.other', { count: truncated })}
               </div>
             )}
           </pre>
@@ -410,8 +410,8 @@ export function WebToolRenderer({ toolName, toolInput, resultContent, isError, i
           }`}
         >
           {expanded
-            ? 'show less'
-            : `show ${truncated} more line${truncated > 1 ? 's' : ''}`}
+            ? t('siteChat.webTool.showLess')
+            : t(truncated === 1 ? 'siteChat.webTool.showMore.one' : 'siteChat.webTool.showMore.other', { count: truncated })}
         </button>
       )}
 
@@ -420,7 +420,7 @@ export function WebToolRenderer({ toolName, toolInput, resultContent, isError, i
         <div className="border-t border-white/[0.04] rounded-b-md bg-black/20 px-3 py-1.5 flex items-center gap-2">
           <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500/70 animate-pulse" />
           <span className="text-xs text-gray-600 animate-pulse">
-            {isWebSearch ? 'searching...' : 'fetching...'}
+            {isWebSearch ? t('siteChat.webTool.searching') : t('siteChat.webTool.fetching')}
           </span>
         </div>
       )}

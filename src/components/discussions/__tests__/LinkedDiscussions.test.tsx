@@ -129,7 +129,7 @@ describe('LinkedDiscussions — one forest', () => {
     })
     setup()
     await screen.findByText('Discussion manuelle')
-    expect(screen.getByTestId('tree-errors').textContent).toContain('1 arbre')
+    expect(screen.getByTestId('tree-errors').textContent).toContain('1 discussion subtree')
   })
 
   it('reads the right route for a task and for a run', async () => {
@@ -148,15 +148,15 @@ describe('LinkedDiscussions — one forest', () => {
     setup()
     await screen.findByText('Discussion manuelle')
     const limits = screen.getByTestId('linked-limits').textContent!
-    expect(limits).toContain('un plan ou une tâche')
-    expect(limits).toContain('un run se retrouve par son plan')
-    expect(limits).toContain("pas de route de détachement")
+    expect(limits).toContain('only a plan or a task')
+    expect(limits).toContain('a run is found through its plan')
+    expect(limits).toContain('the server has no detach action')
   })
 
   it('an empty entity says how discussions get linked, and still lists the limits', async () => {
     chat.getPlanSessions.mockResolvedValue([])
     setup()
-    await screen.findByText(/Aucune discussion liée/)
+    await screen.findByText(/No discussion linked/)
     expect(screen.getByTestId('linked-limits')).toBeTruthy()
   })
 })
@@ -169,16 +169,16 @@ describe('LinkedDiscussions — Rattacher à…', () => {
     expect(chat.getPlanSessions).toHaveBeenCalledTimes(1)
     expect(store.get(attentionRefreshRequestAtom)).toBe(0)
 
-    fireEvent.click(within(node).getByRole('button', { name: /Rattacher à…/ }))
+    fireEvent.click(within(node).getByRole('button', { name: /Attach to…/ }))
     const dialog = await screen.findByTestId('attach-dialog')
     // limits are shown IN the dialog
-    expect(within(dialog).getByTestId('attach-no-detach').textContent).toContain("pas de détachement")
-    expect(dialog.textContent).toContain('pas à un run')
+    expect(within(dialog).getByTestId('attach-no-detach').textContent).toContain('no detach action')
+    expect(dialog.textContent).toContain('not to a run')
     await waitFor(() => expect(plansList).toHaveBeenCalledWith({ project_id: 'proj1', limit: 100 }))
     expect(tasksList).toHaveBeenCalledWith({ project_id: 'proj1', limit: 100 })
 
-    fireEvent.change(await within(dialog).findByLabelText(/Plan du même projet/), { target: { value: 'planB' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Rattacher' }))
+    fireEvent.change(await within(dialog).findByLabelText(/Plan from the same project/), { target: { value: 'planB' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Attach' }))
 
     await waitFor(() => expect(chat.associateSession).toHaveBeenCalledWith('by-hand', 'Plan', 'planB', 'manual'))
     await waitFor(() => expect(chat.getPlanSessions).toHaveBeenCalledTimes(2)) // tree refreshed
@@ -190,11 +190,11 @@ describe('LinkedDiscussions — Rattacher à…', () => {
     setup()
     await screen.findByText('Discussion manuelle')
     const node = screen.getByText('Discussion manuelle').closest('[style]')!.parentElement!
-    fireEvent.click(within(node).getByRole('button', { name: /Rattacher à…/ }))
+    fireEvent.click(within(node).getByRole('button', { name: /Attach to…/ }))
     const dialog = await screen.findByTestId('attach-dialog')
-    fireEvent.click(await within(dialog).findByLabelText('Une tâche'))
-    fireEvent.change(within(dialog).getByLabelText(/Tâche du même projet/), { target: { value: 'taskB' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Rattacher' }))
+    fireEvent.click(await within(dialog).findByLabelText('A task'))
+    fireEvent.change(within(dialog).getByLabelText(/Task from the same project/), { target: { value: 'taskB' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Attach' }))
     await waitFor(() => expect(chat.associateSession).toHaveBeenCalledWith('by-hand', 'Task', 'taskB', 'manual'))
     expect((await within(dialog).findByRole('alert')).textContent).toBe('Entity not found')
     expect(chat.getPlanSessions).toHaveBeenCalledTimes(1)
@@ -204,8 +204,8 @@ describe('LinkedDiscussions — Rattacher à…', () => {
     setup({ projectId: null, projectSlug: null })
     await screen.findByText('Discussion manuelle')
     const node = screen.getByText('Discussion manuelle').closest('[style]')!.parentElement!
-    fireEvent.click(within(node).getByRole('button', { name: /Rattacher à…/ }))
-    expect((await screen.findByRole('alert')).textContent).toContain('projet de cette session est inconnu')
+    fireEvent.click(within(node).getByRole('button', { name: /Attach to…/ }))
+    expect((await screen.findByRole('alert')).textContent).toContain('The project of this session is unknown')
     expect(plansList).not.toHaveBeenCalled()
   })
 })
@@ -217,10 +217,10 @@ describe('LinkedDiscussions — Rattacher à… when only the workspace is known
     setup({ projectId: null, projectSlug: null, workspaceSlug: 'acme' })
     await screen.findByText('Discussion manuelle')
     const node = screen.getByText('Discussion manuelle').closest('[style]')!.parentElement!
-    fireEvent.click(within(node).getByRole('button', { name: /Rattacher à…/ }))
+    fireEvent.click(within(node).getByRole('button', { name: /Attach to…/ }))
     const dialog = await screen.findByTestId('attach-dialog')
     await waitFor(() => expect(wsProjects).toHaveBeenCalledWith('acme'))
-    const select = await within(dialog).findByLabelText(/Plan, par projet/)
+    const select = await within(dialog).findByLabelText(/Plan, by project/)
     expect(within(select).getByRole('option', { name: 'Plan pA' })).toBeTruthy()
     expect(within(select).getByRole('option', { name: 'Plan pB' })).toBeTruthy()
   })
@@ -236,12 +236,12 @@ describe('LinkedDiscussions — Rattacher à… groups by project when only the 
     setup({ projectId: null, projectSlug: null, workspaceSlug: 'acme' })
     await screen.findByText('Discussion manuelle')
     const node = screen.getByText('Discussion manuelle').closest('[style]')!.parentElement!
-    fireEvent.click(within(node).getByRole('button', { name: /Rattacher à…/ }))
+    fireEvent.click(within(node).getByRole('button', { name: /Attach to…/ }))
     const dialog = await screen.findByTestId('attach-dialog')
-    const select = await within(dialog).findByLabelText(/Plan, par projet/)
+    const select = await within(dialog).findByLabelText(/Plan, by project/)
     const groups = Array.from(select.querySelectorAll('optgroup')).map((g) => g.label)
     expect(groups).toEqual(['Projet Alpha', 'Projet Beta'])
-    expect(within(dialog).queryByText(/du même projet/)).toBeNull()
+    expect(within(dialog).queryByText(/from the same project/)).toBeNull()
   })
 })
 

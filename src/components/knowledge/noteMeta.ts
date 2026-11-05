@@ -3,6 +3,7 @@
  * type icon/label, scope, anchor entity links, and plain-language
  * explanations of the "neural" metrics (energy, staleness, memory horizon…).
  */
+import { activeTranslator, type MessageKey } from '@/i18n'
 import {
   AlertTriangle,
   BookOpen,
@@ -229,18 +230,21 @@ export interface NoteDetail extends Note {
   updated_at?: string
 }
 
-export const MEMORY_HORIZON_TEXT: Record<NoteMemoryHorizon, { label: string; explain: string }> = {
+/** Text of a key in the language on screen, read when used (the texts follow the language). */
+const tr = (key: MessageKey): string => activeTranslator().t(key)
+
+export const MEMORY_HORIZON_TEXT: Record<NoteMemoryHorizon, { readonly label: string; readonly explain: string }> = {
   ephemeral: {
-    label: 'Ephemeral',
-    explain: 'Short-lived: archived automatically after 48 h unless an assistant uses it again.',
+    get label() { return tr('siteRest.note.horizon.ephemeral.label') },
+    get explain() { return tr('siteRest.note.horizon.ephemeral.explain') },
   },
   operational: {
-    label: 'Operational',
-    explain: 'Working knowledge: kept while it is used, promoted to permanent when used often or confirmed.',
+    get label() { return tr('siteRest.note.horizon.operational.label') },
+    get explain() { return tr('siteRest.note.horizon.operational.explain') },
   },
   consolidated: {
-    label: 'Consolidated',
-    explain: 'Permanent knowledge: core of the knowledge base, never archived automatically.',
+    get label() { return tr('siteRest.note.horizon.consolidated.label') },
+    get explain() { return tr('siteRest.note.horizon.consolidated.explain') },
   },
 }
 
@@ -249,28 +253,28 @@ export const pct = (v: number | undefined | null) => `${Math.round(Math.max(0, M
 /** Plain-language reading of the energy score (0–1). */
 export function energyText(energy: number | undefined): string {
   const e = energy ?? 1
-  if (e >= 0.7) return 'Alive — used recently, often given to assistants.'
-  if (e >= 0.3) return 'Fading — not used for a while, surfaced less often.'
-  return 'Dormant — rarely surfaced; confirm it or let it fade out.'
+  if (e >= 0.7) return tr('siteRest.note.energy.alive')
+  if (e >= 0.3) return tr('siteRest.note.energy.fading')
+  return tr('siteRest.note.energy.dormant')
 }
 
 /** Plain-language reading of the staleness score (0–1). */
 export function stalenessText(staleness: number): string {
-  if (staleness < 0.3) return 'Fresh — recently confirmed and its code has not moved much.'
-  if (staleness < 0.6) return 'Ageing — the code it describes changed since it was last confirmed.'
-  return 'Stale — likely out of date: confirm it, edit it or supersede it.'
+  if (staleness < 0.3) return tr('siteRest.note.staleness.fresh')
+  if (staleness < 0.6) return tr('siteRest.note.staleness.ageing')
+  return tr('siteRest.note.staleness.stale')
 }
 
 export const CHANGE_LABELS: Record<string, string> = {
-  created: 'Created',
-  updated: 'Content updated',
-  confirmed: 'Confirmed as valid',
-  status_changed: 'Status changed',
-  migrated: 'Migrated to a renamed entity',
-  anchor_added: 'Linked to an entity',
-  anchor_removed: 'Unlinked from an entity',
-  superseded: 'Superseded',
-  promoted: 'Memory promoted',
+  get created() { return tr('siteRest.note.change.created') },
+  get updated() { return tr('siteRest.note.change.updated') },
+  get confirmed() { return tr('siteRest.note.change.confirmed') },
+  get status_changed() { return tr('siteRest.note.change.statusChanged') },
+  get migrated() { return tr('siteRest.note.change.migrated') },
+  get anchor_added() { return tr('siteRest.note.change.anchorAdded') },
+  get anchor_removed() { return tr('siteRest.note.change.anchorRemoved') },
+  get superseded() { return tr('siteRest.note.change.superseded') },
+  get promoted() { return tr('siteRest.note.change.promoted') },
 }
 
 /** One-line summary of a change's details (`{from: 'active', to: 'stale'}` → `active → stale`). */

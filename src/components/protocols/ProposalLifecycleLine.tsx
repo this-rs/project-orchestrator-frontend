@@ -11,8 +11,10 @@ import { Check } from 'lucide-react'
 import { ProgressLine, StatusIcon, StatusText, TONE_CLASSES, getStatusMeta } from '@/components/ui'
 import type { RfcStatus } from '@/types/protocol'
 import { LIFECYCLE_STEPS, isClosedState, lifecycleSentence } from './rfcLifecycle'
+import { useT } from '@/i18n'
 
 export function ProposalLifecycleLine({ status, className = '' }: { status: RfcStatus; className?: string }) {
+  const { t } = useT()
   const closed = isClosedState(status)
   const meta = getStatusMeta('rfc', status)
   const idx = LIFECYCLE_STEPS.findIndex((s) => s.key === status)
@@ -29,12 +31,12 @@ export function ProposalLifecycleLine({ status, className = '' }: { status: RfcS
 
   return (
     <div className={`space-y-2 ${className}`} data-testid="proposal-lifecycle">
-      <ProgressLine value={value} size="md" label={`Proposal lifecycle: ${meta.label}`} segments={segments} />
+      <ProgressLine value={value} size="md" label={t('siteKnowledge.lifecycle.progress', { status: meta.label })} segments={segments} />
       <p className="text-sm text-gray-300">
         <StatusText kind="rfc" status={status} icon className="mr-2" />
         {lifecycleSentence(status)}
       </p>
-      <ol className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" aria-label="Lifecycle steps">
+      <ol className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" aria-label={t('siteKnowledge.lifecycle.stepsAria')}>
         {LIFECYCLE_STEPS.map((step, i) => {
           const done = !closed && i < idx
           const current = !closed && i === idx
@@ -52,7 +54,7 @@ export function ProposalLifecycleLine({ status, className = '' }: { status: RfcS
                 <StatusIcon tone={meta.tone} className="w-3 h-3" />
               ) : null}
               {step.label}
-              {done && <span className="sr-only"> (done)</span>}
+              {done && <span className="sr-only"> {t('siteKnowledge.lifecycle.doneSr')}</span>}
             </li>
           )
         })}

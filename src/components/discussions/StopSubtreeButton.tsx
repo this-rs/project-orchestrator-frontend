@@ -3,7 +3,8 @@ import { Square } from 'lucide-react'
 import { chatApi } from '@/services/chat'
 import { flattenSubtree, stopSubtree } from '@/utils/discussionTree'
 import type { DiscussionNode } from '@/services/discussions'
-import { Button, pluralize } from '@/components/ui'
+import { Button } from '@/components/ui'
+import { useT } from '@/i18n'
 
 interface StopSubtreeButtonProps {
   node: DiscussionNode
@@ -17,6 +18,7 @@ interface StopSubtreeButtonProps {
  * a session that could not be reached is said so, not hidden.
  */
 export function StopSubtreeButton({ node, onStopped }: StopSubtreeButtonProps) {
+  const { t } = useT()
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [report, setReport] = useState<string | null>(null)
@@ -29,7 +31,7 @@ export function StopSubtreeButton({ node, onStopped }: StopSubtreeButtonProps) {
     setBusy(true)
     try {
       const result = await stopSubtree(node, (id, options) => chatApi.interruptSession(id, 'turn_and_tools', options))
-      setReport(`Stopped ${result.stopped} of ${result.total}`)
+      setReport(t('siteChat.discussions.stoppedReport', { stopped: result.stopped, total: result.total }))
       onStopped?.()
     } finally {
       setBusy(false)
@@ -45,22 +47,25 @@ export function StopSubtreeButton({ node, onStopped }: StopSubtreeButtonProps) {
           variant={live > 1 ? 'danger' : 'secondary'}
           flat
           disabled={busy}
-          aria-label={`${live > 1 ? 'Stop subtree' : 'Stop'}: ${node.title || node.session_id.slice(0, 8)}`}
+          aria-label={t('siteChat.discussions.stopAria', {
+            action: live > 1 ? t('siteChat.discussions.stopSubtree') : t('siteChat.discussions.stop'),
+            name: node.title || node.session_id.slice(0, 8),
+          })}
           onClick={() => (live > 1 ? setConfirming(true) : void run())}
           className="gap-1 text-xs"
         >
           <Square className="h-3 w-3" aria-hidden="true" />
-          {live > 1 ? 'Stop subtree' : 'Stop'}
+          {live > 1 ? t('siteChat.discussions.stopSubtree') : t('siteChat.discussions.stop')}
         </Button>
       )}
       {confirming && (
-        <span role="group" aria-label="Confirm stopping the subtree" className="inline-flex flex-wrap items-center gap-2 text-xs text-gray-300">
-          <span>Stop {pluralize(live, 'running session')}?</span>
+        <span role="group" aria-label={t('siteChat.discussions.confirmStopAria')} className="inline-flex flex-wrap items-center gap-2 text-xs text-gray-300">
+          <span>{t(live === 1 ? 'siteChat.discussions.confirmStop.one' : 'siteChat.discussions.confirmStop.other', { count: live })}</span>
           <Button size="sm" variant="danger" flat onClick={() => void run()} className="text-xs">
-            Stop all
+            {t('siteChat.discussions.stopAll')}
           </Button>
           <Button size="sm" variant="ghost" flat onClick={() => setConfirming(false)} className="text-xs">
-            Cancel
+            {t('siteChat.discussions.cancel')}
           </Button>
         </span>
       )}
