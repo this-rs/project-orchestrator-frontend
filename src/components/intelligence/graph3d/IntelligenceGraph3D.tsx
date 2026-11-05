@@ -1586,7 +1586,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const count = node.data.count as number | undefined
     const isSuper = typeof count === 'number' && count > 1
     const base = resolveNodeBaseRgb(dynamicScale ? isSuper : aggregated, node.layer, ENTITY_RGB[entityType] ?? DEFAULT_NODE_RGB)
-    const shape = isSuper ? 0 : shapeForType(entityType)
+    const shape = isSuper ? 1 : shapeForType(entityType)   // un groupe est une ENCEINTE (anneau), pas un disque plein : un disque recouvrait ses propres membres
     const size = baseNodeSize(node)
     const energy = Math.min(1, Math.max(0, (node.data.energy as number) ?? 0))
     const isActive = activation.phase !== 'idle' && activation.phase !== 'searching'

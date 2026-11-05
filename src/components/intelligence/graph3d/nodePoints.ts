@@ -181,7 +181,7 @@ const SHAPE_GROW_FULL_PX = 8
  */
 export const NODE_MIN_SPRITE_PX = NODE_MIN_SHAPE_PX / NODE_SHAPE_FRACTION_SMALL
 /** Sprite ceiling in CSS px. */
-export const NODE_MAX_SPRITE_PX = 160
+export const NODE_MAX_SPRITE_PX = 44
 
 /**
  * CPU mirror of the vertex shader's `gl_PointSize` (device px), so the bounds
