@@ -1,3 +1,4 @@
+import { activeTranslator } from '@/i18n'
 import type { PendingSetupProvider } from '@/atoms/setupProvider'
 import { PROVIDER_PRESETS, type ProviderPresetInfo } from '@/constants/providerPresets'
 import type { ProviderDraft } from '@/types/providerSettings'
@@ -46,13 +47,13 @@ export function formFromPreset(preset: ProviderPresetInfo): OtherProviderForm {
 /** A message in English, or null when the form can be saved. Mirrors the backend's id and URL rules. */
 export function validateOtherProviderForm(form: OtherProviderForm, preset: ProviderPresetInfo): string | null {
   if (!INSTANCE_ID.test(form.id) || form.id.length > 48) {
-    return 'The id uses lowercase letters, digits and dashes (48 characters at most).'
+    return activeTranslator().t('siteSetup.wizardExtra.idRule')
   }
-  if (form.id === 'claude-code') return 'The id claude-code is reserved.'
+  if (form.id === 'claude-code') return activeTranslator().t('siteSetup.wizardExtra.idReserved')
   if (!HTTP_URL.test(form.baseUrl.trim())) return 'The address must start with http:// or https://.'
   if (preset.credential_kind === 'vault' && form.vaultName.trim() !== '') {
     if (!SECRET_NAME.test(form.vaultName.trim()) || form.vaultName.trim().length > 64) {
-      return 'The vault name uses letters, digits, _, - and . (64 characters at most).'
+      return activeTranslator().t('siteSetup.wizardExtra.vaultRule')
     }
   }
   return null

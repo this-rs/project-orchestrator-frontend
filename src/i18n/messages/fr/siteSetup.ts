@@ -297,4 +297,12 @@ export default {
     creditsFrontend: "Interface (JavaScript)",
     creditsDesktop: 'Bureau (Tauri)',
   },
+  wizardExtra: {
+    codexLooking: "Recherche du programme codex sur cet ordinateur…",
+    vaultNameLabel: "Nom de la clé dans le coffre (facultatif)",
+    vaultNameHint: "Le nom seulement. La clé se saisit dans le coffre après le lancement, jamais ici.",
+    idRule: "L’identifiant utilise des minuscules, des chiffres et des tirets (48 caractères maximum).",
+    idReserved: "L’identifiant claude-code est réservé.",
+    vaultRule: "Le nom du coffre utilise des lettres, des chiffres, _, - et . (64 caractères maximum).",
+  },
 } satisfies Translation<'siteSetup'>

@@ -297,4 +297,12 @@ export default {
     creditsFrontend: '프런트엔드 (JavaScript)',
     creditsDesktop: '데스크톱 (Tauri)',
   },
+  wizardExtra: {
+    codexLooking: "이 컴퓨터에서 codex 프로그램을 찾는 중…",
+    vaultNameLabel: "볼트의 키 이름(선택)",
+    vaultNameHint: "이름만 입력하세요. 키는 실행 후 볼트에 입력하며, 여기서는 입력하지 않습니다.",
+    idRule: "ID는 소문자, 숫자, 대시를 사용합니다(최대 48자).",
+    idReserved: "ID claude-code는 예약되어 있습니다.",
+    vaultRule: "볼트 이름은 문자, 숫자, _, -, .를 사용합니다(최대 64자).",
+  },
 } satisfies Translation<'siteSetup'>

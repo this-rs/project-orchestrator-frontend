@@ -295,4 +295,12 @@ export default {
     creditsFrontend: 'Frontend (JavaScript)',
     creditsDesktop: 'Desktop (Tauri)',
   },
+  wizardExtra: {
+    codexLooking: "Looking for the codex program on this computer…",
+    vaultNameLabel: "Key name in the vault (optional)",
+    vaultNameHint: "Only the name. The key is typed into the vault after launch, never here.",
+    idRule: "The id uses lowercase letters, digits and dashes (48 characters at most).",
+    idReserved: "The id claude-code is reserved.",
+    vaultRule: "The vault name uses letters, digits, _, - and . (64 characters at most).",
+  },
 }

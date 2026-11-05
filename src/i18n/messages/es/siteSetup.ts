@@ -297,4 +297,12 @@ export default {
     creditsFrontend: "Interfaz (JavaScript)",
     creditsDesktop: 'Escritorio (Tauri)',
   },
+  wizardExtra: {
+    codexLooking: "Buscando el programa codex en este equipo…",
+    vaultNameLabel: "Nombre de la clave en la bóveda (opcional)",
+    vaultNameHint: "Solo el nombre. La clave se introduce en la bóveda tras el lanzamiento, nunca aquí.",
+    idRule: "El identificador usa minúsculas, cifras y guiones (48 caracteres como máximo).",
+    idReserved: "El identificador claude-code está reservado.",
+    vaultRule: "El nombre de la bóveda usa letras, cifras, _, - y . (64 caracteres como máximo).",
+  },
 } satisfies Translation<'siteSetup'>

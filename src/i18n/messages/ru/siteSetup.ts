@@ -297,4 +297,12 @@ export default {
     creditsFrontend: 'Фронтенд (JavaScript)',
     creditsDesktop: 'Настольное приложение (Tauri)',
   },
+  wizardExtra: {
+    codexLooking: "Ищем программу codex на этом компьютере…",
+    vaultNameLabel: "Имя ключа в хранилище (необязательно)",
+    vaultNameHint: "Только имя. Ключ вводится в хранилище после запуска, а не здесь.",
+    idRule: "Идентификатор использует строчные буквы, цифры и дефисы (не более 48 символов).",
+    idReserved: "Идентификатор claude-code зарезервирован.",
+    vaultRule: "Имя хранилища использует буквы, цифры, _, - и . (не более 64 символов).",
+  },
 } satisfies Translation<'siteSetup'>

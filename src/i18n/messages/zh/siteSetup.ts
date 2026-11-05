@@ -297,4 +297,12 @@ export default {
     creditsFrontend: '前端（JavaScript）',
     creditsDesktop: '桌面（Tauri）',
   },
+  wizardExtra: {
+    codexLooking: "正在此计算机上查找 codex 程序…",
+    vaultNameLabel: "保险库中的密钥名称（可选）",
+    vaultNameHint: "只填写名称。密钥在启动后输入保险库，而不是在这里。",
+    idRule: "ID 只能包含小写字母、数字和连字符（最多 48 个字符）。",
+    idReserved: "ID claude-code 为保留值。",
+    vaultRule: "保险库名称只能包含字母、数字、_、- 和 .（最多 64 个字符）。",
+  },
 } satisfies Translation<'siteSetup'>

@@ -297,4 +297,12 @@ export default {
     creditsFrontend: 'फ़्रंटएंड (JavaScript)',
     creditsDesktop: 'डेस्कटॉप (Tauri)',
   },
+  wizardExtra: {
+    codexLooking: "इस कंप्यूटर पर codex प्रोग्राम खोजा जा रहा है…",
+    vaultNameLabel: "वॉल्ट में कुंजी का नाम (वैकल्पिक)",
+    vaultNameHint: "केवल नाम। कुंजी लॉन्च के बाद वॉल्ट में डाली जाती है, यहाँ कभी नहीं।",
+    idRule: "आईडी में लोअरकेस अक्षर, अंक और डैश हो सकते हैं (अधिकतम 48 अक्षर)।",
+    idReserved: "आईडी claude-code आरक्षित है।",
+    vaultRule: "वॉल्ट नाम में अक्षर, अंक, _, - और . हो सकते हैं (अधिकतम 64 अक्षर)।",
+  },
 } satisfies Translation<'siteSetup'>

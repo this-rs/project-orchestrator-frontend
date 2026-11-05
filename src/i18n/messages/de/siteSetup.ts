@@ -297,4 +297,12 @@ export default {
     creditsFrontend: "Benutzeroberfläche (JavaScript)",
     creditsDesktop: "Desktop-Anwendung (Tauri)",
   },
+  wizardExtra: {
+    codexLooking: "Suche nach dem Programm codex auf diesem Computer…",
+    vaultNameLabel: "Schlüsselname im Tresor (optional)",
+    vaultNameHint: "Nur der Name. Der Schlüssel wird nach dem Start im Tresor eingegeben, niemals hier.",
+    idRule: "Die ID verwendet Kleinbuchstaben, Ziffern und Bindestriche (höchstens 48 Zeichen).",
+    idReserved: "Die ID claude-code ist reserviert.",
+    vaultRule: "Der Tresorname verwendet Buchstaben, Ziffern, _, - und . (höchstens 64 Zeichen).",
+  },
 } satisfies Translation<'siteSetup'>

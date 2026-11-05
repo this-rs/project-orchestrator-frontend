@@ -297,4 +297,12 @@ export default {
     creditsFrontend: 'フロントエンド（JavaScript）',
     creditsDesktop: 'デスクトップ（Tauri）',
   },
+  wizardExtra: {
+    codexLooking: "このコンピューター上で codex プログラムを検索しています…",
+    vaultNameLabel: "ボールト内のキー名（任意）",
+    vaultNameHint: "名前だけを入力します。キーは起動後にボールトへ入力し、ここでは入力しません。",
+    idRule: "ID には小文字、数字、ハイフンを使用できます（最大 48 文字）。",
+    idReserved: "ID claude-code は予約済みです。",
+    vaultRule: "ボールト名には文字、数字、_、-、. を使用できます（最大 64 文字）。",
+  },
 } satisfies Translation<'siteSetup'>

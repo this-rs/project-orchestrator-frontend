@@ -297,4 +297,12 @@ export default {
     creditsFrontend: "Interface (JavaScript)",
     creditsDesktop: "Aplicativo de desktop (Tauri)",
   },
+  wizardExtra: {
+    codexLooking: "Procurando o programa codex neste computador…",
+    vaultNameLabel: "Nome da chave no cofre (opcional)",
+    vaultNameHint: "Apenas o nome. A chave é digitada no cofre após o lançamento, nunca aqui.",
+    idRule: "O identificador usa letras minúsculas, dígitos e hífens (no máximo 48 caracteres).",
+    idReserved: "O identificador claude-code é reservado.",
+    vaultRule: "O nome do cofre usa letras, dígitos, _, - e . (no máximo 64 caracteres).",
+  },
 } satisfies Translation<'siteSetup'>

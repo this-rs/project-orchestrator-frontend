@@ -297,4 +297,12 @@ export default {
     creditsFrontend: 'الواجهة الأمامية (JavaScript)',
     creditsDesktop: 'سطح المكتب (Tauri)',
   },
+  wizardExtra: {
+    codexLooking: "جارٍ البحث عن برنامج codex على هذا الجهاز…",
+    vaultNameLabel: "اسم المفتاح في الخزنة (اختياري)",
+    vaultNameHint: "الاسم فقط. يُكتب المفتاح في الخزنة بعد التشغيل، ولا يُكتب هنا أبداً.",
+    idRule: "يستخدم المعرّف أحرفاً صغيرة وأرقاماً وشرطات (48 حرفاً كحد أقصى).",
+    idReserved: "المعرّف claude-code محجوز.",
+    vaultRule: "يستخدم اسم الخزنة أحرفاً وأرقاماً و_ و- و. (64 حرفاً كحد أقصى).",
+  },
 } satisfies Translation<'siteSetup'>

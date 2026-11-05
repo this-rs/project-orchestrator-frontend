@@ -7,7 +7,7 @@ import { StatusBanner } from './StatusBanner'
 import { setupConfigAtom, chatValidAtom, chatEngineChosenAtom, setupAuthReady, setupStepAtom, trayNavigationAtom, type McpSetupStatus } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
 import { useToast } from '@/hooks'
-import { useT } from '@/i18n'
+import { activeTranslator, useT } from '@/i18n'
 import { modelCatalogAtom, modelCatalogLoadedAtom } from '@/atoms'
 import type { CliVersionStatus } from '@/types'
 import { POLICY_TO_LEGACY_MODE, toToolPolicyMode } from '@/types/provider'
@@ -41,7 +41,7 @@ async function probeCodex(invoke: (cmd: string) => Promise<unknown>): Promise<Co
 }
 
 function codexLine(codex: CodexProbe | null | undefined): string {
-  if (!codex) return 'Looking for the codex program on this computer…'
+  if (!codex) return activeTranslator().t('siteSetup.wizardExtra.codexLooking')
   if (!codex.installed) return 'codex was not found on the PATH. Install it, then come back to this step.'
   return codex.version ? `codex ${codex.version} found on this computer.` : 'codex found on this computer.'
 }
@@ -1054,6 +1054,7 @@ function OtherProviderFields({
   onChange: (next: OtherProviderForm) => void
   error: string | null
 }) {
+  const { t } = useT()
   const preset = SETUP_OTHER_PRESETS.find((p) => p.key === form.presetKey) ?? SETUP_OTHER_PRESETS[0]
   const pickPreset = (key: string) => {
     const next = SETUP_OTHER_PRESETS.find((p) => p.key === key) ?? SETUP_OTHER_PRESETS[0]
@@ -1078,12 +1079,12 @@ function OtherProviderFields({
       <Field label="Model" value={form.model} onChange={(v) => onChange({ ...form, model: v })} placeholder={preset.model_hint ?? 'model name'} />
       {preset.credential_kind === 'vault' && (
         <Field
-          label="Key name in the vault (optional)"
+          label={t('siteSetup.wizardExtra.vaultNameLabel')}
           value={form.vaultName}
           onChange={(v) => onChange({ ...form, vaultName: v })}
           placeholder="deepseek-key"
           mono
-          hint="Only the name. The key is typed into the vault after launch, never here."
+          hint={t('siteSetup.wizardExtra.vaultNameHint')}
         />
       )}
       {error && (

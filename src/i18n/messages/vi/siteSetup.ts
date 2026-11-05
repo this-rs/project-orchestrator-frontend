@@ -297,4 +297,12 @@ export default {
     creditsFrontend: "Giao diện (JavaScript)",
     creditsDesktop: 'Máy tính (Tauri)',
   },
+  wizardExtra: {
+    codexLooking: "Đang tìm chương trình codex trên máy tính này…",
+    vaultNameLabel: "Tên khóa trong kho (không bắt buộc)",
+    vaultNameHint: "Chỉ nhập tên. Khóa được nhập vào kho sau khi khởi chạy, không nhập ở đây.",
+    idRule: "ID dùng chữ thường, chữ số và dấu gạch ngang (tối đa 48 ký tự).",
+    idReserved: "ID claude-code được dành riêng.",
+    vaultRule: "Tên kho dùng chữ cái, chữ số, _, - và . (tối đa 64 ký tự).",
+  },
 } satisfies Translation<'siteSetup'>
