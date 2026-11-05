@@ -153,12 +153,18 @@ const MAX_SHARED_ENVELOPE = 0.45
  *  strictly positive so "touching" never reads as "overlapping". */
 const OVERLAP_MARGIN = 2
 /**
- * Clear space kept between two UNRELATED envelopes, as a share of their sum.
- * At 0 the packing left them touching (nearest unrelated neighbour at 1.01×
- * the envelope sum): two hulls then read as one blob. 5 % keeps a visible
- * seam without loosening the cloud.
+ * Espace clair entre deux enveloppes NON LIÉES, en part de leur somme.
+ *
+ * Historique : à 0 les groupes se touchaient (1,01× la somme des rayons) ; 5 %
+ * ont ajouté une couture visible sans desserrer le nuage. Mais à l'usage (05/11) le
+ * nuage reste « toujours trop rapproché » : deux groupes sans lien restaient à
+ * 1,05× — collés à l'échelle de l'écran, et la vue ne pouvait pas s'éclater.
+ *
+ * 45 % : deux ensembles non liés se lisent comme deux objets distincts, avec du vide
+ * entre eux. C'est le seul levier qui éclate la disposition — les liens, eux, gardent
+ * leur distance d'affinité (ils doivent rester proches pour se lire).
  */
-const UNRELATED_CLEARANCE = 0.05
+const UNRELATED_CLEARANCE = 0.45
 
 /** Default and maximum iteration budget — bounded, never unbounded. */
 const DEFAULT_MAX_ITERATIONS = 200

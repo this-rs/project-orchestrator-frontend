@@ -14,11 +14,22 @@ const mk = (id: string, x: number, y: number, z: number): Graph3DNode => ({
 })
 
 describe('shapeForType', () => {
-  it('maps entity types to 4 shapes', () => {
+  it('donne une forme par SENS, pas par décor', () => {
+    // masse concrète / unité creuse / arbitrage / engagement / événement / conteneur
     expect(shapeForType('file')).toBe(0)
+    expect(shapeForType('note')).toBe(0)
     expect(shapeForType('function')).toBe(1)
+    expect(shapeForType('constraint')).toBe(1)
     expect(shapeForType('decision')).toBe(2)
-    expect(shapeForType('plan')).toBe(3)
+    expect(shapeForType('task')).toBe(3)
+    expect(shapeForType('step')).toBe(4)
+    expect(shapeForType('commit')).toBe(4)
+    expect(shapeForType('plan')).toBe(5)
+    expect(shapeForType('protocol')).toBe(5)
+    // aucune forme n'est orpheline : les 6 sont utilisées par au moins un type
+    const used = new Set(['file','note','function','constraint','decision','task','step','commit','plan','protocol'].map(shapeForType))
+    expect([...used].sort()).toEqual([0, 1, 2, 3, 4, 5])
+    // un type inconnu retombe sur la masse, jamais sur une forme qui porte un sens fort
     expect(shapeForType('unknown')).toBe(0)
   })
 })

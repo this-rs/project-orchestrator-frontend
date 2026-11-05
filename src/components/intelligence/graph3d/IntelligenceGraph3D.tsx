@@ -1554,7 +1554,11 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
       // 10-file one at any distance (see TERRITORY_SIZE_PER_RADIUS).
       const r = node.data.clusterRadius as number | undefined
       const bySize = 3 + 2.6 * Math.sqrt(count)
-      return typeof r === 'number' && r > 0 ? Math.max(sizeForType(node.entityType) * 1.5, r * TERRITORY_SIZE_PER_RADIUS) : bySize
+      /* Le groupe reste PLUS GROS que ses membres, mais ne peut plus devenir un mur : dessine a son
+               etendue reelle, un module de 300 fichiers occupait un disque de 160 px qui recouvrait ses
+               propres membres et tous ses voisins (captures du 05/11 : les ballons verts). On garde la loi
+               d aire pour la taille de base et on borne le deploiement a 2,2x. */
+            return typeof r === 'number' && r > 0 ? Math.min(Math.max(sizeForType(node.entityType) * 1.5, r * TERRITORY_SIZE_PER_RADIUS), bySize * 2.2) : bySize
     }
     // What a link joins is bigger the more it is connected (asked in the
     // browser review: « ce qu'elle lie devrait être plus gros en fonction de son
@@ -1582,7 +1586,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     const count = node.data.count as number | undefined
     const isSuper = typeof count === 'number' && count > 1
     const base = resolveNodeBaseRgb(dynamicScale ? isSuper : aggregated, node.layer, ENTITY_RGB[entityType] ?? DEFAULT_NODE_RGB)
-    const shape = isSuper ? 0 : shapeForType(entityType)
+    const shape = isSuper ? 1 : shapeForType(entityType)   // un groupe est une ENCEINTE (anneau), pas un disque plein : un disque recouvrait ses propres membres
     const size = baseNodeSize(node)
     const energy = Math.min(1, Math.max(0, (node.data.energy as number) ?? 0))
     const isActive = activation.phase !== 'idle' && activation.phase !== 'searching'
@@ -2845,6 +2849,7 @@ export default function IntelligenceGraph3D({ nodes, edges, onNodeDoubleClick }:
     nodePointsRef,
     linkSegmentsRef,
     nodes: activeGraphData.nodes,
+    links: activeGraphData.links,
     baseNodeStyle: pulseBaseNodeStyle,
     baseLinkStyle: liveBaseLinkStyle,
     animator,

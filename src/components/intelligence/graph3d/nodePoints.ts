@@ -41,23 +41,34 @@ export type NodeStyleFn = (node: Graph3DNode) => NodeStyle
 /** Default shape by entity type (disc / ring / diamond / square). */
 export function shapeForType(entityType: string): number {
   switch (entityType) {
+    /* Une forme = un SENS, pas un décor :
+       0 disque   = masse concrète (fichier, note, structure)
+       1 anneau   = unité nommable et creuse (fonction, état, contrainte)
+       2 losange  = arbitrage (décision)
+       3 carré    = engagement (tâche, jalon, compétence, discussion)
+       4 triangle = ÉVÉNEMENT ponctuel (étape, commit)
+       5 hexagone = CONTENEUR (plan, release, fonctionnalité, protocole) */
     case 'function':
-    case 'step':
-    case 'commit':
     case 'protocol_state':
+    case 'constraint':
       return 1 // ring
     case 'decision':
       return 2 // diamond
-    case 'plan':
     case 'task':
     case 'milestone':
-    case 'release':
     case 'skill':
-    case 'protocol':
     case 'chat_session':
       return 3 // square
+    case 'step':
+    case 'commit':
+      return 4 // triangle
+    case 'plan':
+    case 'release':
+    case 'feature_graph':
+    case 'protocol':
+      return 5 // hexagon
     default:
-      return 0 // disc (file, struct, trait, enum, note, constraint, feature_graph)
+      return 0 // disc (file, struct, trait, enum, note)
   }
 }
 
@@ -181,7 +192,7 @@ const SHAPE_GROW_FULL_PX = 8
  */
 export const NODE_MIN_SPRITE_PX = NODE_MIN_SHAPE_PX / NODE_SHAPE_FRACTION_SMALL
 /** Sprite ceiling in CSS px. */
-export const NODE_MAX_SPRITE_PX = 160
+export const NODE_MAX_SPRITE_PX = 44
 
 /**
  * CPU mirror of the vertex shader's `gl_PointSize` (device px), so the bounds
@@ -344,11 +355,23 @@ const FRAGMENT_SHADER = /* glsl */ `
       // diamond — |x|+|y| = 0.46 stays well inside the sprite
       float dd = abs(ps.x) + abs(ps.y);
       m = smoothstep(0.53, 0.37, dd) * 0.85 + ring(dd, 0.46, 0.11) * 0.35 + core * 0.55;
-    } else {
-      // square — max(|x|,|y|) = 0.48, so its corners sit at d = 0.68
+    } else if (vShape < 3.5) {
+      // square — max(|ps.x|,|ps.y|) = 0.48, so its corners sit at d = 0.68
       float sq = max(abs(ps.x), abs(ps.y));
       m = smoothstep(0.53, 0.40, sq) * 0.85 + ring(sq, 0.48, 0.10) * 0.35 + core * 0.55;
-    }
+    } else if (vShape < 4.5) {
+      // triangle — l'ÉVÉNEMENT ponctuel (step, commit) : un point dans le temps, pas une masse
+      vec2 q = vec2(abs(ps.x), ps.y);
+      float td = max(q.x * 0.866 + q.y * 0.5, -q.y) - 0.40;
+      m = smoothstep(0.07, -0.07, td) * 0.95 + core * 0.45;
+      halo *= 0.55;
+    } else {
+      // hexagone — le CONTENEUR (plan, release, feature_graph, protocole)
+      vec2 hx = abs(ps);
+      float hd = max(hx.x * 0.866 + hx.y * 0.5, hx.y) - 0.40;
+      m = smoothstep(0.06, -0.06, hd) * 0.92 + ring(hd, 0.0, 0.06) * 0.30 + core * 0.50;
+      halo *= 0.70;
+      }
 
     float lum = m + halo * 0.9;
     // Discard instead of blending a zero: on a 5k-node graph the empty part of
@@ -360,6 +383,13 @@ const FRAGMENT_SHADER = /* glsl */ `
     // Colour × shape, plus a white centre that aAct drives (po-graph does the
     // same with m*(.08+vAct*.8)), so activation both enlarges and brightens.
     vec3 c = vColor * lum + vec3(1.0) * (core * 0.22 + m * vAct * 0.75);
+    // FRANGE SPECTRALE : la couronne d'un nœud prend la teinte voisine sur le cercle
+    // chromatique, décalée par sa propre couleur et par le rayon. Un point isolé reste
+    // de sa couleur ; un amas se lit comme un prisme (demande du 05/11 : « plus onde et
+    // spectrale »). Coefficient faible (0,22) : c'est une frange, pas un feu d'artifice.
+    float hue0 = dot(vColor, vec3(0.3333));
+    vec3 prism = 0.5 + 0.5 * cos(6.28318 * (vec3(0.0, 0.33, 0.67) + hue0 + ds * 0.18));
+    c += prism * halo * 0.22 * vAlpha;
     // vAlpha is the caller's per-node opacity (hover, dimming, legend,
     // activation); uDensK the density and distance fade.
     c *= vAlpha * uDensK;

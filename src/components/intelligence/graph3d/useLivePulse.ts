@@ -24,13 +24,33 @@ import type { LinkRenderer, LinkStyle } from './linkSegments'
 import type { Graph3DLink, Graph3DNode } from './useGraph3DLayout'
 import type { FrameAnimator } from './frameAnimator'
 import {
+  PROPAGATION_STEP_MS,
   PulseClock,
+  propagationPlan,
   buildPulseIndex,
   pulsedLinkStyle,
   pulsedNodeStyle,
   resolvePulseTarget,
 } from './livePulse'
 import { subscribeEntityPulse } from '../livePulseBus'
+
+/** Voisins par id, construits une fois par jeu de liens (O(E)), puis consultés en O(1). */
+function buildNeighbourIndex(links: readonly Graph3DLink[]): Map<string, string[]> {
+  const out = new Map<string, string[]>()
+  const push = (a: string, b: string) => {
+    const list = out.get(a)
+    if (list) list.push(b)
+    else out.set(a, [b])
+  }
+  for (const link of links) {
+    const src = typeof link.source === 'object' ? (link.source as { id?: string }).id : link.source
+    const dst = typeof link.target === 'object' ? (link.target as { id?: string }).id : link.target
+    if (typeof src !== 'string' || typeof dst !== 'string' || src === dst) continue
+    push(src, dst)
+    push(dst, src)
+  }
+  return out
+}
 
 /** A node once the renderer attached its Object3D (sprite tier). */
 type NodeWithObject = Graph3DNode & { __threeObj?: THREE.Object3D }
@@ -123,6 +143,8 @@ export interface LivePulseInput {
   enabled?: boolean
   /** Entity id → id of the element drawn for it (a closed group of the dynamic scale). */
   aliases?: ReadonlyMap<string, string>
+  /** Liens du graphe : seuls eux connaissent le voisinage, dont l onde a besoin. */
+  links?: readonly Graph3DLink[]
 }
 
 export interface LivePulseHandle {
@@ -141,6 +163,13 @@ export function useLivePulse(input: LivePulseInput): LivePulseHandle {
   /** Node id → node, for the pulses in flight (resolved once, at trigger time). */
   const targetsRef = useRef(new Map<string, Graph3DNode>())
   const index = useMemo(() => buildPulseIndex(nodes), [nodes])
+  /* L'ONDE a besoin du voisinage : index id → voisins construit une fois par jeu de liens
+     (O(E)) et gardé dans un ref. Le recalculer dans la boucle d'événements ferait payer O(E)
+     à chaque impulsion. */
+  const neighboursRef = useRef<Map<string, string[]>>(new Map())
+  useEffect(() => {
+    neighboursRef.current = buildNeighbourIndex(input.links ?? [])
+  }, [input.links])
 
   // Always-current style functions, so the frame job never closes over a stale one.
   const baseNodeStyleRef = useRef(input.baseNodeStyle)
@@ -185,6 +214,18 @@ export function useLivePulse(input: LivePulseInput): LivePulseHandle {
         if (clockRef.current.trigger(node.id, now)) {
           targetsRef.current.set(node.id, node)
           started = true
+          /* ONDE : l'événement ne s'arrête pas au nœud touché. Le voisinage est réveillé
+             avec un retard de `hops × PROPAGATION_STEP_MS` — l'impulsion est donc
+             programmée dans le futur, et `pulseEnvelope` la tient à zéro (t ≤ 0) jusque-là.
+             Plan borné en sauts ET en nœuds : le coût par image de PulseClock.tick reste
+             celui de 240 entités au plus, quelle que soit la taille du graphe. */
+          for (const hit of propagationPlan(node.id, (id) => neighboursRef.current.get(id) ?? [])) {
+            const target = index.get(hit.id)
+            if (!target) continue
+            if (clockRef.current.trigger(hit.id, now + hit.hops * PROPAGATION_STEP_MS)) {
+              targetsRef.current.set(hit.id, target)
+            }
+          }
         }
       }
       if (started) animator.add(job)

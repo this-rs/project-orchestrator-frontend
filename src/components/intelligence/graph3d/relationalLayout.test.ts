@@ -256,11 +256,17 @@ describe('layoutGroups', () => {
     expect(reads).toBeLessThan(10 * groups.length)
   })
 
-  it('packs the groups: the cloud stays near the compact sphere and unrelated neighbours touch', () => {
-    // The layout used to inflate the whole cloud by the worst pair's ratio,
-    // which always hit its ×4 cap: the final radius was 3.45× the compact
-    // sphere and the nearest unrelated neighbour of a group sat 1.6–2.2× its
-    // envelope away — "les clusters sont beaucoup trop éloignés".
+  it('éclate les groupes : deux ensembles non liés laissent un vide entre eux', () => {
+    /*
+     * CONTRAT INVERSÉ LE 05/11, et c'est assumé : ce test exigeait l'inverse
+     * (« les clusters sont beaucoup trop éloignés »), il exigeait donc que deux
+     * groupes non liés se TOUCHENT (ratio médian < 1,25) et que le nuage reste
+     * dans 1,6× la sphère compacte. À l'usage le retour est inverse : « c'est
+     * toujours trop rapproché, on devrait pouvoir éclater totalement les
+     * ensembles ». On ne peut pas satisfaire les deux : le contrat vivant est le
+     * second. Si quelqu'un veut resserrer un jour, il doit changer CE test et
+     * lire ce commentaire — pas baisser la constante en douce.
+     */
     const G = 200
     const groups: RelationalGroup[] = Array.from({ length: G }, (_, i) => ({
       id: `g${String(i).padStart(3, '0')}`,
@@ -280,9 +286,10 @@ describe('layoutGroups', () => {
     const c = pts.reduce((s, q) => ({ x: s.x + q.x / G, y: s.y + q.y / G, z: s.z + q.z / G }), { x: 0, y: 0, z: 0 })
     let extent = 0
     groups.forEach((g, i) => { extent = Math.max(extent, dist(pts[i], c) + g.radius) })
-    // The tightest random packing of the envelopes (≈ 0.64 of a sphere).
     const compact = Math.cbrt(groups.reduce((s, g) => s + g.radius ** 3, 0) / 0.64)
-    expect(extent / compact).toBeLessThan(1.6)
+    // éclaté, mais pas au point de perdre le graphe : entre 1,6× et 3,5×
+    expect(extent / compact).toBeGreaterThan(1.6)
+    expect(extent / compact).toBeLessThan(3.5)
 
     const related = (a: string, b: string) =>
       affinities[a]?.[b] !== undefined || affinities[b]?.[a] !== undefined
@@ -296,7 +303,8 @@ describe('layoutGroups', () => {
       ratios.push(best)
     }
     ratios.sort((a, b) => a - b)
-    expect(ratios[Math.floor(G / 2)]).toBeLessThan(1.25)
+    // le groupe non lié le plus proche laisse au moins 40 % de marge : on voit le vide
+    expect(ratios[Math.floor(G / 2)]).toBeGreaterThan(1.4)
   })
 
   it('keeps fixed centres exactly and places the new groups around them', () => {
