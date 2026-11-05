@@ -93,7 +93,14 @@ export function createSuperNodeLabels(nodes: Graph3DNode[], limit = SUPER_NODE_L
   const group = new THREE.Group()
   const sprites: SpriteTextInstance[] = []
   for (const node of labeled) {
-    const name = (node.data.name as string) || node.label || node.id
+    /* Un groupe sans nom propre ne s'appelle plus « Groupe » : on lit ce qu'il CONTIENT.
+       Les captures du 05/11 montraient huit étiquettes « Groupe » identiques, qui ne disaient
+       rien — un nom de repli doit être une description, pas un mot générique. */
+    const raw = (node.data.name as string) || node.label || node.id
+    const generic = !raw || raw === 'Groupe' || /^Communaut[ée]\s+\d+$/i.test(raw)
+    const plural: Record<string, string> = { file: 'fichiers', function: 'fonctions', struct: 'structures', trait: 'traits', enum: 'énums', note: 'notes', decision: 'décisions', constraint: 'contraintes', plan: 'plans', task: 'tâches', step: 'étapes', milestone: 'jalons', release: 'versions', commit: 'commits', skill: 'compétences', protocol: 'protocoles', protocol_state: 'états', chat_session: 'discussions', feature_graph: 'fonctionnalités' }
+    const count = (node.data.count as number) ?? 1
+    const name = generic ? `${count} ${plural[node.entityType] ?? node.entityType}` : raw
     const sprite = new SpriteText(name) as SpriteTextInstance
     sprite.textHeight = LABEL_TEXT_HEIGHT
     sprite.color = 'rgba(248, 250, 252, 0.94)'
