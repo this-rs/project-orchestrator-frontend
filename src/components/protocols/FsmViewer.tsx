@@ -27,6 +27,7 @@ import dagre from 'dagre'
 
 import { FsmBreadcrumbs } from './FsmBreadcrumbs'
 import type { FsmHierarchyCrumb } from './FsmBreadcrumbs'
+import { useT } from '@/i18n'
 import { protocolApi } from '@/services/protocolApi'
 import type { Protocol, ProtocolState, ProtocolTransition } from '@/types/protocol'
 
@@ -117,6 +118,7 @@ interface FsmStateNodeData {
 }
 
 function FsmStateNode({ data }: { data: FsmStateNodeData }) {
+  const { t } = useT()
   const { label, isInitial, isTerminal, isMacro, isHighlighted, description } = data
 
   // Visual configuration based on state type
@@ -165,7 +167,7 @@ function FsmStateNode({ data }: { data: FsmStateNodeData }) {
 
       {isMacro && (
         <div className="text-[10px] text-violet-400/70 mt-1 flex items-center gap-1">
-          <span>Tap to open sub-protocol</span>
+          <span>{t('siteKnowledge.fsm.tapToOpen')}</span>
         </div>
       )}
 
@@ -183,6 +185,7 @@ const nodeTypes: NodeTypes = {
 // ---------------------------------------------------------------------------
 
 export function FsmViewer({ protocol: initialProtocol, className = '', highlightedStateId }: FsmViewerProps) {
+  const { t } = useT()
   const [protocolStack, setProtocolStack] = useState<Protocol[]>([initialProtocol])
   const [breadcrumbs, setBreadcrumbs] = useState<FsmHierarchyCrumb[]>([
     { protocolId: initialProtocol.id, protocolName: initialProtocol.name },
@@ -312,16 +315,16 @@ export function FsmViewer({ protocol: initialProtocol, className = '', highlight
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 border-t border-white/[0.06] text-[11px] text-gray-500">
         <span className="flex items-center gap-1">
-          <Circle className="w-2.5 h-2.5 text-cyan-400 fill-cyan-400" aria-hidden="true" /> Start
+          <Circle className="w-2.5 h-2.5 text-cyan-400 fill-cyan-400" aria-hidden="true" /> {t('siteKnowledge.fsm.legendStart')}
         </span>
         <span className="flex items-center gap-1">
-          <Square className="w-2.5 h-2.5 text-green-400" aria-hidden="true" /> End
+          <Square className="w-2.5 h-2.5 text-green-400" aria-hidden="true" /> {t('siteKnowledge.fsm.legendEnd')}
         </span>
         <span className="flex items-center gap-1">
-          <Layers className="w-2.5 h-2.5 text-violet-400" aria-hidden="true" /> Sub-protocol
+          <Layers className="w-2.5 h-2.5 text-violet-400" aria-hidden="true" /> {t('siteKnowledge.fsm.legendSub')}
         </span>
         <span className="flex items-center gap-1">
-          <Circle className="w-2.5 h-2.5 text-gray-400" aria-hidden="true" /> State
+          <Circle className="w-2.5 h-2.5 text-gray-400" aria-hidden="true" /> {t('siteKnowledge.fsm.legendState')}
         </span>
       </div>
     </div>

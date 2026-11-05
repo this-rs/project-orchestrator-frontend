@@ -34,7 +34,6 @@ import {
   formatAbsolute,
   getStatusMeta,
   inlineLink,
-  pluralize,
   surface,
 } from '@/components/ui'
 import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
@@ -44,11 +43,13 @@ import { decisionTitle, entityHref, entityIcon } from '@/components/knowledge/no
 import { workspacePath } from '@/utils/paths'
 import type { Decision, DecisionStatus, DecisionAffects, DecisionTimelineEntry } from '@/types'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { activeTranslator, useT } from '@/i18n'
 
 function DetailSkeleton() {
+  const { t } = useT()
   return (
     <PageContainer width="wide" className="space-y-6">
-      <div className="space-y-3" aria-busy="true" aria-label="Loading decision">
+      <div className="space-y-3" aria-busy="true" aria-label={t('siteKnowledge.decision.loadingAria')}>
         <SkeletonLine width="30%" />
         <Skeleton className="h-7 w-3/4" />
         <SkeletonLine width="55%" />
@@ -69,6 +70,7 @@ export function DecisionDetailPage() {
   const { decisionId } = useParams<{ decisionId: string }>()
   const wsSlug = useWorkspaceSlug()
   const toast = useToast()
+  const { t } = useT()
   const { navigate } = useViewTransition()
   const decisionsHref = workspacePath(wsSlug, '/decisions')
 
@@ -96,7 +98,7 @@ export function DecisionDetailPage() {
       }
     } catch (err) {
       setDecision(null)
-      setError(err instanceof ApiError && err.status === 404 ? 'not-found' : 'Could not load this decision.')
+      setError(err instanceof ApiError && err.status === 404 ? 'not-found' : activeTranslator().t('siteKnowledge.decision.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -110,7 +112,7 @@ export function DecisionDetailPage() {
 
   const handleDelete = async () => {
     await decisionsApi.delete(decisionId!)
-    toast.success('Decision deleted')
+    toast.success(t('siteKnowledge.decisions.deleted'))
     navigate(decisionsHref, { type: 'back-button' })
   }
 
@@ -119,16 +121,16 @@ export function DecisionDetailPage() {
     try {
       await decisionsApi.update(decision.id, { status: newStatus })
       setDecision({ ...decision, status: newStatus })
-      toast.success(`Status changed to ${getStatusMeta('decision', newStatus).label}`)
+      toast.success(t('siteKnowledge.decisions.statusChanged', { status: getStatusMeta('decision', newStatus).label }))
     } catch {
-      toast.error('Failed to update status')
+      toast.error(t('siteKnowledge.decisions.statusFailed'))
     }
   }
 
   const handleRemoveAffects = async (entityType: string, entityId: string) => {
     await decisionsApi.removeAffects(decisionId!, entityType, entityId)
     setAffects((prev) => prev.filter((a) => !(a.entity_type === entityType && a.entity_id === entityId)))
-    toast.success('Link removed')
+    toast.success(t('siteKnowledge.decision.linkRemoved'))
   }
 
   // ── Dialogs ─────────────────────────────────────────────────────────
@@ -138,12 +140,12 @@ export function DecisionDetailPage() {
     if (!decision) return
     await decisionsApi.update(decision.id, data)
     setDecision({ ...decision, ...data })
-    toast.success('Decision updated')
+    toast.success(t('siteKnowledge.decision.updated'))
   })
   const openEdit = () => {
     if (!decision) return
     editForm.reset({ description: decision.description, rationale: decision.rationale, chosen_option: decision.chosen_option })
-    editDialog.open({ title: 'Edit decision', size: 'lg', submitLabel: 'Save' })
+    editDialog.open({ title: t('siteKnowledge.decision.editTitle'), size: 'lg', submitLabel: t('siteKnowledge.decision.save') })
   }
 
   const affectsDialog = useFormDialog()
@@ -151,11 +153,11 @@ export function DecisionDetailPage() {
     if (!decisionId) return
     await decisionsApi.addAffects(decisionId, data)
     setAffects(await decisionsApi.listAffects(decisionId))
-    toast.success('Affected entity added')
+    toast.success(t('siteKnowledge.decision.affectAdded'))
   })
   const openAddAffects = () => {
     affectsForm.reset()
-    affectsDialog.open({ title: 'Add affected entity', submitLabel: 'Add' })
+    affectsDialog.open({ title: t('siteKnowledge.decision.addAffectTitle'), submitLabel: t('siteKnowledge.decision.add') })
   }
 
   useUiContext('decision', decision?.id, decision ? decisionTitle(decision.description) : null)
@@ -168,11 +170,11 @@ export function DecisionDetailPage() {
       <PageContainer width="wide">
         <EmptyState
           icon={<Scale className="w-8 h-8 text-gray-500" />}
-          title="Decision not found"
-          description="It may have been deleted, or the link is wrong."
+          title={t('siteKnowledge.decision.notFound')}
+          description={t('siteKnowledge.shared.notFoundHint')}
           action={
             <Link to={decisionsHref} className={`text-sm ${inlineLink}`}>
-              Back to decisions
+              {t('siteKnowledge.decision.backToDecisions')}
             </Link>
           }
         />
@@ -182,7 +184,7 @@ export function DecisionDetailPage() {
   if (error || !decision) {
     return (
       <PageContainer width="wide">
-        <ErrorState title="Could not load the decision" description={error ?? undefined} onRetry={fetchData} />
+        <ErrorState title={t('siteKnowledge.decision.loadFailedTitle')} description={error ?? undefined} onRetry={fetchData} />
       </PageContainer>
     )
   }
@@ -200,36 +202,44 @@ export function DecisionDetailPage() {
         status={<StatusMenu kind="decision" status={decision.status} onChange={handleStatusChange} />}
         meta={[
           decision.chosen_option ? (
-            <span key="chosen" className="inline-flex items-center gap-1 min-w-0 text-gray-300" title={`Chosen: ${decision.chosen_option}`}>
-              <CheckCircle2 className={`w-3 h-3 shrink-0 ${TONE_CLASSES.success.text}`} aria-label="Chosen option" />
+            <span key="chosen" className="inline-flex items-center gap-1 min-w-0 text-gray-300" title={t('siteKnowledge.decisions.chosen', { option: decision.chosen_option })}>
+              <CheckCircle2 className={`w-3 h-3 shrink-0 ${TONE_CLASSES.success.text}`} aria-label={t('siteKnowledge.decision.chosenOption')} />
               <span className="break-words">{decision.chosen_option}</span>
             </span>
           ) : null,
-          decision.decided_by ? `by ${decision.decided_by}` : null,
-          <RelativeTime key="d" date={decision.decided_at} prefix="decided " />,
-          decision.alternatives.length ? pluralize(decision.alternatives.length, 'alternative') : null,
-          affects.length ? `affects ${pluralize(affects.length, 'entity', 'entities')}` : null,
+          decision.decided_by ? t('siteKnowledge.shared.by', { who: decision.decided_by }) : null,
+          <RelativeTime key="d" date={decision.decided_at} prefix={`${t('siteKnowledge.decision.decided')} `} />,
+          decision.alternatives.length
+            ? decision.alternatives.length === 1
+              ? t('siteKnowledge.decisions.alternatives.one', { n: 1 })
+              : t('siteKnowledge.decisions.alternatives.other', { n: decision.alternatives.length })
+            : null,
+          affects.length
+            ? affects.length === 1
+              ? t('siteKnowledge.decision.affectsCount.one', { n: 1 })
+              : t('siteKnowledge.decision.affectsCount.other', { n: affects.length })
+            : null,
         ]}
         overflowActions={[
-          { label: 'Edit', icon: Pencil, onClick: openEdit },
+          { label: t('siteKnowledge.shared.edit'), icon: Pencil, onClick: openEdit },
           {
-            label: 'Copy ID',
+            label: t('siteKnowledge.shared.copyId'),
             icon: Copy,
             onClick: async () => {
               try {
                 await navigator.clipboard.writeText(decision.id)
-                toast.success('ID copied')
+                toast.success(t('siteKnowledge.decision.copied'))
               } catch {
-                toast.error('Could not copy')
+                toast.error(t('siteKnowledge.decision.copyFailed'))
               }
             },
           },
           {
-            label: 'Delete',
+            label: t('siteKnowledge.shared.delete'),
             icon: Trash2,
             variant: 'danger',
             onClick: handleDelete,
-            confirm: { title: 'Delete decision?', description: 'The decision and its links are permanently deleted. This cannot be undone.' },
+            confirm: { title: t('siteKnowledge.decision.deleteTitle'), description: t('siteKnowledge.decision.deleteDescription') },
           },
         ]}
       />
@@ -237,36 +247,36 @@ export function DecisionDetailPage() {
       {decision.status === 'superseded' && (
         <div className={`flex items-start gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm ${TONE_CLASSES.warning.text}`}>
           <ArrowRightLeft className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
-          <p>This decision has been superseded. It is kept for historical reference.</p>
+          <p>{t('siteKnowledge.decision.superseded')}</p>
         </div>
       )}
 
       {/* ── Context (description + rationale) ───────────────────────── */}
-      <Section title="Context">
+      <Section title={t('siteKnowledge.decision.context')}>
         <div className={`${surface} px-4 py-3 space-y-4`}>
           {!descriptionIsTitle && (
             <div>
-              <h3 className="text-xs text-gray-500 mb-1">Description</h3>
+              <h3 className="text-xs text-gray-500 mb-1">{t('siteKnowledge.decision.description')}</h3>
               <CollapsibleMarkdown content={decision.description} maxHeight={320} />
             </div>
           )}
           <div>
-            <h3 className="text-xs text-gray-500 mb-1">Rationale</h3>
+            <h3 className="text-xs text-gray-500 mb-1">{t('siteKnowledge.decision.rationale')}</h3>
             {decision.rationale ? (
               <CollapsibleMarkdown content={decision.rationale} maxHeight={320} />
             ) : (
-              <p className="text-sm text-gray-500">No rationale recorded.</p>
+              <p className="text-sm text-gray-500">{t('siteKnowledge.decision.noRationale')}</p>
             )}
           </div>
         </div>
       </Section>
 
       {/* ── Alternatives ────────────────────────────────────────────── */}
-      <Section title="Alternatives" count={decision.alternatives.length} description="Options that were considered.">
+      <Section title={t('siteKnowledge.decision.alternatives')} count={decision.alternatives.length} description={t('siteKnowledge.decision.alternativesDescription')}>
         {decision.alternatives.length === 0 ? (
-          <EmptyState size="sm" title="No alternatives recorded." />
+          <EmptyState size="sm" title={t('siteKnowledge.decision.noAlternatives')} />
         ) : (
-          <EntityList aria-label="Alternatives">
+          <EntityList aria-label={t('siteKnowledge.decision.alternativesAria')}>
             {decision.alternatives.map((alt, i) => {
               const chosen = alt === decision.chosen_option
               return (
@@ -274,7 +284,7 @@ export function DecisionDetailPage() {
                   key={`${alt}-${i}`}
                   title={alt}
                   leading={<StatusIcon tone={chosen ? 'success' : 'neutral'} className={chosen ? TONE_CLASSES.success.text : 'text-gray-600'} />}
-                  trailing={chosen ? <ToneText tone="success" dot={false} label="chosen" /> : undefined}
+                  trailing={chosen ? <ToneText tone="success" dot={false} label={t('siteKnowledge.decision.chosenTag')} /> : undefined}
                 />
               )
             })}
@@ -284,28 +294,28 @@ export function DecisionDetailPage() {
 
       {/* ── Affects ─────────────────────────────────────────────────── */}
       <Section
-        title="Affects"
+        title={t('siteKnowledge.decision.affects')}
         count={affects.length}
-        description="What this decision constrains — assistants working there are reminded of it."
+        description={t('siteKnowledge.decision.affectsDescription')}
         action={
           <Button variant="ghost" size="sm" onClick={openAddAffects}>
-            <Plus className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> Add
+            <Plus className="w-3.5 h-3.5 mr-1" aria-hidden="true" /> {t('siteKnowledge.decision.add')}
           </Button>
         }
       >
         {affects.length === 0 ? (
           <EmptyState
             size="sm"
-            title="No affected entities yet"
-            description="Link this decision to the files, functions or structs it impacts."
+            title={t('siteKnowledge.decision.noAffects')}
+            description={t('siteKnowledge.decision.noAffectsDescription')}
             action={
               <Button size="sm" variant="secondary" onClick={openAddAffects}>
-                Add
+                {t('siteKnowledge.decision.add')}
               </Button>
             }
           />
         ) : (
-          <EntityList aria-label="Affected entities">
+          <EntityList aria-label={t('siteKnowledge.decision.affectsAria')}>
             {affects.map((aff) => {
               const name = aff.entity_name || aff.entity_id
               return (
@@ -325,11 +335,15 @@ export function DecisionDetailPage() {
                   ]}
                   actions={[
                     {
-                      label: 'Unlink',
+                      label: t('siteKnowledge.decision.unlink'),
                       icon: Unlink,
                       variant: 'danger',
                       onClick: () => handleRemoveAffects(aff.entity_type, aff.entity_id),
-                      confirm: { title: 'Unlink this entity?', description: `The decision will no longer be attached to ${name}.`, confirmLabel: 'Unlink' },
+                      confirm: {
+                        title: t('siteKnowledge.decision.unlinkTitle'),
+                        description: t('siteKnowledge.decision.unlinkDescription', { name }),
+                        confirmLabel: t('siteKnowledge.decision.unlink'),
+                      },
                     },
                   ]}
                 />
@@ -340,11 +354,11 @@ export function DecisionDetailPage() {
       </Section>
 
       {/* ── Timeline ────────────────────────────────────────────────── */}
-      <Section title="Timeline" count={timeline.length} description="How this decision evolved (supersessions).">
+      <Section title={t('siteKnowledge.decision.timeline')} count={timeline.length} description={t('siteKnowledge.decision.timelineDescription')}>
         {timeline.length === 0 ? (
-          <EmptyState size="sm" title="No timeline entries" description="The timeline shows the decision's evolution over time." />
+          <EmptyState size="sm" title={t('siteKnowledge.decision.noTimeline')} description={t('siteKnowledge.decision.noTimelineDescription')} />
         ) : (
-          <EntityList aria-label="Timeline">
+          <EntityList aria-label={t('siteKnowledge.decision.timelineAria')}>
             {timeline.map((entry, i) => (
               <EntityRow
                 key={`${entry.decision.id}-${i}`}
@@ -359,16 +373,18 @@ export function DecisionDetailPage() {
                         to={workspacePath(wsSlug, `/decisions/${entry.superseded_by}`)}
                         className={`relative z-10 ${TONE_CLASSES.warning.text} ${inlineLink}`}
                       >
-                        superseded — see newer
+                        {t('siteKnowledge.decision.seeNewer')}
                       </Link>
                     ) : (
                       <span key="sb" className={TONE_CLASSES.warning.text}>
-                        superseded by another decision
+                        {t('siteKnowledge.decision.supersededByOther')}
                       </span>
                     )
                   ) : null,
                   entry.supersedes_chain?.length
-                    ? `supersedes ${pluralize(entry.supersedes_chain.length, 'previous decision', 'previous decisions')}`
+                    ? entry.supersedes_chain.length === 1
+                      ? t('siteKnowledge.decision.supersedes.one', { n: 1 })
+                      : t('siteKnowledge.decision.supersedes.other', { n: entry.supersedes_chain.length })
                     : null,
                 ]}
               />
@@ -380,12 +396,12 @@ export function DecisionDetailPage() {
       <AnchoredConversations targetType="decision" targetId={decision.id} />
 
       {/* ── Details ─────────────────────────────────────────────────── */}
-      <Section title="Details">
+      <Section title={t('siteKnowledge.decision.details')}>
         <Facts
           items={[
-            { label: 'Decided by', value: decision.decided_by },
-            { label: 'Decided', value: formatAbsolute(decision.decided_at) },
-            { label: 'ID', value: <span className="font-mono text-xs break-all">{decision.id}</span> },
+            { label: t('siteKnowledge.decision.decidedByLabel'), value: decision.decided_by },
+            { label: t('siteKnowledge.decision.decidedLabel'), value: formatAbsolute(decision.decided_at) },
+            { label: t('siteKnowledge.decision.idLabel'), value: <span className="font-mono text-xs break-all">{decision.id}</span> },
           ]}
         />
       </Section>

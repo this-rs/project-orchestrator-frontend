@@ -36,6 +36,7 @@ import {
   Zap,
 } from 'lucide-react'
 import type { VizBlockProps } from './registry'
+import { useT } from '@/i18n'
 
 // ============================================================================
 // Types
@@ -94,6 +95,7 @@ function TreeNodeItem({
   depth: number
   expanded: boolean
 }) {
+  const { t } = useT()
   const [isOpen, setIsOpen] = useState(expandedProp || depth < 2)
   const hasChildren = node.children && node.children.length > 0
   const Icon = getEntityIcon(node.entity_type)
@@ -109,7 +111,7 @@ function TreeNodeItem({
         {/* Expand/collapse toggle */}
         <span className="mt-0.5 shrink-0 w-4">
           {hasChildren ? (
-            <button onClick={toggle} className="text-gray-500 hover:text-gray-300" aria-label={isOpen ? 'Collapse' : 'Expand'}>
+            <button onClick={toggle} className="text-gray-500 hover:text-gray-300" aria-label={isOpen ? t('siteChat.vizReasoning.collapse') : t('siteChat.vizReasoning.expand')}>
               {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
             </button>
           ) : (
@@ -156,6 +158,7 @@ function TreeNodeItem({
 // ============================================================================
 
 export function ReasoningTreeViz({ data, expanded = false }: VizBlockProps) {
+  const { t } = useT()
   const tree = data.tree as { roots?: ReasoningNode[] } | undefined
   const confidence = (data.confidence as number) ?? 0
   const nodeCount = (data.node_count as number) ?? 0
@@ -169,9 +172,9 @@ export function ReasoningTreeViz({ data, expanded = false }: VizBlockProps) {
       <div className="flex items-center gap-3 flex-wrap">
         <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${relevanceBg(confidence)}`}>
           <Brain className="w-3 h-3" />
-          <span>Confidence: {(confidence * 100).toFixed(0)}%</span>
+          <span>{t('siteChat.vizReasoning.confidence', { value: (confidence * 100).toFixed(0) })}</span>
         </div>
-        <span className="text-[10px] text-gray-500">{nodeCount} nodes · depth {treeDepth}</span>
+        <span className="text-[10px] text-gray-500">{t('siteChat.vizReasoning.nodesDepth', { nodes: nodeCount, depth: treeDepth })}</span>
       </div>
 
       {/* Query */}
@@ -188,7 +191,7 @@ export function ReasoningTreeViz({ data, expanded = false }: VizBlockProps) {
             <TreeNodeItem key={`${root.entity_id}-${i}`} node={root} depth={0} expanded={expanded} />
           ))
         ) : (
-          <div className="text-xs text-gray-600 italic px-2 py-4">No reasoning nodes available.</div>
+          <div className="text-xs text-gray-600 italic px-2 py-4">{t('siteChat.vizReasoning.noNodes')}</div>
         )}
       </div>
     </div>

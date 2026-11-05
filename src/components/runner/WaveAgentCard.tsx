@@ -15,7 +15,7 @@
 import { useState, useMemo } from 'react'
 import { Eye, EyeOff, FileCode2, GitCommitHorizontal, List, RotateCcw, SquareArrowOutUpRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { Button, EntityRow, StatusDot, ToneText, pluralize } from '@/components/ui'
+import { Button, EntityRow, StatusDot, ToneText } from '@/components/ui'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import type { ActiveAgentSnapshot } from '@/services/runner'
@@ -25,6 +25,7 @@ import { CostDisplay } from '@/components/ui/CostDisplay'
 import { hasExecutionRouting } from '@/constants/runProviders'
 import { ExecutionModel } from './ExecutionModel'
 import { formatUsd2, hasCost } from '@/utils/cost'
+import { useT } from '@/i18n'
 
 export interface WaveAgentCardProps {
   agent: ActiveAgentSnapshot
@@ -41,6 +42,7 @@ const compactButton = 'min-w-0 max-w-full gap-1.5 text-xs'
 
 export function WaveAgentCard({ agent, execution, isSelected, onToggleConversation, onRetryTask, retrying }: WaveAgentCardProps) {
   const wsSlug = useWorkspaceSlug()
+  const { t } = useT()
   const navigate = useNavigate()
   const meta = agentStateMeta(agent.status)
   const cost = runCost(agent)
@@ -75,12 +77,12 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
           <CostDisplay key="c" cost={cost} format={formatUsd2} className="font-mono tabular-nums" />
         ) : null,
         execution && hasExecutionRouting(execution) ? <ExecutionModel key="m" execution={execution} compact /> : null,
-        files.length > 0 ? pluralize(files.length, 'file') : null,
-        commits.length > 0 ? pluralize(commits.length, 'commit') : null,
+        files.length > 0 ? (files.length === 1 ? t('siteOps.waveAgentCard.fileOne') : t('siteOps.waveAgentCard.fileOther', { count: files.length })) : null,
+        commits.length > 0 ? (commits.length === 1 ? t('siteOps.waveAgentCard.commitOne') : t('siteOps.waveAgentCard.commitOther', { count: commits.length })) : null,
       ]}
       actions={[
         {
-          label: 'Open task',
+          label: t('siteOps.waveAgentCard.openTask'),
           icon: SquareArrowOutUpRight,
           onClick: () => navigate(workspacePath(wsSlug, `/tasks/${agent.task_id}`)),
         },
@@ -94,12 +96,12 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
               variant={isSelected ? 'secondary' : 'ghost'}
               onClick={() => onToggleConversation(agent.session_id!, agent.task_title)}
               aria-pressed={isSelected}
-              aria-label={isSelected ? `Hide conversation for ${agent.task_title}` : `View conversation for ${agent.task_title}`}
+              aria-label={isSelected ? t('siteOps.waveAgentCard.hideConversation', { title: agent.task_title }) : t('siteOps.waveAgentCard.viewConversation', { title: agent.task_title })}
               flat
               className={compactButton}
             >
               {isSelected ? <EyeOff className="w-3.5 h-3.5 shrink-0" aria-hidden="true" /> : <Eye className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
-              <span className="truncate">{isSelected ? 'Hide' : 'Conversation'}</span>
+              <span className="truncate">{isSelected ? t('siteOps.waveAgentCard.hide') : t('siteOps.waveAgentCard.conversation')}</span>
             </Button>
           )}
           {canRetry && (
@@ -112,7 +114,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
               className={compactButton}
             >
               {!retrying && <RotateCcw className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
-              <span className="truncate">Retry task</span>
+              <span className="truncate">{t('siteOps.waveAgentCard.retryTask')}</span>
             </Button>
           )}
           {hasDetails && (
@@ -125,7 +127,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
               className={`${compactButton} text-gray-400`}
             >
               <List className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-              <span className="truncate">{detailOpen ? 'Hide details' : 'Details'}</span>
+              <span className="truncate">{detailOpen ? t('siteOps.waveAgentCard.hideDetails') : t('siteOps.waveAgentCard.details')}</span>
             </Button>
           )}
         </div>
@@ -134,7 +136,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
         <div className="mt-2 space-y-2 text-xs text-gray-400 min-w-0">
           {files.length > 0 && (
             <div>
-              <p className="text-[11px] font-medium text-gray-500">Files modified</p>
+              <p className="text-[11px] font-medium text-gray-500">{t('siteOps.waveAgentCard.filesModified')}</p>
               <ul className="mt-0.5 space-y-0.5">
                 {files.map((file) => (
                   <li key={file} className="flex items-start gap-1.5 min-w-0">
@@ -147,7 +149,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
           )}
           {commits.length > 0 && (
             <div>
-              <p className="text-[11px] font-medium text-gray-500">Commits</p>
+              <p className="text-[11px] font-medium text-gray-500">{t('siteOps.waveAgentCard.commits')}</p>
               <ul className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
                 {commits.map((sha) => (
                   <li key={sha} className="inline-flex items-center gap-1 font-mono">
@@ -160,7 +162,7 @@ export function WaveAgentCard({ agent, execution, isSelected, onToggleConversati
           )}
           {tools.length > 0 && (
             <div>
-              <p className="text-[11px] font-medium text-gray-500">Tools used</p>
+              <p className="text-[11px] font-medium text-gray-500">{t('siteOps.waveAgentCard.toolsUsed')}</p>
               <p className="mt-0.5 break-words">{tools.join(' · ')}</p>
             </div>
           )}

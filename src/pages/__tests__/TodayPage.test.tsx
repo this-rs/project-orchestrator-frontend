@@ -345,15 +345,15 @@ describe('TodayPage: discussions and "Attach to…" (assembly)', () => {
     const dead = data.unattached.filter((u) => u.state === 'dead')
     const live = data.unattached.filter((u) => u.state === 'live' && u.pending.length > 0)
     await waitFor(() => expect(within(band('stuck')).getAllByTestId('no-thread-label').length).toBe(dead.length))
-    expect(within(band('stuck')).getAllByRole('button', { name: 'Rattacher à…' })).toHaveLength(dead.length)
-    expect(within(band('waiting')).getAllByRole('button', { name: 'Rattacher à…' })).toHaveLength(live.length)
+    expect(within(band('stuck')).getAllByRole('button', { name: 'Attach to…' })).toHaveLength(dead.length)
+    expect(within(band('waiting')).getAllByRole('button', { name: 'Attach to…' })).toHaveLength(live.length)
   })
 
   it('a request whose session HAS a thread gets no "Rattacher à…"', async () => {
     route(fixture('four_bands'))
     renderPage()
     await waitFor(() => expect(within(band('waiting')).getAllByTestId('attention-card').length).toBeGreaterThan(0))
-    expect(within(band('waiting')).queryByRole('button', { name: 'Rattacher à…' })).toBeNull()
+    expect(within(band('waiting')).queryByRole('button', { name: 'Attach to…' })).toBeNull()
   })
 })
 

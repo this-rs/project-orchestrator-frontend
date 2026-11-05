@@ -51,7 +51,6 @@ import {
   StatusText,
   formatAbsolute,
   humanizeStatus,
-  pluralize,
   rowInteractive,
   inlineLink,
 } from '@/components/ui'
@@ -62,16 +61,17 @@ import { workspacePath } from '@/utils/paths'
 import type { CrudEvent } from '@/types/events'
 import type { Protocol, ProtocolRun, ProtocolState, StateType } from '@/types/protocol'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { activeTranslator, useT } from '@/i18n'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-const STATE_TYPE: Record<StateType, { label: string; icon: LucideIcon; cls: string }> = {
-  start: { label: 'Start', icon: Circle, cls: 'text-cyan-400 fill-cyan-400' },
-  intermediate: { label: 'Intermediate', icon: Circle, cls: 'text-gray-500' },
-  generator: { label: 'Generator', icon: Circle, cls: 'text-gray-500' },
-  terminal: { label: 'End', icon: Square, cls: 'text-green-400' },
+const STATE_TYPE: Record<StateType, { icon: LucideIcon; cls: string }> = {
+  start: { icon: Circle, cls: 'text-cyan-400 fill-cyan-400' },
+  intermediate: { icon: Circle, cls: 'text-gray-500' },
+  generator: { icon: Circle, cls: 'text-gray-500' },
+  terminal: { icon: Square, cls: 'text-green-400' },
 }
 const STATE_ORDER: StateType[] = ['start', 'intermediate', 'generator', 'terminal']
 
@@ -86,6 +86,7 @@ export function ProtocolDetailPage() {
   const [searchParams] = useSearchParams()
   const wsSlug = useWorkspaceSlug()
   const toast = useToast()
+  const { t } = useT()
 
   const [protocol, setProtocol] = useState<Protocol | null>(null)
   const [loading, setLoading] = useState(true)
@@ -109,7 +110,7 @@ export function ProtocolDetailPage() {
     try {
       setProtocol(await protocolApi.getProtocol(protocolId))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load protocol')
+      setError(err instanceof Error ? err.message : activeTranslator().t('siteKnowledge.protocol.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -129,7 +130,7 @@ export function ProtocolDetailPage() {
         const res = await protocolApi.listRuns(protocolId, { limit: 100 })
         setRuns(res.items)
       } catch (err) {
-        if (!silent) setRunsError(err instanceof Error ? err.message : 'Failed to load runs')
+        if (!silent) setRunsError(err instanceof Error ? err.message : activeTranslator().t('siteKnowledge.protocol.runsLoadFailed'))
       } finally {
         if (!silent) setRunsLoading(false)
       }
@@ -157,11 +158,11 @@ export function ProtocolDetailPage() {
     setStarting(true)
     try {
       const run = await protocolApi.startRun(protocol.id)
-      toast.success('Run started')
+      toast.success(t('siteKnowledge.protocol.runStarted'))
       await fetchRuns(true)
       if (run?.id) setSelectedRunId(run.id)
     } catch (err) {
-      toast.error(apiErrorMessage(err, 'Failed to start the run'))
+      toast.error(apiErrorMessage(err, t('siteKnowledge.shared.startFailed')))
     } finally {
       setStarting(false)
     }
@@ -171,9 +172,9 @@ export function ProtocolDetailPage() {
     try {
       const updated = await protocolApi.cancelRun(run.id)
       setRuns((prev) => prev.map((r) => (r.id === run.id ? { ...r, ...updated, status: updated?.status ?? 'cancelled' } : r)))
-      toast.success('Run cancelled')
+      toast.success(t('siteKnowledge.protocol.runCancelled'))
     } catch (err) {
-      toast.error(apiErrorMessage(err, 'Failed to cancel the run'))
+      toast.error(apiErrorMessage(err, t('siteKnowledge.protocol.cancelFailed')))
     }
   }
 
@@ -181,9 +182,9 @@ export function ProtocolDetailPage() {
     if (!protocol) return
     try {
       await navigator.clipboard.writeText(protocol.id)
-      toast.success('Protocol ID copied')
+      toast.success(t('siteKnowledge.protocol.idCopied'))
     } catch {
-      toast.error('Failed to copy to clipboard')
+      toast.error(t('siteKnowledge.shared.copyFailed'))
     }
   }
 
@@ -240,7 +241,7 @@ export function ProtocolDetailPage() {
   if (error || !protocol) {
     return (
       <PageContainer width="wide">
-        <ErrorState title="Failed to load protocol" description={error ?? 'Protocol not found'} onRetry={fetchProtocol} />
+        <ErrorState title={t('siteKnowledge.protocol.loadFailed')} description={error ?? t('siteKnowledge.protocol.notFound')} onRetry={fetchProtocol} />
       </PageContainer>
     )
   }
@@ -264,26 +265,30 @@ export function ProtocolDetailPage() {
               {mode.label}
             </span>
           ) : (
-            <span key="mode">Manual</span>
+            <span key="mode">{t('siteKnowledge.protocol.manual')}</span>
           ),
           activeRuns > 0 ? (
-            <StatusText key="live" kind="run" status="running" pulse label={`${activeRuns} active`} />
+            <StatusText key="live" kind="run" status="running" pulse label={t('siteKnowledge.protocol.activeCount', { count: activeRuns })} />
           ) : null,
-          pluralize(states.length, 'state'),
-          pluralize(transitions.length, 'transition'),
-          <RelativeTime key="u" date={protocol.updated_at ?? protocol.created_at} prefix="updated " />,
+          states.length === 1
+            ? t('siteKnowledge.protocols.states.one', { n: 1 })
+            : t('siteKnowledge.protocols.states.other', { n: states.length }),
+          transitions.length === 1
+            ? t('siteKnowledge.protocols.transitions.one', { n: 1 })
+            : t('siteKnowledge.protocols.transitions.other', { n: transitions.length }),
+          <RelativeTime key="u" date={protocol.updated_at ?? protocol.created_at} prefix={`${t('siteKnowledge.protocol.updatedLabel')} `} />,
         ]}
         actions={
           status !== 'archived' ? (
             <Button size="sm" onClick={handleStartRun} loading={starting} className="gap-1.5">
               {!starting && <Play className="w-3.5 h-3.5" aria-hidden="true" />}
-              Run
+              {t('siteKnowledge.shared.run')}
             </Button>
           ) : undefined
         }
         overflowActions={[
-          { label: 'Refresh', icon: RefreshCw, onClick: () => { fetchProtocol(); fetchRuns() } },
-          { label: 'Copy ID', icon: Copy, onClick: copyId },
+          { label: t('siteKnowledge.shared.refresh'), icon: RefreshCw, onClick: () => { fetchProtocol(); fetchRuns() } },
+          { label: t('siteKnowledge.shared.copyId'), icon: Copy, onClick: copyId },
         ]}
         description={protocol.description}
       >
@@ -296,14 +301,10 @@ export function ProtocolDetailPage() {
 
       {/* ── State machine ─────────────────────────────────────────────── */}
       <div ref={fsmRef} className="scroll-mt-16">
-        <Section title="State machine">
-          <Explainer className="mb-2">
-            Each box is a state, each arrow a transition labelled with the event that fires it. A run starts at the
-            “Start” state and stops on an “End” state. Violet boxes contain a sub-protocol: tap them to open it. Drag to
-            pan, pinch to zoom — the diagram scrolls inside its own frame, never the page.
-          </Explainer>
+        <Section title={t('siteKnowledge.protocol.stateMachine')}>
+          <Explainer className="mb-2">{t('siteKnowledge.protocol.stateMachineExplain')}</Explainer>
           {states.length === 0 ? (
-            <EmptyState size="sm" title="No states defined" description="This protocol has no FSM states yet." />
+            <EmptyState size="sm" title={t('siteKnowledge.protocol.noStates')} description={t('siteKnowledge.protocol.noStatesDescription')} />
           ) : (
             <div className="h-[360px] sm:h-[460px] lg:h-[540px] rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
               <FsmViewer protocol={protocol} highlightedStateId={highlightedStateId} />
@@ -314,26 +315,23 @@ export function ProtocolDetailPage() {
 
       {/* ── Runs ──────────────────────────────────────────────────────── */}
       <Section
-        title="Runs"
+        title={t('siteKnowledge.protocol.runs')}
         count={runsLoading ? undefined : runs.length}
         action={
-          <Button size="sm" variant="ghost" onClick={() => fetchRuns()} disabled={runsLoading} aria-label="Refresh runs">
+          <Button size="sm" variant="ghost" onClick={() => fetchRuns()} disabled={runsLoading} aria-label={t('siteKnowledge.protocol.refreshRunsAria')}>
             <RefreshCw className={`w-3.5 h-3.5 ${runsLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
           </Button>
         }
       >
-        <Explainer className="mb-2">
-          A run is one execution of the protocol: it moves from state to state on each event. Tap a run to see its tree
-          (sub-runs started by sub-protocols) and its path through the states.
-        </Explainer>
+        <Explainer className="mb-2">{t('siteKnowledge.protocol.runsExplain')}</Explainer>
         {runsError ? (
-          <ErrorState title="Failed to load runs" description={runsError} onRetry={() => fetchRuns()} />
+          <ErrorState title={t('siteKnowledge.protocol.runsLoadFailed')} description={runsError} onRetry={() => fetchRuns()} />
         ) : runsLoading ? (
           <EntityListSkeleton rows={3} />
         ) : runs.length === 0 ? (
-          <EmptyState size="sm" title="No runs yet" description="Start a run to see its execution here." />
+          <EmptyState size="sm" title={t('siteKnowledge.protocol.noRuns')} description={t('siteKnowledge.protocol.noRunsDescription')} />
         ) : (
-          <EntityList aria-label="Runs">
+          <EntityList aria-label={t('siteKnowledge.protocol.runsAria')}>
             {runs.map((run) => (
               <RunRow
                 key={run.id}
@@ -350,8 +348,8 @@ export function ProtocolDetailPage() {
 
       {/* ── States ────────────────────────────────────────────────────── */}
       {states.length > 0 && (
-        <Section title="States" count={states.length} collapsible defaultOpen={states.length <= 8}>
-          <EntityList aria-label="States">
+        <Section title={t('siteKnowledge.protocol.states')} count={states.length} collapsible defaultOpen={states.length <= 8}>
+          <EntityList aria-label={t('siteKnowledge.protocol.statesAria')}>
             {orderedStates.map((s) => (
               <StateRow
                 key={s.id}
@@ -366,25 +364,25 @@ export function ProtocolDetailPage() {
 
       {/* ── Transitions ───────────────────────────────────────────────── */}
       {transitions.length > 0 && (
-        <Section title="Transitions" count={transitions.length} collapsible defaultOpen={transitions.length <= 8}>
-          <EntityList aria-label="Transitions">
-            {transitions.map((t) => (
+        <Section title={t('siteKnowledge.protocol.transitions')} count={transitions.length} collapsible defaultOpen={transitions.length <= 8}>
+          <EntityList aria-label={t('siteKnowledge.protocol.transitionsAria')}>
+            {transitions.map((tr) => (
               <EntityRow
-                key={t.id}
-                title={`${stateName(t.from_state)} → ${stateName(t.to_state)}`}
-                description={t.description}
+                key={tr.id}
+                title={`${stateName(tr.from_state)} → ${stateName(tr.to_state)}`}
+                description={tr.description}
                 meta={[
                   <span key="on">
-                    on <span className="font-mono text-gray-300 break-all">{t.trigger}</span>
+                    {t('siteKnowledge.protocol.on')} <span className="font-mono text-gray-300 break-all">{tr.trigger}</span>
                   </span>,
-                  t.guard ? (
+                  tr.guard ? (
                     <span key="guard" className="break-words">
-                      if <span className="font-mono text-gray-400">{t.guard}</span>
+                      {t('siteKnowledge.protocol.ifGuard')} <span className="font-mono text-gray-400">{tr.guard}</span>
                     </span>
                   ) : null,
-                  t.action ? (
+                  tr.action ? (
                     <span key="action" className="break-words">
-                      then <span className="font-mono text-gray-400">{t.action}</span>
+                      {t('siteKnowledge.protocol.thenAction')} <span className="font-mono text-gray-400">{tr.action}</span>
                     </span>
                   ) : null,
                 ]}
@@ -397,10 +395,10 @@ export function ProtocolDetailPage() {
       {/* ── Timeline ──────────────────────────────────────────────────── */}
       {runs.length > 0 && (
         <Section
-          title="Timeline"
+          title={t('siteKnowledge.protocol.timeline')}
           collapsible
           defaultOpen={false}
-          description="Runs placed on a time axis — tap a bar to select the run."
+          description={t('siteKnowledge.protocol.timelineDescription')}
         >
           <div className="overflow-x-auto rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
             <div className="min-w-[480px]">
@@ -411,20 +409,20 @@ export function ProtocolDetailPage() {
       )}
 
       {/* ── Details ───────────────────────────────────────────────────── */}
-      <Section title="Details">
+      <Section title={t('siteKnowledge.protocol.details')}>
         <Facts
           items={[
-            { label: 'Status', value: <StatusText kind="protocol" status={status} /> },
-            { label: 'Category', value: protocol.protocol_category ? humanizeStatus(protocol.protocol_category) : null },
-            { label: 'Trigger mode', value: mode ? mode.label : 'Manual' },
+            { label: t('siteKnowledge.protocol.status'), value: <StatusText kind="protocol" status={status} /> },
+            { label: t('siteKnowledge.protocols.category'), value: protocol.protocol_category ? humanizeStatus(protocol.protocol_category) : null },
+            { label: t('siteKnowledge.protocol.triggerMode'), value: mode ? mode.label : t('siteKnowledge.protocol.manual') },
             {
-              label: 'Trigger config',
+              label: t('siteKnowledge.protocol.triggerConfig'),
               value: triggerConfig ? <span className="font-mono text-xs break-all">{formatTriggerConfig(triggerConfig)}</span> : null,
             },
-            { label: 'Last triggered', value: protocol.last_triggered_at ? formatAbsolute(protocol.last_triggered_at) : null },
-            { label: 'Created', value: formatAbsolute(protocol.created_at) },
-            { label: 'Updated', value: protocol.updated_at ? formatAbsolute(protocol.updated_at) : null },
-            { label: 'ID', value: <span className="font-mono text-xs break-all">{protocol.id}</span> },
+            { label: t('siteKnowledge.protocol.lastTriggered'), value: protocol.last_triggered_at ? formatAbsolute(protocol.last_triggered_at) : null },
+            { label: t('siteKnowledge.protocol.createdLabel'), value: formatAbsolute(protocol.created_at) },
+            { label: t('siteKnowledge.protocol.updatedLabel'), value: protocol.updated_at ? formatAbsolute(protocol.updated_at) : null },
+            { label: t('siteKnowledge.protocol.idLabel'), value: <span className="font-mono text-xs break-all">{protocol.id}</span> },
           ]}
         />
       </Section>
@@ -447,35 +445,44 @@ interface RunRowProps {
 }
 
 function RunRow({ run, selected, onToggle, onCancel, onShowState }: RunRowProps) {
+  const { t } = useT()
   const state = runStateName(run)
   const visited = run.states_visited?.length ?? 0
   const active = ACTIVE_RUN.has(run.status)
   return (
     <EntityRow
-      title={state ?? 'Run'}
+      title={state ?? t('siteKnowledge.shared.run')}
       titleSuffix={<span className="font-mono text-[11px] text-gray-600">{run.id.slice(0, 8)}</span>}
-      ariaLabel={`Run ${run.id.slice(0, 8)}${state ? ` in ${state}` : ''}`}
+      ariaLabel={
+        state
+          ? t('siteKnowledge.protocol.runAriaIn', { id: run.id.slice(0, 8), state })
+          : t('siteKnowledge.protocol.runAria', { id: run.id.slice(0, 8) })
+      }
       onClick={onToggle}
       selected={selected}
       trailing={<RelativeTime date={run.started_at} />}
       meta={[
         <StatusText key="s" kind="run" status={run.status} pulse={run.status === 'running'} />,
-        run.triggered_by ? <span key="t">by {humanizeStatus(run.triggered_by)}</span> : null,
+        run.triggered_by ? <span key="t">{t('siteKnowledge.shared.by', { who: humanizeStatus(run.triggered_by) })}</span> : null,
         <span key="d" className="tabular-nums">{formatRunDuration(run.started_at, run.completed_at)}</span>,
-        visited > 0 ? `${pluralize(visited, 'state')} visited` : null,
+        visited > 0
+          ? visited === 1
+            ? t('siteKnowledge.shared.stateVisited.one', { n: 1 })
+            : t('siteKnowledge.shared.stateVisited.other', { n: visited })
+          : null,
       ]}
       context={run.error ? <p className="text-xs leading-4 text-red-400/90 break-words">{run.error}</p> : undefined}
       actions={[
         {
-          label: 'Cancel run',
+          label: t('siteKnowledge.protocol.cancelRun'),
           icon: Ban,
           variant: 'danger',
           hidden: !active,
           onClick: onCancel,
           confirm: {
-            title: 'Cancel this run?',
-            description: 'The run stops where it is and is marked as cancelled. This cannot be undone.',
-            confirmLabel: 'Cancel run',
+            title: t('siteKnowledge.protocol.cancelTitle'),
+            description: t('siteKnowledge.protocol.cancelDescription'),
+            confirmLabel: t('siteKnowledge.protocol.cancelRun'),
           },
         },
       ]}
@@ -487,16 +494,17 @@ function RunRow({ run, selected, onToggle, onCancel, onShowState }: RunRowProps)
 }
 
 function RunDetail({ runId, onShowState }: { runId: string; onShowState: (stateId: string) => void }) {
+  const { t } = useT()
   const feedbackViz = useFeedbackVizData(runId)
   return (
     <div id={`run-${runId}`} className="space-y-3 rounded-lg border border-white/[0.06] bg-white/[0.02] p-2">
       <div>
-        <p className="px-1 pb-1 text-[11px] font-medium text-gray-500">Run tree</p>
+        <p className="px-1 pb-1 text-[11px] font-medium text-gray-500">{t('siteKnowledge.protocol.runTree')}</p>
         <RunTreeView rootRunId={runId} />
       </div>
       {feedbackViz.data && (
         <div>
-          <p className="px-1 pb-1 text-[11px] font-medium text-gray-500">Path through the states — tap a marker to find it in the diagram</p>
+          <p className="px-1 pb-1 text-[11px] font-medium text-gray-500">{t('siteKnowledge.protocol.pathThroughStates')}</p>
           <ProtocolRunWidget
             data={feedbackViz.data}
             height={200}
@@ -518,7 +526,15 @@ function RunDetail({ runId, onShowState }: { runId: string; onShowState: (stateI
 // ---------------------------------------------------------------------------
 
 function StateRow({ state, outgoing, subProtocolHref }: { state: ProtocolState; outgoing: string[]; subProtocolHref?: string }) {
+  const { t } = useT()
   const type = STATE_TYPE[state.state_type] ?? STATE_TYPE.intermediate
+  const typeLabels: Record<StateType, string> = {
+    start: t('siteKnowledge.protocol.stateStart'),
+    intermediate: t('siteKnowledge.protocol.stateIntermediate'),
+    generator: t('siteKnowledge.protocol.stateGenerator'),
+    terminal: t('siteKnowledge.protocol.stateEnd'),
+  }
+  const typeLabel = typeLabels[state.state_type] ?? typeLabels.intermediate
   const Icon = state.sub_protocol_id ? Layers : type.icon
   return (
     <EntityRow
@@ -526,14 +542,14 @@ function StateRow({ state, outgoing, subProtocolHref }: { state: ProtocolState; 
       leading={<Icon className={`w-3 h-3 ${state.sub_protocol_id ? 'text-violet-400' : type.cls}`} aria-hidden="true" />}
       description={state.description}
       meta={[
-        <span key="type">{type.label}</span>,
+        <span key="type">{typeLabel}</span>,
         outgoing.length > 0 ? (
           <span key="out" className="break-words">→ {outgoing.join(', ')}</span>
         ) : null,
         subProtocolHref ? (
           <Link key="sub" to={subProtocolHref} className={`${rowInteractive} ${inlineLink} inline-flex items-center gap-1`}>
             <Layers className="w-3 h-3" aria-hidden="true" />
-            Open
+            {t('siteKnowledge.protocol.open')}
           </Link>
         ) : null,
       ]}

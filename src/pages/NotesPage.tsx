@@ -25,7 +25,6 @@ import {
   getStatusMeta,
   getStatusOptions,
   textLink,
-  pluralize,
 } from '@/components/ui'
 import type { OverflowMenuAction } from '@/components/ui'
 import { iconButton, popIn } from '@/components/ui/classes'
@@ -45,9 +44,7 @@ import { noteTitle, notePreview, noteTypeOptions, pct } from '@/components/knowl
 import { workspacePath } from '@/utils/paths'
 import type { Note, NoteType, NoteStatus, PaginatedResponse } from '@/types'
 import { NOMENCLATURE } from '@/constants/nomenclature'
-
-const typeOptions = [{ value: 'all', label: 'All types' }, ...noteTypeOptions]
-const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('note')]
+import { useT } from '@/i18n'
 
 // ── Semantic search hit type ──────────────────────────────────────────────
 
@@ -60,6 +57,9 @@ interface SemanticHit {
 type SearchMode = 'semantic' | 'exact'
 
 export function NotesPage() {
+  const { t } = useT()
+  const typeOptions = [{ value: 'all', label: t('siteKnowledge.shared.allTypes') }, ...noteTypeOptions]
+  const statusOptions = [{ value: 'all', label: t('siteKnowledge.shared.allStatuses') }, ...getStatusOptions('note')]
   // ── Search state ──────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('')
   const [searchMode, setSearchMode] = useState<SearchMode>('semantic')
@@ -109,20 +109,23 @@ export function NotesPage() {
     workspaceSlug: wsSlug,
     onSubmit: async (data) => {
       await notesApi.create(data)
-      toast.success('Note created')
+      toast.success(t('siteKnowledge.notes.created'))
       reset()
     },
   })
 
-  const openCreateNote = () => formDialog.open({ title: 'Create note', size: 'lg' })
+  const openCreateNote = () => formDialog.open({ title: t('siteKnowledge.notes.createNote'), size: 'lg' })
 
   const multiSelect = useMultiSelect(notes, (n) => n.id)
 
   const handleBulkDelete = () => {
     const count = multiSelect.selectionCount
     confirmDialog.open({
-      title: `Delete ${pluralize(count, 'note')}?`,
-      description: `This will permanently delete ${count} note${count > 1 ? 's' : ''}.`,
+      title: count === 1 ? t('siteKnowledge.notes.bulkDeleteTitle.one', { n: 1 }) : t('siteKnowledge.notes.bulkDeleteTitle.other', { n: count }),
+      description:
+        count === 1
+          ? t('siteKnowledge.notes.bulkDeleteDescription.one', { n: 1 })
+          : t('siteKnowledge.notes.bulkDeleteDescription.other', { n: count }),
       onConfirm: async () => {
         const items = multiSelect.selectedItems
         confirmDialog.setProgress({ current: 0, total: items.length })
@@ -133,7 +136,7 @@ export function NotesPage() {
         const ids = new Set(items.map((n) => n.id))
         removeItems((n) => ids.has(n.id))
         multiSelect.clear()
-        toast.success(`Deleted ${count} note${count > 1 ? 's' : ''}`)
+        toast.success(count === 1 ? t('siteKnowledge.notes.deleted.one', { n: 1 }) : t('siteKnowledge.notes.deleted.other', { n: count }))
       },
     })
   }
@@ -157,9 +160,9 @@ export function NotesPage() {
     try {
       const updated = await notesApi.update(note.id, { status })
       applyUpdate({ ...note, ...updated, status })
-      toast.success(`Status changed to ${getStatusMeta('note', status).label}`)
+      toast.success(t('siteKnowledge.notes.statusChanged', { status: getStatusMeta('note', status).label }))
     } catch {
-      toast.error('Failed to update status')
+      toast.error(t('siteKnowledge.notes.statusFailed'))
     }
   }
 
@@ -167,9 +170,9 @@ export function NotesPage() {
     try {
       const updated = await notesApi.confirm(note.id)
       applyUpdate({ ...note, ...updated })
-      toast.success('Note confirmed as valid')
+      toast.success(t('siteKnowledge.notes.confirmed'))
     } catch {
-      toast.error('Failed to confirm note')
+      toast.error(t('siteKnowledge.notes.confirmFailed'))
     }
   }
 
@@ -177,7 +180,7 @@ export function NotesPage() {
     await notesApi.delete(note.id)
     removeItems((n) => n.id === note.id)
     setSemanticResults((prev) => prev.filter((h) => h.note.id !== note.id))
-    toast.success('Note deleted')
+    toast.success(t('siteKnowledge.notes.noteDeleted'))
   }
 
   // Invalidate asks for a reason in a dialog (was window.prompt — unusable in the desktop app / some mobile browsers)
@@ -187,23 +190,23 @@ export function NotesPage() {
     if (!note) return
     const updated = await notesApi.invalidate(note.id, reason)
     applyUpdate({ ...note, ...updated })
-    toast.success('Note invalidated')
+    toast.success(t('siteKnowledge.notes.invalidated'))
   })
   const openInvalidate = (note: Note) => {
     invalidateTarget.current = note
     invalidateForm.reset()
-    invalidateDialog.open({ title: 'Invalidate note', submitLabel: 'Invalidate' })
+    invalidateDialog.open({ title: t('siteKnowledge.notes.invalidateTitle'), submitLabel: t('siteKnowledge.notes.invalidate') })
   }
 
   const rowActions = (note: Note): OverflowMenuAction[] => [
-    { label: 'Confirm', icon: Check, onClick: () => handleConfirm(note) },
-    { label: 'Invalidate', icon: XCircle, onClick: () => openInvalidate(note) },
+    { label: t('siteKnowledge.notes.confirm'), icon: Check, onClick: () => handleConfirm(note) },
+    { label: t('siteKnowledge.notes.invalidate'), icon: XCircle, onClick: () => openInvalidate(note) },
     {
-      label: 'Delete',
+      label: t('siteKnowledge.notes.deleteAction'),
       icon: Trash2,
       variant: 'danger',
       onClick: () => handleDelete(note),
-      confirm: { title: 'Delete note?', description: 'This note will be permanently deleted.' },
+      confirm: { title: t('siteKnowledge.notes.deleteNoteTitle'), description: t('siteKnowledge.notes.deleteNoteDescription') },
     },
   ]
 
@@ -222,13 +225,13 @@ export function NotesPage() {
         setSemanticResults(Array.isArray(res) ? res : [])
         setHasSearched(true)
       } catch {
-        toast.error('Search failed')
+        toast.error(t('siteKnowledge.notes.searchFailed'))
         setSemanticResults([])
       } finally {
         setSearching(false)
       }
     },
-    [wsSlug, toast],
+    [wsSlug, toast, t],
   )
 
   useEffect(() => () => clearTimeout(debounceRef.current), [])
@@ -306,10 +309,10 @@ export function NotesPage() {
         <>
           <Button onClick={() => setShowGraph(true)} variant="secondary" size="sm">
             <Brain className="w-4 h-4 mr-1.5" aria-hidden="true" />
-            Graph
+            {t('siteKnowledge.notes.graph')}
           </Button>
           <Button size="sm" onClick={openCreateNote}>
-            New note
+            {t('siteKnowledge.notes.newNote')}
           </Button>
         </>
       }
@@ -318,8 +321,8 @@ export function NotesPage() {
           <FilterBar
             search={searchQuery}
             onSearchChange={handleSearchChange}
-            searchPlaceholder={searchMode === 'semantic' ? 'Search by meaning…' : 'Exact text search…'}
-            searchLabel="Search notes"
+            searchPlaceholder={searchMode === 'semantic' ? t('siteKnowledge.notes.searchByMeaning') : t('siteKnowledge.notes.searchExact')}
+            searchLabel={t('siteKnowledge.notes.searchLabel')}
             activeCount={activeFilterCount}
             activeLabels={activeLabels}
             onClear={clearFilters}
@@ -330,10 +333,13 @@ export function NotesPage() {
                 variant="secondary"
                 flat
                 onClick={toggleSearchMode}
-                aria-label={`Search mode: ${searchMode}. Switch to ${searchMode === 'semantic' ? 'exact' : 'semantic'}`}
+                aria-label={t('siteKnowledge.notes.modeAria', {
+                  mode: t(searchMode === 'semantic' ? 'siteKnowledge.notes.modeWordSemantic' : 'siteKnowledge.notes.modeWordExact'),
+                  next: t(searchMode === 'semantic' ? 'siteKnowledge.notes.modeWordExact' : 'siteKnowledge.notes.modeWordSemantic'),
+                })}
                 className="shrink-0 text-xs"
               >
-                {searchMode === 'semantic' ? 'By meaning' : 'Exact text'}
+                {searchMode === 'semantic' ? t('siteKnowledge.notes.modeSemantic') : t('siteKnowledge.notes.modeExact')}
               </Button>
             }
             filters={
@@ -353,9 +359,7 @@ export function NotesPage() {
           />
           {searchQuery.trim() && (
             <p className="px-1 text-[11px] leading-4 text-gray-500">
-              {searchMode === 'semantic'
-                ? 'Semantic search finds notes by meaning, even without the exact words.'
-                : 'Exact search matches the text you type in the notes loaded below.'}
+              {searchMode === 'semantic' ? t('siteKnowledge.notes.hintSemantic') : t('siteKnowledge.notes.hintExact')}
             </p>
           )}
         </div>
@@ -367,20 +371,22 @@ export function NotesPage() {
       ) : showSemanticResults ? (
         semanticResults.length === 0 ? (
           <EmptyState
-            title="No matching notes"
-            description="Try a different phrasing — semantic search finds notes by meaning, not exact words."
+            title={t('siteKnowledge.notes.noMatchSemanticTitle')}
+            description={t('siteKnowledge.notes.noMatchSemanticDescription')}
             action={
               <Button size="sm" variant="secondary" onClick={() => setSearchQuery('')}>
-                Clear
+                {t('siteKnowledge.shared.clear')}
               </Button>
             }
           />
         ) : (
           <>
             <p className="px-1 pb-1.5 text-[11px] text-gray-500">
-              {semanticResults.length} result{semanticResults.length > 1 ? 's' : ''} by relevance
+              {semanticResults.length === 1
+                ? t('siteKnowledge.notes.results.one', { n: 1 })
+                : t('siteKnowledge.notes.results.other', { n: semanticResults.length })}
             </p>
-            <EntityList aria-label="Search results">
+            <EntityList aria-label={t('siteKnowledge.notes.resultsAria')}>
               {semanticResults.map((hit) => renderRow(hit.note, { score: hit.score }))}
             </EntityList>
           </>
@@ -392,21 +398,21 @@ export function NotesPage() {
           <EmptyState
             size="page"
             variant="notes"
-            title="No notes yet"
-            description="A note is what was learned: a guideline, a pitfall, a pattern, a tip. Assistants read them before they start, so the project remembers what you know."
+            title={t('siteKnowledge.notes.emptyTitle')}
+            description={t('siteKnowledge.notes.emptyDescription')}
             action={
               <Button size="sm" onClick={openCreateNote}>
-                New note
+                {t('siteKnowledge.notes.newNote')}
               </Button>
             }
           />
         ) : (
           <EmptyState
-            title="No matching notes"
-            description="No notes match the current filters."
+            title={t('siteKnowledge.notes.noMatchTitle')}
+            description={t('siteKnowledge.notes.noMatchDescription')}
             action={
               <Button size="sm" variant="secondary" onClick={() => { clearFilters(); setSearchQuery('') }}>
-                Clear
+                {t('siteKnowledge.shared.clear')}
               </Button>
             }
           />
@@ -415,13 +421,17 @@ export function NotesPage() {
         <>
           <div className="flex items-center justify-between gap-2 px-1 pb-1.5 min-h-9">
             <span className="text-[11px] text-gray-500 tabular-nums">
-              {filteredNotes.length < total ? `${filteredNotes.length} of ${total} loaded` : `${total} notes`}
+              {filteredNotes.length < total
+                ? t('siteKnowledge.notes.loadedOf', { shown: filteredNotes.length, total })
+                : total === 1
+                  ? t('siteKnowledge.notes.totalNotes.one', { n: 1 })
+                  : t('siteKnowledge.notes.totalNotes.other', { n: total })}
             </span>
             <button type="button" onClick={multiSelect.toggleAll} className={`px-1 py-2 text-xs ${textLink}`}>
-              {multiSelect.isAllSelected ? 'Deselect all' : 'Select all'}
+              {multiSelect.isAllSelected ? t('siteKnowledge.notes.deselectAll') : t('siteKnowledge.notes.selectAll')}
             </button>
           </div>
-          <EntityList aria-label="Notes">{filteredNotes.map((note) => renderRow(note))}</EntityList>
+          <EntityList aria-label={t('siteKnowledge.notes.notesAria')}>{filteredNotes.map((note) => renderRow(note))}</EntityList>
           <LoadMoreSentinel {...sentinelProps} />
         </>
       )}
@@ -456,6 +466,7 @@ interface NoteRowProps {
 }
 
 function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onStatusChange, actions }: NoteRowProps) {
+  const { t } = useT()
   const tags = note.tags || []
   const staleness = note.staleness_score || 0
   const scope = note.scope && note.scope.type !== 'project' && note.scope.type !== 'workspace' ? note.scope : null
@@ -467,10 +478,10 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
       entityRef={{ kind: 'note', id: note.id }}
       selected={selected}
       muted={note.status === 'archived' || note.status === 'obsolete'}
-      leading={selectable ? <RowCheckbox checked={selected} onToggle={onToggleSelect} label={`Select ${noteTitle(note.content)}`} /> : undefined}
+      leading={selectable ? <RowCheckbox checked={selected} onToggle={onToggleSelect} label={t('siteKnowledge.notes.selectRow', { title: noteTitle(note.content) })} /> : undefined}
       trailing={
         score !== undefined ? (
-          <span title="Semantic match">{Math.round(score * 100)}%</span>
+          <span title={t('siteKnowledge.notes.semanticMatch')}>{Math.round(score * 100)}%</span>
         ) : (
           <RelativeTime date={note.created_at} />
         )
@@ -481,9 +492,9 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
         <StatusMenu key="status" kind="note" icon status={note.status} onChange={onStatusChange} />,
         <StatusText key="imp" kind="importance" status={note.importance} dot={false} />,
         staleness > 0.5 ? (
-          <StatusText key="stale" status="stale" icon label={`stale ${pct(staleness)}`} />
+          <StatusText key="stale" status="stale" icon label={t('siteKnowledge.notes.stale', { percent: pct(staleness) })} />
         ) : null,
-        note.superseded_by ? <ToneText key="sup" tone="warning" icon label="superseded" /> : null,
+        note.superseded_by ? <ToneText key="sup" tone="warning" icon label={t('siteKnowledge.notes.superseded')} /> : null,
       ]}
       meta={[
         <NoteTypeLabel key="type" type={note.note_type} className="text-gray-300" />,
@@ -494,7 +505,7 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
         ) : null,
         note.anchors?.length ? (
           <Fact key="anchors" icon={Link2}>
-            {pluralize(note.anchors.length, 'link')}
+            {note.anchors.length === 1 ? t('siteKnowledge.notes.links.one', { n: 1 }) : t('siteKnowledge.notes.links.other', { n: note.anchors.length })}
           </Fact>
         ) : null,
         tags.length > 0 ? (
@@ -516,6 +527,7 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
 // ── Note graph overlay (global neuron explorer) ──────────────────────────
 
 function KnowledgeGraphOverlay({ wsSlug, onClose }: { wsSlug: string; onClose: () => void }) {
+  const { t } = useT()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -539,11 +551,11 @@ function KnowledgeGraphOverlay({ wsSlug, onClose }: { wsSlug: string; onClose: (
       <div className="flex items-center justify-between gap-2 px-4 h-12 border-b border-white/[0.06] shrink-0">
         <div className="min-w-0">
           <h2 id="knowledge-graph-title" className="text-sm font-semibold text-gray-100">
-            Note graph
+            {t('siteKnowledge.notes.graphTitle')}
           </h2>
-          <p className="text-[11px] leading-4 text-gray-500 truncate">Every note as a point, linked to the notes used with it</p>
+          <p className="text-[11px] leading-4 text-gray-500 truncate">{t('siteKnowledge.notes.graphDescription')}</p>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close note graph" className={`${iconButton('ghost', 'size-9 md:size-8')} shrink-0`}>
+        <button type="button" onClick={onClose} aria-label={t('siteKnowledge.notes.closeGraph')} className={`${iconButton('ghost', 'size-9 md:size-8')} shrink-0`}>
           <X className="w-5 h-5" aria-hidden="true" />
         </button>
       </div>

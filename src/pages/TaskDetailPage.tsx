@@ -126,7 +126,7 @@ export function TaskDetailPage() {
       setCommits(commitsData.items || [])
     } catch (error) {
       console.error('Failed to fetch task:', error)
-      setError('Failed to load task')
+      setError(t('siteOps.taskDetail.loadFailed'))
     } finally {
       if (isInitialLoad) setLoading(false)
     }

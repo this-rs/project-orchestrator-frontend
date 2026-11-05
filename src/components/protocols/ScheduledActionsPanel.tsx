@@ -19,21 +19,25 @@ import {
 } from '@/components/ui'
 import { formatRunDuration } from './RunTreeView'
 import { apiErrorMessage } from './rfcLifecycle'
+import { activeTranslator, useT } from '@/i18n'
 import type { Protocol, ProtocolRun } from '@/types/protocol'
 
 // ---------------------------------------------------------------------------
 // Trigger mode visuals
 // ---------------------------------------------------------------------------
 
-const TRIGGER_MODE: Record<string, { label: string; icon: LucideIcon }> = {
-  scheduled: { label: 'Scheduled', icon: Calendar },
-  auto: { label: 'Auto', icon: Zap },
-  event: { label: 'Event', icon: Radio },
-  webhook: { label: 'Webhook', icon: Webhook },
+const TRIGGER_MODE: Record<string, { labelKey: 'siteKnowledge.scheduled.modeScheduled' | 'siteKnowledge.scheduled.modeAuto' | 'siteKnowledge.scheduled.modeEvent' | 'siteKnowledge.scheduled.modeWebhook'; icon: LucideIcon }> = {
+  scheduled: { labelKey: 'siteKnowledge.scheduled.modeScheduled', icon: Calendar },
+  auto: { labelKey: 'siteKnowledge.scheduled.modeAuto', icon: Zap },
+  event: { labelKey: 'siteKnowledge.scheduled.modeEvent', icon: Radio },
+  webhook: { labelKey: 'siteKnowledge.scheduled.modeWebhook', icon: Webhook },
 }
 
 export function triggerModeMeta(mode: string | undefined): { label: string; icon: LucideIcon } {
-  return TRIGGER_MODE[mode ?? ''] ?? { label: mode ? humanizeStatus(mode) : 'Auto', icon: Zap }
+  const { t } = activeTranslator()
+  const known = TRIGGER_MODE[mode ?? '']
+  if (known) return { label: t(known.labelKey), icon: known.icon }
+  return { label: mode ? humanizeStatus(mode) : t('siteKnowledge.scheduled.modeAuto'), icon: Zap }
 }
 
 /** Human summary of a trigger configuration (cron, webhook URL, event pattern…). */
@@ -41,13 +45,13 @@ export function formatTriggerConfig(config: Record<string, unknown>): string {
   if (config.cron) return `${config.cron}`
   if (config.webhook_url) return `${config.webhook_url}`
   if (config.event_pattern) return `${config.event_pattern}`
-  if (config.interval) return `every ${config.interval}`
+  if (config.interval) return activeTranslator().t('siteKnowledge.scheduled.every', { interval: `${config.interval}` })
   const entries = Object.entries(config)
   if (entries.length > 0) {
     const [key, value] = entries[0]
     return `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`
   }
-  return 'No config'
+  return activeTranslator().t('siteKnowledge.scheduled.noConfig')
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +78,7 @@ interface ScheduledActionsPanelProps {
 
 export function ScheduledActionsPanel({ protocols, onTrigger, protocolHref, className = '' }: ScheduledActionsPanelProps) {
   const toast = useToast()
+  const { t } = useT()
   const scheduled = useMemo(() => protocols.filter((p) => p.trigger_mode && p.trigger_mode !== 'manual'), [protocols])
 
   const [items, setItems] = useState<ScheduledProtocol[]>([])
@@ -110,16 +115,16 @@ export function ScheduledActionsPanel({ protocols, onTrigger, protocolHref, clas
       setTriggeringId(protocol.id)
       try {
         await protocolApi.startRun(protocol.id)
-        toast.success(`Run started for ${protocol.name}`)
+        toast.success(t('siteKnowledge.scheduled.runStarted', { name: protocol.name }))
         onTrigger?.(protocol.id)
         await fetchLatestRuns()
       } catch (err) {
-        toast.error(apiErrorMessage(err, 'Failed to start the run'))
+        toast.error(apiErrorMessage(err, t('siteKnowledge.shared.startFailed')))
       } finally {
         setTriggeringId(null)
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast and t are stable for the session
     [onTrigger, fetchLatestRuns],
   )
 
@@ -127,14 +132,14 @@ export function ScheduledActionsPanel({ protocols, onTrigger, protocolHref, clas
     return (
       <EmptyState
         className={className}
-        title="No automatic protocols"
-        description="Protocols whose trigger mode is auto, scheduled, event or webhook appear here, with their latest run."
+        title={t('siteKnowledge.scheduled.emptyTitle')}
+        description={t('siteKnowledge.scheduled.emptyDescription')}
       />
     )
   }
 
   return (
-    <EntityList aria-label="Automatic protocols" className={className}>
+    <EntityList aria-label={t('siteKnowledge.scheduled.aria')} className={className}>
       {items.map(({ protocol, latestRun, loadingRun }) => {
         const mode = triggerModeMeta(protocol.trigger_mode)
         const ModeIcon = mode.icon
@@ -148,7 +153,9 @@ export function ScheduledActionsPanel({ protocols, onTrigger, protocolHref, clas
             description={protocol.description}
             leading={<ModeIcon className="w-3.5 h-3.5 text-gray-500" aria-hidden="true" />}
             trailing={
-              protocol.last_triggered_at ? <RelativeTime date={protocol.last_triggered_at} prefix="triggered " /> : 'never triggered'
+              protocol.last_triggered_at
+                ? <RelativeTime date={protocol.last_triggered_at} prefix={`${t('siteKnowledge.scheduled.triggered')} `} />
+                : t('siteKnowledge.scheduled.neverTriggered')
             }
             meta={[
               <span key="mode" className="text-gray-400">{mode.label}</span>,
@@ -161,18 +168,18 @@ export function ScheduledActionsPanel({ protocols, onTrigger, protocolHref, clas
             context={
               loadingRun ? (
                 <span className="inline-flex items-center gap-1 text-[11px] text-gray-600">
-                  <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> Loading latest run…
+                  <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> {t('siteKnowledge.scheduled.loadingLatest')}
                 </span>
               ) : latestRun ? (
                 <span className="inline-flex flex-wrap items-center gap-x-1.5 text-[11px] leading-4 text-gray-500">
-                  Latest run
+                  {t('siteKnowledge.scheduled.latestRun')}
                   <StatusText kind="run" status={latestRun.status} pulse={latestRun.status === 'running'} />
                   {latestRun.completed_at && (
-                    <span className="tabular-nums">· took {formatRunDuration(latestRun.started_at, latestRun.completed_at)}</span>
+                    <span className="tabular-nums">· {t('siteKnowledge.scheduled.took', { duration: formatRunDuration(latestRun.started_at, latestRun.completed_at) })}</span>
                   )}
                 </span>
               ) : (
-                <span className="text-[11px] text-gray-600">No runs yet</span>
+                <span className="text-[11px] text-gray-600">{t('siteKnowledge.scheduled.noRuns')}</span>
               )
             }
             actions={
@@ -181,11 +188,11 @@ export function ScheduledActionsPanel({ protocols, onTrigger, protocolHref, clas
                 variant="secondary"
                 onClick={() => handleTrigger(protocol)}
                 loading={isTriggering}
-                aria-label={`Run ${protocol.name}`}
+                aria-label={t('siteKnowledge.scheduled.runAria', { name: protocol.name })}
                 className="gap-1.5"
               >
                 {!isTriggering && <Play className="w-3.5 h-3.5" aria-hidden="true" />}
-                Run
+                {t('siteKnowledge.shared.run')}
               </Button>
             }
           />

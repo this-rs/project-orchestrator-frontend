@@ -21,6 +21,7 @@
  */
 import { Workflow, Play, CheckCircle2, XCircle, Ban, ArrowRight } from 'lucide-react'
 import type { VizBlockProps } from './registry'
+import { useT, type MessageKey } from '@/i18n'
 
 // ============================================================================
 // Status styling
@@ -32,11 +33,11 @@ interface StateVisitEntry {
   trigger?: string
 }
 
-const STATUS_STYLES: Record<string, { icon: typeof Workflow; color: string; bg: string; label: string }> = {
-  running:   { icon: Play,         color: 'text-cyan-400',    bg: 'bg-cyan-500/20',  label: 'Running' },
-  completed: { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/20', label: 'Completed' },
-  failed:    { icon: XCircle,      color: 'text-red-400',     bg: 'bg-red-500/20',   label: 'Failed' },
-  cancelled: { icon: Ban,          color: 'text-gray-400',    bg: 'bg-gray-500/20',  label: 'Cancelled' },
+const STATUS_STYLES: Record<string, { icon: typeof Workflow; color: string; bg: string; labelKey: MessageKey }> = {
+  running:   { icon: Play,         color: 'text-cyan-400',    bg: 'bg-cyan-500/20',  labelKey: 'siteChat.vizProtocol.running' },
+  completed: { icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/20', labelKey: 'siteChat.vizProtocol.completed' },
+  failed:    { icon: XCircle,      color: 'text-red-400',     bg: 'bg-red-500/20',   labelKey: 'siteChat.vizProtocol.failed' },
+  cancelled: { icon: Ban,          color: 'text-gray-400',    bg: 'bg-gray-500/20',  labelKey: 'siteChat.vizProtocol.cancelled' },
 }
 
 function getStatusStyle(status: string) {
@@ -48,12 +49,13 @@ function getStatusStyle(status: string) {
 // ============================================================================
 
 export function ProtocolRunViz({ data }: VizBlockProps) {
-  const protocolName = (data.protocol_name as string) ?? 'Protocol'
+  const { t } = useT()
+  const protocolName = (data.protocol_name as string) ?? t('siteChat.vizProtocol.defaultName')
   const status = (data.status as string) ?? 'running'
   const currentStateName = (data.current_state_name as string) ?? '—'
   const statesVisited = (data.states_visited as StateVisitEntry[]) ?? []
   const totalStates = (data.total_states as number) ?? 0
-  const triggeredBy = (data.triggered_by as string) ?? 'unknown'
+  const triggeredBy = (data.triggered_by as string) ?? t('siteChat.vizProtocol.unknown')
   const error = data.error as string | undefined
 
   const style = getStatusStyle(status)
@@ -70,15 +72,15 @@ export function ProtocolRunViz({ data }: VizBlockProps) {
         </div>
         <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium ${style.bg} ${style.color} shrink-0`}>
           <StatusIcon className={`w-3 h-3 ${status === 'running' ? 'animate-pulse' : ''}`} />
-          <span>{style.label}</span>
+          <span>{t(style.labelKey)}</span>
         </div>
       </div>
 
       {/* Progress bar */}
       <div className="space-y-1">
         <div className="flex items-center justify-between text-[10px] text-gray-500">
-          <span>Current: <span className="text-gray-300 font-medium">{currentStateName}</span></span>
-          <span>{statesVisited.length}/{totalStates} states</span>
+          <span>{t('siteChat.vizProtocol.current')} <span className="text-gray-300 font-medium">{currentStateName}</span></span>
+          <span>{t('siteChat.vizProtocol.statesCount', { visited: statesVisited.length, total: totalStates })}</span>
         </div>
         <div className="w-full h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
           <div
@@ -120,7 +122,7 @@ export function ProtocolRunViz({ data }: VizBlockProps) {
 
       {/* Footer: triggered by */}
       <div className="text-[9px] text-gray-600">
-        Triggered by: <span className="text-gray-500">{triggeredBy}</span>
+        {t('siteChat.vizProtocol.triggeredBy')} <span className="text-gray-500">{triggeredBy}</span>
       </div>
     </div>
   )

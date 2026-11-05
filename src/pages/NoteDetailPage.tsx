@@ -43,7 +43,6 @@ import {
   TONE_CLASSES,
   formatAbsolute,
   inlineLink,
-  pluralize,
   surface,
   type StatusTone,
   Meter,
@@ -77,6 +76,7 @@ import { useViewTransition } from '@/hooks/useViewTransition'
 import { workspacePath } from '@/utils/paths'
 import type { Note, NoteAnchor, NoteImportance, NoteStatus } from '@/types'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { activeTranslator, useT } from '@/i18n'
 
 // ── Related notes (GET /notes/context) ──────────────────────────────────
 
@@ -156,9 +156,10 @@ function Callout({ tone, children }: { tone: StatusTone; children: ReactNode }) 
 }
 
 function DetailSkeleton() {
+  const { t } = useT()
   return (
     <PageContainer width="wide" className="space-y-6">
-      <div className="space-y-3" aria-busy="true" aria-label="Loading note">
+      <div className="space-y-3" aria-busy="true" aria-label={t('siteKnowledge.note.loadingAria')}>
         <SkeletonLine width="30%" />
         <Skeleton className="h-7 w-3/4" />
         <SkeletonLine width="55%" />
@@ -180,6 +181,7 @@ export function NoteDetailPage() {
   const { noteId } = useParams<{ noteId: string }>()
   const wsSlug = useWorkspaceSlug()
   const toast = useToast()
+  const { t } = useT()
   const { navigate } = useViewTransition()
 
   const [note, setNote] = useState<NoteDetail | null>(null)
@@ -202,9 +204,9 @@ export function NoteDetailPage() {
       } catch (err) {
         if (!silent) {
           setNote(null)
-          setError(err instanceof ApiError && err.status === 404 ? 'not-found' : 'Could not load this note.')
+          setError(err instanceof ApiError && err.status === 404 ? 'not-found' : activeTranslator().t('siteKnowledge.note.loadFailed'))
         } else {
-          toast.error('Failed to refresh the note')
+          toast.error(activeTranslator().t('siteKnowledge.note.refreshFailed'))
         }
       } finally {
         if (!silent) setLoading(false)
@@ -228,29 +230,29 @@ export function NoteDetailPage() {
       toast.success(msg)
       load(true)
     } catch {
-      toast.error('Failed to update the note')
+      toast.error(t('siteKnowledge.note.updateFailed'))
     }
   }
 
-  const handleStatus = (status: NoteStatus) => patch({ status }, `Status changed to ${status.replace('_', ' ')}`)
-  const handleImportance = (importance: NoteImportance) => patch({ importance }, `Importance set to ${importance}`)
+  const handleStatus = (status: NoteStatus) => patch({ status }, t('siteKnowledge.note.statusChanged', { status: status.replace('_', ' ') }))
+  const handleImportance = (importance: NoteImportance) => patch({ importance }, t('siteKnowledge.note.importanceSet', { importance }))
 
   const handleConfirm = async () => {
     if (!note) return
     try {
       await notesApi.confirm(note.id)
       setNote((prev) => (prev ? { ...prev, status: 'active', staleness_score: 0, last_confirmed_at: new Date().toISOString() } : prev))
-      toast.success('Note confirmed as still valid')
+      toast.success(t('siteKnowledge.note.confirmed'))
       load(true)
     } catch {
-      toast.error('Failed to confirm the note')
+      toast.error(t('siteKnowledge.note.confirmFailed'))
     }
   }
 
   const handleDelete = async () => {
     if (!note) return
     await notesApi.delete(note.id)
-    toast.success('Note deleted')
+    toast.success(t('siteKnowledge.note.deleted'))
     navigate(notesHref, { type: 'back-button' })
   }
 
@@ -265,7 +267,7 @@ export function NoteDetailPage() {
           }
         : prev,
     )
-    toast.success('Link removed')
+    toast.success(t('siteKnowledge.note.linkRemoved'))
   }
 
   // ── Dialogs ───────────────────────────────────────────────────────────
@@ -275,7 +277,7 @@ export function NoteDetailPage() {
     if (!note) return
     await notesApi.update(note.id, data)
     setNote((prev) => (prev ? { ...prev, ...data } : prev))
-    toast.success('Note updated')
+    toast.success(t('siteKnowledge.note.updated'))
     load(true)
   })
 
@@ -284,7 +286,7 @@ export function NoteDetailPage() {
     if (!note) return
     await notesApi.invalidate(note.id, reason)
     setNote((prev) => (prev ? { ...prev, status: 'obsolete' } : prev))
-    toast.success('Note invalidated')
+    toast.success(t('siteKnowledge.note.invalidated'))
     load(true)
   })
 
@@ -292,7 +294,7 @@ export function NoteDetailPage() {
   const supersedeForm = useSupersedeNoteForm(async (data) => {
     if (!note) return
     const created = (await notesApi.supersede(note.id, { project_id: note.project_id, ...data })) as Note | undefined
-    toast.success('New version created')
+    toast.success(t('siteKnowledge.note.newVersion'))
     if (created?.id) navigate(workspacePath(wsSlug, `/notes/${created.id}`))
     else load(true)
   })
@@ -301,27 +303,27 @@ export function NoteDetailPage() {
   const linkForm = useLinkNoteEntityForm(async (entityType, entityId) => {
     if (!note) return
     await notesApi.linkToEntity(note.id, entityType, entityId)
-    toast.success('Linked')
+    toast.success(t('siteKnowledge.note.linked'))
     load(true)
   })
 
   const openEdit = () => {
     if (!note) return
     editForm.reset({ content: note.content, importance: note.importance, tags: note.tags ?? [] })
-    editDialog.open({ title: 'Edit note', size: 'lg', submitLabel: 'Save' })
+    editDialog.open({ title: t('siteKnowledge.note.editTitle'), size: 'lg', submitLabel: t('siteKnowledge.note.save') })
   }
   const openInvalidate = () => {
     invalidateForm.reset()
-    invalidateDialog.open({ title: 'Invalidate note', submitLabel: 'Invalidate' })
+    invalidateDialog.open({ title: t('siteKnowledge.note.invalidateTitle'), submitLabel: t('siteKnowledge.note.invalidate') })
   }
   const openSupersede = () => {
     if (!note) return
     supersedeForm.reset({ note_type: note.note_type, content: note.content, importance: note.importance, tags: note.tags ?? [] })
-    supersedeDialog.open({ title: 'Supersede with a new version', size: 'lg', submitLabel: 'Create new version' })
+    supersedeDialog.open({ title: t('siteKnowledge.note.supersedeTitle'), size: 'lg', submitLabel: t('siteKnowledge.note.supersedeSubmit') })
   }
   const openLink = () => {
     linkForm.reset()
-    linkDialog.open({ title: 'Link entity', submitLabel: 'Link' })
+    linkDialog.open({ title: t('siteKnowledge.note.linkTitle'), submitLabel: t('siteKnowledge.note.link') })
   }
 
   // ── Related notes via the first / selected anchor ─────────────────────
@@ -373,11 +375,11 @@ export function NoteDetailPage() {
       <PageContainer width="wide">
         <EmptyState
           icon={<StickyNote className="w-8 h-8 text-gray-500" />}
-          title="Note not found"
-          description="It may have been deleted, or the link is wrong."
+          title={t('siteKnowledge.note.notFound')}
+          description={t('siteKnowledge.shared.notFoundHint')}
           action={
             <Link to={notesHref} className={`text-sm ${inlineLink}`}>
-              Back to notes
+              {t('siteKnowledge.note.backToNotes')}
             </Link>
           }
         />
@@ -388,7 +390,7 @@ export function NoteDetailPage() {
   if (error || !note) {
     return (
       <PageContainer width="wide">
-        <ErrorState title="Could not load the note" description={error ?? undefined} onRetry={() => load()} />
+        <ErrorState title={t('siteKnowledge.note.loadFailedTitle')} description={error ?? undefined} onRetry={() => load()} />
       </PageContainer>
     )
   }
@@ -405,75 +407,82 @@ export function NoteDetailPage() {
 
   const signals: Signal[] = [
     {
-      label: 'Energy',
+      label: t('siteKnowledge.note.energy'),
       hidden: energy === undefined,
       value: pct(energy),
       meter: { value: energy ?? 0, tone: (energy ?? 0) >= 0.7 ? 'success' : (energy ?? 0) >= 0.3 ? 'warning' : 'muted' },
-      explain: `${energyText(energy)} Energy halves every 90 days without use and rises each time an assistant uses or confirms the note.`,
+      explain: t('siteKnowledge.note.energyExplain', { text: energyText(energy) }),
     },
     {
-      label: 'Staleness',
+      label: t('siteKnowledge.note.staleness'),
       value: pct(staleness),
       meter: { value: staleness, tone: staleness < 0.3 ? 'success' : staleness < 0.6 ? 'warning' : 'danger' },
-      explain: `${stalenessText(staleness)} It grows with time since the last confirmation and with changes to the linked code.`,
+      explain: t('siteKnowledge.note.stalenessExplain', { text: stalenessText(staleness) }),
     },
     {
-      label: 'Used by assistants',
+      label: t('siteKnowledge.note.usedBy'),
       hidden: note.activation_count === undefined,
       value: (
         <>
-          {pluralize(note.activation_count ?? 0, 'time')}
+          {(note.activation_count ?? 0) === 1
+            ? t('siteKnowledge.shared.times.one', { n: 1 })
+            : t('siteKnowledge.shared.times.other', { n: note.activation_count ?? 0 })}
           {note.last_activated && (
             <span className="text-gray-500">
               {' · '}
-              <RelativeTime date={note.last_activated} prefix="last " />
+              <RelativeTime date={note.last_activated} prefix={`${t('siteKnowledge.note.last')} `} />
             </span>
           )}
         </>
       ),
       explain:
         (note.reactivation_count ?? 0) > 0
-          ? `How often an assistant was given this note while working. Re-used within a week ${pluralize(note.reactivation_count ?? 0, 'time')} — a sign it is genuinely useful.`
-          : 'How often an assistant was given this note while working.',
+          ? t('siteKnowledge.note.usedByReused', {
+              times: (note.reactivation_count ?? 0) === 1
+                ? t('siteKnowledge.shared.times.one', { n: 1 })
+                : t('siteKnowledge.shared.times.other', { n: note.reactivation_count ?? 0 }),
+            })
+          : t('siteKnowledge.note.usedByExplain'),
     },
     {
-      label: 'Memory',
+      label: t('siteKnowledge.note.memory'),
       hidden: !horizon,
       value: horizon?.label,
       explain: horizon?.explain,
     },
     {
-      label: 'Anchors',
+      label: t('siteKnowledge.note.anchors'),
       hidden: anchors.length === 0,
-      value: `${validAnchors}/${anchors.length} valid`,
+      value: t('siteKnowledge.note.anchorsValue', { valid: validAnchors, total: anchors.length }),
       meter: { value: anchors.length ? validAnchors / anchors.length : 0, tone: validAnchors === anchors.length ? 'success' : 'warning' },
-      explain: 'An anchor breaks when the code it points to is renamed or deleted; the note then needs a review.',
+      explain: t('siteKnowledge.note.anchorsExplain'),
     },
     {
-      label: 'Code activity',
+      label: t('siteKnowledge.note.codeActivity'),
       hidden: !note.freshness_pinged_at,
       value: <RelativeTime date={note.freshness_pinged_at} />,
-      explain: 'Last time a commit touched a file linked to this note.',
+      explain: t('siteKnowledge.note.codeActivityExplain'),
     },
     {
-      label: 'Scar',
+      label: t('siteKnowledge.note.scar'),
       hidden: !note.scar_intensity,
       value: pct(note.scar_intensity),
       meter: { value: note.scar_intensity ?? 0, tone: 'danger' },
-      explain: `This note was contradicted or invalidated before: it ranks ${Math.round((note.scar_intensity ?? 0) * 70)}% lower in search until the scar heals.`,
+      explain: t('siteKnowledge.note.scarExplain', { percent: Math.round((note.scar_intensity ?? 0) * 70) }),
     },
     {
-      label: 'Assertion',
+      label: t('siteKnowledge.note.assertion'),
       hidden: !note.assertion_rule,
       value: note.last_assertion_result ? (
         <StatusText status={note.last_assertion_result.passed ? 'passed' : 'failed'} />
       ) : (
-        'Not checked yet'
+        t('siteKnowledge.note.notChecked')
       ),
       explain: note.assertion_rule
-        ? `Checks “${note.assertion_rule.check_type.replace(/_/g, ' ')}” on ${note.assertion_rule.target}.${
-            note.last_assertion_result ? ` ${note.last_assertion_result.message}` : ''
-          }`
+        ? `${t('siteKnowledge.note.assertionExplain', {
+            check: note.assertion_rule.check_type.replace(/_/g, ' '),
+            target: note.assertion_rule.target,
+          })}${note.last_assertion_result ? ` ${note.last_assertion_result.message}` : ''}`
         : null,
     },
   ]
@@ -491,7 +500,7 @@ export function NoteDetailPage() {
             kind="importance"
             status={note.importance}
             onChange={handleImportance}
-            label={`Importance: ${note.importance}. Change importance`}
+            label={t('siteKnowledge.note.importanceAria', { importance: note.importance })}
           />,
           <NoteTypeLabel key="type" type={note.note_type} className="text-gray-400" />,
           scope ? (
@@ -499,38 +508,38 @@ export function NoteDetailPage() {
               {scope}
             </span>
           ) : null,
-          <RelativeTime key="created" date={note.created_at} prefix="created " />,
-          note.last_confirmed_at ? <RelativeTime key="confirmed" date={note.last_confirmed_at} prefix="confirmed " /> : null,
+          <RelativeTime key="created" date={note.created_at} prefix={`${t('siteKnowledge.note.created')} `} />,
+          note.last_confirmed_at ? <RelativeTime key="confirmed" date={note.last_confirmed_at} prefix={`${t('siteKnowledge.note.confirmedPrefix')} `} /> : null,
         ]}
         actions={
           <Button size="sm" variant={needsReview ? 'primary' : 'secondary'} onClick={handleConfirm}>
             <Check className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
-            Confirm
+            {t('siteKnowledge.note.confirmButton')}
           </Button>
         }
         overflowActions={[
-          { label: 'Edit', icon: Pencil, onClick: openEdit },
-          { label: 'Link', icon: Link2, onClick: openLink },
-          { label: 'Supersede with new version', icon: Replace, onClick: openSupersede, hidden: Boolean(note.superseded_by) },
-          { label: 'Invalidate', icon: XCircle, onClick: openInvalidate, hidden: note.status === 'obsolete' },
+          { label: t('siteKnowledge.shared.edit'), icon: Pencil, onClick: openEdit },
+          { label: t('siteKnowledge.note.link'), icon: Link2, onClick: openLink },
+          { label: t('siteKnowledge.note.supersedeAction'), icon: Replace, onClick: openSupersede, hidden: Boolean(note.superseded_by) },
+          { label: t('siteKnowledge.note.invalidateAction'), icon: XCircle, onClick: openInvalidate, hidden: note.status === 'obsolete' },
           {
-            label: 'Copy ID',
+            label: t('siteKnowledge.shared.copyId'),
             icon: Copy,
             onClick: async () => {
               try {
                 await navigator.clipboard.writeText(note.id)
-                toast.success('ID copied')
+                toast.success(t('siteKnowledge.note.copied'))
               } catch {
-                toast.error('Could not copy')
+                toast.error(t('siteKnowledge.note.copyFailed'))
               }
             },
           },
           {
-            label: 'Delete',
+            label: t('siteKnowledge.shared.delete'),
             icon: Trash2,
             variant: 'danger',
             onClick: handleDelete,
-            confirm: { title: 'Delete note?', description: 'The note and its links are permanently deleted. This cannot be undone.' },
+            confirm: { title: t('siteKnowledge.note.deleteTitle'), description: t('siteKnowledge.note.deleteDescription') },
           },
         ]}
       >
@@ -547,9 +556,9 @@ export function NoteDetailPage() {
             <Callout tone="warning">
               <ArrowRightLeft className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
               <span>
-                A newer version replaces this note.{' '}
+                {t('siteKnowledge.note.newerVersion')}{' '}
                 <Link to={workspacePath(wsSlug, `/notes/${note.superseded_by}`)} className="underline underline-offset-2">
-                  Open the new version
+                  {t('siteKnowledge.note.openNewer')}
                 </Link>
               </span>
             </Callout>
@@ -558,9 +567,9 @@ export function NoteDetailPage() {
             <Callout tone="neutral">
               <ArrowRightLeft className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
               <span>
-                This note replaces an older version.{' '}
+                {t('siteKnowledge.note.replacesOlder')}{' '}
                 <Link to={workspacePath(wsSlug, `/notes/${note.supersedes}`)} className="underline underline-offset-2">
-                  See the previous one
+                  {t('siteKnowledge.note.seePrevious')}
                 </Link>
               </span>
             </Callout>
@@ -570,7 +579,7 @@ export function NoteDetailPage() {
 
       {/* ── The note itself (the title line is already the page title) ── */}
       {body && (
-        <article aria-label="Note content" className={`${surface} px-4 py-3`}>
+        <article aria-label={t('siteKnowledge.note.contentAria')} className={`${surface} px-4 py-3`}>
           <div className="prose prose-invert prose-sm max-w-[72ch] break-words [&_pre]:overflow-x-auto [&_table]:block [&_table]:overflow-x-auto">
             <MarkdownText content={body} />
           </div>
@@ -579,13 +588,13 @@ export function NoteDetailPage() {
 
       {/* ── Linked entities ─────────────────────────────────────────── */}
       <Section
-        title="Linked to"
+        title={t('siteKnowledge.note.linkedTo')}
         count={anchors.length}
-        description="Assistants receive this note when they work on these items."
+        description={t('siteKnowledge.note.linkedDescription')}
         action={
           <Button size="sm" variant="ghost" onClick={openLink}>
             <Link2 className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
-            Link
+            {t('siteKnowledge.note.link')}
           </Button>
         }
       >
@@ -593,11 +602,11 @@ export function NoteDetailPage() {
           <EmptyState
             size="sm"
             icon={<Link2 />}
-            title="Not linked to anything yet"
-            description="Link it to files, functions, tasks or decisions so the right assistant gets it at the right time."
+            title={t('siteKnowledge.note.notLinked')}
+            description={t('siteKnowledge.note.notLinkedDescription')}
           />
         ) : (
-          <EntityList aria-label="Linked entities">
+          <EntityList aria-label={t('siteKnowledge.note.linkedAria')}>
             {anchors.map((a) => {
               const name = anchorName(a)
               return (
@@ -607,20 +616,24 @@ export function NoteDetailPage() {
                   href={entityHref(wsSlug, a.entity_type, a.entity_id) ?? undefined}
                   leading={createElement(entityIcon(a.entity_type), { className: 'w-4 h-4 text-gray-500', 'aria-hidden': true })}
                   description={name !== a.entity_id ? <span className="font-mono break-all">{a.entity_id}</span> : undefined}
-                  trailing={a.last_verified ? <RelativeTime date={a.last_verified} prefix="verified " /> : undefined}
+                  trailing={a.last_verified ? <RelativeTime date={a.last_verified} prefix={`${t('siteKnowledge.note.verified')} `} /> : undefined}
                   meta={[
                     a.is_valid === false ? (
-                      <StatusText key="v" status="broken" label="Broken anchor" />
+                      <StatusText key="v" status="broken" label={t('siteKnowledge.note.brokenAnchor')} />
                     ) : null,
                     entityTypeLabel(a.entity_type),
                   ]}
                   actions={[
                     {
-                      label: 'Unlink',
+                      label: t('siteKnowledge.note.unlink'),
                       icon: Unlink,
                       variant: 'danger',
                       onClick: () => handleUnlink(a),
-                      confirm: { title: 'Unlink this entity?', description: `The note will no longer be attached to ${name}.`, confirmLabel: 'Unlink' },
+                      confirm: {
+                        title: t('siteKnowledge.note.unlinkTitle'),
+                        description: t('siteKnowledge.note.unlinkDescription', { name }),
+                        confirmLabel: t('siteKnowledge.note.unlink'),
+                      },
                     },
                   ]}
                 />
@@ -631,18 +644,18 @@ export function NoteDetailPage() {
       </Section>
 
       {/* ── Health, explained ───────────────────────────────────────── */}
-      <Section title="How alive is this note?" description="The signals the project memory uses to decide when to show it to an assistant.">
+      <Section title={t('siteKnowledge.note.health')} description={t('siteKnowledge.note.healthDescription')}>
         <SignalList items={signals} />
       </Section>
 
       {/* ── Related notes (propagation) ─────────────────────────────── */}
       {anchors.length > 0 && (
         <Section
-          title="Related knowledge"
+          title={t('siteKnowledge.note.related')}
           count={related?.length}
           description={
             currentAnchor
-              ? `Other notes an assistant receives when working on ${anchorName(currentAnchor)} — attached directly or reached through imports, co-changes and calls.`
+              ? t('siteKnowledge.note.relatedDescription', { name: anchorName(currentAnchor) })
               : undefined
           }
           action={
@@ -661,27 +674,31 @@ export function NoteDetailPage() {
           ) : related.length === 0 ? (
             <EmptyState
               size="sm"
-              title={relatedError ? 'Could not load related notes' : 'No other notes reach this entity'}
-              description={relatedError ? undefined : 'This note is the only knowledge attached around it for now.'}
+              title={relatedError ? t('siteKnowledge.note.relatedFailed') : t('siteKnowledge.note.relatedNone')}
+              description={relatedError ? undefined : t('siteKnowledge.note.relatedNoneDescription')}
             />
           ) : (
-            <EntityList aria-label="Related notes">
+            <EntityList aria-label={t('siteKnowledge.note.relatedAria')}>
               {related.slice(0, 20).map((r) => (
                 <EntityRow
                   key={r.note.id}
                   title={noteTitle(r.note.content)}
                   entityRef={{ kind: 'note', id: r.note.id }}
                   href={workspacePath(wsSlug, `/notes/${r.note.id}`)}
-                  trailing={r.distance === 0 ? 'direct' : `${Math.round(r.score * 100)}%`}
+                  trailing={r.distance === 0 ? t('siteKnowledge.note.direct') : `${Math.round(r.score * 100)}%`}
                   meta={[
                     <StatusText key="s" kind="note" status={r.note.status} />,
                     <NoteTypeLabel key="t" type={r.note.note_type} />,
                     r.via && r.distance > 0 ? (
                       <span key="via" className="truncate max-w-[14rem]" title={r.via}>
-                        via {r.via.split('/').pop()}
+                        {t('siteKnowledge.note.via', { source: r.via.split('/').pop() ?? '' })}
                       </span>
                     ) : null,
-                    r.distance === 0 ? 'attached here' : pluralize(r.distance, 'hop'),
+                    r.distance === 0
+                      ? t('siteKnowledge.note.attachedHere')
+                      : r.distance === 1
+                        ? t('siteKnowledge.note.hops.one', { n: 1 })
+                        : t('siteKnowledge.note.hops.other', { n: r.distance }),
                   ]}
                 />
               ))}
@@ -692,15 +709,15 @@ export function NoteDetailPage() {
 
       {/* ── History ─────────────────────────────────────────────────── */}
       {changes.length > 0 && (
-        <Section title="History" count={changes.length} collapsible defaultOpen={changes.length <= 5}>
-          <EntityList aria-label="Note history">
+        <Section title={t('siteKnowledge.note.history')} count={changes.length} collapsible defaultOpen={changes.length <= 5}>
+          <EntityList aria-label={t('siteKnowledge.note.historyAria')}>
             {changes.map((c, i) => (
               <EntityRow
                 key={`${c.timestamp}-${i}`}
                 title={CHANGE_LABELS[c.change_type] ?? c.change_type.replace(/_/g, ' ')}
                 trailing={<RelativeTime date={c.timestamp} />}
                 description={changeDetailsText(c.details)}
-                meta={[c.actor ? `by ${c.actor}` : null]}
+                meta={[c.actor ? t('siteKnowledge.shared.by', { who: c.actor }) : null]}
               />
             ))}
           </EntityList>
@@ -710,20 +727,23 @@ export function NoteDetailPage() {
       <AnchoredConversations targetType="note" targetId={note.id} />
 
       {/* ── Details ─────────────────────────────────────────────────── */}
-      <Section title="Details">
+      <Section title={t('siteKnowledge.note.details')}>
         <Facts
           items={[
-            { label: 'Type', value: <NoteTypeLabel type={note.note_type} /> },
-            { label: 'Created', value: `${formatAbsolute(note.created_at)} · ${note.created_by}` },
+            { label: t('siteKnowledge.note.type'), value: <NoteTypeLabel type={note.note_type} /> },
+            { label: t('siteKnowledge.note.createdLabel'), value: `${formatAbsolute(note.created_at)} · ${note.created_by}` },
             {
-              label: 'Last confirmed',
+              label: t('siteKnowledge.note.lastConfirmed'),
               value: note.last_confirmed_at
                 ? `${formatAbsolute(note.last_confirmed_at)}${note.last_confirmed_by ? ` · ${note.last_confirmed_by}` : ''}`
                 : null,
             },
-            { label: 'Scope', value: scope },
-            { label: 'Project', value: note.project_id ? <span className="font-mono text-xs break-all">{note.project_id}</span> : 'Global (all projects)' },
-            { label: 'ID', value: <span className="font-mono text-xs break-all">{note.id}</span> },
+            { label: t('siteKnowledge.note.scope'), value: scope },
+            {
+              label: t('siteKnowledge.note.project'),
+              value: note.project_id ? <span className="font-mono text-xs break-all">{note.project_id}</span> : t('siteKnowledge.note.globalProject'),
+            },
+            { label: t('siteKnowledge.note.idLabel'), value: <span className="font-mono text-xs break-all">{note.id}</span> },
           ]}
         />
       </Section>

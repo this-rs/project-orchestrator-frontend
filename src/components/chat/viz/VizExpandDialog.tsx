@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { X, Minimize2 } from 'lucide-react'
 import { DIALOG_MOTION, useVariants } from '@/utils/motion'
+import { useT } from '@/i18n'
 
 interface VizExpandDialogProps {
   open: boolean
@@ -18,6 +19,7 @@ interface VizExpandDialogProps {
 }
 
 export function VizExpandDialog({ open, onClose, title, children }: VizExpandDialogProps) {
+  const { t } = useT()
   const closeRef = useRef<HTMLButtonElement>(null)
   const variants = useVariants(DIALOG_MOTION)
 
@@ -70,16 +72,16 @@ export function VizExpandDialog({ open, onClose, title, children }: VizExpandDia
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle shrink-0">
               <h3 id="viz-dialog-title" className="text-sm font-semibold text-gray-100 truncate pr-4">
-                {title ?? 'Visualization'}
+                {title ?? t('siteChat.viz.defaultTitle')}
               </h3>
               <button
                 ref={closeRef}
                 onClick={onClose}
                 className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors shrink-0"
-                aria-label="Close"
+                aria-label={t('siteChat.viz.close')}
               >
                 <Minimize2 className="w-3.5 h-3.5" />
-                <span>Collapse</span>
+                <span>{t('siteChat.viz.collapse')}</span>
                 <X className="w-3.5 h-3.5 ml-1" />
               </button>
             </div>

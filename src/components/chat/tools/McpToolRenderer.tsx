@@ -9,6 +9,7 @@
  */
 
 import type { ToolRendererProps } from './types'
+import { useT } from '@/i18n'
 import {
   classifyAction,
   resolveAction,
@@ -54,6 +55,7 @@ function formatValue(val: unknown): string {
 // ---------------------------------------------------------------------------
 
 function GenericMcpView({ toolInput, resultContent, isError, isLoading }: ToolRendererProps) {
+  const { t } = useT()
   const desc = typeof toolInput.description === 'string' ? toolInput.description : ''
   const params = Object.entries(toolInput).filter(
     ([key, val]) => val != null && val !== '' && !SKIP_PARAMS.has(key),
@@ -86,7 +88,7 @@ function GenericMcpView({ toolInput, resultContent, isError, isLoading }: ToolRe
         }`}>
           <pre className="px-3 py-1.5 font-mono text-gray-500 whitespace-pre-wrap break-all">
             {resultContent.length > 2000
-              ? resultContent.slice(0, 2000) + '\n... (truncated)'
+              ? resultContent.slice(0, 2000) + '\n' + t('siteChat.toolRender.truncated')
               : resultContent}
           </pre>
         </div>
@@ -94,7 +96,7 @@ function GenericMcpView({ toolInput, resultContent, isError, isLoading }: ToolRe
 
       {isLoading && (
         <div className={`${params.length > 0 ? 'border-t border-white/[0.04]' : ''} rounded-b-md bg-black/20 px-3 py-1.5`}>
-          <span className="text-xs text-gray-600 animate-pulse">processing...</span>
+          <span className="text-xs text-gray-600 animate-pulse">{t('siteChat.toolRender.processing')}</span>
         </div>
       )}
     </div>
@@ -107,6 +109,7 @@ function GenericMcpView({ toolInput, resultContent, isError, isLoading }: ToolRe
 
 export function McpToolRenderer(props: ToolRendererProps) {
   const { toolName, toolInput, resultContent, isError, isLoading } = props
+  const { t } = useT()
 
   // Extract action name from "mcp__project-orchestrator__<action>"
   // The chat system uses "mega tools" (tool groups like "code", "project")
@@ -134,7 +137,7 @@ export function McpToolRenderer(props: ToolRendererProps) {
       <div className="space-y-0">
         <ParamsHeader toolInput={toolInput} />
         <div className="rounded-b-md bg-black/20 px-3 py-1.5">
-          <span className="text-xs text-gray-600 animate-pulse">processing...</span>
+          <span className="text-xs text-gray-600 animate-pulse">{t('siteChat.toolRender.processing')}</span>
         </div>
       </div>
     )

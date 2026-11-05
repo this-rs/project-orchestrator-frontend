@@ -36,7 +36,6 @@ import {
   getStatusMeta,
   getStatusOptions,
   groupBy,
-  pluralize,
 } from '@/components/ui'
 import type { ViewTab } from '@/components/ui'
 import { useFormDialog, useToast, useInfiniteList, useWorkspaceSlug } from '@/hooks'
@@ -44,10 +43,14 @@ import { CreateSkillForm, ImportSkillForm } from '@/components/forms'
 import type { Skill, SkillStatus, PaginatedResponse, PublishedSkillSummary } from '@/types'
 import { workspacePath } from '@/utils/paths'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { useT } from '@/i18n'
+
+type Translate = ReturnType<typeof useT>['t']
+type Noun = 'member' | 'activation' | 'note'
+/** `1 member` / `2 members`, from the `nouns` keys. */
+const count = (t: Translate, n: number, noun: Noun) => t(`siteSkills.nouns.${noun}.${n === 1 ? 'one' : 'other'}`, { count: n })
 
 // ── Options ─────────────────────────────────────────────────────────────
-
-const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('skill')]
 
 /** Lifecycle order used to group the list. */
 const STATUS_ORDER: SkillStatus[] = ['active', 'emerging', 'imported', 'dormant', 'archived']
@@ -68,6 +71,8 @@ export function SkillsPage() {
   const importDialog = useFormDialog()
   const toast = useToast()
   const wsSlug = useWorkspaceSlug()
+  const { t } = useT()
+  const statusOptions = [{ value: 'all', label: t('siteSkills.common.allStatuses') }, ...getStatusOptions('skill')]
 
   const [activeTab, setActiveTab] = useState<string>('skills')
   const [detecting, setDetecting] = useState(false)
@@ -168,7 +173,7 @@ export function SkillsPage() {
     projects,
     onSubmit: async (data) => {
       await skillsApi.create(data)
-      toast.success('Skill created')
+      toast.success(t('siteSkills.skills.created'))
       reset()
     },
   })
@@ -177,13 +182,14 @@ export function SkillsPage() {
     projects,
     onSubmit: async (data) => {
       const result = await skillsApi.importSkill(data)
-      toast.success(`Skill imported (${result.notes_created} notes, ${result.decisions_imported} decisions)`)
+      toast.success(t('siteSkills.skills.imported', { notes: result.notes_created, decisions: result.decisions_imported }))
       navigate(workspacePath(wsSlug, `/skills/${result.skill_id}`))
     },
   })
 
-  const openCreate = () => formDialog.open({ title: 'Create skill', size: 'md' })
-  const openImport = () => importDialog.open({ title: 'Import skill package', size: 'md', submitLabel: 'Import' })
+  const openCreate = () => formDialog.open({ title: t('siteSkills.skills.createTitle'), size: 'md' })
+  const openImport = () =>
+    importDialog.open({ title: t('siteSkills.skills.importTitle'), size: 'md', submitLabel: t('siteSkills.common.import') })
 
   // ── Actions ───────────────────────────────────────────────────────────
 
@@ -192,20 +198,20 @@ export function SkillsPage() {
     // readiness check) so "Run detection" is never a silent no-op.
     const pid = activeProjectId ?? projects[0]?.id
     if (!pid) {
-      toast.error('No project available to run skill detection')
+      toast.error(t('siteSkills.skills.noProjectForDetection'))
       return
     }
     setDetecting(true)
     try {
       const result = await adminApi.detectSkills(pid)
       if (result.status === 'InsufficientData') {
-        toast.error(result.message || 'Not enough data for skill detection')
+        toast.error(result.message || t('siteSkills.skills.detectFallback'))
       } else {
-        toast.success(`Detected ${result.skills_created} new skills (${result.skills_updated} updated)`)
+        toast.success(t('siteSkills.skills.detected', { created: result.skills_created, updated: result.skills_updated }))
         reset()
       }
     } catch {
-      toast.error('Failed to run skill detection')
+      toast.error(t('siteSkills.skills.detectFailed'))
     } finally {
       setDetecting(false)
     }
@@ -215,9 +221,9 @@ export function SkillsPage() {
     try {
       await skillsApi.delete(skill.id)
       removeItems((s) => s.id === skill.id)
-      toast.success('Skill deleted')
+      toast.success(t('siteSkills.skills.deleted'))
     } catch {
-      toast.error('Failed to delete skill')
+      toast.error(t('siteSkills.skills.deleteFailed'))
     }
   }
 
@@ -225,9 +231,9 @@ export function SkillsPage() {
     try {
       const updated = await skillsApi.update(skill.id, { status: newStatus })
       updateItem((s) => s.id === skill.id, () => updated)
-      toast.success(`Status changed to ${getStatusMeta('skill', newStatus).label}`)
+      toast.success(t('siteSkills.common.statusChanged', { status: getStatusMeta('skill', newStatus).label }))
     } catch {
-      toast.error('Failed to update status')
+      toast.error(t('siteSkills.common.statusFailed'))
     }
   }
 
@@ -245,8 +251,8 @@ export function SkillsPage() {
   }
 
   const tabItems: ViewTab[] = [
-    { id: 'skills', label: 'My skills', icon: <Brain aria-hidden="true" /> },
-    { id: 'registry', label: 'Shared catalog', icon: <Globe aria-hidden="true" /> },
+    { id: 'skills', label: t('siteSkills.skills.tabs.mine'), icon: <Brain aria-hidden="true" /> },
+    { id: 'registry', label: t('siteSkills.skills.tabs.catalog'), icon: <Globe aria-hidden="true" /> },
   ]
 
   const isPristine = total === 0 && statusFilter === 'all' && !q
@@ -254,7 +260,7 @@ export function SkillsPage() {
   return (
     <PageShell
       title={NOMENCLATURE.skills.plural}
-      description="Knowledge that wakes up by itself when the topic comes up."
+      description={t('siteSkills.skills.description')}
       intro="skills"
       count={activeTab === 'skills' && !loading && !noProjects ? visible.length : undefined}
       width="wide"
@@ -263,11 +269,11 @@ export function SkillsPage() {
           <>
             <Button variant="secondary" size="sm" onClick={openImport}>
               <Upload className="w-4 h-4 mr-1.5" aria-hidden="true" />
-              Import
+              {t('siteSkills.common.import')}
             </Button>
             <Button size="sm" onClick={openCreate}>
               <Plus className="w-4 h-4 mr-1.5" aria-hidden="true" />
-              New skill
+              {t('siteSkills.skills.newSkill')}
             </Button>
           </>
         ) : undefined
@@ -275,32 +281,31 @@ export function SkillsPage() {
     >
       <div className="space-y-3">
         <Explainer>
-          Detection: skills are found as groups of notes strongly linked to each other (Louvain community detection, at
-          least {MIN_NOTES_FOR_DETECTION} notes in the project); one can also be created by hand, imported from an
-          exported file or picked up from the shared catalog. Triggers: each skill carries patterns (regex, files,
-          meaning, tool) and activates when an assistant's request matches one. Lifecycle:{' '}
-          <Lifecycle status="emerging" /> just appeared · <Lifecycle status="active" /> in use ·{' '}
-          <Lifecycle status="imported" /> came from another project, on probation · <Lifecycle status="dormant" /> not
-          called on for a long time · <Lifecycle status="archived" /> retired. Energy is recent activity, cohesion how
-          tightly its notes are linked to each other.
+          {t('siteSkills.skills.explainer.detection', { min: MIN_NOTES_FOR_DETECTION })}{' '}
+          <Lifecycle status="emerging" /> {t('siteSkills.skills.explainer.emerging')} · <Lifecycle status="active" />{' '}
+          {t('siteSkills.skills.explainer.active')} · <Lifecycle status="imported" />{' '}
+          {t('siteSkills.skills.explainer.imported')} · <Lifecycle status="dormant" />{' '}
+          {t('siteSkills.skills.explainer.dormant')} · <Lifecycle status="archived" />{' '}
+          {t('siteSkills.skills.explainer.archived')}
+          {t('siteSkills.skills.explainer.energy')}
         </Explainer>
 
-        <ViewTabs label="Skill views" tabs={tabItems} value={activeTab} onChange={setActiveTab} />
+        <ViewTabs label={t('siteSkills.skills.tabs.label')} tabs={tabItems} value={activeTab} onChange={setActiveTab} />
         <div className="space-y-3">
           {activeTab === 'registry' ? (
             <SkillBrowser onImport={setImportTarget} />
           ) : noProjects ? (
             <EmptyState
               icon={<Folder className="w-8 h-8" />}
-              title="No projects in this workspace"
-              description="Skills belong to a project. Add a project to this workspace to detect or create skills."
+              title={t('siteSkills.common.noProjects')}
+              description={t('siteSkills.skills.noProjectsHint')}
             />
           ) : (
             <>
               <FilterBar
                 search={search}
                 onSearchChange={setSearch}
-                searchPlaceholder="Search skills…"
+                searchPlaceholder={t('siteSkills.skills.searchPlaceholder')}
                 activeCount={activeFilterCount}
                 activeLabels={activeLabels}
                 onClear={clearFilters}
@@ -308,7 +313,7 @@ export function SkillsPage() {
                   <>
                     {showProjectFilter && (
                       <Select
-                        options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+                        options={[{ value: 'all', label: t('siteSkills.common.allProjects') }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
                         value={projectFilter}
                         onChange={setProjectFilter}
                         icon={<Folder className="w-3 h-3" />}
@@ -335,11 +340,11 @@ export function SkillsPage() {
                   />
                 ) : (
                   <EmptyState
-                    title="No matching skills"
-                    description="Try another search or clear the filters."
+                    title={t('siteSkills.skills.noMatching')}
+                    description={t('siteSkills.skills.noMatchingHint')}
                     action={
                       <Button variant="secondary" size="sm" onClick={() => { clearFilters(); setSearch('') }}>
-                        Clear
+                        {t('siteSkills.common.clear')}
                       </Button>
                     }
                   />
@@ -385,7 +390,7 @@ export function SkillsPage() {
         projects={projects}
         defaultProjectId={activeProjectId}
         onImported={(result) => {
-          toast.success(`Skill imported (${result.notes_created} notes, ${result.decisions_imported} decisions)`)
+          toast.success(t('siteSkills.skills.imported', { notes: result.notes_created, decisions: result.decisions_imported }))
           setImportTarget(null)
           if (activeTab === 'skills') reset()
         }}
@@ -411,35 +416,35 @@ interface SkillsEmptyStateProps {
 }
 
 function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEmptyStateProps) {
+  const { t } = useT()
   const ready = noteCount !== null && noteCount >= MIN_NOTES_FOR_DETECTION
   const progress = noteCount !== null ? Math.min(noteCount / MIN_NOTES_FOR_DETECTION, 1) : 0
 
   return (
     <div className="flex flex-col items-center py-10 px-4 text-center border border-dashed border-white/[0.08] rounded-xl">
       <Brain className="w-8 h-8 mb-3 text-gray-600" aria-hidden="true" />
-      <h3 className="text-sm font-medium text-gray-200">No skills yet</h3>
-      <p className="mt-1 text-xs text-gray-500 max-w-sm">
-        Skills appear when the project has enough linked notes. Add notes (gotchas, patterns, guidelines) so the related
-        ones can be found together — or create one by hand.
-      </p>
+      <h3 className="text-sm font-medium text-gray-200">{t('siteSkills.skills.empty.title')}</h3>
+      <p className="mt-1 text-xs text-gray-500 max-w-sm">{t('siteSkills.skills.empty.hint')}</p>
 
       {noteCount !== null && (
         <div className="w-full max-w-64 mt-4">
           <div className="flex items-center justify-between gap-2 mb-1.5 text-xs">
             <span className="flex items-center gap-1.5 text-gray-400 tabular-nums">
               <FileText className="w-3.5 h-3.5" aria-hidden="true" />
-              {noteCount} / {MIN_NOTES_FOR_DETECTION} notes
+              {t('siteSkills.skills.empty.progress', { count: noteCount, min: MIN_NOTES_FOR_DETECTION })}
             </span>
             {ready ? (
-              <ToneText tone="success" label="Ready for detection" />
+              <ToneText tone="success" label={t('siteSkills.skills.empty.ready')} />
             ) : (
-              <span className="text-gray-500">{MIN_NOTES_FOR_DETECTION - noteCount} more needed</span>
+              <span className="text-gray-500">
+                {t('siteSkills.skills.empty.moreNeeded', { count: MIN_NOTES_FOR_DETECTION - noteCount })}
+              </span>
             )}
           </div>
           <Meter size="bar" value={progress} tone={ready ? 'success' : 'progress'} />
           {!ready && (
             <p className="mt-2 text-[11px] leading-4 text-gray-500">
-              At least {MIN_NOTES_FOR_DETECTION} notes are needed to find coherent clusters.
+              {t('siteSkills.skills.empty.needNotes', { min: MIN_NOTES_FOR_DETECTION })}
             </p>
           )}
         </div>
@@ -449,12 +454,12 @@ function SkillsEmptyState({ noteCount, detecting, onDetect, onCreate }: SkillsEm
         {ready && (
           <Button size="sm" onClick={onDetect} loading={detecting}>
             {!detecting && <Sparkles className="w-4 h-4 mr-1.5" aria-hidden="true" />}
-            {detecting ? 'Detecting…' : 'Run detection'}
+            {detecting ? t('siteSkills.skills.empty.detecting') : t('siteSkills.skills.empty.run')}
           </Button>
         )}
         <Button variant="secondary" size="sm" onClick={onCreate}>
           <Brain className="w-4 h-4 mr-1.5" aria-hidden="true" />
-          Create manually
+          {t('siteSkills.skills.empty.create')}
         </Button>
       </div>
     </div>
@@ -472,6 +477,7 @@ interface SkillRowProps {
 }
 
 function SkillRow({ skill, wsSlug, projectName, onStatusChange, onDelete }: SkillRowProps) {
+  const { t } = useT()
   const members = skill.note_count + skill.decision_count
   const energy = energyLevel(skill.energy)
   const cohesion = cohesionLevel(skill.cohesion)
@@ -486,32 +492,32 @@ function SkillRow({ skill, wsSlug, projectName, onStatusChange, onDelete }: Skil
       status={[<StatusMenu key="status" kind="skill" icon status={skill.status} onChange={onStatusChange} />]}
       meta={[
         projectName ? (
-          <Fact key="project" icon={FolderKanban} title="Project" truncateAt="max-w-[12rem]">
+          <Fact key="project" icon={FolderKanban} title={t('siteSkills.common.project')} truncateAt="max-w-[12rem]">
             {projectName}
           </Fact>
         ) : null,
         <Fact key="members" icon={Network}>
-          {pluralize(members, 'member')}
+          {count(t, members, 'member')}
         </Fact>,
         <Gauge
           key="energy"
-          label="Energy"
+          label={t('siteSkills.common.energy')}
           value={skill.energy}
           level={energy.label}
           tone={energy.tone}
-          title={`Energy ${Math.round(skill.energy * 100)}% — recent activity`}
+          title={t('siteSkills.skills.energyTitle', { value: Math.round(skill.energy * 100) })}
         />,
         <Gauge
           key="cohesion"
-          label="Cohesion"
+          label={t('siteSkills.common.cohesion')}
           value={skill.cohesion}
           level={cohesion.label}
           tone={cohesion.tone}
-          title={`Cohesion ${Math.round(skill.cohesion * 100)}%`}
+          title={t('siteSkills.skills.cohesionTitle', { value: Math.round(skill.cohesion * 100) })}
         />,
         skill.activation_count > 0 ? (
           <Fact key="act" icon={Zap}>
-            {pluralize(skill.activation_count, 'activation')}
+            {count(t, skill.activation_count, 'activation')}
           </Fact>
         ) : null,
         skill.tags?.length ? (
@@ -522,13 +528,13 @@ function SkillRow({ skill, wsSlug, projectName, onStatusChange, onDelete }: Skil
       ]}
       actions={[
         {
-          label: 'Delete',
+          label: t('siteSkills.common.delete'),
           icon: Trash2,
           variant: 'danger',
           onClick: onDelete,
           confirm: {
-            title: 'Delete skill?',
-            description: `Permanently delete “${skill.name}”? Its notes and decisions are kept, only the skill is removed. This cannot be undone.`,
+            title: t('siteSkills.skills.deleteTitle'),
+            description: t('siteSkills.skills.deleteDescription', { name: skill.name }),
           },
         },
       ]}

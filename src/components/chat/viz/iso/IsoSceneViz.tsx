@@ -163,6 +163,7 @@ export function IsoStage({ machine, expanded, label, live }: { machine: MachineD
  * chaque itération, pas seulement le résultat final.
  */
 function IsoFrames({ frames, frameMs, expanded, label }: { frames: MachineDef[]; frameMs: number; expanded: boolean; label: string }) {
+  const { t } = useT()
   const [i, setI] = useState(0)
   useEffect(() => {
     if (frames.length < 2) return
@@ -171,7 +172,7 @@ function IsoFrames({ frames, frameMs, expanded, label }: { frames: MachineDef[];
   }, [frames.length, frameMs])
   return (
     <div data-testid="iso-scene" data-frame={i} data-frames={frames.length}>
-      <IsoStage key={i} machine={frames[i]!} expanded={expanded} label={`${label} · version ${i + 1}/${frames.length}`} />
+      <IsoStage key={i} machine={frames[i]!} expanded={expanded} label={t('siteChat.vizIso.version', { label, index: i + 1, total: frames.length })} />
       <p className="mt-1 text-center text-[11px] tabular-nums text-slate-500">
         {i + 1} / {frames.length}
       </p>
@@ -194,23 +195,24 @@ function ReadControls({ names, explode, cut, iso, onExplode, onCut, onIso }: {
   onCut: (v: boolean) => void
   onIso: (v: string) => void
 }) {
+  const { t } = useT()
   const chip = (on: boolean) =>
     `rounded-md border px-2 py-1 text-[11px] transition-colors ${on ? 'border-indigo-400/70 bg-indigo-500/15 text-indigo-200' : 'border-white/10 text-slate-400 hover:text-slate-200'}`
   return (
     <div data-testid="iso-read-controls" className="mt-1.5 flex flex-wrap items-center justify-center gap-1.5">
       <button type="button" aria-pressed={explode} onClick={() => onExplode(!explode)} className={chip(explode)}>
-        Éclater
+        {t('siteChat.vizIso.explode')}
       </button>
       <button type="button" aria-pressed={cut} onClick={() => onCut(!cut)} className={chip(cut)}>
-        Couper
+        {t('siteChat.vizIso.cut')}
       </button>
       <select
-        aria-label="Isoler une pièce"
+        aria-label={t('siteChat.vizIso.isolatePart')}
         value={iso}
         onChange={(e) => onIso(e.target.value)}
         className="rounded-md border border-white/10 bg-transparent px-2 py-1 text-[11px] text-slate-300"
       >
-        <option value="">Toutes les pièces</option>
+        <option value="">{t('siteChat.vizIso.allParts')}</option>
         {names.map((n) => (
           <option key={n} value={n}>{n}</option>
         ))}

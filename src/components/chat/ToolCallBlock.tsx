@@ -173,10 +173,12 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
         )}
         <span className="font-mono text-gray-400 truncate">{headerText}</span>
         {isCancelled ? (
-          <span className="ml-auto text-gray-500 shrink-0">cancelled</span>
+          <span className="ml-auto text-gray-500 shrink-0">{t('siteChat.toolCall.cancelled')}</span>
         ) : isLoading ? (
           <span className="ml-auto text-gray-600 shrink-0">
-            {elapsedMs != null ? `${formatDurationShort(elapsedMs)} — ` : ''}running...
+            {elapsedMs != null
+              ? t('siteChat.toolCall.runningElapsed', { elapsed: formatDurationShort(elapsedMs) })
+              : t('siteChat.toolCall.running')}
           </span>
         ) : durationMs != null ? (
           <span className="ml-auto text-gray-600 shrink-0">
@@ -198,7 +200,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
             aria-describedby={!stopSupported ? stopHelpId : undefined}
             title={
               stopSupported
-                ? "Stop this tool (sends SIGINT to the running subprocess; the agent's turn continues)"
+                ? t('siteChat.toolCall.stopTitle')
                 : toolCancelUnsupportedText()
             }
             className={`ml-2 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono transition-colors shrink-0 ${
@@ -208,7 +210,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
             }`}
           >
             <Square className="w-2.5 h-2.5" />
-            stop
+            {t('siteChat.toolCall.stop')}
             {!stopSupported && (
               <span id={stopHelpId} className="sr-only">
                 {toolCancelUnsupportedText()}
@@ -243,7 +245,7 @@ export function ToolCallBlock({ block, resultBlock }: ToolCallBlockProps) {
             </span>
           ) : (
             <span className="ml-2 text-[10px] font-mono text-amber-300 shrink-0">
-              stopping…
+              {t('siteChat.toolCall.stopping')}
             </span>
           )
         )}

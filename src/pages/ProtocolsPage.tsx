@@ -29,11 +29,11 @@ import {
   getStatusMeta,
   getStatusOptions,
   groupBy,
-  pluralize,
   Button,
 } from '@/components/ui'
 import { iconButton } from '@/components/ui/classes'
 import { useWorkspaceSlug } from '@/hooks'
+import { activeTranslator, useT } from '@/i18n'
 import { workspacePath } from '@/utils/paths'
 import type { Protocol, ProtocolStatus } from '@/types/protocol'
 import { NOMENCLATURE } from '@/constants/nomenclature'
@@ -46,15 +46,6 @@ import { fetchAllPages } from '@/services/paginate'
 type View = 'protocols' | 'runs' | 'scheduled'
 
 const STATUS_ORDER: ProtocolStatus[] = ['active', 'draft', 'archived']
-const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('protocol')]
-
-const EXPLAIN: Record<View, string> = {
-  protocols:
-    'A protocol is a finite state machine (FSM): states connected by transitions, taken when an event fires. Each execution of a protocol is a run; a state can hold a sub-protocol.',
-  runs: 'The 3 latest runs of each protocol, newest first. A pulsing dot marks a run in progress; tap a row to open its protocol.',
-  scheduled:
-    'Protocols that start on their own (cron schedule, event, webhook…). “Run” starts one immediately, without waiting for the trigger.',
-}
 
 function matches(p: Protocol, q: string): boolean {
   if (!q) return true
@@ -72,6 +63,13 @@ function matches(p: Protocol, q: string): boolean {
 
 export function ProtocolsPage() {
   const wsSlug = useWorkspaceSlug()
+  const { t } = useT()
+  const statusOptions = [{ value: 'all', label: t('siteKnowledge.shared.allStatuses') }, ...getStatusOptions('protocol')]
+  const EXPLAIN: Record<View, string> = {
+    protocols: t('siteKnowledge.protocols.explainProtocols'),
+    runs: t('siteKnowledge.protocols.explainRuns'),
+    scheduled: t('siteKnowledge.protocols.explainScheduled'),
+  }
 
   // ── Projects (workspace = all projects merged) ───────────────────────
   const [projects, setProjects] = useState<{ id: string; name: string; slug: string }[]>([])
@@ -129,7 +127,7 @@ export function ProtocolsPage() {
         setProtocols([...byId.values()])
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load protocols')
+      setError(err instanceof Error ? err.message : activeTranslator().t('siteKnowledge.protocols.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -165,9 +163,9 @@ export function ProtocolsPage() {
   // ── Content ──────────────────────────────────────────────────────────
   let content: ReactNode
   if (projectsLoaded && projects.length === 0) {
-    content = <EmptyState title="No projects in this workspace" description="Add a project to this workspace to see its protocols." />
+    content = <EmptyState title={t('siteKnowledge.protocols.noProjects')} description={t('siteKnowledge.protocols.noProjectsDescription')} />
   } else if (error) {
-    content = <ErrorState title="Failed to load protocols" description={error} onRetry={handleRefresh} />
+    content = <ErrorState title={t('siteKnowledge.protocols.loadFailed')} description={error} onRetry={handleRefresh} />
   } else if (loading) {
     content = <EntityListSkeleton rows={6} />
   } else if (view === 'runs') {
@@ -178,16 +176,16 @@ export function ProtocolsPage() {
     const pristine = protocols.length === 0 && statusFilter === 'all' && projectFilter === 'all' && !search
     content = (
       <EmptyState
-        title={pristine ? 'No protocols yet' : 'No matching protocols'}
+        title={pristine ? t('siteKnowledge.protocols.emptyTitle') : t('siteKnowledge.protocols.noMatchTitle')}
         description={
           pristine
-            ? 'Ask an assistant to write one: it appears here as soon as it is saved.'
-            : 'Try another search or clear the filters.'
+            ? t('siteKnowledge.protocols.emptyDescription')
+            : t('siteKnowledge.protocols.noMatchDescription')
         }
         action={
           pristine ? undefined : (
             <Button size="sm" variant="secondary" onClick={() => { clearFilters(); setSearch('') }}>
-              Clear
+              {t('siteKnowledge.shared.clear')}
             </Button>
           )
         }
@@ -216,7 +214,7 @@ export function ProtocolsPage() {
   return (
     <PageShell
       title={NOMENCLATURE.protocols.plural}
-      description="Procedures the assistant follows step by step, every time."
+      description={t('siteKnowledge.protocols.description')}
       intro="protocols"
       count={loading || view !== 'protocols' ? undefined : visible.length}
       width="wide"
@@ -225,7 +223,7 @@ export function ProtocolsPage() {
           <FilterBar
             search={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Search protocols…"
+            searchPlaceholder={t('siteKnowledge.protocols.searchPlaceholder')}
             activeCount={activeFilterCount}
             activeLabels={activeLabels}
             onClear={clearFilters}
@@ -234,7 +232,7 @@ export function ProtocolsPage() {
                 <>
                   {showProjectFilter && (
                     <Select
-                      options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+                      options={[{ value: 'all', label: t('siteKnowledge.shared.allProjects') }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
                       value={projectFilter}
                       onChange={setProjectFilter}
                       icon={<Folder className="w-3 h-3" />}
@@ -255,7 +253,7 @@ export function ProtocolsPage() {
                 type="button"
                 onClick={handleRefresh}
                 disabled={loading}
-                aria-label="Refresh"
+                aria-label={t('siteKnowledge.shared.refresh')}
                 className={`${iconButton('ghost', 'size-9 md:size-8')} text-gray-400`}
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
@@ -263,13 +261,13 @@ export function ProtocolsPage() {
             }
           />
           <ViewTabs
-            label="Protocol views"
+            label={t('siteKnowledge.protocols.viewsAria')}
             value={view}
             onChange={setView}
             tabs={[
-              { id: 'protocols', label: 'Protocols' },
-              { id: 'runs', label: 'Recent runs' },
-              { id: 'scheduled', label: 'Scheduled' },
+              { id: 'protocols', label: t('siteKnowledge.protocols.tabProtocols') },
+              { id: 'runs', label: t('siteKnowledge.protocols.tabRuns') },
+              { id: 'scheduled', label: t('siteKnowledge.protocols.tabScheduled') },
             ]}
           />
           <Explainer>{EXPLAIN[view]}</Explainer>
@@ -286,6 +284,7 @@ export function ProtocolsPage() {
 // ---------------------------------------------------------------------------
 
 function ProtocolRow({ protocol, href }: { protocol: Protocol; href: string }) {
+  const { t } = useT()
   const states = protocol.states?.length
   const transitions = protocol.transitions?.length
   const hasMacro = protocol.states?.some((s) => s.sub_protocol_id) ?? false
@@ -304,21 +303,25 @@ function ProtocolRow({ protocol, href }: { protocol: Protocol; href: string }) {
       trailing={<RelativeTime date={protocol.updated_at ?? protocol.created_at} />}
       meta={[
         protocol.protocol_category ? (
-          <Fact key="cat" icon={Shapes} title="Category">
+          <Fact key="cat" icon={Shapes} title={t('siteKnowledge.protocols.category')}>
             {protocol.protocol_category}
           </Fact>
         ) : null,
         auto ? (
-          <Fact key="auto" icon={auto.icon} title="Trigger">
+          <Fact key="auto" icon={auto.icon} title={t('siteKnowledge.protocols.trigger')}>
             {auto.label}
           </Fact>
         ) : null,
         // State counts are only present when the API includes the FSM (detail payload)
-        states ? pluralize(states, 'state') : null,
-        transitions ? pluralize(transitions, 'transition') : null,
+        states ? (states === 1 ? t('siteKnowledge.protocols.states.one', { n: 1 }) : t('siteKnowledge.protocols.states.other', { n: states })) : null,
+        transitions
+          ? transitions === 1
+            ? t('siteKnowledge.protocols.transitions.one', { n: 1 })
+            : t('siteKnowledge.protocols.transitions.other', { n: transitions })
+          : null,
         hasMacro ? (
           <Fact key="macro" icon={GitBranch}>
-            sub-protocols
+            {t('siteKnowledge.protocols.subProtocols')}
           </Fact>
         ) : null,
         tags.length > 0 ? (

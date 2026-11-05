@@ -5,6 +5,7 @@
  */
 import { ApiError, apiErrorMessage } from '@/services/api'
 import type { DocumentDetail } from '@/types'
+import { activeTranslator } from '@/i18n'
 
 /**
  * What a server can read, said the way the site says it (`features.documents`:
@@ -12,8 +13,12 @@ import type { DocumentDetail } from '@/types'
  * exist in the backend but sit behind Cargo features (`docx`, `xlsx`, `pptx`,
  * like `pdf` itself): a build without one answers 501, never 415, and names
  * the missing format — see `uploadFailureText`.
+ *
+ * A function, not a constant: the list is read in the language on screen when it is asked for.
  */
-export const READABLE_FORMATS = 'PDF, plain text and Markdown — and Word, Excel or PowerPoint when this server was built with them'
+export function readableFormats(): string {
+  return activeTranslator().t('siteRest.upload.formats')
+}
 
 /**
  * The sentence for a failed upload, from the status the server chose
@@ -28,30 +33,33 @@ export const READABLE_FORMATS = 'PDF, plain text and Markdown — and Word, Exce
  *   408 / 0  the network, not the file
  */
 export function uploadFailureText(err: unknown, filename: string): string {
+  const t = activeTranslator().t
   const status = err instanceof ApiError ? err.status : undefined
   const detail = err instanceof ApiError ? apiErrorMessage(err, '').trim() : ''
   const safeDetail = detail && detail.length <= 200 && !detail.startsWith('<') ? detail : ''
   switch (status) {
     case 413:
-      return `${filename} is too large. ${safeDetail || 'Send a smaller file.'}`
+      return t('siteRest.upload.tooLarge', { name: filename, detail: safeDetail || t('siteRest.upload.sendSmaller') })
     case 415:
-      return `${filename} is in a format this server cannot read. It reads ${READABLE_FORMATS}.`
+      return t('siteRest.upload.noReader', { name: filename, formats: readableFormats() })
     case 501: {
       // "PDF support is not compiled in — rebuild with the `pdf` feature"
-      const format = safeDetail.match(/^(\w+) support is not compiled in/)?.[1] ?? 'this format'
-      return `${filename} is fine, but this server was built without ${format} support and cannot read it. It reads ${READABLE_FORMATS}.`
+      const format = safeDetail.match(/^(\w+) support is not compiled in/)?.[1] ?? t('siteRest.upload.thisFormat')
+      return t('siteRest.upload.notBuilt', { name: filename, format, formats: readableFormats() })
     }
     case 422:
-      return `${filename} could not be read: ${safeDetail || 'the file is empty or damaged'}.`
+      return t('siteRest.upload.unreadable', { name: filename, detail: safeDetail || t('siteRest.upload.emptyOrDamaged') })
     case 408:
-      return `The server did not answer in time for ${filename}. Try again.`
+      return t('siteRest.upload.timeout', { name: filename })
     case 0:
-      return `${filename} never reached the server. Check the connection and try again.`
+      return t('siteRest.upload.noConnection', { name: filename })
     case 401:
     case 403:
-      return `You are not allowed to upload ${filename} here.`
+      return t('siteRest.upload.forbidden', { name: filename })
     default:
-      return safeDetail ? `Could not upload ${filename}: ${safeDetail}` : `Could not upload ${filename}.`
+      return safeDetail
+        ? t('siteRest.upload.failedWithDetail', { name: filename, detail: safeDetail })
+        : t('siteRest.upload.failed', { name: filename })
   }
 }
 
@@ -61,7 +69,8 @@ export function uploadFailureText(err: unknown, filename: string): string {
  * no text to search. Nothing else to say when the text came through.
  */
 export function uploadOutcomeNote(doc: Pick<DocumentDetail, 'filename' | 'extracted' | 'chunk_count' | 'warnings'>): string | null {
-  if (doc.extracted === false) return `${doc.filename} is stored and can be opened, but it has no readable text: it will not be found in search.`
-  if (doc.chunk_count === 0) return `${doc.filename} is stored, but no text could be read from it: it will not be found in search.`
+  const t = activeTranslator().t
+  if (doc.extracted === false) return t('siteRest.upload.stored.noText', { name: doc.filename })
+  if (doc.chunk_count === 0) return t('siteRest.upload.stored.noChunks', { name: doc.filename })
   return doc.warnings?.length ? `${doc.filename}: ${doc.warnings[0]}` : null
 }

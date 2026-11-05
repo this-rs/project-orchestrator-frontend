@@ -39,9 +39,9 @@ describe('IsoSceneViz — commandes de lecture', () => {
   it('propose les trois gestes et la liste des pièces du moteur', () => {
     render(<IsoSceneViz data={PIECE as never} fallbackText="3D" />)
     expect(screen.getByTestId('iso-read-controls')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Éclater' }).getAttribute('aria-pressed')).toBe('false')
-    expect(screen.getByRole('button', { name: 'Couper' }).getAttribute('aria-pressed')).toBe('false')
-    const select = screen.getByLabelText('Isoler une pièce') as HTMLSelectElement
+    expect(screen.getByRole('button', { name: 'Explode' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'Cut' }).getAttribute('aria-pressed')).toBe('false')
+    const select = screen.getByLabelText('Isolate a part') as HTMLSelectElement
     const values = [...select.options].map((o) => o.value).filter(Boolean)
     expect(values.length).toBeGreaterThan(0)
     expect(values).toContain('corps')
@@ -50,12 +50,12 @@ describe('IsoSceneViz — commandes de lecture', () => {
   it('chaque geste recompile la scène (le rendu est remonté)', () => {
     render(<IsoSceneViz data={PIECE as never} fallbackText="3D" />)
     expect(stage.mounts).toBe(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Éclater' }))
-    expect(screen.getByRole('button', { name: 'Éclater' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'Explode' }))
+    expect(screen.getByRole('button', { name: 'Explode' }).getAttribute('aria-pressed')).toBe('true')
     expect(stage.mounts).toBe(2)
-    fireEvent.click(screen.getByRole('button', { name: 'Couper' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cut' }))
     expect(stage.mounts).toBe(3)
-    const select = screen.getByLabelText('Isoler une pièce') as HTMLSelectElement
+    const select = screen.getByLabelText('Isolate a part') as HTMLSelectElement
     const first = [...select.options].map((o) => o.value).filter(Boolean)[0]!
     fireEvent.change(select, { target: { value: first } })
     expect(stage.mounts).toBe(4)

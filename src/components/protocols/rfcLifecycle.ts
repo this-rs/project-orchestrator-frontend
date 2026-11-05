@@ -8,7 +8,11 @@
 
 import { ArrowRight, Rocket, Send, ThumbsDown, ThumbsUp, Undo2, type LucideIcon } from 'lucide-react'
 import { getStatusMeta } from '@/components/ui/statusMeta'
+import { activeTranslator, type MessageKey } from '@/i18n'
 import type { Rfc, RfcAvailableTransition, RfcStatus } from '@/types/protocol'
+
+/** Text of a key in the language on screen, read when used (labels follow the language). */
+const tr = (key: MessageKey): string => activeTranslator().t(key)
 
 // Exact mirror of rfc-lifecycle protocol (549d57c3) transitions
 export const FALLBACK_TRANSITIONS: Record<string, { trigger: string; target_state: string }[]> = {
@@ -45,15 +49,15 @@ export const FALLBACK_TRANSITIONS: Record<string, { trigger: string; target_stat
   superseded: [],
 }
 
-/** The "happy path" of a proposal (an `rfc` on the wire), in order. */
-export const LIFECYCLE_STEPS: { key: RfcStatus; label: string }[] = [
-  { key: 'draft', label: 'Draft' },
-  { key: 'proposed', label: 'Proposed' },
-  { key: 'under_review', label: 'Review' },
-  { key: 'accepted', label: 'Accepted' },
-  { key: 'planning', label: 'Planning' },
-  { key: 'in_progress', label: 'In progress' },
-  { key: 'implemented', label: 'Implemented' },
+/** The "happy path" of a proposal (an `rfc` on the wire), in order. Labels are read when used. */
+export const LIFECYCLE_STEPS: { key: RfcStatus; readonly label: string }[] = [
+  { key: 'draft', get label() { return tr('siteRest.lifecycle.step.draft') } },
+  { key: 'proposed', get label() { return tr('siteRest.lifecycle.step.proposed') } },
+  { key: 'under_review', get label() { return tr('siteRest.lifecycle.step.review') } },
+  { key: 'accepted', get label() { return tr('siteRest.lifecycle.step.accepted') } },
+  { key: 'planning', get label() { return tr('siteRest.lifecycle.step.planning') } },
+  { key: 'in_progress', get label() { return tr('siteRest.lifecycle.step.inProgress') } },
+  { key: 'implemented', get label() { return tr('siteRest.lifecycle.step.implemented') } },
 ]
 
 /** The states a proposal cannot leave: its lifecycle is over. */
@@ -70,13 +74,15 @@ export function isClosedState(status: RfcStatus): boolean {
  */
 export function lifecycleSentence(status: RfcStatus): string {
   const meta = getStatusMeta('rfc', status)
-  if (status === 'rejected') return 'Closed — rejected. Nothing is left to do.'
-  if (status === 'superseded') return 'Closed — replaced by another proposal. Nothing is left to do.'
+  if (status === 'rejected') return tr('siteRest.lifecycle.closedRejected')
+  if (status === 'superseded') return tr('siteRest.lifecycle.closedSuperseded')
   const idx = LIFECYCLE_STEPS.findIndex((s) => s.key === status)
   if (idx === -1) return meta.label
   const n = LIFECYCLE_STEPS.length
   const next = LIFECYCLE_STEPS[idx + 1]
-  return next ? `Step ${idx + 1} of ${n} — ${meta.label}. Next: ${next.label}.` : `Step ${n} of ${n} — ${meta.label}. Done.`
+  return next
+    ? activeTranslator().t('siteRest.lifecycle.position', { step: idx + 1, total: n, status: meta.label, next: next.label })
+    : activeTranslator().t('siteRest.lifecycle.done', { step: n, total: n, status: meta.label })
 }
 
 /** Display order of status groups in lists (active work first, closed last). */
@@ -103,8 +109,23 @@ export function rfcTransitions(rfc: Rfc): RfcAvailableTransition[] {
   return fromBackend.length > 0 ? fromBackend : FALLBACK_TRANSITIONS[rfcState(rfc)] ?? []
 }
 
-/** `submit_review` → `Submit review` */
+const TRIGGER_KEY: Record<string, MessageKey> = {
+  propose: 'siteRest.lifecycle.trigger.propose',
+  submit_review: 'siteRest.lifecycle.trigger.submitReview',
+  accept: 'siteRest.lifecycle.trigger.accept',
+  reject: 'siteRest.lifecycle.trigger.reject',
+  supersede: 'siteRest.lifecycle.trigger.supersede',
+  revise: 'siteRest.lifecycle.trigger.revise',
+  replan: 'siteRest.lifecycle.trigger.replan',
+  start_planning: 'siteRest.lifecycle.trigger.startPlanning',
+  start_work: 'siteRest.lifecycle.trigger.startWork',
+  complete: 'siteRest.lifecycle.trigger.complete',
+}
+
+/** `submit_review` → `Submit review` (an unknown trigger is written out from its identifier). */
 export function formatTrigger(trigger: string): string {
+  const key = TRIGGER_KEY[trigger]
+  if (key) return tr(key)
   const spaced = trigger.replace(/_/g, ' ').trim()
   return spaced.charAt(0).toUpperCase() + spaced.slice(1)
 }
@@ -138,17 +159,18 @@ export function triggerIcon(trigger: string): LucideIcon {
 
 /** Confirmation copy for destructive transitions. */
 export function transitionConfirm(trigger: string, title: string) {
+  const t = activeTranslator().t
   if (trigger === 'reject') {
     return {
-      title: 'Reject this proposal?',
-      description: `“${title}” will be closed as rejected. This ends its lifecycle.`,
-      confirmLabel: 'Reject',
+      title: t('siteRest.lifecycle.confirm.rejectTitle'),
+      description: t('siteRest.lifecycle.confirm.rejectDescription', { title }),
+      confirmLabel: t('siteRest.lifecycle.confirm.rejectAction'),
     }
   }
   return {
-    title: 'Mark this proposal as superseded?',
-    description: `“${title}” will be closed as superseded (replaced by another proposal). This ends its lifecycle.`,
-    confirmLabel: 'Supersede',
+    title: t('siteRest.lifecycle.confirm.supersedeTitle'),
+    description: t('siteRest.lifecycle.confirm.supersedeDescription', { title }),
+    confirmLabel: t('siteRest.lifecycle.confirm.supersedeAction'),
   }
 }
 

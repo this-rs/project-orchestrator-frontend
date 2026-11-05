@@ -29,7 +29,6 @@ import {
   ToneText,
   formatAbsolute,
   getStatusMeta,
-  pluralize,
   type StatusTone,
 } from '@/components/ui'
 import type { ParentLink } from '@/components/ui'
@@ -48,6 +47,7 @@ import { useSectionObserver, useToast, useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { decisionTitle } from '@/components/knowledge/noteMeta'
 import { Explainer } from '@/components/protocols/Explainer'
+import { useT, type MessageKey } from '@/i18n'
 import type {
   Skill,
   SkillStatus,
@@ -60,26 +60,31 @@ import type {
   Decision,
 } from '@/types'
 
+type Translate = ReturnType<typeof useT>['t']
+type Noun = 'member' | 'activation' | 'note' | 'decision' | 'day' | 'hop'
+/** `1 note` / `2 notes`, from the `nouns` keys. */
+const count = (t: Translate, n: number, noun: Noun) => t(`siteSkills.nouns.${noun}.${n === 1 ? 'one' : 'other'}`, { count: n })
+
 // ── Health recommendation → tone ────────────────────────────────────────
 
-const RECOMMENDATION: Record<SkillHealthRecommendation, { label: string; tone: StatusTone }> = {
-  healthy: { label: 'Healthy', tone: 'success' },
-  needs_attention: { label: 'Needs attention', tone: 'warning' },
-  at_risk: { label: 'At risk', tone: 'danger' },
-  should_archive: { label: 'Should be archived', tone: 'muted' },
+const RECOMMENDATION: Record<SkillHealthRecommendation, { labelKey: MessageKey; tone: StatusTone }> = {
+  healthy: { labelKey: 'siteSkills.skillDetail.recommendation.healthy', tone: 'success' },
+  needs_attention: { labelKey: 'siteSkills.skillDetail.recommendation.needsAttention', tone: 'warning' },
+  at_risk: { labelKey: 'siteSkills.skillDetail.recommendation.atRisk', tone: 'danger' },
+  should_archive: { labelKey: 'siteSkills.skillDetail.recommendation.shouldArchive', tone: 'muted' },
 }
 
 /** Below this F1 score the backend skips the trigger (skills/models.rs). */
 const UNRELIABLE_TRIGGER_QUALITY = 0.3
 
 /** Section anchors (SectionNav targets). Stable array → stable observer. */
-const SECTIONS = [
-  { id: 'skill-vitals', label: 'Vital signs' },
-  { id: 'skill-health', label: 'Health' },
-  { id: 'skill-members', label: 'Members' },
-  { id: 'skill-triggers', label: 'Triggers' },
-  { id: 'skill-template', label: 'Template' },
-  { id: 'skill-details', label: 'Details' },
+const SECTIONS: { id: string; labelKey: MessageKey }[] = [
+  { id: 'skill-vitals', labelKey: 'siteSkills.skillDetail.sections.vitalSigns' },
+  { id: 'skill-health', labelKey: 'siteSkills.skillDetail.sections.health' },
+  { id: 'skill-members', labelKey: 'siteSkills.skillDetail.sections.members' },
+  { id: 'skill-triggers', labelKey: 'siteSkills.skillDetail.sections.triggers' },
+  { id: 'skill-template', labelKey: 'siteSkills.skillDetail.sections.template' },
+  { id: 'skill-details', labelKey: 'siteSkills.skillDetail.sections.details' },
 ]
 const SECTION_IDS = SECTIONS.map((s) => s.id)
 
@@ -90,6 +95,7 @@ export function SkillDetailPage() {
   const navigate = useNavigate()
   const wsSlug = useWorkspaceSlug()
   const toast = useToast()
+  const { t } = useT()
   const activeSection = useSectionObserver(SECTION_IDS)
 
   const [skill, setSkill] = useState<Skill | null>(null)
@@ -123,7 +129,7 @@ export function SkillDetailPage() {
       setHealth(healthData)
       setMembers(membersData)
     } catch {
-      setError('Failed to load skill')
+      setError(t('siteSkills.skillDetail.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -154,9 +160,9 @@ export function SkillDetailPage() {
     try {
       const updated = await skillsApi.update(skill.id, { status: newStatus })
       setSkill(updated)
-      toast.success(`Status changed to ${getStatusMeta('skill', newStatus).label}`)
+      toast.success(t('siteSkills.common.statusChanged', { status: getStatusMeta('skill', newStatus).label }))
     } catch {
-      toast.error('Failed to update status')
+      toast.error(t('siteSkills.common.statusFailed'))
     }
   }
 
@@ -164,10 +170,10 @@ export function SkillDetailPage() {
     if (!skill) return
     try {
       await skillsApi.delete(skill.id)
-      toast.success('Skill deleted')
+      toast.success(t('siteSkills.skillDetail.deleted'))
       navigate(workspacePath(wsSlug, '/skills'))
     } catch {
-      toast.error('Failed to delete skill')
+      toast.error(t('siteSkills.skillDetail.deleteFailed'))
     }
   }
 
@@ -182,9 +188,9 @@ export function SkillDetailPage() {
       a.download = `skill-${skill.name.toLowerCase().replace(/\s+/g, '-')}.json`
       a.click()
       URL.revokeObjectURL(url)
-      toast.success('Skill exported')
+      toast.success(t('siteSkills.skillDetail.exported'))
     } catch {
-      toast.error('Export failed')
+      toast.error(t('siteSkills.skillDetail.exportFailed'))
     }
   }
 
@@ -200,7 +206,7 @@ export function SkillDetailPage() {
     try {
       setActivationResult(await skillsApi.activate(skill.id, activationQuery.trim()))
     } catch {
-      toast.error('Activation failed')
+      toast.error(t('siteSkills.skillDetail.activationFailed'))
     } finally {
       setActivating(false)
     }
@@ -212,17 +218,26 @@ export function SkillDetailPage() {
     try {
       await skillsApi.removeMember(skill.id, entityType, entityId)
       setMembers(await skillsApi.getMembers(skill.id))
-      toast.success('Member removed')
+      toast.success(t('siteSkills.skillDetail.members.memberRemoved'))
     } catch {
-      toast.error('Failed to remove member')
+      toast.error(t('siteSkills.skillDetail.members.memberRemoveFailed'))
     }
   }
 
-  const removeConfirm = (entityType: 'note' | 'decision') => ({
-    title: `Remove this ${entityType} from the skill?`,
-    description: `The ${entityType} itself is kept; it just stops being part of “${skill?.name ?? 'this skill'}”.`,
-    confirmLabel: 'Remove',
-  })
+  const removeConfirm = (entityType: 'note' | 'decision') => {
+    const name = skill?.name ?? t('siteSkills.skillDetail.members.thisSkill')
+    return entityType === 'note'
+      ? {
+          title: t('siteSkills.skillDetail.members.removeNoteTitle'),
+          description: t('siteSkills.skillDetail.members.removeNoteDescription', { name }),
+          confirmLabel: t('siteSkills.common.remove'),
+        }
+      : {
+          title: t('siteSkills.skillDetail.members.removeDecisionTitle'),
+          description: t('siteSkills.skillDetail.members.removeDecisionDescription', { name }),
+          confirmLabel: t('siteSkills.common.remove'),
+        }
+  }
 
   const handleSaveTemplate = async () => {
     if (!skill) return
@@ -231,9 +246,9 @@ export function SkillDetailPage() {
       const updated = await skillsApi.update(skill.id, { context_template: templateDraft })
       setSkill(updated)
       setEditingTemplate(false)
-      toast.success('Template saved')
+      toast.success(t('siteSkills.skillDetail.template.templateSaved'))
     } catch {
-      toast.error('Failed to save template')
+      toast.error(t('siteSkills.skillDetail.template.templateSaveFailed'))
     } finally {
       setSavingTemplate(false)
     }
@@ -255,7 +270,11 @@ export function SkillDetailPage() {
   if (error || !skill) {
     return (
       <PageContainer width="wide">
-        <ErrorState title="Skill not found" description={error || 'The skill could not be loaded.'} onRetry={fetchData} />
+        <ErrorState
+          title={t('siteSkills.skillDetail.notFound')}
+          description={error || t('siteSkills.skillDetail.loadFailedHint')}
+          onRetry={fetchData}
+        />
       </PageContainer>
     )
   }
@@ -265,9 +284,9 @@ export function SkillDetailPage() {
   const memberCount = members ? notes.length + decisions.length : skill.note_count + skill.decision_count
 
   const parentLinks: ParentLink[] = [
-    { icon: Brain, label: 'Skills', name: 'All skills', href: workspacePath(wsSlug, '/skills') },
+    { icon: Brain, label: t('siteSkills.skillDetail.parent.skills'), name: t('siteSkills.skillDetail.parent.allSkills'), href: workspacePath(wsSlug, '/skills') },
     ...(project
-      ? [{ icon: Box, label: 'Project', name: project.name, href: workspacePath(wsSlug, `/projects/${project.slug}`) }]
+      ? [{ icon: Box, label: t('siteSkills.common.project'), name: project.name, href: workspacePath(wsSlug, `/projects/${project.slug}`) }]
       : []),
   ]
 
@@ -283,27 +302,31 @@ export function SkillDetailPage() {
         parentLinks={parentLinks}
         status={<StatusMenu kind="skill" status={skill.status} onChange={handleStatusChange} />}
         meta={[
-          pluralize(memberCount, 'member'),
-          pluralize(skill.activation_count, 'activation'),
-          skill.last_activated ? <RelativeTime key="la" date={skill.last_activated} prefix="used " /> : 'never used',
+          count(t, memberCount, 'member'),
+          count(t, skill.activation_count, 'activation'),
+          skill.last_activated ? (
+            <RelativeTime key="la" date={skill.last_activated} prefix={`${t('siteSkills.skillDetail.used')} `} />
+          ) : (
+            t('siteSkills.common.neverUsed')
+          ),
           `v${skill.version}`,
         ]}
         actions={
           <Button size="sm" onClick={openActivation}>
             <Zap className="w-4 h-4 mr-1.5" aria-hidden="true" />
-            Test activation
+            {t('siteSkills.skillDetail.testActivation')}
           </Button>
         }
         overflowActions={[
-          { label: 'Export package', icon: Download, onClick: handleExport },
+          { label: t('siteSkills.skillDetail.exportPackage'), icon: Download, onClick: handleExport },
           {
-            label: 'Delete',
+            label: t('siteSkills.common.delete'),
             icon: Trash2,
             variant: 'danger',
             onClick: handleDelete,
             confirm: {
-              title: 'Delete skill?',
-              description: `Permanently delete “${skill.name}”? Its notes and decisions are kept, only the skill is removed. This cannot be undone.`,
+              title: t('siteSkills.skills.deleteTitle'),
+              description: t('siteSkills.skills.deleteDescription', { name: skill.name }),
             },
           },
         ]}
@@ -311,42 +334,38 @@ export function SkillDetailPage() {
         <TagChips tags={skill.tags} />
       </PageHeader>
 
-      <Explainer>
-        When an assistant's request matches one of this skill's triggers, its notes and decisions (and the context
-        template below) are added to what the assistant knows for that request. “Test activation” simulates a request:
-        you see which notes would be used, with which score and which confidence. Notes are activated directly (members)
-        or by propagation through the graph (neighbouring notes).
-      </Explainer>
+      <Explainer>{t('siteSkills.skillDetail.explainer')}</Explainer>
 
       <SectionNav
         activeSection={activeSection}
-        sections={SECTIONS.map((s) =>
-          s.id === 'skill-members'
-            ? { ...s, count: memberCount }
+        sections={SECTIONS.map((s) => {
+          const section = { id: s.id, label: t(s.labelKey) }
+          return s.id === 'skill-members'
+            ? { ...section, count: memberCount }
             : s.id === 'skill-triggers'
-              ? { ...s, count: skill.trigger_patterns.length }
-              : s,
-        )}
+              ? { ...section, count: skill.trigger_patterns.length }
+              : section
+        })}
       />
 
       {/* ── Vital signs ─────────────────────────────────────────── */}
-      <Section id="skill-vitals" title="Vital signs" description="What the indicators of this skill measure.">
+      <Section id="skill-vitals" title={t('siteSkills.skillDetail.sections.vitalSigns')} description={t('siteSkills.skillDetail.vitals.hint')}>
         <MetricList
           items={[
-            { label: 'Energy', value: pct(skill.energy), level: energy, ratio: skill.energy, hint: SKILL_HINTS.energy },
-            { label: 'Cohesion', value: pct(skill.cohesion), level: cohesion, ratio: skill.cohesion, hint: SKILL_HINTS.cohesion },
+            { label: t('siteSkills.skillDetail.vitals.energy'), value: pct(skill.energy), level: energy, ratio: skill.energy, hint: SKILL_HINTS.energy },
+            { label: t('siteSkills.skillDetail.vitals.cohesion'), value: pct(skill.cohesion), level: cohesion, ratio: skill.cohesion, hint: SKILL_HINTS.cohesion },
             {
-              label: 'Hit rate',
+              label: t('siteSkills.skillDetail.vitals.hitRate'),
               value: pct(skill.hit_rate),
               level: skill.activation_count > 0 ? ratioLevel(skill.hit_rate) : undefined,
               ratio: skill.hit_rate,
               hint: SKILL_HINTS.hitRate,
             },
-            { label: 'Activations', value: skill.activation_count, hint: SKILL_HINTS.activations },
-            { label: 'Coverage', value: skill.coverage, hint: SKILL_HINTS.coverage },
+            { label: t('siteSkills.skillDetail.vitals.activations'), value: skill.activation_count, hint: SKILL_HINTS.activations },
+            { label: t('siteSkills.skillDetail.vitals.coverage'), value: skill.coverage, hint: SKILL_HINTS.coverage },
             {
-              label: 'Members',
-              value: `${skill.note_count} notes · ${skill.decision_count} decisions`,
+              label: t('siteSkills.skillDetail.vitals.members'),
+              value: t('siteSkills.skillDetail.vitals.membersValue', { notes: skill.note_count, decisions: skill.decision_count }),
               hint: SKILL_HINTS.members,
             },
           ]}
@@ -356,17 +375,19 @@ export function SkillDetailPage() {
       {/* ── Health ──────────────────────────────────────────────── */}
       <Section
         id="skill-health"
-        title="Health"
-        description="Automatic diagnosis: keep, watch or archive this skill?"
+        title={t('siteSkills.skillDetail.sections.health')}
+        description={t('siteSkills.skillDetail.health.hint')}
       >
         {health && rec ? (
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 space-y-2">
             <MetaLine
               size="sm"
               items={[
-                <ToneText key="rec" tone={rec.tone} label={rec.label} />,
-                health.is_validated ? 'Validated' : 'Not validated',
-                health.days_since_import != null ? `imported ${pluralize(health.days_since_import, 'day')} ago` : null,
+                <ToneText key="rec" tone={rec.tone} label={t(rec.labelKey)} />,
+                health.is_validated ? t('siteSkills.skillDetail.details.validated') : t('siteSkills.skillDetail.health.notValidated'),
+                health.days_since_import != null
+                  ? t('siteSkills.skillDetail.health.importedAgo', { days: count(t, health.days_since_import, 'day') })
+                  : null,
               ]}
             />
             {health.explanation && <p className="text-sm text-gray-300 break-words">{health.explanation}</p>}
@@ -374,33 +395,42 @@ export function SkillDetailPage() {
               <p className="flex items-start gap-1.5 text-xs text-amber-400">
                 <ShieldAlert className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
                 <span>
-                  In probation
-                  {health.probation_days_remaining != null && ` — ${pluralize(health.probation_days_remaining, 'day')} remaining`}
-                  . An imported skill has to prove its usefulness before it is validated.
+                  {t('siteSkills.skillDetail.health.inProbation')}
+                  {health.probation_days_remaining != null &&
+                    t('siteSkills.skillDetail.health.probationRemaining', { days: count(t, health.probation_days_remaining, 'day') })}
+                  {t('siteSkills.skillDetail.health.probationExplain')}
                 </span>
               </p>
             )}
           </div>
         ) : (
-          <EmptyState size="sm" title="Health data unavailable" />
+          <EmptyState size="sm" title={t('siteSkills.skillDetail.health.unavailable')} />
         )}
       </Section>
 
       {/* ── Members ─────────────────────────────────────────────── */}
       <Section
         id="skill-members"
-        title="Members"
+        title={t('siteSkills.skillDetail.sections.members')}
         count={members ? notes.length + decisions.length : undefined}
-        description="The knowledge this skill passes on: its notes and decisions."
+        description={t('siteSkills.skillDetail.members.hint')}
       >
         {!members ? (
-          <EmptyState size="sm" title="Members unavailable" description="The member list could not be loaded." />
+          <EmptyState
+            size="sm"
+            title={t('siteSkills.skillDetail.members.unavailable')}
+            description={t('siteSkills.skillDetail.members.unavailableHint')}
+          />
         ) : notes.length + decisions.length === 0 ? (
-          <EmptyState size="sm" title="No members yet" description="Link notes or decisions to this skill to give it content." />
+          <EmptyState
+            size="sm"
+            title={t('siteSkills.skillDetail.members.none')}
+            description={t('siteSkills.skillDetail.members.noneHint')}
+          />
         ) : (
           <div>
             {notes.length > 0 && (
-              <ListGroup title="Notes" count={notes.length}>
+              <ListGroup title={t('siteSkills.skillDetail.members.notes')} count={notes.length}>
                 {notes.map((note) => (
                   <NoteMemberRow
                     key={note.id}
@@ -412,7 +442,7 @@ export function SkillDetailPage() {
               </ListGroup>
             )}
             {decisions.length > 0 && (
-              <ListGroup title="Decisions" count={decisions.length}>
+              <ListGroup title={t('siteSkills.skillDetail.members.decisions')} count={decisions.length}>
                 {decisions.map((dec) => (
                   <DecisionMemberRow
                     key={dec.id}
@@ -431,14 +461,18 @@ export function SkillDetailPage() {
       {/* ── Triggers ────────────────────────────────────────────── */}
       <Section
         id="skill-triggers"
-        title="Triggers"
+        title={t('siteSkills.skillDetail.sections.triggers')}
         count={skill.trigger_patterns.length}
-        description="When this skill activates: each pattern is compared with what the assistant is doing. The threshold is the minimum confidence to fire; quality (F1) measures its past reliability."
+        description={t('siteSkills.skillDetail.triggers.hint')}
       >
         {skill.trigger_patterns.length === 0 ? (
-          <EmptyState size="sm" title="No triggers" description="Without triggers the skill can only be activated manually." />
+          <EmptyState
+            size="sm"
+            title={t('siteSkills.skillDetail.triggers.none')}
+            description={t('siteSkills.skillDetail.triggers.noneHint')}
+          />
         ) : (
-          <EntityList aria-label="Trigger patterns">
+          <EntityList aria-label={t('siteSkills.skillDetail.triggers.listLabel')}>
             {skill.trigger_patterns.map((p, i) => (
               <TriggerRow key={`${p.pattern_type}-${p.pattern_value}-${i}`} pattern={p} />
             ))}
@@ -449,8 +483,8 @@ export function SkillDetailPage() {
       {/* ── Context template ────────────────────────────────────── */}
       <Section
         id="skill-template"
-        title="Context template"
-        description="Markdown text added to what the assistant knows when the skill activates."
+        title={t('siteSkills.skillDetail.template.title')}
+        description={t('siteSkills.skillDetail.template.hint')}
         action={
           !editingTemplate ? (
             <Button
@@ -462,7 +496,7 @@ export function SkillDetailPage() {
               }}
             >
               <Pencil className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
-              Edit
+              {t('siteSkills.common.edit')}
             </Button>
           ) : undefined
         }
@@ -470,21 +504,21 @@ export function SkillDetailPage() {
         {editingTemplate ? (
           <div className="space-y-2">
             <Textarea
-              aria-label="Context template"
+              aria-label={t('siteSkills.skillDetail.template.ariaLabel')}
               value={templateDraft}
               onChange={(e) => setTemplateDraft(e.target.value)}
               rows={8}
               className="font-mono"
-              placeholder="Markdown template for the activation context…"
+              placeholder={t('siteSkills.skillDetail.template.placeholder')}
             />
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setEditingTemplate(false)}>
                 <X className="w-3.5 h-3.5 mr-1" aria-hidden="true" />
-                Cancel
+                {t('siteSkills.common.cancel')}
               </Button>
               <Button size="sm" onClick={handleSaveTemplate} loading={savingTemplate}>
                 {!savingTemplate && <Check className="w-3.5 h-3.5 mr-1" aria-hidden="true" />}
-                Save
+                {t('siteSkills.common.save')}
               </Button>
             </div>
           </div>
@@ -493,30 +527,40 @@ export function SkillDetailPage() {
             <CollapsibleMarkdown content={skill.context_template} />
           </div>
         ) : (
-          <EmptyState size="sm" title="No context template" description="Only the member notes are injected on activation." />
+          <EmptyState
+            size="sm"
+            title={t('siteSkills.skillDetail.template.none')}
+            description={t('siteSkills.skillDetail.template.noneHint')}
+          />
         )}
       </Section>
 
       {/* ── Details ─────────────────────────────────────────────── */}
-      <Section id="skill-details" title="Details">
+      <Section id="skill-details" title={t('siteSkills.skillDetail.sections.details')}>
         <Facts
           items={[
-            { label: 'Project', value: project?.name ?? skill.project_id },
-            { label: 'Created', value: formatAbsolute(skill.created_at) },
-            { label: 'Updated', value: formatAbsolute(skill.updated_at) },
-            { label: 'Last used', value: skill.last_activated ? formatAbsolute(skill.last_activated) : 'Never' },
-            { label: 'Imported', value: skill.imported_at ? formatAbsolute(skill.imported_at) : null },
-            { label: 'Validated', value: skill.is_validated ? 'Yes' : 'No' },
-            { label: 'Version', value: `v${skill.version}` },
+            { label: t('siteSkills.common.project'), value: project?.name ?? skill.project_id },
+            { label: t('siteSkills.skillDetail.details.created'), value: formatAbsolute(skill.created_at) },
+            { label: t('siteSkills.skillDetail.details.updated'), value: formatAbsolute(skill.updated_at) },
             {
-              label: 'Fingerprint',
+              label: t('siteSkills.skillDetail.details.lastUsed'),
+              value: skill.last_activated ? formatAbsolute(skill.last_activated) : t('siteSkills.common.never'),
+            },
+            {
+              label: t('siteSkills.skillDetail.details.imported'),
+              value: skill.imported_at ? formatAbsolute(skill.imported_at) : null,
+            },
+            { label: t('siteSkills.skillDetail.details.validated'), value: skill.is_validated ? t('siteSkills.common.yes') : t('siteSkills.common.no') },
+            { label: t('siteSkills.skillDetail.details.version'), value: `v${skill.version}` },
+            {
+              label: t('siteSkills.skillDetail.details.fingerprint'),
               value: skill.fingerprint ? (
                 <span className="font-mono text-xs break-all" title={skill.fingerprint}>
                   {skill.fingerprint.slice(0, 16)}…
                 </span>
               ) : null,
             },
-            { label: 'ID', value: <span className="font-mono text-xs break-all">{skill.id}</span> },
+            { label: t('siteSkills.skillDetail.details.id'), value: <span className="font-mono text-xs break-all">{skill.id}</span> },
           ]}
         />
       </Section>
@@ -524,11 +568,9 @@ export function SkillDetailPage() {
       {/* ENTITY_GRAPH_SLOT entity_type="skill" entity_id={skill.id} */}
 
       {/* ── Activation test dialog ──────────────────────────────── */}
-      <Dialog open={activationOpen} onClose={() => setActivationOpen(false)} title="Test activation" size="lg">
+      <Dialog open={activationOpen} onClose={() => setActivationOpen(false)} title={t('siteSkills.skillDetail.testActivation')} size="lg">
         <div className="space-y-4">
-          <p className="text-xs text-gray-500">
-            Type a request the way an assistant would: the skill returns the notes it would use and its confidence.
-          </p>
+          <p className="text-xs text-gray-500">{t('siteSkills.skillDetail.activation.hint')}</p>
           <form
             className="space-y-2"
             onSubmit={(e) => {
@@ -538,8 +580,8 @@ export function SkillDetailPage() {
           >
             <Input
               type="text"
-              aria-label="Activation query"
-              placeholder="e.g. how do we handle auth tokens?"
+              aria-label={t('siteSkills.skillDetail.activation.queryAria')}
+              placeholder={t('siteSkills.skillDetail.activation.queryPlaceholder')}
               value={activationQuery}
               onChange={(e) => setActivationQuery(e.target.value)}
               autoFocus
@@ -547,7 +589,7 @@ export function SkillDetailPage() {
             <div className="flex justify-end">
               <Button type="submit" size="sm" loading={activating} disabled={!activationQuery.trim()}>
                 {!activating && <Zap className="w-4 h-4 mr-1" aria-hidden="true" />}
-                Activate
+                {t('siteSkills.common.activate')}
               </Button>
             </div>
           </form>
@@ -564,13 +606,14 @@ export function SkillDetailPage() {
 type RemoveConfirm = { title: string; description?: string; confirmLabel?: string }
 
 function NoteMemberRow({ note, onRemove, confirm }: { note: Note; onRemove: () => Promise<void>; confirm: RemoveConfirm }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   return (
     <EntityRow
       title={note.content}
       entityRef={{ kind: 'note', id: note.id, label: note.content.slice(0, 80) }}
       onClick={() => setOpen((v) => !v)}
-      ariaLabel={`Note: ${note.content.slice(0, 60)}`}
+      ariaLabel={t('siteSkills.skillDetail.members.noteAria', { content: note.content.slice(0, 60) })}
       expanded={open}
       trailing={<RelativeTime date={note.created_at} />}
       meta={[
@@ -579,7 +622,7 @@ function NoteMemberRow({ note, onRemove, confirm }: { note: Note; onRemove: () =
         note.note_type,
         tagSummary(note.tags),
       ]}
-      actions={[{ label: 'Remove', icon: X, variant: 'danger', onClick: onRemove, confirm }]}
+      actions={[{ label: t('siteSkills.common.remove'), icon: X, variant: 'danger', onClick: onRemove, confirm }]}
     >
       {open && (
         <div className="rounded-lg bg-white/[0.03] px-3 py-2 text-sm">
@@ -601,6 +644,7 @@ function DecisionMemberRow({
   onRemove: () => Promise<void>
   confirm: RemoveConfirm
 }) {
+  const { t } = useT()
   return (
     <EntityRow
       title={decisionTitle(decision.description)}
@@ -610,12 +654,12 @@ function DecisionMemberRow({
       meta={[
         <StatusText key="st" kind="decision" status={decision.status} />,
         decision.chosen_option ? (
-          <span key="ch" className="truncate max-w-[16rem]" title={`Chosen: ${decision.chosen_option}`}>
-            Chosen: {decision.chosen_option}
+          <span key="ch" className="truncate max-w-[16rem]" title={t('siteSkills.skillDetail.members.chosen', { option: decision.chosen_option })}>
+            {t('siteSkills.skillDetail.members.chosen', { option: decision.chosen_option })}
           </span>
         ) : null,
       ]}
-      actions={[{ label: 'Remove', icon: X, variant: 'danger', onClick: onRemove, confirm }]}
+      actions={[{ label: t('siteSkills.common.remove'), icon: X, variant: 'danger', onClick: onRemove, confirm }]}
     />
   )
 }
@@ -623,20 +667,21 @@ function DecisionMemberRow({
 // ── Trigger row ─────────────────────────────────────────────────────────
 
 function TriggerRow({ pattern }: { pattern: SkillTriggerPattern }) {
+  const { t } = useT()
   const type = TRIGGER_TYPES[pattern.pattern_type] ?? { label: pattern.pattern_type, hint: '' }
   const unreliable = pattern.quality_score != null && pattern.quality_score < UNRELIABLE_TRIGGER_QUALITY
   return (
     <EntityRow
       title={<span className="font-mono text-[13px] break-all">{pattern.pattern_value}</span>}
-      ariaLabel={`${type.label} trigger ${pattern.pattern_value}`}
+      ariaLabel={t('siteSkills.skillDetail.triggers.triggerAria', { type: type.label, value: pattern.pattern_value })}
       description={type.hint || undefined}
       meta={[
         <span key="type" className="text-gray-300">{type.label}</span>,
-        `threshold ${pattern.confidence_threshold.toFixed(2)}`,
+        t('siteSkills.skillDetail.triggers.threshold', { value: pattern.confidence_threshold.toFixed(2) }),
         pattern.quality_score != null ? (
           <span key="q" className={unreliable ? 'text-amber-400' : undefined}>
-            quality {pattern.quality_score.toFixed(2)}
-            {unreliable && ' · unreliable, skipped'}
+            {t('siteSkills.skillDetail.triggers.quality', { value: pattern.quality_score.toFixed(2) })}
+            {unreliable && ` · ${t('siteSkills.skillDetail.triggers.unreliable')}`}
           </span>
         ) : null,
       ]}
@@ -647,12 +692,13 @@ function TriggerRow({ pattern }: { pattern: SkillTriggerPattern }) {
 // ── Activation result ───────────────────────────────────────────────────
 
 function ActivationResultView({ result }: { result: SkillActivationResult }) {
+  const { t } = useT()
   const confidence = ratioLevel(result.confidence)
   return (
     <div className="space-y-3">
       <div>
         <div className="flex items-center justify-between gap-3 text-xs mb-1">
-          <span className="text-gray-400">Confidence</span>
+          <span className="text-gray-400">{t('siteSkills.skillDetail.activation.confidence')}</span>
           <span className={`tabular-nums ${TONE_CLASSES[confidence.tone].text}`}>{pct(result.confidence)}</span>
         </div>
         <Meter size="bar" value={result.confidence} tone={confidence.tone} />
@@ -660,12 +706,12 @@ function ActivationResultView({ result }: { result: SkillActivationResult }) {
       <MetaLine
         size="sm"
         items={[
-          `${pluralize(result.activated_notes.length, 'note')} activated`,
-          pluralize(result.relevant_decisions.length, 'decision'),
+          t('siteSkills.skillDetail.activation.activated', { notes: count(t, result.activated_notes.length, 'note') }),
+          count(t, result.relevant_decisions.length, 'decision'),
         ]}
       />
       {result.activated_notes.length > 0 && (
-        <EntityList aria-label="Activated notes">
+        <EntityList aria-label={t('siteSkills.skillDetail.activation.activatedNotesAria')}>
           {result.activated_notes.map((a) => (
             <EntityRow
               key={a.note.id}
@@ -674,8 +720,11 @@ function ActivationResultView({ result }: { result: SkillActivationResult }) {
               meta={[
                 a.note.note_type,
                 a.source === 'direct'
-                  ? 'direct member'
-                  : `propagated via ${a.source.propagated.via} (${pluralize(a.source.propagated.hops, 'hop')})`,
+                  ? t('siteSkills.skillDetail.activation.directMember')
+                  : t('siteSkills.skillDetail.activation.propagated', {
+                      via: a.source.propagated.via,
+                      hops: count(t, a.source.propagated.hops, 'hop'),
+                    }),
               ]}
             />
           ))}

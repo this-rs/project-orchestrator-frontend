@@ -10,6 +10,7 @@ import type { PlanRun } from '@/services/runner'
 import { useWorkspaceSlug } from '@/hooks'
 import { workspacePath } from '@/utils/paths'
 import { PlanRunRow } from './PlanRunRow'
+import { useT } from '@/i18n'
 
 interface PlanRunHistoryProps {
   /** Single plan ID or array of plan IDs (for milestone aggregate view). */
@@ -23,6 +24,7 @@ interface PlanRunHistoryProps {
 }
 
 export function PlanRunHistory({ planIds, maxRuns = 5, showPlanTitle = false, planTitleMap = {} }: PlanRunHistoryProps) {
+  const { t } = useT()
   const wsSlug = useWorkspaceSlug()
   const [runs, setRuns] = useState<PlanRun[]>([])
   const [loading, setLoading] = useState(true)
@@ -66,18 +68,18 @@ export function PlanRunHistory({ planIds, maxRuns = 5, showPlanTitle = false, pl
   if (loading) return <EntityListSkeleton rows={3} />
 
   if (runs.length === 0) {
-    return <EmptyState size="sm" title="No pipeline runs yet" description="Runs appear here once the plan has been executed." />
+    return <EmptyState size="sm" title={t('siteOps.planRunHistory.noRuns')} description={t('siteOps.planRunHistory.noRunsHint')} />
   }
 
   return (
-    <EntityList aria-label="Pipeline runs">
+    <EntityList aria-label={t('siteOps.planRunHistory.listLabel')}>
       {runs.map((run) => {
-        const planTitle = run.plan_title || planTitleMap[run.plan_id] || `Plan ${run.plan_id.slice(0, 8)}`
+        const planTitle = run.plan_title || planTitleMap[run.plan_id] || t('siteOps.planRunHistory.planFallback', { id: run.plan_id.slice(0, 8) })
         return (
           <PlanRunRow
             key={run.run_id}
             run={run}
-            title={showPlanTitle ? planTitle : `Run ${run.run_id.slice(0, 8)}`}
+            title={showPlanTitle ? planTitle : t('siteOps.planRunHistory.runFallback', { id: run.run_id.slice(0, 8) })}
             href={workspacePath(wsSlug, `/plans/${run.plan_id}/runner`)}
           />
         )

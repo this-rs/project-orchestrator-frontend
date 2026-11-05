@@ -17,6 +17,7 @@ import { CancelButton } from './CancelButton'
 import { formatElapsed, runStateMeta } from './shared'
 import type { RunSnapshot } from '@/services/runner'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { useT } from '@/i18n'
 
 export interface RunnerHeaderProps {
   planId: string
@@ -46,6 +47,7 @@ export function RunnerHeader({
   onRetryRun,
   retrying = false,
 }: RunnerHeaderProps) {
+  const { t } = useT()
   const navigate = useNavigate()
   const toast = useToast()
   const statusStr = snap.status ?? (snap.running ? 'running' : 'completed')
@@ -62,12 +64,12 @@ export function RunnerHeader({
       intro="automation"
       meta={[
         <span key="t" className="tabular-nums">
-          {snap.tasks_completed ?? 0}/{snap.tasks_total ?? 0} tasks
+          {t('siteOps.runnerHeader.tasksProgress', { done: snap.tasks_completed ?? 0, total: snap.tasks_total ?? 0 })}
         </span>,
-        failedCount > 0 ? <ToneText key="f" tone="danger" dot={false} label={`${failedCount} failed`} /> : null,
+        failedCount > 0 ? <ToneText key="f" tone="danger" dot={false} label={t('siteOps.runnerHeader.failed', { count: failedCount })} /> : null,
         <span key="e" className="font-mono tabular-nums">{formatElapsed(snap.elapsed_secs)}</span>,
-        wave != null ? <span key="w" className="tabular-nums">wave {wave}{wavesTotal ? `/${wavesTotal}` : ''}</span> : null,
-        snap.run_id ? <span key="id" className="font-mono text-gray-600">run {snap.run_id.slice(0, 8)}</span> : null,
+        wave != null ? <span key="w" className="tabular-nums">{t('siteOps.runnerHeader.wave', { wave })}{wavesTotal ? `/${wavesTotal}` : ''}</span> : null,
+        snap.run_id ? <span key="id" className="font-mono text-gray-600">{t('siteOps.runnerHeader.runId', { id: snap.run_id.slice(0, 8) })}</span> : null,
       ]}
       actions={
         isRunning ? (
@@ -80,22 +82,22 @@ export function RunnerHeader({
               ) : (
                 <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
               ))}
-            {statusStr === 'budget_exceeded' ? 'Relaunch' : 'Retry run'}
+            {statusStr === 'budget_exceeded' ? t('siteOps.runnerHeader.relaunch') : t('siteOps.runnerHeader.retryRun')}
           </Button>
         ) : undefined
       }
       overflowActions={[
-        { label: 'Open plan', icon: ClipboardList, onClick: () => navigate(wpFn(wsSlug, `/plans/${planId}`)) },
+        { label: t('siteOps.runnerHeader.openPlan'), icon: ClipboardList, onClick: () => navigate(wpFn(wsSlug, `/plans/${planId}`)) },
         {
-          label: 'Copy run ID',
+          label: t('siteOps.runnerHeader.copyRunId'),
           icon: Copy,
           hidden: !snap.run_id,
           onClick: async () => {
             try {
               await navigator.clipboard.writeText(snap.run_id ?? '')
-              toast.success('Run ID copied')
+              toast.success(t('siteOps.runnerHeader.runIdCopied'))
             } catch {
-              toast.error('Failed to copy to clipboard')
+              toast.error(t('siteOps.runnerHeader.copyFailed'))
             }
           },
         },

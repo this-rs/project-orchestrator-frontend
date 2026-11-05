@@ -14,6 +14,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronRight, ChevronDown, Clock, Layers } from 'lucide-react'
 import { protocolApi } from '@/services/protocolApi'
 import { useEventBus } from '@/hooks/useEventBus'
+import { activeTranslator, useT } from '@/i18n'
 import { Skeleton, SkeletonLine, SkeletonBadge } from '@/components/ui/Skeleton'
 import { MetaLine } from '@/components/ui/MetaLine'
 import { focusRing, hitArea, textLink } from '@/components/ui/classes'
@@ -61,26 +62,28 @@ export interface RunNode {
  * human-readable string: "2s", "1m 34s", "2h 5m", "1d 3h".
  */
 export function formatRunDuration(startedAt: string, finishedAt?: string | null): string {
+  const t = activeTranslator().t
+  const [unitS, unitM, unitH, unitD] = [t('siteRest.units.s'), t('siteRest.units.m'), t('siteRest.units.h'), t('siteRest.units.d')]
   const start = new Date(startedAt).getTime()
   const end = finishedAt ? new Date(finishedAt).getTime() : Date.now()
   const diffMs = Math.max(0, end - start)
   const totalSecs = Math.floor(diffMs / 1000)
 
-  if (totalSecs < 60) return `${totalSecs}s`
+  if (totalSecs < 60) return `${totalSecs}${unitS}`
 
   const mins = Math.floor(totalSecs / 60)
   const secs = totalSecs % 60
 
-  if (mins < 60) return `${mins}m ${secs}s`
+  if (mins < 60) return `${mins}${unitM} ${secs}${unitS}`
 
   const hours = Math.floor(mins / 60)
   const remainMins = mins % 60
 
-  if (hours < 24) return `${hours}h ${remainMins}m`
+  if (hours < 24) return `${hours}${unitH} ${remainMins}${unitM}`
 
   const days = Math.floor(hours / 24)
   const remainHours = hours % 24
-  return `${days}d ${remainHours}h`
+  return `${days}${unitD} ${remainHours}${unitH}`
 }
 
 // ============================================================================
@@ -113,6 +116,7 @@ interface RunTreeNodeProps {
 }
 
 function RunTreeNode({ node, depth, onRunClick, selectedRunId }: RunTreeNodeProps) {
+  const { t } = useT()
   const hasChildren = node.children && node.children.length > 0
   const [expanded, setExpanded] = useState(depth < 2) // auto-expand first 2 levels
 
@@ -147,7 +151,7 @@ function RunTreeNode({ node, depth, onRunClick, selectedRunId }: RunTreeNodeProp
           type="button"
           className={`shrink-0 w-7 h-7 -my-1 flex items-center justify-center rounded text-gray-500 hover:text-gray-300 ${focusRing} ${hasChildren ? '' : 'invisible'}`}
           onClick={handleToggle}
-          aria-label={expanded ? 'Collapse child runs' : 'Expand child runs'}
+          aria-label={expanded ? t('siteKnowledge.tree.collapse') : t('siteKnowledge.tree.expand')}
           tabIndex={hasChildren ? 0 : -1}
         >
           {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
@@ -159,8 +163,8 @@ function RunTreeNode({ node, depth, onRunClick, selectedRunId }: RunTreeNodeProp
         >
           <div className="flex items-start justify-between gap-2">
             <span className={`text-sm leading-5 break-words min-w-0 ${isSelected ? 'text-gray-100' : 'text-gray-300'}`}>
-              {node.protocol_name ?? 'Run'}
-              {node.current_state && <span className="ml-1.5 text-[11px] text-gray-500">in {node.current_state}</span>}
+              {node.protocol_name ?? t('siteKnowledge.tree.runFallback')}
+              {node.current_state && <span className="ml-1.5 text-[11px] text-gray-500">{t('siteKnowledge.tree.inState', { state: node.current_state })}</span>}
             </span>
             <RunStatusBadge status={node.status} className="shrink-0 leading-5" />
           </div>
@@ -173,10 +177,14 @@ function RunTreeNode({ node, depth, onRunClick, selectedRunId }: RunTreeNodeProp
               visited > 0 ? (
                 <span key="v" className="inline-flex items-center gap-1 tabular-nums">
                   <Layers className="w-3 h-3" aria-hidden="true" />
-                  {visited} {visited === 1 ? 'state' : 'states'} visited
+                  {visited === 1 ? t('siteKnowledge.shared.stateVisited.one', { n: 1 }) : t('siteKnowledge.shared.stateVisited.other', { n: visited })}
                 </span>
               ) : null,
-              hasChildren ? `${node.children!.length} child ${node.children!.length === 1 ? 'run' : 'runs'}` : null,
+              hasChildren
+                ? node.children!.length === 1
+                  ? t('siteKnowledge.tree.children.one', { n: 1 })
+                  : t('siteKnowledge.tree.children.other', { n: node.children!.length })
+                : null,
               <span key="id" className="font-mono text-gray-600">{node.id.slice(0, 8)}</span>,
             ]}
           />
@@ -220,6 +228,7 @@ interface RunTreeViewProps {
 }
 
 export function RunTreeView({ rootRunId, onRunClick, selectedRunId, className = '' }: RunTreeViewProps) {
+  const { t } = useT()
   const [rootNode, setRootNode] = useState<RunNode | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -232,7 +241,7 @@ export function RunTreeView({ rootRunId, onRunClick, selectedRunId, className = 
       const data = await protocolApi.getRunTree(rootRunId)
       setRootNode(data)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load run tree')
+      setError(err instanceof Error ? err.message : activeTranslator().t('siteKnowledge.tree.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -283,14 +292,14 @@ export function RunTreeView({ rootRunId, onRunClick, selectedRunId, className = 
   if (error) {
     return (
       <div className={`py-2 text-sm text-red-400 ${className}`}>
-        <p>Failed to load the run tree</p>
+        <p>{t('siteKnowledge.tree.loadFailedTitle')}</p>
         <p className="text-red-400/70 text-xs mt-1 break-words">{error}</p>
         <button
           type="button"
           onClick={fetchTree}
           className={`${hitArea} mt-2 text-xs ${textLink}`}
         >
-          Retry
+          {t('siteKnowledge.tree.retry')}
         </button>
       </div>
     )
@@ -299,7 +308,7 @@ export function RunTreeView({ rootRunId, onRunClick, selectedRunId, className = 
   if (!rootNode) return null
 
   return (
-    <div className={`${className}`} role="tree" aria-label="Protocol run tree">
+    <div className={`${className}`} role="tree" aria-label={t('siteKnowledge.tree.aria')}>
       <RunTreeNode
         node={rootNode}
         depth={0}

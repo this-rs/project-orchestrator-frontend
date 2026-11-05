@@ -63,10 +63,11 @@ function Block({ title, text }: { title: string; text: string }) {
 }
 
 export function EventChain({ item, upstream, downstream, onSelect, labels = DEFAULT_TIMELINE_LABELS, className = '' }: EventChainProps) {
+  const { t } = useT()
   return (
     <div className={`flex flex-col gap-4 ${className}`} data-testid="event-chain">
       <div>
-        <h2 className="mb-1 text-xs text-gray-400">Chain</h2>
+        <h2 className="mb-1 text-xs text-gray-400">{t('siteKnowledge.chain.chain')}</h2>
         <ol className="flex flex-col gap-0.5">
           {upstream.map((i) => <Line key={i.id} item={i} labels={labels} onSelect={onSelect} />)}
           <Line item={item} labels={labels} onSelect={onSelect} current />
@@ -75,8 +76,8 @@ export function EventChain({ item, upstream, downstream, onSelect, labels = DEFA
       </div>
       <Where item={item} />
       <RoutingDetail item={item} />
-      <Block title="Input" text={asText(item.input)} />
-      <Block title="Output" text={asText(item.output)} />
+      <Block title={t('siteKnowledge.chain.input')} text={asText(item.input)} />
+      <Block title={t('siteKnowledge.chain.output')} text={asText(item.output)} />
     </div>
   )
 }
@@ -92,13 +93,14 @@ function Fact({ name, value }: { name: string; value: string }) {
 
 /** On which provider and model this happened. */
 function Where({ item }: { item: TimelineItem }) {
+  const { t } = useT()
   if (!item.provider && !item.model) return null
   return (
     <section>
-      <h3 className="mb-1 text-xs text-gray-400">Ran on</h3>
+      <h3 className="mb-1 text-xs text-gray-400">{t('siteKnowledge.chain.ranOn')}</h3>
       <dl className="flex flex-col gap-0.5" data-testid="event-where">
-        {item.provider && <Fact name="Provider" value={item.provider} />}
-        {item.model && <Fact name="Model" value={shortModel(item.model)} />}
+        {item.provider && <Fact name={t('siteKnowledge.chain.provider')} value={item.provider} />}
+        {item.model && <Fact name={t('siteKnowledge.chain.model')} value={shortModel(item.model)} />}
       </dl>
     </section>
   )
@@ -112,20 +114,25 @@ export function RoutingDetail({ item }: { item: TimelineItem }) {
   const pct = (n: number | null | undefined) => (n == null ? '—' : n.toFixed(2))
   return (
     <section data-testid="event-routing">
-      <h3 className="mb-1 text-xs text-gray-400">Routing decision</h3>
+      <h3 className="mb-1 text-xs text-gray-400">{t('siteKnowledge.chain.routing')}</h3>
       <dl className="flex flex-col gap-0.5">
-        <Fact name="Chosen" value={`${d.provider_id}${d.model ? ` / ${shortModel(d.model)}` : ''}`} />
-        <Fact name="Score" value={pct(d.score)} />
-        <Fact name="Mode" value={`${d.mode} · ${d.stage}${d.applied ? '' : ' · not applied (recorded only)'}`} />
-        <Fact name="Task class" value={d.task_class} />
-        <Fact name="Why" value={d.reason || '—'} />
-        {d.explored && <Fact name="Exploration" value="The router tried this option to learn, not because it scored best." />}
+        <Fact name={t('siteKnowledge.chain.chosen')} value={`${d.provider_id}${d.model ? ` / ${shortModel(d.model)}` : ''}`} />
+        <Fact name={t('siteKnowledge.chain.score')} value={pct(d.score)} />
+        <Fact
+          name={t('siteKnowledge.chain.mode')}
+          value={d.applied
+            ? t('siteKnowledge.chain.modeApplied', { mode: d.mode, stage: d.stage })
+            : t('siteKnowledge.chain.modeNotApplied', { mode: d.mode, stage: d.stage })}
+        />
+        <Fact name={t('siteKnowledge.chain.taskClass')} value={d.task_class} />
+        <Fact name={t('siteKnowledge.chain.why')} value={d.reason || '—'} />
+        {d.explored && <Fact name={t('siteKnowledge.chain.exploration')} value={t('siteKnowledge.chain.explorationText')} />}
         {d.outcome && (
           <Fact
-            name="Outcome"
+            name={t('siteKnowledge.chain.outcome')}
             value={[
-              d.outcome.success == null ? null : d.outcome.success ? 'succeeded' : 'failed',
-              d.outcome.reward == null ? null : `reward ${d.outcome.reward.toFixed(2)}`,
+              d.outcome.success == null ? null : d.outcome.success ? t('siteKnowledge.chain.succeeded') : t('siteKnowledge.chain.failed'),
+              d.outcome.reward == null ? null : t('siteKnowledge.chain.reward', { value: d.outcome.reward.toFixed(2) }),
               d.outcome.cost_usd == null ? null : `$${d.outcome.cost_usd.toFixed(4)}`,
             ].filter(Boolean).join(' · ') || '—'}
           />
@@ -134,12 +141,12 @@ export function RoutingDetail({ item }: { item: TimelineItem }) {
       {d.alternatives.length > 0 && (
         <div className="mt-2 overflow-x-auto">
           <table className="w-full text-xs">
-            <caption className="mb-1 text-left text-gray-400">Candidates considered</caption>
+            <caption className="mb-1 text-left text-gray-400">{t('siteKnowledge.chain.candidates')}</caption>
             <thead>
               <tr className="text-left text-gray-400">
-                <th className="py-0.5 pr-3 font-normal">Provider / model</th>
-                <th className="py-0.5 pr-3 font-normal">Score</th>
-                <th className="py-0.5 font-normal">Left out because</th>
+                <th className="py-0.5 pr-3 font-normal">{t('siteKnowledge.chain.providerModel')}</th>
+                <th className="py-0.5 pr-3 font-normal">{t('siteKnowledge.chain.score')}</th>
+                <th className="py-0.5 font-normal">{t('siteKnowledge.chain.leftOut')}</th>
               </tr>
             </thead>
             <tbody>
@@ -147,7 +154,7 @@ export function RoutingDetail({ item }: { item: TimelineItem }) {
                 <tr key={`${a.provider_id}/${a.model ?? ''}/${i}`} className="text-gray-300">
                   <td className="py-0.5 pr-3">{a.provider_id}{a.model ? ` / ${shortModel(a.model)}` : ''}</td>
                   <td className="py-0.5 pr-3 tabular-nums">{pct(a.score)}</td>
-                  <td className="py-0.5">{a.rejected ? routingRejectionLabel(t, a.rejected, a.why) : 'outscored'}</td>
+                  <td className="py-0.5">{a.rejected ? routingRejectionLabel(t, a.rejected, a.why) : t('siteKnowledge.chain.outscored')}</td>
                 </tr>
               ))}
             </tbody>

@@ -449,7 +449,7 @@ export function UnifiedGraphSection<T>({
       </div>
 
       {/* 3D Graph */}
-      <Graph3DErrorBoundary context="Unified Graph">
+      <Graph3DErrorBoundary context={t('siteOps.graph.unifiedGraph')}>
         <IntelligenceGraph3D
           nodes={intelligenceNodes}
           edges={intelligenceEdges}

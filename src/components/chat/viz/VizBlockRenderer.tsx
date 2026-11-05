@@ -15,6 +15,7 @@ import { Maximize2, AlertTriangle, BarChart3 } from 'lucide-react'
 import type { ContentBlock } from '@/types'
 import { vizRegistry, type VizBlockProps } from './registry'
 import { VizExpandDialog } from './VizExpandDialog'
+import { useT } from '@/i18n'
 
 // ============================================================================
 // Error Boundary
@@ -57,12 +58,13 @@ export class VizErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundar
 // ============================================================================
 
 function VizFallback({ text, error }: { text: string; error?: string }) {
+  const { t } = useT()
   return (
     <div className="rounded-lg bg-white/[0.03] border border-white/[0.06] px-3 py-2">
       {error && (
         <div className="flex items-center gap-1.5 text-[10px] text-amber-400/70 mb-1.5">
           <AlertTriangle className="w-3 h-3" />
-          <span>Visualization failed to render</span>
+          <span>{t('siteChat.viz.renderFailed')}</span>
         </div>
       )}
       {/* The cause, verbatim: without it neither the reader nor the agent that wrote the block can correct it. */}
@@ -87,11 +89,12 @@ interface VizBlockRendererProps {
 }
 
 export function VizBlockRenderer({ block }: VizBlockRendererProps) {
+  const { t } = useT()
   const [isExpanded, setIsExpanded] = useState(false)
 
   const vizType = (block.metadata?.viz_type as string) ?? ''
   const vizData = (block.metadata?.viz_data as Record<string, unknown>) ?? {}
-  const fallbackText = block.content || 'No visualization data available.'
+  const fallbackText = block.content || t('siteChat.viz.noData')
   const title = block.metadata?.viz_title as string | undefined
   const interactive = (block.metadata?.viz_interactive as boolean) ?? false
   const maxHeight = (block.metadata?.viz_max_height as number) ?? 300
@@ -130,10 +133,10 @@ export function VizBlockRenderer({ block }: VizBlockRendererProps) {
           <button
             onClick={openExpanded}
             className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-gray-300 transition-colors"
-            aria-label="Expand visualization"
+            aria-label={t('siteChat.viz.expandAria')}
           >
             <Maximize2 className="w-3 h-3" />
-            <span>Expand</span>
+            <span>{t('siteChat.viz.expand')}</span>
           </button>
         </div>
 

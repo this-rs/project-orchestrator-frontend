@@ -28,17 +28,18 @@ import {
   Loader2,
 } from 'lucide-react'
 import type { DiscussionNode } from '@/services/discussions'
+import { activeTranslator, useT, type MessageKey } from '@/i18n'
 
 // ---------------------------------------------------------------------------
 // Status config
 // ---------------------------------------------------------------------------
 
 // Shape + colour + a word (sr-only in the row): never colour alone.
-const statusConfig: Record<DiscussionNode['status'], { icon: typeof Circle; color: string; label: string }> = {
-  streaming: { icon: Loader2, color: 'text-blue-400', label: 'En cours' },
-  completed: { icon: CheckCircle2, color: 'text-green-400', label: 'Terminée' },
-  failed: { icon: XCircle, color: 'text-red-400', label: 'Échouée' },
-  idle: { icon: Circle, color: 'text-gray-500', label: 'Arrêtée' },
+const statusConfig: Record<DiscussionNode['status'], { icon: typeof Circle; color: string; labelKey: MessageKey }> = {
+  streaming: { icon: Loader2, color: 'text-blue-400', labelKey: 'siteRest.discussion.status.streaming' },
+  completed: { icon: CheckCircle2, color: 'text-green-400', labelKey: 'siteRest.discussion.status.completed' },
+  failed: { icon: XCircle, color: 'text-red-400', labelKey: 'siteRest.discussion.status.failed' },
+  idle: { icon: Circle, color: 'text-gray-500', labelKey: 'siteRest.discussion.status.idle' },
 }
 
 // ---------------------------------------------------------------------------
@@ -51,10 +52,12 @@ function indentStep(depth: number): number {
 }
 
 function formatDuration(secs: number): string {
-  if (secs < 60) return `${Math.round(secs)}s`
+  const t = activeTranslator().t
+  const [unitS, unitM] = [t('siteRest.units.s'), t('siteRest.units.m')]
+  if (secs < 60) return `${Math.round(secs)}${unitS}`
   const m = Math.floor(secs / 60)
   const s = Math.floor(secs % 60)
-  return `${m}m${s > 0 ? ` ${s}s` : ''}`
+  return `${m}${unitM}${s > 0 ? ` ${s}${unitS}` : ''}`
 }
 
 function formatCost(usd: number): string {
@@ -87,6 +90,7 @@ export function DiscussionNodeRow({
   onTreeChanged,
 }: DiscussionNodeRowProps) {
   const instances = useAtomValue(providersAtom)?.providers ?? null
+  const { t } = useT()
   const [expanded, setExpanded] = useState(true)
   const children = node.children ?? []
   const hasChildren = children.length > 0
@@ -100,7 +104,7 @@ export function DiscussionNodeRow({
   const showBadge = shouldShowProviderBadge(provider, instances)
   const subtree = hasChildren ? subtreeCost(node) : null
 
-  const title = node.title || node.metadata?.task_id || 'Session sans titre'
+  const title = node.title || node.metadata?.task_id || t('siteRest.discussion.untitled')
   const actions = renderActions?.(node)
   const { source, detail } = node.metadata ?? {}
   const indent = { paddingLeft: `${4 + indentStep(depth) + 36}px` }
@@ -125,7 +129,7 @@ export function DiscussionNodeRow({
         {/* Expand/collapse toggle */}
         <button
           type="button"
-          aria-label={expanded ? 'Replier les sous-discussions' : 'Déplier les sous-discussions'}
+          aria-label={expanded ? t('siteRest.discussion.collapse') : t('siteRest.discussion.expand')}
           aria-expanded={hasChildren ? expanded : undefined}
           className={`inline-flex h-9 w-7 items-center justify-center rounded flex-shrink-0 ${pressFeedback} ${focusRing} ${
             hasChildren
@@ -153,7 +157,7 @@ export function DiscussionNodeRow({
             node.status === 'streaming' ? 'animate-spin motion-reduce:animate-none' : ''
           }`}
         />
-        <span className="sr-only">{cfg.label}</span>
+        <span className="sr-only">{t(cfg.labelKey)}</span>
 
         {/* Title: wraps over two lines rather than being cut by the indentation */}
         <button
@@ -169,18 +173,21 @@ export function DiscussionNodeRow({
 
         {/* Figures: always visible (no hover-only information) */}
         <div className="flex items-center gap-3 flex-shrink-0 text-xs text-gray-400 pl-9 sm:pl-0 basis-full sm:basis-auto">
-          <span className="flex items-center gap-1" aria-label={`${node.message_count} messages`}>
+          <span
+            className="flex items-center gap-1"
+            aria-label={t(node.message_count === 1 ? 'siteRest.discussion.messages.one' : 'siteRest.discussion.messages.other', { count: node.message_count })}
+          >
             <MessageSquare className="w-3 h-3" aria-hidden="true" />
             {node.message_count}
           </span>
-          <span className="flex items-center gap-1 font-mono tabular-nums" aria-label={`Durée ${formatDuration(node.duration_secs)}`}>
+          <span className="flex items-center gap-1 font-mono tabular-nums" aria-label={t('siteRest.discussion.duration', { value: formatDuration(node.duration_secs) })}>
             <Clock className="w-3 h-3" aria-hidden="true" />
             {formatDuration(node.duration_secs)}
           </span>
           {showBadge && <ProviderBadge description={provider} model={node.model} />}
           {/* No figure, no cost shown — never a `$0.00` nobody reported. */}
           {costText !== null && (
-            <span className="flex items-center gap-1 font-mono tabular-nums" aria-label={`Coût ${costText}`}>
+            <span className="flex items-center gap-1 font-mono tabular-nums" aria-label={t('siteRest.discussion.cost', { value: costText })}>
               <DollarSign className="w-3 h-3" aria-hidden="true" />
               <CostDisplay cost={cost} format={formatCost} />
             </span>
@@ -189,7 +196,7 @@ export function DiscussionNodeRow({
             <span
               data-testid="node-subtree-cost"
               className="flex items-center gap-1 font-mono tabular-nums"
-              aria-label={`Subtree cost ${subtree.text}`}
+              aria-label={t('siteRest.discussion.subtreeCost', { value: subtree.text })}
             >
               Σ {subtree.text}
             </span>

@@ -29,7 +29,9 @@ describe('catalogs', () => {
     }
     expect(issues).toEqual([])
     expect(STRUCTURE_KINDS.length).toBeGreaterThan(0)
-  })
+    // 12 languages x every namespace, imported one after the other: ~2 s alone, far more when the
+    // whole suite runs in parallel on a busy machine. The delay is the load, not the content.
+  }, 60_000)
 
   it('maps browser tags to supported languages', () => {
     expect(matchLocale(['pt-BR'])).toBe('pt')
@@ -80,5 +82,5 @@ describe('provider', () => {
     expect(document.documentElement.lang).toBe(LOCALE_META.ar.htmlLang)
     expect(document.documentElement.dir).toBe('rtl')
     expect(window.localStorage.getItem('po.locale')).toBe('ar')
-  })
+  }, 60_000)
 })

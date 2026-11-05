@@ -9,6 +9,7 @@ import {
   type SetupConfig,
 } from '@/atoms/setup'
 import { isTauri } from '@/services/env'
+import { useT } from '@/i18n'
 import { Button, Input, focusRing, inlineLink, surface } from '@/components/ui'
 import { ExternalLink } from '@/components/ui/ExternalLink'
 import { Field } from './Field'
@@ -19,40 +20,24 @@ import { setupChatTexts } from '@/constants/setupProviders'
 // AuthPage — Step 2 of the setup wizard
 // ============================================================================
 
-// i18n after #252
-const TEXT = {
-  modes: 'How people sign in',
-  none: 'No authentication',
-  // website FAQ « Do I need an account? »: with no sign-in, the server accepts connections from the whole network
-  noneDesc: 'Open access. For a computer only you use.',
-  password: 'Password',
-  passwordDesc: 'One administrator account, with an email and a password.',
-  oidc: 'OIDC / OAuth',
-  oidcDesc: 'Sign in with Google, Microsoft, Okta or any OpenID Connect provider.',
-  noticeTitle: 'Anyone on your network can use the app',
-  notice:
-    'Without sign-in, the app’s server accepts connections from your whole network, not only from this computer, and anyone who reaches it can read and change everything. On a shared network, choose a password.',
-  rootAccount: 'Administrator account',
-  rootHint: 'The first account. You can add more people later.',
-} as const
-
 export function AuthPage() {
+  const { t } = useT()
   const [config, setConfig] = useAtom(setupConfigAtom)
 
   const update = (patch: Partial<SetupConfig>) =>
     setConfig((prev) => ({ ...prev, ...patch }))
 
   const modes: { value: AuthMode; label: string; description: string }[] = [
-    { value: 'none', label: TEXT.none, description: TEXT.noneDesc },
-    { value: 'password', label: TEXT.password, description: TEXT.passwordDesc },
-    { value: 'oidc', label: TEXT.oidc, description: TEXT.oidcDesc },
+    { value: 'none', label: t('siteSetup.auth.modeNone'), description: t('siteSetup.auth.modeNoneDesc') },
+    { value: 'password', label: t('siteSetup.auth.modePassword'), description: t('siteSetup.auth.modePasswordDesc') },
+    { value: 'oidc', label: t('siteSetup.auth.modeOidc'), description: t('siteSetup.auth.modeOidcDesc') },
   ]
 
   return (
     <div className="space-y-6">
       {/* Mode selection */}
       <fieldset className="space-y-2">
-        <legend className="sr-only">{TEXT.modes}</legend>
+        <legend className="sr-only">{t('siteSetup.auth.modesLegend')}</legend>
         {modes.map((m) => (
           <label
             key={m.value}
@@ -80,8 +65,8 @@ export function AuthPage() {
 
       {/* No-auth warning */}
       {config.authMode === 'none' && (
-        <StatusBanner tone="warning" title={TEXT.noticeTitle} role="status">
-          <p>{TEXT.notice}</p>
+        <StatusBanner tone="warning" title={t('siteSetup.auth.noneTitle')} role="status">
+          <p>{t('siteSetup.auth.noneNotice')}</p>
           <p data-testid="setup-auth-none-providers">{setupChatTexts().authNoneNote}</p>
         </StatusBanner>
       )}
@@ -89,21 +74,21 @@ export function AuthPage() {
       {/* Password config */}
       {config.authMode === 'password' && (
         <div className={`${surface} space-y-3 p-4 md:p-5`}>
-          <h3 className="text-sm font-semibold text-gray-200">{TEXT.rootAccount}</h3>
+          <h3 className="text-sm font-semibold text-gray-200">{t('siteSetup.auth.rootAccount')}</h3>
           <Field
-            label="Email"
+            label={t('siteSetup.auth.email')}
             type="email"
             value={config.rootEmail}
             onChange={(v) => update({ rootEmail: v })}
             placeholder="admin@example.com"
           />
           <Field
-            label="Password"
+            label={t('siteSetup.auth.password')}
             type="password"
             value={config.rootPassword}
             onChange={(v) => update({ rootPassword: v })}
-            placeholder="Minimum 8 characters"
-            hint={TEXT.rootHint}
+            placeholder={t('siteSetup.auth.passwordMinPlaceholder')}
+            hint={t('siteSetup.auth.rootHint')}
           />
         </div>
       )}
@@ -174,6 +159,7 @@ function OidcProviderSelect({
   config: SetupConfig
   update: (patch: Partial<SetupConfig>) => void
 }) {
+  const { t } = useT()
   const handleSelect = (key: OidcProvider) => {
     const provider = OIDC_PROVIDERS[key]
     const patch: Partial<SetupConfig> = {
@@ -203,8 +189,8 @@ function OidcProviderSelect({
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-gray-200">Provider</h3>
-      <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label="OIDC provider">
+      <h3 className="text-sm font-semibold text-gray-200">{t('siteSetup.auth.provider')}</h3>
+      <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label={t('siteSetup.auth.providerGroup')}>
         {PROVIDER_KEYS.map((key) => {
           const provider = OIDC_PROVIDERS[key]
           const active = config.oidcProvider === key
@@ -252,6 +238,7 @@ function OidcDetailsSection({
   config: SetupConfig
   update: (patch: Partial<SetupConfig>) => void
 }) {
+  const { t } = useT()
   const provider = OIDC_PROVIDERS[config.oidcProvider]
   const needsTenant = !provider.discoveryUrl && config.oidcProvider !== 'custom'
   const isKeycloak = config.oidcProvider === 'keycloak'
@@ -334,7 +321,7 @@ function OidcDetailsSection({
       }
 
       if (!data.authorization_endpoint || !data.token_endpoint) {
-        throw new Error('Invalid discovery document: missing required endpoints')
+        throw new Error(t('siteSetup.auth.discoveryMissingEndpoints'))
       }
 
       setDiscoveredEndpoints(data)
@@ -348,20 +335,20 @@ function OidcDetailsSection({
       })
     } catch (e) {
       setDiscoveryStatus('error')
-      setDiscoveryError(e instanceof Error ? e.message : 'Failed to fetch discovery document')
+      setDiscoveryError(e instanceof Error ? e.message : t('siteSetup.auth.discoveryFallbackError'))
     }
-  }, [config.oidcDiscoveryUrl, update])
+  }, [config.oidcDiscoveryUrl, update, t])
 
   return (
     <div className={`${surface} space-y-4 p-4 md:p-5`}>
       {/* Tenant field for parameterized providers */}
       {needsTenant && (
         <Field
-          label={provider.tenantLabel || 'Tenant'}
+          label={provider.tenantLabel || t('siteSetup.auth.tenantDefault')}
           value={config.oidcTenant}
           onChange={handleTenantChange}
           placeholder={provider.tenantPlaceholder || ''}
-          hint={isKeycloak ? 'Enter the full server URL. You may need to edit the realm name in the discovery URL below.' : undefined}
+          hint={isKeycloak ? t('siteSetup.auth.keycloakHint') : undefined}
         />
       )}
 
@@ -371,7 +358,7 @@ function OidcDetailsSection({
           <div className="min-w-0 flex-1 basis-56">
             <Input
               type="text"
-              label="Discovery URL"
+              label={t('siteSetup.auth.discoveryUrl')}
               value={config.oidcDiscoveryUrl}
               onChange={(e) => update({ oidcDiscoveryUrl: e.target.value })}
               placeholder="https://.../.well-known/openid-configuration"
@@ -388,38 +375,44 @@ function OidcDetailsSection({
             {discoveryStatus === 'fetching' ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                Verifying...
+                {t('siteSetup.auth.verifying')}
               </>
             ) : (
               <>
                 <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                Verify
+                {t('siteSetup.auth.verify')}
               </>
             )}
           </Button>
         </div>
         {provider.discoveryUrl && (
           <p className="mt-1 text-xs leading-4 text-gray-500">
-            Pre-filled for {provider.label}. Verify confirms it is reachable.
+            {t('siteSetup.auth.prefilled', { provider: provider.label })}
           </p>
         )}
       </div>
 
       {/* Discovery result feedback */}
       {discoveryStatus === 'success' && discoveredEndpoints && (
-        <StatusBanner tone="success" title={`Discovery successful${discoveredEndpoints.issuer ? ` — issuer ${discoveredEndpoints.issuer}` : ''}`} role="status">
+        <StatusBanner
+          tone="success"
+          title={discoveredEndpoints.issuer
+            ? t('siteSetup.auth.discoverySuccessIssuer', { issuer: discoveredEndpoints.issuer })
+            : t('siteSetup.auth.discoverySuccess')}
+          role="status"
+        >
           <dl className="space-y-1 text-xs leading-4 text-gray-400">
             <div className="flex flex-wrap gap-x-2">
-              <dt className="text-gray-500">Authorization</dt>
+              <dt className="text-gray-500">{t('siteSetup.auth.discoveryAuthorization')}</dt>
               <dd className="min-w-0 break-all font-mono text-gray-300">{discoveredEndpoints.authorization_endpoint}</dd>
             </div>
             <div className="flex flex-wrap gap-x-2">
-              <dt className="text-gray-500">Token</dt>
+              <dt className="text-gray-500">{t('siteSetup.auth.discoveryToken')}</dt>
               <dd className="min-w-0 break-all font-mono text-gray-300">{discoveredEndpoints.token_endpoint}</dd>
             </div>
             {discoveredEndpoints.userinfo_endpoint && (
               <div className="flex flex-wrap gap-x-2">
-                <dt className="text-gray-500">Userinfo</dt>
+                <dt className="text-gray-500">{t('siteSetup.auth.discoveryUserinfo')}</dt>
                 <dd className="min-w-0 break-all font-mono text-gray-300">{discoveredEndpoints.userinfo_endpoint}</dd>
               </div>
             )}
@@ -428,7 +421,7 @@ function OidcDetailsSection({
       )}
 
       {discoveryStatus === 'error' && (
-        <StatusBanner tone="danger" title="Discovery failed" role="alert">
+        <StatusBanner tone="danger" title={t('siteSetup.auth.discoveryFailed')} role="alert">
           <p className="break-words">{discoveryError}</p>
         </StatusBanner>
       )}
@@ -436,38 +429,38 @@ function OidcDetailsSection({
       {/* Provider name + Scopes */}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
-          label="Provider name"
+          label={t('siteSetup.auth.providerName')}
           value={config.oidcProviderName}
           onChange={(v) => update({ oidcProviderName: v })}
           placeholder="Google, Okta, Auth0..."
-          hint="The name shown on the sign-in page"
+          hint={t('siteSetup.auth.providerNameHint')}
         />
         <Field
-          label="Scopes"
+          label={t('siteSetup.auth.scopes')}
           value={config.oidcScopes}
           onChange={(v) => update({ oidcScopes: v })}
           placeholder="openid email profile"
-          hint="Space-separated list of OIDC scopes"
+          hint={t('siteSetup.auth.scopesHint')}
         />
       </div>
 
       {/* Client ID + Secret */}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field
-          label="Client ID"
+          label={t('siteSetup.auth.clientId')}
           value={config.oidcClientId}
           onChange={(v) => update({ oidcClientId: v })}
           placeholder="your-client-id"
         />
         <Field
-          label="Client secret"
+          label={t('siteSetup.auth.clientSecret')}
           type="password"
           value={config.oidcClientSecret}
           onChange={(v) => update({ oidcClientSecret: v })}
-          placeholder={config.hasOidcSecret ? '(unchanged)' : 'your-client-secret'}
+          placeholder={config.hasOidcSecret ? t('siteSetup.auth.unchanged') : 'your-client-secret'}
           hint={
             config.hasOidcSecret
-              ? 'A secret is already configured — leave blank to keep it'
+              ? t('siteSetup.auth.secretConfigured')
               : undefined
           }
         />
@@ -476,9 +469,9 @@ function OidcDetailsSection({
       {/* Console link */}
       {provider.consoleUrl && (
         <p className="text-xs leading-4 text-gray-500">
-          Get your credentials from{' '}
+          {t('siteSetup.auth.consolePrefix')}{' '}
           <ExternalLink href={provider.consoleUrl} className={inlineLink}>
-            the {provider.label} developer console
+            {t('siteSetup.auth.consoleLink', { provider: provider.label })}
           </ExternalLink>
           .
         </p>
@@ -492,6 +485,7 @@ function OidcDetailsSection({
 // ============================================================================
 
 function OidcCallbackUrls({ config }: { config: SetupConfig }) {
+  const { t } = useT()
   const localBase = `http://localhost:${config.serverPort}`
   const publicBase = config.publicUrl.trim().replace(/\/+$/, '')
   const hasPublicUrl = !!publicBase
@@ -501,41 +495,43 @@ function OidcCallbackUrls({ config }: { config: SetupConfig }) {
       <div className="flex items-start gap-3">
         <Info className="mt-0.5 h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
         <div className="min-w-0 flex-1 space-y-3">
-          <p className="text-sm font-medium text-gray-200">Give these addresses to your provider</p>
+          <p className="text-sm font-medium text-gray-200">{t('siteSetup.auth.callbackTitle')}</p>
           <p className="text-xs leading-4 text-gray-400">
-            Add them in your provider&apos;s console. The redirect URI must match exactly.
+            {t('siteSetup.auth.callbackHint')}
           </p>
 
           {/* When both public + local: show both as required */}
           {hasPublicUrl ? (
             <>
               <p className="text-xs leading-4 text-amber-400">
-                Register <strong>both</strong> redirect URIs below: one for the desktop app, one for the web address.
+                {t('siteSetup.auth.bothBefore')}{' '}
+                <strong>{t('siteSetup.auth.bothEmphasis')}</strong>{' '}
+                {t('siteSetup.auth.bothAfter')}
               </p>
               <div className="space-y-2">
                 <CopyableUrl
-                  label="Redirect URI (web)"
+                  label={t('siteSetup.auth.redirectWeb')}
                   value={`${publicBase}/auth/callback`}
                 />
                 <CopyableUrl
-                  label="Redirect URI (desktop)"
+                  label={t('siteSetup.auth.redirectDesktop')}
                   value={`${localBase}/auth/callback`}
                 />
               </div>
               <div className="space-y-2 border-t border-white/[0.06] pt-3">
-                <p className="text-xs leading-4 text-gray-500">Authorized JavaScript origins:</p>
-                <CopyableUrl label="JavaScript origin (web)" value={publicBase} />
-                <CopyableUrl label="JavaScript origin (desktop)" value={localBase} />
+                <p className="text-xs leading-4 text-gray-500">{t('siteSetup.auth.originsIntro')}</p>
+                <CopyableUrl label={t('siteSetup.auth.originWeb')} value={publicBase} />
+                <CopyableUrl label={t('siteSetup.auth.originDesktop')} value={localBase} />
               </div>
             </>
           ) : (
             <div className="space-y-2">
               <CopyableUrl
-                label="Authorized redirect URI"
+                label={t('siteSetup.auth.redirectSingle')}
                 value={`${localBase}/auth/callback`}
               />
               <CopyableUrl
-                label="Authorized JavaScript origin"
+                label={t('siteSetup.auth.originSingle')}
                 value={localBase}
               />
             </div>
@@ -544,20 +540,20 @@ function OidcCallbackUrls({ config }: { config: SetupConfig }) {
           {/* Provider-specific help */}
           {config.oidcProvider === 'google' && (
             <p className="text-xs leading-4 text-gray-500">
-              For Google: open{' '}
+              {t('siteSetup.auth.googlePrefix')}{' '}
               <ExternalLink href="https://console.cloud.google.com/apis/credentials" className={inlineLink}>
                 console.cloud.google.com/apis/credentials
               </ExternalLink>
-              , edit your OAuth 2.0 Client ID and paste these addresses.
+              {t('siteSetup.auth.googleSuffix')}
             </p>
           )}
           {config.oidcProvider === 'microsoft' && (
             <p className="text-xs leading-4 text-gray-500">
-              For Microsoft: open{' '}
+              {t('siteSetup.auth.microsoftPrefix')}{' '}
               <ExternalLink href="https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps" className={inlineLink}>
-                Azure Portal, App registrations
+                {t('siteSetup.auth.microsoftLink')}
               </ExternalLink>
-              , select your app, then Authentication, and add the redirect URI.
+              {t('siteSetup.auth.microsoftSuffix')}
             </p>
           )}
         </div>
@@ -577,6 +573,7 @@ function AccessControlSection({
   config: SetupConfig
   update: (patch: Partial<SetupConfig>) => void
 }) {
+  const { t } = useT()
   const emails = config.allowedEmails
     .split('\n')
     .map((e) => e.trim())
@@ -586,10 +583,12 @@ function AccessControlSection({
   // Build dynamic summary
   const summaryParts: string[] = []
   if (emails.length > 0) {
-    summaryParts.push(`${emails.length} ${emails.length > 1 ? 'people' : 'person'} allowed`)
+    summaryParts.push(
+      t(emails.length > 1 ? 'siteSetup.auth.peopleMany' : 'siteSetup.auth.peopleOne', { count: emails.length }),
+    )
   }
   if (domain) {
-    summaryParts.push(`every @${domain} address`)
+    summaryParts.push(t('siteSetup.auth.domainAllowed', { domain }))
   }
   const summary = summaryParts.length > 0 ? summaryParts.join(' + ') : null
 
@@ -599,26 +598,26 @@ function AccessControlSection({
       <div className="flex items-start gap-3">
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-gray-500" aria-hidden="true" />
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-gray-200">Who can use this instance</h3>
+          <h3 className="text-sm font-semibold text-gray-200">{t('siteSetup.auth.accessTitle')}</h3>
           <p className="mt-1 text-xs leading-4 text-gray-500">
-            By default, anyone who signs in gets access. Limit it to an email domain, to specific addresses, or both.
+            {t('siteSetup.auth.accessHint')}
           </p>
         </div>
       </div>
 
       {/* Domain field with dynamic preview */}
       <Field
-        label="Allowed email domain"
+        label={t('siteSetup.auth.allowedDomain')}
         value={config.allowedEmailDomain}
         onChange={(v) => update({ allowedEmailDomain: v })}
         placeholder="example.com"
-        hint={domain ? `Only @${domain} addresses will be able to sign in.` : undefined}
+        hint={domain ? t('siteSetup.auth.allowedDomainHint', { domain }) : undefined}
       />
 
       {/* Email chips input */}
       <div>
         <label htmlFor="setup-allowed-emails" className="mb-1 block text-sm font-medium text-gray-300">
-          Individual emails
+          {t('siteSetup.auth.individualEmails')}
         </label>
         <EmailChipsInput
           inputId="setup-allowed-emails"
@@ -627,7 +626,9 @@ function AccessControlSection({
         />
         {domain && emails.length > 0 && (
           <p className="mt-1.5 text-xs leading-4 text-gray-500">
-            A person is allowed if their email matches the domain <span className="font-medium text-gray-400">or</span> is in the list above.
+            {t('siteSetup.auth.ruleBefore')}{' '}
+            <span className="font-medium text-gray-400">{t('siteSetup.auth.ruleOr')}</span>{' '}
+            {t('siteSetup.auth.ruleAfter')}
           </p>
         )}
       </div>
@@ -636,7 +637,7 @@ function AccessControlSection({
       <p className="flex items-start gap-1.5 text-xs leading-4 text-gray-400">
         <ShieldCheck className={`mt-px h-3.5 w-3.5 shrink-0 ${summary ? 'text-indigo-300' : 'text-gray-600'}`} aria-hidden="true" />
         <span className="min-w-0 break-words">
-          {summary ? `Access restricted: ${summary}` : 'No restriction: everyone who signs in has access'}
+          {summary ? t('siteSetup.auth.restricted', { summary }) : t('siteSetup.auth.noRestriction')}
         </span>
       </p>
     </div>
@@ -656,6 +657,7 @@ function EmailChipsInput({
   emails: string[]
   onChange: (emails: string[]) => void
 }) {
+  const { t } = useT()
   const [inputValue, setInputValue] = useState('')
   const [error, setError] = useState('')
 
@@ -665,13 +667,13 @@ function EmailChipsInput({
 
     // Basic email validation
     if (!email.includes('@') || !email.includes('.')) {
-      setError('Invalid email address')
+      setError(t('siteSetup.auth.invalidEmail'))
       return
     }
 
     // Duplicate check
     if (emails.includes(email)) {
-      setError('Email already added')
+      setError(t('siteSetup.auth.duplicateEmail'))
       return
     }
 
@@ -722,7 +724,7 @@ function EmailChipsInput({
               <button
                 type="button"
                 onClick={() => removeEmail(i)}
-                aria-label={`Remove ${email}`}
+                aria-label={t('siteSetup.auth.removeEmail', { email })}
                 className={`ml-0.5 rounded p-1 text-gray-500 transition-colors hover:bg-white/[0.1] hover:text-gray-300 ${focusRing}`}
               >
                 <X className="h-3 w-3" aria-hidden="true" />
@@ -742,7 +744,7 @@ function EmailChipsInput({
             onBlur={() => {
               if (inputValue.trim()) addEmail(inputValue)
             }}
-            placeholder={emails.length === 0 ? 'alice@gmail.com, bob@company.org...' : 'Add email...'}
+            placeholder={emails.length === 0 ? 'alice@gmail.com, bob@company.org...' : t('siteSetup.auth.addEmailPlaceholder')}
             className="min-w-[120px] flex-1 border-none bg-transparent px-1 py-0.5 text-base text-gray-100 placeholder-gray-500 outline-none md:text-sm"
           />
         </div>
@@ -754,7 +756,7 @@ function EmailChipsInput({
       )}
       {!error && (
         <p className="mt-1 text-xs leading-4 text-gray-500">
-          Type an email and press Enter. Paste a comma- or newline-separated list to add several.
+          {t('siteSetup.auth.chipsHelp')}
         </p>
       )}
     </div>
@@ -766,6 +768,7 @@ function EmailChipsInput({
 // ============================================================================
 
 function CopyableUrl({ label, value }: { label: string; value: string }) {
+  const { t } = useT()
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
@@ -791,8 +794,8 @@ function CopyableUrl({ label, value }: { label: string; value: string }) {
           size="sm"
           flat
           onClick={handleCopy}
-          aria-label={copied ? `Copied ${label}` : `Copy ${label}`}
-          title="Copy to clipboard"
+          aria-label={copied ? t('siteSetup.auth.copied', { label }) : t('siteSetup.auth.copy', { label })}
+          title={t('siteSetup.auth.copyTitle')}
           className="btn-icon size-9 p-0! md:size-8"
         >
           {copied ? (

@@ -11,6 +11,7 @@ import { GitBranch, RefreshCw, Loader2 } from 'lucide-react'
 import { useDiscussionTree } from '@/hooks/useDiscussionTree'
 import { Button } from '@/components/ui'
 import { glassFlat, iconButton } from '@/components/ui/classes'
+import { useT } from '@/i18n'
 import { DiscussionNodeRow } from './DiscussionNode'
 import { InlineConversationPanel } from './InlineConversationPanel'
 import { SubtreeBreakdown } from './SubtreeBreakdown'
@@ -27,13 +28,14 @@ interface DiscussionTreeViewProps {
 }
 
 export function DiscussionTreeView({ sessionId, onNavigate }: DiscussionTreeViewProps) {
+  const { t } = useT()
   const { tree, isLoading, error, refresh } = useDiscussionTree(sessionId)
 
   if (isLoading && !tree) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
-        <span className="ml-2 text-sm text-gray-400">Chargement de l'arbre de discussions…</span>
+        <span className="ml-2 text-sm text-gray-400">{t('siteChat.discussions.loadingTree')}</span>
       </div>
     )
   }
@@ -44,7 +46,7 @@ export function DiscussionTreeView({ sessionId, onNavigate }: DiscussionTreeView
         <p className="text-sm text-red-400 mb-3">{error}</p>
         <Button size="sm" variant="secondary" onClick={refresh} className="gap-1.5">
           <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-          Réessayer
+          {t('siteChat.discussions.retry')}
         </Button>
       </div>
     )
@@ -79,8 +81,10 @@ export function DiscussionForestView({
   onNavigate,
   renderActions,
   headerExtra,
-  title = 'Arbre de discussions',
+  title,
 }: DiscussionForestViewProps) {
+  const { t } = useT()
+  const heading = title ?? t('siteChat.discussions.treeTitle')
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const selectedTitle = selectedNodeId ? roots.map((r) => findNodeTitle(r, selectedNodeId)).find(Boolean) ?? null : null
 
@@ -98,15 +102,15 @@ export function DiscussionForestView({
       <div className="flex items-center justify-between px-1 pb-3 flex-shrink-0">
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <GitBranch className="w-4 h-4 text-gray-400" aria-hidden="true" />
-          <span className="font-medium text-gray-300">{title}</span>
+          <span className="font-medium text-gray-300">{heading}</span>
           {headerExtra}
         </div>
         <button
           onClick={onRefresh}
           type="button"
           className={`${iconButton('ghost', 'w-9 h-9 md:w-8 md:h-8')} ${glassFlat} shrink-0`}
-          aria-label="Actualiser l'arbre"
-          title="Actualiser l'arbre"
+          aria-label={t('siteChat.discussions.refreshTree')}
+          title={t('siteChat.discussions.refreshTree')}
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
         </button>
@@ -141,7 +145,7 @@ export function DiscussionForestView({
           <div className="w-full h-[60dvh] @xl:h-auto @xl:w-1/2 flex-shrink-0 border-t @xl:border-t-0 @xl:border-l border-border-subtle @xl:ml-2 mt-2 @xl:mt-0">
             <InlineConversationPanel
               sessionId={selectedNodeId}
-              title={selectedTitle || 'Session'}
+              title={selectedTitle || t('siteChat.discussions.sessionFallback')}
               onClose={() => setSelectedNodeId(null)}
             />
           </div>

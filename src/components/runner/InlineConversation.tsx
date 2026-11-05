@@ -29,6 +29,7 @@ import { useConversationWs } from '@/hooks/runner'
 import { ChatMessageBubble } from '@/components/chat/ChatMessageBubble'
 import { WsStatusIndicator } from './WsStatusIndicator'
 import { formatElapsed, agentStateMeta } from './shared'
+import { useT } from '@/i18n'
 
 // ---------------------------------------------------------------------------
 // Props
@@ -61,6 +62,7 @@ export function InlineConversation({
   elapsedSecs,
   onClose,
 }: InlineConversationProps) {
+  const { t } = useT()
   const { messages, status } = useConversationWs(sessionId)
   const scrollRef = useRef<HTMLDivElement>(null)
   const wsSlug = useWorkspaceSlug()
@@ -177,7 +179,7 @@ export function InlineConversation({
             type="button"
             onClick={() => setCollapsed(c => !c)}
             aria-expanded={!collapsed}
-            aria-label={collapsed ? 'Expand conversation' : 'Collapse conversation'}
+            aria-label={collapsed ? t('siteOps.inlineConversation.expandConv') : t('siteOps.inlineConversation.collapseConv')}
             className={headerIcon}
           >
             <ChevronDown
@@ -208,8 +210,8 @@ export function InlineConversation({
               type="button"
               onClick={handleStop}
               disabled={stopping}
-              aria-label="Stop session"
-              title="Stop session"
+              aria-label={t('siteOps.inlineConversation.stopSession')}
+              title={t('siteOps.inlineConversation.stopSession')}
               className={`${iconButton('danger', 'size-9 md:size-8')} ${glassFlat}`}
             >
               {stopping ? <Loader2 className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Square className="w-3.5 h-3.5" aria-hidden="true" />}
@@ -218,12 +220,12 @@ export function InlineConversation({
           <Link
             to={workspacePath(wsSlug, `/chat/${sessionId}`)}
             className={headerIcon}
-            aria-label="Open the full conversation"
-            title="Open the full conversation"
+            aria-label={t('siteOps.inlineConversation.openFull')}
+            title={t('siteOps.inlineConversation.openFull')}
           >
             <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
           </Link>
-          <button type="button" onClick={onClose} aria-label="Close conversation" title="Close conversation" className={headerIcon}>
+          <button type="button" onClick={onClose} aria-label={t('siteOps.inlineConversation.closeConv')} title={t('siteOps.inlineConversation.closeConv')} className={headerIcon}>
             <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
@@ -247,7 +249,7 @@ export function InlineConversation({
           {messages.length === 0 ? (
             <div className="flex items-center justify-center py-8">
               <p className="text-sm text-gray-500">
-                {status === 'connected' ? 'Waiting for messages…' : status === 'connecting' ? 'Connecting to the assistant…' : 'No messages yet'}
+                {status === 'connected' ? t('siteOps.inlineConversation.waiting') : status === 'connecting' ? t('siteOps.inlineConversation.connecting') : t('siteOps.inlineConversation.noMessages')}
               </p>
             </div>
           ) : (
@@ -264,9 +266,9 @@ export function InlineConversation({
 
         {/* Scroll-to-bottom FAB */}
         {showScrollBtn && (
-          <Button size="sm" variant="secondary" onClick={scrollToBottom} className="absolute bottom-3 right-4 z-10 gap-1.5 text-xs" title="Scroll to bottom">
+          <Button size="sm" variant="secondary" onClick={scrollToBottom} className="absolute bottom-3 right-4 z-10 gap-1.5 text-xs" title={t('siteOps.inlineConversation.scrollBottom')}>
             <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
-            New messages
+            {t('siteOps.inlineConversation.newMessages')}
           </Button>
         )}
       </div>
@@ -278,7 +280,7 @@ export function InlineConversation({
           className="h-2 cursor-row-resize flex items-center justify-center
             border-t border-indigo-500/10 bg-indigo-500/[0.02]
             hover:bg-indigo-500/[0.06] transition-colors group"
-          title="Drag to resize"
+          title={t('siteOps.inlineConversation.dragResize')}
         >
           <div className="w-8 h-0.5 rounded-full bg-gray-600 group-hover:bg-gray-400 transition-colors" />
         </div>

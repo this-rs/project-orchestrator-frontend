@@ -79,6 +79,10 @@ export const OIDC_PROVIDERS: Record<OidcProvider, OidcProviderDef> = Object.from
   (Object.keys(OIDC_BASE) as OidcProvider[]).map((key) => {
     const def = {
       ...OIDC_BASE[key],
+      // Brand names stay as they are; only the generic "Custom" is a word to translate.
+      get label() {
+        return key === 'custom' ? tr('siteRest.oidc.custom') : OIDC_BASE[key].label
+      },
       get description() {
         return tr(`setupOidc.oidc.${key}.description`)
       },

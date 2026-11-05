@@ -19,7 +19,6 @@ import {
   getStatusMeta,
   getStatusOptions,
   groupBy,
-  pluralize,
 } from '@/components/ui'
 import { cohesionLevel, energyLevel, fetchAllPages, dedupeById } from '@/components/registry'
 import { PersonaBuilder } from '@/components/personas'
@@ -28,10 +27,15 @@ import { useToast, useInfiniteList, useWorkspaceSlug } from '@/hooks'
 import type { Persona, PersonaStatus, PersonaSubgraph, PaginatedResponse } from '@/types'
 import { workspacePath } from '@/utils/paths'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { useT } from '@/i18n'
+
+type Translate = ReturnType<typeof useT>['t']
+type Noun = 'file' | 'skill' | 'activation'
+/** `1 file` / `2 files`, from the `nouns` keys. */
+const count = (t: Translate, n: number, noun: Noun) => t(`siteSkills.nouns.${noun}.${n === 1 ? 'one' : 'other'}`, { count: n })
 
 // ── Options ─────────────────────────────────────────────────────────────
 
-const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('persona')]
 const STATUS_ORDER: PersonaStatus[] = ['active', 'emerging', 'dormant', 'archived']
 
 type Project = { id: string; name: string; slug: string }
@@ -51,6 +55,8 @@ export function PersonasPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const toast = useToast()
   const wsSlug = useWorkspaceSlug()
+  const { t } = useT()
+  const statusOptions = [{ value: 'all', label: t('siteSkills.common.allStatuses') }, ...getStatusOptions('persona')]
 
   // Projects of the workspace
   const [projects, setProjects] = useState<Project[]>([])
@@ -153,9 +159,9 @@ export function PersonasPage() {
     try {
       await personasApi.delete(persona.id)
       removeItems((p) => p.id === persona.id)
-      toast.success(`Persona “${persona.name}” deleted`)
+      toast.success(t('siteSkills.personas.toast.deleted', { name: persona.name }))
     } catch {
-      toast.error('Failed to delete persona')
+      toast.error(t('siteSkills.personas.toast.deleteFailed'))
     }
   }
 
@@ -163,9 +169,9 @@ export function PersonasPage() {
     try {
       const updated = await personasApi.update(persona.id, { status })
       updateItem((p) => p.id === persona.id, () => updated)
-      toast.success(`Status changed to ${getStatusMeta('persona', status).label}`)
+      toast.success(t('siteSkills.common.statusChanged', { status: getStatusMeta('persona', status).label }))
     } catch {
-      toast.error('Failed to update status')
+      toast.error(t('siteSkills.common.statusFailed'))
     }
   }
 
@@ -187,7 +193,7 @@ export function PersonasPage() {
   return (
     <PageShell
       title={NOMENCLATURE.personas.plural}
-      description="Specialist assistants, each focused on one area of your work."
+      description={t('siteSkills.personas.description')}
       intro="personas"
       count={loading || noProjects ? undefined : visible.length}
       width="wide"
@@ -195,7 +201,7 @@ export function PersonasPage() {
         !noProjects ? (
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="w-4 h-4 mr-1.5" aria-hidden="true" />
-            New persona
+            {t('siteSkills.personas.newPersona')}
           </Button>
         ) : undefined
       }
@@ -204,7 +210,7 @@ export function PersonasPage() {
           <FilterBar
             search={search}
             onSearchChange={setSearch}
-            searchPlaceholder="Search personas…"
+            searchPlaceholder={t('siteSkills.personas.searchPlaceholder')}
             activeCount={activeFilterCount}
             activeLabels={activeLabels}
             onClear={clearFilters}
@@ -212,7 +218,7 @@ export function PersonasPage() {
               <>
                 {showProjectFilter && (
                   <Select
-                    options={[{ value: 'all', label: 'All projects' }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
+                    options={[{ value: 'all', label: t('siteSkills.common.allProjects') }, ...projects.map((p) => ({ value: p.id, label: p.name }))]}
                     value={projectFilter}
                     onChange={setProjectFilter}
                     icon={<Folder className="w-3 h-3" />}
@@ -230,41 +236,35 @@ export function PersonasPage() {
       }
     >
       <div className="space-y-3">
-        <Explainer>
-          A persona is a profile handed to an assistant: the files, notes, decisions and skills it knows first, plus its
-          settings (model, budget, time limit). Each link carries a weight that grows when the persona succeeds and shrinks
-          otherwise; energy is its recent vitality, success rate the share of tasks that went well with it. A persona is
-          created by hand, built from the code (entry point, file pattern, code community) or emerges on its own; it can
-          inherit from another one (EXTENDS). Without a project it is global and serves the whole workspace.
-        </Explainer>
+        <Explainer>{t('siteSkills.personas.explainer')}</Explainer>
 
         {noProjects ? (
           <EmptyState
             icon={<Folder className="w-8 h-8" />}
-            title="No projects in this workspace"
-            description="Add a project to this workspace to manage personas."
+            title={t('siteSkills.common.noProjects')}
+            description={t('siteSkills.personas.noProjectsHint')}
           />
         ) : loading ? (
           <EntityListSkeleton rows={6} />
         ) : visible.length === 0 ? (
           isPristine ? (
             <EmptyState
-              title="No personas yet"
-              description="Create a persona to give an assistant one area of your work to specialise in."
+              title={t('siteSkills.personas.emptyTitle')}
+              description={t('siteSkills.personas.emptyHint')}
               action={
                 <Button size="sm" onClick={() => setCreateOpen(true)}>
                   <Plus className="w-4 h-4 mr-1.5" aria-hidden="true" />
-                  New persona
+                  {t('siteSkills.personas.newPersona')}
                 </Button>
               }
             />
           ) : (
             <EmptyState
-              title="No matching personas"
-              description="Try another search or clear the filters."
+              title={t('siteSkills.personas.noMatching')}
+              description={t('siteSkills.personas.noMatchingHint')}
               action={
                 <Button variant="secondary" size="sm" onClick={() => { clearFilters(); setSearch('') }}>
-                  Clear
+                  {t('siteSkills.common.clear')}
                 </Button>
               }
             />
@@ -290,7 +290,7 @@ export function PersonasPage() {
                         ? undefined
                         : persona.project_id
                           ? projectNameById[persona.project_id]
-                          : 'global'
+                          : t('siteSkills.common.global')
                     }
                     onStatusChange={(s) => handleStatusChange(persona, s)}
                     onDelete={() => handleDelete(persona)}
@@ -303,7 +303,7 @@ export function PersonasPage() {
         )}
       </div>
 
-      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="Create persona" size="lg">
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} title={t('siteSkills.personaBuilder.createTitle')} size="lg">
         <PersonaBuilder
           projects={projects}
           projectId={activeProjectId ?? projects[0]?.id ?? ''}
@@ -326,6 +326,7 @@ interface PersonaRowProps {
 }
 
 function PersonaRow({ persona, subgraph, href, projectLabel, onStatusChange, onDelete }: PersonaRowProps) {
+  const { t } = useT()
   const energy = energyLevel(persona.energy ?? 0)
   const cohesion = cohesionLevel(persona.cohesion ?? 0)
   const files = subgraph?.files ?? []
@@ -336,43 +337,43 @@ function PersonaRow({ persona, subgraph, href, projectLabel, onStatusChange, onD
       href={href}
       description={persona.description || undefined}
       muted={persona.status === 'archived'}
-      trailing={persona.last_activated ? <RelativeTime date={persona.last_activated} /> : <span>never used</span>}
+      trailing={persona.last_activated ? <RelativeTime date={persona.last_activated} /> : <span>{t('siteSkills.common.neverUsed')}</span>}
       tone={getStatusMeta('persona', persona.status).tone}
       status={[<StatusMenu key="status" kind="persona" icon status={persona.status} onChange={onStatusChange} />]}
       meta={[
         projectLabel ? (
-          <Fact key="project" icon={FolderKanban} title="Project" truncateAt="max-w-[12rem]">
+          <Fact key="project" icon={FolderKanban} title={t('siteSkills.common.project')} truncateAt="max-w-[12rem]">
             {projectLabel}
           </Fact>
         ) : null,
         <Gauge
           key="energy"
-          label="Energy"
+          label={t('siteSkills.common.energy')}
           value={persona.energy ?? 0}
           level={energy.label}
           tone={energy.tone}
-          title={`Energy ${Math.round((persona.energy ?? 0) * 100)}% — recent vitality`}
+          title={t('siteSkills.personas.energyTitle', { value: Math.round((persona.energy ?? 0) * 100) })}
         />,
         <Gauge
           key="cohesion"
-          label="Cohesion"
+          label={t('siteSkills.common.cohesion')}
           value={persona.cohesion ?? 0}
           level={cohesion.label}
           tone={cohesion.tone}
-          title={`Cohesion ${Math.round((persona.cohesion ?? 0) * 100)}%`}
+          title={t('siteSkills.personas.cohesionTitle', { value: Math.round((persona.cohesion ?? 0) * 100) })}
         />,
-        <Fact key="success" icon={CircleCheck}>{`${Math.round((persona.success_rate ?? 0) * 100)}% success`}</Fact>,
+        <Fact key="success" icon={CircleCheck}>{t('siteSkills.personas.success', { value: Math.round((persona.success_rate ?? 0) * 100) })}</Fact>,
         <Fact key="act" icon={Zap}>
-          {pluralize(persona.activation_count ?? 0, 'activation')}
+          {count(t, persona.activation_count ?? 0, 'activation')}
         </Fact>,
         subgraph ? (
           <Fact key="files" icon={FileCode}>
-            {pluralize(files.length, 'file')}
+            {count(t, files.length, 'file')}
           </Fact>
         ) : null,
         subgraph && skills > 0 ? (
           <Fact key="skills" icon={Brain}>
-            {pluralize(skills, 'skill')}
+            {count(t, skills, 'skill')}
           </Fact>
         ) : null,
       ]}
@@ -389,13 +390,13 @@ function PersonaRow({ persona, subgraph, href, projectLabel, onStatusChange, onD
       }
       actions={[
         {
-          label: 'Delete',
+          label: t('siteSkills.common.delete'),
           icon: Trash2,
           variant: 'danger',
           onClick: onDelete,
           confirm: {
-            title: `Delete “${persona.name}”?`,
-            description: 'This removes the persona and all its relations. This action cannot be undone.',
+            title: t('siteSkills.personas.deleteTitle', { name: persona.name }),
+            description: t('siteSkills.personas.deleteDescription'),
           },
         },
       ]}

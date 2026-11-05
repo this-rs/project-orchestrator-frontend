@@ -16,6 +16,7 @@
  */
 
 import { ChevronRight, Home } from 'lucide-react'
+import { useT } from '@/i18n'
 import type { RunStatus } from './RunStatusBadge'
 
 // ============================================================================
@@ -92,6 +93,7 @@ function stateColor(state: FsmState, isCurrent: boolean): string {
 // ============================================================================
 
 export function FsmBreadcrumbs(props: FsmBreadcrumbsProps) {
+  const { t } = useT()
   // ── Drill-down mode ─────────────────────────────────────────────────────
   if (props.mode === 'drill-down') {
     const { hierarchy, onNavigate, className = '' } = props
@@ -100,7 +102,7 @@ export function FsmBreadcrumbs(props: FsmBreadcrumbsProps) {
 
     return (
       <nav
-        aria-label="Protocol hierarchy"
+        aria-label={t('siteKnowledge.fsm.hierarchyAria')}
         className={`flex items-center gap-1 text-sm overflow-x-auto scrollbar-thin ${className}`}
       >
         {hierarchy.map((crumb, index) => {
@@ -151,7 +153,7 @@ export function FsmBreadcrumbs(props: FsmBreadcrumbsProps) {
   if (states.length === 0) {
     return (
       <div className={`text-xs text-gray-600 italic ${className}`}>
-        No states visited
+        {t('siteKnowledge.fsm.noStates')}
       </div>
     )
   }
@@ -159,7 +161,7 @@ export function FsmBreadcrumbs(props: FsmBreadcrumbsProps) {
   return (
     <nav
       className={`flex items-center gap-1 overflow-x-auto scrollbar-thin ${className}`}
-      aria-label="Protocol state breadcrumbs"
+      aria-label={t('siteKnowledge.fsm.statesAria')}
     >
       {states.map((state, idx) => {
         const isCurrent = state.name === currentState

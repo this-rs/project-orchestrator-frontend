@@ -93,6 +93,7 @@ function SettingsLink({ to, children }: { to: string; children: ReactNode }) {
 
 /** The command the user must run themselves, with a copy button. */
 function LoginCommand({ command }: { command: string }) {
+  const { t } = useT()
   const [copied, setCopied] = useState(false)
   const cls = useActionClass()
   const copy = useCallback(async () => {
@@ -109,9 +110,9 @@ function LoginCommand({ command }: { command: string }) {
       <code className="min-w-0 flex-1 select-all break-all rounded bg-black/40 px-2 py-1 font-mono text-[11px] text-red-50">
         {command}
       </code>
-      <button type="button" onClick={copy} className={cls} aria-label="Copy the command">
+      <button type="button" onClick={copy} className={cls} aria-label={t('siteChat.providerState.copyAria')}>
         {copied ? <Check className="h-3 w-3" aria-hidden="true" /> : <ClipboardCopy className="h-3 w-3" aria-hidden="true" />}
-        {copied ? 'Copied' : 'Copy'}
+        {copied ? t('siteChat.providerState.copied') : t('siteChat.providerState.copy')}
       </button>
     </div>
   )
@@ -124,6 +125,7 @@ type Recheck = { state: 'idle' } | { state: 'checking' } | { state: 'done'; text
  * drives a CLI login: the user runs the command, this only looks again.
  */
 function RecheckButton({ providerId, onRecovered }: { providerId?: string; onRecovered?: () => void }) {
+  const { t } = useT()
   const refresh = useRefreshProviders()
   const [recheck, setRecheck] = useState<Recheck>({ state: 'idle' })
   const actionClass = useActionClass()
@@ -135,17 +137,17 @@ function RecheckButton({ providerId, onRecovered }: { providerId?: string; onRec
       // The card must say it is over: a small line under a red "sign-in required" reads as "not seen".
       if (health?.status === 'healthy') onRecovered?.()
       const text = !health
-        ? 'Provider list reloaded.'
+        ? t('siteChat.providerState.providerListReloaded')
         : health.status === 'healthy'
-          ? 'Signed in. Send your message again.'
+          ? t('siteChat.providerState.signedIn')
           : health.status === 'auth_required'
-            ? 'Still not signed in.'
-            : `Provider status: ${healthLabel(health.status)}.`
+            ? t('siteChat.providerState.stillNotSignedIn')
+            : t('siteChat.providerState.providerStatus', { status: healthLabel(health.status) })
       setRecheck({ state: 'done', text })
     } catch {
-      setRecheck({ state: 'done', text: 'The status could not be checked.' })
+      setRecheck({ state: 'done', text: t('siteChat.providerState.statusNotChecked') })
     }
-  }, [providerId, refresh, onRecovered])
+  }, [providerId, refresh, onRecovered, t])
   return (
     <>
       <button type="button" onClick={run} disabled={recheck.state === 'checking'} className={actionClass}>
@@ -154,7 +156,7 @@ function RecheckButton({ providerId, onRecovered }: { providerId?: string; onRec
         ) : (
           <RefreshCw className="h-3 w-3" aria-hidden="true" />
         )}
-        Re-check
+        {t('siteChat.providerState.recheck')}
       </button>
       {recheck.state === 'done' && (
         <span role="status" className="text-[11px] text-red-100/90">
@@ -244,7 +246,7 @@ export function ProviderStateCard({
   let action: ReactNode = null
   switch (error.code) {
     case 'no_provider':
-      action = <SettingsLink to={PROVIDER_SETTINGS_PATH}>Open provider settings</SettingsLink>
+      action = <SettingsLink to={PROVIDER_SETTINGS_PATH}>{t('siteChat.providerState.openProviderSettings')}</SettingsLink>
       break
     case 'endpoint_not_allowed': {
       // Which consent is missing (backend #722). None: the endpoint guard refused the URL,
@@ -308,7 +310,7 @@ export function ProviderStateCard({
       action = onRetry ? (
         <LockedVaultActions fallbacks={error.fallbacks ?? []} onUnlocked={onUnlocked ?? onRetry} onPick={onRetryWith} />
       ) : (
-        <SettingsLink to={VAULT_PATH}>Unlock the vault</SettingsLink>
+        <SettingsLink to={VAULT_PATH}>{t('siteChat.providerState.unlockVault')}</SettingsLink>
       )
       break
     case 'unauthorized':
@@ -329,13 +331,13 @@ export function ProviderStateCard({
       action = <SettingsLink to={providerInstancePath(error.provider_id)}>{t('providerErrors.consent.openInstance')}</SettingsLink>
       break
     case 'provider_error':
-      action = <SettingsLink to={PROVIDER_SETTINGS_PATH}>Choose another provider</SettingsLink>
+      action = <SettingsLink to={PROVIDER_SETTINGS_PATH}>{t('siteChat.providerState.chooseOtherProvider')}</SettingsLink>
       break
     case 'engine_unavailable':
     case 'instance_not_found':
       action = onNewConversation ? (
         <button type="button" onClick={onNewConversation} className={actionClass}>
-          Start a new conversation
+          {t('siteChat.providerState.startNewConversation')}
         </button>
       ) : null
       break
@@ -343,7 +345,7 @@ export function ProviderStateCard({
       if (sandboxRefusal) {
         action = modeSwitched ? (
           <span role="status" className="text-[11px] text-red-100/90">
-            Mode « Demander » choisi. Envoyez votre message à nouveau.
+            {t('siteChat.providerState.askModeSelected')}
           </span>
         ) : (
           <button
@@ -356,7 +358,7 @@ export function ProviderStateCard({
               onRetry?.()
             }}
           >
-            Passer en mode « Demander »
+            {t('siteChat.providerState.switchToAsk')}
           </button>
         )
       }
@@ -391,7 +393,7 @@ export function ProviderStateCard({
         <div className="min-w-0 flex-1">
           <p className={`font-medium ${textPrimary}`}>
             {sandboxRefusal
-              ? 'Mode « Rock’n roll » refusé'
+              ? t('siteChat.providerState.rockRefused')
               : recovered
                 ? t('providerErrors.recovered.title')
                 : providerErrorTitle(error)}
@@ -437,7 +439,7 @@ export function ProviderStateCard({
                 (onRetry ? (
                   <button type="button" onClick={onRetry} className={actionClass}>
                     <RefreshCw className="h-3 w-3" aria-hidden="true" />
-                    Retry
+                    {t('siteChat.providerState.retry')}
                   </button>
                 ) : (
                   <span className={`text-[11px] ${textPrimary90}`}>{retryBySendingText()}</span>
@@ -452,7 +454,7 @@ export function ProviderStateCard({
             className={`inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${textSecondary} ${dismissHover}`}
           >
             <X className="h-3 w-3" aria-hidden="true" />
-            Dismiss
+            {t('siteChat.providerState.dismiss')}
           </button>
         )}
       </div>

@@ -16,7 +16,6 @@ import {
   getStatusMeta,
   getStatusOptions,
   groupByRecency,
-  pluralize,
   Button,
 } from '@/components/ui'
 import { useToast, useWorkspaceSlug } from '@/hooks'
@@ -24,14 +23,13 @@ import type { Decision, DecisionStatus } from '@/types'
 import { workspacePath } from '@/utils/paths'
 import { decisionPreview, decisionTitle } from '@/components/knowledge/noteMeta'
 import { NOMENCLATURE } from '@/constants/nomenclature'
-
-// ── Filter options ──────────────────────────────────────────────────────
-
-const statusOptions = [{ value: 'all', label: 'All statuses' }, ...getStatusOptions('decision')]
+import { useT } from '@/i18n'
 
 // ── Main page ───────────────────────────────────────────────────────────
 
 export function DecisionsPage() {
+  const { t } = useT()
+  const statusOptions = [{ value: 'all', label: t('siteKnowledge.shared.allStatuses') }, ...getStatusOptions('decision')]
   const [statusFilter, setStatusFilter] = useState<DecisionStatus | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [decisions, setDecisions] = useState<Decision[]>([])
@@ -75,13 +73,13 @@ export function DecisionsPage() {
         setDecisions(results)
         initialLoadDone.current = true
       } catch {
-        toast.error('Failed to load decisions')
+        toast.error(t('siteKnowledge.decisions.loadFailed'))
         setDecisions([])
       } finally {
         setLoading(false)
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast and t are stable (Jotai setter, provider)
     [projectSlug, wsSlug],
   )
 
@@ -120,16 +118,16 @@ export function DecisionsPage() {
   const handleDelete = async (decision: Decision) => {
     await decisionsApi.delete(decision.id)
     setDecisions((prev) => prev.filter((d) => d.id !== decision.id))
-    toast.success('Decision deleted')
+    toast.success(t('siteKnowledge.decisions.deleted'))
   }
 
   const handleStatusChange = async (decision: Decision, newStatus: DecisionStatus) => {
     try {
       await decisionsApi.update(decision.id, { status: newStatus })
       setDecisions((prev) => prev.map((d) => (d.id === decision.id ? { ...d, status: newStatus } : d)))
-      toast.success(`Status changed to ${getStatusMeta('decision', newStatus).label}`)
+      toast.success(t('siteKnowledge.decisions.statusChanged', { status: getStatusMeta('decision', newStatus).label }))
     } catch {
-      toast.error('Failed to update status')
+      toast.error(t('siteKnowledge.decisions.statusFailed'))
     }
   }
 
@@ -146,7 +144,7 @@ export function DecisionsPage() {
         <FilterBar
           search={searchQuery}
           onSearchChange={handleSearchChange}
-          searchPlaceholder="Search decisions…"
+          searchPlaceholder={t('siteKnowledge.decisions.searchPlaceholder')}
           activeCount={activeFilterCount}
           activeLabels={activeLabels}
           onClear={clearFilters}
@@ -155,7 +153,7 @@ export function DecisionsPage() {
               {showProjectFilter && (
                 <Select
                   options={[
-                    { value: 'all', label: 'All projects' },
+                    { value: 'all', label: t('siteKnowledge.shared.allProjects') },
                     ...projects.map((p) => ({ value: p.slug, label: p.name })),
                   ]}
                   value={selectedProject}
@@ -181,21 +179,21 @@ export function DecisionsPage() {
           // assistant at work), so the one action this screen can offer is to go there.
           <EmptyState
             size="page"
-            title="No decisions yet"
-            description="A decision is a choice that was made, with its reason and the alternatives set aside. Assistants record them while they work; you can also add one from a task's page."
+            title={t('siteKnowledge.decisions.emptyTitle')}
+            description={t('siteKnowledge.decisions.emptyDescription')}
             action={
               <Button size="sm" onClick={() => navigate(workspacePath(wsSlug, '/tasks'))}>
-                Open tasks
+                {t('siteKnowledge.decisions.openTasks')}
               </Button>
             }
           />
         ) : (
           <EmptyState
-            title="No matching decisions"
-            description="Try adjusting your search query or filters."
+            title={t('siteKnowledge.decisions.noMatchTitle')}
+            description={t('siteKnowledge.decisions.noMatchDescription')}
             action={
               <Button size="sm" variant="secondary" onClick={() => { clearFilters(); setSearchQuery('') }}>
-                Clear
+                {t('siteKnowledge.shared.clear')}
               </Button>
             }
           />
@@ -231,6 +229,7 @@ interface DecisionRowProps {
 }
 
 function DecisionRow({ decision, wsSlug, onStatusChange, onDelete }: DecisionRowProps) {
+  const { t } = useT()
   const alternatives = decision.alternatives.length
   return (
     <EntityRow
@@ -244,21 +243,25 @@ function DecisionRow({ decision, wsSlug, onStatusChange, onDelete }: DecisionRow
       status={[<StatusMenu key="status" kind="decision" icon status={decision.status} onChange={onStatusChange} />]}
       meta={[
         decision.chosen_option ? (
-          <Fact key="chosen" icon={CheckCircle2} title={`Chosen: ${decision.chosen_option}`} truncateAt="max-w-[16rem]">
+          <Fact key="chosen" icon={CheckCircle2} title={t('siteKnowledge.decisions.chosen', { option: decision.chosen_option })} truncateAt="max-w-[16rem]">
             {decision.chosen_option}
           </Fact>
         ) : null,
-        alternatives > 0 ? pluralize(alternatives, 'alternative') : null,
+        alternatives > 0
+          ? alternatives === 1
+            ? t('siteKnowledge.decisions.alternatives.one', { n: 1 })
+            : t('siteKnowledge.decisions.alternatives.other', { n: alternatives })
+          : null,
       ]}
       actions={[
         {
-          label: 'Delete',
+          label: t('siteKnowledge.shared.delete'),
           icon: Trash2,
           variant: 'danger',
           onClick: onDelete,
           confirm: {
-            title: 'Delete decision?',
-            description: 'Permanently delete this decision? This cannot be undone.',
+            title: t('siteKnowledge.decisions.deleteTitle'),
+            description: t('siteKnowledge.decisions.deleteDescription'),
           },
         },
       ]}

@@ -30,7 +30,6 @@ import {
   formatAbsolute,
   getStatusMeta,
   inlineLink,
-  pluralize,
 } from '@/components/ui'
 import { Explainer } from '@/components/protocols/Explainer'
 import { ProposalLifecycleLine } from '@/components/protocols/ProposalLifecycleLine'
@@ -49,6 +48,7 @@ import { useConfirmDialog, useSectionObserver, useToast, useWorkspaceSlug } from
 import { workspacePath } from '@/utils/paths'
 import type { Rfc, RfcAvailableTransition } from '@/types/protocol'
 import { NOMENCLATURE } from '@/constants/nomenclature'
+import { activeTranslator, useT } from '@/i18n'
 
 // ---------------------------------------------------------------------------
 // Component
@@ -59,6 +59,7 @@ export function RfcDetailPage() {
   const wsSlug = useWorkspaceSlug()
   const toast = useToast()
   const confirm = useConfirmDialog()
+  const { t } = useT()
 
   const [rfc, setRfc] = useState<Rfc | null>(null)
   const [loading, setLoading] = useState(true)
@@ -72,7 +73,7 @@ export function RfcDetailPage() {
     try {
       setRfc(await rfcApi.get(rfcId))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load this proposal')
+      setError(err instanceof Error ? err.message : activeTranslator().t('siteKnowledge.rfc.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -90,14 +91,19 @@ export function RfcDetailPage() {
       try {
         const updated = await rfcApi.transition(rfcId, trigger)
         setRfc(updated)
-        toast.success(`${formatTrigger(trigger)}: ${getStatusMeta('rfc', rfcState(updated)).label}`)
+        toast.success(
+          t('siteKnowledge.rfc.transitionDone', {
+            transition: formatTrigger(trigger),
+            state: getStatusMeta('rfc', rfcState(updated)).label,
+          }),
+        )
       } catch (err) {
-        toast.error(apiErrorMessage(err, `Failed to fire "${trigger}"`))
+        toast.error(apiErrorMessage(err, t('siteKnowledge.rfc.fireFailed', { trigger })))
       } finally {
         setTransitioning(null)
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable (Jotai setter)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast and t are stable for the session
     [rfcId],
   )
 
@@ -114,9 +120,9 @@ export function RfcDetailPage() {
   const copy = async (text: string, what: string) => {
     try {
       await navigator.clipboard.writeText(text)
-      toast.success(`${what} copied`)
+      toast.success(t('siteKnowledge.rfc.copied', { what }))
     } catch {
-      toast.error('Failed to copy to clipboard')
+      toast.error(t('siteKnowledge.shared.copyFailed'))
     }
   }
 
@@ -135,7 +141,7 @@ export function RfcDetailPage() {
       else lines.push(`## ${section.title}`, '', section.content)
       lines.push('')
     }
-    void copy(lines.join('\n'), 'Proposal (Markdown)')
+    void copy(lines.join('\n'), t('siteKnowledge.rfc.whatMarkdown'))
   }
 
   // Quick-jump nav only for long documents (≥ 4 sections)
@@ -158,7 +164,7 @@ export function RfcDetailPage() {
   if (error || !rfc) {
     return (
       <PageContainer width="wide">
-        <ErrorState title="Could not load the proposal" description={error || 'It may have been deleted, or the link is wrong.'} onRetry={fetchRfc} />
+        <ErrorState title={t('siteKnowledge.rfc.loadFailedTitle')} description={error || t('siteKnowledge.shared.notFoundHint')} onRetry={fetchRfc} />
       </PageContainer>
     )
   }
@@ -170,25 +176,25 @@ export function RfcDetailPage() {
   const others = transitions.filter((t) => t !== primary)
   const isSingleContent = rfc.sections.length === 1 && rfc.sections[0].title === 'Content'
   const visibleTags = rfc.tags.filter((t) => !t.startsWith('rfc-'))
-  const importanceLabel = `${getStatusMeta('importance', rfc.importance).label} importance`
+  const importanceLabel = t('siteKnowledge.rfc.importanceLabel', { label: getStatusMeta('importance', rfc.importance).label })
 
   // Closing a proposal is the one destructive gesture here: red glass, and it asks first (`request`).
-  const transitionButton = (t: RfcAvailableTransition, variant: 'primary' | 'secondary') => {
-    const Icon = triggerIcon(t.trigger)
-    const busy = transitioning === t.trigger
+  const transitionButton = (tr: RfcAvailableTransition, variant: 'primary' | 'secondary') => {
+    const Icon = triggerIcon(tr.trigger)
+    const busy = transitioning === tr.trigger
     return (
       <Button
-        key={t.trigger}
+        key={tr.trigger}
         size="sm"
-        variant={isDestructiveTrigger(t.trigger) ? 'danger' : variant}
-        onClick={() => request(t)}
+        variant={isDestructiveTrigger(tr.trigger) ? 'danger' : variant}
+        onClick={() => request(tr)}
         loading={busy}
         disabled={!!transitioning && !busy}
         className="gap-1.5"
       >
         {!busy && <Icon className="w-3.5 h-3.5" aria-hidden="true" />}
-        {formatTrigger(t.trigger)}
-        <span className="text-xs font-normal opacity-70">→ {getStatusMeta('rfc', t.target_state).label}</span>
+        {formatTrigger(tr.trigger)}
+        <span className="text-xs font-normal opacity-70">{t('siteKnowledge.rfc.targetState', { state: getStatusMeta('rfc', tr.target_state).label })}</span>
       </Button>
     )
   }
@@ -209,27 +215,27 @@ export function RfcDetailPage() {
         status={<StatusText kind="rfc" status={state} />}
         meta={[
           <StatusText key="imp" kind="importance" status={rfc.importance} dot={false} label={importanceLabel} />,
-          <RelativeTime key="c" date={rfc.created_at} prefix="created " />,
-          rfc.updated_at ? <RelativeTime key="u" date={rfc.updated_at} prefix="updated " /> : null,
-          pluralize(rfc.sections.length, 'section'),
+          <RelativeTime key="c" date={rfc.created_at} prefix={`${t('siteKnowledge.rfc.createdPrefix')} `} />,
+          rfc.updated_at ? <RelativeTime key="u" date={rfc.updated_at} prefix={`${t('siteKnowledge.rfc.updatedPrefix')} `} /> : null,
+          rfc.sections.length === 1
+            ? t('siteKnowledge.rfc.section.one', { n: 1 })
+            : t('siteKnowledge.rfc.section.other', { n: rfc.sections.length }),
         ]}
         actions={primary ? transitionButton(primary, 'primary') : undefined}
         overflowActions={[
-          { label: 'Copy as Markdown', icon: Copy, onClick: copyMarkdown },
-          { label: 'Copy ID', icon: Hash, onClick: () => copy(rfc.id, 'Proposal ID') },
+          { label: t('siteKnowledge.rfc.copyMarkdown'), icon: Copy, onClick: copyMarkdown },
+          { label: t('siteKnowledge.shared.copyId'), icon: Hash, onClick: () => copy(rfc.id, t('siteKnowledge.rfc.whatId')) },
         ]}
       />
 
       {/* ── Lifecycle ─────────────────────────────────────────────────── */}
-      <Section title="Lifecycle" description="A proposal puts a change up for review before it is decided.">
+      <Section title={t('siteKnowledge.rfc.lifecycle')} description={t('siteKnowledge.rfc.lifecycleDescription')}>
         <div className="space-y-3">
           <ProposalLifecycleLine status={state} />
-          <Explainer>
-            “Revise” and “Replan” send it back to a previous step; “Reject” and “Supersede” close it for good.
-          </Explainer>
+          <Explainer>{t('siteKnowledge.rfc.lifecycleExplain')}</Explainer>
           {transitions.length === 0 ? (
             state !== 'implemented' && state !== 'rejected' && state !== 'superseded' ? (
-              <p className="text-sm text-gray-400">No step is available from this state.</p>
+              <p className="text-sm text-gray-400">{t('siteKnowledge.rfc.noStep')}</p>
             ) : null
           ) : others.length > 0 ? (
             <div className="flex flex-wrap gap-2">{others.map((t) => transitionButton(t, 'secondary'))}</div>
@@ -240,7 +246,7 @@ export function RfcDetailPage() {
       {/* ── Content ───────────────────────────────────────────────────── */}
       {navSections.length > 0 && <SectionNav sections={navSections} activeSection={activeSection} />}
       {isSingleContent ? (
-        <Section title="Content">
+        <Section title={t('siteKnowledge.rfc.content')}>
           <div className="text-sm text-gray-300">
             <CollapsibleMarkdown content={rfc.sections[0].content} maxHeight={600} />
           </div>
@@ -256,30 +262,30 @@ export function RfcDetailPage() {
       )}
 
       {/* ── Details ───────────────────────────────────────────────────── */}
-      <Section title="Details">
+      <Section title={t('siteKnowledge.rfc.details')}>
         <Facts
           items={[
-            { label: 'State', value: <StatusText kind="rfc" status={state} /> },
-            { label: 'Importance', value: <StatusText kind="importance" status={rfc.importance} /> },
-            { label: 'Created', value: formatAbsolute(rfc.created_at) },
-            { label: 'Updated', value: rfc.updated_at ? formatAbsolute(rfc.updated_at) : null },
-            { label: 'Author', value: rfc.created_by },
-            { label: 'Sections', value: String(rfc.sections.length) },
+            { label: t('siteKnowledge.rfc.state'), value: <StatusText kind="rfc" status={state} /> },
+            { label: t('siteKnowledge.rfc.importance'), value: <StatusText kind="importance" status={rfc.importance} /> },
+            { label: t('siteKnowledge.rfc.created'), value: formatAbsolute(rfc.created_at) },
+            { label: t('siteKnowledge.rfc.updated'), value: rfc.updated_at ? formatAbsolute(rfc.updated_at) : null },
+            { label: t('siteKnowledge.rfc.author'), value: rfc.created_by },
+            { label: t('siteKnowledge.rfc.sections'), value: String(rfc.sections.length) },
             {
-              label: 'Protocol run',
+              label: t('siteKnowledge.rfc.protocolRun'),
               value: rfc.protocol_run_id ? (
                 <Link to={workspacePath(wsSlug, '/protocols')} className={`font-mono text-xs ${inlineLink}`}>
                   {rfc.protocol_run_id.slice(0, 8)} →
                 </Link>
               ) : (
-                <ToneText tone="warning" icon label="Not linked" />
+                <ToneText tone="warning" icon label={t('siteKnowledge.rfc.notLinked')} />
               ),
             },
-            { label: 'ID', value: <span className="font-mono text-xs break-all">{rfc.id}</span> },
+            { label: t('siteKnowledge.rfc.idLabel'), value: <span className="font-mono text-xs break-all">{rfc.id}</span> },
           ]}
         />
         {visibleTags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Tags">
+          <div className="mt-3 flex flex-wrap gap-1.5" aria-label={t('siteKnowledge.rfc.tagsAria')}>
             {visibleTags.map((tag) => (
               <span key={tag} className="rounded border border-white/[0.08] px-1.5 text-[11px] text-gray-400">
                 #{tag}
