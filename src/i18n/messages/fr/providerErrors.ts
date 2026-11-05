@@ -83,6 +83,8 @@ export default {
     unsupported: 'Ce provider ne prend pas en charge ce qui a été demandé.',
     no_provider: 'Aucune instance de provider n\'est en bonne santé et autorisée pour ce projet : impossible de démarrer une conversation. Ajoutez-en une ou réparez-en une dans les réglages des providers.',
     auth_required: 'Ce provider demande que vous vous connectiez. Lancez la commande ci-dessous dans un terminal, puis revérifiez. Project Orchestrator ne se connecte pas à votre place.',
+    auth_required_vault: "La clé de ce provider n’est pas lisible : elle est absente du coffre, ou son accord à cette instance n’existe pas ou a expiré (un accord a une durée limitée). Suivez les étapes ci-dessous, puis revérifiez.",
+    auth_required_env: "Ce provider lit sa clé dans la variable d’environnement {variable} du serveur, qui n’est pas définie. Définissez-la sur le serveur, redémarrez-le, puis revérifiez.",
     credentials_locked: 'L\'identifiant de ce provider est dans le coffre, et le coffre est verrouillé. Déverrouillez-le pour continuer. Il n\'y a pas de repli sur un autre provider.',
     credentialsLockedAuto: "Auto routerait vers des providers dont la clé est dans le coffre, et le coffre est verrouillé. Déverrouillez-le pour envoyer votre message.",
     credentialsLockedAutoFallbacks: "Auto routerait vers des providers dont la clé est dans le coffre, et le coffre est verrouillé. Déverrouillez-le pour envoyer votre message, ou continuez sur un modèle qui n'en a pas besoin.",
@@ -131,6 +133,19 @@ export default {
     endpointNotAllowedNoProject: "Les conversations hors projet n’ont pas été autorisées à envoyer leur contenu {where}. Rien n’a été envoyé.",
   },
   card: { provider: "Fournisseur : {provider}" },
+  authSteps: {
+    vaultCheckKnown: "Vérifiez que la clé « {secret} » est dans le coffre.",
+    vaultCheck: "Vérifiez que la clé de ce provider est dans le coffre.",
+    openVault: "Ouvrir le coffre",
+    grant: "Accordez de nouveau la clé à cette instance, en choisissant une durée.",
+    openInstance: "Ouvrir les réglages de l’instance",
+    recheck: "Revenez ici et cliquez sur Re-check.",
+  },
+  recovered: {
+    title: "Connexion rétablie",
+    body: "Le provider répond de nouveau. Renvoyez votre message.",
+    resend: "Renvoyer",
+  },
   consent: {
     allowProject: "Autoriser {origin} pour le projet « {project} »",
     allowNoProject: "Autoriser {origin} pour les conversations hors projet",

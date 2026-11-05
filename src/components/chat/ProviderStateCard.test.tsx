@@ -99,6 +99,53 @@ describe('ProviderStateCard', () => {
     expect(within(card).queryByRole('button', { name: /^retry$/i })).toBeNull()
   })
 
+  it('auth_required for an unreadable vault key — gives the steps with links, not a command to copy', () => {
+    const { card, link } = mount(
+      err('auth_required', {
+        provider_id: 'deepseek',
+        login_hint: "store the provider key in the vault and grant it to provider instance 'deepseek'",
+      }),
+    )
+    // A sentence about the vault is never offered as a shell command.
+    expect(card.querySelector('code')).toBeNull()
+    expect(within(card).queryByRole('button', { name: /copy the command/i })).toBeNull()
+    expect(card.textContent).toContain('has expired')
+    const steps = within(card).getByTestId('auth-vault-steps')
+    expect(within(steps).getAllByRole('listitem')).toHaveLength(3)
+    expect(link(/open the vault/i).getAttribute('href')).toBe('/vault')
+    expect(link(/open the instance settings/i).getAttribute('href')).toBe('/providers?instance=deepseek')
+    expect(within(card).getByRole('button', { name: /re-check/i })).toBeTruthy()
+  })
+
+  it('auth_required for a missing env variable — names the variable, no command', () => {
+    const { card } = mount(
+      err('auth_required', { provider_id: 'x', login_hint: 'set the environment variable DEEPSEEK_KEY on the server' }),
+    )
+    expect(card.querySelector('code')).toBeNull()
+    expect(card.textContent).toContain('DEEPSEEK_KEY')
+  })
+
+  it('auth_required — a healthy re-check turns the card into "restored" and offers to send again', async () => {
+    status.mockResolvedValue({ status: 'healthy' })
+    list.mockResolvedValue({ providers: [] })
+    const onRetry = vi.fn()
+    const { card } = mount(
+      err('auth_required', {
+        provider_id: 'deepseek',
+        login_hint: "store the provider key in the vault and grant it to provider instance 'deepseek'",
+      }),
+      { onRetry },
+    )
+    expect(card.getAttribute('data-tone')).toBe('error')
+    fireEvent.click(within(card).getByRole('button', { name: /re-check/i }))
+    await waitFor(() => expect(card.textContent).toContain('Sign-in restored'))
+    // No more red alarm and no more procedure: the way is open.
+    expect(card.getAttribute('data-tone')).toBe('warning')
+    expect(within(card).queryByTestId('auth-vault-steps')).toBeNull()
+    fireEvent.click(within(card).getByRole('button', { name: /send again/i }))
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
   it('auth_required — still signed out after a re-check is said, not hidden', async () => {
     status.mockResolvedValue({ status: 'auth_required', login_hint: 'codex login' })
     list.mockResolvedValue({ providers: [] })

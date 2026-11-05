@@ -83,6 +83,8 @@ export default {
     unsupported: '이 제공자는 요청한 내용을 지원하지 않습니다.',
     no_provider: '이 프로젝트에서 허용되고 정상인 제공자 인스턴스가 없어 대화를 시작할 수 없습니다. 제공자 설정에서 인스턴스를 추가하거나 복구하세요.',
     auth_required: '이 제공자는 로그인이 필요합니다. 터미널에서 아래 명령을 실행한 다음 다시 확인하세요. Project Orchestrator는 대신 로그인해 주지 않습니다.',
+    auth_required_vault: "이 provider의 키를 읽을 수 없습니다. 금고(vault)에 없거나, 이 인스턴스에 대한 허용이 없거나 만료되었습니다(허용은 기간이 제한됩니다). 아래 단계를 따른 뒤 다시 확인하세요.",
+    auth_required_env: "이 provider는 서버의 환경 변수 {variable}에서 키를 읽는데, 이 변수가 설정되어 있지 않습니다. 서버에서 설정하고 재시작한 뒤 다시 확인하세요.",
     credentials_locked: '이 제공자의 자격 증명은 보관함에 있으며 보관함이 잠겨 있습니다. 계속하려면 잠금을 해제하세요. 다른 제공자로의 대체는 없습니다.',
     credentialsLockedAuto: "Auto는 키가 보관함에 있는 제공자로 라우팅하려 하지만 보관함이 잠겨 있습니다. 메시지를 보내려면 잠금을 해제하세요.",
     credentialsLockedAutoFallbacks: "Auto는 키가 보관함에 있는 제공자로 라우팅하려 하지만 보관함이 잠겨 있습니다. 메시지를 보내려면 잠금을 해제하거나, 보관함이 필요 없는 모델로 계속하세요.",
@@ -131,6 +133,19 @@ export default {
     endpointNotAllowedNoProject: "프로젝트 밖의 채팅은 내용을 {where} 보낼 수 있도록 허용되지 않았습니다. 아무것도 전송되지 않았습니다.",
   },
   card: { provider: "공급자: {provider}" },
+  authSteps: {
+    vaultCheckKnown: "키 “{secret}”이(가) 금고에 있는지 확인하세요.",
+    vaultCheck: "이 provider의 키가 금고에 있는지 확인하세요.",
+    openVault: "금고 열기",
+    grant: "이 인스턴스에 키를 다시 허용하고 기간을 선택하세요.",
+    openInstance: "인스턴스 설정 열기",
+    recheck: "여기로 돌아와 Re-check를 클릭하세요.",
+  },
+  recovered: {
+    title: "로그인이 복구됨",
+    body: "provider가 다시 응답합니다. 메시지를 다시 보내세요.",
+    resend: "다시 보내기",
+  },
   consent: {
     allowProject: "프로젝트 \"{project}\"에 {origin} 허용",
     allowNoProject: "프로젝트 밖 채팅에 {origin} 허용",

@@ -83,6 +83,8 @@ export default {
     unsupported: 'Este provedor não suporta o que foi pedido.',
     no_provider: 'Nenhuma instância de provedor está saudável e permitida para este projeto, então não é possível iniciar uma conversa. Adicione ou conserte uma nas configurações de provedores.',
     auth_required: 'Este provedor exige que você faça login. Execute o comando abaixo em um terminal e verifique de novo. O Project Orchestrator não faz o login por você.',
+    auth_required_vault: "A chave deste provider não pode ser lida: ela não está no cofre, ou a sua concessão a esta instância não existe ou expirou (uma concessão tem duração limitada). Siga os passos abaixo e verifique novamente.",
+    auth_required_env: "Este provider lê a sua chave da variável de ambiente {variable} do servidor, que não está definida. Defina-a no servidor, reinicie-o e verifique novamente.",
     credentials_locked: 'A credencial deste provedor está no cofre, e o cofre está bloqueado. Desbloqueie-o para continuar. Não há reserva em outro provedor.',
     credentialsLockedAuto: "O Auto encaminharia para provedores cuja chave está no cofre, e o cofre está bloqueado. Desbloqueie-o para enviar sua mensagem.",
     credentialsLockedAutoFallbacks: "O Auto encaminharia para provedores cuja chave está no cofre, e o cofre está bloqueado. Desbloqueie-o para enviar sua mensagem, ou continue com um modelo que não precisa dele.",
@@ -131,6 +133,19 @@ export default {
     endpointNotAllowedNoProject: "As conversas fora de um projeto não foram autorizadas a enviar seu conteúdo {where}. Nada foi enviado.",
   },
   card: { provider: "Provedor: {provider}" },
+  authSteps: {
+    vaultCheckKnown: "Confirme que a chave «{secret}» está no cofre.",
+    vaultCheck: "Confirme que a chave deste provider está no cofre.",
+    openVault: "Abrir o cofre",
+    grant: "Conceda a chave a esta instância novamente, escolhendo uma duração.",
+    openInstance: "Abrir as configurações da instância",
+    recheck: "Volte aqui e clique em Re-check.",
+  },
+  recovered: {
+    title: "Início de sessão restabelecido",
+    body: "O provider volta a responder. Envie a sua mensagem novamente.",
+    resend: "Reenviar",
+  },
   consent: {
     allowProject: "Permitir {origin} para o projeto “{project}”",
     allowNoProject: "Permitir {origin} para conversas fora de um projeto",

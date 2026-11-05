@@ -81,6 +81,8 @@ export default {
     unsupported: 'This provider does not support what was asked.',
     no_provider: 'No provider instance is healthy and allowed for this project, so a conversation cannot be started. Add or repair one in the provider settings.',
     auth_required: 'This provider needs you to sign in. Run the command below in a terminal, then re-check. Project Orchestrator does not sign in for you.',
+    auth_required_vault: "This provider's key cannot be read: it is missing from the vault, or its grant to this instance does not exist or has expired (a grant lasts a limited time). Follow the steps below, then re-check.",
+    auth_required_env: 'This provider reads its key from the server environment variable {variable}, which is not set. Set it on the server, restart the server, then re-check.',
     credentials_locked: 'The credential of this provider is in the vault, and the vault is locked. Unlock it to continue. There is no fallback to another provider.',
     credentialsLockedAuto: "Auto would route to providers whose key is in the vault, and the vault is locked. Unlock it to send your message.",
     credentialsLockedAutoFallbacks: "Auto would route to providers whose key is in the vault, and the vault is locked. Unlock it to send your message, or continue on a model that needs no vault.",
@@ -129,6 +131,19 @@ export default {
     endpointNotAllowedNoProject: "Chats outside a project have not been allowed to send their content {where}. Nothing was sent.",
   },
   card: { provider: "Provider: {provider}" },
+  authSteps: {
+    vaultCheckKnown: 'Check that the key “{secret}” is in the vault.',
+    vaultCheck: 'Check that the key of this provider is in the vault.',
+    openVault: 'Open the vault',
+    grant: 'Grant the key to this instance again, and pick a duration.',
+    openInstance: 'Open the instance settings',
+    recheck: 'Come back here and click Re-check.',
+  },
+  recovered: {
+    title: 'Sign-in restored',
+    body: 'The provider answers again. Send your message again.',
+    resend: 'Send again',
+  },
   consent: {
     allowProject: "Allow {origin} for project \"{project}\"",
     allowNoProject: "Allow {origin} for chats outside a project",
