@@ -83,6 +83,8 @@ export default {
     unsupported: 'Este proveedor no admite lo que se pidió.',
     no_provider: 'Ninguna instancia de proveedor está sana y permitida para este proyecto, así que no se puede iniciar una conversación. Añade o repara una en los ajustes de proveedores.',
     auth_required: 'Este proveedor necesita que inicies sesión. Ejecuta el comando de abajo en un terminal y vuelve a comprobar. Project Orchestrator no inicia sesión por ti.',
+    auth_required_vault: "La clave de este proveedor no se puede leer: falta en la bóveda, o su concesión a esta instancia no existe o ha caducado (una concesión dura un tiempo limitado). Siga los pasos de abajo y vuelva a comprobar.",
+    auth_required_env: "Este proveedor lee su clave de la variable de entorno {variable} del servidor, que no está definida. Defínala en el servidor, reinícielo y vuelva a comprobar.",
     credentials_locked: 'La credencial de este proveedor está en la bóveda, y la bóveda está bloqueada. Desbloquéala para continuar. No hay respaldo en otro proveedor.',
     credentialsLockedAuto: "Auto enrutaría a proveedores cuya clave está en la bóveda, y la bóveda está bloqueada. Desbloquéala para enviar tu mensaje.",
     credentialsLockedAutoFallbacks: "Auto enrutaría a proveedores cuya clave está en la bóveda, y la bóveda está bloqueada. Desbloquéala para enviar tu mensaje, o continúa con un modelo que no la necesita.",
@@ -131,6 +133,19 @@ export default {
     endpointNotAllowedNoProject: "Los chats fuera de un proyecto no tienen permiso para enviar su contenido {where}. No se envió nada.",
   },
   card: { provider: "Proveedor: {provider}" },
+  authSteps: {
+    vaultCheckKnown: "Compruebe que la clave «{secret}» está en la bóveda.",
+    vaultCheck: "Compruebe que la clave de este proveedor está en la bóveda.",
+    openVault: "Abrir la bóveda",
+    grant: "Vuelva a conceder la clave a esta instancia, eligiendo una duración.",
+    openInstance: "Abrir los ajustes de la instancia",
+    recheck: "Vuelva aquí y pulse Re-check.",
+  },
+  recovered: {
+    title: "Inicio de sesión restablecido",
+    body: "El proveedor vuelve a responder. Envíe su mensaje de nuevo.",
+    resend: "Reenviar",
+  },
   consent: {
     allowProject: "Permitir {origin} para el proyecto «{project}»",
     allowNoProject: "Permitir {origin} para los chats fuera de un proyecto",

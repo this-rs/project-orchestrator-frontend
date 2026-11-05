@@ -83,6 +83,8 @@ export default {
     unsupported: '此提供方不支持所请求的操作。',
     no_provider: '没有健康且允许用于此项目的提供方实例，因此无法开始对话。请在提供方设置中添加或修复一个。',
     auth_required: '此提供方需要你登录。请在终端中运行下面的命令，然后重新检查。Project Orchestrator 不会替你登录。',
+    auth_required_vault: "无法读取此 provider 的密钥：它不在保险库中，或其对此实例的授权不存在或已过期（授权有有效期）。请按下面的步骤操作，然后重新检查。",
+    auth_required_env: "此 provider 从服务器的环境变量 {variable} 读取密钥，但该变量未设置。请在服务器上设置它，重启服务器，然后重新检查。",
     credentials_locked: '此提供方的凭据在保险库中，而保险库已锁定。请解锁后继续。不会回退到其他提供方。',
     credentialsLockedAuto: "Auto 会路由到密钥存放在保险库中的提供方，而保险库已锁定。请解锁后发送您的消息。",
     credentialsLockedAutoFallbacks: "Auto 会路由到密钥存放在保险库中的提供方，而保险库已锁定。请解锁后发送您的消息，或改用不需要保险库的模型继续。",
@@ -131,6 +133,19 @@ export default {
     endpointNotAllowedNoProject: "项目之外的对话未被允许将其内容发送{where}。未发送任何内容。",
   },
   card: { provider: "提供方：{provider}" },
+  authSteps: {
+    vaultCheckKnown: "请确认密钥「{secret}」已在保险库中。",
+    vaultCheck: "请确认此 provider 的密钥已在保险库中。",
+    openVault: "打开保险库",
+    grant: "重新为此实例授权密钥，并选择有效期。",
+    openInstance: "打开实例设置",
+    recheck: "回到这里，点击 Re-check。",
+  },
+  recovered: {
+    title: "登录已恢复",
+    body: "provider 已再次响应。请重新发送消息。",
+    resend: "重新发送",
+  },
   consent: {
     allowProject: "为项目“{project}”允许 {origin}",
     allowNoProject: "为项目之外的对话允许 {origin}",

@@ -83,6 +83,8 @@ export default {
     unsupported: 'Nhà cung cấp này không hỗ trợ điều được yêu cầu.',
     no_provider: 'Không có phiên bản nhà cung cấp nào vừa ổn định vừa được phép cho dự án này, nên không thể bắt đầu cuộc trò chuyện. Hãy thêm hoặc sửa một phiên bản trong cài đặt nhà cung cấp.',
     auth_required: 'Nhà cung cấp này cần bạn đăng nhập. Hãy chạy lệnh bên dưới trong terminal, rồi kiểm tra lại. Project Orchestrator không đăng nhập thay bạn.',
+    auth_required_vault: "Không đọc được khóa của provider này: khóa không có trong kho (vault), hoặc quyền cấp cho instance này chưa có hoặc đã hết hạn (quyền cấp có thời hạn). Hãy làm theo các bước bên dưới rồi kiểm tra lại.",
+    auth_required_env: "Provider này đọc khóa từ biến môi trường {variable} trên máy chủ, nhưng biến này chưa được đặt. Hãy đặt biến trên máy chủ, khởi động lại máy chủ rồi kiểm tra lại.",
     credentials_locked: 'Thông tin xác thực của nhà cung cấp này nằm trong kho, mà kho đang khóa. Hãy mở khóa để tiếp tục. Sẽ không chuyển sang nhà cung cấp khác.',
     credentialsLockedAuto: "Auto sẽ định tuyến tới các nhà cung cấp có khóa nằm trong kho, mà kho đang khóa. Hãy mở khóa để gửi tin nhắn của bạn.",
     credentialsLockedAutoFallbacks: "Auto sẽ định tuyến tới các nhà cung cấp có khóa nằm trong kho, mà kho đang khóa. Hãy mở khóa để gửi tin nhắn, hoặc tiếp tục với một mô hình không cần kho.",
@@ -131,6 +133,19 @@ export default {
     endpointNotAllowedNoProject: "Các cuộc trò chuyện ngoài dự án chưa được phép gửi nội dung {where}. Không có gì được gửi.",
   },
   card: { provider: "Nhà cung cấp: {provider}" },
+  authSteps: {
+    vaultCheckKnown: "Kiểm tra khóa « {secret} » có trong kho (vault).",
+    vaultCheck: "Kiểm tra khóa của provider này có trong kho (vault).",
+    openVault: "Mở kho (vault)",
+    grant: "Cấp lại khóa cho instance này và chọn thời hạn.",
+    openInstance: "Mở cài đặt instance",
+    recheck: "Quay lại đây và bấm Re-check.",
+  },
+  recovered: {
+    title: "Đã khôi phục đăng nhập",
+    body: "Provider đã phản hồi trở lại. Hãy gửi lại tin nhắn.",
+    resend: "Gửi lại",
+  },
   consent: {
     allowProject: "Cho phép {origin} cho dự án \"{project}\"",
     allowNoProject: "Cho phép {origin} cho các cuộc trò chuyện ngoài dự án",

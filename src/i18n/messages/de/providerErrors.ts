@@ -83,6 +83,8 @@ export default {
     unsupported: 'Dieser Provider unterstützt das Angefragte nicht.',
     no_provider: 'Keine Provider-Instanz ist gesund und für dieses Projekt erlaubt, daher kann keine Unterhaltung gestartet werden. Fügen Sie in den Provider-Einstellungen eine hinzu oder reparieren Sie eine.',
     auth_required: 'Dieser Provider verlangt, dass Sie sich anmelden. Führen Sie den Befehl unten in einem Terminal aus und prüfen Sie dann erneut. Project Orchestrator meldet Sie nicht für Sie an.',
+    auth_required_vault: "Der Schlüssel dieses Providers ist nicht lesbar: Er fehlt im Tresor, oder seine Freigabe für diese Instanz fehlt oder ist abgelaufen (eine Freigabe gilt nur begrenzte Zeit). Folgen Sie den Schritten unten und prüfen Sie dann erneut.",
+    auth_required_env: "Dieser Provider liest seinen Schlüssel aus der Umgebungsvariable {variable} des Servers, die nicht gesetzt ist. Setzen Sie sie auf dem Server, starten Sie ihn neu und prüfen Sie dann erneut.",
     credentials_locked: 'Die Zugangsdaten dieses Providers liegen im Tresor, und der Tresor ist gesperrt. Entsperren Sie ihn, um fortzufahren. Es gibt keinen Rückfall auf einen anderen Provider.',
     credentialsLockedAuto: "Auto würde zu Providern routen, deren Schlüssel im Tresor liegt, und der Tresor ist gesperrt. Entsperren Sie ihn, um Ihre Nachricht zu senden.",
     credentialsLockedAutoFallbacks: "Auto würde zu Providern routen, deren Schlüssel im Tresor liegt, und der Tresor ist gesperrt. Entsperren Sie ihn, um Ihre Nachricht zu senden, oder fahren Sie mit einem Modell fort, das ihn nicht braucht.",
@@ -131,6 +133,19 @@ export default {
     endpointNotAllowedNoProject: "Chats außerhalb eines Projekts dürfen ihren Inhalt nicht {where} senden. Es wurde nichts gesendet.",
   },
   card: { provider: "Anbieter: {provider}" },
+  authSteps: {
+    vaultCheckKnown: "Prüfen Sie, dass der Schlüssel „{secret}“ im Tresor liegt.",
+    vaultCheck: "Prüfen Sie, dass der Schlüssel dieses Providers im Tresor liegt.",
+    openVault: "Tresor öffnen",
+    grant: "Gewähren Sie den Schlüssel dieser Instanz erneut und wählen Sie eine Dauer.",
+    openInstance: "Instanz-Einstellungen öffnen",
+    recheck: "Kehren Sie hierher zurück und klicken Sie auf Re-check.",
+  },
+  recovered: {
+    title: "Anmeldung wiederhergestellt",
+    body: "Der Provider antwortet wieder. Senden Sie Ihre Nachricht erneut.",
+    resend: "Erneut senden",
+  },
   consent: {
     allowProject: "{origin} für Projekt „{project}“ erlauben",
     allowNoProject: "{origin} für Chats außerhalb eines Projekts erlauben",
