@@ -1,9 +1,12 @@
 import type { ChatProviderChoice } from '@/atoms/setup'
 import { tr } from '@/i18n/lazy'
 
+/** An engine card of the chat step: Claude Code, Codex (a process on this machine) or another provider. */
+export type SetupEngineChoice = ChatProviderChoice | 'codex'
+
 /** Wording of the setup wizard's chat-engine choice (one module for the provider-related labels). */
 export function setupChatEngineOptions(): ReadonlyArray<{
-  value: ChatProviderChoice
+  value: SetupEngineChoice
   label: string
   description: string
 }> {
@@ -14,13 +17,17 @@ export function setupChatEngineOptions(): ReadonlyArray<{
       description: tr('providers.setup.claudeCodeDescription'),
     },
     {
+      value: 'codex',
+      label: 'Codex',
+      description: 'The codex program of this computer, signed in to your own OpenAI account.',
+    },
+    {
       value: 'none',
       label: tr('providers.setup.otherLabel'),
       description: tr('providers.setup.otherDescription'),
     },
   ]
 }
-
 export const setupNoEngineNote = (): string => tr('providers.setup.noEngineNote')
 
 export const setupLaunchNoEngineSummary = (): string => tr('providers.setup.launchSummary')

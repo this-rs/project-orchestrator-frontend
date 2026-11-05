@@ -4,6 +4,7 @@ import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { configExistsAtom, trayNavigationAtom, trayReturnUrlAtom } from '@/atoms/setup'
 import { fetchSetupStatus } from '@/services/env'
 import { Spinner } from '@/components/ui'
+import { PendingSetupProvider } from '@/components/setup/PendingSetupProvider'
 
 /**
  * Route guard that checks backend setup status on first mount.
@@ -71,5 +72,12 @@ export function SetupGuard() {
     )
   }
 
-  return <Outlet />
+  // A provider chosen in the wizard is created once the app runs (never on the setup route).
+  const runningApp = configExists === true && !location.pathname.startsWith('/setup')
+  return (
+    <>
+      {runningApp && <PendingSetupProvider />}
+      <Outlet />
+    </>
+  )
 }
