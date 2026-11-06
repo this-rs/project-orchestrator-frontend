@@ -158,6 +158,8 @@ export default {
     close: "Schließen",
     backToParent: "Zurück zum Übergeordneten",
     mirrorBanner: "Schreibgeschützter Spiegel eines Claude-Code-Subagenten",
+    subagentNotice: "Diese Nachricht geht an den Subagenten, nicht an die übergeordnete Unterhaltung.",
+    openParent: "Übergeordnete Unterhaltung öffnen",
     actions: "Aktionen der Unterhaltung",
     attach: "Mit einem Plan oder einer Aufgabe verknüpfen…",
     hideTree: "Assistentenbaum ausblenden",

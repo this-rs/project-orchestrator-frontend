@@ -158,6 +158,8 @@ export default {
     close: "닫기",
     backToParent: "상위로 돌아가기",
     mirrorBanner: "Claude Code 서브에이전트의 읽기 전용 미러",
+    subagentNotice: "이 메시지는 상위 대화가 아니라 서브에이전트로 전송됩니다.",
+    openParent: "상위 대화 열기",
     actions: "대화 작업",
     attach: "플랜 또는 작업에 연결…",
     hideTree: "어시스턴트 트리 숨기기",

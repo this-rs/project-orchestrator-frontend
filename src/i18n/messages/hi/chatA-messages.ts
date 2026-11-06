@@ -158,6 +158,8 @@ export default {
     close: "बंद करें",
     backToParent: "पैरेंट पर वापस जाएँ",
     mirrorBanner: "Claude Code उप-एजेंट की केवल-पढ़ने वाली प्रतिलिपि",
+    subagentNotice: "यह संदेश उप-एजेंट को जाता है, मूल बातचीत को नहीं।",
+    openParent: "मूल बातचीत खोलें",
     actions: "बातचीत की कार्रवाइयाँ",
     attach: "प्लान या टास्क से जोड़ें…",
     hideTree: "असिस्टेंट ट्री छिपाएँ",

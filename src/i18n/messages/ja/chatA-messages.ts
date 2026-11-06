@@ -158,6 +158,8 @@ export default {
     close: "閉じる",
     backToParent: "親に戻る",
     mirrorBanner: "Claude Code サブエージェントの読み取り専用ミラー",
+    subagentNotice: "このメッセージは親の会話ではなく、サブエージェントに送られます。",
+    openParent: "親の会話を開く",
     actions: "会話の操作",
     attach: "プランまたはタスクに関連付け…",
     hideTree: "アシスタントツリーを隠す",

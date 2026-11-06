@@ -158,6 +158,8 @@ export default {
     close: "Đóng",
     backToParent: "Quay lại phiên cha",
     mirrorBanner: "Bản phản chiếu chỉ đọc của một tác tử con Claude Code",
+    subagentNotice: "Tin nhắn này được gửi tới tác tử con, không phải cuộc trò chuyện cha.",
+    openParent: "Mở cuộc trò chuyện cha",
     actions: "Thao tác của cuộc trò chuyện",
     attach: "Gắn vào một kế hoạch hoặc tác vụ…",
     hideTree: "Ẩn cây trợ lý",

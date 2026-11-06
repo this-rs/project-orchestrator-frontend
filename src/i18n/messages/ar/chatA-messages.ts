@@ -158,6 +158,8 @@ export default {
     close: "إغلاق",
     backToParent: "العودة إلى الأصل",
     mirrorBanner: "نسخة مطابقة للقراءة فقط لوكيل فرعي في Claude Code",
+    subagentNotice: "تذهب هذه الرسالة إلى الوكيل الفرعي، وليس إلى المحادثة الأصلية.",
+    openParent: "فتح المحادثة الأصلية",
     actions: "إجراءات المحادثة",
     attach: "ربط بخطة أو مهمة…",
     hideTree: "إخفاء شجرة المساعدين",
