@@ -8,7 +8,7 @@
  */
 import '@testing-library/jest-dom/vitest'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import { MemoryRouter } from 'react-router-dom'
 import type { ReactNode } from 'react'
@@ -198,5 +198,37 @@ describe('a read-only mirror of a Claude Code sub-agent', () => {
     expect(input().getAttribute('data-disabled')).toBe('false')
     expect(input().getAttribute('data-reason')).toBe('')
     expect(screen.queryByTestId('mirror-readonly-banner')).not.toBeInTheDocument()
+  })
+})
+
+describe('the notice of a writable sub-agent conversation (P18-suite, point 16)', () => {
+  it('a child conversation says the message goes to the sub-agent', async () => {
+    const store = renderPanel({ prepare: onClaudeCode(null) })
+    await ready(store)
+    expect(screen.getByTestId('subagent-composer-notice')).toHaveTextContent('goes to the sub-agent')
+  })
+
+  it('a normal conversation shows no such notice', async () => {
+    const store = renderPanel({
+      prepare: (s) => {
+        onClaudeCode(null)(s)
+        Object.assign(chatStub, { sessionMeta: { cwd: '/repo', spawnedBy: null, mirrorOf: null } })
+      },
+    })
+    await ready(store)
+    expect(screen.queryByTestId('subagent-composer-notice')).not.toBeInTheDocument()
+  })
+
+  it('a mirrored session shows no such notice (its banner already speaks)', async () => {
+    const store = renderPanel({ prepare: onClaudeCode('claude_code') })
+    await ready(store)
+    expect(screen.queryByTestId('subagent-composer-notice')).not.toBeInTheDocument()
+  })
+
+  it('the control opens the parent session', async () => {
+    const store = renderPanel({ prepare: onClaudeCode(null) })
+    await ready(store)
+    fireEvent.click(screen.getByTestId('subagent-open-parent'))
+    expect(chatStub.loadSession).toHaveBeenCalledWith('parent-1')
   })
 })

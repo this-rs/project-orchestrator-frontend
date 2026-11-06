@@ -158,6 +158,8 @@ export default {
     close: "Fermer",
     backToParent: "Retour au parent",
     mirrorBanner: "Miroir en lecture seule d’un sous-agent de Claude Code",
+    subagentNotice: "Ce message part au sous-agent, pas à la conversation parente.",
+    openParent: "Ouvrir la conversation parente",
     actions: "Actions de la conversation",
     attach: "Rattacher à un plan ou une tâche…",
     hideTree: "Masquer l’arbre des assistants",

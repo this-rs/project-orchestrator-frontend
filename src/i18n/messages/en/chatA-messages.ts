@@ -152,6 +152,8 @@ export default {
     close: 'Close',
     backToParent: 'Back to parent',
     mirrorBanner: "Read-only mirror of a Claude Code sub-agent",
+    subagentNotice: "This message goes to the sub-agent, not to the parent conversation.",
+    openParent: "Open the parent conversation",
     actions: 'Conversation actions',
     attach: 'Attach to a plan or task…',
     hideTree: 'Hide the assistant tree',

@@ -158,6 +158,8 @@ export default {
     close: "关闭",
     backToParent: "返回上级",
     mirrorBanner: "Claude Code 子代理的只读镜像",
+    subagentNotice: "此消息将发送给子代理，而不是父对话。",
+    openParent: "打开父对话",
     actions: "对话操作",
     attach: "关联到计划或任务…",
     hideTree: "隐藏助手树",

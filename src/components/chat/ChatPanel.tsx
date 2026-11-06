@@ -642,9 +642,27 @@ export function ChatPanel() {
     </div>
   ) : null
 
+  // A child conversation that PO can write to: what is typed goes to the sub-agent, not to the
+  // parent. The breadcrumb alone does not say so (P18-suite, point 16). A mirror says it already.
+  const subagentNotice = !isNewConversation && !isMirror && spawnedBy?.type === 'conversation' ? (
+    <div
+      role="note"
+      data-testid="subagent-composer-notice"
+      className="mx-3 mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-1.5 text-xs text-gray-300"
+    >
+      <Link2 className="w-3 h-3 shrink-0" aria-hidden="true" />
+      <span className="min-w-0 flex-1">{t('chatA-messages.panel.subagentNotice')}</span>
+      <Button size="sm" variant="ghost" data-testid="subagent-open-parent" onClick={() => handleViewRun(spawnedBy.parent_session_id)}>
+        <ArrowLeft className="w-3 h-3" aria-hidden="true" />
+        {t('chatA-messages.panel.openParent')}
+      </Button>
+    </div>
+  ) : null
+
   // Everything said above the composer about the provider, shared by both layouts.
   const composerNotices = (
     <>
+      {subagentNotice}
       {/* An instance that is OUT right now sits first: it explains why the turn is not moving. */}
       <ProviderOutageBanner messages={chat.messages} />
       <FollowNotice sessionId={chat.sessionId} />
