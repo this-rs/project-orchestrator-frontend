@@ -2442,6 +2442,15 @@ export function useChat() {
       // Follow-up message — send via WS
       const ws = getWs()
       setIsStreaming(true)
+      // A message leaves only on the socket that serves THIS conversation, once that socket is
+      // authenticated for it. Otherwise its reply streams to a socket this view does not listen
+      // to, and the indicator spins until a reload or a conversation switch re-attaches it.
+      // The text waits in `pendingSendRef`; `onReplayComplete` flushes it once attached.
+      if (ws.sessionId !== sessionId || ws.status !== 'connected') {
+        pendingSendRef.current.push({ text, attachments, ...(sentRefs ? { refs: sentRefs } : {}) })
+        ws.connect(sessionId, Number.MAX_SAFE_INTEGER)
+        return
+      }
       if (!(sentRefs ? ws.sendUserMessage(text, attachments, { refs: sentRefs }) : ws.sendUserMessage(text, attachments))) {
         // Dead socket: send() already forced a reconnect. Queue the text —
         // onReplayComplete flushes it once the session is consistent again.
