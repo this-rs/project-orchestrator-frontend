@@ -162,7 +162,7 @@ describe('RoutingSelectionMenu - move an existing conversation to another provid
     expect(store.get(chatPendingSwitchAtom)).toBeNull()
   })
 
-  it('a move refused at send time reopens the dialog with the message to retry, and says why', async () => {
+  it('a move refused at send time is said INLINE, keeps the pick, and never opens a modal', async () => {
     const store = mount()
     store.set(chatPendingSwitchAtom, {
       sessionId: 's1',
@@ -171,27 +171,29 @@ describe('RoutingSelectionMenu - move an existing conversation to another provid
       refusal: { kind: 'failed' },
     })
     openMenu()
-    const dialog = await screen.findByRole('dialog')
-    const message = within(dialog).getByTestId('switch-provider-message') as HTMLTextAreaElement
-    expect(message.value).toBe('go on')
+    const alert = await screen.findByTestId('switch-refusal')
+    expect(alert.getAttribute('role')).toBe('alert')
+    // No dialog: a refused move is part of the conversation, not a box to dismiss.
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(store.get(chatPendingSwitchAtom)).not.toBeNull()
-    fireEvent.click(within(dialog).getByTestId('switch-provider-confirm'))
+    fireEvent.click(within(alert).getByRole('button', { name: 'Cancel' }))
     expect(store.get(chatPendingSwitchAtom)).toBeNull()
-    expect(switchConversationProvider).toHaveBeenCalledWith('s1', { provider: 'local-llama', model: 'qwen', message: 'go on' })
+    expect(screen.queryByTestId('switch-refusal')).toBeNull()
   })
 
-  it('a typed refusal (consent / endpoint guard) is said in the reopened dialog, and nothing moves', async () => {
+  it('a typed refusal (consent / endpoint guard) is said inline, and nothing moves', async () => {
     switchConversationProvider.mockRejectedValue(
       new ApiError(403, JSON.stringify({ code: 'endpoint_not_allowed', error: 'not allowed', origin: 'http://10.0.0.5:8080', project_slug: 'po', consent_scope: 'project' })),
     )
     const store = mount({ draft: 'hello' })
     openMenu()
     pickOther('local-llama', /Local llama/, 'phi')
-    // The typed draft auto-switched; the move was refused, so the dialog reopens with the reason.
-    const refusal = await screen.findByTestId('switch-provider-refusal')
+    // The typed draft switched straight away; the move was refused, so the reason is said
+    // under the chip — visible with the menu open or closed, and never in a modal.
+    const refusal = await screen.findByTestId('switch-refusal')
     expect(refusal.getAttribute('role')).toBe('alert')
     expect(refusal.textContent).toContain('http://10.0.0.5:8080')
-    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(store.get(chatFollowRequestAtom)).toBeNull()
     expect(store.get(chatDraftInputAtom)).toBe('hello')
   })
@@ -203,38 +205,21 @@ describe('RoutingSelectionMenu - move an existing conversation to another provid
     mount({ draft: 'hello' })
     openMenu()
     pickOther('local-llama', /Local llama/, 'phi')
-    const refusal = await screen.findByTestId('switch-provider-refusal')
+    const refusal = await screen.findByTestId('switch-refusal')
     expect(refusal.textContent).toContain('Endpoint refused.')
     expect(refusal.textContent).not.toContain('for this project')
   })
 
-  it('an agent token (403 without a code) is told apart from a failure; Escape cancels', async () => {
+  it('an agent token (403 without a code) is told apart from a failure, and the alert can be put away', async () => {
     switchConversationProvider.mockRejectedValue(new ApiError(403, JSON.stringify({ error: 'only a signed-in user can move a conversation to another provider' })))
     const store = mount({ draft: 'hello' })
     openMenu()
     pickOther('local-llama', /Local llama/, 'phi')
-    expect((await screen.findByTestId('switch-provider-refusal')).textContent).toContain('Only a signed-in person can move a conversation')
-    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
-    expect(screen.queryByRole('dialog')).toBeNull()
+    const alert = await screen.findByTestId('switch-refusal')
+    expect(alert.textContent).toContain('Only a signed-in person can move a conversation')
+    fireEvent.click(within(alert).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByTestId('switch-refusal')).toBeNull()
     expect(store.get(chatFollowRequestAtom)).toBeNull()
-  })
-
-  it('keeps focus inside the dialog (Tab wraps around)', async () => {
-    const store = mount()
-    store.set(chatPendingSwitchAtom, {
-      sessionId: 's1',
-      pick: { provider: 'local-llama', model: 'phi' },
-      message: 'hello',
-      refusal: { kind: 'failed' },
-    })
-    openMenu()
-    const dialog = await screen.findByRole('dialog')
-    const confirm = within(dialog).getByTestId('switch-provider-confirm')
-    confirm.focus()
-    fireEvent.keyDown(dialog, { key: 'Tab' })
-    expect(document.activeElement).toBe(within(dialog).getByTestId('switch-provider-message'))
-    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
-    expect(document.activeElement).toBe(confirm)
   })
 
   it('a provider that cannot change model live still offers the move; an unavailable provider keeps its reason', () => {
