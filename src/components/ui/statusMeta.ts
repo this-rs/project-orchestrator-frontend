@@ -67,6 +67,7 @@ const TASK: Registry<TaskStatus> = {
   blocked: { label: 'Blocked', tone: 'warning' },
   completed: { label: 'Completed', tone: 'success' },
   failed: { label: 'Failed', tone: 'danger' },
+  interrupted: { label: 'Interrupted', tone: 'warning' },
 }
 
 const PLAN: Registry<PlanStatus> = {
@@ -198,7 +199,7 @@ export type StatusValue<K extends StatusKind> = keyof (typeof STATUS_REGISTRY)[K
 
 /** Every status value the catalog has a label for (`ui.status.<value>`): the same word for every kind of entity. */
 const KNOWN_STATUS = [
-  'pending', 'in_progress', 'blocked', 'completed', 'failed', 'draft', 'approved', 'cancelled', 'skipped', 'planned',
+  'pending', 'in_progress', 'blocked', 'completed', 'failed', 'interrupted', 'draft', 'approved', 'cancelled', 'skipped', 'planned',
   'open', 'closed', 'released', 'active', 'needs_review', 'stale', 'obsolete', 'archived', 'low', 'medium', 'high',
   'critical', 'proposed', 'accepted', 'deprecated', 'superseded', 'emerging', 'dormant', 'imported', 'running',
   'under_review', 'planning', 'implemented', 'rejected', 'pass', 'fail', 'skip', 'error',

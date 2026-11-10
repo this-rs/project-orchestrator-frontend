@@ -55,6 +55,7 @@ export const TaskStatusBadge = ({ status }: { status: TaskStatus | undefined | n
     blocked: { label: 'Blocked', variant: 'warning' },
     completed: { label: 'Completed', variant: 'success' },
     failed: { label: 'Failed', variant: 'error' },
+    interrupted: { label: 'Interrupted', variant: 'warning' },
   }
   const { label, variant } = resolveBadge(config, status)
   return <Badge variant={variant}>{label}</Badge>
@@ -228,6 +229,7 @@ export const InteractiveTaskStatusBadge = createInteractiveStatusBadge<TaskStatu
   blocked: { label: 'Blocked', variant: 'warning' },
   completed: { label: 'Completed', variant: 'success' },
   failed: { label: 'Failed', variant: 'error' },
+  interrupted: { label: 'Interrupted', variant: 'warning' },
 })
 
 export const InteractiveNoteStatusBadge = createInteractiveStatusBadge<NoteStatus>({

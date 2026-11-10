@@ -19,6 +19,15 @@ describe('getStatusMeta', () => {
     expect(getStatusMeta('run', 'running').tone).toBe('progress')
   })
 
+  it('renders an interrupted task as a first-class status, not a fallback', () => {
+    // `interrupted` is a real backend TaskStatus (work left without an owner):
+    // it must have its own registry entry with a warning tone, not be guessed
+    // to neutral like an unknown string.
+    expect(STATUS_REGISTRY.task.interrupted).toEqual({ label: 'Interrupted', tone: 'warning' })
+    expect(getStatusMeta('task', 'interrupted')).toEqual({ label: 'Interrupted', tone: 'warning' })
+    expect(getStatusOptions('task').map((o) => o.value)).toContain('interrupted')
+  })
+
   it('is case-insensitive (milestones come back as `Completed`)', () => {
     expect(getStatusMeta('milestone', 'Completed')).toEqual({ label: 'Completed', tone: 'success' })
     expect(getStatusMeta('gate', 'pass').label).toBe('Pass')

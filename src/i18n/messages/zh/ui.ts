@@ -172,6 +172,7 @@ export default {
     blocked: "已阻塞",
     completed: "已完成",
     failed: "失败",
+    interrupted: "已中断",
     draft: "草稿",
     approved: "已批准",
     cancelled: "已取消",

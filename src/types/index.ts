@@ -9,7 +9,7 @@ export * from './events'
 
 export type PlanStatus = 'draft' | 'approved' | 'in_progress' | 'completed' | 'cancelled'
 
-export type TaskStatus = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'failed'
+export type TaskStatus = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'failed' | 'interrupted'
 
 export type StepStatus = 'pending' | 'in_progress' | 'completed' | 'skipped'
 
@@ -366,7 +366,8 @@ export interface NoteAnchor {
 
 export interface Note {
   id: string
-  project_id: string
+  /** None for a global (cross-project) note — the backend serialises it as `null`. */
+  project_id: string | null
   note_type: NoteType
   status: NoteStatus
   importance: NoteImportance

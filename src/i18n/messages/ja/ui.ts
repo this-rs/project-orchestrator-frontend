@@ -172,6 +172,7 @@ export default {
     blocked: "ブロック中",
     completed: "完了",
     failed: "失敗",
+    interrupted: "中断",
     draft: "下書き",
     approved: "承認済み",
     cancelled: "キャンセル済み",
