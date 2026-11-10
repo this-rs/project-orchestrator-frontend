@@ -334,10 +334,15 @@ export function ChatPanel() {
         projectSlug: allProjectsMode ? undefined : selectedProject.slug,
       }, attachmentIds, refs)
     } else if (neutralPlace) {
-      // No project: no `cwd`, no project — the server opens it in its neutral place.
-      send(text, { cwd: '' }, attachmentIds, refs)
+      // No project: no `cwd` — the server opens it in its neutral place. A workspace that
+      // holds no project yet still SCOPES the conversation: it belongs to the workspace, so
+      // the server does not treat it as a session that belongs to nothing (which is the one
+      // that opens read-only). With projects, « No project » is kept exactly as asked and
+      // nothing is added.
+      const scope = !workspaceHasProjects && activeWsSlug ? { workspaceSlug: activeWsSlug } : {}
+      send(text, { cwd: '', ...scope }, attachmentIds, refs)
     }
-  }, [isNewConversation, hasContext, projectContext, neutralPlace, selectedProject, allProjectsMode, activeWsSlug, chat.sendMessage, chat.sessionId, store])
+  }, [isNewConversation, hasContext, projectContext, neutralPlace, selectedProject, allProjectsMode, activeWsSlug, workspaceHasProjects, chat.sendMessage, chat.sessionId, store])
 
   // Resend the last user message after vault unlock (T3 — credentials_locked)
   // A turn still running is WAITING for the unlock and resumes by itself: no resend then.
@@ -1329,14 +1334,17 @@ export function ChatPanel() {
 /** Full-area placeholder shown when the workspace has no projects */
 /**
  * A new conversation without a project (none in the workspace, or « No project » picked):
- * it opens in the server's neutral place, read-only, its context coming from its anchors.
+ * it opens in the server's neutral place, its context coming from its anchors. Only the
+ * « No project » pick in a workspace that HAS projects is read-only (a session that belongs
+ * to nothing); a workspace with no project yet is an ordinary, writable conversation, so
+ * the sentence must not promise the opposite.
  */
 function NeutralPlaceNotice({ wsSlug, hasProjects }: { wsSlug: string | null; hasProjects: boolean }) {
   const { t } = useT()
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-white/[0.06] px-4 py-2 text-xs text-gray-400" data-testid="neutral-place-notice">
       <NeutralPlaceLabel className="text-gray-300" />
-      <span className="min-w-0 flex-1">{t('anchors.neutral.notice')}</span>
+      <span className="min-w-0 flex-1">{t(hasProjects ? 'anchors.neutral.notice' : 'session.place.neutralHint')}</span>
       {wsSlug && !hasProjects && (
         <Link
           to={workspacePath(wsSlug, '/projects')}
