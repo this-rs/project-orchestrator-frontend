@@ -75,7 +75,7 @@ import {
 } from '@/utils/routingSelection'
 import { ProviderModelPicker, RefreshClaudeModels, type ProviderModelMenu } from './ProviderModelPicker'
 import { COMPOSER_CHIP } from './chipGeometry'
-import { SwitchProviderDialog } from './SwitchProviderDialog'
+import { providerErrorExplanation, providerErrorTitle } from '@/constants/providerErrors'
 import { VaultUnlock } from './VaultUnlock'
 import { useVaultLocked } from './useVaultLocked'
 
@@ -249,15 +249,22 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
   const [pending, setPending] = useState(false)
   const [refusal, setRefusal] = useState<{ sessionId: string; reason: ConversationRoutingRefusal } | null>(null)
   const settings = useAtomValue(chatRoutingSettingsAtom)
-  /** A move to another provider being confirmed: the model picked there, and the route's answer. */
-  const [switchTarget, setSwitchTarget] = useState<{ sessionId: string; pick: RoutingPick; message?: string } | null>(null)
   /** A move picked before its message was written: it leaves when that message is sent. */
   const [pendingSwitch, setPendingSwitch] = useAtom(chatPendingSwitchAtom)
-  /** A move the server refused at send time: the dialog reopens on it (to retry or cancel). */
+  /** A move the server refused at send time, still pending: the chip shows it and the alert says why. */
   const refusedSwitch = pendingSwitch?.refusal && pendingSwitch.sessionId === sessionId ? pendingSwitch : null
-  const dialogSwitch = refusedSwitch ? { sessionId: refusedSwitch.sessionId, pick: refusedSwitch.pick, message: refusedSwitch.message } : switchTarget
-  const [switchPending, setSwitchPending] = useState(false)
   const [switchRefusal, setSwitchRefusal] = useState<SwitchProviderRefusal | null>(null)
+  /**
+   * Why the last move was refused, said INLINE — never a modal. Two sources: the refusal that
+   * came back with the send (`chatPendingSwitchAtom.refusal`) and the one of a move attempted
+   * from the menu (`switchTo`). The pick is kept, so the chip still shows where it wanted to go
+   * and the menu can be used again; a refusal is never silent.
+   */
+  const shownSwitchRefusal = refusedSwitch ? refusedSwitch.refusal : switchRefusal
+  const dismissSwitchRefusal = () => {
+    setSwitchRefusal(null)
+    if (refusedSwitch) setPendingSwitch(null)
+  }
   const [draft, setDraft] = useAtom(chatDraftInputAtom)
   const follow = useSetAtom(chatFollowRequestAtom)
   const setSwitching = useSetAtom(chatSwitchingSessionAtom)
@@ -315,28 +322,22 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
 
   /**
    * Move the conversation (`POST .../switch-provider`): on success the tab follows the
-   * new session and the draft that was sent is cleared; a refusal is said (in the dialog
-   * when one was shown) and nothing changes.
+   * new session and the draft that was sent is cleared; a refusal is said IN LINE, under the
+   * chip, and nothing changes. No modal: a move is part of the conversation, not a dialog.
    */
   const switchTo = (sid: string, pick: RoutingPick, message: string) => {
-    setSwitchPending(true)
     setSwitchRefusal(null)
     setSwitching(sid)
     switchConversationProvider(sid, { provider: pick.provider, model: pick.model, message })
       .then((move) => {
         // The message left with the move: the old conversation's draft is spent.
         if (draft.trim() && message.trim() === draft.trim()) setDraft('')
-        setSwitchTarget(null)
         follow({ sessionId: move.session_id, fromSessionId: sid, notice: null })
       })
       .catch((err) => {
         setSwitchRefusal(switchProviderRefusal(err))
-        // The dialog may not be up (an auto-switch from a typed draft): reopen it so
-        // the refusal is said and the user can retry or cancel.
-        setSwitchTarget({ sessionId: sid, pick })
       })
       .finally(() => {
-        setSwitchPending(false)
         setSwitching(null)
       })
   }
@@ -392,13 +393,6 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
       false,
       on ? selectable.flatMap((p) => modelsOf(p).map((model) => ({ provider: p.id, model }))) : [],
     )
-
-  const confirmSwitch = (message: string) => {
-    if (!dialogSwitch || switchPending) return
-    const { sessionId: sid, pick } = dialogSwitch
-    if (refusedSwitch) setPendingSwitch(null)
-    switchTo(sid, pick, message)
-  }
 
   const nameOf = (provider: string | null, model: string) => {
     const p = instances.find((x) => x.id === provider) ?? null
@@ -471,6 +465,25 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
         </span>
         <ChevronDown className="w-2.5 h-2.5 text-gray-500" aria-hidden="true" />
       </button>
+
+      {/* A refused move is said HERE, under the chip, never in a modal: the conversation is
+          not interrupted, the pick stays visible on the chip, and the menu can be used again. */}
+      {shownSwitchRefusal && (
+        <div
+          role="alert"
+          data-testid="switch-refusal"
+          className="mt-1 flex flex-wrap items-start gap-x-2 gap-y-1 rounded border border-red-400/20 bg-red-500/5 px-2 py-1 text-[11px] leading-snug text-red-300"
+        >
+          <p className="min-w-0 flex-1">
+            {shownSwitchRefusal.kind === 'provider'
+              ? `${providerErrorTitle(shownSwitchRefusal.info)}. ${providerErrorExplanation(shownSwitchRefusal.info, projectSlug)}`
+              : t(`routing.switch.refused.${shownSwitchRefusal.kind}`)}
+          </p>
+          <button type="button" onClick={dismissSwitchRefusal} className={BTN}>
+            {t('routing.switch.cancel')}
+          </button>
+        </div>
+      )}
 
       {isOpen && (
         <div data-testid="target-picker-popover" className={POPOVER}>
@@ -661,26 +674,6 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
             </div>
           </div>
         </div>
-      )}
-      {dialogSwitch && dialogSwitch.sessionId === sessionId && (
-        <SwitchProviderDialog
-          target={`${(() => {
-            const p = instances.find((x) => x.id === dialogSwitch.pick.provider)
-            return p ? providerDisplayName(p) : dialogSwitch.pick.provider
-          })()} › ${nameOf(dialogSwitch.pick.provider, dialogSwitch.pick.model)}`}
-          current={liveModel ? `${sessionLabel} › ${nameOf(targetId, liveModel)}` : sessionLabel}
-          initialMessage={dialogSwitch.message ?? draft}
-          pending={switchPending}
-          refusal={refusedSwitch ? refusedSwitch.refusal : switchRefusal}
-          projectSlug={projectSlug}
-          onConfirm={confirmSwitch}
-          onCancel={() => {
-            setSwitchTarget(null)
-            setSwitchRefusal(null)
-            if (refusedSwitch) setPendingSwitch(null)
-          }}
-          returnFocus={() => chipRef.current}
-        />
       )}
     </div>
   )
