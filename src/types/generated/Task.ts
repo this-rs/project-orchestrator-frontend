@@ -1,5 +1,7 @@
 // Généré par `cargo xtask ts-dto --write`. Ne pas éditer.
 
+import type { TaskStatus } from './TaskStatus'
+
 export interface Task {
   id: string
   title: string | null

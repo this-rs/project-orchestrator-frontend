@@ -275,7 +275,7 @@ export function NestedTaskRow({
       id={task.id}
       title={task.title || task.description}
       status={task.status}
-      priority={task.priority}
+      priority={task.priority ?? undefined}
       href={workspacePath(wsSlug, `/tasks/${task.id}`)}
       steps={steps}
       expanded={expanded}
@@ -303,7 +303,7 @@ export function ExpandableTaskRow({
       id={task.id}
       title={task.title || task.description}
       status={task.status}
-      priority={task.priority}
+      priority={task.priority ?? undefined}
       href={workspacePath(wsSlug, `/tasks/${task.id}`)}
       steps={steps}
       expanded={expanded}
@@ -320,7 +320,7 @@ function MilestoneTaskRow({ task, wsSlug }: { task: MilestoneTaskSummary; wsSlug
       id={task.id}
       title={task.title || task.description}
       status={task.status}
-      priority={task.priority}
+      priority={task.priority ?? undefined}
       href={workspacePath(wsSlug, `/tasks/${task.id}`)}
       steps={task.steps}
       expanded={expanded}

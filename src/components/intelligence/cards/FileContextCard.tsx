@@ -410,10 +410,10 @@ function FileContextCardComponent({ data, entityId }: FileContextCardProps) {
                       style={{ backgroundColor: importColor }}
                       title={t('intelGraph.fileCard.importance', { level: note.importance in importanceColors ? t(`intelGraph.importance.${note.importance}` as MessageKey) : note.importance })}
                     />
-                    {note.tags.length > 0 && (
+                    {(note.tags?.length ?? 0) > 0 && (
                       <div className="flex items-center gap-0.5 ml-auto">
                         <Tag size={7} className="text-slate-600" />
-                        <span className="text-[8px] text-slate-600">{note.tags.length}</span>
+                        <span className="text-[8px] text-slate-600">{note.tags?.length ?? 0}</span>
                       </div>
                     )}
                   </div>

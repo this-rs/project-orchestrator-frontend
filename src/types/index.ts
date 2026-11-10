@@ -3,13 +3,27 @@ export * from './provider'
 export * from './documents'
 export * from './events'
 
+// Types DTO de premier lot, engendrés depuis les types serde du backend
+// (`cargo xtask ts-dto --write`). Source de vérité : src/types/generated/.
+import type { Note } from './generated/Note'
+import type { Task as TaskNode } from './generated/Task'
+import type { TaskStatus } from './generated/TaskStatus'
+import type { Project } from './generated/Project'
+import type { Plan } from './generated/Plan'
+
+export type { Note, TaskStatus, Project, Plan }
+
+/** `TaskNode` (généré) + `model_alias`, injecté par le handler GET /tasks
+ *  (setting LLM `task:{id}.model_alias`), pas un champ serde → non engendré. */
+export interface Task extends TaskNode {
+  model_alias?: string | null
+}
+
 // ============================================================================
 // ENUMS
 // ============================================================================
 
 export type PlanStatus = 'draft' | 'approved' | 'in_progress' | 'completed' | 'cancelled'
-
-export type TaskStatus = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'failed' | 'interrupted'
 
 export type StepStatus = 'pending' | 'in_progress' | 'completed' | 'skipped'
 
@@ -81,50 +95,6 @@ export interface Workspace {
  * the field predates profiles and is `software`.
  */
 export type ProjectProfile = 'software' | 'work'
-
-export interface Project {
-  id: string
-  name: string
-  slug: string
-  /** Optional: a `work` project (planning, documents) has no folder. */
-  root_path?: string
-  /** `software` (default) or `work`. Missing on payloads older than the field. */
-  profile?: ProjectProfile
-  description?: string
-  created_at: string
-  last_synced?: string
-}
-
-export interface Plan {
-  id: string
-  title: string
-  description: string
-  status: PlanStatus
-  created_at: string
-  created_by: string
-  priority: number
-  project_id?: string
-}
-
-export interface Task {
-  id: string
-  title?: string
-  description: string
-  status: TaskStatus
-  assigned_to?: string
-  priority?: number
-  tags: string[]
-  acceptance_criteria: string[]
-  affected_files: string[]
-  estimated_complexity?: number
-  actual_complexity?: number
-  /** Logical model name this task runs on (`fast`, `deep`…). Absent/null = inherits. */
-  model_alias?: string | null
-  created_at: string
-  updated_at?: string
-  started_at?: string
-  completed_at?: string
-}
 
 export interface TaskWithPlan extends Task {
   plan_id: string
@@ -362,25 +332,6 @@ export interface NoteAnchor {
   body_hash?: string
   last_verified: string
   is_valid: boolean
-}
-
-export interface Note {
-  id: string
-  /** None for a global (cross-project) note — the backend serialises it as `null`. */
-  project_id: string | null
-  note_type: NoteType
-  status: NoteStatus
-  importance: NoteImportance
-  scope?: NoteScope
-  content: string
-  tags: string[]
-  anchors: NoteAnchor[]
-  created_at: string
-  created_by: string
-  last_confirmed_at?: string
-  staleness_score: number
-  supersedes?: string
-  superseded_by?: string
 }
 
 // ============================================================================

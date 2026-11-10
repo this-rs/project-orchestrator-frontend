@@ -1,5 +1,8 @@
 // Généré par `cargo xtask ts-dto --write`. Ne pas éditer.
 
+import type { ProjectProfile } from './ProjectProfile'
+import type { SharingPolicy } from './SharingPolicy'
+
 export interface Project {
   id: string
   name: string

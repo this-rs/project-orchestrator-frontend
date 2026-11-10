@@ -255,7 +255,7 @@ export function PlansPage() {
       title: editingPlan?.title ?? '',
       description: editingPlan?.description,
       priority: editingPlan?.priority,
-      project_id: editingPlan?.project_id,
+      project_id: editingPlan?.project_id ?? undefined,
     },
     workspaceSlug: wsSlug,
     onSubmit: async (data: EditPlanFormData) => {

@@ -215,18 +215,6 @@ export interface NoteAssertionResult {
 }
 
 export interface NoteDetail extends Note {
-  last_confirmed_by?: string | null
-  energy?: number
-  last_activated?: string | null
-  activation_count?: number
-  reactivation_count?: number
-  last_reactivated?: string | null
-  freshness_pinged_at?: string | null
-  scar_intensity?: number
-  memory_horizon?: NoteMemoryHorizon
-  changes?: NoteChangeEntry[]
-  assertion_rule?: { check_type: string; target: string; file_pattern?: string | null; on_violation?: string } | null
-  last_assertion_result?: NoteAssertionResult | null
   updated_at?: string
 }
 
@@ -278,7 +266,7 @@ export const CHANGE_LABELS: Record<string, string> = {
 }
 
 /** One-line summary of a change's details (`{from: 'active', to: 'stale'}` → `active → stale`). */
-export function changeDetailsText(details: NoteChangeEntry['details']): string | null {
+export function changeDetailsText(details: unknown): string | null {
   if (!details) return null
   if (typeof details === 'string') return details
   const d = details as Record<string, unknown>

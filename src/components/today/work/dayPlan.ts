@@ -79,7 +79,7 @@ export function moveInDay(plan: DayPlan, id: string, delta: -1 | 1): DayPlan {
 }
 
 /** True when the task was completed on the same local day as `now`. */
-export function isDoneToday(completedAt: string | undefined, now: Date = new Date()): boolean {
+export function isDoneToday(completedAt: string | null | undefined, now: Date = new Date()): boolean {
   if (!completedAt) return false
   const t = new Date(completedAt)
   return !Number.isNaN(t.getTime()) && dayKey(t) === dayKey(now)

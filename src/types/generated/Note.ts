@@ -1,5 +1,17 @@
 // Généré par `cargo xtask ts-dto --write`. Ne pas éditer.
 
+import type { AssertionResult } from './AssertionResult'
+import type { AssertionRule } from './AssertionRule'
+import type { MemoryHorizon } from './MemoryHorizon'
+import type { NoteAnchor } from './NoteAnchor'
+import type { NoteAuthorKind } from './NoteAuthorKind'
+import type { NoteChange } from './NoteChange'
+import type { NoteImportance } from './NoteImportance'
+import type { NoteRevision } from './NoteRevision'
+import type { NoteStatus } from './NoteStatus'
+import type { NoteType } from './NoteType'
+import type { SharingConsent } from './SharingConsent'
+
 export interface Note {
   id: string
   project_id: string | null

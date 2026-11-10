@@ -86,7 +86,7 @@ function DraggableNoteItem({ note }: DraggableNoteProps) {
           >
             {t(cfg.label)}
           </span>
-          {note.tags.slice(0, 2).map((tag) => (
+          {(note.tags ?? []).slice(0, 2).map((tag) => (
             <span key={tag} className="text-[9px] text-slate-500 px-1 py-0.5 rounded bg-slate-800">
               {tag}
             </span>
@@ -142,7 +142,7 @@ function NotePoolComponent({ projectId, boundNoteIds }: NotePoolProps) {
     return notes.filter(
       (n) =>
         n.content.toLowerCase().includes(q) ||
-        n.tags.some((tag) => tag.toLowerCase().includes(q))
+        (n.tags ?? []).some((tag) => tag.toLowerCase().includes(q))
     )
   }, [notes, searchQuery])
 

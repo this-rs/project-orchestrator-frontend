@@ -615,13 +615,13 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
         if (cancelled || !mountedRef.current) return
         setTask({
           id: details.id,
-          title: details.title,
+          title: details.title ?? undefined,
           description: details.description,
           status: details.status,
           acceptance_criteria: details.acceptance_criteria || [],
           tags: details.tags || [],
           affected_files: details.affected_files || [],
-          assigned_to: details.assigned_to,
+          assigned_to: details.assigned_to ?? undefined,
         })
         setSteps(Array.isArray(stepsList) ? stepsList : [])
 

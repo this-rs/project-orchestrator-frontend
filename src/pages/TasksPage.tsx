@@ -193,10 +193,10 @@ export function TasksPage() {
 
   const editForm = EditTaskForm({
     initialValues: {
-      title: editingTask?.title,
+      title: editingTask?.title ?? undefined,
       description: editingTask?.description,
-      priority: editingTask?.priority,
-      estimated_complexity: editingTask?.estimated_complexity,
+      priority: editingTask?.priority ?? undefined,
+      estimated_complexity: editingTask?.estimated_complexity ?? undefined,
       tags: editingTask?.tags,
     },
     onSubmit: async (data: EditTaskFormData) => {

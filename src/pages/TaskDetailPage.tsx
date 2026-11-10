@@ -309,10 +309,10 @@ export function TaskDetailPage() {
 
   const editTaskForm = EditTaskForm({
     initialValues: {
-      title: task?.title,
+      title: task?.title ?? undefined,
       description: task?.description,
-      priority: task?.priority,
-      estimated_complexity: task?.estimated_complexity,
+      priority: task?.priority ?? undefined,
+      estimated_complexity: task?.estimated_complexity ?? undefined,
       tags: task?.tags,
     },
     onSubmit: async (data) => {

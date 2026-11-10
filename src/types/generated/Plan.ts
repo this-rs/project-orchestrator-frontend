@@ -1,5 +1,7 @@
 // Généré par `cargo xtask ts-dto --write`. Ne pas éditer.
 
+import type { PlanStatus } from './PlanStatus'
+
 export interface Plan {
   id: string
   title: string
