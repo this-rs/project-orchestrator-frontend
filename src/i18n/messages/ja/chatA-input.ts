@@ -5,6 +5,7 @@ export default {
     answered: "回答済み:",
     placeholder: "または回答を入力...",
     submit: "送信",
+    expired: "この質問にはもう回答できません。回答がまだ必要な場合は、通常のメッセージを送ってください。",
     notSent: "未送信: 接続が切れました。回答は保持されています。再接続後にもう一度お試しください。"
   },
   attachments: {

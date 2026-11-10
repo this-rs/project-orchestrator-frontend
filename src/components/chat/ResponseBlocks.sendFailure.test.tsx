@@ -5,9 +5,10 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import type { ContentBlock } from '@/types'
+import type { ContentBlock, SessionActivity } from '@/types'
 import { AskUserQuestionBlock } from './AskUserQuestionBlock'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
+import { ChatSessionProvider } from './ChatSessionContext'
 
 const askBlock: ContentBlock = {
   id: 'b1',
@@ -28,6 +29,31 @@ const permBlock: ContentBlock = {
   metadata: { tool_call_id: 'p1', tool_name: 'Bash', tool_input: { command: 'ls' } },
 }
 
+/**
+ * The session really is waiting on a person for THIS question, which is what
+ * makes the card answerable at all (`questionAwaitsPerson`): these tests are
+ * about a live question whose answer failed to leave, not about the card that
+ * outlives its turn.
+ */
+const AWAITING: SessionActivity = {
+  live: true,
+  streaming: false,
+  pending_permissions: 0,
+  monitors: 0,
+  bash_tasks: 0,
+  state: 'waiting_on_person',
+  state_reason: { rule: 'question_open', age_ms: 900 },
+}
+
+/** Render a question card inside the transcript it belongs to. */
+function renderAsk(onRespond: (requestId: string, response: string) => boolean | void) {
+  return render(
+    <ChatSessionProvider sessionId="s1" sessionActivity={AWAITING}>
+      <AskUserQuestionBlock block={askBlock} onRespond={onRespond} />
+    </ChatSessionProvider>,
+  )
+}
+
 describe('AskUserQuestionBlock', () => {
   const answer = () => {
     fireEvent.click(screen.getByText('Alpha'))
@@ -36,7 +62,7 @@ describe('AskUserQuestionBlock', () => {
 
   it('stays answerable and shows an error when onRespond returns false', () => {
     const onRespond = vi.fn().mockReturnValue(false)
-    render(<AskUserQuestionBlock block={askBlock} onRespond={onRespond} />)
+    renderAsk(onRespond)
     answer()
     expect(onRespond).toHaveBeenCalledWith('q1', 'Alpha')
     expect(screen.queryByText(/Answered:/)).toBeNull()
@@ -46,7 +72,7 @@ describe('AskUserQuestionBlock', () => {
 
   it('shows the submitted state when onRespond returns true', () => {
     const onRespond = vi.fn().mockReturnValue(true)
-    render(<AskUserQuestionBlock block={askBlock} onRespond={onRespond} />)
+    renderAsk(onRespond)
     answer()
     expect(screen.getByText(/Answered:/)).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
@@ -54,7 +80,7 @@ describe('AskUserQuestionBlock', () => {
 
   it('can be re-answered after a failure', () => {
     const onRespond = vi.fn().mockReturnValueOnce(false).mockReturnValueOnce(true)
-    render(<AskUserQuestionBlock block={askBlock} onRespond={onRespond} />)
+    renderAsk(onRespond)
     answer()
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
     expect(onRespond).toHaveBeenCalledTimes(2)

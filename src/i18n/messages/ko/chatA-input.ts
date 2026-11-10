@@ -5,6 +5,7 @@ export default {
     answered: "답변함:",
     placeholder: "또는 답변을 입력하세요...",
     submit: "제출",
+    expired: "이 질문에는 더 이상 답할 수 없습니다. 그래도 답이 필요하면 일반 메시지를 보내세요.",
     notSent: "전송되지 않음: 연결이 끊겼습니다. 답변은 보관되어 있으니 다시 연결되면 다시 시도하세요."
   },
   attachments: {

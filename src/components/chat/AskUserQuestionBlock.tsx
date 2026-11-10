@@ -1,7 +1,9 @@
 import { useState, useCallback, useMemo } from 'react'
 import type { ContentBlock, AskUserQuestion } from '@/types'
-import { Check } from 'lucide-react'
+import { Check, Clock } from 'lucide-react'
 import { useT } from '@/i18n'
+import { useChatSessionActivity } from './ChatSessionContext'
+import { questionAwaitsPerson } from './sessionQuestion'
 
 interface AskUserQuestionBlockProps {
   block: ContentBlock
@@ -11,6 +13,16 @@ interface AskUserQuestionBlockProps {
 
 export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQuestionBlockProps) {
   const { t } = useT()
+  /**
+   * What the server says this conversation is doing. This card is answerable
+   * ONLY on a positive verdict (`question_open`); see `questionAwaitsPerson`
+   * for why the unknown case is closed rather than open. Without it, a question
+   * whose turn ended — interrupted, as on session cadfa92b — kept offering a
+   * Send button that answered a tool which no longer existed: the API refused,
+   * nothing was said, and the conversation looked broken.
+   */
+  const sessionActivity = useChatSessionActivity()
+  const awaitsPerson = questionAwaitsPerson(sessionActivity)
   const questions = useMemo(() => (block.metadata?.questions as AskUserQuestion[]) || [], [block.metadata?.questions])
 
   // Initialize from persisted metadata (survives page reload / history replay)
@@ -167,6 +179,59 @@ export function AskUserQuestionBlock({ block, onRespond, disabled }: AskUserQues
             {t('chatA-input.ask.answered')} <span className="text-gray-400">{persistedResponse}</span>
           </p>
         </div>
+      </div>
+    )
+  }
+
+  /**
+   * The turn this question belonged to is over (or no one ever told us it is
+   * not): the card is expired, and says so. `disabled` — a read-only mirror —
+   * keeps its own rendering below, where the reason is printed under the card.
+   */
+  if (!disabled && !submitted && !awaitsPerson) {
+    return (
+      <div className="my-2 rounded-lg bg-white/[0.02] border border-white/[0.06] p-3 space-y-3" data-testid="ask-question-expired">
+        {questions.map((q, qIndex) => (
+          <div key={qIndex} className="space-y-1.5">
+            {/* Header chip + Question, kept readable: the user must still see what was asked */}
+            <div className="flex items-start gap-2">
+              {q.header && (
+                <span className="shrink-0 px-2 py-0.5 text-xs font-medium rounded bg-white/[0.06] text-gray-400">
+                  {q.header}
+                </span>
+              )}
+              <p className="text-sm text-gray-400">{q.question}</p>
+            </div>
+
+            {/* Options — shown, disabled: there is nothing left to answer */}
+            <div className="flex flex-wrap gap-2">
+              {q.options.map((opt, optIndex) => (
+                <button
+                  key={optIndex}
+                  type="button"
+                  disabled
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-white/[0.02] border border-white/[0.04] text-gray-500 cursor-not-allowed"
+                >
+                  <span className={`
+                    w-3.5 h-3.5 flex items-center justify-center border border-gray-700
+                    ${q.multiSelect ? 'rounded-sm' : 'rounded-full'}
+                  `} />
+                  <span className="flex flex-col items-start">
+                    <span>{opt.label}</span>
+                    {opt.description && (
+                      <span className="text-xs text-gray-600">{opt.description}</span>
+                    )}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <p className="text-xs text-gray-500 flex items-center gap-1.5">
+          <Clock className="w-3 h-3 shrink-0" />
+          {t('chatA-input.ask.expired')}
+        </p>
       </div>
     )
   }

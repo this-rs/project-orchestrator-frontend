@@ -503,3 +503,71 @@ describe('the docked header keeps its room for the title', () => {
     expect(screen.getByRole('menuitem', { name: 'Fullscreen' })).toBeTruthy()
   })
 })
+
+/**
+ * A question in the transcript is a CARD, never a gate on the composer.
+ *
+ * The two rules that must hold together: the card is only answerable while the
+ * server says a person is waited on for it (`questionAwaitsPerson`), and while
+ * it sits there — open or expired — the user can always type and send an
+ * ordinary message. Making the composer wait for an answer would strand a
+ * conversation whose question died with its turn (session cadfa92b).
+ */
+describe('a question in the transcript never blocks the composer', () => {
+  const questionMessage = {
+    id: 'm1',
+    role: 'assistant',
+    timestamp: new Date(0),
+    blocks: [
+      {
+        id: 'b1',
+        type: 'ask_user_question',
+        content: '',
+        metadata: {
+          tool_call_id: 'q1',
+          questions: [{ question: 'Which disk?', header: 'Disk', multiSelect: false, options: [{ label: 'sda' }] }],
+        },
+      },
+    ],
+  }
+
+  it('the card is expired (the session is not waiting on anyone) and the composer stays open', async () => {
+    const store = renderPanel({
+      prepare: (s) => {
+        onLlama(FULL)(s)
+        chatStub.messages = [questionMessage] as unknown[]
+      },
+    })
+    await ready(store)
+    // The panel did read the verdict — the card's state is known, not skipped.
+    await waitFor(() => expect(getLiveActivity).toHaveBeenCalled())
+    expect(input().getAttribute('data-disabled')).toBe('false')
+    expect(input().getAttribute('data-reason')).toBe('')
+  })
+
+  it('the composer is open while the question is genuinely open too', async () => {
+    getLiveActivity.mockResolvedValue({
+      generated_at: '',
+      sessions: {
+        s1: {
+          live: true,
+          streaming: false,
+          pending_permissions: 0,
+          monitors: 0,
+          bash_tasks: 0,
+          state: 'waiting_on_person',
+          state_reason: { rule: 'question_open', age_ms: 700 },
+        },
+      },
+    })
+    const store = renderPanel({
+      prepare: (s) => {
+        onLlama(FULL)(s)
+        chatStub.messages = [questionMessage] as unknown[]
+      },
+    })
+    await ready(store)
+    await waitFor(() => expect(getLiveActivity).toHaveBeenCalled())
+    expect(input().getAttribute('data-disabled')).toBe('false')
+  })
+})

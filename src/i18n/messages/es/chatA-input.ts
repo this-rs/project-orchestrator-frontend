@@ -5,6 +5,7 @@ export default {
     answered: "Respondido:",
     placeholder: "O escribe tu respuesta...",
     submit: "Enviar",
+    expired: "Esta pregunta ya no se puede responder. Si aún necesitas una respuesta, envía un mensaje normal.",
     notSent: "No enviado: conexión perdida. Tu respuesta se conserva; inténtalo de nuevo cuando te reconectes."
   },
   attachments: {

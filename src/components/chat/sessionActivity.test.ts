@@ -25,6 +25,8 @@ const activity = (p: Partial<SessionActivity> = {}): SessionActivity => ({
   pending_permissions: 0,
   monitors: 0,
   bash_tasks: 0,
+  state: null,
+  state_reason: null,
   ...p,
 })
 
@@ -172,5 +174,33 @@ describe('applyStreamingEvent', () => {
 
   it('ignores a stop for a session it does not track', () => {
     expect(applyStreamingEvent(new Map(), 'a', false).size).toBe(0)
+  })
+})
+
+/**
+ * The verdict (`state` + `state_reason`) travels with the activity, through the
+ * normaliser and the map rebuilds. It used to be dropped by `normalizeActivity`
+ * — silently, because both fields are optional on the wire — which would have
+ * left every copy of the map unable to say whether a question is still open.
+ */
+describe('the server verdict survives the activity map', () => {
+  const verdict = {
+    state: 'waiting_on_person' as const,
+    state_reason: { rule: 'question_open', age_ms: 1_200 },
+  }
+
+  it('normalizeActivity keeps state and state_reason', () => {
+    expect(normalizeActivity(activity({ live: true, ...verdict }))).toMatchObject(verdict)
+  })
+
+  it('an older server that sends no verdict normalises to "no verdict", not to a default', () => {
+    const { state, state_reason } = normalizeActivity(activity({ live: true }))
+    expect(state).toBeNull()
+    expect(state_reason).toBeNull()
+  })
+
+  it('applySnapshot keeps it', () => {
+    const map = applySnapshot({ a: activity({ live: true, ...verdict }) })
+    expect(map.get('a')).toMatchObject(verdict)
   })
 })
