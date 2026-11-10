@@ -111,18 +111,26 @@ function renderPanel(opts: { projects?: boolean; loaded?: boolean; neutral?: boo
 }
 
 describe('ChatPanel — a conversation without a project', () => {
-  it('a workspace without projects opens it in the neutral place: no cwd, no project, said on screen', async () => {
+  it('a workspace without projects opens it in the neutral place, scoped to that workspace', async () => {
     renderPanel()
     expect(await screen.findByTestId('neutral-place-notice')).toBeTruthy()
-    expect(screen.getByText(/neutral place, read-only/)).toBeTruthy()
+    // No project yet does NOT mean read-only: the conversation belongs to the workspace,
+    // so the sentence must not promise the opposite, and the slug travels with the
+    // message (without it the server sees a session that belongs to nothing).
+    const notice = screen.getByTestId('neutral-place-notice')
+    expect(notice.textContent).not.toContain('read-only')
+    expect(notice.textContent).toContain('outside any project')
     expect(screen.getByRole('link', { name: /Add a project/ })).toBeTruthy()
     fireEvent.click(screen.getByTestId('input'))
-    expect(chatStub.sendMessage).toHaveBeenCalledWith('hello', { cwd: '' }, ['doc-1'])
+    expect(chatStub.sendMessage).toHaveBeenCalledWith('hello', { cwd: '', workspaceSlug: 'ws' }, ['doc-1'])
   })
 
   it('« No project » picked in a workspace that has some: neutral too, without the add-project link', async () => {
     renderPanel({ projects: true, neutral: true })
     expect(await screen.findByTestId('neutral-place-notice')).toBeTruthy()
+    // This one DOES belong to nothing (the person chose it in a workspace that has
+    // projects): read-only is kept, and so is the sentence that says it.
+    expect(screen.getByTestId('neutral-place-notice').textContent).toContain('read-only')
     expect(screen.queryByRole('link', { name: /Add a project/ })).toBeNull()
     fireEvent.click(screen.getByTestId('input'))
     expect(chatStub.sendMessage).toHaveBeenCalledWith('hello', { cwd: '' }, ['doc-1'])
@@ -155,7 +163,7 @@ describe('ChatPanel — « Demander ici »', () => {
   it('asks the question in a new conversation, then places the confirmed anchors on it', async () => {
     const { store, rerender } = renderPanel()
     act(() => store.set(askHereRequestAtom, request))
-    await waitFor(() => expect(chatStub.sendMessage).toHaveBeenCalledWith(request.text, { cwd: '' }, undefined, request.refs))
+    await waitFor(() => expect(chatStub.sendMessage).toHaveBeenCalledWith(request.text, { cwd: '', workspaceSlug: 'ws' }, undefined, request.refs))
     expect(store.get(askHereRequestAtom)).toBeNull()
     expect(placeAnchors).not.toHaveBeenCalled()
     chatStub.sessionId = 's9'
