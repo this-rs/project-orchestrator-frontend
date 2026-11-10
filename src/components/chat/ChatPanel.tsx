@@ -10,6 +10,7 @@ import type { ProviderFallback, ProviderId } from '@/types/provider'
 import { useChat, useDetachedRuns, useMediaQuery, useVisualViewportHeight, useWindowFullscreen, useWorkspaceSlug } from '@/hooks'
 import { useProviders } from '@/hooks/useProviders'
 import { useSessionLive } from '@/hooks/useSessionLive'
+import { useSessionActivity } from '@/hooks/useSessionActivity'
 import { useTimelineContext } from '@/hooks/useTimelineContext'
 import { useModalFocus } from '@/hooks/useModalFocus'
 import { describeSessionProvider, providerUnavailableReason } from '@/constants/providers'
@@ -196,6 +197,28 @@ export function ChatPanel() {
       }),
     [chat.messages, backgroundTasks, chat.isStreaming, detachedRuns.runs],
   )
+  /**
+   * The question cards still awaiting an answer, as one key — the trigger for
+   * re-reading the server's verdict on this conversation (`useSessionActivity`).
+   * `null` = none, i.e. nothing to ask, no traffic. Only a card that is neither
+   * answered nor gone can be answered, so those are the only ones counted;
+   * `metadata.submitted` is set by the server for a question answered in a
+   * previous life of the page, and such a card shows its answer, not a button.
+   */
+  const unansweredQuestionKey = useMemo(() => {
+    const ids: string[] = []
+    for (const message of chat.messages) {
+      for (const block of message.blocks ?? []) {
+        if (block.type === 'ask_user_question' && !block.metadata?.submitted) {
+          ids.push(String(block.metadata?.tool_call_id ?? block.id))
+        }
+      }
+    }
+    return ids.length > 0 ? ids.join(',') : null
+  }, [chat.messages])
+  // What the SERVER says this conversation is doing — the only thing that makes a
+  // question card actionable (`questionAwaitsPerson`). Unknown stays unknown.
+  const sessionActivity = useSessionActivity(chat.sessionId ?? null, unansweredQuestionKey)
   // A run that streams is in the activity bar; the panel above the transcript keeps the finished
   // ones. Showing a live run in both (and in a banner, and in a header pill) was three surfaces
   // for one fact.
@@ -742,7 +765,7 @@ export function ChatPanel() {
   // On desktop: sidebar is a permanent 288px column
   if (isFullscreen) {
     return (
-      <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null}>
+      <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null} sessionActivity={sessionActivity}>
       <ChatCapabilitiesProvider capabilities={capabilities}>
       {/* `data-chat-panel` marks the chat area for `useWindowFileDrop`: a file
           dropped inside it is attached to the composer, and anywhere else it is
@@ -1088,7 +1111,7 @@ export function ChatPanel() {
 
   // --- PANEL LAYOUT (non-fullscreen): toggle-based session list ---
   return (
-    <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null}>
+    <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null} sessionActivity={sessionActivity}>
     <ChatCapabilitiesProvider capabilities={capabilities}>
     <div
       ref={panelRef}

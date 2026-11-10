@@ -3,6 +3,7 @@ export default {
     answered: 'Answered:',
     placeholder: 'Or type your answer...',
     submit: 'Submit',
+    expired: 'This question can no longer be answered. If you still need an answer, send a normal message.',
     notSent: 'Not sent: connection lost. Your answer is kept, try again once reconnected.',
   },
   attachments: {

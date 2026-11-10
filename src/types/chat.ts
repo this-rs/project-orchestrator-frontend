@@ -291,6 +291,47 @@ export interface SessionActivity {
   monitors: number
   /** Active `Bash run_in_background` subprocesses. */
   bash_tasks: number
+  /**
+   * What the session is doing in its CURRENT segment, decided server-side by
+   * `chat::segment_state` from the tail of its events, the counts above and the
+   * clock. Additive on the wire: absent for a session that is not live (or not
+   * tapped yet), so a client that predates it keeps reading the five fields
+   * above. Absent therefore means UNKNOWN — never "working", and never "open".
+   */
+  state?: SessionState | null
+  /**
+   * Why `state` is what it is: which rule decided, the event that decided (its
+   * wire name, when one did) and that event's age.
+   */
+  state_reason?: SessionStateReason | null
+}
+
+/**
+ * What a session is doing in its current segment (backend `chat::segment_state`,
+ * `SessionState`). Closed on the wire, but read defensively here: a value this
+ * build does not know is "not open", never "open".
+ */
+export type SessionState =
+  | 'working'
+  | 'writing'
+  | 'reporting'
+  | 'watching'
+  | 'waiting_on_person'
+  | 'done'
+  | 'stalled'
+
+/**
+ * Why the state is what it is (backend `segment_state::Reason`). `rule` is kept
+ * open on purpose — the backend adds rules, and an unknown one must degrade to
+ * "this says nothing about my question", not fail a type check at runtime.
+ */
+export interface SessionStateReason {
+  /** `question_open`, `permission_pending`, `secret_requested`, `answered_human`, … */
+  rule: string
+  /** Wire name of the event that decided, when one did. */
+  event?: string
+  /** How old that event was when the verdict was taken. */
+  age_ms?: number
 }
 
 /** Activity is absent for a quiet session; this is that answer, spelled out. */
@@ -300,6 +341,10 @@ export const QUIET_ACTIVITY: SessionActivity = {
   pending_permissions: 0,
   monitors: 0,
   bash_tasks: 0,
+  // No verdict, spelled out, so every activity this client holds has the same
+  // shape: "nothing is running" is never confused with "nobody asked".
+  state: null,
+  state_reason: null,
 }
 
 /** Body of `GET /api/chat/live-activity`. */

@@ -5,6 +5,7 @@ export default {
     answered: "Đã trả lời:",
     placeholder: "Hoặc nhập câu trả lời của bạn...",
     submit: "Gửi",
+    expired: "Không thể trả lời câu hỏi này nữa. Nếu bạn vẫn cần câu trả lời, hãy gửi một tin nhắn thường.",
     notSent: "Chưa gửi: mất kết nối. Câu trả lời của bạn vẫn được giữ, hãy thử lại sau khi kết nối lại."
   },
   attachments: {

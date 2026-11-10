@@ -5,6 +5,7 @@ export default {
     answered: "已回答：",
     placeholder: "或输入你的回答...",
     submit: "提交",
+    expired: "此问题已无法回答。如果仍需答案，请发送一条普通消息。",
     notSent: "未发送：连接已断开。你的回答已保留，重新连接后请再试一次。"
   },
   attachments: {

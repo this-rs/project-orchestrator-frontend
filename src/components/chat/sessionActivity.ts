@@ -39,6 +39,12 @@ function count(n: number, singular: string, plural = `${singular}s`): string {
 /**
  * Normalise anything the server (or an older server) may hand us. A missing
  * field is zero, not NaN — a status line must never render "NaN watches".
+ *
+ * `state` and `state_reason` are carried through untouched: they are the
+ * server's VERDICT, not counts, and there is nothing to normalise about them.
+ * Dropping them here (which this literal used to do, silently, because they are
+ * optional) would leave every copy of the map — `applySnapshot`, `applyWindow`,
+ * `applyStreamingEvent` — unable to say whether a question is still open.
  */
 export function normalizeActivity(activity?: SessionActivity | null): SessionActivity {
   if (!activity) return QUIET_ACTIVITY
@@ -49,6 +55,8 @@ export function normalizeActivity(activity?: SessionActivity | null): SessionAct
     pending_permissions: n(activity.pending_permissions),
     monitors: n(activity.monitors),
     bash_tasks: n(activity.bash_tasks),
+    state: activity.state ?? null,
+    state_reason: activity.state_reason ?? null,
   }
 }
 

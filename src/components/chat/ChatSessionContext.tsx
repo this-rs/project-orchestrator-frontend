@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import { CLAUDE_CODE_CAPABILITIES, type ProviderCapabilities } from '@/types/provider'
+import type { SessionActivity } from '@/types'
 
 /**
  * Lightweight context exposing the current chat `sessionId` to descendants
@@ -47,6 +48,15 @@ interface ChatSessionContextValue {
    * the max-turns Continue are shown inert with this reason. Absent = writable.
    */
   readOnlyReason?: string | null
+  /**
+   * What the live server says this conversation is doing RIGHT NOW (see
+   * `SessionActivity`), as `chat::segment_state` classifies it. Absent or `null`
+   * = UNKNOWN — a transcript rendered outside the chat panel (runner page,
+   * read-only page) never reads it. Card components treat unknown as "cannot be
+   * answered" (fail-closed): the state is a permission to answer, never an
+   * assumption.
+   */
+  sessionActivity?: SessionActivity | null
 }
 
 const ChatSessionContext = createContext<ChatSessionContextValue>({ sessionId: null })
@@ -57,6 +67,7 @@ export function ChatSessionProvider({
   childSessions,
   openSession,
   readOnlyReason,
+  sessionActivity,
   children,
 }: {
   sessionId: string | null
@@ -64,11 +75,12 @@ export function ChatSessionProvider({
   childSessions?: readonly ChatChildSession[]
   openSession?: (sessionId: string) => void
   readOnlyReason?: string | null
+  sessionActivity?: SessionActivity | null
   children: ReactNode
 }) {
   const value = useMemo(
-    () => ({ sessionId, cancelToolsLive, childSessions, openSession, readOnlyReason }),
-    [sessionId, cancelToolsLive, childSessions, openSession, readOnlyReason],
+    () => ({ sessionId, cancelToolsLive, childSessions, openSession, readOnlyReason, sessionActivity }),
+    [sessionId, cancelToolsLive, childSessions, openSession, readOnlyReason, sessionActivity],
   )
   return (
     <ChatSessionContext.Provider value={value}>
@@ -93,6 +105,17 @@ export function useCancelToolsLive(): (() => boolean) | undefined {
 // eslint-disable-next-line react-refresh/only-export-components
 export function useChatReadOnlyReason(): string | null {
   return useContext(ChatSessionContext).readOnlyReason ?? null
+}
+
+/**
+ * The server's live verdict on this conversation, or `null` when nobody read it
+ * (a transcript outside the chat panel) or the read failed. `null` is UNKNOWN,
+ * not "idle": a card that needs a permission to be actionable treats it as
+ * "no permission" (see `questionAwaitsPerson`).
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export function useChatSessionActivity(): SessionActivity | null {
+  return useContext(ChatSessionContext).sessionActivity ?? null
 }
 
 /**
