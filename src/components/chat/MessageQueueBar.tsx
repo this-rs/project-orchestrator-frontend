@@ -162,6 +162,15 @@ export const MessageQueueBar = memo(function MessageQueueBar({
                   next
                 </span>
               )}
+              {m.local && (
+                <span
+                  className="shrink-0 self-center text-[10px] text-amber-400/80"
+                  data-testid="queue-local-hint"
+                  title="This message has not reached the server: it leaves when the connection is back, or press send now to retry."
+                >
+                  not sent yet
+                </span>
+              )}
               {isEditing ? (
                 <textarea
                   ref={editRef}

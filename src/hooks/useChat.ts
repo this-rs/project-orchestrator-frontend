@@ -17,7 +17,7 @@ import { applyResultCost } from '@/utils/cost'
 import { isUserStoppedTurn } from '@/utils/turnEnd'
 import { chatApi, ChatWebSocket } from '@/services'
 import { applyQueueOp, enqueue, mergeServerQueue, type QueueOp, type QueuedMessage } from '@/components/chat/messageQueue'
-import type { ChatMessage, ChatStreamEvent, ContentBlock, PermissionMode } from '@/types'
+import type { ChatMessage, ChatStreamEvent, ContentBlock, PermissionMode, LiveActivityResponse } from '@/types'
 import { isTrustAllowed, readToolPolicyMode, toWireMode, TRUST_FALLBACK_MODE, usableMode } from '@/constants/toolPolicy'
 import {
   decodeStoredRefs,
@@ -290,7 +290,13 @@ export interface SessionMeta {
 export function useChat() {
   const [sessionId, setSessionId] = useAtom(chatSessionIdAtom)
   const [isStreaming, setIsStreaming] = useAtom(chatStreamingAtom)
+  useEffect(() => {
+    flagStampRef.current += 1
+  }, [isStreaming])
   const interruptWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Bumped whenever `isStreaming` changes: a REST verdict older than the last change is stale. */
+  const flagStampRef = useRef(0)
+  const reconcileStreamingRef = useRef<() => void>(() => {})
   const [compactingSessionId, setCompactingSessionId] = useAtom(chatCompactingAtom)
   const [wsStatus, setWsStatus] = useAtom(chatWsStatusAtom)
   const [isReplaying, setIsReplaying] = useAtom(chatReplayingAtom)
@@ -1691,6 +1697,58 @@ export function useChat() {
    * through handleEvent, whose snapshot-vs-history dedup already covers them.
    * Unlike opening, the current messages stay on screen while REST loads.
    */
+  /**
+   * Bring `isStreaming` back to what the server says, over REST.
+   *
+   * The flag is fed by events (`streaming_status`, `result`) and an event can be
+   * missed: a stale `true` turns every message into a queued one, a stale
+   * `false` hides Stop on a turn that still runs. `GET /chat/live-activity` is the
+   * server's in-memory truth; a session absent from it is quiet (not streaming).
+   * An unreadable answer changes nothing (an unknown is never a verdict).
+   *
+   * A verdict is dropped when the flag changed while the request was in flight
+   * (`flagStampRef`): a turn started meanwhile, or a live `streaming_status`
+   * arrived, and either is newer than the snapshot.
+   */
+  const reconcileStreaming = useCallback(() => {
+    const sid = store.get(chatSessionIdAtom)
+    if (!sid) return
+    const stamp = flagStampRef.current
+    let request: Promise<LiveActivityResponse>
+    try {
+      request = Promise.resolve(chatApi.getLiveActivity())
+    } catch {
+      return
+    }
+    request
+      .then((res) => {
+        if (!res?.sessions) return
+        if (store.get(chatSessionIdAtom) !== sid) return
+        if (stamp !== flagStampRef.current) return
+        const serverStreaming = res.sessions[sid]?.streaming === true
+        if (store.get(chatStreamingAtom) !== serverStreaming) setIsStreaming(serverStreaming)
+      })
+      .catch(() => {})
+  }, [store, setIsStreaming])
+  useEffect(() => {
+    reconcileStreamingRef.current = reconcileStreaming
+  }, [reconcileStreaming])
+
+  // Back on the tab: the events that came (or did not) while it was hidden may
+  // have left the flag wrong. Stops with the hook (listeners removed on unmount).
+  useEffect(() => {
+    const onBack = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      reconcileStreamingRef.current()
+    }
+    window.addEventListener('focus', onBack)
+    document.addEventListener('visibilitychange', onBack)
+    return () => {
+      window.removeEventListener('focus', onBack)
+      document.removeEventListener('visibilitychange', onBack)
+    }
+  }, [])
+
   const resyncFromRest = useCallback((sid: string) => {
     // Browsing an older window (search result): the tail is not on screen,
     // live events are parked in pendingTailEventsRef, and loadNewerMessages
@@ -1732,13 +1790,12 @@ export function useChat() {
 
         // A finished turn at the end of the persisted history means nothing
         // is streaming: clears an optimistic typing indicator whose `result`
-        // was missed (D8 scenario). A stream that starts later announces itself
-        // with a live streaming_status.
+        // was missed. A stream that starts later announces itself with a live
+        // streaming_status. A tail ending on a `user_message` proves nothing (a
+        // turn that has started but emitted nothing yet looks the same): the
+        // server's own answer settles it (`reconcileStreaming`, below).
         if (win.lastEvent?.type === 'result') setIsStreaming(false)
-        // If the last event is a user message, the assistant hasn't responded yet,
-        // so nothing should be streaming (handles missed result edge case where
-        // isStreaming got stuck true but no assistant turn is actually running).
-        if (win.lastEvent?.type === 'user_message') setIsStreaming(false)
+        reconcileStreamingRef.current()
       })
       .catch(() => {
         // Keep what is on screen; the next reconnect retries.
@@ -1770,17 +1827,13 @@ export function useChat() {
         setWsStatus(status)
         // The socket's announcement dies with it: back to what the REST probe knows (or unknown).
         if (status === 'disconnected') store.set(chatServerFeaturesAtom, cachedRefsCapability(refsScopeRef.current))
-        // When the server disconnects mid-stream, isStreaming stays true with
-        // no Result event to clear it. Don't immediately clear it on reconnecting —
-        // the server will send a fresh streaming_status via the Phase 1.5b snapshot
-        // if a stream is actually active after reconnection. If the stream ended,
-        // the snapshot will contain a final result event that will clear it.
-        // This preserves the Stop button visibility during reconnection.
+        // When the server disconnects mid-stream the flag may be wrong either way
+        // by the time the socket is back (the turn may have ended, or still run).
         if (status === 'reconnecting') {
           setIsCompacting(false)
-          // NOTE: isStreaming is NOT cleared here. It will be corrected by:
-          // 1. streaming_status event from server (if still active)
-          // 2. result event in resync response (if turned completed)
+          // isStreaming is NOT cleared here: a turn the server still runs must keep
+          // its Stop button across the reconnect. The flag is brought back to what
+          // the server says by `reconcileStreaming` once the replay is complete.
         }
         // An answer sent on the socket that died may never be confirmed: its block is
         // answerable again (a decision replayed after the reconnect still wins).
@@ -1794,6 +1847,8 @@ export function useChat() {
       onReplayComplete: () => {
         setIsReplaying(false)
         setIsLoadingHistory(false)
+        // What the server runs now, over REST: the replay may not carry the end of a turn.
+        reconcileStreamingRef.current()
         // The socket is usable again: hand over what was queued without it...
         syncLocalQueueRef.current()
         // ...and learn what the session already holds. A reload starts with an empty
@@ -2646,12 +2701,9 @@ export function useChat() {
   /**
    * Hand over to the server every queued message still waiting on this side
    * (`local`): composed before the conversation had an id, or while the socket
-   * was down.
-   *
-   * D10: Don't break on first failure. Try all messages and remove only the ones
-   * that send successfully. This prevents messages from being permanently trapped
-   * if socket recovers partially. A message that fails stays queued for the next
-   * attempt, but doesn't block other messages from being sent.
+   * was down. Stops at the first one that cannot leave, to keep their order
+   * (a dead socket refuses the next ones too, and one pass over a finite list
+   * always ends); the next reconnect, or a "send now" on the row, retries.
    */
   const syncLocalQueue = useCallback(() => {
     const sid = store.get(chatSessionIdAtom)
@@ -2662,11 +2714,8 @@ export function useChat() {
     for (const entry of queue) {
       if (!entry.local) continue
       const queuedRefs = refsForWire(store.get(refsEnabledAtom), entry.refs)
-      // Try to send but continue trying other messages even if this one fails (D10).
-      // Successful sends are removed from queue; failed sends stay for retry.
-      if (ws.sendUserMessage(entry.text, entry.attachmentIds, { queue: true, ...(queuedRefs ? { refs: queuedRefs } : {}) })) {
-        remaining = remaining.filter((m) => m.id !== entry.id)
-      }
+      if (!ws.sendUserMessage(entry.text, entry.attachmentIds, { queue: true, ...(queuedRefs ? { refs: queuedRefs } : {}) })) break
+      remaining = remaining.filter((m) => m.id !== entry.id)
     }
     if (remaining !== queue) {
       store.set(chatMessageQueuesAtom, withQueue(store.get(chatMessageQueuesAtom), sid, remaining))
@@ -2694,7 +2743,10 @@ export function useChat() {
     const last: QueuedMessage = { ...next[next.length - 1], local: true }
     store.set(chatMessageQueuesAtom, withQueue(all, key, [...next.slice(0, -1), last]))
     syncLocalQueue()
-  }, [store, syncLocalQueue])
+    // Queued because a turn "is running": check that it really is (a missed `result`
+    // would otherwise keep every later message queued without a word).
+    if (store.get(chatStreamingAtom)) reconcileStreaming()
+  }, [store, syncLocalQueue, reconcileStreaming])
 
   /**
    * Edit, drop, move to the front or send now one queued message.
@@ -2716,6 +2768,9 @@ export function useChat() {
       const local: QueueOp = action.op === 'send_now' ? { op: 'prioritize', id: action.id } : action
       const next = applyQueueOp(current, local, store.get(refsEnabledAtom)).map((m) => (m.id === action.id ? { ...m, local: true } : m))
       store.set(chatMessageQueuesAtom, withQueue(all, key, next))
+      // "Send now" on a row that never left is the manual retry: it goes first, and
+      // leaves now if the socket allows (otherwise the row says it is waiting).
+      if (action.op === 'send_now') syncLocalQueue()
       return
     }
     if (!getWs().sendQueueOp(action)) return
@@ -2738,7 +2793,7 @@ export function useChat() {
         },
       ])
     }
-  }, [getWs, store, setMessages])
+  }, [getWs, store, setMessages, syncLocalQueue])
 
   const newSession = useCallback(() => {
     // The draft needs no hand-over: it is keyed by conversation
