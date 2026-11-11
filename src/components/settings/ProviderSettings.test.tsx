@@ -17,6 +17,8 @@ vi.mock('@/services/providers', async (orig) => ({
     aliases: vi.fn().mockResolvedValue([]),
     policy: vi.fn().mockResolvedValue({ mode: 'off', rules: {}, fallback: [], caps: {} }),
     consents: vi.fn().mockResolvedValue([]),
+    quota: vi.fn().mockResolvedValue(null),
+    clearQuota: vi.fn().mockResolvedValue(undefined),
   },
 }))
 vi.mock('@/services/projects', () => ({
