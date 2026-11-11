@@ -172,6 +172,7 @@ export default {
     blocked: "अवरुद्ध",
     completed: "पूरा हुआ",
     failed: "विफल",
+    interrupted: "बाधित",
     draft: "ड्राफ़्ट",
     approved: "स्वीकृत",
     cancelled: "रद्द",

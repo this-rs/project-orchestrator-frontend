@@ -13,7 +13,7 @@ import {
 import dagre from 'dagre'
 import { Link } from 'react-router-dom'
 import { ReferenceSource } from '@/refs/source'
-import { AlertTriangle, FileCode2, StickyNote, BookOpen, ExternalLink, CheckCircle2, Circle, Loader2, SkipForward, MessageSquare, FileSearch, Clock, Ban, XCircle, Bot, X } from 'lucide-react'
+import { AlertTriangle, FileCode2, StickyNote, BookOpen, ExternalLink, CheckCircle2, Circle, Loader2, SkipForward, MessageSquare, FileSearch, Clock, Ban, XCircle, PauseCircle, Bot, X } from 'lucide-react'
 import { PulseIndicator, StatusIcon, StatusText, TONE_CLASSES, getStatusMeta, hitArea, textLink } from '@/components/ui'
 import { statusLabel } from '@/components/ui/statusMeta'
 import { useT } from '@/i18n'
@@ -84,6 +84,7 @@ const statusColors: Record<TaskStatus, { border: string; text: string; dot: stri
   blocked: { border: '#d97706', text: '#fbbf24', dot: '#fbbf24' },
   completed: { border: '#22c55e', text: '#34d399', dot: '#34d399' },
   failed: { border: '#ef4444', text: '#f87171', dot: '#f87171' },
+  interrupted: { border: '#b45309', text: '#fcd34d', dot: '#fcd34d' },
 }
 
 
@@ -126,6 +127,8 @@ function TaskStatusIcon({ status }: { status: TaskStatus }) {
       return <Ban className="w-3.5 h-3.5 flex-shrink-0" style={{ color: statusColors.blocked.dot }} />
     case 'failed':
       return <XCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: statusColors.failed.dot }} />
+    case 'interrupted':
+      return <PauseCircle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: statusColors.interrupted.dot }} />
     default: // pending
       return <Clock className="w-3.5 h-3.5 flex-shrink-0" style={{ color: statusColors.pending.dot }} />
   }
@@ -612,13 +615,13 @@ export function TaskDrawer({ taskId, onClose, onOpenFullPage }: TaskDrawerProps)
         if (cancelled || !mountedRef.current) return
         setTask({
           id: details.id,
-          title: details.title,
+          title: details.title ?? undefined,
           description: details.description,
           status: details.status,
           acceptance_criteria: details.acceptance_criteria || [],
           tags: details.tags || [],
           affected_files: details.affected_files || [],
-          assigned_to: details.assigned_to,
+          assigned_to: details.assigned_to ?? undefined,
         })
         setSteps(Array.isArray(stepsList) ? stepsList : [])
 

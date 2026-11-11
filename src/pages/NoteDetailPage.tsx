@@ -74,7 +74,7 @@ import {
 import { useFormDialog, useToast, useWorkspaceSlug } from '@/hooks'
 import { useViewTransition } from '@/hooks/useViewTransition'
 import { workspacePath } from '@/utils/paths'
-import type { Note, NoteAnchor, NoteImportance, NoteStatus } from '@/types'
+import type { Note, NoteImportance, NoteScope, NoteStatus, NoteType } from '@/types'
 import { NOMENCLATURE } from '@/constants/nomenclature'
 import { activeTranslator, useT } from '@/i18n'
 
@@ -256,14 +256,14 @@ export function NoteDetailPage() {
     navigate(notesHref, { type: 'back-button' })
   }
 
-  const handleUnlink = async (anchor: NoteAnchor) => {
+  const handleUnlink = async (anchor: { entity_type: string; entity_id: string }) => {
     if (!note) return
     await notesApi.unlinkFromEntity(note.id, anchor.entity_type, anchor.entity_id)
     setNote((prev) =>
       prev
         ? {
             ...prev,
-            anchors: prev.anchors.filter((a) => !(a.entity_type === anchor.entity_type && a.entity_id === anchor.entity_id)),
+            anchors: (prev.anchors ?? []).filter((a) => !(a.entity_type === anchor.entity_type && a.entity_id === anchor.entity_id)),
           }
         : prev,
     )
@@ -318,7 +318,7 @@ export function NoteDetailPage() {
   }
   const openSupersede = () => {
     if (!note) return
-    supersedeForm.reset({ note_type: note.note_type, content: note.content, importance: note.importance, tags: note.tags ?? [] })
+    supersedeForm.reset({ note_type: note.note_type as NoteType, content: note.content, importance: note.importance, tags: note.tags ?? [] })
     supersedeDialog.open({ title: t('siteKnowledge.note.supersedeTitle'), size: 'lg', submitLabel: t('siteKnowledge.note.supersedeSubmit') })
   }
   const openLink = () => {
@@ -400,7 +400,7 @@ export function NoteDetailPage() {
   const validAnchors = anchors.filter((a) => a.is_valid !== false).length
   const changes = [...(note.changes ?? [])].sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp))
   const horizon = note.memory_horizon ? MEMORY_HORIZON_TEXT[note.memory_horizon] : null
-  const scope = scopeLabel(note.scope)
+  const scope = scopeLabel(note.scope as NoteScope | null)
   const needsReview = note.status === 'needs_review' || note.status === 'stale' || staleness >= 0.5
   const currentAnchor = anchors.find((a) => `${a.entity_type}::${a.entity_id}` === currentAnchorKey)
   const body = noteBody(note.content)

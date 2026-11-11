@@ -42,7 +42,7 @@ import { NeuronExplorer } from '@/components/knowledge/NeuronExplorer'
 import { NoteTypeLabel } from '@/components/knowledge/NoteTypeLabel'
 import { noteTitle, notePreview, noteTypeOptions, pct } from '@/components/knowledge/noteMeta'
 import { workspacePath } from '@/utils/paths'
-import type { Note, NoteType, NoteStatus, PaginatedResponse } from '@/types'
+import type { Note, NoteScope, NoteType, NoteStatus, PaginatedResponse } from '@/types'
 import { NOMENCLATURE } from '@/constants/nomenclature'
 import { useT } from '@/i18n'
 
@@ -469,7 +469,8 @@ function NoteRow({ note, href, score, selectable, selected, onToggleSelect, onSt
   const { t } = useT()
   const tags = note.tags || []
   const staleness = note.staleness_score || 0
-  const scope = note.scope && note.scope.type !== 'project' && note.scope.type !== 'workspace' ? note.scope : null
+  const rawScope = note.scope as NoteScope | null | undefined
+  const scope = rawScope && rawScope.type !== 'project' && rawScope.type !== 'workspace' ? rawScope : null
   const preview = notePreview(note.content)
   return (
     <EntityRow

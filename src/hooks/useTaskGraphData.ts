@@ -65,7 +65,7 @@ export function useTaskGraphData(
       const taskData = await tasksApi.get(taskId)
       setTaskTitle(taskData.title || taskData.description?.slice(0, 40) || 'Task')
       setTaskStatus(taskData.status || 'pending')
-      setTaskPriority(taskData.priority)
+      setTaskPriority(taskData.priority ?? undefined)
       setAffectedFiles(taskData.affected_files || [])
 
       // Steps and decisions from task details

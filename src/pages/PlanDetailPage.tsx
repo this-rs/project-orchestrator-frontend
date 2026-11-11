@@ -374,7 +374,7 @@ export function PlanDetailPage() {
   )
 
   const editPlanForm = EditPlanForm({
-    initialValues: { title: plan?.title ?? '', description: plan?.description, priority: plan?.priority, project_id: plan?.project_id },
+    initialValues: { title: plan?.title ?? '', description: plan?.description, priority: plan?.priority, project_id: plan?.project_id ?? undefined },
     workspaceSlug: wsSlug,
     onSubmit: async (data) => {
       if (!plan) return
@@ -623,7 +623,7 @@ export function PlanDetailPage() {
                         collapseAllSignal={tasksCollapseAll}
                         planId={plan.id}
                         planTitle={plan.title}
-                        projectId={plan.project_id}
+                        projectId={plan.project_id ?? undefined}
                       />
                     ))}
                   </ListGroup>

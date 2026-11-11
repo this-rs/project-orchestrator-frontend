@@ -172,6 +172,7 @@ export default {
     blocked: "Bị chặn",
     completed: "Hoàn tất",
     failed: "Thất bại",
+    interrupted: "Bị gián đoạn",
     draft: "Bản nháp",
     approved: "Đã duyệt",
     cancelled: "Đã hủy",

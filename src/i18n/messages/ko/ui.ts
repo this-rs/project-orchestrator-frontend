@@ -172,6 +172,7 @@ export default {
     blocked: '차단됨',
     completed: '완료됨',
     failed: '실패',
+    interrupted: '중단됨',
     draft: '초안',
     approved: '승인됨',
     cancelled: '취소됨',

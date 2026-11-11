@@ -172,6 +172,7 @@ export default {
     blocked: 'Blockiert',
     completed: 'Abgeschlossen',
     failed: 'Fehlgeschlagen',
+    interrupted: 'Unterbrochen',
     draft: 'Entwurf',
     approved: 'Genehmigt',
     cancelled: 'Abgebrochen',

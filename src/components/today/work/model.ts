@@ -57,7 +57,7 @@ export interface DashboardInput {
   now?: Date
 }
 
-const byPriorityDesc = (a: { priority?: number }, b: { priority?: number }) => (b.priority ?? 0) - (a.priority ?? 0)
+const byPriorityDesc = (a: { priority?: number | null }, b: { priority?: number | null }) => (b.priority ?? 0) - (a.priority ?? 0)
 
 const fromList = (t: TaskWithPlan, ws: Record<string, string>): WorkTask => ({
   task: t,

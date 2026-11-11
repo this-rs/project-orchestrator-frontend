@@ -39,7 +39,7 @@ type Phase =
 async function loadPlanModel(planId: string): Promise<{ title: string; model: PlanModel }> {
   const [plan, graph] = await Promise.all([plansApi.get(planId), plansApi.getDependencyGraph(planId)])
   const completedAt: Record<string, string | undefined> = {}
-  for (const t of Array.isArray(plan?.tasks) ? plan.tasks : []) completedAt[t.id] = t.completed_at
+  for (const t of Array.isArray(plan?.tasks) ? plan.tasks : []) completedAt[t.id] = t.completed_at ?? undefined
   return { title: typeof plan?.title === 'string' ? plan.title : '', model: modelFromGraph(planId, graph, completedAt) }
 }
 

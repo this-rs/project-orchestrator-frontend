@@ -165,14 +165,14 @@ export function ProjectDetailPage() {
     initialValues: {
       name: project?.name ?? '',
       slug: project?.slug,
-      description: project?.description,
+      description: project?.description ?? undefined,
       root_path: project?.root_path,
       profile: project?.profile,
     },
     onSubmit: async (data) => {
       if (!project) return
       await projectsApi.update(project.slug, data)
-      setProject({ ...project, ...data, root_path: data.root_path || undefined })
+      setProject({ ...project, ...data, root_path: data.root_path })
       toast.success(t('projects.detail.updated'))
     },
   })
@@ -204,7 +204,7 @@ export function ProjectDetailPage() {
       {/* ── Header: name, key facts, sync / watch, ⋯ ─────────────────────── */}
       <PageHeader
         title={project.name}
-        description={project.description}
+        description={project.description ?? undefined}
         meta={[
           <Fact key="type" icon={profileIcon(profile)} title={PROJECT_PROFILE_TEXT.type}>
             {profileLabel(profile)}

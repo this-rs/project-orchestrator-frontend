@@ -69,7 +69,7 @@ export const notesApi = {
 
   supersede: (
     noteId: string,
-    data: { project_id: string; note_type: string; content: string; importance?: string; tags?: string[] }
+    data: { project_id: string | null; note_type: string; content: string; importance?: string; tags?: string[] }
   ) => api.post(`/notes/${noteId}/supersede`, data),
 
   // Links

@@ -170,6 +170,7 @@ export default {
     blocked: 'Blocked',
     completed: 'Completed',
     failed: 'Failed',
+    interrupted: 'Interrupted',
     draft: 'Draft',
     approved: 'Approved',
     cancelled: 'Cancelled',

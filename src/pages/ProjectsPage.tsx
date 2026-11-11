@@ -94,7 +94,7 @@ export function ProjectsPage() {
     initialValues: {
       name: editingProject?.name ?? '',
       slug: editingProject?.slug,
-      description: editingProject?.description,
+      description: editingProject?.description ?? undefined,
       root_path: editingProject?.root_path,
       profile: editingProject?.profile,
     },
@@ -102,7 +102,7 @@ export function ProjectsPage() {
       if (!editingProject) return
       await projectsApi.update(editingProject.slug, data)
       setProjects((prev) =>
-        prev.map((p) => (p.id === editingProject.id ? { ...p, ...data, root_path: data.root_path || undefined } : p)),
+        prev.map((p) => (p.id === editingProject.id ? { ...p, ...data, root_path: data.root_path } : p)),
       )
       toast.success(t('projects.list.updated'))
     },

@@ -172,6 +172,7 @@ export default {
     blocked: 'Заблоковано',
     completed: 'Завершено',
     failed: 'Невдало',
+    interrupted: 'Перервано',
     draft: 'Чернетка',
     approved: 'Схвалено',
     cancelled: 'Скасовано',

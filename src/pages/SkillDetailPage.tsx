@@ -620,7 +620,7 @@ function NoteMemberRow({ note, onRemove, confirm }: { note: Note; onRemove: () =
         note.status !== 'active' ? <StatusText key="st" kind="note" status={note.status} /> : null,
         <StatusText key="imp" kind="importance" status={note.importance} />,
         note.note_type,
-        tagSummary(note.tags),
+        tagSummary(note.tags ?? []),
       ]}
       actions={[{ label: t('siteSkills.common.remove'), icon: X, variant: 'danger', onClick: onRemove, confirm }]}
     >

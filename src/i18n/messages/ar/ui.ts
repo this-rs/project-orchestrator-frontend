@@ -172,6 +172,7 @@ export default {
     blocked: "محظور",
     completed: "مكتمل",
     failed: "فشل",
+    interrupted: "مقاطَع",
     draft: "مسودة",
     approved: "معتمد",
     cancelled: "ملغى",
