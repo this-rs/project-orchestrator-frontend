@@ -200,28 +200,30 @@ describe('normalizeQuota — backend wire', () => {
     expect(normalizeQuota(WIRE_QUOTA)).toEqual(WIRE_QUOTA)
   })
 
-  it.each([
-    ['a null quota', { now_ms: NOW, quota: null }],
-    ['a body without `quota`', { now_ms: NOW }],
-    ['a quota that is not an object', { now_ms: NOW, quota: 'exhausted' }],
-  ])('%s is "nothing known", never an invented quota', (_label, body) => {
-    expect(normalizeQuota(body)).toEqual({ now_ms: NOW, quota: null })
+  it('reads `quota: null` as "nothing known"', () => {
+    expect(normalizeQuota({ now_ms: NOW, quota: null })).toEqual({ now_ms: NOW, quota: null })
   })
 
-  it.each([['null', null], ['a string', '<html>'], ['undefined', undefined]])(
-    'an unreadable body (%s) is "nothing known", dated by the clock of the browser',
-    (_label, body) => {
-      const before = Date.now()
-      const res = normalizeQuota(body)
-      expect(res.quota).toBeNull()
-      expect(res.now_ms).toBeGreaterThanOrEqual(before)
-      expect(res.now_ms).toBeLessThanOrEqual(Date.now())
-    },
-  )
+  // Nothing is invented for a hole: an answer that is not the wire shape is unreadable, and the caller says so.
+  it.each([
+    ['null', null],
+    ['a string', '<html>'],
+    ['undefined', undefined],
+    ['a body without `quota`', { now_ms: NOW }],
+    ['a quota that is not an object', { now_ms: NOW, quota: 'exhausted' }],
+    ['a quota without `observed_at_ms`', { now_ms: NOW, quota: { provider_id: 'claude-code', windows: [], source: 'live', exhausted: null } }],
+    ['an `observed_at_ms` that is not a number', { now_ms: NOW, quota: { observed_at_ms: '1792499700000' } }],
+    ['an `observed_at_ms` that is not finite', { now_ms: NOW, quota: { observed_at_ms: Number.NaN } }],
+    ['an exhaustion without `resets_at_ms`', { now_ms: NOW, quota: { observed_at_ms: NOW, exhausted: { reset_known: false, cause: 'out_of_credit' } } }],
+    ['an exhaustion whose `resets_at_ms` is not finite', { now_ms: NOW, quota: { observed_at_ms: NOW, exhausted: { resets_at_ms: Number.POSITIVE_INFINITY, reset_known: true } } }],
+    ['an `exhausted` that is neither null nor an object', { now_ms: NOW, quota: { observed_at_ms: NOW, exhausted: 'yes' } }],
+  ])('refuses %s as unreadable instead of inventing a quota', (_label, body) => {
+    expect(() => normalizeQuota(body)).toThrow(/quota/)
+  })
 
   it('falls back on the clock of the browser when `now_ms` is absent or not a number', () => {
     const before = Date.now()
-    const res = normalizeQuota({ now_ms: '1792500000000', quota: { provider_id: 'x' } })
+    const res = normalizeQuota({ now_ms: '1792500000000', quota: { provider_id: 'x', observed_at_ms: NOW } })
     expect(res.now_ms).toBeGreaterThanOrEqual(before)
     expect(res.now_ms).toBeLessThanOrEqual(Date.now())
   })
@@ -231,6 +233,7 @@ describe('normalizeQuota — backend wire', () => {
       now_ms: NOW,
       quota: {
         provider_id: 'claude-code',
+        observed_at_ms: NOW,
         windows: [
           { kind: 'five_hour' },
           { kind: 'seven_day', utilization: Number.NaN, resets_at_ms: '1792510000000', status: 'exhausted' },
@@ -246,33 +249,37 @@ describe('normalizeQuota — backend wire', () => {
   })
 
   it('drops the windows that are not objects, and reads `windows` that is not a list as none', () => {
-    const mixed = normalizeQuota({ now_ms: NOW, quota: { windows: [null, 'five_hour', 3, { kind: 'five_hour', status: 'allowed' }] } })
+    const mixed = normalizeQuota({
+      now_ms: NOW,
+      quota: { observed_at_ms: NOW, windows: [null, 'five_hour', 3, { kind: 'five_hour', status: 'allowed' }] },
+    })
     expect(mixed.quota?.windows).toEqual([{ kind: 'five_hour', utilization: null, resets_at_ms: null, status: 'allowed' }])
-    expect(normalizeQuota({ now_ms: NOW, quota: { windows: 'none' } }).quota?.windows).toEqual([])
+    expect(normalizeQuota({ now_ms: NOW, quota: { observed_at_ms: NOW, windows: 'none' } }).quota?.windows).toEqual([])
   })
 
-  it('fills a bare quota with neutral values: live, never observed, not exhausted', () => {
-    expect(normalizeQuota({ now_ms: NOW, quota: {} })).toEqual({
+  it('fills only what is not shown with neutral values: no name, no window, live, not exhausted', () => {
+    expect(normalizeQuota({ now_ms: NOW, quota: { observed_at_ms: NOW - 1000 } })).toEqual({
       now_ms: NOW,
-      quota: { provider_id: '', windows: [], source: 'live', observed_at_ms: 0, exhausted: null },
+      quota: { provider_id: '', windows: [], source: 'live', observed_at_ms: NOW - 1000, exhausted: null },
     })
   })
 
-  it('reads an exhaustion without a deadline as open: reset unknown, no window, cause "window"', () => {
-    const res = normalizeQuota({ now_ms: NOW, quota: { provider_id: 'claude-code', exhausted: {} } })
-    expect(res.quota?.exhausted).toEqual({ resets_at_ms: 0, reset_known: false, window: null, cause: 'window' })
+  it('reads a dated exhaustion that names neither a window nor a cause: reset not known, no window, cause "window"', () => {
+    const res = normalizeQuota({ now_ms: NOW, quota: { observed_at_ms: NOW, exhausted: { resets_at_ms: NOW + 300_000 } } })
+    expect(res.quota?.exhausted).toEqual({ resets_at_ms: NOW + 300_000, reset_known: false, window: null, cause: 'window' })
   })
 
   it('takes `reset_known` only from a real `true`', () => {
     const exhausted = (reset_known: unknown) =>
-      normalizeQuota({ now_ms: NOW, quota: { exhausted: { resets_at_ms: 5, reset_known, cause: 'rate_limited' } } }).quota?.exhausted
+      normalizeQuota({ now_ms: NOW, quota: { observed_at_ms: NOW, exhausted: { resets_at_ms: 5, reset_known, cause: 'rate_limited' } } })
+        .quota?.exhausted
     expect(exhausted('true')).toEqual({ resets_at_ms: 5, reset_known: false, window: null, cause: 'rate_limited' })
     expect(exhausted(1)?.reset_known).toBe(false)
     expect(exhausted(true)?.reset_known).toBe(true)
   })
 
-  it('reads an `exhausted` that is null or not an object as not exhausted', () => {
-    expect(normalizeQuota({ now_ms: NOW, quota: { exhausted: null } }).quota?.exhausted).toBeNull()
-    expect(normalizeQuota({ now_ms: NOW, quota: { exhausted: 'yes' } }).quota?.exhausted).toBeNull()
+  it('reads an `exhausted` that is null or absent as not exhausted', () => {
+    expect(normalizeQuota({ now_ms: NOW, quota: { observed_at_ms: NOW, exhausted: null } }).quota?.exhausted).toBeNull()
+    expect(normalizeQuota({ now_ms: NOW, quota: { observed_at_ms: NOW } }).quota?.exhausted).toBeNull()
   })
 })
