@@ -1732,9 +1732,13 @@ export function useChat() {
 
         // A finished turn at the end of the persisted history means nothing
         // is streaming: clears an optimistic typing indicator whose `result`
-        // was missed. A stream that starts later announces itself with a
-        // live streaming_status.
+        // was missed (D8 scenario). A stream that starts later announces itself
+        // with a live streaming_status.
         if (win.lastEvent?.type === 'result') setIsStreaming(false)
+        // If the last event is a user message, the assistant hasn't responded yet,
+        // so nothing should be streaming (handles missed result edge case where
+        // isStreaming got stuck true but no assistant turn is actually running).
+        if (win.lastEvent?.type === 'user_message') setIsStreaming(false)
       })
       .catch(() => {
         // Keep what is on screen; the next reconnect retries.
@@ -1767,12 +1771,16 @@ export function useChat() {
         // The socket's announcement dies with it: back to what the REST probe knows (or unknown).
         if (status === 'disconnected') store.set(chatServerFeaturesAtom, cachedRefsCapability(refsScopeRef.current))
         // When the server disconnects mid-stream, isStreaming stays true with
-        // no Result event to clear it. Reset on reconnecting — the server will
-        // send a fresh streaming_status via the Phase 1.5b snapshot if a stream
-        // is actually active after reconnection.
+        // no Result event to clear it. Don't immediately clear it on reconnecting —
+        // the server will send a fresh streaming_status via the Phase 1.5b snapshot
+        // if a stream is actually active after reconnection. If the stream ended,
+        // the snapshot will contain a final result event that will clear it.
+        // This preserves the Stop button visibility during reconnection.
         if (status === 'reconnecting') {
-          setIsStreaming(false)
           setIsCompacting(false)
+          // NOTE: isStreaming is NOT cleared here. It will be corrected by:
+          // 1. streaming_status event from server (if still active)
+          // 2. result event in resync response (if turned completed)
         }
         // An answer sent on the socket that died may never be confirmed: its block is
         // answerable again (a decision replayed after the reconnect still wins).
@@ -2638,8 +2646,12 @@ export function useChat() {
   /**
    * Hand over to the server every queued message still waiting on this side
    * (`local`): composed before the conversation had an id, or while the socket
-   * was down. Stops at the first one that cannot leave, to keep their order;
-   * the next reconnect retries.
+   * was down.
+   *
+   * D10: Don't break on first failure. Try all messages and remove only the ones
+   * that send successfully. This prevents messages from being permanently trapped
+   * if socket recovers partially. A message that fails stays queued for the next
+   * attempt, but doesn't block other messages from being sent.
    */
   const syncLocalQueue = useCallback(() => {
     const sid = store.get(chatSessionIdAtom)
@@ -2650,8 +2662,11 @@ export function useChat() {
     for (const entry of queue) {
       if (!entry.local) continue
       const queuedRefs = refsForWire(store.get(refsEnabledAtom), entry.refs)
-      if (!ws.sendUserMessage(entry.text, entry.attachmentIds, { queue: true, ...(queuedRefs ? { refs: queuedRefs } : {}) })) break
-      remaining = remaining.filter((m) => m.id !== entry.id)
+      // Try to send but continue trying other messages even if this one fails (D10).
+      // Successful sends are removed from queue; failed sends stay for retry.
+      if (ws.sendUserMessage(entry.text, entry.attachmentIds, { queue: true, ...(queuedRefs ? { refs: queuedRefs } : {}) })) {
+        remaining = remaining.filter((m) => m.id !== entry.id)
+      }
     }
     if (remaining !== queue) {
       store.set(chatMessageQueuesAtom, withQueue(store.get(chatMessageQueuesAtom), sid, remaining))
