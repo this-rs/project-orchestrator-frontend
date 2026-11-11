@@ -73,6 +73,7 @@ describe('providersApi settings routes', () => {
         source: 'live',
         observed_at_ms: 1_792_499_000_000,
         exhausted: null,
+        model_holds: [],
       },
     })
     const res = await providersApi.quota('a b')
@@ -85,6 +86,7 @@ describe('providersApi settings routes', () => {
         source: 'live',
         observed_at_ms: 1_792_499_000_000,
         exhausted: null,
+        model_holds: [],
       },
     })
   })
