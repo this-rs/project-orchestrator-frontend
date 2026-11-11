@@ -187,3 +187,22 @@ describe('MessageQueueBar — editing a queued message', () => {
     expect(el.style.height).toBe('96px')
   })
 })
+
+describe('MessageQueueBar — a row that never left says so (D10)', () => {
+  it('flags a local row, and only a local row', () => {
+    const noop = () => {}
+    render(
+      <MessageQueueBar
+        queue={[
+          { id: 'a', text: 'held by the server', queuedAt: 1 },
+          { id: 'b', text: 'still here', queuedAt: 2, local: true },
+        ]}
+        onEdit={noop}
+        onDelete={noop}
+        onPrioritize={noop}
+        onSendNow={noop}
+      />,
+    )
+    expect(screen.getAllByTestId('queue-local-hint')).toHaveLength(1)
+  })
+})
