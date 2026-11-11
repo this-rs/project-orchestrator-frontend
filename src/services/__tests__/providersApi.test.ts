@@ -23,7 +23,7 @@ vi.mock('../api', async (orig) => ({
   },
 }))
 
-import { providersApi } from '../providers'
+import { providersApi, toProviderError } from '../providers'
 import type { ProviderDraft } from '@/types/providerSettings'
 
 const draft: ProviderDraft = {
@@ -62,6 +62,58 @@ describe('providersApi settings routes', () => {
     const health = await providersApi.status('deepseek')
     expect(health.status).toBe('unhealthy')
     expect(health.error?.code).toBe('endpoint_unreachable')
+  })
+
+  it('quota — GET /chat/providers/{id}/quota, read into { now_ms, quota }', async () => {
+    get.mockResolvedValueOnce({
+      now_ms: 1_792_500_000_000,
+      quota: {
+        provider_id: 'a b',
+        windows: [{ kind: 'five_hour', utilization: 0.4, resets_at_ms: 1_792_510_000_000, status: 'warning' }],
+        source: 'live',
+        observed_at_ms: 1_792_499_000_000,
+        exhausted: null,
+      },
+    })
+    const res = await providersApi.quota('a b')
+    expect(get).toHaveBeenCalledWith('/chat/providers/a%20b/quota')
+    expect(res).toEqual({
+      now_ms: 1_792_500_000_000,
+      quota: {
+        provider_id: 'a b',
+        windows: [{ kind: 'five_hour', utilization: 0.4, resets_at_ms: 1_792_510_000_000, status: 'warning' }],
+        source: 'live',
+        observed_at_ms: 1_792_499_000_000,
+        exhausted: null,
+      },
+    })
+  })
+
+  it('quota — a server that knows nothing answers `quota: null`, and that is what the caller gets', async () => {
+    get.mockResolvedValueOnce({ now_ms: 1_792_500_000_000, quota: null })
+    expect(await providersApi.quota('claude-code')).toEqual({ now_ms: 1_792_500_000_000, quota: null })
+  })
+
+  // Unlike `rateLimits`, a failed read is NOT swallowed here: the caller decides what a failure shows.
+  it('quota — a refused read rejects with the error of the server', async () => {
+    const { ApiError } = await import('../api')
+    const refused = new ApiError(403, '{"error":"security_gate_closed: sign in first"}')
+    get.mockRejectedValueOnce(refused)
+    await expect(providersApi.quota('claude-code')).rejects.toBe(refused)
+  })
+
+  it('clearQuota — DELETE /chat/providers/{id}/quota, without a body', async () => {
+    await providersApi.clearQuota('a b')
+    expect(del).toHaveBeenCalledTimes(1)
+    expect(del).toHaveBeenCalledWith('/chat/providers/a%20b/quota')
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it('clearQuota — a refusal rejects, and reads as a typed provider error', async () => {
+    const { ApiError } = await import('../api')
+    del.mockRejectedValueOnce(new ApiError(403, '{"error":"security_gate_closed: sign in first"}'))
+    const err = await providersApi.clearQuota('claude-code').catch((e: unknown) => e)
+    expect(toProviderError(err)).toMatchObject({ code: 'security_gate_closed', message: 'sign in first', status: 403 })
   })
 
   it('test — POST /chat/providers/test with the draft', async () => {

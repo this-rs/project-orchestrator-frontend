@@ -21,6 +21,8 @@ vi.mock('@/services/providers', async (orig) => ({
     update: vi.fn(),
     get: vi.fn().mockRejectedValue(Object.assign(new Error('not found'), { status: 404 })),
     models: vi.fn().mockResolvedValue([]),
+    quota: vi.fn().mockResolvedValue({ now_ms: 0, quota: null }),
+    clearQuota: vi.fn().mockResolvedValue(undefined),
   },
 }))
 vi.mock('@/services/vault', async (orig) => ({

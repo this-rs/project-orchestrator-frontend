@@ -25,6 +25,7 @@ import {
 } from '@/types/provider'
 import { toLearningStage, toProviderRoutingMode, toRoutingScope, type RoutingSummary } from '@/types/routing'
 import { toRateLimitReport, toRateLimits, type RateLimit } from '@/types/rateLimit'
+import type { QuotaExhaustionCause, QuotaResponse, QuotaView, QuotaWindowStatus } from '@/types/quota'
 
 /**
  * Provider instances — which agent harnesses this server can open a session on.
@@ -85,6 +86,20 @@ export const providersApi = {
       .get<unknown>(`/chat/providers/${encodeURIComponent(id)}/limits`)
       .then(toRateLimitReport)
       .catch(() => null),
+
+  /**
+   * The provider's own account quota (QUOTA): until when it refuses and how full its windows are.
+   * `quota: null` when nothing is known. The human escape hatch is [`quotaClear`] below.
+   */
+  quota: (id: ProviderId): Promise<QuotaResponse> =>
+    api.get<unknown>(`/chat/providers/${encodeURIComponent(id)}/quota`).then(normalizeQuota),
+
+  /**
+   * Forgets what is known of an account's quota (HUMAN only, like every mutation here). This is
+   * the way out of an exclusion that outlived the provider's own reset — reachable from
+   * Settings → Providers, and the clear survives a server restart.
+   */
+  clearQuota: (id: ProviderId) => api.delete<void>(`/chat/providers/${encodeURIComponent(id)}/quota`),
 
   /** What a project agreed to send to which endpoint. */
   consents: (projectSlug: string) =>
@@ -304,6 +319,45 @@ export function normalizeStoredInstance(raw: unknown, id: ProviderId): StoredIns
     host_key_fingerprint: str(r.host_key_fingerprint) ?? null,
     rate_limit: toRateLimits(r.rate_limit),
   }
+}
+
+/**
+ * `GET /api/chat/providers/{id}/quota` → `{ now_ms, quota }`. An unreadable body yields
+ * `quota: null` (never an invented quota), and a numeric field that is absent or not finite
+ * reads as `null` — exactly like the backend skips `None`.
+ */
+export function normalizeQuota(raw: unknown): QuotaResponse {
+  const r = obj(raw)
+  const now_ms = (r && typeof r.now_ms === 'number' && r.now_ms) || Date.now()
+  const q = r ? obj(r.quota) : null
+  if (!q) return { now_ms, quota: null }
+  const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  const windows = (Array.isArray(q.windows) ? q.windows : [])
+    .map(obj)
+    .filter((w): w is Record<string, unknown> => !!w)
+    .map((w) => ({
+      kind: str(w.kind) ?? '',
+      utilization: num(w.utilization),
+      resets_at_ms: num(w.resets_at_ms),
+      status: (str(w.status) ?? 'allowed') as QuotaWindowStatus,
+    }))
+  const ex = q.exhausted === null ? null : obj(q.exhausted)
+  const exhausted = ex
+    ? {
+        resets_at_ms: num(ex.resets_at_ms) ?? 0,
+        reset_known: ex.reset_known === true,
+        window: str(ex.window) ?? null,
+        cause: (str(ex.cause) ?? 'window') as QuotaExhaustionCause,
+      }
+    : null
+  const view: QuotaView = {
+    provider_id: str(q.provider_id) ?? '',
+    windows,
+    source: (str(q.source) ?? 'live') as QuotaView['source'],
+    observed_at_ms: num(q.observed_at_ms) ?? 0,
+    exhausted,
+  }
+  return { now_ms, quota: view }
 }
 
 /** Whatever `GET /api/chat/providers` answered → `ProvidersResponse`. A body without `providers` is returned as is (the caller rejects it). */
