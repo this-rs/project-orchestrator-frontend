@@ -11,6 +11,10 @@ import { chatApi } from '@/services/chat'
  *
  * `null` = not known (not asked, in flight, or the request failed): callers
  * must not block anything on an unknown.
+ *
+ * D9: This hook now polls periodically (not just on dependency changes) so that
+ * if a provider process restarts and becomes live, the session composer is
+ * unlocked promptly (not blocked forever).
  */
 export function useSessionLive(sessionId: string | null, enabled: boolean, isStreaming: boolean): boolean | null {
   const [answer, setAnswer] = useState<{ sessionId: string; live: boolean } | null>(null)
@@ -19,16 +23,26 @@ export function useSessionLive(sessionId: string | null, enabled: boolean, isStr
     // A streaming turn is proof of life; ask again once it ends.
     if (!enabled || !sessionId || isStreaming) return
     let cancelled = false
-    chatApi
-      .getLiveActivity()
-      .then((res) => {
-        if (!cancelled) setAnswer({ sessionId, live: res?.sessions?.[sessionId]?.live === true })
-      })
-      .catch(() => {
-        if (!cancelled) setAnswer(null)
-      })
+
+    const checkLive = () => {
+      chatApi
+        .getLiveActivity()
+        .then((res) => {
+          if (!cancelled) setAnswer({ sessionId, live: res?.sessions?.[sessionId]?.live === true })
+        })
+        .catch(() => {
+          if (!cancelled) setAnswer(null)
+        })
+    }
+
+    // Check immediately
+    checkLive()
+    // Then poll every 5 seconds so we detect when a dead provider comes back to life (D9)
+    const interval = setInterval(checkLive, 5000)
+
     return () => {
       cancelled = true
+      clearInterval(interval)
     }
   }, [sessionId, enabled, isStreaming])
 
