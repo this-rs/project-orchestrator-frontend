@@ -24,6 +24,7 @@ import {
 import { ConfirmPanel } from './ConfirmPanel'
 import { SettingsErrorCard } from './SettingsErrorCard'
 import { ProviderInstanceForm } from './ProviderInstanceForm'
+import { QuotaStatus } from './QuotaStatus'
 
 /** The error card of a not-healthy instance. `auth_required` always gets one: it carries the login command. */
 function healthError(instance: ProviderInstance, health: ProviderHealth): ProviderErrorInfo | null {
@@ -156,6 +157,8 @@ function InstanceCard({
           ]}
         />
       )}
+
+      <QuotaStatus instanceId={instance.id} name={instance.label} />
 
       {status.key === 'unreachable' && health.error?.message && (
         <p
