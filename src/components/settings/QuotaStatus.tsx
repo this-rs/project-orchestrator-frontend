@@ -92,7 +92,7 @@ export function QuotaStatus({ instanceId, name }: { instanceId: string; name: st
           onConfirm={clear}
           onCancel={() => setConfirming(false)}
         >
-          {exhausted && reset
+          {exhausted?.reset_known && reset
             ? t('providerAdmin.quota.clearBody', { name, time: reset, when })
             : t('providerAdmin.quota.clearBodyOpen', { name, when })}
         </ConfirmPanel>
