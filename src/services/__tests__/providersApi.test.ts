@@ -23,7 +23,7 @@ vi.mock('../api', async (orig) => ({
   },
 }))
 
-import { providersApi, toProviderError } from '../providers'
+import { providersApi, providerRefusalMessage, toProviderError } from '../providers'
 import type { ProviderDraft } from '@/types/providerSettings'
 
 const draft: ProviderDraft = {
@@ -97,9 +97,19 @@ describe('providersApi settings routes', () => {
   // Unlike `rateLimits`, a failed read is NOT swallowed here: the caller decides what a failure shows.
   it('quota — a refused read rejects with the error of the server', async () => {
     const { ApiError } = await import('../api')
-    const refused = new ApiError(403, '{"error":"security_gate_closed: sign in first"}')
+    const refused = new ApiError(501, '{"error":"the chat router is not running"}')
     get.mockRejectedValueOnce(refused)
     await expect(providersApi.quota('claude-code')).rejects.toBe(refused)
+  })
+
+  // A quota with a hole in it is not shown with an invented value: the read fails, like any unreadable answer.
+  it.each([
+    ['a body that is not an object', '<html>'],
+    ['a body without `quota`', { now_ms: 1_792_500_000_000 }],
+    ['a quota without `observed_at_ms`', { now_ms: 1_792_500_000_000, quota: { provider_id: 'claude-code', windows: [], source: 'live', exhausted: null } }],
+  ])('quota — %s rejects', async (_label, body) => {
+    get.mockResolvedValueOnce(body)
+    await expect(providersApi.quota('claude-code')).rejects.toThrow(/quota/)
   })
 
   it('clearQuota — DELETE /chat/providers/{id}/quota, without a body', async () => {
@@ -109,11 +119,38 @@ describe('providersApi settings routes', () => {
     expect(get).not.toHaveBeenCalled()
   })
 
-  it('clearQuota — a refusal rejects, and reads as a typed provider error', async () => {
+  // What the route really answers (backend `AppError`): `{"error": "<sentence>"}`, no typed code.
+  it.each([
+    [403, 'provider settings can only be changed by a signed-in user'],
+    [501, 'the chat router is not running'],
+  ])('clearQuota — a %i rejects, and its sentence is the reason to show', async (status, sentence) => {
     const { ApiError } = await import('../api')
-    del.mockRejectedValueOnce(new ApiError(403, '{"error":"security_gate_closed: sign in first"}'))
+    const refused = new ApiError(status, JSON.stringify({ error: sentence }))
+    del.mockRejectedValueOnce(refused)
     const err = await providersApi.clearQuota('claude-code').catch((e: unknown) => e)
-    expect(toProviderError(err)).toMatchObject({ code: 'security_gate_closed', message: 'sign in first', status: 403 })
+    expect(err).toBe(refused)
+    // No typed code in that body: the typed reading has nothing to say, the sentence is all there is.
+    expect(toProviderError(err)).toBeNull()
+    expect(providerRefusalMessage(err, 'The request failed')).toBe(sentence)
+  })
+
+  it('providerRefusalMessage — the message of a typed provider error, without its code', async () => {
+    const { ApiError } = await import('../api')
+    const typed = new ApiError(403, '{"error":"security_gate_closed: sign in first"}')
+    expect(providerRefusalMessage(typed, 'The request failed')).toBe('sign in first')
+  })
+
+  it('providerRefusalMessage — the fallback when the server said nothing readable', async () => {
+    const { ApiError } = await import('../api')
+    expect(providerRefusalMessage(new ApiError(500, '{}'), 'The request failed')).toBe('The request failed')
+    expect(providerRefusalMessage(new ApiError(500, '{"error":""}'), 'The request failed')).toBe('The request failed')
+    expect(providerRefusalMessage(new TypeError('Failed to fetch'), 'The request failed')).toBe('The request failed')
+    expect(providerRefusalMessage(undefined, 'The request failed')).toBe('The request failed')
+  })
+
+  it('providerRefusalMessage — a plain-text answer is shown as it is', async () => {
+    const { ApiError } = await import('../api')
+    expect(providerRefusalMessage(new ApiError(401, 'Session expired'), 'The request failed')).toBe('Session expired')
   })
 
   it('test — POST /chat/providers/test with the draft', async () => {

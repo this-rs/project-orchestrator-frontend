@@ -89,7 +89,8 @@ export const providersApi = {
 
   /**
    * The provider's own account quota (QUOTA): until when it refuses and how full its windows are.
-   * `quota: null` when nothing is known. The human escape hatch is [`quotaClear`] below.
+   * `quota: null` when nothing is known; rejects on a refusal AND on a body that is not the wire
+   * shape (see `normalizeQuota`). The human escape hatch is `clearQuota` below.
    */
   quota: (id: ProviderId): Promise<QuotaResponse> =>
     api.get<unknown>(`/chat/providers/${encodeURIComponent(id)}/quota`).then(normalizeQuota),
@@ -166,6 +167,28 @@ export function toProviderError(err: unknown): ProviderErrorInfo | null {
 }
 
 export { readProviderError }
+
+/**
+ * The reason of a refused request, as a sentence to show. A typed provider error gives its
+ * message (without the code). Most routes here answer an UNTYPED `{"error": "<sentence>"}`
+ * (backend `AppError`: "provider settings can only be changed by a signed-in user", "the chat
+ * router is not running"…), which `toProviderError` reads as `null` — that sentence is then the
+ * reason. `fallback` only when the server said nothing (no answer, an empty body).
+ */
+export function providerRefusalMessage(err: unknown, fallback: string): string {
+  const typed = toProviderError(err)?.message
+  if (typed) return typed
+  if (!(err instanceof ApiError)) return fallback
+  let body: unknown
+  try {
+    body = JSON.parse(err.message)
+  } catch {
+    // Not JSON: already a sentence (an expired session, an HTML answer named by `NonJsonResponseError`).
+    return err.message || fallback
+  }
+  const b = obj(body)
+  return (b && (str(b.error) ?? str(b.message))) || fallback
+}
 
 // ---------------------------------------------------------------------------
 // GET /api/chat/providers — wire shape → internal shape
@@ -322,16 +345,25 @@ export function normalizeStoredInstance(raw: unknown, id: ProviderId): StoredIns
 }
 
 /**
- * `GET /api/chat/providers/{id}/quota` → `{ now_ms, quota }`. An unreadable body yields
- * `quota: null` (never an invented quota), and a numeric field that is absent or not finite
- * reads as `null` — exactly like the backend skips `None`.
+ * `GET /api/chat/providers/{id}/quota` → `{ now_ms, quota }`. `quota: null` is the server saying
+ * that nothing is known. Anything else that is not the wire shape THROWS: a body that is not an
+ * object, a `quota` that is absent or not an object, and a quota without the instants the card
+ * shows (`observed_at_ms`, and `resets_at_ms` of an exhaustion). Nothing is invented for a hole —
+ * a `0` there would read "observed 20 000 days ago" or "exhausted until 1 Jan 1970" — so the
+ * caller shows an unreadable state instead. What the card does not show (name, source, windows)
+ * keeps a neutral value.
  */
 export function normalizeQuota(raw: unknown): QuotaResponse {
+  const unreadable = (what: string) => new Error(`unreadable quota body: ${what}`)
   const r = obj(raw)
-  const now_ms = (r && typeof r.now_ms === 'number' && r.now_ms) || Date.now()
-  const q = r ? obj(r.quota) : null
-  if (!q) return { now_ms, quota: null }
+  if (!r) throw unreadable('not an object')
+  const now_ms = (typeof r.now_ms === 'number' && r.now_ms) || Date.now()
+  if (r.quota === null) return { now_ms, quota: null }
+  const q = obj(r.quota)
+  if (!q) throw unreadable('`quota` is neither null nor an object')
   const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  const observed_at_ms = num(q.observed_at_ms)
+  if (observed_at_ms === null) throw unreadable('`quota.observed_at_ms` is not a number')
   const windows = (Array.isArray(q.windows) ? q.windows : [])
     .map(obj)
     .filter((w): w is Record<string, unknown> => !!w)
@@ -341,20 +373,24 @@ export function normalizeQuota(raw: unknown): QuotaResponse {
       resets_at_ms: num(w.resets_at_ms),
       status: (str(w.status) ?? 'allowed') as QuotaWindowStatus,
     }))
-  const ex = q.exhausted === null ? null : obj(q.exhausted)
-  const exhausted = ex
-    ? {
-        resets_at_ms: num(ex.resets_at_ms) ?? 0,
-        reset_known: ex.reset_known === true,
-        window: str(ex.window) ?? null,
-        cause: (str(ex.cause) ?? 'window') as QuotaExhaustionCause,
-      }
-    : null
+  let exhausted: QuotaView['exhausted'] = null
+  if (q.exhausted !== null && q.exhausted !== undefined) {
+    const ex = obj(q.exhausted)
+    if (!ex) throw unreadable('`quota.exhausted` is neither null nor an object')
+    const resets_at_ms = num(ex.resets_at_ms)
+    if (resets_at_ms === null) throw unreadable('`quota.exhausted.resets_at_ms` is not a number')
+    exhausted = {
+      resets_at_ms,
+      reset_known: ex.reset_known === true,
+      window: str(ex.window) ?? null,
+      cause: (str(ex.cause) ?? 'window') as QuotaExhaustionCause,
+    }
+  }
   const view: QuotaView = {
     provider_id: str(q.provider_id) ?? '',
     windows,
     source: (str(q.source) ?? 'live') as QuotaView['source'],
-    observed_at_ms: num(q.observed_at_ms) ?? 0,
+    observed_at_ms,
     exhausted,
   }
   return { now_ms, quota: view }

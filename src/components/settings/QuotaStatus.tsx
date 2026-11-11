@@ -2,63 +2,94 @@ import { useCallback, useEffect, useState } from 'react'
 import { Clock } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { useT } from '@/i18n'
+import type { Translator } from '@/i18n/translate'
 import { formatWhenFr } from '@/constants/providerWizard'
-import { providersApi, toProviderError } from '@/services/providers'
-import type { QuotaResponse } from '@/types/quota'
+import { providersApi, providerRefusalMessage } from '@/services/providers'
+import type { QuotaView } from '@/types/quota'
 import { ConfirmPanel } from './ConfirmPanel'
+
+/**
+ * What the last read said: a quota (with the server's clock), `'unreadable'` when the read failed
+ * or its body was not a quota, `null` while nothing is read yet or when the server knows nothing.
+ */
+type QuotaRead = { now_ms: number; view: QuotaView } | 'unreadable' | null
+
+/** An instant in the reader's locale; `null` when the number is not a date (`toISOString` would throw). */
+function formatInstant(tr: Pick<Translator, 't' | 'date'>, ms: number): string | null {
+  const date = new Date(ms)
+  return Number.isNaN(date.getTime()) ? null : formatWhenFr(tr, date.toISOString())
+}
 
 /**
  * The provider ACCOUNT's quota (QUOTA), as the server last observed it: until when it refuses,
  * how old that observation is, and the one human escape hatch — forgetting it — that survives a
- * restart. Renders nothing when the server knows nothing (a quota display is best-effort) or when
- * the read failed.
+ * restart. Renders nothing when the server knows nothing (a quota display is best-effort).
+ *
+ * A read that FAILED is said, with a way to read again, and the clear stays offered: forgetting
+ * a quota does not depend on having read it, and an escape hatch that vanishes on a transient
+ * error is not one.
  */
 export function QuotaStatus({ instanceId, name }: { instanceId: string; name: string }) {
+  // One card per instance: what was read, confirmed or refused for one never shows under another.
+  return <QuotaCard key={instanceId} instanceId={instanceId} name={name} />
+}
+
+function QuotaCard({ instanceId, name }: { instanceId: string; name: string }) {
   const tr = useT()
   const { t } = tr
-  const [quota, setQuota] = useState<QuotaResponse | null>(null)
+  const [read, setRead] = useState<QuotaRead>(null)
+  const [retrying, setRetrying] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(() => {
-    // Only a NON-null quota is worth a state update: a null one renders nothing, and setting it
-    // would still fire a re-render after the fetch resolves.
-    providersApi
-      .quota(instanceId)
-      .then((res) => {
-        if (res?.quota) setQuota(res)
-      })
-      .catch(() => {})
-  }, [instanceId])
+  /** Never rejects: a failure is a state of the card. */
+  const load = useCallback(
+    () =>
+      providersApi.quota(instanceId).then(
+        (res) => setRead(res.quota ? { now_ms: res.now_ms, view: res.quota } : null),
+        () => setRead('unreadable'),
+      ),
+    [instanceId],
+  )
 
   useEffect(() => {
-    load()
+    void load()
   }, [load])
 
-  if (!quota?.quota) return null
-  const view = quota.quota
+  if (read === null) return null
+  const known = read === 'unreadable' ? null : read
+  const exhausted = known?.view.exhausted ?? null
+  // Only an instant the provider (or a person) gave is a date to show: without `reset_known`,
+  // `resets_at_ms` is a cooldown the server guessed.
+  const reset = exhausted?.reset_known ? formatInstant(tr, exhausted.resets_at_ms) : null
 
-  const minutes = Math.max(0, Math.floor((quota.now_ms - view.observed_at_ms) / 60_000))
-  const when =
-    minutes < 1
-      ? t('providerAdmin.quota.agoNow')
-      : minutes < 60
-        ? t('providerAdmin.quota.agoMinutes', { n: minutes })
-        : minutes < 24 * 60
-          ? t('providerAdmin.quota.agoHours', { n: Math.floor(minutes / 60) })
-          : t('providerAdmin.quota.agoDays', { n: Math.floor(minutes / (24 * 60)) })
+  let when = ''
+  if (known) {
+    const minutes = Math.max(0, Math.floor((known.now_ms - known.view.observed_at_ms) / 60_000))
+    when =
+      minutes < 1
+        ? t('providerAdmin.quota.agoNow')
+        : minutes < 60
+          ? t('providerAdmin.quota.agoMinutes', { n: minutes })
+          : minutes < 24 * 60
+            ? t('providerAdmin.quota.agoHours', { n: Math.floor(minutes / 60) })
+            : t('providerAdmin.quota.agoDays', { n: Math.floor(minutes / (24 * 60)) })
+  }
 
-  const exhausted = view.exhausted
-  const reset = exhausted ? formatWhenFr(tr, new Date(exhausted.resets_at_ms).toISOString()) : null
+  const retry = async () => {
+    setRetrying(true)
+    await load()
+    setRetrying(false)
+  }
 
   const clear = async () => {
     setError(null)
     try {
       await providersApi.clearQuota(instanceId)
       setConfirming(false)
-      setQuota(null)
+      setRead(null)
     } catch (err) {
-      setError(toProviderError(err)?.message ?? t('providerAdmin.common.errors.requestFailed'))
+      setError(providerRefusalMessage(err, t('providerAdmin.common.errors.requestFailed')))
     }
   }
 
@@ -71,17 +102,32 @@ export function QuotaStatus({ instanceId, name }: { instanceId: string; name: st
         <Clock className="h-4 w-4" aria-hidden />
         {t('providerAdmin.quota.title')}
       </p>
-      {exhausted ? (
-        <p className="text-amber-100">
-          {exhausted.reset_known
-            ? t('providerAdmin.quota.exhausted', { time: reset ?? '' })
-            : t('providerAdmin.quota.exhaustedOpen')}
-          {exhausted.window ? t('providerAdmin.quota.exhaustedWindow', { window: exhausted.window }) : ''}
-        </p>
+      {known ? (
+        <>
+          {exhausted ? (
+            <p className="text-amber-100">
+              {reset ? t('providerAdmin.quota.exhausted', { time: reset }) : t('providerAdmin.quota.exhaustedOpen')}
+              {exhausted.window ? t('providerAdmin.quota.exhaustedWindow', { window: exhausted.window }) : ''}
+            </p>
+          ) : (
+            <p className="text-amber-100/80">{t('providerAdmin.quota.noneKnown')}</p>
+          )}
+          <p className="text-gray-500">{t('providerAdmin.quota.observed', { when })}</p>
+        </>
       ) : (
-        <p className="text-amber-100/80">{t('providerAdmin.quota.notExhausted')}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-amber-100">{t('providerAdmin.quota.unreadable')}</p>
+          <Button
+            size="sm"
+            variant="ghost"
+            loading={retrying}
+            onClick={retry}
+            aria-label={t('providerAdmin.quota.retryAria', { name })}
+          >
+            {t('providerAdmin.ui.retry')}
+          </Button>
+        </div>
       )}
-      <p className="text-gray-500">{t('providerAdmin.quota.observed', { when })}</p>
 
       {confirming ? (
         <ConfirmPanel
@@ -90,11 +136,16 @@ export function QuotaStatus({ instanceId, name }: { instanceId: string; name: st
           cancelLabel={t('providerAdmin.instances.keep')}
           tone="info"
           onConfirm={clear}
-          onCancel={() => setConfirming(false)}
+          onCancel={() => {
+            setConfirming(false)
+            setError(null)
+          }}
         >
-          {exhausted?.reset_known && reset
-            ? t('providerAdmin.quota.clearBody', { name, time: reset, when })
-            : t('providerAdmin.quota.clearBodyOpen', { name, when })}
+          {!known
+            ? t('providerAdmin.quota.clearBodyUnknown', { name })
+            : reset
+              ? t('providerAdmin.quota.clearBody', { name, time: reset, when })
+              : t('providerAdmin.quota.clearBodyOpen', { name, when })}
         </ConfirmPanel>
       ) : (
         <Button

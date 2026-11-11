@@ -3,7 +3,7 @@
  * provider's own reset. Nothing renders when the server knows nothing.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ApiError } from '@/services/api'
 import { QuotaStatus } from './QuotaStatus'
 
@@ -75,22 +75,102 @@ describe('QuotaStatus', () => {
     expect(screen.getByText('Account quota')).toBeTruthy()
   })
 
-  it('shows nothing, not even an error, when the read fails', async () => {
-    quota.mockRejectedValue(new ApiError(500, '{"error":"boom"}'))
-    const { container } = render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
-    await waitFor(() => expect(quota).toHaveBeenCalledWith('claude-code'))
-    // Let the rejection settle before looking.
-    await Promise.resolve()
-    expect(container.innerHTML).toBe('')
-    expect(screen.queryByRole('alert')).toBeNull()
+  // The escape hatch must not depend on the read: a failed GET says so, and the clear stays offered.
+  it('says that the quota could not be read, offers to read again and still offers the clear', async () => {
+    quota.mockRejectedValue(new ApiError(500, '{"error":"Internal server error"}'))
+    render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
+    const card = await screen.findByTestId('quota-claude-code')
+    expect(card.textContent).toContain('The quota state could not be read.')
+    expect(screen.getByRole('button', { name: 'Read the quota of Claude Code again' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Clear the quota of Claude Code' })).toBeTruthy()
+    // Nothing is claimed about a state nobody read.
+    expect(screen.queryByText(/observed/)).toBeNull()
+    expect(screen.queryByText(/exhaust/)).toBeNull()
   })
 
-  it('reads the quota of the instance it is given, again when the instance changes', async () => {
+  it('shows the quota once a new read succeeds', async () => {
+    quota.mockRejectedValueOnce(new ApiError(501, '{"error":"the chat router is not running"}'))
+    render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
+    await screen.findByText('The quota state could not be read.')
+    quota.mockResolvedValueOnce(EXHAUSTED)
+    fireEvent.click(screen.getByRole('button', { name: 'Read the quota of Claude Code again' }))
+    expect(await screen.findByText(/exhausted until/)).toBeTruthy()
+    expect(screen.queryByText('The quota state could not be read.')).toBeNull()
+    expect(quota).toHaveBeenCalledTimes(2)
+  })
+
+  it('removes the card when the new read says that nothing is known', async () => {
+    quota.mockRejectedValueOnce(new ApiError(500, '{"error":"Internal server error"}'))
+    render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
+    await screen.findByText('The quota state could not be read.')
+    fireEvent.click(screen.getByRole('button', { name: 'Read the quota of Claude Code again' }))
+    await waitFor(() => expect(screen.queryByTestId('quota-claude-code')).toBeNull())
+  })
+
+  it('stays unreadable, with both buttons, when the new read fails too', async () => {
+    quota.mockRejectedValue(new ApiError(500, '{"error":"Internal server error"}'))
+    render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
+    await screen.findByText('The quota state could not be read.')
+    fireEvent.click(screen.getByRole('button', { name: 'Read the quota of Claude Code again' }))
+    await waitFor(() => expect(quota).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('The quota state could not be read.')).toBeTruthy()
+    await waitFor(() =>
+      expect((screen.getByRole('button', { name: 'Read the quota of Claude Code again' }) as HTMLButtonElement).disabled).toBe(false),
+    )
+    expect(screen.getByRole('button', { name: 'Clear the quota of Claude Code' })).toBeTruthy()
+  })
+
+  it('clears a quota it could not read, and says honestly that its state is unknown', async () => {
+    quota.mockRejectedValue(new ApiError(500, '{"error":"Internal server error"}'))
+    render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
+    await screen.findByText('The quota state could not be read.')
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the quota of Claude Code' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Clear the quota of Claude Code?' })
+    expect(dialog.textContent).toContain('The quota state of Claude Code could not be read, so what the server holds is unknown.')
+    expect(dialog.textContent).not.toMatch(/refuses until|observed/)
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    await waitFor(() => expect(clearQuota).toHaveBeenCalledWith('claude-code'))
+    await waitFor(() => expect(screen.queryByTestId('quota-claude-code')).toBeNull())
+  })
+
+  it('replaces the card of the previous instance by the state of the new one', async () => {
+    quota.mockImplementation(async (id: unknown) => (id === 'claude-code' ? EXHAUSTED : { now_ms: NOW, quota: null }))
+    const { rerender } = render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
+    await screen.findByTestId('quota-claude-code')
+    rerender(<QuotaStatus instanceId="deepseek" name="DeepSeek" />)
+    await waitFor(() => expect(quota).toHaveBeenCalledWith('deepseek'))
+    // The quota of Claude Code is not shown under the name of DeepSeek, not even while the read is pending.
+    expect(screen.queryByTestId('quota-claude-code')).toBeNull()
+    expect(screen.queryByText(/exhausted until/)).toBeNull()
+    await waitFor(() => expect(quota).toHaveBeenCalledTimes(2))
+    expect(screen.queryByTestId('quota-deepseek')).toBeNull()
+  })
+
+  it('does not let a late answer for the previous instance come back', async () => {
+    let answer: (v: unknown) => void = () => {}
+    quota.mockImplementation((id: unknown) =>
+      id === 'claude-code' ? new Promise((resolve) => (answer = resolve)) : Promise.resolve({ now_ms: NOW, quota: null }),
+    )
     const { rerender } = render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
     await waitFor(() => expect(quota).toHaveBeenCalledWith('claude-code'))
     rerender(<QuotaStatus instanceId="deepseek" name="DeepSeek" />)
     await waitFor(() => expect(quota).toHaveBeenCalledWith('deepseek'))
-    expect(quota).toHaveBeenCalledTimes(2)
+    await act(async () => answer(EXHAUSTED))
+    expect(screen.queryByText(/exhausted until/)).toBeNull()
+    expect(screen.queryByTestId('quota-deepseek')).toBeNull()
+  })
+
+  // 8.64e15 ms is the last instant a Date can hold: beyond it, `toISOString()` throws.
+  it.each([
+    ['a known reset', true],
+    ['a guessed cooldown', false],
+  ])('keeps the card standing when the date of %s is out of range', async (_label, reset_known) => {
+    quota.mockResolvedValue(known({ exhausted: { resets_at_ms: 8.64e15 + 1, reset_known, window: null, cause: 'window' } }))
+    render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
+    await screen.findByTestId('quota-claude-code')
+    expect(screen.getByText('exhausted (no reset known)')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the quota of Claude Code' }))
+    expect(screen.getByText(/with no deadline/)).toBeTruthy()
   })
 
   it('names the date of the reset in the exhaustion line', async () => {
@@ -102,11 +182,13 @@ describe('QuotaStatus', () => {
     expect(line).toMatch(/^exhausted until .*\d{1,2}:\d{2}.* · window seven_day_overage_included$/)
   })
 
-  it('says a quota that is known but not exhausted, and still offers to clear it', async () => {
+  it('claims no more than "no account exhaustion known" for a quota without one, and still offers to clear it', async () => {
     quota.mockResolvedValue(known({ exhausted: null }))
     render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
     await screen.findByTestId('quota-claude-code')
-    expect(screen.getByText('not exhausted')).toBeTruthy()
+    // The view does not expose the per-model holds: "not exhausted" would say more than the server told.
+    expect(screen.getByText('no account exhaustion known')).toBeTruthy()
+    expect(screen.queryByText('not exhausted')).toBeNull()
     expect(screen.queryByText(/exhausted until/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Clear the quota of Claude Code' }))
     expect(screen.getByText(/has quota information for Claude Code with no deadline \(observed 5 min ago\)/)).toBeTruthy()
@@ -185,22 +267,32 @@ describe('QuotaStatus', () => {
     expect(clearQuota).toHaveBeenCalledWith('claude-code')
   })
 
-  it('says why a clear was refused, and leaves the quota and the confirmation in place', async () => {
+  // The bodies `DELETE /api/chat/providers/{id}/quota` really answers: `{"error": "<sentence>"}`, without a typed code
+  // (backend `require_human`, `auth::middleware`, `registry()` and `AppError::Internal`).
+  it.each([
+    [403, 'provider settings can only be changed by a signed-in user'],
+    [
+      403,
+      'this route requires a human session; an agent session token cannot change providers, consent, roles, model policy or chat permissions',
+    ],
+    [501, 'the chat router is not running'],
+    [500, 'Internal server error'],
+  ])('says why a clear was refused (%i: %s), and leaves the quota and the confirmation in place', async (status, sentence) => {
     quota.mockResolvedValue(EXHAUSTED)
-    clearQuota.mockRejectedValue(new ApiError(403, '{"error":"security_gate_closed: sign in to clear a quota"}'))
+    clearQuota.mockRejectedValue(new ApiError(status, JSON.stringify({ error: sentence })))
     render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
     await screen.findByTestId('quota-claude-code')
     fireEvent.click(screen.getByRole('button', { name: 'Clear the quota of Claude Code' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
-    expect((await screen.findByRole('alert')).textContent).toBe('sign in to clear a quota')
+    expect((await screen.findByRole('alert')).textContent).toBe(sentence)
     expect(screen.getByText(/exhausted until/)).toBeTruthy()
     expect(screen.getByRole('alertdialog')).toBeTruthy()
   })
 
   it.each([
-    ['a body that is not JSON', new ApiError(502, '<html>Bad gateway</html>')],
-    ['a body without a known code', new ApiError(500, '{"error":"boom"}')],
     ['a network failure', new TypeError('Failed to fetch')],
+    ['a JSON body without a sentence', new ApiError(500, '{}')],
+    ['something that is not an error', 'nope'],
   ])('falls back on a generic message when the refusal is %s', async (_label, failure) => {
     quota.mockResolvedValue(EXHAUSTED)
     clearQuota.mockRejectedValue(failure)
@@ -209,6 +301,20 @@ describe('QuotaStatus', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear the quota of Claude Code' }))
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
     expect((await screen.findByRole('alert')).textContent).toBe('The request failed')
+  })
+
+  it('forgets the error of a refused clear when the confirmation is declined', async () => {
+    quota.mockResolvedValue(EXHAUSTED)
+    clearQuota.mockRejectedValue(new ApiError(501, '{"error":"the chat router is not running"}'))
+    render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
+    await screen.findByTestId('quota-claude-code')
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the quota of Claude Code' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: 'Keep' }))
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText('the chat router is not running')).toBeNull()
+    expect(screen.getByText(/exhausted until/)).toBeTruthy()
   })
 
   it('forgets the error of a failed clear when the next one succeeds', async () => {
