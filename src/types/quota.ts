@@ -23,12 +23,25 @@ export interface QuotaExhaustion {
   cause: QuotaExhaustionCause
 }
 
+/**
+ * A hold on ONE family of models (`Fable`) — the account still serves on the others. Backend
+ * `QuotaView.model_holds`, filtered by the same rule the router applies.
+ */
+export interface ModelHold {
+  model: string
+  resets_at_ms: number
+  reset_known: boolean
+  observed_at_ms: number
+}
+
 export interface QuotaView {
   provider_id: string
   windows: QuotaWindow[]
   source: QuotaSource
   observed_at_ms: number
   exhausted: QuotaExhaustion | null
+  /** Families out RIGHT NOW; empty (or absent on an older server) when the account serves. */
+  model_holds: ModelHold[]
 }
 
 /** `GET /api/chat/providers/{id}/quota` — `quota: null` when nothing is known. */

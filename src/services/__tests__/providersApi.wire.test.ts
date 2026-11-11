@@ -193,8 +193,18 @@ describe('normalizeQuota — backend wire', () => {
         window: 'seven_day_overage_included',
         cause: 'out_of_credit',
       },
+      model_holds: [{ model: 'Fable', resets_at_ms: 1_792_643_200_000, reset_known: true, observed_at_ms: NOW - 300_000 }],
     },
   }
+
+  it("a hold on ONE family is read, and an older server's silence is 'nothing is held'", () => {
+    const held = normalizeQuota(WIRE_QUOTA).quota
+    expect(held?.model_holds).toEqual([
+      { model: 'Fable', resets_at_ms: 1_792_643_200_000, reset_known: true, observed_at_ms: NOW - 300_000 },
+    ])
+    const older = normalizeQuota({ now_ms: NOW, quota: { observed_at_ms: NOW, exhausted: null } }).quota
+    expect(older?.model_holds).toEqual([])
+  })
 
   it('keeps a complete quota as the backend sent it', () => {
     expect(normalizeQuota(WIRE_QUOTA)).toEqual(WIRE_QUOTA)
@@ -260,7 +270,7 @@ describe('normalizeQuota — backend wire', () => {
   it('fills only what is not shown with neutral values: no name, no window, live, not exhausted', () => {
     expect(normalizeQuota({ now_ms: NOW, quota: { observed_at_ms: NOW - 1000 } })).toEqual({
       now_ms: NOW,
-      quota: { provider_id: '', windows: [], source: 'live', observed_at_ms: NOW - 1000, exhausted: null },
+      quota: { provider_id: '', windows: [], source: 'live', observed_at_ms: NOW - 1000, exhausted: null, model_holds: [] },
     })
   })
 

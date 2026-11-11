@@ -52,6 +52,7 @@ import {
   providerUnavailableReason,
   routedByKey,
 } from '@/constants/providers'
+import { ProviderQuotaNotice } from './ProviderQuotaNotice'
 import { useT } from '@/i18n'
 import {
   changeConversationRouting,
@@ -630,6 +631,7 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
                         {!reason && <ChevronDown className={`h-2.5 w-2.5 shrink-0 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''} ${hasSession ? 'ml-auto' : ''}`} aria-hidden="true" />}
                       </button>
                     </div>
+                    <ProviderQuotaNotice providerId={p.id} name={providerDisplayName(p)} active={!!open} />
                     {reason && <p className={`px-3 pb-1.5 text-[10px] leading-snug text-gray-500 ${hasSession ? '' : 'pl-9'}`}>{reason}</p>}
                     {p.allowed_for_project === false && projectSlug && (
                       <Link

@@ -386,12 +386,25 @@ export function normalizeQuota(raw: unknown): QuotaResponse {
       cause: (str(ex.cause) ?? 'window') as QuotaExhaustionCause,
     }
   }
+  // A hold on a family. An older server does not send the field at all: absent means "nothing is
+  // held", never "unknown" — the menu reads it to decide whether to offer anything.
+  const model_holds = (Array.isArray(q.model_holds) ? q.model_holds : [])
+    .map(obj)
+    .filter((h): h is Record<string, unknown> => !!h)
+    .map((h) => ({
+      model: str(h.model) ?? '',
+      resets_at_ms: num(h.resets_at_ms) ?? 0,
+      reset_known: h.reset_known === true,
+      observed_at_ms: num(h.observed_at_ms) ?? observed_at_ms,
+    }))
+    .filter((h) => h.model !== '')
   const view: QuotaView = {
     provider_id: str(q.provider_id) ?? '',
     windows,
     source: (str(q.source) ?? 'live') as QuotaView['source'],
     observed_at_ms,
     exhausted,
+    model_holds,
   }
   return { now_ms, quota: view }
 }
