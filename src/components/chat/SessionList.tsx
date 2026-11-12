@@ -23,6 +23,7 @@ import type {
   SessionActivity,
 } from '@/types'
 import type { ActivityStatus } from './sessionActivity'
+import { questionAwaitsPerson } from './sessionQuestion'
 import {
   anyLive,
   applySnapshot,
@@ -368,6 +369,8 @@ interface SessionRowProps {
   isActive: boolean
   /** What this conversation is doing now, or `null` when it is quiet. */
   status: ActivityStatus | null
+  /** Its open question is waiting for the person's answer (see `questionAwaitsPerson`). */
+  awaitsAnswer?: boolean
   isEditing: boolean
   isMenuOpen: boolean
   isConfirmingDelete: boolean
@@ -398,6 +401,7 @@ export const SessionRow = memo(function SessionRow({
   session,
   isActive,
   status,
+  awaitsAnswer = false,
   isEditing,
   isMenuOpen,
   isConfirmingDelete,
@@ -413,6 +417,7 @@ export const SessionRow = memo(function SessionRow({
   onRequestDelete,
   onDelete,
 }: SessionRowProps) {
+  const { t } = useT()
   const title = sessionDisplayTitle(session)
   const preview = sessionPreview(session)
   const scope = sessionScope(session)
@@ -463,6 +468,19 @@ export const SessionRow = memo(function SessionRow({
                 onDoubleClick={(e) => { e.stopPropagation(); onStartRename(session.id) }}
               >
                 {title}
+              </span>
+            )}
+            {awaitsAnswer && !isEditing && (
+              // The one state the user must act on, and the only one that
+              // survives a long list: the status line below is for what the
+              // agent is doing, this is for what it is waiting on from them.
+              <span
+                role="status"
+                aria-label={t('session.timeline.status.blocked')}
+                className="shrink-0 inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/10 px-1.5 text-[10px] leading-4 text-amber-300"
+              >
+                <MessageCircle className="w-3 h-3" aria-hidden="true" />
+                {t('session.timeline.status.blocked')}
               </span>
             )}
             {!isEditing && (
@@ -1300,6 +1318,7 @@ export const SessionList = memo(function SessionList({ activeSessionId, onSelect
                       session={session}
                       isActive={session.id === activeSessionId}
                       status={describeActivity(activityById.get(session.id))}
+                      awaitsAnswer={questionAwaitsPerson(activityById.get(session.id))}
                       isEditing={editingSessionId === session.id}
                       isMenuOpen={menuSessionId === session.id}
                       isConfirmingDelete={confirmDeleteId === session.id}
