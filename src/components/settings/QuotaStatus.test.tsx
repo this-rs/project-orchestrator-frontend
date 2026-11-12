@@ -195,6 +195,10 @@ describe('QuotaStatus', () => {
     expect(screen.getByText(/Fable is out until/)).toBeTruthy()
     expect(screen.queryByText('no account exhaustion known')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Clear the quota of Claude Code' }))
+    // The confirmation says what is held and until when: the family by name, its known date, not "no deadline".
+    const dialog = screen.getByRole('alertdialog', { name: 'Clear the quota of Claude Code?' })
+    expect(dialog.textContent).toMatch(/Fable is out until .*\d{1,2}:\d{2}/)
+    expect(dialog.textContent).not.toMatch(/no deadline|refuses until/)
     fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
     await waitFor(() => expect(clearQuota).toHaveBeenCalledWith('claude-code'))
   })

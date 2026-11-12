@@ -443,6 +443,7 @@ export default {
     clearBody: "Máy chủ cho rằng {name} từ chối đến {time} (quan sát {when}). Xoá sẽ quên thông tin này: định tuyến sẽ thử lại nhà cung cấp này ở lượt tiếp theo.",
     clearBodyOpen: "Máy chủ có thông tin hạn mức của {name} nhưng không có thời hạn (quan sát {when}). Xoá sẽ quên thông tin đó: định tuyến sẽ thử lại nhà cung cấp này ở lượt tiếp theo.",
     clearBodyUnknown: "Không đọc được trạng thái hạn mức của {name}: chưa rõ máy chủ đang lưu gì. Xoá sẽ quên mọi thứ máy chủ đang lưu: định tuyến sẽ thử lại nhà cung cấp này ở lượt tiếp theo.",
+    clearBodyFamily: "Máy chủ ghi nhớ rằng {what}. Xóa sẽ quên điều này: định tuyến sẽ thử lại nhà cung cấp này ở lượt kế tiếp.",
   },
   remote: {
     machine: "Máy (tên hoặc địa chỉ)",

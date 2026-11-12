@@ -441,6 +441,7 @@ export default {
     clearBody: "The server thinks {name} refuses until {time} (observed {when}). Clearing forgets this: routing will retry this provider on the next turn.",
     clearBodyOpen: "The server has quota information for {name} with no deadline (observed {when}). Clearing forgets it: routing will retry this provider on the next turn.",
     clearBodyUnknown: "The quota state of {name} could not be read, so what the server holds is unknown. Clearing forgets whatever it holds: routing will retry this provider on the next turn.",
+    clearBodyFamily: "The server remembers that {what}. Clearing forgets it: routing will retry this provider on the next turn.",
   },
   remote: {
     machine: "Machine (name or address)",

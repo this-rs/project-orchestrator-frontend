@@ -443,6 +443,7 @@ export default {
     clearBody: "Der Server geht davon aus, dass {name} bis {time} ablehnt (beobachtet {when}). Löschen vergisst diese Angabe: Das Routing versucht diesen Anbieter beim nächsten Durchgang erneut.",
     clearBodyOpen: "Der Server hat eine Kontingentangabe für {name} ohne Frist (beobachtet {when}). Löschen vergisst sie: Das Routing versucht diesen Anbieter beim nächsten Durchgang erneut.",
     clearBodyUnknown: "Der Stand des Kontingents von {name} konnte nicht gelesen werden; was der Server dazu festhält, ist unbekannt. Löschen vergisst es, was immer es ist: Das Routing versucht diesen Anbieter beim nächsten Durchgang erneut.",
+    clearBodyFamily: "Der Server merkt sich, dass {what}. Zurücksetzen vergisst das: Das Routing versucht diesen Anbieter im nächsten Zug erneut.",
   },
   remote: {
     machine: "Maschine (Name oder Adresse)",

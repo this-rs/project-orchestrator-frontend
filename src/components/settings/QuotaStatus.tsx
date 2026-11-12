@@ -66,6 +66,15 @@ function QuotaCard({ instanceId, name }: { instanceId: string; name: string }) {
   // Only an instant the provider (or a person) gave is a date to show: without `reset_known`,
   // `resets_at_ms` is a cooldown the server guessed.
   const reset = exhausted?.reset_known ? formatInstant(tr, exhausted.resets_at_ms) : null
+  // What the confirmation says of the families out: each by name, with its date when the provider gave one.
+  const holdsWhat = holds
+    .map((h) => {
+      const until = h.reset_known ? formatInstant(tr, h.resets_at_ms) : null
+      return until
+        ? t('routing.quota.confirmWhatFamily', { list: h.model, time: until })
+        : t('routing.quota.confirmWhatFamilyOpen', { list: h.model })
+    })
+    .join('; ')
 
   let when = ''
   if (known) {
@@ -173,9 +182,11 @@ function QuotaCard({ instanceId, name }: { instanceId: string; name: string }) {
           >
             {!known
               ? t('providerAdmin.quota.clearBodyUnknown', { name })
-              : reset
-                ? t('providerAdmin.quota.clearBody', { name, time: reset, when })
-                : t('providerAdmin.quota.clearBodyOpen', { name, when })}
+              : exhausted
+                ? reset
+                  ? t('providerAdmin.quota.clearBody', { name, time: reset, when })
+                  : t('providerAdmin.quota.clearBodyOpen', { name, when })
+                : t('providerAdmin.quota.clearBodyFamily', { what: holdsWhat })}
           </ConfirmPanel>
         </div>
       )}

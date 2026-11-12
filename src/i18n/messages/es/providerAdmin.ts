@@ -443,6 +443,7 @@ export default {
     clearBody: "El servidor cree que {name} rechaza hasta {time} (observado {when}). Borrar olvida este dato: el enrutamiento volverá a probar este proveedor en el próximo turno.",
     clearBodyOpen: "El servidor tiene un dato de cuota de {name} sin fecha límite (observado {when}). Borrar lo olvida: el enrutamiento volverá a probar este proveedor en el próximo turno.",
     clearBodyUnknown: "No se pudo leer el estado de la cuota de {name}: se desconoce lo que el servidor conserva. Borrar olvida lo que conserve, sea lo que sea: el enrutamiento volverá a probar este proveedor en el próximo turno.",
+    clearBodyFamily: "El servidor recuerda que {what}. Borrarlo lo olvida: el enrutamiento volverá a intentar este proveedor en el siguiente turno.",
   },
   remote: {
     machine: "Máquina (nombre o dirección)",
