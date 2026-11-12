@@ -12,6 +12,7 @@
  */
 import type { SessionActivity } from '@/types'
 import { QUIET_ACTIVITY } from '@/types'
+import { questionAwaitsPerson } from './sessionQuestion'
 
 /** How the line should be painted — mapped to classes by the caller. */
 export type ActivityTone = 'working' | 'blocked' | 'watching'
@@ -107,6 +108,9 @@ export function describeActivity(raw?: SessionActivity | null): ActivityStatus |
   }
 
   if (parts.length === 0) {
+    // An open question is said by the row's badge; an "Idle — waiting for you"
+    // line under it would contradict it. The row falls back to its preview.
+    if (questionAwaitsPerson(raw)) return null
     // Live, but doing nothing of its own: it is waiting on us. Saying so is
     // the point — an empty line here is what made a live session look dead.
     return {

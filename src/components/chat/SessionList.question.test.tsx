@@ -3,8 +3,8 @@
  * with an accessible name. Other waits (a permission) do not.
  */
 import '@testing-library/jest-dom/vitest'
-import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { createElement } from 'react'
 import { Provider, createStore } from 'jotai'
@@ -145,6 +145,65 @@ describe('a conversation with a question awaiting an answer says so in the list'
       { wrapper },
     )
     const r = await waitFor(() => row(/First conversation/))
+    expect(within(r).queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('does not also say "Idle — waiting for you" under the badge', async () => {
+    hoisted.listSessions.mockResolvedValue({
+      items: [session('s-1', 'First conversation', { activity: asked('question_open') })],
+      has_more: false,
+    })
+    const { wrapper } = withStore()
+    render(
+      <SessionList activeSessionId={null} onSelect={vi.fn()} onClose={vi.fn()} embedded />,
+      { wrapper },
+    )
+    const r = await waitFor(() => row(/First conversation/))
+    expect(within(r).getByRole('status', { name: 'Waiting for you' })).toBeInTheDocument()
+    expect(within(r).queryByText(/Idle/)).not.toBeInTheDocument()
+  })
+})
+
+describe('the open question is read from the live-activity snapshot too', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** The list polls only while something is live: the listing says s-1 is streaming, the snapshot then gives its verdict. */
+  async function mountWithSnapshot(verdict: Partial<SessionActivity>) {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    hoisted.listSessions.mockResolvedValue({
+      items: [session('s-1', 'First conversation', { activity: activity({ streaming: true }) })],
+      has_more: false,
+    })
+    hoisted.getLiveActivity.mockResolvedValue({
+      generated_at: iso(0),
+      sessions: { 's-1': activity({ streaming: false, ...verdict }) },
+    })
+    const { wrapper } = withStore()
+    render(
+      <SessionList activeSessionId={null} onSelect={vi.fn()} onClose={vi.fn()} embedded />,
+      { wrapper },
+    )
+    await screen.findByText('First conversation')
+    // One poll interval: the first tick reads getLiveActivity and replaces the map.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000)
+    })
+    expect(hoisted.getLiveActivity).toHaveBeenCalled()
+    return row(/First conversation/)
+  }
+
+  it('shows the badge when the snapshot says the open question awaits the person', async () => {
+    const r = await mountWithSnapshot({ state: 'waiting_on_person', state_reason: { rule: 'question_open' } })
+    expect(within(r).getByRole('status', { name: 'Waiting for you' })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['a null state', { state: null, state_reason: null }],
+    ['an unknown state', { state: 'some_future_state', state_reason: { rule: 'question_open' } }],
+  ] as const)('shows no badge when the snapshot carries %s', async (_label, verdict) => {
+    const r = await mountWithSnapshot(verdict as Partial<SessionActivity>)
     expect(within(r).queryByRole('status')).not.toBeInTheDocument()
   })
 })
