@@ -22,7 +22,8 @@ function formatInstant(tr: Pick<Translator, 't' | 'date'>, ms: number): string |
 
 /**
  * The provider ACCOUNT's quota (QUOTA), as the server last observed it: until when it refuses,
- * how old that observation is, and — only while a limit is reached — the one human escape hatch,
+ * how old that observation is, and — only while a limit is reached (account exhausted or a model
+ * family held) — the one human escape hatch,
  * forgetting it, which survives a restart. Renders nothing when the server knows nothing (a quota
  * display is best-effort).
  *
@@ -59,6 +60,9 @@ function QuotaCard({ instanceId, name }: { instanceId: string; name: string }) {
   if (read === null) return null
   const known = read === 'unreadable' ? null : read
   const exhausted = known?.view.exhausted ?? null
+  // Families out right now (absent on an older server): the account serves, but a limit IS reached.
+  const holds = known?.view.model_holds ?? []
+  const limitReached = exhausted !== null || holds.length > 0
   // Only an instant the provider (or a person) gave is a date to show: without `reset_known`,
   // `resets_at_ms` is a cooldown the server guessed.
   const reset = exhausted?.reset_known ? formatInstant(tr, exhausted.resets_at_ms) : null
@@ -106,14 +110,21 @@ function QuotaCard({ instanceId, name }: { instanceId: string; name: string }) {
           </p>
           {known ? (
             <>
-              {exhausted ? (
+              {exhausted && (
                 <p className="text-amber-100">
                   {reset ? t('providerAdmin.quota.exhausted', { time: reset }) : t('providerAdmin.quota.exhaustedOpen')}
                   {exhausted.window ? t('providerAdmin.quota.exhaustedWindow', { window: exhausted.window }) : ''}
                 </p>
-              ) : (
-                <p className="text-amber-100/80">{t('providerAdmin.quota.noneKnown')}</p>
               )}
+              {holds.map((h) => {
+                const until = h.reset_known ? formatInstant(tr, h.resets_at_ms) : null
+                return (
+                  <p key={h.model} className="text-amber-100">
+                    {until ? t('routing.quota.familyUntil', { model: h.model, time: until }) : t('routing.quota.familyOpen', { model: h.model })}
+                  </p>
+                )
+              })}
+              {!exhausted && holds.length === 0 && <p className="text-amber-100/80">{t('providerAdmin.quota.noneKnown')}</p>}
               <p className="text-gray-500">{t('providerAdmin.quota.observed', { when })}</p>
             </>
           ) : (
@@ -121,8 +132,9 @@ function QuotaCard({ instanceId, name }: { instanceId: string; name: string }) {
           )}
         </div>
 
-        {/* The reset is offered only when a limit is reached: nothing to reset otherwise, and an
-            unreadable state does not say that one is. A failed read is retried instead. */}
+        {/* The reset is offered only when a limit is reached (the account exhausted, or a model
+            family held: `clear` drops both): nothing to reset otherwise, and an unreadable state
+            does not say that one is. A failed read is retried instead. */}
         {!known && (
           <Button
             size="sm"
@@ -134,7 +146,7 @@ function QuotaCard({ instanceId, name }: { instanceId: string; name: string }) {
             {t('providerAdmin.ui.retry')}
           </Button>
         )}
-        {exhausted && !confirming && (
+        {limitReached && !confirming && (
           <Button
             size="sm"
             variant="secondary"

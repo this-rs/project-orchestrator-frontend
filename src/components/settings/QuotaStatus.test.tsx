@@ -181,6 +181,24 @@ describe('QuotaStatus', () => {
     expect(screen.queryByRole('button', { name: 'Clear the quota of Claude Code' })).toBeNull()
   })
 
+  // A family held while the account serves IS a limit reached, and `clear` drops the whole entry,
+  // holds included: it is the only way to lift it, so the reset must be offered.
+  it('offers the reset, and names the family, when only a model family is held', async () => {
+    quota.mockResolvedValue(
+      known({
+        exhausted: null,
+        model_holds: [{ model: 'Fable', resets_at_ms: 1_792_643_200_000, reset_known: true, observed_at_ms: NOW - 5 * 60_000 }],
+      }),
+    )
+    render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
+    await screen.findByTestId('quota-claude-code')
+    expect(screen.getByText(/Fable is out until/)).toBeTruthy()
+    expect(screen.queryByText('no account exhaustion known')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear the quota of Claude Code' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    await waitFor(() => expect(clearQuota).toHaveBeenCalledWith('claude-code'))
+  })
+
   it('says an exhaustion without a known reset as open, without a window when none is named', async () => {
     quota.mockResolvedValue(
       known({ exhausted: { resets_at_ms: NOW + 5 * 60_000, reset_known: false, window: null, cause: 'out_of_credit' } }),
