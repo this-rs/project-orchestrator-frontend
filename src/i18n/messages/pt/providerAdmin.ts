@@ -443,6 +443,7 @@ export default {
     clearBody: "O servidor acredita que {name} recusa até {time} (observado {when}). Apagar esquece esta informação: o roteamento voltará a tentar este fornecedor no próximo turno.",
     clearBodyOpen: "O servidor tem uma informação de cota de {name} sem prazo (observado {when}). Apagar esquece-a: o roteamento voltará a tentar este fornecedor no próximo turno.",
     clearBodyUnknown: "Não foi possível ler o estado da cota de {name}: não se sabe o que o servidor guarda. Apagar esquece o que ele guardar, seja o que for: o roteamento voltará a tentar este fornecedor no próximo turno.",
+    clearBodyFamily: "O servidor registra que {what}. Limpar esquece isso: o roteamento tentará este provedor de novo no próximo turno.",
   },
   remote: {
     machine: "Máquina (nome ou endereço)",

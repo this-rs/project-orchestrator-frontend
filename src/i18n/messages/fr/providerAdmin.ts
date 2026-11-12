@@ -443,6 +443,7 @@ export default {
     clearBody: "Le serveur croit que {name} refuse jusqu’à {time} (observé {when}). Effacer oublie cette information : le routage réessaiera ce provider dès le prochain tour.",
     clearBodyOpen: "Le serveur a une information de quota pour {name}, sans échéance (observé {when}). Effacer l’oublie : le routage réessaiera ce provider dès le prochain tour.",
     clearBodyUnknown: "L’état du quota de {name} n’a pas pu être lu : ce que le serveur retient est inconnu. Effacer oublie ce qu’il retient, quoi que ce soit : le routage réessaiera ce provider dès le prochain tour.",
+    clearBodyFamily: "Le serveur retient que {what}. L’effacer fait réessayer ce provider au prochain tour.",
   },
   remote: {
     machine: "Machine (nom ou adresse)",

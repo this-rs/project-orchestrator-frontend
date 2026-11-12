@@ -75,14 +75,14 @@ describe('QuotaStatus', () => {
     expect(screen.getByText('Account quota')).toBeTruthy()
   })
 
-  // The escape hatch must not depend on the read: a failed GET says so, and the clear stays offered.
-  it('says that the quota could not be read, offers to read again and still offers the clear', async () => {
+  // The reset control is offered only when a limit is reached: a failed GET does not say so, so it offers no clear.
+  it('says that the quota could not be read and offers to read again, without a reset', async () => {
     quota.mockRejectedValue(new ApiError(500, '{"error":"Internal server error"}'))
     render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
     const card = await screen.findByTestId('quota-claude-code')
     expect(card.textContent).toContain('The quota state could not be read.')
     expect(screen.getByRole('button', { name: 'Read the quota of Claude Code again' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Clear the quota of Claude Code' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Clear the quota of Claude Code' })).toBeNull()
     // Nothing is claimed about a state nobody read.
     expect(screen.queryByText(/observed/)).toBeNull()
     expect(screen.queryByText(/exhaust/)).toBeNull()
@@ -107,7 +107,7 @@ describe('QuotaStatus', () => {
     await waitFor(() => expect(screen.queryByTestId('quota-claude-code')).toBeNull())
   })
 
-  it('stays unreadable, with both buttons, when the new read fails too', async () => {
+  it('stays unreadable, with the read button only, when the new read fails too', async () => {
     quota.mockRejectedValue(new ApiError(500, '{"error":"Internal server error"}'))
     render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
     await screen.findByText('The quota state could not be read.')
@@ -117,20 +117,7 @@ describe('QuotaStatus', () => {
     await waitFor(() =>
       expect((screen.getByRole('button', { name: 'Read the quota of Claude Code again' }) as HTMLButtonElement).disabled).toBe(false),
     )
-    expect(screen.getByRole('button', { name: 'Clear the quota of Claude Code' })).toBeTruthy()
-  })
-
-  it('clears a quota it could not read, and says honestly that its state is unknown', async () => {
-    quota.mockRejectedValue(new ApiError(500, '{"error":"Internal server error"}'))
-    render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
-    await screen.findByText('The quota state could not be read.')
-    fireEvent.click(screen.getByRole('button', { name: 'Clear the quota of Claude Code' }))
-    const dialog = screen.getByRole('alertdialog', { name: 'Clear the quota of Claude Code?' })
-    expect(dialog.textContent).toContain('The quota state of Claude Code could not be read, so what the server holds is unknown.')
-    expect(dialog.textContent).not.toMatch(/refuses until|observed/)
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
-    await waitFor(() => expect(clearQuota).toHaveBeenCalledWith('claude-code'))
-    await waitFor(() => expect(screen.queryByTestId('quota-claude-code')).toBeNull())
+    expect(screen.queryByRole('button', { name: 'Clear the quota of Claude Code' })).toBeNull()
   })
 
   it('replaces the card of the previous instance by the state of the new one', async () => {
@@ -182,7 +169,7 @@ describe('QuotaStatus', () => {
     expect(line).toMatch(/^exhausted until .*\d{1,2}:\d{2}.* · window seven_day_overage_included$/)
   })
 
-  it('claims no more than "no account exhaustion known" for a quota without one, and still offers to clear it', async () => {
+  it('claims no more than "no account exhaustion known" for a quota without one, and offers no reset', async () => {
     quota.mockResolvedValue(known({ exhausted: null }))
     render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
     await screen.findByTestId('quota-claude-code')
@@ -190,8 +177,30 @@ describe('QuotaStatus', () => {
     expect(screen.getByText('no account exhaustion known')).toBeTruthy()
     expect(screen.queryByText('not exhausted')).toBeNull()
     expect(screen.queryByText(/exhausted until/)).toBeNull()
+    // No limit is reached, so there is nothing to reset.
+    expect(screen.queryByRole('button', { name: 'Clear the quota of Claude Code' })).toBeNull()
+  })
+
+  // A family held while the account serves IS a limit reached, and `clear` drops the whole entry,
+  // holds included: it is the only way to lift it, so the reset must be offered.
+  it('offers the reset, and names the family, when only a model family is held', async () => {
+    quota.mockResolvedValue(
+      known({
+        exhausted: null,
+        model_holds: [{ model: 'Fable', resets_at_ms: 1_792_643_200_000, reset_known: true, observed_at_ms: NOW - 5 * 60_000 }],
+      }),
+    )
+    render(<QuotaStatus instanceId="claude-code" name="Claude Code" />)
+    await screen.findByTestId('quota-claude-code')
+    expect(screen.getByText(/Fable is out until/)).toBeTruthy()
+    expect(screen.queryByText('no account exhaustion known')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Clear the quota of Claude Code' }))
-    expect(screen.getByText(/has quota information for Claude Code with no deadline \(observed 5 min ago\)/)).toBeTruthy()
+    // The confirmation says what is held and until when: the family by name, its known date, not "no deadline".
+    const dialog = screen.getByRole('alertdialog', { name: 'Clear the quota of Claude Code?' })
+    expect(dialog.textContent).toMatch(/Fable is out until .*\d{1,2}:\d{2}/)
+    expect(dialog.textContent).not.toMatch(/no deadline|refuses until/)
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    await waitFor(() => expect(clearQuota).toHaveBeenCalledWith('claude-code'))
   })
 
   it('says an exhaustion without a known reset as open, without a window when none is named', async () => {
