@@ -1,4 +1,4 @@
-import { api, buildQuery } from './api'
+import { api, buildQuery, ApiError } from './api'
 import type {
   FunctionNode,
   StructNode,
@@ -56,6 +56,12 @@ export interface ImpactAnalysis {
   transitive_dependents: string[]
   affected_tests: string[]
   risk_score: number
+  /**
+   * Set on the empty result of a target the code graph does not know (the
+   * backend answers 404 `file not found in graph`). Empty lists alone read as
+   * "no impact": this flag says the file was never analysed.
+   */
+  not_in_graph?: boolean
 }
 
 export interface ArchitectureOverview {
@@ -102,9 +108,24 @@ export const codeApi = {
   getCallGraph: (functionName: string, limit?: number) =>
     api.get<{ nodes: CallGraphNode[] }>(`/code/callgraph${buildQuery({ function: functionName, limit })}`),
 
-  // Impact analysis
-  analyzeImpact: (target: string) =>
-    api.get<ImpactAnalysis>(`/code/impact${buildQuery({ target })}`),
+  // Impact analysis. A target the graph does not know is an empty result, not
+  // an error: the visualisation renders it as such (flagged `not_in_graph`).
+  analyzeImpact: async (target: string): Promise<ImpactAnalysis> => {
+    try {
+      return await api.get<ImpactAnalysis>(`/code/impact${buildQuery({ target })}`)
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        return {
+          direct_dependents: [],
+          transitive_dependents: [],
+          affected_tests: [],
+          risk_score: 0,
+          not_in_graph: true,
+        }
+      }
+      throw error
+    }
+  },
 
   // Architecture
   getArchitecture: (params: { project_slug?: string; workspace_slug?: string } = {}) =>
