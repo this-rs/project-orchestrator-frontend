@@ -1,4 +1,4 @@
-import { api, buildQuery, ApiError } from './api'
+import { api, buildQuery, ApiError, NonJsonResponseError } from './api'
 import type {
   FunctionNode,
   StructNode,
@@ -77,6 +77,23 @@ export interface ArchitectureOverview {
   orphan_files: string[]
 }
 
+/**
+ * The one 404 that means "this target is not in the code graph": the backend
+ * body says `file not found in graph`. Every other 404 keeps throwing — in
+ * particular an HTML 404 ([`NonJsonResponseError`]: a proxy that does not route
+ * `/api`, a static-file fallback, a login portal), which a bare
+ * `status === 404` test would turn into an empty graph, silently, on a
+ * misrouted deployment.
+ */
+function isUnknownGraphTarget(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    !(error instanceof NonJsonResponseError) &&
+    error.status === 404 &&
+    /file not found in graph/i.test(error.message)
+  )
+}
+
 export const codeApi = {
   // Search
   search: (query: string, params: { language?: string; limit?: number; project_slug?: string; workspace_slug?: string } = {}) =>
@@ -109,12 +126,14 @@ export const codeApi = {
     api.get<{ nodes: CallGraphNode[] }>(`/code/callgraph${buildQuery({ function: functionName, limit })}`),
 
   // Impact analysis. A target the graph does not know is an empty result, not
-  // an error: the visualisation renders it as such (flagged `not_in_graph`).
+  // an error, flagged `not_in_graph` (no widget reads the flag yet: an unknown
+  // target still renders as "no impact", never as a broken page). Only the
+  // graph's OWN 404 is read that way — see `isUnknownGraphTarget`.
   analyzeImpact: async (target: string): Promise<ImpactAnalysis> => {
     try {
       return await api.get<ImpactAnalysis>(`/code/impact${buildQuery({ target })}`)
     } catch (error) {
-      if (error instanceof ApiError && error.status === 404) {
+      if (isUnknownGraphTarget(error)) {
         return {
           direct_dependents: [],
           transitive_dependents: [],
