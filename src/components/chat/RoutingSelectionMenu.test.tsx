@@ -393,7 +393,7 @@ describe('RoutingSelectionMenu', () => {
     openMenu()
     expect(screen.queryByTestId('routing-select-all')).toBeNull()
     expect(screen.queryByTestId('routing-provider-check-local-llama')).toBeNull()
-    expect(screen.getByTestId('routing-switch-hint-claude-code').textContent).toMatch(/moves this conversation there/i)
+    expect(screen.getByTestId('routing-switch-hint-claude-code').textContent).toMatch(/continues this conversation there/i)
     // A second model ticked: mixed among the two.
     tick('local-llama', 'phi')
     expect(changeConversationRouting).toHaveBeenLastCalledWith('s1', {

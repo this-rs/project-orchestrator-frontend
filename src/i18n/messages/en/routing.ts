@@ -151,8 +151,8 @@ export default {
   },
   reason: 'Reason: {reason}',
   switch: {
-    hint: 'Another provider: picking one of its models moves this conversation there.',
-    title: 'Move this conversation to {target}?',
+    hint: 'Another provider: picking one of its models continues this conversation there.',
+    title: 'The next message goes to {target}. The conversation stays the same.',
     newSession: 'A new session opens on {target}.',
     replay: 'The conversation so far is replayed to it as text.',
     omitted: 'If it does not fit the new model\'s context window, the oldest turns are left out (the model is told).',
