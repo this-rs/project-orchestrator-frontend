@@ -78,20 +78,38 @@ export interface ArchitectureOverview {
 }
 
 /**
+ * The backend's error sentence: `ApiError.message` carries the raw body,
+ * `{"error": "..."}`. A body that is not that JSON is read as is.
+ */
+function backendErrorText(message: string): string {
+  try {
+    const body: unknown = JSON.parse(message)
+    if (body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string') {
+      return (body as { error: string }).error
+    }
+  } catch {
+    // not JSON: the message is the sentence
+  }
+  return message
+}
+
+/**
  * The one 404 that means "this target is not in the code graph": the backend
- * body says `file not found in graph`. Every other 404 keeps throwing — in
- * particular an HTML 404 ([`NonJsonResponseError`]: a proxy that does not route
- * `/api`, a static-file fallback, a login portal), which a bare
- * `status === 404` test would turn into an empty graph, silently, on a
- * misrouted deployment.
+ * sentence starts with `file not found in graph:`. Every other 404 keeps
+ * throwing — in particular:
+ * - `file not found in graph for this project: … is a file of the graph, but
+ *   not of this project`: the file IS in the graph, under another project.
+ *   Showing "no impact" would hide a wrong target;
+ * - an HTML 404 ([`NonJsonResponseError`]: a proxy that does not route `/api`,
+ *   a static-file fallback, a login portal), which a bare `status === 404`
+ *   test would turn into an empty graph, silently, on a misrouted deployment.
  */
 function isUnknownGraphTarget(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    !(error instanceof NonJsonResponseError) &&
-    error.status === 404 &&
-    /file not found in graph/i.test(error.message)
-  )
+  if (!(error instanceof ApiError) || error instanceof NonJsonResponseError || error.status !== 404) {
+    return false
+  }
+  const text = backendErrorText(error.message).trim()
+  return /^file not found in graph:/i.test(text) && !/not of this project/i.test(text)
 }
 
 export const codeApi = {
