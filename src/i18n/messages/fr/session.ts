@@ -11,6 +11,9 @@ export default {
     minutes: "{m} min {s} s",
     unlock: "Déverrouiller",
   },
+  modelWait: {
+    retry: "Le modèle n'a pas répondu (essai {attempt} sur {max}) : nouvelle tentative dans {delay}.",
+  },
   lockedVault: {
     resent: "Coffre déverrouillé : votre message est renvoyé.",
     fallbacksLabel: "Ou continuer sans le coffre :",

@@ -11,6 +11,9 @@ export default {
     minutes: "{m} min {s} s",
     unlock: "Desbloquear",
   },
+  modelWait: {
+    retry: "O modelo não respondeu (tentativa {attempt} de {max}): tentando novamente em {delay}.",
+  },
   lockedVault: {
     resent: "Cofre desbloqueado: sua mensagem está sendo enviada novamente.",
     fallbacksLabel: "Ou continuar sem o cofre:",

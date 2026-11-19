@@ -11,6 +11,9 @@ export default {
     minutes: "{m} د {s} ث",
     unlock: "فتح القفل",
   },
+  modelWait: {
+    retry: "لم يرد النموذج (المحاولة {attempt} من {max}): إعادة المحاولة خلال {delay}.",
+  },
   lockedVault: {
     resent: "تم فتح الخزنة: تتم إعادة إرسال رسالتك.",
     fallbacksLabel: "أو المتابعة دون الخزنة:",

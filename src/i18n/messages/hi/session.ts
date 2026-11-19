@@ -11,6 +11,9 @@ export default {
     minutes: "{m} मिनट {s} सेकंड",
     unlock: "अनलॉक करें",
   },
+  modelWait: {
+    retry: "मॉडल ने उत्तर नहीं दिया (प्रयास {attempt}/{max}): {delay} में पुनः प्रयास।",
+  },
   lockedVault: {
     resent: "वॉल्ट अनलॉक हुआ: आपका संदेश फिर से भेजा जा रहा है।",
     fallbacksLabel: "या वॉल्ट के बिना जारी रखें:",

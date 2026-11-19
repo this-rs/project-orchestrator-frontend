@@ -11,6 +11,9 @@ export default {
     minutes: "{m} 分 {s} 秒",
     unlock: "解锁",
   },
+  modelWait: {
+    retry: "模型没有回应（第 {attempt} 次，共 {max} 次）：{delay} 后重试。",
+  },
   lockedVault: {
     resent: "保险库已解锁：正在重新发送您的消息。",
     fallbacksLabel: "或不使用保险库继续：",

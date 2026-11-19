@@ -11,6 +11,9 @@ export default {
     minutes: "{m}分{s}秒",
     unlock: "ロック解除",
   },
+  modelWait: {
+    retry: "モデルが応答しませんでした（試行 {attempt} / {max}）：{delay} 後に再試行します。",
+  },
   lockedVault: {
     resent: "保管庫のロックを解除しました：メッセージを再送信しています。",
     fallbacksLabel: "または保管庫なしで続ける：",

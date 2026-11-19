@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pickModelResolver } from '@/constants/providers'
 import { distinctModels } from '@/utils/routingSelection'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatVaultWaitAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom, chatOneOffProviderPickAtom, usablePickedProvider, dropStalePickAtom, clearOneOffProviderPickAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatVaultWaitAtom, chatModelWaitAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom, chatOneOffProviderPickAtom, usablePickedProvider, dropStalePickAtom, clearOneOffProviderPickAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -519,6 +519,8 @@ export function useChat() {
   /** Pending vault requests of this session — see `chatSecretRequestsAtom`. */
   const setSecretRequests = useSetAtom(chatSecretRequestsAtom)
   const setVaultWait = useSetAtom(chatVaultWaitAtom)
+  /** The turn waits on a provider that did not answer — see `chatModelWaitAtom`. */
+  const setModelWait = useSetAtom(chatModelWaitAtom)
 
   // Debounce ref for sendContinue (prevents double-sends on manual Continue button)
   const continueDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -794,7 +796,11 @@ export function useChat() {
       }
     }
     // A closed session streams nothing more.
-    if (event.type === 'session_closed' && !event.replaying) setIsStreaming(false)
+    if (event.type === 'session_closed' && !event.replaying) {
+      setIsStreaming(false)
+      setModelWait(null) // nothing waits any more in a closed session
+      setVaultWait(null)
+    }
 
     // A live cancel notice answers the Stop chips whose request went over the socket.
     // Written HERE, not in the message updater below: an updater must stay pure (React
@@ -1272,6 +1278,8 @@ export function useChat() {
           })
           if (!event.replaying && !cancelNotice) {
             setIsStreaming(false)
+            setModelWait(null) // the turn failed: no model is being retried any more
+            setVaultWait(null)
           }
           // The Stop chips are told before this updater (it must stay pure).
           break
@@ -1298,6 +1306,8 @@ export function useChat() {
           if (!event.replaying) {
             setIsStreaming(false)
             setIsCompacting(false)
+            setModelWait(null) // the CLI died: nothing waits on a model
+            setVaultWait(null)
           }
           break
         }
@@ -1555,6 +1565,7 @@ export function useChat() {
           // must not override the streaming_status sent for mid-stream join.
           if (!event.replaying) {
             setVaultWait(null) // the turn ended: nothing holds it any more
+            setModelWait(null) // same for a provider that was being retried
             setIsStreaming(false)
             setIsCompacting(false) // safety net: reset compaction flag on result
             // Auto-continue is now handled by the backend — no local setTimeout needed
@@ -1634,8 +1645,30 @@ export function useChat() {
           if (!event.replaying) {
             if (pnSeverity === 'action_required' && (pnCode === 'credentials_locked' || pnKind === 'credentials_locked')) {
               setVaultWait((cur) => cur ?? { sessionId: store.get(chatSessionIdAtom), since: Date.now() })
+            } else if (pnKind === 'model_retry' && pnSeverity === 'latency') {
+              // The turn waits on a provider that did not answer. The sentence is
+              // built in the banner from the structured detail (translated), not
+              // from the backend's English one; `message` stays the fallback when
+              // the detail lacks its counters. `since` keeps the FIRST attempt's
+              // stamp, so the counter says how long the turn has been held — not
+              // the gap between two attempts (2 s, 4 s, …).
+              const sid = store.get(chatSessionIdAtom)
+              const detail = (pnData as { data?: Record<string, unknown> }).data
+              const attempt = detail?.attempt
+              const maxAttempts = detail?.max_attempts
+              const delayMs = detail?.delay_ms
+              const counters =
+                typeof attempt === 'number' && typeof maxAttempts === 'number' && typeof delayMs === 'number'
+                  ? { attempt, maxAttempts, delayMs }
+                  : undefined
+              setModelWait((cur) =>
+                cur && cur.sessionId === sid
+                  ? { ...cur, message: pnMessage, data: counters }
+                  : { sessionId: sid, message: pnMessage, data: counters, since: Date.now() },
+              )
             } else if (pnKind === 'model_recovered') {
               setVaultWait(null)
+              setModelWait(null) // the provider answers again: nothing waits any more
             }
           }
           const pnProviderError = resultErrorToProviderError({
@@ -1672,7 +1705,7 @@ export function useChat() {
       return finalize(updated)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- tracked setters are stable (useCallback with stable deps)
-  }, [setIsStreaming, setPermissionOverride, setSessionModel, setIsCompacting, setBackgroundTasks, setSecretRequests, setVaultWait, store, applySessionRuntime, releaseScopedAnswer, stampPermissionBlocks])
+  }, [setIsStreaming, setPermissionOverride, setSessionModel, setIsCompacting, setBackgroundTasks, setSecretRequests, setVaultWait, setModelWait, store, applySessionRuntime, releaseScopedAnswer, stampPermissionBlocks])
 
   // ========================================================================
   // REST resync — after a reconnect that the server cannot replay
@@ -1727,9 +1760,16 @@ export function useChat() {
         if (stamp !== flagStampRef.current) return
         const serverStreaming = res.sessions[sid]?.streaming === true
         if (store.get(chatStreamingAtom) !== serverStreaming) setIsStreaming(serverStreaming)
+        // A turn the server does not run holds no wait: a dead socket may have
+        // lost the `result` that cleared it, and a replayed one is ignored by the
+        // guard below — so a wait would otherwise stick with no Stop to dismiss it.
+        if (!serverStreaming) {
+          setModelWait(null)
+          setVaultWait(null)
+        }
       })
       .catch(() => {})
-  }, [store, setIsStreaming])
+  }, [store, setIsStreaming, setModelWait, setVaultWait])
   useEffect(() => {
     reconcileStreamingRef.current = reconcileStreaming
   }, [reconcileStreaming])
@@ -1957,6 +1997,8 @@ export function useChat() {
     // the next active_tasks_update will repopulate it.
     setBackgroundTasks([])
     setSecretRequests([])
+    setModelWait(null) // a wait never follows the user into another conversation
+    setVaultWait(null)
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
     setHasOlderMessages(false)
 
@@ -2668,6 +2710,7 @@ export function useChat() {
   const interrupt = useCallback(async () => {
     if (!sessionId) return
     setVaultWait(null) // Stop abandons the wait whatever the server answers
+    setModelWait(null) // ...and a retry the user gave up on has nothing left to say
     const ws = getWs()
 
     // `send()` returns false on a dead socket — and schedules a reconnect.
@@ -2692,7 +2735,7 @@ export function useChat() {
       interruptWatchdogRef.current = null
       if (store.get(chatStreamingAtom)) void interruptOverRest(sessionId)
     }, INTERRUPT_ACK_TIMEOUT_MS)
-  }, [sessionId, getWs, store, interruptOverRest, setVaultWait])
+  }, [sessionId, getWs, store, interruptOverRest, setVaultWait, setModelWait])
 
   useEffect(() => () => {
     if (interruptWatchdogRef.current) clearTimeout(interruptWatchdogRef.current)
@@ -2806,6 +2849,8 @@ export function useChat() {
     setMessages([])
     setBackgroundTasks([])
     setSecretRequests([])
+    setModelWait(null)
+    setVaultWait(null)
     setSessionMeta(null)
     setHasOlderMessages(false)
     setHasNewerMessages(false)
@@ -2861,6 +2906,8 @@ export function useChat() {
     setHasOlderMessages(false)
     setHasNewerMessages(false)
     setHasLiveActivity(false)
+    setModelWait(null)
+    setVaultWait(null)
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
     // The previous conversation's provider must not leak into this one.
     applySessionRuntime(null)

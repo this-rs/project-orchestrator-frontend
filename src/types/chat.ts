@@ -837,8 +837,9 @@ export type ChatEvent =
    * The harness' own advisory during a turn (backend `provider_notice`).
    *
    * `severity` says what the client must do with it: `action_required` becomes a
-   * provider state card (`credentials_locked` → unlock and resend), `latency` is
-   * acknowledged silently, `diagnostic` never reaches the live stream.
+   * provider state card (`credentials_locked` → unlock and resend), `latency` feeds
+   * the composer's "the model is being retried" wait (the `model_retry` banner),
+   * `diagnostic` never reaches the live stream.
    * `code` is the stable, error-like identifier — the same vocabulary as
    * `result_error.error_code` — and `data` is the harness' structured detail
    * (counters, delays, instance id), kept as it came.
