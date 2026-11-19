@@ -47,6 +47,7 @@ import type { RefSearchItem } from '@/refs/refsApi'
 import { findRefTokens, refToken } from '@/utils/messageRefs'
 import { useT, type MessageKey } from '@/i18n'
 import { VaultWaitBanner } from './VaultWaitBanner'
+import { ModelWaitBanner } from './ModelWaitBanner'
 import type { ImagesCause } from '@/atoms/providers'
 import { Button } from '@/components/ui'
 import { panelGlass } from '@/components/ui/panelGlass'
@@ -1010,6 +1011,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
         </p>
       )}
       <VaultWaitBanner sessionId={sessionId} onUnlocked={onVaultUnlocked} />
+      <ModelWaitBanner sessionId={sessionId} />
       {disabled && disabledReason && (
         <p
           id={disabledHelpId}
