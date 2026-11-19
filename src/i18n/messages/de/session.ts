@@ -11,6 +11,9 @@ export default {
     minutes: "{m} Min. {s} s",
     unlock: "Entsperren",
   },
+  modelWait: {
+    retry: "Das Modell hat nicht geantwortet (Versuch {attempt} von {max}): neuer Versuch in {delay}.",
+  },
   lockedVault: {
     resent: "Tresor entsperrt: Ihre Nachricht wird erneut gesendet.",
     fallbacksLabel: "Oder ohne Tresor fortfahren:",

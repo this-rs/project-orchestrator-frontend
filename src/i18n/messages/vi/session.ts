@@ -11,6 +11,9 @@ export default {
     minutes: "{m} phút {s} giây",
     unlock: "Mở khóa",
   },
+  modelWait: {
+    retry: "Mô hình không phản hồi (lần thử {attempt} trên {max}): thử lại sau {delay}.",
+  },
   lockedVault: {
     resent: "Đã mở khóa kho: tin nhắn của bạn đang được gửi lại.",
     fallbacksLabel: "Hoặc tiếp tục không dùng kho:",

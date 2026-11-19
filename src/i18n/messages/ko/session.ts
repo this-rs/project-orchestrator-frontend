@@ -11,6 +11,9 @@ export default {
     minutes: "{m}분 {s}초",
     unlock: "잠금 해제",
   },
+  modelWait: {
+    retry: "모델이 응답하지 않았습니다(시도 {attempt}/{max}): {delay} 후 다시 시도합니다.",
+  },
   lockedVault: {
     resent: "보관함 잠금 해제됨: 메시지를 다시 보내는 중입니다.",
     fallbacksLabel: "또는 보관함 없이 계속:",

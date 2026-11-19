@@ -2,9 +2,10 @@
  * `chatModelWaitAtom` — the composer's "the model did not answer, retrying …" state.
  *
  * A live `model_retry` notice (severity `latency`) lights it, tagged with its session
- * and carrying the backend's sentence; `model_recovered`, a live `result` and an
- * interrupt clear it; a notice REPLAYED from history never lights it (no false
- * "waiting" after a reload).
+ * and carrying the backend's sentence (fallback) plus the structured retry counters;
+ * `model_recovered`, a live `result`, an interrupt, every turn exit and every session
+ * reset clear it; a notice REPLAYED from history never lights it (no false "waiting"
+ * after a reload).
  *
  * Run with: npx vitest run src/hooks/__tests__/useChat.modelWait.test.tsx
  */
@@ -15,7 +16,12 @@ import { Provider, createStore } from 'jotai'
 import { chatSessionIdAtom, chatModelWaitAtom } from '@/atoms'
 
 vi.mock('@/services', () => {
-  type Callbacks = { onEvent?: (event: Record<string, unknown>) => void }
+  type Callbacks = {
+    onEvent?: (event: Record<string, unknown>) => void
+    onStatusChange?: (status: string) => void
+    onReplayComplete?: () => void
+    onResync?: () => void
+  }
   class FakeChatWebSocket {
     static instances: FakeChatWebSocket[] = []
     sessionId: string | null = null
@@ -45,6 +51,9 @@ vi.mock('@/services', () => {
     sendQueueOp() {
       return true
     }
+    sendQueueSnapshot() {
+      return true
+    }
     sendInterrupt() {
       return true
     }
@@ -64,6 +73,7 @@ vi.mock('@/services', () => {
       getMessages: vi.fn().mockResolvedValue({ total_count: 0, messages: [] }),
       getBackgroundTasks: vi.fn().mockResolvedValue({ tasks: [] }),
       getSession: vi.fn().mockResolvedValue({ cwd: '/tmp', model: 'claude-sonnet-4-5' }),
+      getLiveActivity: vi.fn(),
     },
   }
 })
@@ -72,11 +82,17 @@ import { ChatWebSocket, chatApi } from '@/services'
 import { useChat } from '../useChat'
 
 type FakeWs = {
-  callbacks: { onEvent: (event: Record<string, unknown>) => void }
+  callbacks: {
+    onEvent: (event: Record<string, unknown>) => void
+    onStatusChange?: (status: string) => void
+    onReplayComplete?: () => void
+    onResync?: () => void
+  }
   sendUserMessage: ReturnType<typeof vi.fn>
   sendInputResponse: ReturnType<typeof vi.fn>
 }
 const FakeWS = ChatWebSocket as unknown as { instances: FakeWs[] }
+const liveActivity = chatApi.getLiveActivity as unknown as ReturnType<typeof vi.fn>
 
 async function setup() {
   const store = createStore()
@@ -104,6 +120,11 @@ const RETRY = {
   message: RETRY_MSG,
   severity: 'latency',
 }
+const RETRY_DATA = {
+  attempt: 2,
+  max_attempts: 5,
+  delay_ms: 2000,
+}
 const RECOVERED = { type: 'provider_notice', kind: 'model_recovered', message: 'ok', severity: 'latency' }
 
 describe('chatModelWaitAtom', () => {
@@ -114,7 +135,29 @@ describe('chatModelWaitAtom', () => {
     const wait = store.get(chatModelWaitAtom)
     expect(wait?.sessionId).toBe('sess-1')
     expect(wait?.message).toBe(RETRY_MSG)
+    expect(wait?.data).toBeUndefined()
     expect(typeof wait?.since).toBe('number')
+  })
+
+  it('carries the structured counters when the notice sends them', async () => {
+    const { emit, store } = await setup()
+    await emit({ ...RETRY, data: RETRY_DATA })
+    expect(store.get(chatModelWaitAtom)?.data).toEqual({ attempt: 2, maxAttempts: 5, delayMs: 2000 })
+  })
+
+  it('keeps the first attempt\'s `since` when retries concern the same session', async () => {
+    const { emit, store } = await setup()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    await emit({ ...RETRY, data: { ...RETRY_DATA, attempt: 1 } })
+    expect(store.get(chatModelWaitAtom)?.since).toBe(1_000)
+
+    now.mockReturnValue(9_000)
+    await emit({ ...RETRY, message: 'attempt 2', data: { ...RETRY_DATA, attempt: 2, delay_ms: 4000 } })
+    const wait = store.get(chatModelWaitAtom)
+    expect(wait?.since).toBe(1_000) // preserved, not 9000
+    expect(wait?.message).toBe('attempt 2')
+    expect(wait?.data).toEqual({ attempt: 2, maxAttempts: 5, delayMs: 4000 })
+    now.mockRestore()
   })
 
   it('a REPLAYED notice never lights it', async () => {
@@ -145,6 +188,50 @@ describe('chatModelWaitAtom', () => {
     await emit(RETRY)
     await act(async () => {
       await result.current.interrupt()
+    })
+    expect(store.get(chatModelWaitAtom)).toBeNull()
+  })
+
+  it('session_closed clears it', async () => {
+    const { emit, store } = await setup()
+    await emit(RETRY)
+    await emit({ type: 'session_closed' })
+    expect(store.get(chatModelWaitAtom)).toBeNull()
+  })
+
+  it('session_error clears it', async () => {
+    const { emit, store } = await setup()
+    await emit(RETRY)
+    await emit({ type: 'session_error', reason: 'crash', message: 'boom' })
+    expect(store.get(chatModelWaitAtom)).toBeNull()
+  })
+
+  it('an error clears it', async () => {
+    const { emit, store } = await setup()
+    await emit(RETRY)
+    await emit({ type: 'error', message: 'boom' })
+    expect(store.get(chatModelWaitAtom)).toBeNull()
+  })
+
+  it('a REST resync that finds the turn over clears it (a dead socket lost the result)', async () => {
+    const { emit, store, ws } = await setup()
+    await emit(RETRY)
+    expect(store.get(chatModelWaitAtom)).not.toBeNull()
+
+    liveActivity.mockResolvedValue({ sessions: { 'sess-1': { live: true, streaming: false } } })
+    act(() => {
+      ws().callbacks.onReplayComplete?.()
+    })
+    await waitFor(() => expect(store.get(chatModelWaitAtom)).toBeNull())
+  })
+
+  it('a session change clears it (a wait never follows you into another conversation)', async () => {
+    const { emit, store, result } = await setup()
+    await emit(RETRY)
+    expect(store.get(chatModelWaitAtom)).not.toBeNull()
+
+    act(() => {
+      result.current.newSession()
     })
     expect(store.get(chatModelWaitAtom)).toBeNull()
   })

@@ -796,7 +796,11 @@ export function useChat() {
       }
     }
     // A closed session streams nothing more.
-    if (event.type === 'session_closed' && !event.replaying) setIsStreaming(false)
+    if (event.type === 'session_closed' && !event.replaying) {
+      setIsStreaming(false)
+      setModelWait(null) // nothing waits any more in a closed session
+      setVaultWait(null)
+    }
 
     // A live cancel notice answers the Stop chips whose request went over the socket.
     // Written HERE, not in the message updater below: an updater must stay pure (React
@@ -1274,6 +1278,8 @@ export function useChat() {
           })
           if (!event.replaying && !cancelNotice) {
             setIsStreaming(false)
+            setModelWait(null) // the turn failed: no model is being retried any more
+            setVaultWait(null)
           }
           // The Stop chips are told before this updater (it must stay pure).
           break
@@ -1300,6 +1306,8 @@ export function useChat() {
           if (!event.replaying) {
             setIsStreaming(false)
             setIsCompacting(false)
+            setModelWait(null) // the CLI died: nothing waits on a model
+            setVaultWait(null)
           }
           break
         }
@@ -1638,11 +1646,26 @@ export function useChat() {
             if (pnSeverity === 'action_required' && (pnCode === 'credentials_locked' || pnKind === 'credentials_locked')) {
               setVaultWait((cur) => cur ?? { sessionId: store.get(chatSessionIdAtom), since: Date.now() })
             } else if (pnKind === 'model_retry' && pnSeverity === 'latency') {
-              // The turn waits on a provider that did not answer: say so, with the
-              // backend's own sentence ("attempt 2 of 5: trying again in 2 s.").
-              // Each attempt replaces the previous one, so the line cannot go stale;
-              // `since` ages from the last attempt, not from the first.
-              setModelWait({ sessionId: store.get(chatSessionIdAtom), message: pnMessage, since: Date.now() })
+              // The turn waits on a provider that did not answer. The sentence is
+              // built in the banner from the structured detail (translated), not
+              // from the backend's English one; `message` stays the fallback when
+              // the detail lacks its counters. `since` keeps the FIRST attempt's
+              // stamp, so the counter says how long the turn has been held — not
+              // the gap between two attempts (2 s, 4 s, …).
+              const sid = store.get(chatSessionIdAtom)
+              const detail = (pnData as { data?: Record<string, unknown> }).data
+              const attempt = detail?.attempt
+              const maxAttempts = detail?.max_attempts
+              const delayMs = detail?.delay_ms
+              const counters =
+                typeof attempt === 'number' && typeof maxAttempts === 'number' && typeof delayMs === 'number'
+                  ? { attempt, maxAttempts, delayMs }
+                  : undefined
+              setModelWait((cur) =>
+                cur && cur.sessionId === sid
+                  ? { ...cur, message: pnMessage, data: counters }
+                  : { sessionId: sid, message: pnMessage, data: counters, since: Date.now() },
+              )
             } else if (pnKind === 'model_recovered') {
               setVaultWait(null)
               setModelWait(null) // the provider answers again: nothing waits any more
@@ -1737,9 +1760,16 @@ export function useChat() {
         if (stamp !== flagStampRef.current) return
         const serverStreaming = res.sessions[sid]?.streaming === true
         if (store.get(chatStreamingAtom) !== serverStreaming) setIsStreaming(serverStreaming)
+        // A turn the server does not run holds no wait: a dead socket may have
+        // lost the `result` that cleared it, and a replayed one is ignored by the
+        // guard below — so a wait would otherwise stick with no Stop to dismiss it.
+        if (!serverStreaming) {
+          setModelWait(null)
+          setVaultWait(null)
+        }
       })
       .catch(() => {})
-  }, [store, setIsStreaming])
+  }, [store, setIsStreaming, setModelWait, setVaultWait])
   useEffect(() => {
     reconcileStreamingRef.current = reconcileStreaming
   }, [reconcileStreaming])
@@ -1967,6 +1997,8 @@ export function useChat() {
     // the next active_tasks_update will repopulate it.
     setBackgroundTasks([])
     setSecretRequests([])
+    setModelWait(null) // a wait never follows the user into another conversation
+    setVaultWait(null)
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
     setHasOlderMessages(false)
 
@@ -2817,6 +2849,8 @@ export function useChat() {
     setMessages([])
     setBackgroundTasks([])
     setSecretRequests([])
+    setModelWait(null)
+    setVaultWait(null)
     setSessionMeta(null)
     setHasOlderMessages(false)
     setHasNewerMessages(false)
@@ -2872,6 +2906,8 @@ export function useChat() {
     setHasOlderMessages(false)
     setHasNewerMessages(false)
     setHasLiveActivity(false)
+    setModelWait(null)
+    setVaultWait(null)
     paginationRef.current = { offset: 0, tailOffset: 0, totalCount: 0 }
     // The previous conversation's provider must not leak into this one.
     applySessionRuntime(null)

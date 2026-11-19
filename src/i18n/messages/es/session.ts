@@ -11,6 +11,9 @@ export default {
     minutes: "{m} min {s} s",
     unlock: "Desbloquear",
   },
+  modelWait: {
+    retry: "El modelo no respondió (intento {attempt} de {max}): reintentando en {delay}.",
+  },
   lockedVault: {
     resent: "Bóveda desbloqueada: tu mensaje se está enviando de nuevo.",
     fallbacksLabel: "O continuar sin la bóveda:",

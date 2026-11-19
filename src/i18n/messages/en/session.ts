@@ -9,6 +9,9 @@ export default {
     minutes: "{m} min {s} s",
     unlock: "Unlock",
   },
+  modelWait: {
+    retry: "The model did not answer (attempt {attempt} of {max}): trying again in {delay}.",
+  },
   lockedVault: {
     resent: "Vault unlocked: your message is being sent again.",
     fallbacksLabel: "Or continue without the vault:",

@@ -11,6 +11,9 @@ export default {
     minutes: "{m} мин {s} с",
     unlock: "Разблокировать",
   },
+  modelWait: {
+    retry: "Модель не ответила (попытка {attempt} из {max}): повтор через {delay}.",
+  },
   lockedVault: {
     resent: "Хранилище разблокировано: сообщение отправляется снова.",
     fallbacksLabel: "Или продолжить без хранилища:",

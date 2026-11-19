@@ -404,21 +404,32 @@ export const chatVaultWaitAtom = atom<VaultWait | null>(null)
  * The turn is waiting on a provider that did not answer — the harness is retrying.
  *
  * The backend sends these as `provider_notice` of severity `latency` (`model_retry`,
- * once per attempt, with its own sentence: "The model did not answer (attempt 2 of
- * 5): trying again in 2 s."). Its own design note says `latency` "only feeds the
- * composer's waiting state" — until now nothing consumed it, so a turn that stalled
- * (a measured 75 s of native retries on 18/11/2026) showed a bare "…" with no sign
- * that anything was happening.
+ * once per attempt). Its own design note says `latency` "only feeds the composer's
+ * waiting state" — until now nothing consumed it, so a turn that stalled (a measured
+ * 75 s of native retries on 18/11/2026) showed a bare "…" with no sign that anything
+ * was happening.
+ *
+ * The sentence is built in the banner from `data` (attempt / max / delay, translated);
+ * `message` is the backend's English sentence, kept as the fallback when `data` lacks
+ * its counters. `since` keeps the FIRST attempt's stamp, so the counter says how long
+ * the turn has been held — not the gap between two attempts.
  *
  * Fed ONLY by a live notice; one replayed from history never lights it. Cleared by
- * `model_recovered`, a live `result` and an interrupt. Tagged with its session so it
- * never follows the user into another conversation.
+ * `model_recovered`, a live `result`, an interrupt, every turn exit (`session_closed`,
+ * `error`, `session_error`, a REST resync that finds the turn over) and every session
+ * reset. Tagged with its session so it never follows the user into another conversation.
  */
 export interface ModelWait {
   sessionId: string | null
-  /** The provider's own sentence, built by the backend (`notice_message`). */
+  /** The backend's sentence, used when `data` lacks its counters. */
   message: string
-  /** Browser clock when the notice arrived. */
+  /** Structured retry counters, when the backend sent them all. */
+  data?: {
+    attempt: number
+    maxAttempts: number
+    delayMs: number
+  }
+  /** Browser clock when the FIRST notice arrived. */
   since: number
 }
 export const chatModelWaitAtom = atom<ModelWait | null>(null)
