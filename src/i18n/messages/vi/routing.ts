@@ -153,8 +153,8 @@ export default {
   },
   reason: 'Lý do: {reason}',
   switch: {
-    hint: 'Nhà cung cấp khác: chọn một mô hình của nó sẽ chuyển cuộc trò chuyện này sang đó.',
-    title: 'Chuyển cuộc trò chuyện này sang {target}?',
+    hint: 'Nhà cung cấp khác: chọn một mô hình của nó sẽ tiếp tục cuộc trò chuyện này ở đó.',
+    title: 'Tin nhắn tiếp theo sẽ được gửi tới {target}. Cuộc trò chuyện vẫn giữ nguyên.',
     newSession: 'Một phiên mới được mở trên {target}.',
     replay: 'Cuộc trò chuyện đến giờ được phát lại cho nó dưới dạng văn bản.',
     omitted: 'Nếu không vừa cửa sổ ngữ cảnh của mô hình mới, các lượt cũ nhất sẽ bị bỏ qua (mô hình được thông báo).',

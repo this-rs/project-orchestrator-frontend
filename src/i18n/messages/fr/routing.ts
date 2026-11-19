@@ -153,8 +153,8 @@ export default {
   },
   reason: 'Raison : {reason}',
   switch: {
-    hint: 'Autre provider : choisir un de ses modèles y déplace cette conversation.',
-    title: 'Déplacer cette conversation vers {target} ?',
+    hint: 'Autre provider : choisir un de ses modèles continue cette conversation là-bas.',
+    title: 'Le prochain message ira sur {target}. La conversation reste la même.',
     newSession: 'Une nouvelle session s\'ouvre sur {target}.',
     replay: 'La conversation jusqu\'ici lui est rejouée en texte.',
     omitted: 'Si elle ne tient pas dans la fenêtre de contexte du nouveau modèle, les tours les plus anciens sont omis (le modèle en est informé).',

@@ -153,8 +153,8 @@ export default {
   },
   reason: 'Grund: {reason}',
   switch: {
-    hint: 'Anderer Provider: Die Wahl eines seiner Modelle verschiebt diese Unterhaltung dorthin.',
-    title: 'Diese Unterhaltung nach {target} verschieben?',
+    hint: 'Anderer Provider: Die Wahl eines seiner Modelle führt diese Unterhaltung dort fort.',
+    title: 'Die nächste Nachricht geht an {target}. Die Unterhaltung bleibt dieselbe.',
     newSession: 'Auf {target} wird eine neue Sitzung geöffnet.',
     replay: 'Die bisherige Unterhaltung wird ihr als Text wiedergegeben.',
     omitted: 'Passt sie nicht in das Kontextfenster des neuen Modells, werden die ältesten Runden ausgelassen (das Modell wird darüber informiert).',

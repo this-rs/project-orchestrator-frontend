@@ -153,8 +153,8 @@ export default {
   },
   reason: 'Motivo: {reason}',
   switch: {
-    hint: 'Outro provedor: escolher um de seus modelos move esta conversa para lá.',
-    title: 'Mover esta conversa para {target}?',
+    hint: 'Outro provedor: escolher um de seus modelos continua esta conversa lá.',
+    title: 'A próxima mensagem irá para {target}. A conversa continua a mesma.',
     newSession: 'Uma nova sessão é aberta em {target}.',
     replay: 'A conversa até aqui é reproduzida para ela como texto.',
     omitted: 'Se não couber na janela de contexto do novo modelo, os turnos mais antigos são omitidos (e o modelo é informado).',
