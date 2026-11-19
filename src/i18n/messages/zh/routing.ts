@@ -153,8 +153,8 @@ export default {
   },
   reason: '原因：{reason}',
   switch: {
-    hint: '其他提供方: 选择其中一个模型会把此对话移过去。',
-    title: '将此对话移至 {target}?',
+    hint: '其他提供方: 选择其中一个模型会让此对话在那里继续。',
+    title: '下一条消息将发往 {target}。对话保持不变。',
     newSession: '将在 {target} 上打开一个新会话。',
     replay: '目前为止的对话会以文本形式重放给它。',
     omitted: '如果放不进新模型的上下文窗口, 最早的轮次会被省略 (并告知模型)。',

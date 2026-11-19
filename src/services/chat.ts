@@ -290,9 +290,9 @@ export function conversationRoutingRefusal(err: unknown): ConversationRoutingRef
 
 /**
  * `POST /api/chat/sessions/{id}/switch-provider`: continue THIS conversation on another
- * provider. The server opens a new session there, replays the history to it as text
- * (the oldest entries may be left out to fit), sends `message`, then closes this one.
- * A refusal leaves the current session untouched.
+ * provider, in place: the SAME session is retargeted, its history relayed to the new
+ * model as text (bounded to a fraction of its context window, the oldest turns possibly
+ * left out), then `message` is sent on it. A refusal leaves the session untouched.
  */
 export function switchConversationProvider(sessionId: string, body: SwitchProviderRequest): Promise<SwitchProviderResponse> {
   return api.post<SwitchProviderResponse>(`/chat/sessions/${sessionId}/switch-provider`, body)

@@ -55,6 +55,7 @@ export default {
     sessionClosed: { closed: 'Session ended.', idle: 'Session ended (idle).', error: 'Session ended (error).' },
     compactionRecovered: 'Context restored after compaction (~{tokens} tokens re-injected, {ms} ms).',
     compactionRecoveryFailed: 'The context could not be restored after compaction ({ms} ms): restate the goal if the answers drift.',
+    // Notice of the old inter-session relay: a menu switch now happens in place (same session), so these no longer render from it — kept for other relay paths that may still use them.
     followed: 'This conversation was moved from {from} to {to} elsewhere: this tab now follows the new session.',
     followedAuto: 'PO moved this conversation from {from} to {to}: this tab now follows the new session.',
     dismissNotice: 'Dismiss',

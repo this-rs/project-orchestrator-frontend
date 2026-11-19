@@ -215,9 +215,9 @@ export function RoutingSelectionMenu(props: RoutingSelectionMenuProps) {
  * An existing chat: its changes go to the server (`PUT /chat/sessions/{id}/routing`)
  * and the menu shows what the server answers: Auto, or its ticked models (one =
  * strict, several = mixed among them). On Auto the list stays usable: picking a
- * model takes the hand back. A model of ANOTHER provider moves the conversation
+ * model takes the hand back. A model of ANOTHER provider continues this conversation
  * there (`POST .../switch-provider`) after a confirmation that says what happens
- * and takes the message to continue with; the tab then follows the new session.
+ * and takes the message to continue with; the switch happens in place, on the same session.
  * The gestures on many models are not offered.
  */
 function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByDefault }: RoutingSelectionMenuProps & { autoByDefault: boolean }) {
@@ -322,9 +322,10 @@ function RoutingMenu({ sessionId, open, onOpenChange, onNewConversation, autoByD
   }
 
   /**
-   * Move the conversation (`POST .../switch-provider`): on success the tab follows the
-   * new session and the draft that was sent is cleared; a refusal is said IN LINE, under the
-   * chip, and nothing changes. No modal: a move is part of the conversation, not a dialog.
+   * Switch the conversation in place (`POST .../switch-provider`): the SAME session is
+   * retargeted, its history relayed to the new model as text (bounded, the oldest turns
+   * possibly omitted), and the draft that was sent is cleared; a refusal is said IN LINE,
+   * under the chip, and nothing changes. No modal: a switch is part of the conversation.
    */
   const switchTo = (sid: string, pick: RoutingPick, message: string) => {
     setSwitchRefusal(null)
