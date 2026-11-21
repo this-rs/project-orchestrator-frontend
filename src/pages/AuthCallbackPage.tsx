@@ -14,8 +14,7 @@ import { ProductMark, ScreenHeader, StandaloneScreen, StatusBanner } from '@/pag
  * - New generic OIDC flow (exchangeOidcCode)
  * - Legacy Google flow (exchangeCode) as fallback
  *
- * Tries the generic OIDC endpoint first. If it fails with a non-auth error,
- * falls back to the legacy Google endpoint for backward compatibility.
+ * Falls back to the legacy Google endpoint only when OIDC is not configured.
  */
 export function AuthCallbackPage() {
   const { t } = useT()
@@ -71,9 +70,18 @@ export function AuthCallbackPage() {
     authApi
       .exchangeOidcCode(code)
       .catch((oidcErr: Error & { status?: number }) => {
-        // Only fall back to legacy Google if OIDC endpoint returned 403 (not configured).
-        // For real OIDC errors (token exchange, userinfo, scope), surface them directly.
-        if (oidcErr.status === 403) return authApi.exchangeCode(code)
+        // Other 403s (e.g. an email policy rejection) happen *after* the
+        // provider has consumed the code. Retrying those as Google masks the
+        // real error with an invalid_grant from the second exchange.
+        let reason: unknown
+        try {
+          reason = (JSON.parse(oidcErr.message) as { error?: unknown }).error
+        } catch {
+          reason = oidcErr.message
+        }
+        if (oidcErr.status === 403 && reason === 'OIDC authentication is not configured') {
+          return authApi.exchangeCode(code)
+        }
         throw oidcErr
       })
       .then(({ token, user }) => {

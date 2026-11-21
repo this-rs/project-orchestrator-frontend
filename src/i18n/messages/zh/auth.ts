@@ -16,6 +16,11 @@ export default {
     toRegister: "还没有账户？创建一个",
     loadingAria: "正在加载登录选项",
   },
+  slowRefresh: {
+    title: "登录所需时间比预期更长",
+    description: "请求仍在进行中。完成后将自动登录。",
+    keepWaiting: "继续等待",
+  },
   callback: {
     signingIn: "正在为您登录…",
     failedTitle: "身份验证失败",

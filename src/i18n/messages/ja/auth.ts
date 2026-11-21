@@ -16,6 +16,11 @@ export default {
     toRegister: "アカウントがありませんか？作成する",
     loadingAria: "サインインのオプションを読み込み中",
   },
+  slowRefresh: {
+    title: "サインインに予想より時間がかかっています",
+    description: "リクエストは処理中です。完了するとサインインします。",
+    keepWaiting: "待機を続ける",
+  },
   callback: {
     signingIn: "サインインしています…",
     failedTitle: "認証に失敗しました",

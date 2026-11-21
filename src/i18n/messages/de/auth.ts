@@ -16,6 +16,11 @@ export default {
     toRegister: "Noch kein Konto? Erstellen Sie eines",
     loadingAria: "Anmeldeoptionen werden geladen",
   },
+  slowRefresh: {
+    title: "Die Anmeldung dauert länger als erwartet",
+    description: "Die Anfrage läuft noch. Sie werden angemeldet, sobald sie abgeschlossen ist.",
+    keepWaiting: "Weiter warten",
+  },
   callback: {
     signingIn: "Sie werden angemeldet…",
     failedTitle: "Authentifizierung fehlgeschlagen",

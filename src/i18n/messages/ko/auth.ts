@@ -16,6 +16,11 @@ export default {
     toRegister: "계정이 없나요? 만들기",
     loadingAria: "로그인 옵션 불러오는 중",
   },
+  slowRefresh: {
+    title: "로그인에 예상보다 시간이 오래 걸리고 있습니다",
+    description: "요청이 아직 진행 중입니다. 완료되면 로그인됩니다.",
+    keepWaiting: "계속 기다리기",
+  },
   callback: {
     signingIn: "로그인하는 중…",
     failedTitle: "인증에 실패했습니다",

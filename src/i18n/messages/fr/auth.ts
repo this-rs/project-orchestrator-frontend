@@ -16,6 +16,11 @@ export default {
     toRegister: "Pas encore de compte ? Créez-en un",
     loadingAria: "Chargement des options de connexion",
   },
+  slowRefresh: {
+    title: "La connexion prend plus de temps que prévu",
+    description: "La demande est toujours en cours. Vous serez connecté dès qu’elle sera terminée.",
+    keepWaiting: "Continuer à attendre",
+  },
   callback: {
     signingIn: "Connexion en cours…",
     failedTitle: "Échec de l'authentification",
