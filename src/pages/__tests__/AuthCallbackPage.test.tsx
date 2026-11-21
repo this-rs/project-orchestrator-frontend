@@ -101,4 +101,26 @@ describe('AuthCallbackPage (regression: StrictMode must not double-exchange the 
     expect(primaries).toHaveLength(1)
     expect(primaries[0].textContent).toBe('Back to sign in')
   })
+
+  it('preserves a policy rejection without exchanging the consumed code again', async () => {
+    const error = Object.assign(new Error('{"error":"Email not allowed by server policy"}'), { status: 403 })
+    vi.mocked(authApi.exchangeOidcCode).mockRejectedValue(error)
+    renderCallback('single-use-code')
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Email not allowed by server policy')
+    expect(authApi.exchangeCode).not.toHaveBeenCalled()
+  })
+
+  it('uses the legacy endpoint when the server says OIDC is not configured', async () => {
+    const error = Object.assign(new Error('{"error":"OIDC authentication is not configured"}'), { status: 403 })
+    vi.mocked(authApi.exchangeOidcCode).mockRejectedValue(error)
+    vi.mocked(authApi.exchangeCode).mockResolvedValue({
+      token: 'jwt-token',
+      user: { id: '1', email: 'a@b.com', name: 'A' },
+    } as Awaited<ReturnType<typeof authApi.exchangeCode>>)
+    renderCallback('single-use-code')
+
+    await screen.findByText('Overview')
+    expect(authApi.exchangeCode).toHaveBeenCalledExactlyOnceWith('single-use-code')
+  })
 })

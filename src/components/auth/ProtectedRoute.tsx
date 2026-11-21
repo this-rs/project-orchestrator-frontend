@@ -19,7 +19,8 @@ import {
   refreshToken,
   forceLogout,
 } from '@/services/authManager'
-import { Spinner } from '@/components/ui'
+import { Button, ErrorState, Spinner } from '@/components/ui'
+import { useT } from '@/i18n'
 
 /**
  * Route guard that protects all child routes.
@@ -39,6 +40,7 @@ import { Spinner } from '@/components/ui'
  */
 export function ProtectedRoute() {
   const navigate = useNavigate()
+  const { t } = useT()
   const isAuthenticated = useAtomValue(isAuthenticatedAtom)
   const authMode = useAtomValue(authModeAtom)
   const [providersLoaded, setProvidersLoaded] = useAtom(authProvidersLoadedAtom)
@@ -49,7 +51,9 @@ export function ProtectedRoute() {
   const [user, setUser] = useAtom(currentUserAtom)
   const setToken = useSetAtom(authTokenAtom)
   const [authError, setAuthError] = useState(false)
+  const [userFetchAttempt, setUserFetchAttempt] = useState(0)
   const [bootRefreshDone, setBootRefreshDone] = useState(false)
+  const [bootRefreshSlow, setBootRefreshSlow] = useState(false)
   const bootRefreshStarted = useRef(false)
 
   // Inject React Router navigate + Jotai setters into authManager singleton
@@ -122,6 +126,15 @@ export function ProtectedRoute() {
       })
   }, [needsBootRefresh, setToken])
 
+  // Do not abort a refresh in flight: the server may already have consumed
+  // its one-use cookie. Offer a way to keep waiting without issuing a second
+  // request, and still apply a successful late response.
+  useEffect(() => {
+    if (!needsBootRefresh || bootRefreshDone || bootRefreshSlow) return
+    const timeout = window.setTimeout(() => setBootRefreshSlow(true), 15_000)
+    return () => window.clearTimeout(timeout)
+  }, [needsBootRefresh, bootRefreshDone, bootRefreshSlow])
+
   // Phase 3: Validate token when auth is required — fetch /auth/me
   //
   // Intentionally NOT gated on `bootRefreshDone`. `me()` already requires
@@ -138,17 +151,38 @@ export function ProtectedRoute() {
       return
     }
 
-    authApi
-      .me()
-      .then((u) => {
-        setUser(u)
-      })
-      .catch(() => {
-        // Token invalid/expired → force full logout (clears memory + Jotai + WS)
+    let cancelled = false
+    async function loadUser() {
+      let refreshFailed = false
+      try {
+        let u
+        try {
+          u = await authApi.me()
+        } catch (error: unknown) {
+          if (cancelled) return
+          if ((error as { status?: number })?.status !== 401) throw error
+          // The access token may have expired while the refresh cookie is valid.
+          try {
+            await refreshToken()
+          } catch (refreshError) {
+            refreshFailed = true // refreshToken handles a 401 itself
+            throw refreshError
+          }
+          if (cancelled) return
+          u = await authApi.me()
+        }
+        if (!cancelled) setUser(u)
+      } catch (error: unknown) {
+        if (cancelled) return
         setAuthError(true)
-        forceLogout()
-      })
-  }, [providersLoaded, authMode, isAuthenticated, user, setUser])
+        // A network/server failure says nothing about the credentials. Revoking
+        // the shared cookie here would log out every tab on a temporary outage.
+        if (!refreshFailed && (error as { status?: number })?.status === 401) forceLogout()
+      }
+    }
+    void loadUser()
+    return () => { cancelled = true }
+  }, [providersLoaded, authMode, isAuthenticated, user, setUser, userFetchAttempt])
 
   // Derive loading: waiting for providers OR boot refresh OR user validation
   // authError short-circuits loading to prevent infinite spinner
@@ -159,12 +193,35 @@ export function ProtectedRoute() {
   const waitingForBootRefresh =
     authMode === 'required' && !isAuthenticated && !bootRefreshDone
   const loading =
-    !providersLoaded || waitingForBootRefresh || (needsUserFetch && !authError)
+    !providersLoaded || (waitingForBootRefresh && !bootRefreshSlow) || (needsUserFetch && !authError)
 
   if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center bg-[var(--surface-base)]">
         <Spinner size="lg" />
+      </div>
+    )
+  }
+
+  if (bootRefreshSlow && waitingForBootRefresh) {
+    return (
+      <div role="status" className="flex flex-col items-center justify-center px-4 py-16 text-center">
+        <h3 className="mb-1 text-lg font-semibold text-gray-200">{t('auth.slowRefresh.title')}</h3>
+        <p className="mb-4 max-w-md text-sm text-gray-400">{t('auth.slowRefresh.description')}</p>
+        <Button variant="secondary" size="sm" onClick={() => setBootRefreshSlow(false)}>
+          {t('auth.slowRefresh.keepWaiting')}
+        </Button>
+      </div>
+    )
+  }
+
+  if (authError && needsUserFetch) {
+    return (
+      <div role="alert">
+        <ErrorState title={t('workspaceSelector.errorTitle')} onRetry={() => {
+          setAuthError(false)
+          setUserFetchAttempt((attempt) => attempt + 1)
+        }} />
       </div>
     )
   }

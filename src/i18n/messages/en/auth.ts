@@ -14,6 +14,11 @@ export default {
     toRegister: "No account yet? Create one",
     loadingAria: "Loading sign-in options",
   },
+  slowRefresh: {
+    title: "Sign-in is taking longer than expected",
+    description: "The request is still in progress. You will be signed in when it finishes.",
+    keepWaiting: "Keep waiting",
+  },
   callback: {
     signingIn: "Signing you in…",
     failedTitle: "Authentication failed",

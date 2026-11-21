@@ -24,6 +24,7 @@ import type {
 } from '@/types'
 
 import { isTauri, getAuthBase, getBackendPort, bootTimeoutSignal } from './env'
+import { withAuthCookieLock } from './authCookieLock'
 
 /**
  * Build the origin query parameter for OAuth redirect_uri construction.
@@ -96,7 +97,12 @@ const AUTH_STARTUP_RETRY_MAX = 4
 const AUTH_STARTUP_RETRY_DELAYS = [300, 600, 1200, 2000]
 let _authBackendReachable = !isTauri
 
-async function authFetchWithRetry(url: string, init: RequestInit): Promise<Response> {
+async function authFetchWithRetry(url: string, init: RequestInit, singleUse: boolean): Promise<Response> {
+  // A callback code or refresh cookie can be consumed by the server even if
+  // the client never receives its response. Aborting or retrying that request
+  // can strand the user with an already-used credential.
+  if (singleUse) return fetch(url, init)
+
   // Boot-critical requests get a timeout so ProtectedRoute's spinner can never
   // hang forever on a stalled connection (flaky mobile networks). A fresh
   // signal is created per attempt — signals are single-use.
@@ -122,7 +128,8 @@ async function authFetchWithRetry(url: string, init: RequestInit): Promise<Respo
 
 async function authRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  singleUse = false,
 ): Promise<T> {
   const url = `${getAuthBase()}${endpoint}`
   const headers: Record<string, string> = {
@@ -142,7 +149,7 @@ async function authRequest<T>(
       ...headers,
       ...(options.headers as Record<string, string> | undefined),
     },
-  })
+  }, singleUse)
 
   if (!response.ok) {
     const message = await response.text()
@@ -170,17 +177,17 @@ export const authApi = {
 
   /** POST /auth/login — Authenticate with email + password */
   loginWithPassword: (email: string, password: string) =>
-    authRequest<AuthTokenResponse>('/login', {
+    withAuthCookieLock(() => authRequest<AuthTokenResponse>('/login', {
       method: 'POST',
       body: JSON.stringify({ email, password } satisfies LoginRequest),
-    }),
+    })),
 
   /** POST /auth/register — Create a new account (when registration is enabled) */
   register: (email: string, password: string, name: string) =>
-    authRequest<AuthTokenResponse>('/register', {
+    withAuthCookieLock(() => authRequest<AuthTokenResponse>('/register', {
       method: 'POST',
       body: JSON.stringify({ email, password, name } satisfies RegisterRequest),
-    }),
+    })),
 
   // =========================================================================
   // OIDC (generic — Google, Microsoft, Okta, etc.)
@@ -195,10 +202,10 @@ export const authApi = {
 
   /** POST /auth/oidc/callback — Exchange OIDC auth code for JWT + user (Tauri sends origin for redirect_uri matching) */
   exchangeOidcCode: (code: string) =>
-    authRequest<AuthTokenResponse>('/oidc/callback', {
+    withAuthCookieLock(() => authRequest<AuthTokenResponse>('/oidc/callback', {
       method: 'POST',
       body: JSON.stringify({ code, origin: getOAuthOrigin() }),
-    }),
+    }, true)),
 
   // =========================================================================
   // Legacy Google endpoints (aliases — backward compatible)
@@ -213,10 +220,10 @@ export const authApi = {
 
   /** @deprecated Use exchangeOidcCode() instead */
   exchangeCode: (code: string) =>
-    authRequest<AuthTokenResponse>('/google/callback', {
+    withAuthCookieLock(() => authRequest<AuthTokenResponse>('/google/callback', {
       method: 'POST',
       body: JSON.stringify({ code, origin: getOAuthOrigin() }),
-    }),
+    }, true)),
 
   // =========================================================================
   // Token management
@@ -230,7 +237,7 @@ export const authApi = {
   refresh: () =>
     authRequest<RefreshTokenResponse>('/refresh', {
       method: 'POST',
-    }),
+    }, true),
 
   /**
    * POST /auth/logout — Revoke refresh token and clear cookie.

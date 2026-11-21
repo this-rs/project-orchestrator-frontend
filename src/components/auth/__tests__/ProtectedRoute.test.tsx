@@ -18,7 +18,7 @@
  */
 import '@testing-library/jest-dom/vitest'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
 import { authModeAtom, authModeConfirmedAtom, authTokenAtom } from '@/atoms'
@@ -41,17 +41,19 @@ vi.mock('@/services/authManager', () => ({
 
 vi.mock('@/components/ui', () => ({
   Spinner: () => <div data-testid="spinner" />,
+  Button: ({ onClick, children }: { onClick: () => void; children: React.ReactNode }) => <button onClick={onClick}>{children}</button>,
+  ErrorState: ({ onRetry }: { onRetry: () => void }) => <button onClick={onRetry}>Retry</button>,
 }))
 
 import { authApi } from '@/services'
-import { refreshToken } from '@/services/authManager'
+import { forceLogout, refreshToken } from '@/services/authManager'
 import { ProtectedRoute } from '../ProtectedRoute'
 
-function renderGuard() {
+function renderGuard(token: string | null = 'jwt-from-background-refresh') {
   const store = createStore()
   // Simulate the background refresh having already set the token before the
   // guard mounts: `isAuthenticated` is true, but the user has not been fetched.
-  store.set(authTokenAtom, 'jwt-from-background-refresh')
+  store.set(authTokenAtom, token)
   return render(
     <Provider store={store}>
       <MemoryRouter initialEntries={['/workspace/x/overview']}>
@@ -93,6 +95,104 @@ describe('ProtectedRoute (regression: background refresh must not strand the spi
     expect(authApi.me).toHaveBeenCalledTimes(1)
     // Phase 2's boot refresh must NOT have run — the token was already present.
     expect(refreshToken).not.toHaveBeenCalled()
+  })
+})
+
+describe('ProtectedRoute: validating the current user', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    vi.mocked(authApi.getProviders).mockResolvedValue({
+      auth_required: true,
+      providers: [],
+      allow_registration: false,
+    } as Awaited<ReturnType<typeof authApi.getProviders>>)
+  })
+
+  it.each([new TypeError('network error'), Object.assign(new Error('server error'), { status: 500 })])(
+    'keeps the session on a temporary failure and retries',
+    async (failure) => {
+      vi.mocked(authApi.me)
+        .mockRejectedValueOnce(failure)
+        .mockResolvedValueOnce({ id: '1', email: 'a@b.com', name: 'A' } as Awaited<ReturnType<typeof authApi.me>>)
+
+      renderGuard()
+
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
+      expect(forceLogout).not.toHaveBeenCalled()
+      expect(screen.queryByText('Protected content')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+      expect(await screen.findByText('Protected content')).toBeInTheDocument()
+      expect(authApi.me).toHaveBeenCalledTimes(2)
+      expect(forceLogout).not.toHaveBeenCalled()
+    },
+  )
+
+  it('refreshes an expired access token before retrying /auth/me', async () => {
+    vi.mocked(authApi.me)
+      .mockRejectedValueOnce(Object.assign(new Error('unauthorized'), { status: 401 }))
+      .mockResolvedValueOnce({ id: '1', email: 'a@b.com', name: 'A' } as Awaited<ReturnType<typeof authApi.me>>)
+    vi.mocked(refreshToken).mockResolvedValue('new-token')
+    renderGuard()
+    expect(await screen.findByText('Protected content')).toBeInTheDocument()
+    expect(refreshToken).toHaveBeenCalledTimes(1)
+    expect(forceLogout).not.toHaveBeenCalled()
+  })
+
+  it('still logs out when the refreshed access token is rejected', async () => {
+    vi.mocked(authApi.me).mockRejectedValue(Object.assign(new Error('unauthorized'), { status: 401 }))
+    vi.mocked(refreshToken).mockResolvedValue('new-token')
+    renderGuard()
+    await waitFor(() => expect(forceLogout).toHaveBeenCalledTimes(1))
+  })
+
+  it('ignores a stale authentication failure after unmount', async () => {
+    let rejectMe!: (error: Error) => void
+    vi.mocked(authApi.me).mockImplementation(() => new Promise((_, reject) => { rejectMe = reject }))
+    const view = renderGuard()
+    await waitFor(() => expect(authApi.me).toHaveBeenCalledTimes(1))
+    view.unmount()
+    rejectMe(Object.assign(new Error('unauthorized'), { status: 401 }))
+    await Promise.resolve()
+    expect(refreshToken).not.toHaveBeenCalled()
+    expect(forceLogout).not.toHaveBeenCalled()
+  })
+})
+
+describe('ProtectedRoute: a slow boot refresh', () => {
+  it('offers to keep waiting without a second refresh and accepts a late result', async () => {
+    vi.resetAllMocks()
+    vi.useFakeTimers()
+    try {
+      vi.mocked(authApi.getProviders).mockResolvedValue({
+        auth_required: true,
+        providers: [],
+        allow_registration: false,
+      } as Awaited<ReturnType<typeof authApi.getProviders>>)
+      vi.mocked(authApi.me).mockResolvedValue({
+        id: '1', email: 'a@b.com', name: 'A',
+      } as Awaited<ReturnType<typeof authApi.me>>)
+      let finish!: (token: string) => void
+      vi.mocked(refreshToken).mockReturnValue(new Promise((resolve) => { finish = resolve }))
+
+      renderGuard(null)
+      await act(async () => {})
+      expect(refreshToken).toHaveBeenCalledTimes(1)
+      expect(screen.getByTestId('spinner')).toBeInTheDocument()
+
+      act(() => vi.advanceTimersByTime(15_000))
+      expect(screen.getByText('Sign-in is taking longer than expected')).toBeInTheDocument()
+      expect(screen.getByText('The request is still in progress. You will be signed in when it finishes.')).toBeInTheDocument()
+      expect(forceLogout).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'Keep waiting' }))
+      expect(screen.getByTestId('spinner')).toBeInTheDocument()
+      expect(refreshToken).toHaveBeenCalledTimes(1)
+
+      await act(async () => { finish('late-token') })
+      expect(screen.getByText('Protected content')).toBeInTheDocument()
+      expect(forceLogout).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

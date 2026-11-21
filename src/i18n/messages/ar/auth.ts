@@ -16,6 +16,11 @@ export default {
     toRegister: "ليس لديك حساب؟ أنشئ حسابًا",
     loadingAria: "جارٍ تحميل خيارات تسجيل الدخول",
   },
+  slowRefresh: {
+    title: "يستغرق تسجيل الدخول وقتًا أطول من المتوقع",
+    description: "لا يزال الطلب قيد التنفيذ. سيتم تسجيل دخولك عند اكتماله.",
+    keepWaiting: "متابعة الانتظار",
+  },
   callback: {
     signingIn: "جارٍ تسجيل دخولك…",
     failedTitle: "فشلت المصادقة",

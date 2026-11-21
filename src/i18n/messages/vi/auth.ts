@@ -16,6 +16,11 @@ export default {
     toRegister: "Chưa có tài khoản? Tạo một tài khoản",
     loadingAria: "Đang tải các tùy chọn đăng nhập",
   },
+  slowRefresh: {
+    title: "Đăng nhập đang mất nhiều thời gian hơn dự kiến",
+    description: "Yêu cầu vẫn đang được xử lý. Bạn sẽ đăng nhập khi yêu cầu hoàn tất.",
+    keepWaiting: "Tiếp tục chờ",
+  },
   callback: {
     signingIn: "Đang đăng nhập cho bạn…",
     failedTitle: "Xác thực thất bại",

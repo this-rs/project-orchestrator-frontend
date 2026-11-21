@@ -16,6 +16,11 @@ export default {
     toRegister: "¿Aún no tienes cuenta? Crea una",
     loadingAria: "Cargando las opciones de inicio de sesión",
   },
+  slowRefresh: {
+    title: "El inicio de sesión tarda más de lo previsto",
+    description: "La solicitud sigue en curso. Iniciarás sesión cuando termine.",
+    keepWaiting: "Seguir esperando",
+  },
   callback: {
     signingIn: "Iniciando sesión…",
     failedTitle: "Error de autenticación",

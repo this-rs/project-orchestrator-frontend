@@ -85,4 +85,31 @@ describe('authApi OAuth origin (browser / non-Tauri)', () => {
     expect(body.origin).not.toBeNull()
     expect(typeof body.origin).toBe('string')
   })
+
+  it.each([
+    ['OIDC callback', (api: typeof import('../auth').authApi) => api.exchangeOidcCode('code')],
+    ['Google callback', (api: typeof import('../auth').authApi) => api.exchangeCode('code')],
+    ['refresh', (api: typeof import('../auth').authApi) => api.refresh()],
+  ])('does not abort the single-use %s request at the startup deadline', async (_name, call) => {
+    let finish!: (value: { ok: boolean; json: () => Promise<object> }) => void
+    const fetchMock = vi.fn().mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+    global.fetch = fetchMock as unknown as typeof fetch
+
+    const { authApi } = await import('../auth')
+    const pending = call(authApi)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [, init] = fetchMock.mock.calls[0]
+    expect((init as RequestInit).signal).toBeUndefined()
+    finish({ ok: true, json: async () => ({ token: 'jwt' }) })
+    await expect(pending).resolves.toEqual({ token: 'jwt' })
+  })
+
+  it('keeps the startup deadline for provider discovery', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) })
+    global.fetch = fetchMock as unknown as typeof fetch
+    const { authApi } = await import('../auth')
+    await authApi.getProviders()
+    const [, init] = fetchMock.mock.calls[0]
+    expect((init as RequestInit).signal).toBeInstanceOf(AbortSignal)
+  })
 })

@@ -16,6 +16,11 @@ export default {
     toRegister: "Ainda não tem conta? Crie uma",
     loadingAria: "Carregando as opções de login",
   },
+  slowRefresh: {
+    title: "O login está demorando mais que o esperado",
+    description: "A solicitação ainda está em andamento. Você entrará quando ela terminar.",
+    keepWaiting: "Continuar aguardando",
+  },
   callback: {
     signingIn: "Entrando…",
     failedTitle: "Falha na autenticação",

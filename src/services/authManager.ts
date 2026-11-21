@@ -16,6 +16,7 @@
  */
 
 import { getAuthMode, getAuthToken, setAuthToken, authApi } from './auth'
+import { withAuthCookieLock } from './authCookieLock'
 import { getEventBus } from './eventBus'
 
 // ---------------------------------------------------------------------------
@@ -107,6 +108,11 @@ export function parseJwtExp(token: string): number | null {
 // ---------------------------------------------------------------------------
 
 let _isRefreshing = false
+// The cookie is shared by tabs, but the in-memory refresh queue is not. Web
+// Locks serialize rotations (and logout) across same-origin tabs. The browser
+// applies Set-Cookie before the refresh promise resolves and releases the lock.
+let _authGeneration = 0
+let _pendingRotation: Promise<unknown> | null = null
 let _refreshQueue: Array<{
   resolve: (token: string) => void
   reject: (err: unknown) => void
@@ -133,9 +139,22 @@ export async function refreshToken(): Promise<string> {
   }
 
   _isRefreshing = true
+  const generation = _authGeneration
 
   try {
-    const resp = await authApi.refresh()
+    const resp = await withAuthCookieLock(async () => {
+      // Logout may have happened while this request was waiting for the lock.
+      if (generation !== _authGeneration) throw new Error('Authentication changed')
+      const rotation = authApi.refresh()
+      _pendingRotation = rotation
+      try {
+        return await rotation
+      } finally {
+        if (_pendingRotation === rotation) _pendingRotation = null
+      }
+    })
+    // An explicit logout must not be undone by an in-flight refresh response.
+    if (generation !== _authGeneration) throw new Error('Authentication changed')
     const newToken = resp.token
 
     // Update in-memory token cache
@@ -267,7 +286,17 @@ export function forceLogout(): void {
 
   try {
     // 1. Revoke refresh token server-side (best-effort, don't await)
-    authApi.logout()
+    _authGeneration++
+    // Queue revocation after an in-flight rotation, so it revokes the cookie
+    // that rotation just set rather than its already-consumed predecessor.
+    const pendingRotation = _pendingRotation
+    void withAuthCookieLock(async () => {
+      // Also wait for this tab's rotation when Web Locks are unavailable.
+      await pendingRotation?.catch(() => {})
+      await authApi.logout()
+    }).catch(() => {
+      // Logout remains best-effort if the lock or network fails.
+    })
 
     // 2. Clear in-memory token
     setAuthToken(null)
@@ -315,8 +344,8 @@ let _authChannel: BroadcastChannel | null = null
  * other tabs when a logout occurs.
  *
  * - If another tab logs out → forceLogout() in this tab
- * - Token refresh doesn't need cross-tab sync: each tab has its own
- *   in-memory token, and all share the same HttpOnly cookie.
+ * - Refresh and logout use a Web Lock when available because all same-origin
+ *   tabs share the HttpOnly cookie even though access tokens are in memory.
  *
  * Returns a cleanup function to stop listening (call in useEffect cleanup).
  */
@@ -330,6 +359,7 @@ export function initCrossTabSync(): () => void {
         // Another tab logged out → logout this tab too (skip re-broadcasting)
         _isLoggingOut = true
         try {
+          _authGeneration++
           setAuthToken(null)
           _jotai?.setToken(null)
           _jotai?.setUser(null)
