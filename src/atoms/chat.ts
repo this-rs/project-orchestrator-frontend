@@ -87,6 +87,14 @@ export const chatTimelineOpenAtom = atomWithStorage<boolean>(CHAT_TIMELINE_OPEN_
 /** Draft key of a conversation that has no id yet (nothing sent so far). */
 export const NEW_CONVERSATION_DRAFT_KEY = '__new__'
 
+const WORKSPACE_DRAFT_PREFIX = '__new_workspace__:'
+const WORKSPACE_DRAFT_STORAGE_PREFIX = 'chat-draft-workspace:'
+
+/** Key for the unsent first message in a workspace. */
+export function newConversationDraftKey(workspaceSlug: string | null | undefined): string {
+  return workspaceSlug ? `${WORKSPACE_DRAFT_PREFIX}${encodeURIComponent(workspaceSlug)}` : NEW_CONVERSATION_DRAFT_KEY
+}
+
 /** Drafts kept in storage. Past this, the least recently edited one goes. */
 export const MAX_STORED_DRAFTS = 50
 
@@ -96,14 +104,48 @@ export function draftKeyFor(sessionId: string | null | undefined): string {
 }
 
 /**
- * Every unsent draft, one per conversation, in localStorage.
- * Key = session id, or `NEW_CONVERSATION_DRAFT_KEY` for a conversation not yet
- * created. Read at init (`getOnInit`): a write made before hydration would
- * otherwise start from `{}` and overwrite every stored draft.
+ * Existing conversations and the legacy unscoped draft, in localStorage.
+ * New conversations use separate workspace entries below. Read at init
+ * (`getOnInit`) so a write before hydration preserves stored session drafts.
  */
 export const chatDraftsMapAtom = atomWithStorage<Record<string, string>>('chat-drafts', {}, undefined, {
   getOnInit: true,
 })
+
+// New-conversation drafts have separate storage entries: two tabs editing
+// different workspaces must never overwrite each other's entire draft map.
+const workspaceDraftAtoms = new Map<string, ReturnType<typeof atomWithStorage<string>>>()
+function workspaceDraftAtom(key: string) {
+  let draft = workspaceDraftAtoms.get(key)
+  if (!draft) {
+    draft = atomWithStorage<string>(`${WORKSPACE_DRAFT_STORAGE_PREFIX}${key.slice(WORKSPACE_DRAFT_PREFIX.length)}`, '', undefined, { getOnInit: true })
+    workspaceDraftAtoms.set(key, draft)
+  }
+  return draft
+}
+
+function isWorkspaceDraftKey(key: string): boolean {
+  return key.startsWith(WORKSPACE_DRAFT_PREFIX)
+}
+
+const currentDraftWorkspaceAtom = atom<string | null>(null)
+
+/** Current chat workspace, supplied by the route in this tab (not localStorage). */
+export const chatDraftWorkspaceAtom = atom(
+  (get) => get(currentDraftWorkspaceAtom),
+  (get, set, slug: string | null) => {
+    set(currentDraftWorkspaceAtom, slug)
+    if (!slug) return
+    const key = newConversationDraftKey(slug)
+    const legacy = latestDrafts(get(chatDraftsMapAtom))[NEW_CONVERSATION_DRAFT_KEY]
+    // The old shared draft has no workspace metadata. Claim it once, on the
+    // first workspace with no draft; never overwrite a workspace's own text.
+    if (legacy && !get(workspaceDraftAtom(key))) {
+      set(workspaceDraftAtom(key), legacy)
+      set(chatDraftsMapAtom, withDraft(latestDrafts(get(chatDraftsMapAtom)), NEW_CONVERSATION_DRAFT_KEY, ''))
+    }
+  },
+)
 
 /**
  * The stored drafts, whatever storage holds. localStorage is outside our
@@ -118,6 +160,16 @@ function readDrafts(value: unknown): Record<string, string> {
     if (typeof text === 'string' && text !== '') drafts[key] = text
   }
   return drafts
+}
+
+/** Merge against the latest stored session drafts, not another tab's stale map. */
+function latestDrafts(fallback: unknown): Record<string, string> {
+  try {
+    const stored = localStorage.getItem('chat-drafts')
+    return stored === null ? {} : readDrafts(JSON.parse(stored))
+  } catch {
+    return readDrafts(fallback)
+  }
 }
 
 /** `map` with `key` set to `text` — removed when empty, most recent last, capped. */
@@ -140,19 +192,33 @@ function withDraft(map: Record<string, string>, key: string, text: string): Reco
 /**
  * The text being typed in the composer, for the CURRENT conversation.
  *
- * It is a view over `chatDraftsMapAtom`, keyed by `chatSessionIdAtom`: each
- * conversation has its own draft, switching conversation shows that
- * conversation's draft, and every keystroke is persisted — so the draft
- * survives a page reload. It used to be one in-memory string for the whole
- * app, copied to storage only when switching conversation: a reload lost it.
+ * Existing conversations use their session id. A conversation not yet
+ * created uses this tab's workspace, with its own persistent storage entry.
  */
-export const chatDraftInputAtom = atom(
-  (get) => readDrafts(get(chatDraftsMapAtom))[draftKeyFor(get(chatSessionIdAtom))] ?? '',
-  (get, set, next: string | ((prev: string) => string)) => {
-    const key = draftKeyFor(get(chatSessionIdAtom))
-    const map = readDrafts(get(chatDraftsMapAtom))
-    const text = typeof next === 'function' ? next(map[key] ?? '') : next
+type DraftValue = string | ((prev: string) => string)
+
+/** Update a specific draft even if the visible workspace changes meanwhile. */
+export const setChatDraftByKeyAtom = atom(null, (get, set, { key, value }: { key: string; value: DraftValue }) => {
+  if (isWorkspaceDraftKey(key)) {
+    const target = workspaceDraftAtom(key)
+    const text = typeof value === 'function' ? value(get(target)) : value
+    set(target, text === '' ? RESET : text)
+  } else {
+    const map = latestDrafts(get(chatDraftsMapAtom))
+    const text = typeof value === 'function' ? value(map[key] ?? '') : value
     set(chatDraftsMapAtom, withDraft(map, key, text))
+  }
+})
+
+export const chatDraftInputAtom = atom(
+  (get) => {
+    const session = get(chatSessionIdAtom)
+    const key = session ?? newConversationDraftKey(get(chatDraftWorkspaceAtom))
+    return isWorkspaceDraftKey(key) ? get(workspaceDraftAtom(key)) : readDrafts(get(chatDraftsMapAtom))[key] ?? ''
+  },
+  (get, set, value: DraftValue) => {
+    const key = get(chatSessionIdAtom) ?? newConversationDraftKey(get(chatDraftWorkspaceAtom))
+    set(setChatDraftByKeyAtom, { key, value })
   },
 )
 
@@ -164,11 +230,12 @@ export const chatDraftInputAtom = atom(
  */
 export const moveChatDraftAtom = atom(null, (get, set, { from, to }: { from: string; to: string }) => {
   if (from === to) return
-  const map = readDrafts(get(chatDraftsMapAtom))
-  const text = map[from]
-  if (text === undefined) return
-  const withoutSource = withDraft(map, from, '')
-  set(chatDraftsMapAtom, map[to] ? withoutSource : withDraft(withoutSource, to, text))
+  const map = latestDrafts(get(chatDraftsMapAtom))
+  const text = isWorkspaceDraftKey(from) ? get(workspaceDraftAtom(from)) : map[from]
+  if (!text) return
+  const destination = isWorkspaceDraftKey(to) ? get(workspaceDraftAtom(to)) : map[to]
+  if (!destination) set(setChatDraftByKeyAtom, { key: to, value: text })
+  set(setChatDraftByKeyAtom, { key: from, value: '' })
 })
 
 /**
@@ -178,6 +245,18 @@ export const moveChatDraftAtom = atom(null, (get, set, { from, to }: { from: str
  */
 export const clearChatDraftsAtom = atom(null, (_get, set) => {
   set(chatDraftsMapAtom, RESET)
+  try {
+    const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index))
+    for (const key of keys) {
+      if (key?.startsWith(WORKSPACE_DRAFT_STORAGE_PREFIX)) {
+        const slug = key.slice(WORKSPACE_DRAFT_STORAGE_PREFIX.length)
+        set(workspaceDraftAtom(`${WORKSPACE_DRAFT_PREFIX}${slug}`), RESET)
+      }
+    }
+  } catch {
+    // Storage may be unavailable; clear the currently mounted draft below.
+  }
+  for (const draft of workspaceDraftAtoms.values()) set(draft, RESET)
   // Queued messages are unsent text too.
   set(chatMessageQueuesAtom, {})
 })

@@ -2,7 +2,7 @@ import { useCallback, useState, type FormEvent } from 'react'
 import { useAtomValue, useSetAtom } from 'jotai'
 import { Link } from 'react-router-dom'
 import { Send } from 'lucide-react'
-import { activeWorkspaceSlugAtom, chatDraftInputAtom, chatPanelModeAtom } from '@/atoms'
+import { activeWorkspaceSlugAtom, chatDraftInputAtom, chatDraftWorkspaceAtom, chatPanelModeAtom } from '@/atoms'
 import { focusRing, glassButton, iconButton, pressFeedback, surface } from '@/components/ui/classes'
 import { ASK_TEXT, buildDayContext } from './text'
 
@@ -29,17 +29,23 @@ export function AskBar({ lane, hasWorkspace, plannedTasks = [], waitingRequests 
   const mode = useAtomValue(chatPanelModeAtom)
   const setMode = useSetAtom(chatPanelModeAtom)
   const setDraft = useSetAtom(chatDraftInputAtom)
+  const setDraftWorkspace = useSetAtom(chatDraftWorkspaceAtom)
   const setActiveWorkspace = useSetAtom(activeWorkspaceSlugAtom)
 
   const openChat = useCallback(
     (text: string) => {
       // A lane is a workspace filter: the chat follows it. Without one, the panel
       // already resolves the last visited (or first) workspace — leave it alone.
-      if (lane) setActiveWorkspace(lane)
+      if (lane) {
+        // The context rerenders after this event; the draft must already be
+        // addressed to the selected lane when it is written below.
+        setDraftWorkspace(lane)
+        setActiveWorkspace(lane)
+      }
       if (mode === 'closed') setMode('open')
       setDraft(text)
     },
-    [lane, mode, setActiveWorkspace, setMode, setDraft],
+    [lane, mode, setActiveWorkspace, setDraftWorkspace, setMode, setDraft],
   )
 
   if (!hasWorkspace) {

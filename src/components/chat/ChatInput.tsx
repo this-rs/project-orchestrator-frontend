@@ -1,6 +1,6 @@
 import { memo, useState, useRef, useCallback, useEffect, useId, useMemo } from 'react'
 import { useAtom, useAtomValue, useStore } from 'jotai'
-import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatMessageQueuesAtom, draftKeyFor, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom, chatSessionImagesCauseAtom, refsEnabledAtom, chatRefLabelsAtom, chatTimelineOpenAtom } from '@/atoms'
+import { chatAttachmentDeferredSendAtom, chatAttachmentsAtom, chatDraftInputAtom, chatDraftWorkspaceAtom, chatSelectedProjectAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatMessageQueuesAtom, newConversationDraftKey, chatProviderTargetAtom, chatSessionToolPolicyAtom, chatSessionCapabilitiesAtom, chatSessionImagesCauseAtom, refsEnabledAtom, chatRefLabelsAtom, chatTimelineOpenAtom } from '@/atoms'
 import { chatApi } from '@/services/chat'
 import { documentsApi } from '@/services/documents'
 import { ApiError } from '@/services/api'
@@ -186,7 +186,8 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
   // The queued messages of THIS composer's conversation — read only. The
   // session holds them and delivers them (`chat/pending_queue.rs`); this
   // component shows the list and forwards the user's actions on it.
-  const queue = useAtomValue(chatMessageQueuesAtom)[draftKeyFor(sessionId)] ?? NO_QUEUE
+  const draftWorkspace = useAtomValue(chatDraftWorkspaceAtom)
+  const queue = useAtomValue(chatMessageQueuesAtom)[sessionId ?? newConversationDraftKey(draftWorkspace)] ?? NO_QUEUE
   const prevSessionIdRef = useRef(sessionId)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const modelDropdownRef = useRef<HTMLDivElement>(null)

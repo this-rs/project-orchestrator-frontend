@@ -11,6 +11,9 @@ import { Provider, createStore } from 'jotai'
 import {
   chatOneOffProviderPickAtom,
   chatDraftInputAtom,
+  chatDraftWorkspaceAtom,
+  chatMessageQueuesAtom,
+  newConversationDraftKey,
   chatPermissionConfigAtom,
   chatSessionPermissionOverrideAtom,
   chatSelectedProviderAtom,
@@ -156,6 +159,62 @@ describe('useChat.sendMessage — a session creation that fails', () => {
     })
 
     expect(store.get(chatDraftInputAtom)).toBe('first\nsecond thought')
+  })
+
+  it('restores a failed first message to its original workspace after a switch', async () => {
+    let reject: (err: unknown) => void = () => {}
+    vi.mocked(chatApi.createSession).mockReturnValue(new Promise((_, r) => (reject = r)) as never)
+    const { result, store } = setup((s) => s.set(chatDraftWorkspaceAtom, 'workspace-a'))
+
+    let pending: Promise<void> = Promise.resolve()
+    act(() => { pending = result.current.sendMessage('first', OPTIONS) })
+    await waitFor(() => expect(chatApi.createSession).toHaveBeenCalled())
+    act(() => {
+      store.set(chatDraftWorkspaceAtom, 'workspace-b')
+      store.set(chatDraftInputAtom, 'draft in B')
+    })
+    await act(async () => {
+      reject(new ApiError(500, 'boom'))
+      await pending
+    })
+
+    expect(store.get(chatDraftInputAtom)).toBe('draft in B')
+    expect(store.get(chatSessionOpenErrorAtom)).toBeNull()
+    act(() => store.set(chatDraftWorkspaceAtom, 'workspace-a'))
+    expect(store.get(chatDraftInputAtom)).toBe('first')
+  })
+
+  it('moves only the original workspace draft when creation finishes after a switch', async () => {
+    let resolve: (value: { session_id: string }) => void = () => {}
+    vi.mocked(chatApi.createSession).mockReturnValue(new Promise((r) => (resolve = r)) as never)
+    const { result, store } = setup((s) => s.set(chatDraftWorkspaceAtom, 'workspace-a'))
+
+    let pending: Promise<void> = Promise.resolve()
+    act(() => { pending = result.current.sendMessage('first', OPTIONS) })
+    await waitFor(() => expect(chatApi.createSession).toHaveBeenCalled())
+    act(() => {
+      store.set(chatDraftInputAtom, 'typed in A during send')
+      result.current.queueMessage('queued in A')
+      store.set(chatDraftWorkspaceAtom, 'workspace-b')
+      store.set(chatDraftInputAtom, 'draft in B')
+      result.current.queueMessage('queued in B')
+    })
+    await act(async () => {
+      resolve({ session_id: 'new-session' })
+      await pending
+    })
+
+    expect(store.get(chatSessionIdAtom)).toBeNull()
+    expect(store.get(chatDraftInputAtom)).toBe('draft in B')
+    const queues = store.get(chatMessageQueuesAtom)
+    expect(queues['new-session']?.map((m) => m.text)).toEqual(['queued in A'])
+    expect(queues[newConversationDraftKey('workspace-b')]?.map((m) => m.text)).toEqual(['queued in B'])
+    expect(queues[newConversationDraftKey('workspace-a')]).toBeUndefined()
+    act(() => store.set(chatSessionIdAtom, 'new-session'))
+    expect(store.get(chatDraftInputAtom)).toBe('typed in A during send')
+    act(() => store.set(chatSessionIdAtom, null))
+    act(() => store.set(chatDraftWorkspaceAtom, 'workspace-a'))
+    expect(store.get(chatDraftInputAtom)).toBe('')
   })
 
   it('clears the error on the next send, on a new conversation and when another session is loaded', async () => {

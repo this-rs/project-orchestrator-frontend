@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pickModelResolver } from '@/constants/providers'
 import { distinctModels } from '@/utils/routingSelection'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom,  chatDraftsMapAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, draftKeyFor, NEW_CONVERSATION_DRAFT_KEY, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatVaultWaitAtom, chatModelWaitAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatDraftInputAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom, chatOneOffProviderPickAtom, usablePickedProvider, dropStalePickAtom, clearOneOffProviderPickAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatDraftWorkspaceAtom, newConversationDraftKey, setChatDraftByKeyAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatVaultWaitAtom, chatModelWaitAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom, chatOneOffProviderPickAtom, usablePickedProvider, dropStalePickAtom, clearOneOffProviderPickAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { applyResultCost } from '@/utils/cost'
@@ -318,7 +318,6 @@ export function useChat() {
   )
   /** Latest `syncLocalQueue`, for the WebSocket callbacks set up once. */
   const syncLocalQueueRef = useRef<() => void>(() => {})
-  const setDraftsMap = useSetAtom(chatDraftsMapAtom)
   const moveDraft = useSetAtom(moveChatDraftAtom)
   const moveQueue = useSetAtom(moveChatQueueAtom)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -2377,14 +2376,11 @@ export function useChat() {
     // Known before the optimistic bubble is added, so a failed creation can
     // take exactly that bubble back out.
     const userMessageId = nextMessageId()
-    // Clear draft for this session after sending
-    const draftKey = draftKeyFor(sessionId)
-    setDraftsMap((prev) => {
-      if (!(draftKey in prev)) return prev
-      const next = { ...prev }
-      delete next[draftKey]
-      return next
-    })
+    // Freeze the source key before the first await: the user may navigate to
+    // another workspace while the new conversation is opening.
+    const draftWorkspace = store.get(chatDraftWorkspaceAtom)
+    const draftKey = sessionId ?? newConversationDraftKey(draftWorkspace)
+    store.set(setChatDraftByKeyAtom, { key: draftKey, value: '' })
 
     // Add user message to UI immediately (optimistic).
     // Also dismiss any pending result_max_turns block so the orange banner disappears.
@@ -2485,13 +2481,22 @@ export function useChat() {
           attachments: attachments && attachments.length > 0 ? attachments : undefined,
           ...(sentRefs ? { refs: sentRefs } : {}),
         })
+        // What was typed while the id was on its way follows the conversation.
+        moveDraft({ from: draftKey, to: response.session_id })
+        // Queued messages for that same workspace follow it too; if the user
+        // left, they remain local until this conversation is opened again.
+        moveQueue({ from: draftKey, to: response.session_id })
+        // The user may have navigated away while the server opened this
+        // conversation. Preserve the new session and its draft, but do not
+        // replace the conversation now on screen in the other workspace.
+        if (store.get(chatDraftWorkspaceAtom) !== draftWorkspace || store.get(chatSessionIdAtom) !== null) {
+          setMessages((prev) => prev.filter((m) => m.id !== userMessageId))
+          if (store.get(chatSessionIdAtom) === null) setIsStreaming(false)
+          return
+        }
         // Signal that the upcoming sessionId change is from a first send,
         // so the auto-connect useEffect should NOT reset messages.
         isFirstSendRef.current = true
-        // What was typed while the id was on its way follows the conversation.
-        moveDraft({ from: NEW_CONVERSATION_DRAFT_KEY, to: response.session_id })
-        // So does what was queued behind this first message.
-        moveQueue({ from: NEW_CONVERSATION_DRAFT_KEY, to: response.session_id })
         setSessionId(response.session_id)
         // The forced target belonged to the conversation just opened.
         store.set(chatForcedTargetAtom, false)
@@ -2528,11 +2533,15 @@ export function useChat() {
       } catch (err) {
         // No session was opened: nothing will ever stream, so the indicator
         // goes off, and the bubble shown optimistically was never sent.
-        setIsStreaming(false)
         setMessages((prev) => prev.filter((m) => m.id !== userMessageId))
         // The text goes back to the composer rather than being lost; anything
         // typed while the request was pending is kept after it.
-        store.set(chatDraftInputAtom, (typed) => (typed.trim() === '' ? text : `${text}\n${typed}`))
+        store.set(setChatDraftByKeyAtom, { key: draftKey, value: (typed) => (typed.trim() === '' ? text : `${text}\n${typed}`) })
+        if (store.get(chatDraftWorkspaceAtom) !== draftWorkspace || store.get(chatSessionIdAtom) !== null) {
+          if (store.get(chatSessionIdAtom) === null) setIsStreaming(false)
+          return
+        }
+        setIsStreaming(false)
         store.set(chatSessionOpenErrorAtom, {
           info: toProviderError(err),
           message: apiErrorMessage(err, tr('app.chat.startFailed')),
@@ -2564,7 +2573,7 @@ export function useChat() {
         pendingSendRef.current.push({ text, attachments, ...(sentRefs ? { refs: sentRefs } : {}) })
       }
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, setDraftsMap, moveDraft, moveQueue, store, wirePermissionMode, openingPermissionMode])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, moveDraft, moveQueue, store, wirePermissionMode, openingPermissionMode])
 
   /**
    * Send "Continue" after max_turns — adds a discreet inline indicator instead of a user bubble.
@@ -2777,7 +2786,7 @@ export function useChat() {
    * socket allows; the server's `pending_queue` list then takes over.
    */
   const queueMessage = useCallback((text: string, attachments?: string[], refs?: ChatReference[]) => {
-    const key = draftKeyFor(store.get(chatSessionIdAtom))
+    const key = store.get(chatSessionIdAtom) ?? newConversationDraftKey(store.get(chatDraftWorkspaceAtom))
     const all = store.get(chatMessageQueuesAtom)
     const current = all[key] ?? []
     const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `local-${Date.now()}-${Math.random()}`
@@ -2800,7 +2809,7 @@ export function useChat() {
    * dropped while the server still holds it would get it sent anyway.
    */
   const queueOp = useCallback((action: QueueOp) => {
-    const key = draftKeyFor(store.get(chatSessionIdAtom))
+    const key = store.get(chatSessionIdAtom) ?? newConversationDraftKey(store.get(chatDraftWorkspaceAtom))
     const all = store.get(chatMessageQueuesAtom)
     const current = all[key] ?? []
     const target = current.find((m) => m.id === action.id)
