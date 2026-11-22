@@ -19,6 +19,10 @@ export default {
     description: "The request is still in progress. You will be signed in when it finishes.",
     keepWaiting: "Keep waiting",
   },
+  bootRefreshFailed: {
+    title: "Can't reach the server",
+    description: "Your session is kept. The server did not answer; try again in a moment.",
+  },
   callback: {
     signingIn: "Signing you in…",
     failedTitle: "Authentication failed",

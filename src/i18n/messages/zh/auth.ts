@@ -21,6 +21,10 @@ export default {
     description: "请求仍在进行中。完成后将自动登录。",
     keepWaiting: "继续等待",
   },
+  bootRefreshFailed: {
+    title: "无法连接服务器",
+    description: "您的会话已保留。服务器没有响应，请稍后重试。",
+  },
   callback: {
     signingIn: "正在为您登录…",
     failedTitle: "身份验证失败",

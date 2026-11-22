@@ -21,6 +21,10 @@ export default {
     description: "A solicitação ainda está em andamento. Você entrará quando ela terminar.",
     keepWaiting: "Continuar aguardando",
   },
+  bootRefreshFailed: {
+    title: "Não foi possível contactar o servidor",
+    description: "A sua sessão foi mantida. O servidor não respondeu; tente novamente dentro de instantes.",
+  },
   callback: {
     signingIn: "Entrando…",
     failedTitle: "Falha na autenticação",

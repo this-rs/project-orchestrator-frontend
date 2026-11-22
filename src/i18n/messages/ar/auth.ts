@@ -21,6 +21,10 @@ export default {
     description: "لا يزال الطلب قيد التنفيذ. سيتم تسجيل دخولك عند اكتماله.",
     keepWaiting: "متابعة الانتظار",
   },
+  bootRefreshFailed: {
+    title: "تعذّر الوصول إلى الخادم",
+    description: "تم الاحتفاظ بجلستك. لم يستجب الخادم؛ حاول مرة أخرى بعد قليل.",
+  },
   callback: {
     signingIn: "جارٍ تسجيل دخولك…",
     failedTitle: "فشلت المصادقة",
