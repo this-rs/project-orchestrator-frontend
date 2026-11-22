@@ -221,9 +221,9 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
     } catch (err) {
       setStoppingFor(taskId, false)
       const failure = readCancelFailure(err)
-      if (failure.alreadyStopped) {
-        // 409 owner_unreachable: nothing runs any more, nothing to retry.
-        flash({ kind: 'stopped', message: t('chatA-activity.cancel.alreadyStoppedNotice') })
+      if (failure.ownerUnreachable) {
+        // 409 owner_unreachable: the state of the process is unconfirmed.
+        flash({ kind: 'error', message: t('chatA-activity.cancelAll.ownerUnreachable') })
       } else if (failure.code === 'owner_timeout') {
         // No answer in time: it may still happen (retryable or not, say that first).
         flash({ kind: 'error', message: t('chatA-activity.cancel.timeoutNotice') })

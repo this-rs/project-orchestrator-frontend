@@ -14,8 +14,8 @@ import type { ReactNode } from 'react'
 import type { ChatMessage, ContentBlock } from '@/types'
 import { CLAUDE_CODE_CAPABILITIES, type ProviderCapabilities } from '@/types/provider'
 
-const cancelTools = vi.fn()
-vi.mock('@/services', () => ({ chatApi: { cancelTools: (...a: unknown[]) => cancelTools(...a) } }))
+const cancelTools = vi.hoisted(() => vi.fn())
+vi.mock('@/services/chat', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/services/chat')>()), chatApi: { cancelTools } }))
 
 import { chatSessionEngineAtom, chatSessionIdAtom } from '@/atoms'
 import { harnessGapOf } from '@/constants/providerErrors'
@@ -368,8 +368,12 @@ describe('tool_cancel', () => {
       id: 'tu', type: 'tool_use', content: 'Bash',
       metadata: { tool_call_id: 'c9', tool_name: 'Bash', tool_input: { command: 'sleep 100' } },
     }
-    mount(<ToolCallBlock block={running} />, caps({ tool_cancel: toolCancel }))
+    const sendFrame = vi.fn(() => true)
+    render(<Provider store={createStore()}><ChatCapabilitiesProvider capabilities={caps({ tool_cancel: toolCancel })}><ChatSessionProvider sessionId="s1" cancelToolsLive={sendFrame}><ToolCallBlock block={running} /></ChatSessionProvider></ChatCapabilitiesProvider></Provider>)
+    const buttons = screen.getAllByRole('button')
+    for (const button of buttons) fireEvent.click(button)
     expect(screen.queryByRole('button', { name: /^stop$/i })).toBeNull()
+    expect(sendFrame).not.toHaveBeenCalled()
     expect(cancelTools).not.toHaveBeenCalled()
   })
 })

@@ -5,7 +5,6 @@ import type { ReactNode } from 'react'
 import type { ChatMessage, ContentBlock } from '@/types'
 
 import { chatSessionIdAtom } from '@/atoms'
-import { toolCancelUnsupportedText } from '@/constants/capabilities'
 import { ChatSessionProvider } from './ChatSessionContext'
 import { ChatMessageBubble } from './ChatMessageBubble'
 
@@ -26,7 +25,7 @@ describe('ChatMessageBubble — a cancel error frame is a notice on the turn', (
     return mount(<ChatMessageBubble message={message} onRespondPermission={() => true} onRespondInput={() => true} />)
   }
 
-  it('cancel_failed / owner_unreachable: "already stopped", as a status, not the red error line', () => {
+  it('cancel_failed / owner_unreachable: unconfirmed, as a status, not the red error line', () => {
     bubble({
       id: 'e',
       type: 'error',
@@ -35,12 +34,17 @@ describe('ChatMessageBubble — a cancel error frame is a notice on the turn', (
     })
     const notice = screen.getByRole('status')
     expect(notice.getAttribute('data-cancel-notice')).toBe('owner_unreachable')
-    expect(notice.textContent).toBe('Already stopped — nothing was running any more.')
+    expect(notice.textContent).toBe('Owner unreachable; no stop was confirmed. Check the session activity.')
   })
 
   it('cancel_failed / owner_timeout: may still happen', () => {
     bubble({ id: 'e', type: 'error', content: 'Error: timeout', metadata: { cancel_notice: true, code: 'cancel_failed', reason: 'owner_timeout' } })
     expect(screen.getByRole('status').textContent).toBe('The stop got no answer in time — it may still happen.')
+  })
+
+  it.each(['session_gone', 'owner_failed', 'owner_protocol', 'relay_failed', 'unknown'])('cancel_failed / %s reports an unknown outcome', (reason) => {
+    bubble({ id: 'e', type: 'error', content: 'Error: relay', metadata: { cancel_notice: true, code: 'cancel_failed', reason } })
+    expect(screen.getByRole('status').textContent).toBe('The outcome of this stop request is unknown. Check the session activity.')
   })
 
   it('cancel_refused / background_tasks: its own sentence, not the one about a tool', () => {
@@ -50,8 +54,8 @@ describe('ChatMessageBubble — a cancel error frame is a notice on the turn', (
     )
   })
 
-  it('cancel_refused: the provider cannot stop one tool', () => {
+  it('cancel_refused / tool_cancel does not assume whether the request targeted one task or all tools', () => {
     bubble({ id: 'e', type: 'error', content: 'Error: unsupported', metadata: { cancel_notice: true, code: 'cancel_refused', reason: 'tool_cancel' } })
-    expect(screen.getByRole('status').textContent).toBe(toolCancelUnsupportedText())
+    expect(screen.getByRole('status').textContent).toBe('This stop request is not supported.')
   })
 })

@@ -250,6 +250,28 @@ describe('useChat — a failed or refused cancel does not end the turn', () => {
     expect(result.current.isStreaming).toBe(true)
   })
 
+  it.each([false, true])('owner_unreachable remains a nonfatal notice in live/replay (replay=%s)', async (replaying) => {
+    const { result, emit, blocks } = await setup()
+    emit({ type: 'streaming_status', is_streaming: true })
+    const frame = { ...CANCEL_FAILED, reason: 'owner_unreachable' }
+    emit(replaying ? { type: 'error', replaying: true, data: frame } : frame)
+    expect(shape(blocks())).toEqual(fromHistory([frame]))
+    expect(blocks()[0].metadata).toMatchObject({ cancel_notice: true, reason: 'owner_unreachable' })
+    expect(result.current.isStreaming).toBe(true)
+  })
+
+  it.each(['session_gone', 'owner_failed'])('%s remains an unconfirmed nonfatal notice in both live and replay', async (reason) => {
+    const { result, emit, blocks } = await setup()
+    emit({ type: 'streaming_status', is_streaming: true })
+    const frame = { ...CANCEL_FAILED, reason }
+    emit(frame)
+    emit({ type: 'error', replaying: true, data: frame })
+    expect(shape(blocks())).toEqual([...fromHistory([frame]), ...fromHistory([frame])])
+    expect(blocks()).toHaveLength(2)
+    for (const block of blocks()) expect(block.metadata).toMatchObject({ cancel_notice: true, reason })
+    expect(result.current.isStreaming).toBe(true)
+  })
+
   it('a live cancel notice tells the Stop chips (lastCancelFailure); a replayed one does not', async () => {
     const { store, emit } = await setup()
     emit({ type: 'error', replaying: true, data: { ...CANCEL_FAILED, reason: 'owner_unreachable' } })

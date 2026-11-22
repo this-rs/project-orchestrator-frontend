@@ -142,7 +142,7 @@ describe('useBackgroundTasks', () => {
     expect(chatApi.cancelTask).not.toHaveBeenCalled()
   })
 
-  it('a 409 owner_unreachable throws a CancelFailedError that reads "already stopped"', async () => {
+  it('a 409 owner_unreachable throws a CancelFailedError that reports an unreachable owner', async () => {
     const store = createStore()
     store.set(chatSessionIdAtom, 'sess-42')
     vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(
@@ -151,7 +151,7 @@ describe('useBackgroundTasks', () => {
     const { result } = renderHook(() => useBackgroundTasks(), { wrapper: withStore(store) })
     const err = await result.current.cancelTask('toolu_X').catch((e: unknown) => e)
     expect(err).toBeInstanceOf(CancelFailedError)
-    expect((err as CancelFailedError).failure).toEqual({ code: 'owner_unreachable', retryable: false, alreadyStopped: true, status: 409 })
+    expect((err as CancelFailedError).failure).toEqual({ code: 'owner_unreachable', retryable: false, ownerUnreachable: true, status: 409 })
   })
 
   it('retryable is what the body says: 504 retryable:true, 410 retryable:true, 502 not', async () => {
@@ -166,7 +166,7 @@ describe('useBackgroundTasks', () => {
     for (const [status, code, retryable] of cases) {
       vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(new ApiError(status, JSON.stringify({ error: 'x', code, retryable })))
       const err = (await result.current.cancelTask('toolu_X').catch((e: unknown) => e)) as CancelFailedError
-      expect(err.failure).toEqual({ code, retryable, alreadyStopped: false, status })
+      expect(err.failure).toEqual({ code, retryable, ownerUnreachable: false, status })
     }
   })
 })

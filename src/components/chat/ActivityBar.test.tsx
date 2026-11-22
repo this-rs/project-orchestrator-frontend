@@ -206,15 +206,15 @@ describe('<ActivityBar />', () => {
     expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
   })
 
-  it('a 409 owner_unreachable reads "already stopped", not a failure', async () => {
+  it('a 409 owner_unreachable reports an unconfirmed outcome', async () => {
     vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(
       new ApiError(409, JSON.stringify({ error: 'no instance holds this session', code: 'owner_unreachable', retryable: false })),
     )
     mount([shell])
     expand()
     fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Already stopped — nothing was running any more.'))
-    expect(screen.getByRole('status')).toHaveAttribute('data-feedback', 'stopped')
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Owner unreachable; no stop was confirmed. Check the session activity.'))
+    expect(screen.getByRole('status')).toHaveAttribute('data-feedback', 'error')
     expect(screen.getByRole('status')).not.toHaveTextContent('Failed to cancel task')
   })
 

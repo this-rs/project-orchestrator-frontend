@@ -25,7 +25,7 @@
  *   the parsed `CancelTaskResult`. Throws if no session is active
  *   (the caller should disable the Stop buttons in that case anyway).
  *   A refused or failed cancel throws a `CancelFailedError` carrying the
- *   backend's typed reading (`owner_unreachable` = already stopped,
+ *   backend's typed reading (`owner_unreachable` = activity unconfirmed,
  *   `retryable` as the body says it).
  */
 import { useAtomValue } from 'jotai'

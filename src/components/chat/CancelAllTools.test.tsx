@@ -31,6 +31,7 @@ describe('session-wide cancellation', () => {
     mount()
     open()
     expect(screen.getByText(/all tool processes in this session, while the turn continues/)).toHaveTextContent('may ignore the signal or survive')
+    expect(screen.getByText(/all tool processes in this session/)).toHaveTextContent('Sub-agents’ tool processes can also be affected when they are descendants')
     expect(chatApi.cancelTools).not.toHaveBeenCalled()
     const button = screen.getByRole('button', { name: 'Send interruption to all tools' })
     fireEvent.click(button)
@@ -44,8 +45,13 @@ describe('session-wide cancellation', () => {
 
   it.each([
     ['504 timeout', refusal(504, 'owner_timeout', true)],
-    ['409 missing owner', refusal(409, 'owner_unreachable', false)],
+    ['502 relay failed', refusal(502, 'relay_failed', true)],
+    ['502 owner failed', refusal(502, 'owner_failed', true)],
+    ['502 owner protocol', refusal(502, 'owner_protocol', true)],
     ['410 session gone', refusal(410, 'session_gone', true)],
+    ['422 untyped text proxy', new ApiError(422, 'proxy refused')],
+    ['422 HTML proxy', new ApiError(422, '<html>proxy refused</html>')],
+    ['422 different code', refusal(422, 'some_other_error', false)],
     ['network failure', new TypeError('Failed to fetch')],
   ])('%s is uncertain and never invites or causes an automatic retry', async (_name, failure) => {
     vi.mocked(chatApi.cancelTools).mockRejectedValueOnce(failure)
@@ -54,6 +60,32 @@ describe('session-wide cancellation', () => {
     confirm()
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('outcome is unknown'))
     expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([
+    [409, 'owner_unreachable', 'Owner unreachable; no stop was confirmed'],
+    [401, 'unauthorized', 'authentication or authorization refusal'],
+    [403, 'forbidden', 'authentication or authorization refusal'],
+    [422, 'unsupported', 'refusal was received from an engine'],
+  ])('HTTP %s is reported without a claim of success or an automatic retry', async (status, code, message) => {
+    vi.mocked(chatApi.cancelTools).mockRejectedValueOnce(refusal(status, code, true))
+    const { rerender, store } = mount()
+    open(); confirm()
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(message))
+    expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
+    rerender(<Provider store={store}><CancelAllTools sessionId="s1" available={false} /></Provider>)
+    rerender(<Provider store={store}><CancelAllTools sessionId="s1" available /></Provider>)
+    expect(screen.getByRole('status')).toHaveTextContent(message)
+    expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([401, 403])('HTTP %s with an untyped proxy body remains unconfirmed and is not retried', async (status) => {
+    vi.mocked(chatApi.cancelTools).mockRejectedValueOnce(new ApiError(status, 'proxy refused'))
+    mount()
+    open(); confirm()
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('outcome is unknown'))
+    expect(screen.getByRole('status')).toHaveTextContent('authentication or authorization refusal')
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
@@ -71,7 +103,7 @@ describe('session-wide cancellation', () => {
     mount()
     open()
     confirm()
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('provider refused'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('refusal was received from an engine'))
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 

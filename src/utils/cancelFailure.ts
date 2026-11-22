@@ -5,7 +5,7 @@
  *
  * | status | `code`               | what the interface does                         |
  * |--------|----------------------|-------------------------------------------------|
- * | 409    | `owner_unreachable`  | "already stopped": nothing runs, nothing to retry |
+ * | 409    | `owner_unreachable`  | owner unreachable; stop not confirmed |
  * | 504    | `owner_timeout`      | may still happen: pending, never retried        |
  * | 410    | `session_gone`       | retry only if `retryable`                       |
  * | 502    | `owner_*`/`relay_failed` | failed                                      |
@@ -22,15 +22,15 @@ export interface CancelFailure {
   code?: string
   /** True only when the body says `retryable: true`. */
   retryable: boolean
-  /** `owner_unreachable`: no instance holds the session, nothing was running. */
-  alreadyStopped: boolean
+  /** `owner_unreachable`: no owner responded; activity is unconfirmed. */
+  ownerUnreachable: boolean
   status?: number
 }
 
 /** Read what a cancel call threw. Never invents a code. */
 export function readCancelFailure(err: unknown): CancelFailure {
   if (err instanceof CancelFailedError) return err.failure
-  if (!(err instanceof ApiError)) return { retryable: false, alreadyStopped: false }
+  if (!(err instanceof ApiError)) return { retryable: false, ownerUnreachable: false }
   let code: string | undefined
   let retryable = false
   try {
@@ -40,8 +40,8 @@ export function readCancelFailure(err: unknown): CancelFailure {
   } catch {
     // Not the typed body: a plain failure, not retryable.
   }
-  const alreadyStopped = code === 'owner_unreachable'
-  return { code, retryable: retryable && !alreadyStopped, alreadyStopped, status: err.status }
+  const ownerUnreachable = err.status === 409 && code === 'owner_unreachable'
+  return { code, retryable: retryable && !ownerUnreachable, ownerUnreachable, status: err.status }
 }
 
 /** What `useBackgroundTasks().cancelTask` throws when the backend refused or failed the cancel. */
@@ -84,15 +84,15 @@ export function chipOutcomeOfNotice(code: string, reason?: string): { reason: st
 }
 
 /** What a Stop chip shows once its cancel was refused or failed. */
-export type ChipOutcome = 'already_stopped' | 'pending' | 'failed'
+export type ChipOutcome = 'owner_unreachable' | 'pending' | 'failed'
 
 /**
  * The outcome a Stop chip shows for the reason of a failed cancel:
- * `owner_unreachable` → already stopped; `owner_timeout` → pending (no answer in
+ * `owner_unreachable` → owner unreachable; `owner_timeout` → pending (no answer in
  * time, the stop may still happen); anything else → failed. None re-enables it.
  */
 export function chipOutcomeOfReason(reason: string): ChipOutcome {
-  if (reason === 'owner_unreachable') return 'already_stopped'
+  if (reason === 'owner_unreachable') return 'owner_unreachable'
   if (reason === 'owner_timeout') return 'pending'
   return 'failed'
 }
@@ -105,11 +105,11 @@ export function cancelNoticeKey(code: string, reason?: string): MessageKey {
   if (code === 'cancel_refused') {
     return reason === 'background_tasks'
       ? 'chatA-activity.cancel.taskRefusedNotice'
-      : 'providers.capabilities.toolCancelUnsupported'
+      : 'chatA-activity.cancel.unsupportedNotice'
   }
-  if (reason === 'owner_unreachable') return 'chatA-activity.cancel.alreadyStoppedNotice'
+  if (reason === 'owner_unreachable') return 'chatA-activity.cancelAll.ownerUnreachable'
   if (reason === 'owner_timeout') return 'chatA-activity.cancel.timeoutNotice'
-  return 'chatA-activity.cancel.failedNotice'
+  return 'chatA-activity.cancel.unknownNotice'
 }
 
 let lastCancelStamp = 0

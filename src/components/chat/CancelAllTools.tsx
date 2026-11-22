@@ -1,5 +1,5 @@
 import { atom, useAtomValue, useStore } from 'jotai'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { chatApi } from '@/services/chat'
 import { getAuthMode } from '@/services/auth'
 import { parseJwtExp } from '@/services/authManager'
@@ -8,7 +8,7 @@ import { authModeAtom, authModeConfirmedAtom, currentUserAtom } from '@/atoms/au
 import { readCancelFailure } from '@/utils/cancelFailure'
 import { useT } from '@/i18n'
 
-type Phase = 'idle' | 'sending' | 'signalled' | 'capped' | 'uncertain' | 'refused' | 'identityChanged'
+type Phase = 'idle' | 'sending' | 'signalled' | 'capped' | 'uncertain' | 'refused' | 'authRefused' | 'ownerUnreachable' | 'identityChanged'
 const phaseBySessionAtom = atom<Partial<Record<string, Phase>>>({})
 // A request from an older login epoch may still reach the server. Keep its
 // uncertainty for the same principal/session, but never block another user.
@@ -31,7 +31,7 @@ function tokenSubject(token: string | null): string | null {
 }
 
 /** Session-wide, not a control for an individual tool. */
-export function CancelAllTools({ sessionId, available }: { sessionId: string; available: boolean }) {
+export function CancelAllTools({ sessionId, available, unsupported = false }: { sessionId: string; available: boolean; unsupported?: boolean }) {
   const store = useStore()
   const userId = useAtomValue(currentUserAtom)?.id ?? null
   const mode = useAtomValue(authModeAtom)
@@ -48,15 +48,16 @@ export function CancelAllTools({ sessionId, available }: { sessionId: string; av
     store.sub(authModeConfirmedAtom, changed)
   }, [store])
   const scope = JSON.stringify([sessionId, userId, mode, modeConfirmed, epoch])
-  return <CancelAllToolsScoped key={JSON.stringify([scope, available])} sessionId={sessionId} available={available} scope={scope} userId={userId} mode={mode} modeConfirmed={modeConfirmed} epoch={epoch} />
+  return <CancelAllToolsScoped key={JSON.stringify([scope, available])} sessionId={sessionId} available={available} unsupported={unsupported} scope={scope} userId={userId} mode={mode} modeConfirmed={modeConfirmed} epoch={epoch} />
 }
 
-function CancelAllToolsScoped({ sessionId, available, scope, userId, mode, modeConfirmed, epoch }: {
-  sessionId: string; available: boolean; scope: string; userId: string | null;
+function CancelAllToolsScoped({ sessionId, available, unsupported, scope, userId, mode, modeConfirmed, epoch }: {
+  sessionId: string; available: boolean; unsupported: boolean; scope: string; userId: string | null;
   mode: 'none' | 'required'; modeConfirmed: boolean; epoch: number
 }) {
   const { t } = useT()
   const store = useStore()
+  const unsupportedId = useId()
   const phases = useAtomValue(phaseBySessionAtom)
   const pending = useAtomValue(pendingByPrincipalAtom)
   const versions = useAtomValue(operationVersionAtom)
@@ -81,7 +82,13 @@ function CancelAllToolsScoped({ sessionId, available, scope, userId, mode, modeC
     return updated
   })
   const invalidateConfirmations = () => store.set(operationVersionAtom, (prev) => ({ ...prev, [principal]: (prev[principal] ?? 0) + 1 }))
-  if (!available && (phase === 'idle' || phase === 'capped')) return null
+  if (!available && (phase === 'idle' || phase === 'capped')) {
+    if (!unsupported) return null
+    return <div className="px-2.5 py-1.5 text-xs text-gray-300" data-testid="cancel-all-tools">
+      <button type="button" disabled aria-describedby={unsupportedId}>{t('chatA-activity.cancelAll.open')}</button>
+      <p id={unsupportedId}>{t('chatA-activity.cancelAll.unsupported')}</p>
+    </div>
+  }
 
   const submit = async () => {
     // The store check is synchronous, including across two mounted controls.
@@ -134,8 +141,14 @@ function CancelAllToolsScoped({ sessionId, available, scope, userId, mode, modeC
       if (err instanceof RequestIdentityChangedError) {
         setPending(null)
         setPhase('identityChanged')
-      } else if (failure.code === 'unsupported' || failure.status === 422) {
-        setPending(null)
+      } else if (failure.status === 409 && failure.ownerUnreachable) {
+        setPending('uncertain')
+        setPhase('ownerUnreachable')
+      } else if (failure.status === 401 || failure.status === 403) {
+        setPending('uncertain')
+        setPhase('authRefused')
+      } else if (failure.status === 422 && failure.code === 'unsupported') {
+        setPending('uncertain')
         setPhase('refused')
       } else {
         setPending('uncertain')
@@ -166,9 +179,11 @@ function CancelAllToolsScoped({ sessionId, available, scope, userId, mode, modeC
       {phase === 'sending' && <p role="status">{t('chatA-activity.cancelAll.sending')}</p>}
       {phase === 'signalled' && <p role="status">{t('chatA-activity.cancelAll.signalled')}</p>}
       {phase === 'uncertain' && <p role="status">{t('chatA-activity.cancelAll.uncertain')}</p>}
-      {phase === 'refused' && <p role="status">{t('chatA-activity.cancelAll.refused')}</p>}
+      {phase === 'ownerUnreachable' && <p role="status">{t('chatA-activity.cancelAll.ownerUnreachable')}</p>}
+      {phase === 'authRefused' && <p role="status">{t('chatA-activity.cancelAll.authRefused')}</p>}
+      {phase === 'refused' && <p role="status">{t('chatA-activity.cancelAll.refused')} {t('chatA-activity.cancelAll.uncertain')}</p>}
       {phase === 'identityChanged' && <p role="status">{t('chatA-activity.cancelAll.identityChanged')}</p>}
-      {available && (phase === 'signalled' || phase === 'uncertain' || phase === 'refused' || phase === 'identityChanged') && (
+      {available && (phase === 'signalled' || phase === 'uncertain' || phase === 'refused' || phase === 'authRefused' || phase === 'ownerUnreachable' || phase === 'identityChanged') && (
         <button type="button" className="underline mt-1" onClick={() => { invalidateConfirmations(); setPending(null); setPhase('idle') }}>
           {t('chatA-activity.cancelAll.reset')}
         </button>
