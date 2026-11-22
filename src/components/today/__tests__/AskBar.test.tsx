@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createStore, Provider } from 'jotai'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { activeWorkspaceSlugAtom, chatDraftInputAtom, chatPanelModeAtom } from '@/atoms'
+import { activeWorkspaceSlugAtom, chatDraftInputAtom, chatDraftWorkspaceAtom, chatPanelModeAtom } from '@/atoms'
 import { ASK_TEXT, buildDayContext } from '../text'
 import { AskBar } from '../AskBar'
 
@@ -72,10 +72,16 @@ describe('AskBar: asking from the top of Today', () => {
 
   it('opens the chat in the lane workspace when one is filtered', () => {
     const { store } = renderBar({ lane: 'acme' })
+    store.set(chatDraftWorkspaceAtom, 'other')
+    store.set(chatDraftInputAtom, 'draft in other workspace')
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'a question' } })
     fireEvent.submit(screen.getByTestId('askbar'))
 
     expect(store.get(activeWorkspaceSlugAtom)).toBe('acme')
+    expect(store.get(chatDraftWorkspaceAtom)).toBe('acme')
+    expect(store.get(chatDraftInputAtom)).toBe('a question')
+    store.set(chatDraftWorkspaceAtom, 'other')
+    expect(store.get(chatDraftInputAtom)).toBe('draft in other workspace')
   })
 })
 

@@ -1,4 +1,9 @@
 export default {
+  openError: {
+    attached: '{count} previously attached file(s) will be sent with this draft. Dismissing this error discards them.',
+    retry: 'Retry',
+    discard: 'Discard files and dismiss',
+  },
   place: {
     neutral: "Neutral place",
     neutralHint: "Runs in an empty folder made by the server, outside any project. Files written there are removed when the conversation closes.",

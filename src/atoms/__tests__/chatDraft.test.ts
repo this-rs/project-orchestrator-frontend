@@ -4,11 +4,13 @@ import {
   MAX_STORED_DRAFTS,
   NEW_CONVERSATION_DRAFT_KEY,
   chatDraftInputAtom,
+  chatDraftWorkspaceAtom,
   chatDraftsMapAtom,
   chatSessionIdAtom,
   clearChatDraftsAtom,
   draftKeyFor,
   moveChatDraftAtom,
+  newConversationDraftKey,
 } from '@/atoms/chat'
 
 const STORAGE_KEY = 'chat-drafts'
@@ -165,5 +167,98 @@ describe('the composer draft is per conversation and persisted', () => {
     expect(store.get(chatDraftInputAtom)).toBe('')
     store.set(chatSessionIdAtom, 'conv-a')
     expect(store.get(chatDraftInputAtom)).toBe('')
+  })
+})
+
+describe('new conversation drafts belong to their workspace', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('keeps different drafts when switching workspaces and after reloading', async () => {
+    const store = createStore()
+    store.set(chatDraftWorkspaceAtom, 'workspace-a')
+    store.set(chatDraftInputAtom, 'message A')
+    store.set(chatDraftWorkspaceAtom, 'workspace-b')
+    expect(store.get(chatDraftInputAtom)).toBe('')
+    store.set(chatDraftInputAtom, 'message B')
+    store.set(chatDraftWorkspaceAtom, 'workspace-a')
+    expect(store.get(chatDraftInputAtom)).toBe('message A')
+
+    const page = await reloadPage()
+    page.store.set(page.chatDraftWorkspaceAtom, 'workspace-b')
+    expect(page.store.get(page.chatDraftInputAtom)).toBe('message B')
+    page.store.set(page.chatDraftWorkspaceAtom, 'workspace-a')
+    expect(page.store.get(page.chatDraftInputAtom)).toBe('message A')
+  })
+
+  it('preserves both drafts when two already-open tabs write without a storage event', async () => {
+    const tabA = await reloadPage()
+    tabA.store.set(tabA.chatDraftWorkspaceAtom, 'workspace-a')
+    expect(tabA.store.get(tabA.chatDraftInputAtom)).toBe('')
+    const tabB = await reloadPage()
+    tabB.store.set(tabB.chatDraftWorkspaceAtom, 'workspace-b')
+    expect(tabB.store.get(tabB.chatDraftInputAtom)).toBe('')
+
+    // Both tabs loaded the old storage value already. Native storage events
+    // are asynchronous, so B may write before it has heard about A's write.
+    tabA.store.set(tabA.chatDraftInputAtom, 'message A')
+    tabB.store.set(tabB.chatDraftInputAtom, 'message B')
+
+    const page = await reloadPage()
+    page.store.set(page.chatDraftWorkspaceAtom, 'workspace-a')
+    expect(page.store.get(page.chatDraftInputAtom)).toBe('message A')
+    page.store.set(page.chatDraftWorkspaceAtom, 'workspace-b')
+    expect(page.store.get(page.chatDraftInputAtom)).toBe('message B')
+  })
+
+  it('moves only the workspace that opened a conversation to its session id', () => {
+    const store = createStore()
+    store.set(chatDraftWorkspaceAtom, 'workspace-a')
+    store.set(chatDraftInputAtom, 'typed while A opens')
+    store.set(chatDraftWorkspaceAtom, 'workspace-b')
+    store.set(chatDraftInputAtom, 'still composing B')
+
+    store.set(moveChatDraftAtom, { from: newConversationDraftKey('workspace-a'), to: 'conv-a' })
+    expect(store.get(chatDraftInputAtom)).toBe('still composing B')
+    store.set(chatDraftWorkspaceAtom, 'workspace-a')
+    expect(store.get(chatDraftInputAtom)).toBe('')
+    store.set(chatSessionIdAtom, 'conv-a')
+    expect(store.get(chatDraftInputAtom)).toBe('typed while A opens')
+  })
+
+  it('recovers an old shared draft once, without replacing a workspace draft', async () => {
+    const original = createStore()
+    original.set(chatDraftWorkspaceAtom, 'workspace-a')
+    original.set(chatDraftInputAtom, 'already in A')
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ [NEW_CONVERSATION_DRAFT_KEY]: 'old draft' }))
+
+    const page = await reloadPage()
+    page.store.set(page.chatDraftWorkspaceAtom, 'workspace-a')
+    expect(page.store.get(page.chatDraftInputAtom)).toBe('already in A')
+    page.store.set(page.chatDraftWorkspaceAtom, 'workspace-b')
+    expect(page.store.get(page.chatDraftInputAtom)).toBe('old draft')
+
+    const reloaded = await reloadPage()
+    reloaded.store.set(reloaded.chatDraftWorkspaceAtom, 'workspace-b')
+    expect(reloaded.store.get(reloaded.chatDraftInputAtom)).toBe('old draft')
+    reloaded.store.set(reloaded.chatDraftWorkspaceAtom, 'workspace-c')
+    expect(reloaded.store.get(reloaded.chatDraftInputAtom)).toBe('')
+  })
+
+  it('forgets drafts in every workspace on explicit sign-out', async () => {
+    const store = createStore()
+    store.set(chatDraftWorkspaceAtom, 'workspace-a')
+    store.set(chatDraftInputAtom, 'private A')
+    store.set(chatDraftWorkspaceAtom, 'workspace-b')
+    store.set(chatDraftInputAtom, 'private B')
+    store.set(clearChatDraftsAtom)
+
+    expect(store.get(chatDraftInputAtom)).toBe('')
+    store.set(chatDraftWorkspaceAtom, 'workspace-a')
+    expect(store.get(chatDraftInputAtom)).toBe('')
+    const page = await reloadPage()
+    page.store.set(page.chatDraftWorkspaceAtom, 'workspace-a')
+    expect(page.store.get(page.chatDraftInputAtom)).toBe('')
+    page.store.set(page.chatDraftWorkspaceAtom, 'workspace-b')
+    expect(page.store.get(page.chatDraftInputAtom)).toBe('')
   })
 })

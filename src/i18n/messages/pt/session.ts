@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  openError: {
+    attached: "{count} arquivo(s) anexado(s) anteriormente serão enviados com este rascunho. Fechar este erro irá descartá-los.",
+    retry: "Tentar novamente",
+    discard: "Descartar arquivos e fechar",
+  },
   place: {
     neutral: "Local neutro",
     neutralHint: "É executada em uma pasta vazia criada pelo servidor, fora de qualquer projeto. Os arquivos gravados nela são removidos quando a conversa é fechada.",

@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  openError: {
+    attached: "이전에 첨부한 파일 {count}개가 이 초안과 함께 전송됩니다. 이 오류를 닫으면 파일이 삭제됩니다.",
+    retry: "다시 시도",
+    discard: "파일 삭제 후 닫기",
+  },
   place: {
     neutral: "중립 위치",
     neutralHint: "서버가 만든 빈 폴더에서 어떤 프로젝트에도 속하지 않고 실행됩니다. 그곳에 쓴 파일은 대화를 닫으면 삭제됩니다.",

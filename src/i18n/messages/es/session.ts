@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  openError: {
+    attached: "Se enviarán {count} archivo(s) adjunto(s) anteriores con este borrador. Al cerrar este error se descartarán.",
+    retry: "Reintentar",
+    discard: "Descartar archivos y cerrar",
+  },
   place: {
     neutral: "Lugar neutro",
     neutralHint: "Se ejecuta en una carpeta vacía creada por el servidor, fuera de cualquier proyecto. Los archivos escritos allí se eliminan al cerrar la conversación.",
