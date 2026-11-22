@@ -8,7 +8,7 @@ import { authModeAtom, authModeConfirmedAtom, currentUserAtom } from '@/atoms/au
 import { readCancelFailure } from '@/utils/cancelFailure'
 import { useT } from '@/i18n'
 
-type Phase = 'idle' | 'sending' | 'signalled' | 'capped' | 'uncertain' | 'refused' | 'authRefused' | 'ownerUnreachable' | 'identityChanged'
+type Phase = 'idle' | 'sending' | 'signalled' | 'capped' | 'uncertain' | 'refused' | 'unauthenticated' | 'forbidden' | 'ownerUnreachable' | 'identityChanged'
 const phaseBySessionAtom = atom<Partial<Record<string, Phase>>>({})
 // A request from an older login epoch may still reach the server. Keep its
 // uncertainty for the same principal/session, but never block another user.
@@ -144,9 +144,12 @@ function CancelAllToolsScoped({ sessionId, available, unsupported, scope, userId
       } else if (failure.status === 409 && failure.ownerUnreachable) {
         setPending('uncertain')
         setPhase('ownerUnreachable')
-      } else if (failure.status === 401 || failure.status === 403) {
+      } else if (failure.status === 401) {
         setPending('uncertain')
-        setPhase('authRefused')
+        setPhase('unauthenticated')
+      } else if (failure.status === 403) {
+        setPending('uncertain')
+        setPhase('forbidden')
       } else if (failure.status === 422 && failure.code === 'unsupported') {
         setPending('uncertain')
         setPhase('refused')
@@ -184,10 +187,11 @@ function CancelAllToolsScoped({ sessionId, available, unsupported, scope, userId
       {phase === 'signalled' && <p role="status">{t('chatA-activity.cancelAll.signalled')}</p>}
       {phase === 'uncertain' && <p role="status">{t('chatA-activity.cancelAll.uncertain')}</p>}
       {phase === 'ownerUnreachable' && <p role="status">{t('chatA-activity.cancelAll.ownerUnreachable')}</p>}
-      {phase === 'authRefused' && <p role="status">{t('chatA-activity.cancelAll.authRefused')}</p>}
+      {phase === 'unauthenticated' && <p role="status">{t('chatA-activity.cancel.unauthenticatedNotice')}</p>}
+      {phase === 'forbidden' && <p role="status">{t('chatA-activity.cancel.forbiddenNotice')}</p>}
       {phase === 'refused' && <p role="status">{t('chatA-activity.cancelAll.refused')} {t('chatA-activity.cancelAll.uncertain')}</p>}
       {phase === 'identityChanged' && <p role="status">{t('chatA-activity.cancelAll.identityChanged')}</p>}
-      {available && (phase === 'signalled' || phase === 'uncertain' || phase === 'refused' || phase === 'capped' || phase === 'authRefused' || phase === 'ownerUnreachable' || phase === 'identityChanged') && (
+      {available && (phase === 'signalled' || phase === 'uncertain' || phase === 'refused' || phase === 'capped' || phase === 'unauthenticated' || phase === 'forbidden' || phase === 'ownerUnreachable' || phase === 'identityChanged') && (
         <button type="button" className="underline mt-1" onClick={() => { invalidateConfirmations(); setPending(null); setPhase('idle') }}>
           {t('chatA-activity.cancelAll.reset')}
         </button>

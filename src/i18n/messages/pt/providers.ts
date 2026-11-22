@@ -68,7 +68,6 @@ export default {
     policyOnly: 'Somente política: as ferramentas que exigiriam aprovação são negadas.',
     policyOnlyDetail: 'Este provedor não consegue pausar uma chamada de ferramenta para perguntar a você. Só a política de ferramentas decide.',
     policyOnlyRequest: 'Sem pergunta: este provedor aplica a política de ferramentas sem pedir confirmação.',
-    toolCancelUnsupported: 'Este provedor não consegue parar uma única ferramenta. Use Parar no campo de mensagem para interromper o turno inteiro.',
     resumeUnsupported: 'Este provedor não consegue retomar uma conversa. Inicie uma nova conversa para continuar.',
   },
   setup: {

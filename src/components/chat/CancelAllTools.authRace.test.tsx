@@ -18,8 +18,8 @@ import { getValidToken, refreshToken } from '@/services/authManager'
 import { CancelAllTools } from './CancelAllTools'
 
 const jwt = (subject: string, exp = Math.floor(Date.now() / 1000) + 3600) => `header.${btoa(JSON.stringify({ sub: subject, exp }))}.signature`
-const open = () => fireEvent.click(screen.getByRole('button', { name: 'Stop all tools in this session' }))
-const confirm = () => fireEvent.click(screen.getByRole('button', { name: 'Send interruption to all tools' }))
+const open = () => fireEvent.click(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' }))
+const confirm = () => fireEvent.click(screen.getByRole('button', { name: 'Send interruption to session and sub-agent tools' }))
 
 function mount() {
   const store = createStore()
@@ -123,7 +123,7 @@ describe('cancel all tools authenticated preflight', () => {
       fireEvent.click(screen.getByRole('button', { name: 'I checked this session — allow another request' }))
       await act(() => resolve(new Response(JSON.stringify({ capped: false, killed_pids: [1], cli_pid: null }), { status: 200 })))
       expect(screen.queryByRole('status')).toBeNull()
-      expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeEnabled()
       expect(fetchMock).toHaveBeenCalledTimes(1)
     } finally {
       vi.useRealTimers()

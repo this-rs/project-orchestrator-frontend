@@ -9,8 +9,8 @@ vi.mock('@/services/chat', () => ({ chatApi: { cancelTools: vi.fn() } }))
 import { chatApi } from '@/services/chat'
 import { CancelAllTools } from './CancelAllTools'
 
-const open = () => fireEvent.click(screen.getByRole('button', { name: 'Stop all tools in this session' }))
-const confirm = () => fireEvent.click(screen.getByRole('button', { name: 'Send interruption to all tools' }))
+const open = () => fireEvent.click(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' }))
+const confirm = () => fireEvent.click(screen.getByRole('button', { name: 'Send interruption to session and sub-agent tools' }))
 const refusal = (status: number, code: string, retryable: boolean) =>
   new ApiError(status, JSON.stringify({ code, retryable }))
 
@@ -33,14 +33,14 @@ describe('session-wide cancellation', () => {
     expect(screen.getByText(/all tool processes in this session, while the turn continues/)).toHaveTextContent('may ignore the signal or survive')
     expect(screen.getByText(/all tool processes in this session/)).toHaveTextContent('Sub-agents’ tool processes can also be affected when they are descendants')
     expect(chatApi.cancelTools).not.toHaveBeenCalled()
-    const button = screen.getByRole('button', { name: 'Send interruption to all tools' })
+    const button = screen.getByRole('button', { name: 'Send interruption to session and sub-agent tools' })
     fireEvent.click(button)
     fireEvent.click(button)
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
     expect(chatApi.cancelTools).toHaveBeenCalledWith('s1', expect.any(Function), expect.any(AbortSignal))
     await act(() => resolve({ capped: false, killed_pids: [123], cli_pid: null }))
     expect(screen.getByRole('status')).toHaveTextContent('does not guarantee processes stopped')
-    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeNull()
   })
 
   it.each([
@@ -59,14 +59,14 @@ describe('session-wide cancellation', () => {
     open()
     confirm()
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('outcome is unknown'))
-    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeNull()
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
   it.each([
     [409, 'owner_unreachable', 'Owner unreachable; no stop was confirmed'],
-    [401, 'unauthorized', 'authentication or authorization refusal'],
-    [403, 'forbidden', 'authentication or authorization refusal'],
+    [401, 'unauthorized', 'Authentication refused (401)'],
+    [403, 'forbidden', 'Authorization refused (403)'],
     [422, 'unsupported', 'refusal was received from an engine'],
   ])('HTTP %s is reported without a claim of success or an automatic retry', async (status, code, message) => {
     vi.mocked(chatApi.cancelTools).mockRejectedValueOnce(refusal(status, code, true))
@@ -80,12 +80,16 @@ describe('session-wide cancellation', () => {
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
-  it.each([401, 403])('HTTP %s with an untyped proxy body remains unconfirmed and is not retried', async (status) => {
+  it.each([
+    [401, 'Authentication refused (401)', 'Authorization refused'],
+    [403, 'Authorization refused (403)', 'Authentication refused'],
+  ])('HTTP %s with an untyped proxy body is said as such, unconfirmed, and not retried', async (status, said, notSaid) => {
     vi.mocked(chatApi.cancelTools).mockRejectedValueOnce(new ApiError(status, 'proxy refused'))
     mount()
     open(); confirm()
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('outcome is unknown'))
-    expect(screen.getByRole('status')).toHaveTextContent('authentication or authorization refusal')
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(said))
+    expect(screen.getByRole('status')).toHaveTextContent('No stop was confirmed')
+    expect(screen.getByRole('status')).not.toHaveTextContent(notSaid)
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
@@ -93,13 +97,13 @@ describe('session-wide cancellation', () => {
     vi.mocked(chatApi.cancelTools).mockResolvedValueOnce({ capped: true, killed_pids: [], cli_pid: null })
     const store = createStore()
     const { rerender } = render(<Provider store={store}><CancelAllTools sessionId="s1" available /><CancelAllTools sessionId="s1" available /></Provider>)
-    fireEvent.click(screen.getAllByRole('button', { name: 'Stop all tools in this session' })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'Send interruption to all tools' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Stop session tools, including sub-agent tools' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Send interruption to session and sub-agent tools' }))
     await waitFor(() => expect(screen.getAllByRole('status').some((status) => status.textContent?.includes('rate limit'))).toBe(true))
-    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeNull()
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
     rerender(<Provider store={store}><CancelAllTools sessionId="s1" available /></Provider>)
-    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeNull()
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
@@ -110,14 +114,14 @@ describe('session-wide cancellation', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Other owners may still act'))
     rerender(<Provider store={store}><CancelAllTools sessionId="s1" available={false} /></Provider>)
     expect(screen.getByRole('status')).toHaveTextContent('Other owners may still act')
-    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeNull()
     rerender(<Provider store={store}><CancelAllTools sessionId="s1" available={false} unsupported /></Provider>)
     expect(screen.getByRole('status')).toHaveTextContent('Other owners may still act')
-    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeDisabled()
     expect(screen.getByText('This provider cannot stop all tools in this session.')).toBeInTheDocument()
     rerender(<Provider store={store}><CancelAllTools sessionId="s1" available /></Provider>)
     expect(screen.getByRole('status')).toHaveTextContent('Other owners may still act')
-    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeNull()
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
@@ -126,7 +130,7 @@ describe('session-wide cancellation', () => {
     mount(); open(); confirm()
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('other operations may still be in progress'))
     expect(screen.getByRole('status')).toHaveTextContent('response was received from one owner')
-    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeNull()
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
@@ -156,8 +160,8 @@ describe('session-wide cancellation', () => {
     vi.mocked(chatApi.cancelTools).mockReturnValueOnce(new Promise((r) => { resolve = r }))
     const store = createStore()
     render(<Provider store={store}><CancelAllTools sessionId="s1" available /><CancelAllTools sessionId="s1" available /></Provider>)
-    for (const button of screen.getAllByRole('button', { name: 'Stop all tools in this session' })) fireEvent.click(button)
-    const buttons = screen.getAllByRole('button', { name: 'Send interruption to all tools' })
+    for (const button of screen.getAllByRole('button', { name: 'Stop session tools, including sub-agent tools' })) fireEvent.click(button)
+    const buttons = screen.getAllByRole('button', { name: 'Send interruption to session and sub-agent tools' })
     fireEvent.click(buttons[0])
     fireEvent.click(buttons[1])
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
@@ -169,13 +173,13 @@ describe('session-wide cancellation', () => {
     const store = createStore()
     render(<Provider store={store}><CancelAllTools sessionId="s1" available /><CancelAllTools sessionId="s1" available /></Provider>)
     const [first, second] = screen.getAllByTestId('cancel-all-tools')
-    fireEvent.click(within(first).getByRole('button', { name: 'Stop all tools in this session' }))
-    fireEvent.click(within(second).getByRole('button', { name: 'Stop all tools in this session' }))
-    fireEvent.click(within(first).getByRole('button', { name: 'Send interruption to all tools' }))
+    fireEvent.click(within(first).getByRole('button', { name: 'Stop session tools, including sub-agent tools' }))
+    fireEvent.click(within(second).getByRole('button', { name: 'Stop session tools, including sub-agent tools' }))
+    fireEvent.click(within(first).getByRole('button', { name: 'Send interruption to session and sub-agent tools' }))
     await waitFor(() => expect(within(first).getByRole('status')).toHaveTextContent('does not guarantee'))
     fireEvent.click(within(first).getByRole('button', { name: 'I checked this session — allow another request' }))
-    expect(within(second).queryByRole('button', { name: 'Send interruption to all tools' })).toBeNull()
-    expect(within(second).getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(within(second).queryByRole('button', { name: 'Send interruption to session and sub-agent tools' })).toBeNull()
+    expect(within(second).getByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeEnabled()
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
@@ -183,22 +187,22 @@ describe('session-wide cancellation', () => {
     const { rerender, store } = mount()
     open()
     rerender(<Provider store={store}><CancelAllTools sessionId="s1" available={false} /></Provider>)
-    expect(screen.queryByRole('button', { name: 'Send interruption to all tools' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Send interruption to session and sub-agent tools' })).toBeNull()
     expect(chatApi.cancelTools).not.toHaveBeenCalled()
     rerender(<Provider store={store}><CancelAllTools sessionId="s1" available /></Provider>)
-    expect(screen.queryByRole('button', { name: 'Send interruption to all tools' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Send interruption to session and sub-agent tools' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeEnabled()
   })
 
   it('does not carry a confirmation across sessions when navigation happens before sending', () => {
     const { rerender, store } = mount('s1')
     open()
     rerender(<Provider store={store}><CancelAllTools key="s2" sessionId="s2" available /></Provider>)
-    expect(screen.queryByRole('button', { name: 'Send interruption to all tools' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Send interruption to session and sub-agent tools' })).toBeNull()
     expect(chatApi.cancelTools).not.toHaveBeenCalled()
     rerender(<Provider store={store}><CancelAllTools key="s1" sessionId="s1" available /></Provider>)
-    expect(screen.queryByRole('button', { name: 'Send interruption to all tools' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Send interruption to session and sub-agent tools' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeEnabled()
   })
 
   it('keeps the outcome on the original session across navigation, never on another', async () => {
@@ -210,7 +214,7 @@ describe('session-wide cancellation', () => {
     rerender(<Provider store={store}><CancelAllTools key="s2" sessionId="s2" available /></Provider>)
     await act(() => resolve({ capped: false, killed_pids: [1], cli_pid: null }))
     expect(screen.queryByRole('status')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeEnabled()
     rerender(<Provider store={store}><CancelAllTools key="s1" sessionId="s1" available /></Provider>)
     expect(screen.getByRole('status')).toHaveTextContent('does not guarantee processes stopped')
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
@@ -226,7 +230,7 @@ describe('session-wide cancellation', () => {
     rerender(<Provider store={otherAccount}><CancelAllTools key="other" sessionId="s1" available /></Provider>)
     await act(() => resolve({ capped: false, killed_pids: [1], cli_pid: null }))
     expect(screen.queryByRole('status')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeEnabled()
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
@@ -239,7 +243,7 @@ describe('session-wide cancellation', () => {
     act(() => store.set(currentUserAtom, { id: 'user-b', email: 'b@example.com', name: 'B' }))
     await act(() => resolve({ capped: false, killed_pids: [1], cli_pid: null }))
     expect(screen.queryByRole('status')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeEnabled()
   })
 
   it('keeps a completed first-owner response across a later A → B → A until acknowledgement', async () => {
@@ -248,13 +252,13 @@ describe('session-wide cancellation', () => {
     open(); confirm()
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('other operations may still be in progress'))
     act(() => store.set(currentUserAtom, { id: 'user-b', email: 'b@example.com', name: 'B' }))
-    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeEnabled()
     act(() => store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' }))
-    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeNull()
     expect(screen.getByRole('status')).toHaveTextContent('other operations may still be in progress')
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('button', { name: 'I checked this session — allow another request' }))
-    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeEnabled()
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
@@ -268,7 +272,7 @@ describe('session-wide cancellation', () => {
     act(() => store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' }))
     await act(() => resolve({ capped: false, killed_pids: [1], cli_pid: null }))
     expect(screen.getByRole('status')).toHaveTextContent('does not guarantee processes stopped')
-    expect(screen.queryByRole('button', { name: 'Send interruption to all tools' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Send interruption to session and sub-agent tools' })).toBeNull()
     expect(screen.getByRole('button', { name: 'I checked this session — allow another request' })).toBeEnabled()
   })
 
@@ -278,10 +282,10 @@ describe('session-wide cancellation', () => {
     const { store } = mount('s1')
     open(); confirm()
     act(() => store.set(currentUserAtom, { id: 'user-b', email: 'b@example.com', name: 'B' }))
-    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeEnabled()
     act(() => store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' }))
     expect(screen.getByRole('status')).toHaveTextContent('Sending interruption')
-    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop session tools, including sub-agent tools' })).toBeNull()
     await act(() => reject(new TypeError('connection lost')))
     expect(screen.getByRole('status')).toHaveTextContent('outcome is unknown')
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)

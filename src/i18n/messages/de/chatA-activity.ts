@@ -45,17 +45,16 @@ export default {
     dashboardAria: "Runner-Dashboard von {title} öffnen"
   },
   bar: {
-    tooFast: "Zu schnell abgebrochen — versuche es gleich noch einmal.",
-    cancelFailed: "Aufgabe konnte nicht abgebrochen werden — nutze stattdessen den globalen Stopp.",
+    acknowledge: "Ich habe diese Aufgabe geprüft — weitere Anfrage erlauben",
     runningAria: "Läuft: {summary}",
     stoppedOne: "Signal für {count} Prozess angenommen. Er kann noch laufen.",
     stoppedMany: "Signal für {count} Prozesse angenommen. Sie können noch laufen.",
     noPid: "Für diese Aufgabe wurde kein Signal bestätigt. Das Ergebnis ist unbekannt; prüfen Sie ihre Aktivität."
   },
   cancelAll: {
-    open: "Alle Werkzeuge dieser Sitzung stoppen",
+    open: "Sitzungswerkzeuge einschließlich der Werkzeuge von Unteragenten stoppen",
     explain: "Dies sendet ein Unterbrechungssignal an alle Werkzeugprozesse dieser Sitzung, während der Durchlauf weiterläuft. Prozesse können das Signal ignorieren oder weiterlaufen. Prüfen Sie danach den tatsächlichen Zustand. Werkzeugprozesse von Unteragenten können ebenfalls betroffen sein, wenn sie Nachkommen sind; einige können weiterlaufen.",
-    confirm: "Unterbrechung an alle Werkzeuge senden",
+    confirm: "Unterbrechung an Sitzungs- und Unteragentenwerkzeuge senden",
     back: "Zurück",
     sending: "Unterbrechung wird gesendet…",
     signalled: "Antwort von einem Besitzer erhalten. Ein Signal garantiert nicht das Prozessende; andere Vorgänge können noch laufen. Prüfen Sie die Sitzungsaktivität.",
@@ -63,7 +62,6 @@ export default {
     uncertain: "Ergebnis unbekannt. Das Signal kann noch gesendet werden; prüfen Sie die Sitzung vor einem erneuten Versuch.",
     refused: "Eine Ablehnung von einer Engine wurde empfangen.",
     unsupported: "Dieser Anbieter kann nicht alle Werkzeuge dieser Sitzung stoppen.",
-    authRefused: "Eine Authentifizierungs- oder Autorisierungsablehnung wurde empfangen. Das Ergebnis ist unbekannt; prüfen Sie die Sitzungsaktivität.",
     ownerUnreachable: "Besitzer nicht erreichbar; kein Stopp bestätigt. Prüfen Sie die Sitzungsaktivität.",
     identityChanged: "Keine Anfrage gesendet: Die angemeldete Identität konnte nicht überprüft werden. Prüfen Sie die Sitzung und melden Sie sich bei Bedarf erneut an.",
     reset: "Ich habe diese Sitzung geprüft — weitere Anfrage erlauben",
@@ -71,13 +69,11 @@ export default {
   cancel: {
     unsupportedNotice: "Eine Ablehnung wurde empfangen; der Stopp ist nicht bestätigt. Prüfen Sie die Sitzungsaktivität.",
     unknownNotice: "Das Ergebnis dieser Stoppanfrage ist unbekannt. Prüfen Sie die Sitzungsaktivität.",
-    alreadyStopped: "bereits beendet",
-    notStopped: "nicht beendet — nutze den globalen Stopp",
-    alreadyStoppedNotice: "Bereits beendet — es lief nichts mehr.",
     retryNotice: "Das Ergebnis ist nicht bestätigt. Prüfen Sie die Aktivität, bevor Sie das Stoppen dieser Aufgabe erneut versuchen.",
     timeoutNotice: "Der Stopp wurde nicht rechtzeitig beantwortet — er kann noch erfolgen.",
-    failedNotice: "Die Tools konnten nicht beendet werden — nutze stattdessen den globalen Stopp.",
     taskRefusedNotice: "Eine Ablehnung wurde empfangen; der Stopp ist nicht bestätigt. Prüfen Sie die Sitzungsaktivität.",
+    unauthenticatedNotice: 'Authentifizierung abgelehnt (401): Ihre Anmeldung fehlt oder ist abgelaufen. Kein Stopp wurde bestätigt; melden Sie sich erneut an und prüfen Sie dann die Sitzungsaktivität.',
+    forbiddenNotice: 'Autorisierung abgelehnt (403): Dieses Konto darf diese Werkzeuge nicht stoppen. Kein Stopp wurde bestätigt; prüfen Sie die Sitzungsaktivität.',
   },
   agent: {
     subAgent: "Sub-Agent",

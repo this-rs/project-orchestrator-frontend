@@ -68,7 +68,6 @@ export default {
     policyOnly: 'Solo política: se deniegan las herramientas que requerirían aprobación.',
     policyOnlyDetail: 'Este proveedor no puede pausar una llamada a una herramienta para preguntarte. La política de herramientas decide por sí sola.',
     policyOnlyRequest: 'Sin preguntar: este proveedor aplica la política de herramientas sin pedir confirmación.',
-    toolCancelUnsupported: 'Este proveedor no puede detener una sola herramienta. Usa Detener en el compositor para interrumpir todo el turno.',
     resumeUnsupported: 'Este proveedor no puede retomar una conversación. Inicia una nueva conversación para continuar.',
   },
   setup: {

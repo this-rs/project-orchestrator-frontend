@@ -15,6 +15,4 @@ export const policyOnlyRequestText = (): string => tr('providers.capabilities.po
 // (i18n), chosen by `chatSessionImagesCauseAtom`: a model that takes no image is
 // not the same story as an engine that does not pass images yet.
 
-export const toolCancelUnsupportedText = (): string => tr('providers.capabilities.toolCancelUnsupported')
-
 export const resumeUnsupportedText = (): string => tr('providers.capabilities.resumeUnsupported')

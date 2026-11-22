@@ -68,7 +68,6 @@ export default {
     policyOnly: '仅按策略：需要批准的工具会被拒绝。',
     policyOnlyDetail: '此提供方无法暂停工具调用来询问你，完全由工具策略决定。',
     policyOnlyRequest: '未询问：此提供方直接应用工具策略，不会提示。',
-    toolCancelUnsupported: '此提供方无法停止单个工具。请使用输入框中的“停止”来中断整个回合。',
     resumeUnsupported: '此提供方无法恢复对话。请新建对话以继续。',
   },
   setup: {

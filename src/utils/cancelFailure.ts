@@ -3,16 +3,19 @@
  * `/cancel-task/{task_id}`, or the `cancel_tools` frame of the socket), read
  * the way the backend types it (`docs/api/reference.md`, cancel section):
  *
- * | status | `code`               | what the interface does                         |
- * |--------|----------------------|-------------------------------------------------|
- * | 409    | `owner_unreachable`  | owner unreachable; stop not confirmed |
- * | 504    | `owner_timeout`      | may still happen: pending, never retried        |
- * | 410    | `session_gone`       | retry only if `retryable`                       |
- * | 502    | `owner_*`/`relay_failed` | failed                                      |
- * | 422    | `unsupported`        | the provider cannot                              |
+ * | status | `code`                   | what the interface does                                   |
+ * |--------|--------------------------|-----------------------------------------------------------|
+ * | 409    | `owner_unreachable`      | owner unreachable: stop NOT confirmed (never "already stopped") |
+ * | 504    | `owner_timeout`          | uncertain: may still happen, never retried                |
+ * | 502    | `owner_*`/`relay_failed` | uncertain: a signal may have been delivered               |
+ * | 410    | `session_gone`           | uncertain, not retryable (whatever the body says)         |
+ * | 401    | —                        | authentication refused (sign in again)                    |
+ * | 403    | —                        | authorization refused (this account may not)              |
+ * | 422    | `unsupported`            | the provider cannot                                       |
  *
- * `retryable` is the body's word, never guessed from a status: a cancel-tools
- * retried after a timeout would stop the tools started since.
+ * `retryable` is the body's word, never guessed from a status, except that it
+ * is never true for a 409 or a 410: a cancel-tools retried after those would
+ * stop the tools started since, and the interface keeps one rule for both kinds.
  */
 import { ApiError } from '@/services/api'
 import type { MessageKey } from '@/i18n/catalog'
@@ -41,7 +44,7 @@ export function readCancelFailure(err: unknown): CancelFailure {
     // Not the typed body: a plain failure, not retryable.
   }
   const ownerUnreachable = err.status === 409 && code === 'owner_unreachable'
-  return { code, retryable: retryable && !ownerUnreachable, ownerUnreachable, status: err.status }
+  return { code, retryable: retryable && !ownerUnreachable && err.status !== 410, ownerUnreachable, status: err.status }
 }
 
 /** What `useBackgroundTasks().cancelTask` throws when the backend refused or failed the cancel. */

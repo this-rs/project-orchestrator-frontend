@@ -45,17 +45,16 @@ export default {
     dashboardAria: "Mở bảng điều khiển runner của {title}"
   },
   bar: {
-    tooFast: "Hủy quá nhanh — hãy thử lại sau giây lát.",
-    cancelFailed: "Không hủy được tác vụ — hãy dùng nút Dừng toàn cục.",
+    acknowledge: "Tôi đã kiểm tra tác vụ này — cho phép yêu cầu tiếp theo",
     runningAria: "Đang chạy: {summary}",
     stoppedOne: "Tín hiệu đã được chấp nhận cho {count} tiến trình. Tiến trình đó có thể vẫn chạy.",
     stoppedMany: "Tín hiệu đã được chấp nhận cho {count} tiến trình. Chúng có thể vẫn chạy.",
     noPid: "Chưa xác nhận tín hiệu nào cho tác vụ này. Kết quả chưa rõ; hãy kiểm tra hoạt động của tác vụ."
   },
   cancelAll: {
-    open: "Dừng tất cả công cụ trong phiên này",
+    open: "Dừng công cụ của phiên, bao gồm công cụ của tác tử con",
     explain: "Thao tác này gửi tín hiệu ngắt đến mọi tiến trình công cụ trong phiên, còn lượt vẫn tiếp tục. Tiến trình có thể bỏ qua tín hiệu hoặc tiếp tục chạy. Hãy kiểm tra trạng thái thực tế sau đó. Các tiến trình công cụ của tác tử con cũng có thể bị ảnh hưởng nếu là tiến trình hậu duệ; một số có thể tiếp tục chạy.",
-    confirm: "Gửi tín hiệu ngắt đến tất cả công cụ",
+    confirm: "Gửi tín hiệu ngắt tới công cụ của phiên và tác tử con",
     back: "Quay lại",
     sending: "Đang gửi tín hiệu ngắt…",
     signalled: "Đã nhận phản hồi từ một chủ sở hữu. Tín hiệu không đảm bảo các tiến trình đã dừng; các thao tác khác có thể vẫn đang diễn ra. Hãy kiểm tra hoạt động phiên.",
@@ -63,7 +62,6 @@ export default {
     uncertain: "Chưa rõ kết quả. Tín hiệu vẫn có thể được gửi; hãy kiểm tra phiên trước khi thử lại.",
     refused: "Đã nhận được từ chối từ một bộ máy.",
     unsupported: "Nhà cung cấp này không thể dừng tất cả công cụ trong phiên này.",
-    authRefused: "Đã nhận được từ chối xác thực hoặc cấp quyền. Chưa rõ kết quả; hãy kiểm tra hoạt động phiên.",
     ownerUnreachable: "Không liên hệ được chủ sở hữu; chưa xác nhận dừng. Hãy kiểm tra hoạt động phiên.",
     identityChanged: "Không gửi yêu cầu vì không thể xác minh danh tính đã xác thực. Hãy kiểm tra phiên và đăng nhập lại nếu cần.",
     reset: "Tôi đã kiểm tra phiên này — cho phép yêu cầu khác",
@@ -71,13 +69,11 @@ export default {
   cancel: {
     unsupportedNotice: "Đã nhận được từ chối; trạng thái dừng chưa được xác nhận. Hãy kiểm tra hoạt động phiên.",
     unknownNotice: "Chưa rõ kết quả của yêu cầu dừng này. Hãy kiểm tra hoạt động phiên.",
-    alreadyStopped: "đã dừng",
-    notStopped: "chưa dừng — hãy dùng nút Dừng toàn cục",
-    alreadyStoppedNotice: "Đã dừng — không còn gì đang chạy.",
     retryNotice: "Kết quả chưa được xác nhận. Hãy kiểm tra hoạt động trước khi thử dừng lại tác vụ này.",
     timeoutNotice: "Lệnh dừng không nhận được phản hồi kịp thời — việc dừng vẫn có thể xảy ra.",
-    failedNotice: "Không dừng được các công cụ — hãy dùng nút Dừng toàn cục.",
     taskRefusedNotice: "Đã nhận được từ chối; trạng thái dừng chưa được xác nhận. Hãy kiểm tra hoạt động phiên.",
+    unauthenticatedNotice: 'Xác thực bị từ chối (401): bạn chưa đăng nhập hoặc phiên đăng nhập đã hết hạn. Chưa xác nhận dừng; hãy đăng nhập lại, rồi kiểm tra hoạt động phiên.',
+    forbiddenNotice: 'Ủy quyền bị từ chối (403): tài khoản này không được phép dừng các công cụ này. Chưa xác nhận dừng; hãy kiểm tra hoạt động phiên.',
   },
   agent: {
     subAgent: "Sub-agent",

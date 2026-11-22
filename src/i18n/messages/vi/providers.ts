@@ -68,7 +68,6 @@ export default {
     policyOnly: 'Chỉ theo chính sách: công cụ cần phê duyệt sẽ bị từ chối.',
     policyOnlyDetail: 'Nhà cung cấp này không thể tạm dừng một lệnh gọi công cụ để hỏi bạn. Chỉ chính sách công cụ quyết định.',
     policyOnlyRequest: 'Không hỏi: nhà cung cấp này áp dụng chính sách công cụ mà không nhắc.',
-    toolCancelUnsupported: 'Nhà cung cấp này không thể dừng một công cụ riêng lẻ. Dùng Dừng trong khung soạn để ngắt cả lượt.',
     resumeUnsupported: 'Nhà cung cấp này không thể tiếp tục một cuộc trò chuyện. Hãy mở cuộc trò chuyện mới để tiếp tục.',
   },
   setup: {

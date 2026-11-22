@@ -45,17 +45,16 @@ export default {
     dashboardAria: "Abrir o painel do runner de {title}"
   },
   bar: {
-    tooFast: "Cancelamentos rápidos demais — tente novamente em instantes.",
-    cancelFailed: "Falha ao cancelar a tarefa — use o Parar global.",
+    acknowledge: "Verifiquei esta tarefa — permitir outra solicitação",
     runningAria: "Em execução: {summary}",
     stoppedOne: "Sinal aceite para {count} processo. Pode ainda estar em execução.",
     stoppedMany: "Sinal aceite para {count} processos. Podem ainda estar em execução.",
     noPid: "Não foi confirmado nenhum sinal para esta tarefa. O resultado é desconhecido; verifique a sua atividade."
   },
   cancelAll: {
-    open: "Parar todas as ferramentas desta sessão",
+    open: "Parar as ferramentas da sessão, incluindo as dos subagentes",
     explain: "Isto envia um sinal de interrupção a todos os processos de ferramentas desta sessão, enquanto o turno continua. Os processos podem ignorar o sinal ou sobreviver. Verifique o estado real depois. Os processos de ferramentas dos subagentes também podem ser afetados quando são descendentes; alguns podem sobreviver.",
-    confirm: "Enviar interrupção a todas as ferramentas",
+    confirm: "Enviar interrupção às ferramentas da sessão e dos subagentes",
     back: "Voltar",
     sending: "Enviando interrupção…",
     signalled: "Foi recebida resposta de um proprietário. Um sinal não garante a paragem dos processos; outras operações podem continuar em curso. Verifique a atividade da sessão.",
@@ -63,7 +62,6 @@ export default {
     uncertain: "Resultado desconhecido. O sinal ainda pode ser enviado; verifique a sessão antes de tentar novamente.",
     refused: "Foi recebida uma recusa de um motor.",
     unsupported: "Este fornecedor não consegue parar todas as ferramentas desta sessão.",
-    authRefused: "Foi recebida uma recusa de autenticação ou autorização. O resultado é desconhecido; verifique a atividade da sessão.",
     ownerUnreachable: "Proprietário inacessível; nenhuma paragem foi confirmada. Verifique a atividade da sessão.",
     identityChanged: "Nenhum pedido foi enviado: não foi possível verificar a identidade autenticada. Verifique a sessão e inicie sessão novamente se necessário.",
     reset: "Verifiquei esta sessão — permitir outro pedido",
@@ -71,13 +69,11 @@ export default {
   cancel: {
     unsupportedNotice: "Foi recebida uma recusa; a paragem não está confirmada. Verifique a atividade da sessão.",
     unknownNotice: "O resultado deste pedido de paragem é desconhecido. Verifique a atividade da sessão.",
-    alreadyStopped: "já parado",
-    notStopped: "não parado — use o Parar global",
-    alreadyStoppedNotice: "Já parado — nada estava mais em execução.",
     retryNotice: "O resultado não está confirmado. Verifique a atividade antes de tentar novamente parar esta tarefa.",
     timeoutNotice: "A parada não teve resposta a tempo — ela ainda pode acontecer.",
-    failedNotice: "Não foi possível parar as ferramentas — use o Parar global.",
     taskRefusedNotice: "Foi recebida uma recusa; a paragem não está confirmada. Verifique a atividade da sessão.",
+    unauthenticatedNotice: 'Autenticação recusada (401): o seu início de sessão está em falta ou expirou. Nenhuma paragem foi confirmada; inicie sessão novamente e verifique a atividade da sessão.',
+    forbiddenNotice: 'Autorização recusada (403): esta conta não tem permissão para parar estas ferramentas. Nenhuma paragem foi confirmada; verifique a atividade da sessão.',
   },
   agent: {
     subAgent: "Subagente",

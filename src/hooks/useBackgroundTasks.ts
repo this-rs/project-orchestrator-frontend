@@ -26,7 +26,8 @@
  *   (the caller should disable the Stop buttons in that case anyway).
  *   A refused or failed cancel throws a `CancelFailedError` carrying the
  *   backend's typed reading (`owner_unreachable` = activity unconfirmed,
- *   `retryable` as the body says it).
+ *   `retryable` as the body says it). When the identity guard refuses before
+ *   sending, it throws `RequestIdentityChangedError` as is: nothing went out.
  */
 import { useAtomValue, useStore } from 'jotai'
 import { useCallback } from 'react'
@@ -34,6 +35,7 @@ import { chatBackgroundTasksAtom, chatSessionIdAtom } from '@/atoms'
 import { authModeAtom, authModeConfirmedAtom, currentUserAtom } from '@/atoms/auth'
 import { getAuthMode } from '@/services/auth'
 import { parseJwtExp } from '@/services/authManager'
+import { RequestIdentityChangedError } from '@/services/api'
 import { chatApi } from '@/services/chat'
 import type { BackgroundTaskInfo, CancelTaskResult } from '@/types'
 import { CancelFailedError, readCancelFailure } from '@/utils/cancelFailure'
@@ -90,6 +92,8 @@ export function useBackgroundTasks(): UseBackgroundTasksReturn {
             !!userId && tokenSubject(token) === userId && exp !== null && exp > Math.floor(Date.now() / 1000)
         })
       } catch (err) {
+        // Not a backend answer: the guard refused, nothing was sent.
+        if (err instanceof RequestIdentityChangedError) throw err
         throw new CancelFailedError(readCancelFailure(err), err)
       }
     },

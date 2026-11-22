@@ -16,10 +16,24 @@ describe('readCancelFailure', () => {
     })
   })
 
-  it('retryable is the body word only, never the status', () => {
+  it('retryable is the body word, never guessed from a status', () => {
     expect(readCancelFailure(body(504, { error: 'x', code: 'owner_timeout', retryable: false })).retryable).toBe(false)
     expect(readCancelFailure(body(504, { error: 'x', code: 'owner_timeout', retryable: true })).retryable).toBe(true)
     expect(readCancelFailure(body(410, { error: 'x', code: 'session_gone' })).retryable).toBe(false)
+  })
+
+  it('410 is never retryable, even when the body says so', () => {
+    expect(readCancelFailure(body(410, { error: 'x', code: 'session_gone', retryable: true }))).toEqual({
+      code: 'session_gone', retryable: false, ownerUnreachable: false, status: 410,
+    })
+  })
+
+  it('401 and 403 keep their status, so the interface can tell them apart', () => {
+    expect(readCancelFailure(new ApiError(401, 'proxy refused')).status).toBe(401)
+    expect(readCancelFailure(new ApiError(403, 'proxy refused')).status).toBe(403)
+  })
+
+  it('a non-typed error keeps its reading neutral', () => {
     expect(readCancelFailure(new ApiError(502, 'Bad Gateway')).retryable).toBe(false)
     expect(readCancelFailure(new TypeError('Failed to fetch'))).toEqual({ retryable: false, ownerUnreachable: false })
   })
