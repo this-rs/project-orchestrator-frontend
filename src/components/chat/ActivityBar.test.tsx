@@ -178,12 +178,13 @@ describe('<ActivityBar />', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Signal accepted for 1 process. It may still be running.'))
   })
 
-  it('warns when the cancel was registered without a known pid', async () => {
+  it('empty killed_pids confirms no signal and leaves the outcome unknown', async () => {
     vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({ task_id: 's1', killed_pids: [], capped: false })
     mount([shell])
     expand()
     fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/PID wasn’t known/))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('No signal was confirmed for this task. The outcome is unknown; check its activity.'))
+    expect(screen.getByRole('status')).not.toHaveTextContent('registered')
     expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeDisabled()
   })
 

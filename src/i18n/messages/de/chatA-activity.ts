@@ -50,7 +50,7 @@ export default {
     runningAria: "Läuft: {summary}",
     stoppedOne: "Signal für {count} Prozess angenommen. Er kann noch laufen.",
     stoppedMany: "Signal für {count} Prozesse angenommen. Sie können noch laufen.",
-    noPid: "Abbruch registriert, aber die PID des Unterprozesses war unbekannt — falls weiterhin Ticks eintreffen, nutze die globale Stopp-Schaltfläche."
+    noPid: "Für diese Aufgabe wurde kein Signal bestätigt. Das Ergebnis ist unbekannt; prüfen Sie ihre Aktivität."
   },
   cancelAll: {
     open: "Alle Werkzeuge dieser Sitzung stoppen",

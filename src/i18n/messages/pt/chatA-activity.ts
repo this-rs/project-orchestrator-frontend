@@ -50,7 +50,7 @@ export default {
     runningAria: "Em execução: {summary}",
     stoppedOne: "Sinal aceite para {count} processo. Pode ainda estar em execução.",
     stoppedMany: "Sinal aceite para {count} processos. Podem ainda estar em execução.",
-    noPid: "Cancelamento registrado, mas o PID do subprocesso era desconhecido — se os sinais continuarem chegando, use o botão Parar global."
+    noPid: "Não foi confirmado nenhum sinal para esta tarefa. O resultado é desconhecido; verifique a sua atividade."
   },
   cancelAll: {
     open: "Parar todas as ferramentas desta sessão",

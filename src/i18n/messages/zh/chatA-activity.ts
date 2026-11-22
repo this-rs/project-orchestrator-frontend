@@ -50,7 +50,7 @@ export default {
     runningAria: "运行中：{summary}",
     stoppedOne: "已接受发送给 {count} 个进程的信号。该进程可能仍在运行。",
     stoppedMany: "已接受发送给 {count} 个进程的信号。它们可能仍在运行。",
-    noPid: "已登记取消，但子进程的 PID 未知——若仍有信号到达，请使用全局停止按钮。"
+    noPid: "尚未确认向此任务发送任何信号。结果未知；请检查其活动状态。"
   },
   cancelAll: {
     open: "停止此会话中的所有工具",

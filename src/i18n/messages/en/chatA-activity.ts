@@ -27,7 +27,7 @@ export default {
     runningAria: 'Running: {summary}',
     stoppedOne: "Signal accepted for {count} process. It may still be running.",
     stoppedMany: "Signal accepted for {count} processes. They may still be running.",
-    noPid: 'Cancel registered, but the subprocess PID wasn’t known — if ticks keep arriving, use the global Stop button.',
+    noPid: "No signal was confirmed for this task. The outcome is unknown; check its activity.",
   },
   cancelAll: {
     open: 'Stop all tools in this session',

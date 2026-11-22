@@ -50,7 +50,7 @@ export default {
     runningAria: "En cours : {summary}",
     stoppedOne: "Signal accepté pour {count} processus. Il peut encore fonctionner.",
     stoppedMany: "Signal accepté pour {count} processus. Ils peuvent encore fonctionner.",
-    noPid: "Annulation enregistrée, mais le PID du sous-processus était inconnu — si des signaux continuent d’arriver, utilisez le bouton d’arrêt global."
+    noPid: "Aucun signal n’a été confirmé pour cette tâche. Le résultat est inconnu ; vérifiez son activité."
   },
   cancelAll: {
     open: 'Arrêter tous les outils de cette session',

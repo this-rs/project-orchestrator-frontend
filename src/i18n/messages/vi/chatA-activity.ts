@@ -50,7 +50,7 @@ export default {
     runningAria: "Đang chạy: {summary}",
     stoppedOne: "Tín hiệu đã được chấp nhận cho {count} tiến trình. Tiến trình đó có thể vẫn chạy.",
     stoppedMany: "Tín hiệu đã được chấp nhận cho {count} tiến trình. Chúng có thể vẫn chạy.",
-    noPid: "Đã ghi nhận yêu cầu hủy nhưng không biết PID của tiến trình con — nếu tín hiệu vẫn tiếp tục đến, hãy dùng nút Dừng toàn cục."
+    noPid: "Chưa xác nhận tín hiệu nào cho tác vụ này. Kết quả chưa rõ; hãy kiểm tra hoạt động của tác vụ."
   },
   cancelAll: {
     open: "Dừng tất cả công cụ trong phiên này",

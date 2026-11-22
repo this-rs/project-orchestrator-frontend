@@ -38,8 +38,7 @@ const FEEDBACK_TTL_MS = 2500
 /**
  * What a Stop click came back with (`CancelTaskResult`):
  * - `success`: the backend signalled at least one process;
- * - `fallback`: the cancel was registered but no pid was known — the
- *   subprocess may survive, the global Stop is the way out;
+ * - `fallback`: no signal was confirmed; the outcome is unknown;
  * - `error`: refused (rate cap) or failed.
  */
 type Feedback =
