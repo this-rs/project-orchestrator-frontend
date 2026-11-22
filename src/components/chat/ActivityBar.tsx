@@ -227,11 +227,12 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
     showFeedback(taskId, null)
     setStoppingFor(taskId, true)
     let timeout: ReturnType<typeof setTimeout> | undefined
+    const localTimeout = Symbol('local task stop timeout')
     try {
       const result = await Promise.race([
         cancelTask(taskId),
         new Promise<never>((_resolve, reject) => {
-          timeout = setTimeout(() => reject(new Error('task stop timed out')), CANCEL_TASK_TIMEOUT_MS)
+          timeout = setTimeout(() => reject(localTimeout), CANCEL_TASK_TIMEOUT_MS)
         }),
       ])
       if (scopeGeneration.current !== generation) return
@@ -246,7 +247,10 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
     } catch (err) {
       if (scopeGeneration.current !== generation) return
       const failure = readCancelFailure(err)
-      if (failure.ownerUnreachable) {
+      if (err === localTimeout) {
+        // The HTTP request is still in flight and may act after this timeout.
+        showFeedback(taskId, { kind: 'error', message: t('chatA-activity.cancel.timeoutNotice') })
+      } else if (failure.ownerUnreachable) {
         // 409 owner_unreachable: the state of the process is unconfirmed.
         showFeedback(taskId, { kind: 'error', message: t('chatA-activity.cancelAll.ownerUnreachable') })
       } else if (failure.code === 'owner_timeout') {

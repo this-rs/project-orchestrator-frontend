@@ -337,7 +337,7 @@ describe('<ActivityBar />', () => {
     expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
   })
 
-  it('times out a stuck task request, retains unknown status, and ignores a late response', async () => {
+  it('reports a still-possible stop on local timeout and ignores a late response', async () => {
     vi.useFakeTimers()
     try {
       let finish!: (value: CancelTaskResult) => void
@@ -345,11 +345,11 @@ describe('<ActivityBar />', () => {
       mount([shell]); expand()
       fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
       await act(() => vi.advanceTimersByTimeAsync(30_000))
-      expect(screen.getByRole('status')).toHaveTextContent('The outcome of this stop request is unknown')
+      expect(screen.getByRole('status')).toHaveTextContent('The stop got no answer in time — it may still happen.')
       expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
       expect(chatApi.cancelTask).toHaveBeenCalledTimes(1)
       await act(() => finish({ task_id: 's1', killed_pids: [1], capped: false }))
-      expect(screen.getByRole('status')).toHaveTextContent('The outcome of this stop request is unknown')
+      expect(screen.getByRole('status')).toHaveTextContent('The stop got no answer in time — it may still happen.')
     } finally { vi.useRealTimers() }
   })
 
