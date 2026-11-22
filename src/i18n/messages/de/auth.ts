@@ -21,6 +21,10 @@ export default {
     description: "Die Anfrage läuft noch. Sie werden angemeldet, sobald sie abgeschlossen ist.",
     keepWaiting: "Weiter warten",
   },
+  bootRefreshFailed: {
+    title: "Server nicht erreichbar",
+    description: "Der Server hat nicht geantwortet. Versuchen Sie es gleich noch einmal.",
+  },
   callback: {
     signingIn: "Sie werden angemeldet…",
     failedTitle: "Authentifizierung fehlgeschlagen",

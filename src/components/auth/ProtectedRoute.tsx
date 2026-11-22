@@ -20,6 +20,7 @@ import {
   forceLogout,
 } from '@/services/authManager'
 import { Button, ErrorState, Spinner } from '@/components/ui'
+import { isDefinitiveRefusal, refreshAtBoot } from './bootRefresh'
 import { useT } from '@/i18n'
 
 /**
@@ -55,6 +56,10 @@ export function ProtectedRoute() {
   const [userFetchAttempt, setUserFetchAttempt] = useState(0)
   const [bootRefreshDone, setBootRefreshDone] = useState(false)
   const [bootRefreshSlow, setBootRefreshSlow] = useState(false)
+  // The refresh FAILED (server slow/down): the cookie was not refused, so the
+  // person is shown a retry instead of being sent to /login.
+  const [bootRefreshFailed, setBootRefreshFailed] = useState(false)
+  const [bootRefreshAttempt, setBootRefreshAttempt] = useState(0)
   const bootRefreshStarted = useRef(false)
 
   // Inject React Router navigate + Jotai setters into authManager singleton
@@ -109,6 +114,12 @@ export function ProtectedRoute() {
   // When the user is already authenticated (e.g. just logged in), we skip the
   // refresh — the `needsBootRefresh` guard below prevents the effect from running.
   const needsBootRefresh = providersLoaded && authMode === 'required' && !isAuthenticated
+
+  // A late refresh (another loader got a token) ends the failure: do not keep the
+  // error screen around for a later loss of session.
+  useEffect(() => {
+    if (isAuthenticated) setBootRefreshFailed(false)
+  }, [isAuthenticated])
   useEffect(() => {
     if (!needsBootRefresh) return
 
@@ -116,16 +127,22 @@ export function ProtectedRoute() {
     if (bootRefreshStarted.current) return
     bootRefreshStarted.current = true
 
-    refreshToken()
+    refreshAtBoot(refreshToken)
       .then((token) => {
         setToken(token)
         setBootRefreshDone(true)
       })
-      .catch(() => {
-        // No valid cookie → user needs to log in
-        setBootRefreshDone(true)
+      .catch((error: unknown) => {
+        if (isDefinitiveRefusal(error)) {
+          // The server said the cookie does not work → user needs to log in
+          setBootRefreshDone(true)
+        } else {
+          // Slow, restarting or unreachable server: says nothing about the
+          // cookie. Keep the session and offer a retry.
+          setBootRefreshFailed(true)
+        }
       })
-  }, [needsBootRefresh, setToken])
+  }, [needsBootRefresh, setToken, bootRefreshAttempt])
 
   // Do not abort a refresh in flight: the server may already have consumed
   // its one-use cookie. Offer a way to keep waiting without issuing a second
@@ -195,6 +212,24 @@ export function ProtectedRoute() {
     authMode === 'required' && !isAuthenticated && !bootRefreshDone
   const loading =
     !providersLoaded || (waitingForBootRefresh && !bootRefreshSlow) || (needsUserFetch && !authError)
+
+  if (bootRefreshFailed && authMode === 'required' && !isAuthenticated) {
+    return (
+      <div role="alert">
+        <ErrorState
+          title={t('auth.bootRefreshFailed.title')}
+          description={t('auth.bootRefreshFailed.description')}
+          onRetry={() => {
+            bootRefreshStarted.current = false
+            setBootRefreshFailed(false)
+            setBootRefreshDone(false)
+            setBootRefreshSlow(false)
+            setBootRefreshAttempt((attempt) => attempt + 1)
+          }}
+        />
+      </div>
+    )
+  }
 
   if (loading) {
     return (

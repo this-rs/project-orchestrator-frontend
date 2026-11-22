@@ -21,6 +21,10 @@ export default {
     description: "Yêu cầu vẫn đang được xử lý. Bạn sẽ đăng nhập khi yêu cầu hoàn tất.",
     keepWaiting: "Tiếp tục chờ",
   },
+  bootRefreshFailed: {
+    title: "Không thể kết nối máy chủ",
+    description: "Máy chủ không phản hồi. Vui lòng thử lại sau giây lát.",
+  },
   callback: {
     signingIn: "Đang đăng nhập cho bạn…",
     failedTitle: "Xác thực thất bại",

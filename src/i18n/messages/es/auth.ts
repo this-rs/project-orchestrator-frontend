@@ -21,6 +21,10 @@ export default {
     description: "La solicitud sigue en curso. Iniciarás sesión cuando termine.",
     keepWaiting: "Seguir esperando",
   },
+  bootRefreshFailed: {
+    title: "No se puede contactar con el servidor",
+    description: "El servidor no respondió. Inténtelo de nuevo en un momento.",
+  },
   callback: {
     signingIn: "Iniciando sesión…",
     failedTitle: "Error de autenticación",

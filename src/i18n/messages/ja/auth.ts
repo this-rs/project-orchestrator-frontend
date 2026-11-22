@@ -21,6 +21,10 @@ export default {
     description: "リクエストは処理中です。完了するとサインインします。",
     keepWaiting: "待機を続ける",
   },
+  bootRefreshFailed: {
+    title: "サーバーに接続できません",
+    description: "サーバーが応答しませんでした。しばらくしてからもう一度お試しください。",
+  },
   callback: {
     signingIn: "サインインしています…",
     failedTitle: "認証に失敗しました",
