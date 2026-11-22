@@ -13,6 +13,7 @@ import { distinctModels } from '@/utils/routingSelection'
 import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatDraftWorkspaceAtom, newConversationDraftKey, setChatDraftByKeyAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatVaultWaitAtom, chatModelWaitAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom, chatOneOffProviderPickAtom, usablePickedProvider, dropStalePickAtom, clearOneOffProviderPickAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
+import { setChatSessionOpenErrorByKeyAtom } from '@/atoms/providers'
 import { applyResultCost } from '@/utils/cost'
 import { isUserStoppedTurn } from '@/utils/turnEnd'
 import { chatApi, ChatWebSocket } from '@/services'
@@ -289,10 +290,10 @@ export interface SessionMeta {
 
 export function useChat() {
   const [sessionId, setSessionId] = useAtom(chatSessionIdAtom)
-  const [isStreaming, setIsStreaming] = useAtom(chatStreamingAtom)
+  const [streaming, setIsStreaming] = useAtom(chatStreamingAtom)
   useEffect(() => {
     flagStampRef.current += 1
-  }, [isStreaming])
+  }, [streaming])
   const interruptWatchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Bumped whenever `isStreaming` changes: a REST verdict older than the last change is stale. */
   const flagStampRef = useRef(0)
@@ -366,7 +367,13 @@ export function useChat() {
     for (const timer of pendingScopedAnswersRef.current.values()) clearTimeout(timer)
     pendingScopedAnswersRef.current.clear()
   }, [])
-  const [isSending, setIsSending] = useState(false)
+  // Session creation belongs to the workspace in which it started. A different
+  // workspace must remain usable while the first request is in flight.
+  const draftWorkspace = useAtomValue(chatDraftWorkspaceAtom)
+  const openingWorkspacesRef = useRef(new Set<string | null>())
+  const [openingWorkspaces, setOpeningWorkspaces] = useState(new Set<string | null>())
+  const isSending = sessionId === null && openingWorkspaces.has(draftWorkspace)
+  const isStreaming = sessionId === null ? isSending : streaming
   const [sessionMeta, setSessionMeta] = useState<SessionMeta | null>(null)
 
   // Flag to distinguish first-message session creation from loadSession().
@@ -2358,6 +2365,38 @@ export function useChat() {
   // Actions
   // ========================================================================
 
+  // Deliver a queue belonging to a newly created session without replacing the
+  // conversation the user navigated to. The normal socket and this socket both
+  // consume the same atom, so whichever becomes ready first removes each item.
+  const handOffBackgroundQueue = useCallback((sid: string) => {
+    if (!(store.get(chatMessageQueuesAtom)[sid] ?? []).some((entry) => entry.local)) return
+    const ws = new ChatWebSocket()
+    let refsEnabled = false
+    let unsubscribe = () => {}
+    const close = () => {
+      unsubscribe()
+      ws.disconnect()
+    }
+    unsubscribe = store.sub(chatMessageQueuesAtom, () => {
+      if (!(store.get(chatMessageQueuesAtom)[sid] ?? []).some((entry) => entry.local)) close()
+    })
+    ws.setCallbacks({
+      onFeatures: (features) => { refsEnabled = features.includes('refs_v1') },
+      onReplayComplete: () => {
+        const queue = store.get(chatMessageQueuesAtom)[sid] ?? []
+        let remaining = queue
+        for (const entry of queue) {
+          if (!entry.local) continue
+          const refs = refsForWire(refsEnabled, entry.refs)
+          if (!ws.sendUserMessage(entry.text, entry.attachmentIds, { queue: true, ...(refs ? { refs } : {}) })) break
+          remaining = remaining.filter((item) => item.id !== entry.id)
+        }
+        if (remaining !== queue) store.set(chatMessageQueuesAtom, withQueue(store.get(chatMessageQueuesAtom), sid, remaining))
+      },
+    })
+    void ws.connect(sid, Number.MAX_SAFE_INTEGER)
+  }, [store])
+
   /**
    * Send a user message, optionally carrying document ids.
    *
@@ -2371,8 +2410,6 @@ export function useChat() {
     // References leave only toward a server that announced `refs_v1` (contract C7);
     // otherwise the message goes out exactly as it always did.
     const sentRefs = refsForWire(store.get(refsEnabledAtom), refs)
-    // A new attempt: whatever the previous one failed on is no longer the news.
-    store.set(chatSessionOpenErrorAtom, null)
     // Known before the optimistic bubble is added, so a failed creation can
     // take exactly that bubble back out.
     const userMessageId = nextMessageId()
@@ -2380,6 +2417,9 @@ export function useChat() {
     // another workspace while the new conversation is opening.
     const draftWorkspace = store.get(chatDraftWorkspaceAtom)
     const draftKey = sessionId ?? newConversationDraftKey(draftWorkspace)
+    // Clear only this opening's error. Other workspaces may still have a failed
+    // message whose attachments need to be retried.
+    if (!sessionId) store.set(setChatSessionOpenErrorByKeyAtom, { key: draftKey, error: null })
     store.set(setChatDraftByKeyAtom, { key: draftKey, value: '' })
 
     // Add user message to UI immediately (optimistic).
@@ -2421,7 +2461,8 @@ export function useChat() {
 
     if (!sessionId) {
       // First message — create session via REST, then connect WS
-      setIsSending(true)
+      openingWorkspacesRef.current.add(draftWorkspace)
+      setOpeningWorkspaces(new Set(openingWorkspacesRef.current))
       setIsStreaming(true)
       try {
         // Which routing mode governs this conversation. Read from the settings
@@ -2491,7 +2532,9 @@ export function useChat() {
         // replace the conversation now on screen in the other workspace.
         if (store.get(chatDraftWorkspaceAtom) !== draftWorkspace || store.get(chatSessionIdAtom) !== null) {
           setMessages((prev) => prev.filter((m) => m.id !== userMessageId))
-          if (store.get(chatSessionIdAtom) === null) setIsStreaming(false)
+          if (store.get(chatSessionIdAtom) === response.session_id) syncLocalQueueRef.current()
+          else handOffBackgroundQueue(response.session_id)
+          if (store.get(chatSessionIdAtom) === null && !openingWorkspacesRef.current.has(store.get(chatDraftWorkspaceAtom))) setIsStreaming(false)
           return
         }
         // Signal that the upcoming sessionId change is from a first send,
@@ -2537,19 +2580,20 @@ export function useChat() {
         // The text goes back to the composer rather than being lost; anything
         // typed while the request was pending is kept after it.
         store.set(setChatDraftByKeyAtom, { key: draftKey, value: (typed) => (typed.trim() === '' ? text : `${text}\n${typed}`) })
-        if (store.get(chatDraftWorkspaceAtom) !== draftWorkspace || store.get(chatSessionIdAtom) !== null) {
-          if (store.get(chatSessionIdAtom) === null) setIsStreaming(false)
-          return
-        }
-        setIsStreaming(false)
-        store.set(chatSessionOpenErrorAtom, {
+        store.set(setChatSessionOpenErrorByKeyAtom, { key: draftKey, error: {
           info: toProviderError(err),
           message: apiErrorMessage(err, tr('app.chat.startFailed')),
           text,
           attachments: attachments ?? [],
-        })
+        } })
+        if (store.get(chatDraftWorkspaceAtom) !== draftWorkspace || store.get(chatSessionIdAtom) !== null) {
+          if (store.get(chatSessionIdAtom) === null && !openingWorkspacesRef.current.has(store.get(chatDraftWorkspaceAtom))) setIsStreaming(false)
+          return
+        }
+        setIsStreaming(false)
       } finally {
-        setIsSending(false)
+        openingWorkspacesRef.current.delete(draftWorkspace)
+        setOpeningWorkspaces(new Set(openingWorkspacesRef.current))
       }
       // WS will auto-connect via the useEffect above when sessionId changes
     } else {
@@ -2573,7 +2617,7 @@ export function useChat() {
         pendingSendRef.current.push({ text, attachments, ...(sentRefs ? { refs: sentRefs } : {}) })
       }
     }
-  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, moveDraft, moveQueue, store, wirePermissionMode, openingPermissionMode])
+  }, [sessionId, setSessionId, setIsStreaming, getWs, setPermissionOverride, moveDraft, moveQueue, store, wirePermissionMode, openingPermissionMode, handOffBackgroundQueue])
 
   /**
    * Send "Continue" after max_turns — adds a discreet inline indicator instead of a user bubble.
@@ -2876,7 +2920,7 @@ export function useChat() {
     applySessionRuntime(null)
     store.set(chatSessionRoutingAtom, null)
     store.set(chatForcedTargetAtom, false)
-    store.set(chatSessionOpenErrorAtom, null)
+    if (!sessionId) store.set(chatSessionOpenErrorAtom, null)
   }, [store, getWs, setSessionId, setIsStreaming, setIsReplaying, setPermissionOverride, setSessionModel, sessionId, applySessionRuntime])
 
   const changePermissionMode = useCallback((mode: ToolPolicyMode) => {

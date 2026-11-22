@@ -7,8 +7,10 @@ editing a new conversation in another workspace cannot overwrite it.
 
 Text typed while a conversation opens follows the resulting session. If the
 opening fails, the message is restored to the workspace where it was sent, even
-if the user has since moved elsewhere. Local queued messages follow the same
-workspace and session until they can be handed to the server.
+if the user has since moved elsewhere. A failed opening retains its uploaded
+attachments with the workspace's error so a retry can include them. Messages
+queued during an opening follow that session and are handed to the server even
+when another workspace is on screen.
 
 Older versions stored one shared, unscoped new-conversation draft. Since its
 original workspace is unknown, the first workspace opened without an existing

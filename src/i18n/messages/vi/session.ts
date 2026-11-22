@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  openError: {
+    attached: "{count} tệp đã đính kèm trước đó sẽ được gửi cùng bản nháp này. Đóng thông báo lỗi sẽ bỏ các tệp đó.",
+    retry: "Thử lại",
+    discard: "Bỏ tệp và đóng",
+  },
   place: {
     neutral: "Vị trí trung lập",
     neutralHint: "Chạy trong một thư mục trống do máy chủ tạo, ngoài mọi dự án. Các tệp được ghi vào đó sẽ bị xóa khi đóng cuộc trò chuyện.",

@@ -339,13 +339,18 @@ export function ChatPanel() {
     // `sendMessage` reports a failed session creation itself (see
     // `chatSessionOpenErrorAtom`). Anything else it could reject with is
     // logged here: a send must never end as an unhandled rejection.
+    // A failed opening retains the files already uploaded for that draft.
+    // Sending from the composer is also a retry and must not omit them.
+    const failedAttachments = store.get(chatSessionOpenErrorAtom)?.attachments ?? []
+    const sendAttachments = [...new Set([...failedAttachments, ...(attachmentIds ?? [])])]
+    const retainedIds = sendAttachments.length > 0 ? sendAttachments : undefined
     // `refs` is passed only when there are some: a message without them reaches sendMessage exactly as before.
     const send = (...args: Parameters<typeof chat.sendMessage>) => {
       const call = refs && refs.length > 0 ? args : args.slice(0, 3)
       Promise.resolve(chat.sendMessage(...(call as Parameters<typeof chat.sendMessage>))).catch((err: unknown) => console.error('Send failed', err))
     }
     if (!isNewConversation) {
-      send(text, undefined, attachmentIds, refs)
+      send(text, undefined, retainedIds, refs)
       return
     }
     if (projectContext && selectedProject) {
@@ -355,7 +360,7 @@ export function ChatPanel() {
         cwd: selectedProject.root_path ?? '',
         workspaceSlug: allProjectsMode ? (activeWsSlug || undefined) : undefined,
         projectSlug: allProjectsMode ? undefined : selectedProject.slug,
-      }, attachmentIds, refs)
+      }, retainedIds, refs)
     } else if (neutralPlace) {
       // No project: no `cwd` — the server opens it in its neutral place. A workspace that
       // holds no project yet still SCOPES the conversation: it belongs to the workspace, so
@@ -363,7 +368,7 @@ export function ChatPanel() {
       // that opens read-only). With projects, « No project » is kept exactly as asked and
       // nothing is added.
       const scope = !workspaceHasProjects && activeWsSlug ? { workspaceSlug: activeWsSlug } : {}
-      send(text, { cwd: '', ...scope }, attachmentIds, refs)
+      send(text, { cwd: '', ...scope }, retainedIds, refs)
     }
   }, [isNewConversation, hasContext, projectContext, neutralPlace, selectedProject, allProjectsMode, activeWsSlug, workspaceHasProjects, chat.sendMessage, chat.sessionId, store])
 

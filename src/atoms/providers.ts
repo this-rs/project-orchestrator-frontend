@@ -23,7 +23,7 @@ import { routingApi } from '@/services/routing'
 import { conversationModeOfServer, type ConversationRoutingMode, type LearningStage, type RoutingSettingsResponse } from '@/types/routing'
 import { pickModelResolver } from '@/constants/providers'
 import { modeOf, type RoutingPick } from '@/utils/routingSelection'
-import { chatPermissionConfigAtom, chatSelectedProjectAtom, chatSessionIdAtom, chatSessionModelAtom } from './chat'
+import { chatDraftWorkspaceAtom, newConversationDraftKey, chatPermissionConfigAtom, chatSelectedProjectAtom, chatSessionIdAtom, chatSessionModelAtom } from './chat'
 import type { EffectiveCapabilities } from '@/types/chat'
 import { withEffectiveImages } from '@/constants/engine'
 
@@ -106,7 +106,30 @@ export interface ChatSessionOpenError {
   attachments: string[]
 }
 
-export const chatSessionOpenErrorAtom = atom<ChatSessionOpenError | null>(null)
+// The opening may fail after the user has moved to another workspace. Keep
+// its error and unsent attachment ids with the draft that initiated it.
+const chatSessionOpenErrorsAtom = atom<Record<string, ChatSessionOpenError>>({})
+
+export const setChatSessionOpenErrorByKeyAtom = atom(
+  null,
+  (get, set, { key, error }: { key: string; error: ChatSessionOpenError | null }) => {
+    const errors = { ...get(chatSessionOpenErrorsAtom) }
+    if (error) errors[key] = error
+    else delete errors[key]
+    set(chatSessionOpenErrorsAtom, errors)
+  },
+)
+
+export const clearChatSessionOpenErrorsAtom = atom(null, (_get, set) => set(chatSessionOpenErrorsAtom, {}))
+
+export const chatSessionOpenErrorAtom = atom(
+  (get) => get(chatSessionIdAtom) ? null : get(chatSessionOpenErrorsAtom)[newConversationDraftKey(get(chatDraftWorkspaceAtom))] ?? null,
+  (get, set, error: ChatSessionOpenError | null) => {
+    // A session has its own UI; it must not dismiss a new draft's failure.
+    if (get(chatSessionIdAtom)) return
+    set(setChatSessionOpenErrorByKeyAtom, { key: newConversationDraftKey(get(chatDraftWorkspaceAtom)), error })
+  },
+)
 
 /**
  * Provider of the CURRENT session, as its last `system_init` (or its session

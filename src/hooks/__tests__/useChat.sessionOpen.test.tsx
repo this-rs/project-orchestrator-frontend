@@ -167,7 +167,7 @@ describe('useChat.sendMessage — a session creation that fails', () => {
     const { result, store } = setup((s) => s.set(chatDraftWorkspaceAtom, 'workspace-a'))
 
     let pending: Promise<void> = Promise.resolve()
-    act(() => { pending = result.current.sendMessage('first', OPTIONS) })
+    act(() => { pending = result.current.sendMessage('first', OPTIONS, ['doc-1']) })
     await waitFor(() => expect(chatApi.createSession).toHaveBeenCalled())
     act(() => {
       store.set(chatDraftWorkspaceAtom, 'workspace-b')
@@ -182,6 +182,25 @@ describe('useChat.sendMessage — a session creation that fails', () => {
     expect(store.get(chatSessionOpenErrorAtom)).toBeNull()
     act(() => store.set(chatDraftWorkspaceAtom, 'workspace-a'))
     expect(store.get(chatDraftInputAtom)).toBe('first')
+    expect(store.get(chatSessionOpenErrorAtom)).toMatchObject({ text: 'first', attachments: ['doc-1'] })
+  })
+
+  it('keeps a failed draft and its attachments when an existing session is opened then left', async () => {
+    vi.mocked(chatApi.createSession).mockRejectedValue(new ApiError(500, 'boom'))
+    const { result, store } = setup((s) => s.set(chatDraftWorkspaceAtom, 'workspace-a'))
+    await act(async () => {
+      await result.current.sendMessage('first', OPTIONS, ['doc-1'])
+    })
+    expect(store.get(chatSessionOpenErrorAtom)?.attachments).toEqual(['doc-1'])
+
+    await act(async () => { await result.current.loadSession('existing') })
+    expect(store.get(chatSessionOpenErrorAtom)).toBeNull()
+    act(() => store.set(chatDraftWorkspaceAtom, 'workspace-b'))
+    act(() => store.set(chatDraftWorkspaceAtom, 'workspace-a'))
+    act(() => result.current.newSession())
+
+    expect(store.get(chatDraftInputAtom)).toBe('first')
+    expect(store.get(chatSessionOpenErrorAtom)).toMatchObject({ text: 'first', attachments: ['doc-1'] })
   })
 
   it('moves only the original workspace draft when creation finishes after a switch', async () => {
