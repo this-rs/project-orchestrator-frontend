@@ -15,6 +15,7 @@ import type { ReactNode } from 'react'
 import { createElement } from 'react'
 import { Provider, createStore } from 'jotai'
 import { chatBackgroundTasksAtom, chatSessionIdAtom } from '@/atoms'
+import { authModeAtom, authModeConfirmedAtom, currentUserAtom } from '@/atoms/auth'
 import type { BackgroundTaskInfo, CancelTaskResult } from '@/types'
 
 // Mock the chat service before importing the hook so the spy lands on
@@ -23,12 +24,15 @@ vi.mock('@/services/chat', () => {
   return {
     chatApi: {
       cancelTask: vi.fn<
-        (sessionId: string, taskId: string) => Promise<CancelTaskResult>
+        (sessionId: string, taskId: string, beforeSend: (token: string | null) => boolean) => Promise<CancelTaskResult>
       >(),
     },
   }
 })
 
+vi.mock('@/services/auth', () => ({ getAuthMode: vi.fn(() => 'required') }))
+
+import { getAuthMode } from '@/services/auth'
 import { chatApi } from '@/services/chat'
 import { useBackgroundTasks } from './useBackgroundTasks'
 import { ApiError } from '@/services/api'
@@ -106,7 +110,7 @@ describe('useBackgroundTasks', () => {
     })
 
     const out = await result.current.cancelTask('toolu_01ABC')
-    expect(chatApi.cancelTask).toHaveBeenCalledWith('sess-42', 'toolu_01ABC')
+    expect(chatApi.cancelTask).toHaveBeenCalledWith('sess-42', 'toolu_01ABC', expect.any(Function))
     expect(out).toEqual(expected)
   })
 
@@ -169,4 +173,48 @@ describe('useBackgroundTasks', () => {
       expect(err.failure).toEqual({ code, retryable, ownerUnreachable: false, status })
     }
   })
+
+  it('only authorizes sending for the same session, confirmed mode, and unexpired user token', async () => {
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'sess-42')
+    store.set(authModeAtom, 'required')
+    store.set(authModeConfirmedAtom, true)
+    store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' })
+    vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({ task_id: 'task', killed_pids: [], capped: false })
+    const { result } = renderHook(() => useBackgroundTasks(), { wrapper: withStore(store) })
+    await result.current.cancelTask('task')
+    const guard = vi.mocked(chatApi.cancelTask).mock.calls[0][2]
+    const token = (sub: string, exp: number) => `e30.${btoa(JSON.stringify({ sub, exp }))}.sig`
+    const now = Math.floor(Date.now() / 1000)
+    expect(guard(token('user-a', now + 60))).toBe(true)
+    expect(guard(token('user-b', now + 60))).toBe(false)
+    expect(guard(token('user-a', now - 1))).toBe(false)
+    expect(guard(null)).toBe(false)
+    expect(guard('invalid')).toBe(false)
+    act(() => store.set(currentUserAtom, { id: 'user-b', email: 'b@example.com', name: 'B' }))
+    expect(guard(token('user-a', now + 60))).toBe(false)
+    act(() => store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' }))
+    act(() => store.set(chatSessionIdAtom, 'other-session'))
+    expect(guard(token('user-a', now + 60))).toBe(false)
+    act(() => store.set(chatSessionIdAtom, 'sess-42'))
+    act(() => store.set(authModeConfirmedAtom, false))
+    expect(guard(token('user-a', now + 60))).toBe(false)
+  })
+
+  it('allows no-auth only when the server confirmed that mode', async () => {
+    vi.mocked(getAuthMode).mockReturnValueOnce('none').mockReturnValueOnce('none')
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'sess-42')
+    store.set(authModeAtom, 'none')
+    store.set(authModeConfirmedAtom, true)
+    vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({ task_id: 'task', killed_pids: [], capped: false })
+    const { result } = renderHook(() => useBackgroundTasks(), { wrapper: withStore(store) })
+    await result.current.cancelTask('task')
+    const guard = vi.mocked(chatApi.cancelTask).mock.calls[0][2]
+    expect(guard(null)).toBe(true)
+    expect(guard('anything')).toBe(false)
+    act(() => store.set(authModeConfirmedAtom, false))
+    expect(guard(null)).toBe(false)
+  })
+
 })

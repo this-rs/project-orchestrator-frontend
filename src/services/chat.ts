@@ -205,10 +205,11 @@ export const chatApi = {
    * `capped: true` means the per-session rate limit (30/5min) was
    * hit; the caller should display a "slow down" toast.
    */
-  cancelTask: (sessionId: string, taskId: string) =>
-    api.post<CancelTaskResult>(
+  cancelTask: (sessionId: string, taskId: string, beforeSend: (token: string | null) => boolean) =>
+    api.postOnceCurrentToken<CancelTaskResult>(
       `/chat/sessions/${sessionId}/cancel-task/${encodeURIComponent(taskId)}`,
       {},
+      beforeSend,
     ),
 
   // PATH detection
