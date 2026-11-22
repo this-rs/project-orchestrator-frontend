@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   allowRegistrationAtom,
@@ -9,6 +9,7 @@ import {
   isAuthenticatedAtom,
 } from '@/atoms'
 import { authApi, setAuthMode as setAuthModeService } from '@/services'
+import { consumeReturnPath, isReturnablePath, rememberReturnPath } from '@/services/authManager'
 import { LogIn } from 'lucide-react'
 import { Spinner, Branding, Button, textLink } from '@/components/ui'
 import { useT } from '@/i18n'
@@ -32,6 +33,8 @@ import { ProductMark, ScreenHeader, StandaloneScreen, StatusBanner } from '@/pag
 export function LoginPage() {
   const { t } = useT()
   const navigate = useNavigate()
+  const location = useLocation()
+  const fromState = (location.state as { from?: unknown } | null)?.from
   const isAuthenticated = useAtomValue(isAuthenticatedAtom)
   const authMode = useAtomValue(authModeAtom)
   const providers = useAtomValue(authProvidersAtom)
@@ -44,6 +47,14 @@ export function LoginPage() {
   const [showRegister, setShowRegister] = useState(false)
   const [oidcLoading, setOidcLoading] = useState(false)
   const [oidcError, setOidcError] = useState<string | null>(null)
+
+  // ProtectedRoute hands the page it bounced from in the router state. Keep it
+  // with the forced-logout memory so that every sign-in path (password form,
+  // registration, OIDC callback after a full-page round trip) finds it in one
+  // place. Declared first: effects run in order within a component.
+  useEffect(() => {
+    if (isReturnablePath(fromState)) rememberReturnPath(fromState)
+  }, [fromState])
 
   // Fetch providers if not already loaded (e.g. navigating to /login directly)
   useEffect(() => {
@@ -70,7 +81,7 @@ export function LoginPage() {
   useEffect(() => {
     if (!providersLoaded) return
     if (isAuthenticated || authMode === 'none') {
-      navigate('/', { replace: true })
+      navigate(consumeReturnPath(), { replace: true })
     }
   }, [providersLoaded, isAuthenticated, authMode, navigate])
 

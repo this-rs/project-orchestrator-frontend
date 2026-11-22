@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import { consumeReturnPath } from '@/services/authManager'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
 import { authApi, setAuthToken } from '@/services'
@@ -88,7 +89,7 @@ export function AuthCallbackPage() {
         setAuthToken(token) // Module-level cache for api.ts Bearer header
         setToken(token)
         setUser(user)
-        navigate('/', { replace: true })
+        navigate(consumeReturnPath(), { replace: true })
       })
       .catch((e) => {
         setExchangeError(e instanceof Error ? e.message : t('auth.callback.failed'))

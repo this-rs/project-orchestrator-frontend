@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { consumeReturnPath } from '@/services/authManager'
 import { useSetAtom } from 'jotai'
 import { authTokenAtom, currentUserAtom } from '@/atoms'
 import { authApi, setAuthToken } from '@/services'
@@ -42,7 +43,7 @@ export function PasswordLoginForm() {
       setAuthToken(token) // Module-level cache for api.ts Bearer header
       setToken(token)
       setUser(user)
-      navigate('/', { replace: true })
+      navigate(consumeReturnPath(), { replace: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : t('auth.form.loginFailed'))
     } finally {
