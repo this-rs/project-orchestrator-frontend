@@ -6,7 +6,11 @@
  */
 import { describe, it, expect } from 'vitest'
 import type { ChatMessage } from '@/types'
-import { messagesToMarkdown } from './chatExport'
+import { messageBodyToMarkdown, messagesToMarkdown } from './chatExport'
+import { historyEventsToMessages } from './chatAssembly'
+import { activeTranslator, setActiveTranslator } from '@/i18n/active'
+import { loadLocale } from '@/i18n/store'
+import { createTranslator } from '@/i18n/translate'
 
 const at = new Date('2026-10-05T10:00:00Z')
 const assistant = (extra: Partial<ChatMessage> = {}): ChatMessage => ({
@@ -79,18 +83,46 @@ describe('messagesToMarkdown — cost by basis', () => {
   })
 })
 
-describe('a cancel notice in the export', () => {
-  it('is written as a notice, not an error; a real error keeps "Error:"', () => {
-    const msg: ChatMessage = {
-      id: 'a', role: 'assistant', timestamp: new Date('2026-10-10T12:00:00Z'),
-      blocks: [
-        { id: 'n', type: 'error', content: 'Error: unsupported', metadata: { cancel_notice: true, code: 'cancel_refused' } },
-        { id: 'e', type: 'error', content: 'boom' },
-      ],
+describe('cancel notices in copied and exported markdown', () => {
+  it('uses the displayed notice instead of the backend message, while preserving ordinary errors', () => {
+    const msg = assistant({ blocks: [
+      { id: 'n', type: 'error', content: 'Already stopped — nothing was running any more.', metadata: { cancel_notice: true, code: 'cancel_failed', reason: 'owner_unreachable' } },
+      { id: 'e', type: 'error', content: 'boom' },
+    ] })
+    for (const md of [messageBodyToMarkdown(msg), messagesToMarkdown([msg])]) {
+      expect(md).toContain('> **Notice:** Owner unreachable; no stop was confirmed. Check the session activity.')
+      expect(md).toContain('> **Error:** boom')
+      expect(md).not.toContain('Already stopped')
     }
-    const md = messagesToMarkdown([msg])
-    expect(md).toContain('> **Notice:** Error: unsupported')
-    expect(md).toContain('> **Error:** boom')
-    expect(md).not.toContain('> **Error:** Error: unsupported')
+  })
+
+  it('uses the active language when copying and exporting', async () => {
+    const original = activeTranslator()
+    try {
+      setActiveTranslator(createTranslator('fr', await loadLocale('fr')))
+      const msg = assistant({ blocks: [{ id: 'n', type: 'error', content: 'raw', metadata: { cancel_notice: true, code: 'cancel_failed', reason: 'owner_unreachable' } }] })
+      const notice = activeTranslator().t('chatA-activity.cancelAll.ownerUnreachable')
+      expect(notice).not.toContain('Owner unreachable')
+      expect(messageBodyToMarkdown(msg)).toContain(`> **Notice:** ${notice}`)
+      expect(messagesToMarkdown([msg])).toContain(`> **Notice:** ${notice}`)
+    } finally {
+      setActiveTranslator(original)
+    }
+  })
+
+  it.each([
+    ['cancel_failed', 'owner_timeout', 'The stop got no answer in time'],
+    ['cancel_failed', 'session_gone', 'The outcome of this stop request is unknown'],
+    ['cancel_refused', 'tool_cancel', 'A refusal was received'],
+    ['cancel_refused', 'background_tasks', 'A refusal was received'],
+  ])('uses the notice from replay metadata for %s / %s', (code, reason, expected) => {
+    const raw = 'backend claims stop succeeded'
+    const messages = historyEventsToMessages([{ type: 'error', message: raw, code, reason }] as never[])
+    expect(messages).toHaveLength(1)
+    expect(messages[0].blocks[0].metadata).toMatchObject({ cancel_notice: true, code, reason })
+    for (const md of [messageBodyToMarkdown(messages[0]), messagesToMarkdown(messages)]) {
+      expect(md).toContain(`> **Notice:** ${expected}`)
+      expect(md).not.toContain(raw)
+    }
   })
 })
