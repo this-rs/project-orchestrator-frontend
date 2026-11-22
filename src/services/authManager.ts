@@ -64,6 +64,51 @@ function isOnAuthExemptRoute(): boolean {
   )
 }
 
+/**
+ * Where to send the person back after they log in again. Kept in
+ * sessionStorage so it survives a full-page hop (OIDC provider round-trip) and
+ * a forced logout; never an auth route, never an external URL.
+ */
+const RETURN_PATH_KEY = 'po.auth.returnPath'
+
+export function isReturnablePath(path: unknown): path is string {
+  return (
+    typeof path === 'string' &&
+    path.startsWith('/') &&
+    !path.startsWith('//') &&
+    path !== LOGIN_PATH &&
+    path !== AUTH_CALLBACK_PATH &&
+    !path.startsWith(`${LOGIN_PATH}?`) &&
+    !path.startsWith(`${AUTH_CALLBACK_PATH}?`)
+  )
+}
+
+export function rememberReturnPath(path: string): void {
+  if (!isReturnablePath(path)) return
+  try {
+    sessionStorage.setItem(RETURN_PATH_KEY, path)
+  } catch {
+    // Storage unavailable (private mode): the person lands on the default page.
+  }
+}
+
+export function peekReturnPath(): string | null {
+  try {
+    const value = sessionStorage.getItem(RETURN_PATH_KEY)
+    return isReturnablePath(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
+export function clearReturnPath(): void {
+  try {
+    sessionStorage.removeItem(RETURN_PATH_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 /** Inject React Router navigate (called from ProtectedRoute on mount) */
 export function setNavigate(fn: NavigateFn): void {
   _navigate = fn
@@ -319,7 +364,8 @@ export function forceLogout(): void {
       // EventBus may not be initialized yet — ignore
     }
 
-    // 6. Navigate to login
+    // 6. Navigate to login, remembering the page the person was on
+    rememberReturnPath(window.location.pathname + window.location.search)
     if (_navigate) {
       _navigate('/login')
     } else {

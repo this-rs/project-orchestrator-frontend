@@ -8,7 +8,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { Provider, createStore } from 'jotai'
-import { authProvidersAtom, authProvidersLoadedAtom, authModeAtom, allowRegistrationAtom } from '@/atoms'
+import { authProvidersAtom, authProvidersLoadedAtom, authModeAtom, allowRegistrationAtom, authTokenAtom } from '@/atoms'
+import { rememberReturnPath, peekReturnPath } from '@/services/authManager'
 import { installMatchMedia } from './testUtils'
 
 const getOidcAuthUrl = vi.fn()
@@ -51,6 +52,52 @@ function renderLogin(providers: ProviderInfo[], allowRegistration = false) {
 describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    sessionStorage.clear()
+  })
+
+  it('brings a person back to the page they were on when the session had expired', () => {
+    const store = createStore()
+    store.set(authProvidersLoadedAtom, true)
+    store.set(authModeAtom, 'required')
+    store.set(authProvidersAtom, [{ type: 'password', name: 'Password' }] as never)
+    store.set(authTokenAtom, 'jwt')
+    render(
+      <Provider store={store}>
+        <MemoryRouter
+          initialEntries={[{ pathname: '/login', state: { from: '/w/alpha/chat?session=abc' } }]}
+        >
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/w/alpha/chat" element={<div>Chat page</div>} />
+            <Route path="/" element={<div>Overview</div>} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>,
+    )
+    expect(screen.getByText('Chat page')).toBeTruthy()
+    expect(screen.queryByText('Overview')).toBeNull()
+  })
+
+  it('falls back to the remembered path after a forced logout, then forgets it', () => {
+    rememberReturnPath('/w/beta/plans/42')
+    const store = createStore()
+    store.set(authProvidersLoadedAtom, true)
+    store.set(authModeAtom, 'required')
+    store.set(authProvidersAtom, [{ type: 'password', name: 'Password' }] as never)
+    store.set(authTokenAtom, 'jwt')
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/login']}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/w/beta/plans/42" element={<div>Plan page</div>} />
+            <Route path="/" element={<div>Overview</div>} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>,
+    )
+    expect(screen.getByText('Plan page')).toBeTruthy()
+    expect(peekReturnPath()).toBeNull()
   })
 
   it('names the screen once in the display scale with a lead, and keeps one primary next to a secondary provider', () => {

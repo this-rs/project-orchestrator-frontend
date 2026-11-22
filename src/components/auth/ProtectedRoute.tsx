@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Navigate, Outlet, useNavigate } from 'react-router-dom'
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   authModeAtom,
@@ -39,6 +39,7 @@ import { useT } from '@/i18n'
  * to avoid locking users out.
  */
 export function ProtectedRoute() {
+  const location = useLocation()
   const navigate = useNavigate()
   const { t } = useT()
   const isAuthenticated = useAtomValue(isAuthenticatedAtom)
@@ -231,9 +232,10 @@ export function ProtectedRoute() {
     return <Outlet />
   }
 
-  // Auth required but not authenticated → redirect to login
+  // Auth required but not authenticated → redirect to login, keeping the page
+  // the person was on so that LoginPage can bring them back to it.
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
   }
 
   return <Outlet />

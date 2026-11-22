@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import {
   allowRegistrationAtom,
@@ -9,6 +9,11 @@ import {
   isAuthenticatedAtom,
 } from '@/atoms'
 import { authApi, setAuthMode as setAuthModeService } from '@/services'
+import {
+  clearReturnPath,
+  isReturnablePath,
+  peekReturnPath,
+} from '@/services/authManager'
 import { LogIn } from 'lucide-react'
 import { Spinner, Branding, Button, textLink } from '@/components/ui'
 import { useT } from '@/i18n'
@@ -32,6 +37,9 @@ import { ProductMark, ScreenHeader, StandaloneScreen, StatusBanner } from '@/pag
 export function LoginPage() {
   const { t } = useT()
   const navigate = useNavigate()
+  const location = useLocation()
+  const fromState = (location.state as { from?: unknown } | null)?.from
+  const returnTo = isReturnablePath(fromState) ? fromState : peekReturnPath()
   const isAuthenticated = useAtomValue(isAuthenticatedAtom)
   const authMode = useAtomValue(authModeAtom)
   const providers = useAtomValue(authProvidersAtom)
@@ -70,9 +78,10 @@ export function LoginPage() {
   useEffect(() => {
     if (!providersLoaded) return
     if (isAuthenticated || authMode === 'none') {
-      navigate('/', { replace: true })
+      navigate(returnTo ?? '/', { replace: true })
+      clearReturnPath()
     }
-  }, [providersLoaded, isAuthenticated, authMode, navigate])
+  }, [providersLoaded, isAuthenticated, authMode, navigate, returnTo])
 
   const hasPassword = providers.some((p) => p.type === 'password')
   const oidcProvider = providers.find((p) => p.type === 'oidc')
