@@ -2,6 +2,7 @@ import { atom, useAtomValue, useStore } from 'jotai'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { chatApi } from '@/services/chat'
 import { getAuthMode } from '@/services/auth'
+import { parseJwtExp } from '@/services/authManager'
 import { RequestIdentityChangedError } from '@/services/api'
 import { authModeAtom, authModeConfirmedAtom, currentUserAtom } from '@/atoms/auth'
 import { readCancelFailure } from '@/utils/cancelFailure'
@@ -11,7 +12,9 @@ type Phase = 'idle' | 'sending' | 'signalled' | 'capped' | 'uncertain' | 'refuse
 const phaseBySessionAtom = atom<Partial<Record<string, Phase>>>({})
 // A request from an older login epoch may still reach the server. Keep its
 // uncertainty for the same principal/session, but never block another user.
-const pendingByPrincipalAtom = atom<Partial<Record<string, 'sending' | 'uncertain'>>>({})
+const pendingByPrincipalAtom = atom<Partial<Record<string, 'sending' | 'uncertain' | 'signalled'>>>({})
+// A confirmation is valid only until somebody starts or resets an operation.
+const operationVersionAtom = atom<Partial<Record<string, number>>>({})
 const authEpochAtom = atom(0)
 const observedStores = new WeakSet<object>()
 
@@ -54,31 +57,36 @@ function CancelAllToolsScoped({ sessionId, available, scope, userId, mode, modeC
   const store = useStore()
   const phases = useAtomValue(phaseBySessionAtom)
   const pending = useAtomValue(pendingByPrincipalAtom)
+  const versions = useAtomValue(operationVersionAtom)
   const principal = JSON.stringify([sessionId, userId, mode])
+  const version = versions[principal] ?? 0
   const ownPhase = phases[scope]
   const phase = ownPhase === undefined || ownPhase === 'idle' || ownPhase === 'capped'
     ? pending[principal] ?? ownPhase ?? 'idle'
     : ownPhase
-  const [confirming, setConfirming] = useState(false)
+  const [confirmationVersion, setConfirmationVersion] = useState<number | null>(null)
+  const confirming = confirmationVersion !== null && confirmationVersion === version
   const active = useRef(false)
   useLayoutEffect(() => {
     active.current = true
     return () => { active.current = false }
   }, [])
   const setPhase = (next: Phase) => store.set(phaseBySessionAtom, (prev) => ({ ...prev, [scope]: next }))
-  const setPending = (next: 'sending' | 'uncertain' | null) => store.set(pendingByPrincipalAtom, (prev) => {
+  const setPending = (next: 'sending' | 'uncertain' | 'signalled' | null) => store.set(pendingByPrincipalAtom, (prev) => {
     const updated = { ...prev }
     if (next) updated[principal] = next
     else delete updated[principal]
     return updated
   })
+  const invalidateConfirmations = () => store.set(operationVersionAtom, (prev) => ({ ...prev, [principal]: (prev[principal] ?? 0) + 1 }))
   if (!available && (phase === 'idle' || phase === 'capped')) return null
 
   const submit = async () => {
     // The store check is synchronous, including across two mounted controls.
     const current = store.get(phaseBySessionAtom)[scope] ?? 'idle'
-    if (!available || !confirming || store.get(pendingByPrincipalAtom)[principal] || (current !== 'idle' && current !== 'capped')) return
-    setConfirming(false)
+    if (!available || !confirming || confirmationVersion !== (store.get(operationVersionAtom)[principal] ?? 0) || store.get(pendingByPrincipalAtom)[principal] || (current !== 'idle' && current !== 'capped')) return
+    invalidateConfirmations()
+    setConfirmationVersion(null)
     setPending('sending')
     setPhase('sending')
     try {
@@ -88,7 +96,9 @@ function CancelAllToolsScoped({ sessionId, available, scope, userId, mode, modeC
             (store.get(currentUserAtom)?.id ?? null) !== userId) return false
         // No cookie-only authentication: in required mode the exact Bearer sent
         // must name the person who confirmed, even after an awaited refresh.
-        return mode === 'none' ? modeConfirmed && token === null : !!userId && tokenSubject(token) === userId
+        const exp = token ? parseJwtExp(token) : null
+        return mode === 'none' ? modeConfirmed && token === null :
+          !!userId && tokenSubject(token) === userId && exp !== null && exp > Math.floor(Date.now() / 1000)
       }
       const result = await chatApi.cancelTools(sessionId, sameIdentity)
       if (result.capped === true) {
@@ -96,7 +106,9 @@ function CancelAllToolsScoped({ sessionId, available, scope, userId, mode, modeC
         setPending(null)
         setPhase('capped')
       } else if (result.capped === false && Array.isArray(result.killed_pids)) {
-        setPending(null)
+        // A later login as the same person must acknowledge that the old
+        // request was answered; no other principal sees this status.
+        setPending(store.get(authEpochAtom) === epoch ? null : 'signalled')
         setPhase('signalled')
       } else {
         setPending('uncertain')
@@ -122,7 +134,7 @@ function CancelAllToolsScoped({ sessionId, available, scope, userId, mode, modeC
   return (
     <div className="px-2.5 py-1.5 text-xs text-gray-300" data-testid="cancel-all-tools">
       {(phase === 'idle' || phase === 'capped') && !confirming && (
-        <button type="button" className="text-amber-300 underline" onClick={() => setConfirming(true)}>
+        <button type="button" className="text-amber-300 underline" onClick={() => setConfirmationVersion(store.get(operationVersionAtom)[principal] ?? 0)}>
           {t('chatA-activity.cancelAll.open')}
         </button>
       )}
@@ -132,7 +144,7 @@ function CancelAllToolsScoped({ sessionId, available, scope, userId, mode, modeC
           <p>{t('chatA-activity.cancelAll.explain')}</p>
           <div className="flex gap-3 mt-1">
             <button type="button" className="text-amber-300 underline" onClick={() => void submit()}>{t('chatA-activity.cancelAll.confirm')}</button>
-            <button type="button" className="underline" onClick={() => setConfirming(false)}>{t('chatA-activity.cancelAll.back')}</button>
+            <button type="button" className="underline" onClick={() => setConfirmationVersion(null)}>{t('chatA-activity.cancelAll.back')}</button>
           </div>
         </div>
       )}
@@ -142,7 +154,7 @@ function CancelAllToolsScoped({ sessionId, available, scope, userId, mode, modeC
       {phase === 'refused' && <p role="status">{t('chatA-activity.cancelAll.refused')}</p>}
       {phase === 'identityChanged' && <p role="status">{t('chatA-activity.cancelAll.identityChanged')}</p>}
       {available && (phase === 'signalled' || phase === 'uncertain' || phase === 'refused' || phase === 'identityChanged') && (
-        <button type="button" className="underline mt-1" onClick={() => { setPending(null); setPhase('idle') }}>
+        <button type="button" className="underline mt-1" onClick={() => { invalidateConfirmations(); setPending(null); setPhase('idle') }}>
           {t('chatA-activity.cancelAll.reset')}
         </button>
       )}

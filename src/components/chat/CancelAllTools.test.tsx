@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import { ApiError } from '@/services/api'
 import { authModeConfirmedAtom, currentUserAtom } from '@/atoms/auth'
@@ -98,6 +98,21 @@ describe('session-wide cancellation', () => {
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
+  it('invalidates the other open confirmation when an operation ends and is reset', async () => {
+    vi.mocked(chatApi.cancelTools).mockResolvedValueOnce({ capped: false, killed_pids: [1], cli_pid: null })
+    const store = createStore()
+    render(<Provider store={store}><CancelAllTools sessionId="s1" available /><CancelAllTools sessionId="s1" available /></Provider>)
+    const [first, second] = screen.getAllByTestId('cancel-all-tools')
+    fireEvent.click(within(first).getByRole('button', { name: 'Stop all tools in this session' }))
+    fireEvent.click(within(second).getByRole('button', { name: 'Stop all tools in this session' }))
+    fireEvent.click(within(first).getByRole('button', { name: 'Send interruption to all tools' }))
+    await waitFor(() => expect(within(first).getByRole('status')).toHaveTextContent('does not guarantee'))
+    fireEvent.click(within(first).getByRole('button', { name: 'I checked this session — allow another request' }))
+    expect(within(second).queryByRole('button', { name: 'Send interruption to all tools' })).toBeNull()
+    expect(within(second).getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
+  })
+
   it('does not send a pending confirmation after availability was revoked', () => {
     const { rerender, store } = mount()
     open()
@@ -170,9 +185,9 @@ describe('session-wide cancellation', () => {
     act(() => store.set(currentUserAtom, { id: 'user-b', email: 'b@example.com', name: 'B' }))
     act(() => store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' }))
     await act(() => resolve({ capped: false, killed_pids: [1], cli_pid: null }))
-    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent('does not guarantee processes stopped')
     expect(screen.queryByRole('button', { name: 'Send interruption to all tools' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'I checked this session — allow another request' })).toBeEnabled()
   })
 
   it('keeps an earlier A request pending or uncertain after A → B → A, without blocking B', async () => {

@@ -1,4 +1,4 @@
-import { getAuthMode } from './auth'
+import { getAuthMode, getAuthToken } from './auth'
 import { getValidToken, refreshToken, forceLogout } from './authManager'
 import { isTauri, getApiBase, getAuthBase } from './env'
 import { tr } from '@/i18n/lazy'
@@ -135,6 +135,7 @@ async function authedFetch(
   base: RequestBase = 'api',
   allowRetry = true,
   beforeSend?: (token: string | null) => boolean,
+  useCurrentToken = false,
 ): Promise<Response> {
   // Fast-path: bail immediately if already aborted (e.g. navigation happened
   // while a previous request was still being set up). This avoids queueing
@@ -151,7 +152,9 @@ async function authedFetch(
     ...(options.headers as Record<string, string> | undefined),
   }
 
-  const token = await getValidToken()
+  const token = useCurrentToken
+    ? (getAuthMode() === 'none' ? null : getAuthToken())
+    : await getValidToken()
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
   }
@@ -215,8 +218,9 @@ async function request<T>(
   base: RequestBase = 'api',
   allowRetry = true,
   beforeSend?: (token: string | null) => boolean,
+  useCurrentToken = false,
 ): Promise<T> {
-  const response = await authedFetch(endpoint, options, _isRetry, base, allowRetry, beforeSend)
+  const response = await authedFetch(endpoint, options, _isRetry, base, allowRetry, beforeSend, useCurrentToken)
 
   if (response.status === 204) {
     return {} as T
@@ -269,13 +273,9 @@ export const api = {
       signal,
     }),
 
-  /** A single authenticated attempt for actions unsafe to repeat after a lost response. */
-  postOnce: <T>(endpoint: string, data?: unknown, signal?: AbortSignal, beforeSend?: (token: string | null) => boolean) =>
-    request<T>(endpoint, {
-      method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
-      signal,
-    }, false, 'api', false, beforeSend),
+  /** Single attempt with the existing token: never rotates a shared refresh cookie. */
+  postOnceCurrentToken: <T>(endpoint: string, data: unknown, beforeSend: (token: string | null) => boolean) =>
+    request<T>(endpoint, { method: 'POST', body: JSON.stringify(data) }, false, 'api', false, beforeSend, true),
 
   patch: <T>(endpoint: string, data: unknown, signal?: AbortSignal) =>
     request<T>(endpoint, {
