@@ -103,6 +103,24 @@ describe('session-wide cancellation', () => {
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
+  it('retains capped uncertainty when the control becomes unavailable, including unsupported capability', async () => {
+    vi.mocked(chatApi.cancelTools).mockResolvedValueOnce({ capped: true, killed_pids: [], cli_pid: null })
+    const { rerender, store } = mount()
+    open(); confirm()
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Other owners may still act'))
+    rerender(<Provider store={store}><CancelAllTools sessionId="s1" available={false} /></Provider>)
+    expect(screen.getByRole('status')).toHaveTextContent('Other owners may still act')
+    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    rerender(<Provider store={store}><CancelAllTools sessionId="s1" available={false} unsupported /></Provider>)
+    expect(screen.getByRole('status')).toHaveTextContent('Other owners may still act')
+    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeDisabled()
+    expect(screen.getByText('This provider cannot stop all tools in this session.')).toBeInTheDocument()
+    rerender(<Provider store={store}><CancelAllTools sessionId="s1" available /></Provider>)
+    expect(screen.getByRole('status')).toHaveTextContent('Other owners may still act')
+    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
+  })
+
   it('a successful response from one owner does not claim that other owners finished', async () => {
     vi.mocked(chatApi.cancelTools).mockResolvedValueOnce({ capped: false, killed_pids: [1], cli_pid: null })
     mount(); open(); confirm()
@@ -222,6 +240,22 @@ describe('session-wide cancellation', () => {
     await act(() => resolve({ capped: false, killed_pids: [1], cli_pid: null }))
     expect(screen.queryByRole('status')).toBeNull()
     expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+  })
+
+  it('keeps a completed first-owner response across a later A → B → A until acknowledgement', async () => {
+    vi.mocked(chatApi.cancelTools).mockResolvedValueOnce({ capped: false, killed_pids: [1], cli_pid: null })
+    const { store } = mount('s1')
+    open(); confirm()
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('other operations may still be in progress'))
+    act(() => store.set(currentUserAtom, { id: 'user-b', email: 'b@example.com', name: 'B' }))
+    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    act(() => store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' }))
+    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent('other operations may still be in progress')
+    expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'I checked this session — allow another request' }))
+    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
   it('does not resurrect a confirmation or old outcome after A → B → A', async () => {

@@ -187,12 +187,13 @@ describe('<ActivityBar />', () => {
     expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeDisabled()
   })
 
-  it('when the rate cap refuses the cancel, says so and re-enables Stop', async () => {
+  it('a task rate cap leaves the outcome unconfirmed and limits retry advice to that task', async () => {
     vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({ task_id: 's1', killed_pids: [], capped: true })
     mount([shell])
     expand()
     fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Cancelling too fast'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Other owners may still act'))
+    expect(screen.getByRole('status')).toHaveTextContent('retrying this task’s stop request')
     expect(screen.getByRole('status')).not.toHaveTextContent('Stopped')
     expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
   })
@@ -263,7 +264,8 @@ describe('<ActivityBar />', () => {
       expand()
       fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
       await act(() => vi.advanceTimersByTimeAsync(0))
-      expect(screen.getByRole('status')).toHaveTextContent('Cancelling too fast')
+      expect(screen.getByRole('status')).toHaveTextContent('Other owners may still act')
+    expect(screen.getByRole('status')).toHaveTextContent('retrying this task’s stop request')
       fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
       await act(() => vi.advanceTimersByTimeAsync(0))
       expect(screen.getByRole('status')).toHaveTextContent('Signal accepted for 1 process. It may still be running.')

@@ -210,9 +210,9 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
     try {
       const result = await cancelTask(taskId)
       if (result.capped) {
-        // Refused: the click did nothing, so the row must not say "stopping…".
+        // One owner reported a limit; another may still act on this task.
         setStoppingFor(taskId, false)
-        flash({ kind: 'error', message: t('chatA-activity.bar.tooFast') })
+        flash({ kind: 'error', message: `${t('chatA-activity.cancelAll.capped')} ${t('chatA-activity.cancel.retryNotice')}` })
       } else if (result.killed_pids.length > 0) {
         flash({ kind: 'success', killed: result.killed_pids.length })
       } else {

@@ -82,7 +82,7 @@ function CancelAllToolsScoped({ sessionId, available, unsupported, scope, userId
     return updated
   })
   const invalidateConfirmations = () => store.set(operationVersionAtom, (prev) => ({ ...prev, [principal]: (prev[principal] ?? 0) + 1 }))
-  if (!available && (phase === 'idle' || phase === 'capped')) {
+  if (!available && phase === 'idle') {
     if (!unsupported) return null
     return <div className="px-2.5 py-1.5 text-xs text-gray-300" data-testid="cancel-all-tools">
       <button type="button" disabled aria-describedby={unsupportedId}>{t('chatA-activity.cancelAll.open')}</button>
@@ -126,9 +126,9 @@ function CancelAllToolsScoped({ sessionId, available, unsupported, scope, userId
         setPending('uncertain')
         setPhase('capped')
       } else if (result.capped === false && Array.isArray(result.killed_pids)) {
-        // A later login as the same person must acknowledge that the old
-        // request was answered; no other principal sees this status.
-        setPending(store.get(authEpochAtom) === epoch ? null : 'signalled')
+        // Every scope for this principal must acknowledge the first response:
+        // another owner may still be acting, even after the login epoch changes.
+        setPending('signalled')
         setPhase('signalled')
       } else {
         setPending('uncertain')
@@ -161,6 +161,10 @@ function CancelAllToolsScoped({ sessionId, available, unsupported, scope, userId
 
   return (
     <div className="px-2.5 py-1.5 text-xs text-gray-300" data-testid="cancel-all-tools">
+      {!available && unsupported && <>
+        <button type="button" disabled aria-describedby={unsupportedId}>{t('chatA-activity.cancelAll.open')}</button>
+        <p id={unsupportedId}>{t('chatA-activity.cancelAll.unsupported')}</p>
+      </>}
       {phase === 'idle' && !confirming && (
         <button type="button" className="text-amber-300 underline" onClick={() => setConfirmationVersion(store.get(operationVersionAtom)[principal] ?? 0)}>
           {t('chatA-activity.cancelAll.open')}
