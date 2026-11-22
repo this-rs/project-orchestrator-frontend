@@ -135,6 +135,14 @@ export function setNavigate(fn: NavigateFn): void {
 /** Inject Jotai atom setters (called from ProtectedRoute on mount) */
 export function setJotaiSetter(setters: JotaiSetters): void {
   _jotai = setters
+  // A refresh that finished BEFORE the setters existed (the always-mounted model
+  // catalog loader runs while SetupGuard still shows its spinner, so ProtectedRoute
+  // is not mounted yet) wrote the token to memory only. Hand it to Jotai now:
+  // otherwise ProtectedRoute sees "no token" and rotates the refresh cookie a
+  // SECOND time at every boot, doubling the window in which a reload loses the
+  // single-use cookie (the response with its successor is dropped by the unload).
+  const current = getAuthToken()
+  if (current) setters.setToken(current)
 }
 
 // ---------------------------------------------------------------------------
@@ -171,6 +179,19 @@ export function parseJwtExp(token: string): number | null {
 // ---------------------------------------------------------------------------
 
 let _isRefreshing = false
+
+// True from `pagehide` until `pageshow`: the page is going away (reload, close,
+// navigation). A rotation started now would consume the single-use cookie while
+// its response, carrying the successor, is dropped by the unload.
+let _pageHiding = false
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => {
+    _pageHiding = true
+  })
+  window.addEventListener('pageshow', () => {
+    _pageHiding = false
+  })
+}
 // The cookie is shared by tabs, but the in-memory refresh queue is not. Web
 // Locks serialize rotations (and logout) across same-origin tabs. The browser
 // applies Set-Cookie before the refresh promise resolves and releases the lock.
@@ -299,8 +320,10 @@ export async function getValidToken(): Promise<string | null> {
   const nowS = Math.floor(Date.now() / 1000)
   if (exp - nowS < REFRESH_THRESHOLD_S) {
     if (exp > nowS) {
-      // Still valid: rotate in the background, keep serving the current token.
-      void refreshToken().catch(() => {})
+      // Still valid: rotate in the background, keep serving the current token —
+      // unless the page is unloading (see `_pageHiding`): the next page gets a
+      // fresh access token from its own boot refresh anyway.
+      if (!_pageHiding) void refreshToken().catch(() => {})
       return token
     }
 
