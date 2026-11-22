@@ -7,6 +7,8 @@ import { RequestIdentityChangedError } from '@/services/api'
 import { authModeAtom, authModeConfirmedAtom, currentUserAtom } from '@/atoms/auth'
 import { readCancelFailure } from '@/utils/cancelFailure'
 import { useT } from '@/i18n'
+import type { RunningItem } from './runningActivity'
+import { StopToolsDialog } from './StopToolsDialog'
 
 type Phase = 'idle' | 'sending' | 'signalled' | 'capped' | 'uncertain' | 'refused' | 'unauthenticated' | 'forbidden' | 'ownerUnreachable' | 'identityChanged'
 const phaseBySessionAtom = atom<Partial<Record<string, Phase>>>({})
@@ -31,7 +33,7 @@ function tokenSubject(token: string | null): string | null {
 }
 
 /** Session-wide, not a control for an individual tool. */
-export function CancelAllTools({ sessionId, available, unsupported = false }: { sessionId: string; available: boolean; unsupported?: boolean }) {
+export function CancelAllTools({ sessionId, available, unsupported = false, items = [] }: { sessionId: string; available: boolean; unsupported?: boolean; items?: ReadonlyArray<RunningItem> }) {
   const store = useStore()
   const userId = useAtomValue(currentUserAtom)?.id ?? null
   const mode = useAtomValue(authModeAtom)
@@ -48,11 +50,11 @@ export function CancelAllTools({ sessionId, available, unsupported = false }: { 
     store.sub(authModeConfirmedAtom, changed)
   }, [store])
   const scope = JSON.stringify([sessionId, userId, mode, modeConfirmed, epoch])
-  return <CancelAllToolsScoped key={JSON.stringify([scope, available])} sessionId={sessionId} available={available} unsupported={unsupported} scope={scope} userId={userId} mode={mode} modeConfirmed={modeConfirmed} epoch={epoch} />
+  return <CancelAllToolsScoped key={JSON.stringify([scope, available])} sessionId={sessionId} available={available} unsupported={unsupported} items={items} scope={scope} userId={userId} mode={mode} modeConfirmed={modeConfirmed} epoch={epoch} />
 }
 
-function CancelAllToolsScoped({ sessionId, available, unsupported, scope, userId, mode, modeConfirmed, epoch }: {
-  sessionId: string; available: boolean; unsupported: boolean; scope: string; userId: string | null;
+function CancelAllToolsScoped({ sessionId, available, unsupported, items, scope, userId, mode, modeConfirmed, epoch }: {
+  sessionId: string; available: boolean; unsupported: boolean; items: ReadonlyArray<RunningItem>; scope: string; userId: string | null;
   mode: 'none' | 'required'; modeConfirmed: boolean; epoch: number
 }) {
   const { t } = useT()
@@ -168,20 +170,15 @@ function CancelAllToolsScoped({ sessionId, available, unsupported, scope, userId
         <button type="button" disabled aria-describedby={unsupportedId}>{t('chatA-activity.cancelAll.open')}</button>
         <p id={unsupportedId}>{t('chatA-activity.cancelAll.unsupported')}</p>
       </>}
-      {phase === 'idle' && !confirming && (
-        <button type="button" className="text-amber-300 underline" onClick={() => setConfirmationVersion(store.get(operationVersionAtom)[principal] ?? 0)}>
+      {phase === 'idle' && (
+        <button type="button" aria-haspopup="dialog" className="text-amber-300 underline" onClick={() => setConfirmationVersion(store.get(operationVersionAtom)[principal] ?? 0)}>
           {t('chatA-activity.cancelAll.open')}
         </button>
       )}
       {phase === 'capped' && <p role="status">{t('chatA-activity.cancelAll.capped')}</p>}
-      {phase === 'idle' && confirming && (
-        <div role="group" aria-label={t('chatA-activity.cancelAll.open')}>
-          <p>{t('chatA-activity.cancelAll.explain')}</p>
-          <div className="flex gap-3 mt-1">
-            <button type="button" className="text-amber-300 underline" onClick={() => void submit()}>{t('chatA-activity.cancelAll.confirm')}</button>
-            <button type="button" className="underline" onClick={() => setConfirmationVersion(null)}>{t('chatA-activity.cancelAll.back')}</button>
-          </div>
-        </div>
+      {/* Opening only asks; nothing is sent until the dialog's confirmation. */}
+      {phase === 'idle' && (
+        <StopToolsDialog open={confirming} onClose={() => setConfirmationVersion(null)} items={items} onConfirmAll={() => void submit()} />
       )}
       {phase === 'sending' && <p role="status">{t('chatA-activity.cancelAll.sending')}</p>}
       {phase === 'signalled' && <p role="status">{t('chatA-activity.cancelAll.signalled')}</p>}

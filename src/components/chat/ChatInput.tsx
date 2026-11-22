@@ -979,7 +979,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           />
         </div>
       )}
-      {sessionId && <CancelAllTools key={sessionId} sessionId={sessionId} available={!disabled && canCancelAll} unsupported={!canCancelAll} />}
+      {sessionId && <CancelAllTools key={sessionId} sessionId={sessionId} items={activity} available={!disabled && canCancelAll} unsupported={!canCancelAll} />}
       {/* Attachment thumbnails — directly above the textarea, part of the
           message being composed (unlike the queue bar, which floats over the
           conversation because those messages are not being composed any more). */}

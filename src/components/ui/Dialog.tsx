@@ -12,6 +12,8 @@ export interface DialogProps {
   title: string
   children: ReactNode
   size?: 'sm' | 'md' | 'lg'
+  /** Id of the element that describes the dialog (`aria-describedby`). */
+  describedBy?: string
 }
 
 const sizeClasses = {
@@ -20,7 +22,7 @@ const sizeClasses = {
   lg: 'max-w-2xl',
 }
 
-export function Dialog({ open, onClose, title, children, size = 'sm' }: DialogProps) {
+export function Dialog({ open, onClose, title, children, size = 'sm', describedBy }: DialogProps) {
   const { t } = useT()
   const containerRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -49,6 +51,7 @@ export function Dialog({ open, onClose, title, children, size = 'sm' }: DialogPr
           role="dialog"
           aria-modal="true"
           aria-labelledby="dialog-title"
+          aria-describedby={describedBy}
         >
           <motion.div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
