@@ -1,7 +1,7 @@
 /**
  * The session-level events of the transcript (a move to another provider, a closed
  * session, a context re-injected after compaction) as the user sees them, and the
- * per-tool Stop through the chat socket with REST as the fallback.
+ * safety of the tool-call controls.
  *
  * Run with: npx vitest run src/components/chat/SessionEventBlock.test.tsx
  */
@@ -133,29 +133,20 @@ describe('the follow notice', () => {
   })
 })
 
-describe('per-tool Stop', () => {
-  const running: ContentBlock = {
-    id: 'tu',
+describe('tool-call controls', () => {
+  const tool = (id: string): ContentBlock => ({
+    id,
     type: 'tool_use',
     content: 'Bash',
-    metadata: { tool_call_id: 'c9', tool_name: 'Bash', tool_input: { command: 'sleep 100' }, created_at: new Date().toISOString() },
-  }
-  const stopChip = () => screen.getAllByRole('button', { name: /stop/i }).find((el) => el.tagName === 'SPAN')!
-
-  it('goes through the cancel_tools frame when the socket is open (no REST call)', () => {
-    const live = vi.fn(() => true)
-    mount(<ToolCallBlock block={running} />, 's1', live)
-    fireEvent.click(stopChip())
-    expect(live).toHaveBeenCalledTimes(1)
-    expect(cancelTools).not.toHaveBeenCalled()
+    metadata: { tool_call_id: id, tool_name: 'Bash', tool_input: { command: `sleep 100 # ${id}` } },
   })
 
-  it('falls back to REST when the frame could not be sent', () => {
-    cancelTools.mockResolvedValue({ capped: false })
-    const live = vi.fn(() => false)
-    mount(<ToolCallBlock block={running} />, 's1', live)
-    fireEvent.click(stopChip())
-    expect(live).toHaveBeenCalledTimes(1)
-    expect(cancelTools).toHaveBeenCalledWith('s1')
+  it('never offers a per-tool control that cancels all running tools', () => {
+    const live = vi.fn(() => true)
+    mount(<><ToolCallBlock block={tool('one')} /><ToolCallBlock block={tool('two')} /></>, 's1', live)
+    expect(screen.queryByRole('button', { name: /^stop$/i })).toBeNull()
+    for (const header of screen.getAllByRole('button')) fireEvent.click(header)
+    expect(live).not.toHaveBeenCalled()
+    expect(cancelTools).not.toHaveBeenCalled()
   })
 })

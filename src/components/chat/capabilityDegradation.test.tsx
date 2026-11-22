@@ -20,7 +20,7 @@ vi.mock('@/services', () => ({ chatApi: { cancelTools: (...a: unknown[]) => canc
 import { chatSessionEngineAtom, chatSessionIdAtom } from '@/atoms'
 import { harnessGapOf } from '@/constants/providerErrors'
 import { ProviderStateCard } from './ProviderStateCard'
-import { policyOnlyRequestText, toolCancelUnsupportedText } from '@/constants/capabilities'
+import { policyOnlyRequestText } from '@/constants/capabilities'
 import { ChatCapabilitiesProvider, ChatSessionProvider } from './ChatSessionContext'
 import { ChatMessageBubble, groupBlocksByAgent } from './ChatMessageBubble'
 import { PermissionRequestBlock } from './PermissionRequestBlock'
@@ -362,37 +362,15 @@ describe('thinking', () => {
   })
 })
 
-/** The per-tool stop chip (a `role="button"` span nested in the block's header button). */
-const stopChip = () => screen.getAllByRole('button', { name: /stop/i }).find((el) => el.tagName === 'SPAN')!
-
 describe('tool_cancel', () => {
-  const running: ContentBlock = {
-    id: 'tu',
-    type: 'tool_use',
-    content: 'Bash',
-    metadata: { tool_call_id: 'c9', tool_name: 'Bash', tool_input: { command: 'sleep 100' }, created_at: new Date().toISOString() },
-  }
-
-  it('false: the stop chip is disabled, explained, and does nothing', () => {
-    mount(<ToolCallBlock block={running} />, caps({ tool_cancel: false }))
-    const stop = stopChip()
-    expect(stop.getAttribute('aria-disabled')).toBe('true')
-    // Still reachable from the keyboard, with the reason tied to it.
-    expect(stop.getAttribute('tabindex')).toBe('0')
-    const help = document.getElementById(stop.getAttribute('aria-describedby')!)
-    expect(help?.textContent).toBe(toolCancelUnsupportedText())
-    fireEvent.click(stop)
-    fireEvent.keyDown(stop, { key: 'Enter' })
+  it.each([true, false])('does not offer a misleading per-tool stop when tool_cancel is %s', (toolCancel) => {
+    const running: ContentBlock = {
+      id: 'tu', type: 'tool_use', content: 'Bash',
+      metadata: { tool_call_id: 'c9', tool_name: 'Bash', tool_input: { command: 'sleep 100' } },
+    }
+    mount(<ToolCallBlock block={running} />, caps({ tool_cancel: toolCancel }))
+    expect(screen.queryByRole('button', { name: /^stop$/i })).toBeNull()
     expect(cancelTools).not.toHaveBeenCalled()
-  })
-
-  it('Claude profile: the stop chip cancels the running tools', () => {
-    cancelTools.mockResolvedValue({ capped: false })
-    mount(<ToolCallBlock block={running} />)
-    const stop = stopChip()
-    expect(stop.getAttribute('aria-disabled')).toBeNull()
-    fireEvent.click(stop)
-    expect(cancelTools).toHaveBeenCalledWith('s1')
   })
 })
 
