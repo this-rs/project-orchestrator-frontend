@@ -10,7 +10,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai'
 import { pickModelResolver } from '@/constants/providers'
 import { distinctModels } from '@/utils/routingSelection'
-import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatDraftWorkspaceAtom, newConversationDraftKey, setChatDraftByKeyAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, chatBackgroundTasksAtom, chatLastCancelFailureAtom, chatSecretRequestsAtom, chatVaultWaitAtom, chatModelWaitAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom, chatOneOffProviderPickAtom, usablePickedProvider, dropStalePickAtom, clearOneOffProviderPickAtom } from '@/atoms'
+import { chatSessionIdAtom, chatStreamingAtom, chatCompactingAtom, chatWsStatusAtom, chatReplayingAtom, chatSessionPermissionOverrideAtom, chatPermissionConfigAtom, chatSessionModelAtom, chatDraftWorkspaceAtom, newConversationDraftKey, setChatDraftByKeyAtom, moveChatDraftAtom, moveChatQueueAtom, chatMessageQueuesAtom, withQueue, chatBackgroundTasksAtom, chatSecretRequestsAtom, chatVaultWaitAtom, chatModelWaitAtom, chatSessionProviderAtom, chatSessionCapabilitiesSnapshotAtom, chatSessionToolPolicyAtom, chatSessionEngineAtom, chatProviderTargetAtom, chatSelectedProviderAtom, chatForcedTargetAtom, chatDraftAutoAtom, chatDraftRoutingModeAtom, chatDraftSelectionAtom, chatSessionRoutingAtom, sessionRoutingOf, chatRoutingSlugAtom, loadRoutingSettingsAtom, routingSettingsAtom, chatSessionOpenErrorAtom, chatSessionCapabilitiesAtom, providersAtom, providersLoadStateAtom, chatServerFeaturesAtom, refsEnabledAtom, refsAnnouncementAtom, currentUserAtom, isAuthenticatedAtom, chatFollowRequestAtom, chatFollowNoticeAtom, chatSwitchingSessionAtom, chatOneOffProviderPickAtom, usablePickedProvider, dropStalePickAtom, clearOneOffProviderPickAtom } from '@/atoms'
 import { apiErrorMessage } from '@/services/api'
 import { toProviderError } from '@/services/providers'
 import { setChatSessionOpenErrorByKeyAtom } from '@/atoms/providers'
@@ -57,7 +57,7 @@ import {
   type SystemInitRuntime,
   type BackgroundTick,
 } from '@/utils/chatAssembly'
-import { cancelNoticeMetadata, chipOutcomeOfNotice, nextCancelStamp } from '@/utils/cancelFailure'
+import { cancelNoticeMetadata } from '@/utils/cancelFailure'
 import { tr } from '@/i18n/lazy'
 import { useEffectiveCapabilities } from './useEffectiveCapabilities'
 import { toProviderRef, toToolPolicy, type PermissionScope, type ToolPolicyMode } from '@/types/provider'
@@ -87,13 +87,7 @@ export const SCOPE_CONFIRMATION_TIMEOUT_MS = 15_000
  */
 const MAX_RENDERABLE_TAIL = PAGE_SIZE * 16
 
-/**
- * A stream event as `handleEvent` sees it. `receivedAt` is the `nextCancelStamp()`
- * of when this tab first got it: an event buffered (history loading, resync, not at
- * the tail) and handled later keeps the moment it arrived, not the moment it was
- * handled.
- */
-type LiveEvent = ChatStreamEvent & { seq?: number; replaying?: boolean; receivedAt?: number }
+type LiveEvent = ChatStreamEvent & { seq?: number; replaying?: boolean }
 
 /** One loaded window of history, assembled and with its raw-event bookkeeping. */
 interface LoadedWindow {
@@ -534,9 +528,7 @@ export function useChat() {
   // ========================================================================
   // Event handler — processes LIVE events only (no more replay)
   // ========================================================================
-  const handleEvent = useCallback((incoming: LiveEvent) => {
-    // Stamped once, on receipt: a buffered event replayed later keeps this time.
-    const event: LiveEvent = incoming.receivedAt === undefined ? { ...incoming, receivedAt: nextCancelStamp() } : incoming
+  const handleEvent = useCallback((event: LiveEvent) => {
     // The messages the session holds until the running turn ends — always the
     // full list, published to EVERY device connected to the session, so a
     // message queued on one shows on the others. It replaces what we showed for
@@ -806,23 +798,6 @@ export function useChat() {
       setIsStreaming(false)
       setModelWait(null) // nothing waits any more in a closed session
       setVaultWait(null)
-    }
-
-    // A live cancel notice answers the Stop chips whose request went over the socket.
-    // Written HERE, not in the message updater below: an updater must stay pure (React
-    // may call it twice). `at` is when the frame arrived, and an older notice handled
-    // late (buffered during a resync) never replaces a newer one.
-    if (event.type === 'error' && !event.replaying) {
-      const notice = cancelNoticeMetadata(event)
-      const chip = notice ? chipOutcomeOfNotice(notice.code, notice.reason) : null
-      const noticeSid = chip ? store.get(chatSessionIdAtom) : null
-      if (chip && noticeSid) {
-        const at = event.receivedAt ?? nextCancelStamp()
-        const current = store.get(chatLastCancelFailureAtom)
-        if (!current || current.sessionId !== noticeSid || current.at <= at) {
-          store.set(chatLastCancelFailureAtom, { sessionId: noticeSid, reason: chip.reason, at })
-        }
-      }
     }
 
     // Every timing is held here, placed or not: the updater below places it on its
@@ -3016,16 +2991,6 @@ export function useChat() {
     void loadSession(followRequest.sessionId)
   }, [followRequest, loadSession, store, getWs])
 
-  /**
-   * Cancel the running tools over the socket (`cancel_tools` frame) when it is open on
-   * this session. False = not sent: the caller falls back to REST.
-   */
-  const cancelToolsLive = useCallback((): boolean => {
-    const ws = wsRef.current
-    if (!sessionId || !ws || ws.sessionId !== sessionId || ws.status !== 'connected') return false
-    return ws.sendCancelTools()
-  }, [sessionId])
-
   return {
     messages,
     isStreaming,
@@ -3055,6 +3020,5 @@ export function useChat() {
     loadNewerMessages,
     changePermissionMode,
     changeModel,
-    cancelToolsLive,
   }
 }

@@ -68,7 +68,6 @@ export default {
     policyOnly: 'Politique seule : les outils qui demanderaient une approbation sont refusés.',
     policyOnlyDetail: 'Ce provider ne peut pas suspendre un appel d\'outil pour vous demander. La politique d\'outils décide seule.',
     policyOnlyRequest: 'Pas de demande : ce provider applique la politique d\'outils sans vous solliciter.',
-    toolCancelUnsupported: 'Ce provider ne peut pas arrêter un seul outil. Utilisez Arrêter dans la zone de saisie pour interrompre tout le tour.',
     resumeUnsupported: 'Ce provider ne peut pas reprendre une conversation. Ouvrez une nouvelle conversation pour continuer.',
   },
   setup: {

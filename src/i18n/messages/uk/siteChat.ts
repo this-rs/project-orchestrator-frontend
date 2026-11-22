@@ -206,9 +206,6 @@ export default {
     cancelled: 'скасовано',
     running: 'виконується...',
     runningElapsed: '{elapsed} — виконується...',
-    stopTitle: 'Зупинити цей інструмент (надсилає SIGINT запущеному підпроцесу; хід агента продовжиться)',
-    stop: 'стоп',
-    stopping: 'зупинка…',
   },
   toolRender: {
     processing: 'обробка...',

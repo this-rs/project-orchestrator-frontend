@@ -45,21 +45,35 @@ export default {
     dashboardAria: "Ouvrir le tableau de bord du runner de {title}"
   },
   bar: {
-    tooFast: "Annulations trop rapides — réessayez dans un instant.",
-    cancelFailed: "Échec de l’annulation de la tâche — utilisez plutôt l’arrêt global.",
+    acknowledge: "J’ai vérifié cette tâche — autoriser une nouvelle demande",
     runningAria: "En cours : {summary}",
-    stoppedOne: "{count} sous-processus arrêté.",
-    stoppedMany: "{count} sous-processus arrêtés.",
-    noPid: "Annulation enregistrée, mais le PID du sous-processus était inconnu — si des signaux continuent d’arriver, utilisez le bouton d’arrêt global."
+    stoppedOne: "Signal accepté pour {count} processus. Il peut encore fonctionner.",
+    stoppedMany: "Signal accepté pour {count} processus. Ils peuvent encore fonctionner.",
+    noPid: "Aucun signal n’a été confirmé pour cette tâche. Le résultat est inconnu ; vérifiez son activité."
+  },
+  cancelAll: {
+    open: "Arrêter les outils de la session, y compris ceux des sous-agents",
+    explain: "Cette action envoie un signal d’interruption à tous les processus d’outils de cette session, sans arrêter le tour. Des processus peuvent ignorer le signal ou survivre. Vérifiez leur état réel ensuite. Les processus d’outils des sous-agents peuvent aussi être touchés lorsqu’ils sont descendants ; certains peuvent survivre.",
+    confirm: "Envoyer l’interruption aux outils de la session et des sous-agents",
+    back: 'Retour',
+    sending: 'Envoi de l’interruption…',
+    signalled: "Réponse reçue d’un propriétaire. Un signal ne garantit pas l’arrêt des processus ; d’autres opérations peuvent encore être en cours. Vérifiez l’activité de la session.",
+    capped: "Un propriétaire a signalé une limite de fréquence. D’autres peuvent encore agir ; vérifiez la session avant de réessayer.",
+    uncertain: 'Résultat inconnu. Le signal peut encore être envoyé ; vérifiez la session avant de réessayer.',
+    refused: "Un refus a été reçu d’un moteur.",
+    unsupported: "Ce fournisseur ne peut pas arrêter tous les outils de cette session.",
+    ownerUnreachable: "Propriétaire injoignable ; aucun arrêt confirmé. Vérifiez l’activité de la session.",
+    identityChanged: "Aucune demande envoyée : l’identité authentifiée n’a pas pu être vérifiée. Vérifiez votre session et reconnectez-vous si nécessaire.",
+    reset: 'J’ai vérifié cette session — autoriser une nouvelle demande',
   },
   cancel: {
-    alreadyStopped: "déjà arrêté",
-    notStopped: "non arrêté — utilisez l’arrêt global",
-    alreadyStoppedNotice: "Déjà arrêté — plus rien ne tournait.",
-    retryNotice: "Pas encore arrêté — réessayez dans un instant.",
+    unsupportedNotice: "Un refus a été reçu ; l’état de l’arrêt n’est pas confirmé. Vérifiez l’activité de la session.",
+    unknownNotice: "Le résultat de cette demande d’arrêt est inconnu. Vérifiez l’activité de la session.",
+    retryNotice: "Le résultat n’est pas confirmé. Vérifiez l’activité avant de réessayer l’arrêt de cette tâche.",
     timeoutNotice: "L’arrêt n’a pas reçu de réponse à temps — il peut encore avoir lieu.",
-    failedNotice: "Les outils n’ont pas pu être arrêtés — utilisez plutôt l’arrêt global.",
-    taskRefusedNotice: "Ce provider ne peut pas arrêter une seule tâche de fond. Utilisez Arrêter dans la zone de saisie pour interrompre tout le tour."
+    taskRefusedNotice: "Un refus a été reçu ; l’état de l’arrêt n’est pas confirmé. Vérifiez l’activité de la session.",
+    unauthenticatedNotice: 'Authentification refusée (401) : votre connexion est absente ou a expiré. Aucun arrêt n’a été confirmé ; reconnectez-vous, puis vérifiez l’activité de la session.',
+    forbiddenNotice: 'Autorisation refusée (403) : ce compte n’a pas le droit d’arrêter ces outils. Aucun arrêt n’a été confirmé ; vérifiez l’activité de la session.',
   },
   agent: {
     subAgent: "Sous-agent",

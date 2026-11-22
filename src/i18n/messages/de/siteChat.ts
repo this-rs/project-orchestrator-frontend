@@ -206,9 +206,6 @@ export default {
     cancelled: 'abgebrochen',
     running: 'läuft...',
     runningElapsed: '{elapsed} — läuft...',
-    stopTitle: 'Dieses Werkzeug stoppen (sendet SIGINT an den laufenden Unterprozess; der Zug des Agenten läuft weiter)',
-    stop: 'stoppen',
-    stopping: 'wird gestoppt…',
   },
   toolRender: {
     processing: 'wird verarbeitet...',

@@ -68,7 +68,6 @@ export default {
     policyOnly: '정책만 적용: 승인이 필요한 도구는 거부됩니다.',
     policyOnlyDetail: '이 제공자는 도구 호출을 멈추고 사용자에게 물어볼 수 없습니다. 도구 정책이 단독으로 결정합니다.',
     policyOnlyRequest: '묻지 않음: 이 제공자는 확인 없이 도구 정책을 적용합니다.',
-    toolCancelUnsupported: '이 제공자는 도구 하나만 중지할 수 없습니다. 입력창의 중지를 눌러 턴 전체를 중단하세요.',
     resumeUnsupported: '이 제공자는 대화를 재개할 수 없습니다. 계속하려면 새 대화를 시작하세요.',
   },
   setup: {

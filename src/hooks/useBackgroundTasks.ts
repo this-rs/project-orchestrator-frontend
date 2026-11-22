@@ -25,12 +25,17 @@
  *   the parsed `CancelTaskResult`. Throws if no session is active
  *   (the caller should disable the Stop buttons in that case anyway).
  *   A refused or failed cancel throws a `CancelFailedError` carrying the
- *   backend's typed reading (`owner_unreachable` = already stopped,
- *   `retryable` as the body says it).
+ *   backend's typed reading (`owner_unreachable` = activity unconfirmed,
+ *   `retryable` as the body says it). When the identity guard refuses before
+ *   sending, it throws `RequestIdentityChangedError` as is: nothing went out.
  */
-import { useAtomValue } from 'jotai'
+import { useAtomValue, useStore } from 'jotai'
 import { useCallback } from 'react'
 import { chatBackgroundTasksAtom, chatSessionIdAtom } from '@/atoms'
+import { authModeAtom, authModeConfirmedAtom, currentUserAtom } from '@/atoms/auth'
+import { getAuthMode } from '@/services/auth'
+import { parseJwtExp } from '@/services/authManager'
+import { RequestIdentityChangedError } from '@/services/api'
 import { chatApi } from '@/services/chat'
 import type { BackgroundTaskInfo, CancelTaskResult } from '@/types'
 import { CancelFailedError, readCancelFailure } from '@/utils/cancelFailure'
@@ -50,9 +55,23 @@ export interface UseBackgroundTasksReturn {
   cancelTask: (taskId: string) => Promise<CancelTaskResult>
 }
 
+/** Read the declared subject only; the server verifies the token signature. */
+function tokenSubject(token: string | null): string | null {
+  try {
+    if (!token || token.split('.').length !== 3) return null
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(part + '='.repeat((4 - part.length % 4) % 4))) as { sub?: unknown }
+    return typeof payload.sub === 'string' && payload.sub ? payload.sub : null
+  } catch { return null }
+}
+
 export function useBackgroundTasks(): UseBackgroundTasksReturn {
+  const store = useStore()
   const tasks = useAtomValue(chatBackgroundTasksAtom)
   const sessionId = useAtomValue(chatSessionIdAtom)
+  const userId = useAtomValue(currentUserAtom)?.id ?? null
+  const mode = useAtomValue(authModeAtom)
+  const modeConfirmed = useAtomValue(authModeConfirmedAtom)
 
   const cancelTask = useCallback(
     async (taskId: string): Promise<CancelTaskResult> => {
@@ -63,12 +82,22 @@ export function useBackgroundTasks(): UseBackgroundTasksReturn {
         )
       }
       try {
-        return await chatApi.cancelTask(sessionId, taskId)
+        return await chatApi.cancelTask(sessionId, taskId, (token) => {
+          if (!modeConfirmed || store.get(chatSessionIdAtom) !== sessionId ||
+              store.get(authModeAtom) !== mode || store.get(authModeConfirmedAtom) !== modeConfirmed ||
+              getAuthMode() !== mode || (store.get(currentUserAtom)?.id ?? null) !== userId) return false
+          // Never refresh a cookie or send a cookie-only request in required mode.
+          const exp = token ? parseJwtExp(token) : null
+          return mode === 'none' ? token === null :
+            !!userId && tokenSubject(token) === userId && exp !== null && exp > Math.floor(Date.now() / 1000)
+        })
       } catch (err) {
+        // Not a backend answer: the guard refused, nothing was sent.
+        if (err instanceof RequestIdentityChangedError) throw err
         throw new CancelFailedError(readCancelFailure(err), err)
       }
     },
-    [sessionId],
+    [sessionId, userId, mode, modeConfirmed, store],
   )
 
   return { tasks, cancelTask }

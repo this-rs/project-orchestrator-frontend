@@ -4,8 +4,7 @@ import type { SessionActivity } from '@/types'
 
 /**
  * Lightweight context exposing the current chat `sessionId` to descendants
- * deep in the message tree (e.g., `ToolCallBlock` for the per-tool Stop
- * button) without prop-drilling through 4 components.
+ * deep in the message tree without prop-drilling through multiple components.
  *
  * Mounted by `ChatPanel` once per active session.
  */
@@ -28,11 +27,6 @@ export interface ChatChildSession {
 interface ChatSessionContextValue {
   /** UUID of the currently-open chat session, or null on the "new conversation" screen. */
   sessionId: string | null
-  /**
-   * Cancel the running tools over the chat socket (`cancel_tools` frame). False = not
-   * sent (socket not open on this session): the caller falls back to REST.
-   */
-  cancelToolsLive?: () => boolean
   /**
    * The conversations this session opened. Absent where no children list is
    * read (a transcript rendered on a runner page): the sub-agent card then
@@ -63,7 +57,6 @@ const ChatSessionContext = createContext<ChatSessionContextValue>({ sessionId: n
 
 export function ChatSessionProvider({
   sessionId,
-  cancelToolsLive,
   childSessions,
   openSession,
   readOnlyReason,
@@ -71,7 +64,6 @@ export function ChatSessionProvider({
   children,
 }: {
   sessionId: string | null
-  cancelToolsLive?: () => boolean
   childSessions?: readonly ChatChildSession[]
   openSession?: (sessionId: string) => void
   readOnlyReason?: string | null
@@ -79,8 +71,8 @@ export function ChatSessionProvider({
   children: ReactNode
 }) {
   const value = useMemo(
-    () => ({ sessionId, cancelToolsLive, childSessions, openSession, readOnlyReason, sessionActivity }),
-    [sessionId, cancelToolsLive, childSessions, openSession, readOnlyReason, sessionActivity],
+    () => ({ sessionId, childSessions, openSession, readOnlyReason, sessionActivity }),
+    [sessionId, childSessions, openSession, readOnlyReason, sessionActivity],
   )
   return (
     <ChatSessionContext.Provider value={value}>
@@ -93,12 +85,6 @@ export function ChatSessionProvider({
 // eslint-disable-next-line react-refresh/only-export-components
 export function useChatSessionId(): string | null {
   return useContext(ChatSessionContext).sessionId
-}
-
-/** The socket path of "cancel the running tools", when the transcript has one (see `ChatSessionProvider`). */
-// eslint-disable-next-line react-refresh/only-export-components
-export function useCancelToolsLive(): (() => boolean) | undefined {
-  return useContext(ChatSessionContext).cancelToolsLive
 }
 
 /** Why this transcript cannot be answered (read-only mirror), or `null` when it can. */
