@@ -12,10 +12,11 @@ import type { ReactNode } from 'react'
 import { createElement } from 'react'
 import { Provider, createStore } from 'jotai'
 import { chatSessionIdAtom } from '@/atoms'
+import { currentUserAtom } from '@/atoms/auth'
 import type { CancelTaskResult } from '@/types'
 
 vi.mock('@/services/chat', () => ({
-  chatApi: { cancelTask: vi.fn<(sessionId: string, taskId: string) => Promise<CancelTaskResult>>() },
+  chatApi: { cancelTask: vi.fn<(sessionId: string, taskId: string, beforeSend: (token: string | null) => boolean) => Promise<CancelTaskResult>>() },
 }))
 
 import { chatApi } from '@/services/chat'
@@ -35,7 +36,7 @@ function mount(items: RunningItem[], runActions?: RunActions) {
   store.set(chatSessionIdAtom, 'session-1')
   const wrapper = ({ children }: { children: ReactNode }) => createElement(Provider, { store }, children)
   const view = render(<ActivityBar items={items} runActions={runActions} />, { wrapper })
-  return { ...view, setItems: (next: RunningItem[]) => view.rerender(<ActivityBar items={next} />) }
+  return { ...view, store, setItems: (next: RunningItem[]) => view.rerender(<ActivityBar items={next} />) }
 }
 
 const expand = () => fireEvent.click(screen.getByRole('button', { name: /^Running:/ }))
@@ -152,16 +153,16 @@ describe('<ActivityBar />', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show Plan the slices in the conversation' }))
   })
 
-  it('calls cancelTask for the row, says "stopping…" until the task leaves, reports the accepted signal without claiming exit', async () => {
+  it('calls cancelTask for the row and reports the accepted signal without claiming exit', async () => {
     vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({ task_id: 'm1', killed_pids: [10, 11], capped: false })
     const { setItems } = mount([monitor, shell])
     expand()
     fireEvent.click(screen.getByRole('button', { name: 'Stop tail -f ci.log' }))
-    expect(chatApi.cancelTask).toHaveBeenCalledWith('session-1', 'm1')
+    expect(chatApi.cancelTask).toHaveBeenCalledWith('session-1', 'm1', expect.any(Function))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Signal accepted for 2 processes. They may still be running.'))
     const row = screen.getByText('tail -f ci.log').closest('li')!
-    expect(within(row).getByText('stopping…')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Stop tail -f ci.log' })).toBeDisabled()
+    expect(within(row).queryByText('stopping…')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Stop tail -f ci.log' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
 
     // The task leaves the snapshot; the same id coming back later is a new task, not "stopping".
@@ -185,7 +186,7 @@ describe('<ActivityBar />', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('No signal was confirmed for this task. The outcome is unknown; check its activity.'))
     expect(screen.getByRole('status')).not.toHaveTextContent('registered')
-    expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
   })
 
   it('a task rate cap leaves the outcome unconfirmed and limits retry advice to that task', async () => {
@@ -255,25 +256,119 @@ describe('<ActivityBar />', () => {
     expect(chatApi.cancelTask).toHaveBeenCalledTimes(1)
   })
 
-  it('clears the confirmation after a moment, and the latest click replaces the previous message', async () => {
+  it.each([
+    [[], 'No signal was confirmed for this task'],
+    [[10], 'Signal accepted for 1 process. It may still be running.'],
+  ])('keeps the per-task outcome visible while active after timers, without repeating (pids=%s)', async (pids, text) => {
     vi.useFakeTimers()
     try {
-      vi.mocked(chatApi.cancelTask)
-        .mockResolvedValueOnce({ task_id: 's1', killed_pids: [], capped: true })
-        .mockResolvedValueOnce({ task_id: 's1', killed_pids: [1], capped: false })
-      mount([shell])
+      vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({ task_id: 's1', killed_pids: pids, capped: false })
+      const { setItems } = mount([shell])
       expand()
       fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
       await act(() => vi.advanceTimersByTimeAsync(0))
-      expect(screen.getByRole('status')).toHaveTextContent('Other owners may still act')
-    expect(screen.getByRole('status')).toHaveTextContent('retrying this task’s stop request')
+      expect(screen.getByRole('status')).toHaveTextContent(text)
+      expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
+      await act(() => vi.advanceTimersByTimeAsync(10_000))
+      expect(screen.getByRole('status')).toHaveTextContent(text)
+      expect(chatApi.cancelTask).toHaveBeenCalledTimes(1)
+      vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({ task_id: 's1', killed_pids: [], capped: false })
       fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
       await act(() => vi.advanceTimersByTimeAsync(0))
-      expect(screen.getByRole('status')).toHaveTextContent('Signal accepted for 1 process. It may still be running.')
-      await act(() => vi.advanceTimersByTimeAsync(2600))
-      expect(screen.queryByRole('status')).toBeNull()
-    } finally {
-      vi.useRealTimers()
-    }
+      expect(chatApi.cancelTask).toHaveBeenCalledTimes(2)
+      setItems([])
+      setItems([shell])
+      expect(screen.getByRole('status')).toHaveTextContent('No signal was confirmed')
+    } finally { vi.useRealTimers() }
+  })
+
+  it('does not expose an old account’s pending or completed result after A → B → A', async () => {
+    let finish!: (value: CancelTaskResult) => void
+    vi.mocked(chatApi.cancelTask).mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const { store } = mount([shell])
+    act(() => store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' }))
+    expand(); fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
+    expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeDisabled()
+    act(() => store.set(currentUserAtom, { id: 'user-b', email: 'b@example.com', name: 'B' }))
+    expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
+    act(() => store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' }))
+    await act(() => finish({ task_id: 's1', killed_pids: [1], capped: false }))
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
+  })
+
+  it('removes an already reported result when the authenticated account changes', async () => {
+    vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({ task_id: 's1', killed_pids: [1], capped: false })
+    const { store } = mount([shell])
+    act(() => store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' }))
+    expand(); fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Signal accepted'))
+    act(() => store.set(currentUserAtom, { id: 'user-b', email: 'b@example.com', name: 'B' }))
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('does not carry an in-flight outcome to the same task ID in another session', async () => {
+    let finish!: (value: CancelTaskResult) => void
+    vi.mocked(chatApi.cancelTask).mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const { store } = mount([shell])
+    expand()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
+    expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeDisabled()
+    act(() => store.set(chatSessionIdAtom, 'session-2'))
+    expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
+    await act(() => finish({ task_id: 's1', killed_pids: [1], capped: false }))
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(chatApi.cancelTask).toHaveBeenCalledWith('session-1', 's1', expect.any(Function))
+  })
+
+  it('preserves an in-flight request if the task disappears from a snapshot and returns', async () => {
+    let finish!: (value: CancelTaskResult) => void
+    vi.mocked(chatApi.cancelTask).mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    const { setItems } = mount([shell])
+    expand()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
+    setItems([])
+    setItems([shell])
+    expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
+    expect(chatApi.cancelTask).toHaveBeenCalledTimes(1)
+    await act(() => finish({ task_id: 's1', killed_pids: [1], capped: false }))
+    expect(screen.getByRole('status')).toHaveTextContent('Signal accepted')
+    expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
+  })
+
+  it('times out a stuck task request, retains unknown status, and ignores a late response', async () => {
+    vi.useFakeTimers()
+    try {
+      let finish!: (value: CancelTaskResult) => void
+      vi.mocked(chatApi.cancelTask).mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+      mount([shell]); expand()
+      fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
+      await act(() => vi.advanceTimersByTimeAsync(30_000))
+      expect(screen.getByRole('status')).toHaveTextContent('The outcome of this stop request is unknown')
+      expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
+      expect(chatApi.cancelTask).toHaveBeenCalledTimes(1)
+      await act(() => finish({ task_id: 's1', killed_pids: [1], capped: false }))
+      expect(screen.getByRole('status')).toHaveTextContent('The outcome of this stop request is unknown')
+    } finally { vi.useRealTimers() }
+  })
+
+  it('keeps independent outcomes for two task IDs, including when item id differs from taskId', async () => {
+    const differentId = { ...monitor, id: 'display-row', taskId: 'm1' }
+    vi.mocked(chatApi.cancelTask)
+      .mockResolvedValueOnce({ task_id: 'm1', killed_pids: [], capped: false })
+      .mockResolvedValueOnce({ task_id: 's1', killed_pids: [1], capped: false })
+    const { setItems } = mount([differentId, shell])
+    expand()
+    fireEvent.click(screen.getByRole('button', { name: 'Stop tail -f ci.log' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('No signal was confirmed'))
+    setItems([differentId, shell])
+    fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
+    await waitFor(() => expect(screen.getAllByRole('status')).toHaveLength(2))
+    expect(screen.getAllByRole('status')[0]).toHaveTextContent('tail -f ci.log: No signal was confirmed')
+    expect(screen.getAllByRole('status')[1]).toHaveTextContent('npm run dev: Signal accepted')
+    expect(chatApi.cancelTask).toHaveBeenCalledTimes(2)
+    setItems([shell])
+    expect(screen.getByRole('status')).toHaveTextContent('npm run dev: Signal accepted')
   })
 })

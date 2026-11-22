@@ -16,9 +16,12 @@
  * overlay (see `MessageQueueBar`): the dock measures its height, so the
  * transcript keeps clear of it. Renders nothing when nothing runs.
  */
-import { memo, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Bot, CheckCircle2, ChevronDown, CornerRightUp, ExternalLink, Eye, Layers, Loader2, MessageSquare, Square, Terminal, Workflow } from 'lucide-react'
+import { memo, useLayoutEffect, useRef, useState } from 'react'
+import { AlertTriangle, Bot, ChevronDown, CornerRightUp, ExternalLink, Eye, Layers, Loader2, MessageSquare, Square, Terminal, Workflow } from 'lucide-react'
 import { useT } from '@/i18n'
+import { useAtomValue, useStore } from 'jotai'
+import { chatSessionIdAtom } from '@/atoms'
+import { authModeAtom, authModeConfirmedAtom, currentUserAtom } from '@/atoms/auth'
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks'
 import { readCancelFailure } from '@/utils/cancelFailure'
 import { countByKind, type RunningItem, type RunningKind } from './runningActivity'
@@ -32,18 +35,16 @@ const KIND_META: Record<RunningKind, { icon: typeof Eye }> = {
   monitor: { icon: Eye },
 }
 
-/** How long the Stop confirmation stays visible. */
-const FEEDBACK_TTL_MS = 2500
-
 /**
  * What a Stop click came back with (`CancelTaskResult`):
  * - `success`: the backend signalled at least one process;
  * - `fallback`: no signal was confirmed; the outcome is unknown;
  * - `error`: refused (rate cap) or failed.
  */
+const CANCEL_TASK_TIMEOUT_MS = 30_000
+
 type Feedback =
   | { kind: 'success'; killed: number }
-  | { kind: 'stopped'; message: string }
   | { kind: 'fallback' }
   | { kind: 'error'; message: string }
 
@@ -166,34 +167,50 @@ function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
 export const ActivityBar = memo(function ActivityBar({ items, runActions }: { items: ReadonlyArray<RunningItem>; runActions?: RunActions }) {
   const { t } = useT()
   const { cancelTask } = useBackgroundTasks()
+  const sessionId = useAtomValue(chatSessionIdAtom)
+  const store = useStore()
   const [expanded, setExpanded] = useState(false)
-  // Sticky: a row says "stopping…" from the click until the task leaves the
-  // list (the backend keeps it for a grace period). Without it the spinner
-  // would flash for the round-trip and the click would look ignored.
+  // A request is in flight only until its response. Its outcome remains
+  // visible for this task across transient gaps in the activity snapshot.
   const [stopping, setStopping] = useState<ReadonlySet<string>>(() => new Set())
-  const [feedback, setFeedback] = useState<Feedback | null>(null)
-  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [feedback, setFeedback] = useState<Readonly<Record<string, Feedback>>>({})
+  const inFlight = useRef(new Map<string, symbol>())
+  const trackedSession = useRef(sessionId)
+  const scopeGeneration = useRef(Symbol('session'))
   const elapsedMs = useElapsedMs(oldestStart(items), items.length > 0)
 
-  useEffect(() => {
-    setStopping((prev) => {
-      const alive = new Set(items.map((i) => i.id))
-      const next = new Set([...prev].filter((id) => alive.has(id)))
-      return next.size === prev.size ? prev : next
-    })
-  }, [items])
+  useLayoutEffect(() => {
+    const invalidate = () => {
+      scopeGeneration.current = Symbol('identity')
+      inFlight.current.clear()
+      setStopping(new Set())
+      setFeedback({})
+    }
+    const unsubscribers = [
+      store.sub(currentUserAtom, invalidate),
+      store.sub(authModeAtom, invalidate),
+      store.sub(authModeConfirmedAtom, invalidate),
+    ]
+    return () => { for (const unsubscribe of unsubscribers) unsubscribe() }
+  }, [store])
 
-  useEffect(() => () => {
-    if (feedbackTimer.current != null) clearTimeout(feedbackTimer.current)
-  }, [])
+  useLayoutEffect(() => {
+    if (trackedSession.current === sessionId) return
+    trackedSession.current = sessionId
+    scopeGeneration.current = Symbol('session')
+    inFlight.current.clear()
+    setStopping(new Set())
+    setFeedback({})
+  }, [sessionId])
 
   if (items.length === 0) return null
 
-  const flash = (next: Feedback) => {
-    if (feedbackTimer.current != null) clearTimeout(feedbackTimer.current)
-    setFeedback(next)
-    feedbackTimer.current = setTimeout(() => setFeedback(null), FEEDBACK_TTL_MS)
-  }
+  const showFeedback = (taskId: string, next: Feedback | null) => setFeedback((prev) => {
+    const updated = { ...prev }
+    if (next) updated[taskId] = next
+    else delete updated[taskId]
+    return updated
+  })
 
   const setStoppingFor = (taskId: string, on: boolean) =>
     setStopping((prev) => {
@@ -204,36 +221,51 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
     })
 
   const handleStop = async (taskId: string) => {
-    setFeedback(null)
+    if (inFlight.current.has(taskId)) return
+    const generation = scopeGeneration.current
+    inFlight.current.set(taskId, generation)
+    showFeedback(taskId, null)
     setStoppingFor(taskId, true)
+    let timeout: ReturnType<typeof setTimeout> | undefined
     try {
-      const result = await cancelTask(taskId)
+      const result = await Promise.race([
+        cancelTask(taskId),
+        new Promise<never>((_resolve, reject) => {
+          timeout = setTimeout(() => reject(new Error('task stop timed out')), CANCEL_TASK_TIMEOUT_MS)
+        }),
+      ])
+      if (scopeGeneration.current !== generation) return
       if (result.capped) {
         // One owner reported a limit; another may still act on this task.
-        setStoppingFor(taskId, false)
-        flash({ kind: 'error', message: `${t('chatA-activity.cancelAll.capped')} ${t('chatA-activity.cancel.retryNotice')}` })
+        showFeedback(taskId, { kind: 'error', message: `${t('chatA-activity.cancelAll.capped')} ${t('chatA-activity.cancel.retryNotice')}` })
       } else if (result.killed_pids.length > 0) {
-        flash({ kind: 'success', killed: result.killed_pids.length })
+        showFeedback(taskId, { kind: 'success', killed: result.killed_pids.length })
       } else {
-        flash({ kind: 'fallback' })
+        showFeedback(taskId, { kind: 'fallback' })
       }
     } catch (err) {
-      setStoppingFor(taskId, false)
+      if (scopeGeneration.current !== generation) return
       const failure = readCancelFailure(err)
       if (failure.ownerUnreachable) {
         // 409 owner_unreachable: the state of the process is unconfirmed.
-        flash({ kind: 'error', message: t('chatA-activity.cancelAll.ownerUnreachable') })
+        showFeedback(taskId, { kind: 'error', message: t('chatA-activity.cancelAll.ownerUnreachable') })
       } else if (failure.code === 'owner_timeout') {
         // No answer in time: it may still happen (retryable or not, say that first).
-        flash({ kind: 'error', message: t('chatA-activity.cancel.timeoutNotice') })
+        showFeedback(taskId, { kind: 'error', message: t('chatA-activity.cancel.timeoutNotice') })
       } else if (failure.status === 502) {
         // A relay failure may arrive after another owner acted.
-        flash({ kind: 'error', message: t('chatA-activity.cancel.unknownNotice') })
+        showFeedback(taskId, { kind: 'error', message: t('chatA-activity.cancel.unknownNotice') })
       } else if (failure.retryable) {
-        flash({ kind: 'error', message: t('chatA-activity.cancel.retryNotice') })
+        showFeedback(taskId, { kind: 'error', message: t('chatA-activity.cancel.retryNotice') })
       } else {
         // A failed relay or lost response can follow a delivered signal.
-        flash({ kind: 'error', message: t('chatA-activity.cancel.unknownNotice') })
+        showFeedback(taskId, { kind: 'error', message: t('chatA-activity.cancel.unknownNotice') })
+      }
+    } finally {
+      if (timeout !== undefined) clearTimeout(timeout)
+      if (inFlight.current.get(taskId) === generation) {
+        inFlight.current.delete(taskId)
+        setStoppingFor(taskId, false)
       }
     }
   }
@@ -283,33 +315,26 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
       {expanded && (
         <ul className="max-h-40 overflow-y-auto border-t border-white/[0.06] divide-y divide-white/[0.04]">
           {items.map((item) => (
-            <ActivityRow key={item.id} item={item} stopping={stopping.has(item.id)} onStop={(id) => void handleStop(id)} runActions={runActions} />
+            <ActivityRow key={item.id} item={item} stopping={item.taskId != null && stopping.has(item.taskId)} onStop={(id) => void handleStop(id)} runActions={runActions} />
           ))}
         </ul>
       )}
 
-      {feedback && (
-        <div
+      {items.flatMap((item) => {
+        const result = item.taskId ? feedback[item.taskId] : undefined
+        if (!result) return []
+        return [<div
+          key={item.taskId}
           role="status"
-          className={`flex items-start gap-2 px-2.5 py-1.5 border-t border-white/[0.06] text-[11px] ${
-            feedback.kind === 'success' || feedback.kind === 'stopped' ? 'text-emerald-300' : 'text-amber-300'
-          }`}
-          data-feedback={feedback.kind}
+          className="flex items-start gap-2 px-2.5 py-1.5 border-t border-white/[0.06] text-[11px] text-amber-300"
+          data-feedback={result.kind}
         >
-          {feedback.kind === 'success' || feedback.kind === 'stopped' ? (
-            <CheckCircle2 className="w-3 h-3 mt-0.5 shrink-0" />
-          ) : (
-            <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
-          )}
-          <span>
-            {feedback.kind === 'success'
-              ? t(feedback.killed === 1 ? 'chatA-activity.bar.stoppedOne' : 'chatA-activity.bar.stoppedMany', { count: feedback.killed })
-              : feedback.kind === 'fallback'
-                ? t('chatA-activity.bar.noPid')
-                : feedback.message}
-          </span>
-        </div>
-      )}
+          <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+          <span><strong>{item.title}: </strong>{result.kind === 'success'
+            ? t(result.killed === 1 ? 'chatA-activity.bar.stoppedOne' : 'chatA-activity.bar.stoppedMany', { count: result.killed })
+            : result.kind === 'fallback' ? t('chatA-activity.bar.noPid') : result.message}</span>
+        </div>]
+      })}
     </div>
   )
 })
