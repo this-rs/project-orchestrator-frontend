@@ -62,3 +62,36 @@ describe('rotation in flight when the page goes away', () => {
     expect(outcome).toBe('ok')
   })
 })
+
+describe('setJotaiSetter hands the in-memory token to Jotai', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  async function page() {
+    const sim = new AuthServerSim({ latencyMs: 0, accessTtlS: 3600 })
+    const { auth, mgr } = await freshPage(sim)
+    const setToken = vi.fn()
+    return { sim, auth, mgr, setToken, setUser: vi.fn() }
+  }
+
+  it('a valid token already in memory reaches Jotai at mount: no second rotation', async () => {
+    const { sim, auth, mgr, setToken, setUser } = await page()
+    auth.setAuthToken(sim.mintJwt())
+    mgr.setJotaiSetter({ setToken, setUser })
+    expect(setToken).toHaveBeenCalledTimes(1)
+    expect(setToken).toHaveBeenCalledWith(auth.getAuthToken())
+  })
+
+  it('an expired token stays out of Jotai, so the boot refresh runs (once) instead of a 401 on /auth/me', async () => {
+    const { auth, mgr, setToken, setUser } = await page()
+    const expired = `h.${btoa(JSON.stringify({ sub: 'u', exp: Math.floor(Date.now() / 1000) - 5 }))}.s`
+    auth.setAuthToken(expired)
+    mgr.setJotaiSetter({ setToken, setUser })
+    expect(setToken).not.toHaveBeenCalled()
+  })
+
+  it('no token in memory: nothing is pushed', async () => {
+    const { mgr, setToken, setUser } = await page()
+    mgr.setJotaiSetter({ setToken, setUser })
+    expect(setToken).not.toHaveBeenCalled()
+  })
+})

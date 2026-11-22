@@ -141,8 +141,15 @@ export function setJotaiSetter(setters: JotaiSetters): void {
   // otherwise ProtectedRoute sees "no token" and rotates the refresh cookie a
   // SECOND time at every boot, doubling the window in which a reload loses the
   // single-use cookie (the response with its successor is dropped by the unload).
+  // Only a token that is still valid: an expired one would make ProtectedRoute
+  // believe it is signed in, skip its boot refresh (and the retries of
+  // `refreshAtBoot`), and learn otherwise from a 401 on /auth/me. Left out of
+  // Jotai, it lets the boot refresh run — once — on the cookie the first
+  // rotation already left in the browser.
   const current = getAuthToken()
-  if (current) setters.setToken(current)
+  if (!current) return
+  const exp = parseJwtExp(current)
+  if (exp === null || exp > Math.floor(Date.now() / 1000)) setters.setToken(current)
 }
 
 // ---------------------------------------------------------------------------
