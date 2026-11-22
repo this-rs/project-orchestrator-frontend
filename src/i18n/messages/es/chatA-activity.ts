@@ -52,6 +52,18 @@ export default {
     stoppedMany: "{count} subprocesos detenidos.",
     noPid: "Cancelación registrada, pero se desconocía el PID del subproceso — si siguen llegando señales, usa el botón Detener global."
   },
+  cancelAll: {
+    open: "Detener todas las herramientas de esta sesión",
+    explain: "Esto envía una señal de interrupción a todos los procesos de herramientas de esta sesión, mientras el turno continúa. Los procesos pueden ignorar la señal o sobrevivir. Compruebe después su estado real.",
+    confirm: "Enviar interrupción a todas las herramientas",
+    back: "Volver",
+    sending: "Enviando interrupción…",
+    signalled: "Solicitud completada. Una señal no garantiza que los procesos se hayan detenido; compruebe su estado real.",
+    capped: "No se envió ninguna señal: se alcanzó el límite de frecuencia.",
+    uncertain: "Resultado desconocido. La señal aún puede enviarse; compruebe la sesión antes de volver a intentarlo.",
+    refused: "El proveedor rechazó esta operación.",
+    reset: "He comprobado esta sesión: permitir otra solicitud",
+  },
   cancel: {
     alreadyStopped: "ya detenido",
     notStopped: "no detenido — usa el botón Detener global",

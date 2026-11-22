@@ -52,6 +52,18 @@ export default {
     stoppedMany: "已停止 {count} 个子进程。",
     noPid: "已登记取消，但子进程的 PID 未知——若仍有信号到达，请使用全局停止按钮。"
   },
+  cancelAll: {
+    open: "停止此会话中的所有工具",
+    explain: "这会向此会话的所有工具进程发送中断信号，但当前回合继续。进程可能忽略信号或继续运行。请随后检查实际状态。",
+    confirm: "向所有工具发送中断",
+    back: "返回",
+    sending: "正在发送中断…",
+    signalled: "请求已完成。信号不保证进程已停止；请检查实际状态。",
+    capped: "未发送信号：已达到速率限制。",
+    uncertain: "结果未知。信号仍可能发出；重试前请检查会话。",
+    refused: "提供方拒绝了此操作。",
+    reset: "我已检查此会话 — 允许再次请求",
+  },
   cancel: {
     alreadyStopped: "已停止",
     notStopped: "未停止——请改用全局停止",

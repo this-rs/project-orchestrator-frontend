@@ -52,6 +52,18 @@ export default {
     stoppedMany: "{count} sous-processus arrêtés.",
     noPid: "Annulation enregistrée, mais le PID du sous-processus était inconnu — si des signaux continuent d’arriver, utilisez le bouton d’arrêt global."
   },
+  cancelAll: {
+    open: 'Arrêter tous les outils de cette session',
+    explain: 'Cette action envoie un signal d’interruption à tous les processus d’outils de cette session, sans arrêter le tour. Des processus peuvent ignorer le signal ou survivre. Vérifiez leur état réel ensuite.',
+    confirm: 'Envoyer l’interruption à tous les outils',
+    back: 'Retour',
+    sending: 'Envoi de l’interruption…',
+    signalled: 'Demande terminée. Un signal ne garantit pas l’arrêt des processus ; vérifiez leur état réel.',
+    capped: 'Aucun signal envoyé : la limite de fréquence est atteinte.',
+    uncertain: 'Résultat inconnu. Le signal peut encore être envoyé ; vérifiez la session avant de réessayer.',
+    refused: 'Le fournisseur a refusé cette opération.',
+    reset: 'J’ai vérifié cette session — autoriser une nouvelle demande',
+  },
   cancel: {
     alreadyStopped: "déjà arrêté",
     notStopped: "non arrêté — utilisez l’arrêt global",

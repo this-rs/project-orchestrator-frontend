@@ -52,6 +52,18 @@ export default {
     stoppedMany: "{count} Unterprozesse gestoppt.",
     noPid: "Abbruch registriert, aber die PID des Unterprozesses war unbekannt — falls weiterhin Ticks eintreffen, nutze die globale Stopp-Schaltfläche."
   },
+  cancelAll: {
+    open: "Alle Werkzeuge dieser Sitzung stoppen",
+    explain: "Dies sendet ein Unterbrechungssignal an alle Werkzeugprozesse dieser Sitzung, während der Durchlauf weiterläuft. Prozesse können das Signal ignorieren oder weiterlaufen. Prüfen Sie danach den tatsächlichen Zustand.",
+    confirm: "Unterbrechung an alle Werkzeuge senden",
+    back: "Zurück",
+    sending: "Unterbrechung wird gesendet…",
+    signalled: "Anfrage abgeschlossen. Ein Signal garantiert nicht, dass Prozesse beendet wurden; prüfen Sie den tatsächlichen Zustand.",
+    capped: "Kein Signal gesendet: Das Anfragelimit wurde erreicht.",
+    uncertain: "Ergebnis unbekannt. Das Signal kann noch gesendet werden; prüfen Sie die Sitzung vor einem erneuten Versuch.",
+    refused: "Der Anbieter hat diesen Vorgang abgelehnt.",
+    reset: "Ich habe diese Sitzung geprüft — weitere Anfrage erlauben",
+  },
   cancel: {
     alreadyStopped: "bereits beendet",
     notStopped: "nicht beendet — nutze den globalen Stopp",

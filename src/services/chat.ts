@@ -172,7 +172,7 @@ export const chatApi = {
    * caller should display a "slow down" toast and retry later.
    */
   cancelTools: (sessionId: string) =>
-    api.post<CancelToolsResult>(`/chat/sessions/${sessionId}/cancel-tools`, {}),
+    api.postOnce<CancelToolsResult>(`/chat/sessions/${sessionId}/cancel-tools`, {}),
 
   /**
    * Snapshot the background subprocesses currently tracked for a session

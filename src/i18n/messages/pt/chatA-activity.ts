@@ -52,6 +52,18 @@ export default {
     stoppedMany: "{count} subprocessos interrompidos.",
     noPid: "Cancelamento registrado, mas o PID do subprocesso era desconhecido — se os sinais continuarem chegando, use o botão Parar global."
   },
+  cancelAll: {
+    open: "Parar todas as ferramentas desta sessão",
+    explain: "Isto envia um sinal de interrupção a todos os processos de ferramentas desta sessão, enquanto o turno continua. Os processos podem ignorar o sinal ou sobreviver. Verifique o estado real depois.",
+    confirm: "Enviar interrupção a todas as ferramentas",
+    back: "Voltar",
+    sending: "Enviando interrupção…",
+    signalled: "Pedido concluído. Um sinal não garante que os processos pararam; verifique o estado real.",
+    capped: "Nenhum sinal enviado: o limite de frequência foi atingido.",
+    uncertain: "Resultado desconhecido. O sinal ainda pode ser enviado; verifique a sessão antes de tentar novamente.",
+    refused: "O fornecedor recusou esta operação.",
+    reset: "Verifiquei esta sessão — permitir outro pedido",
+  },
   cancel: {
     alreadyStopped: "já parado",
     notStopped: "não parado — use o Parar global",

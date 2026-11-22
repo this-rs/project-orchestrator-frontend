@@ -52,6 +52,18 @@ export default {
     stoppedMany: "Đã dừng {count} tiến trình con.",
     noPid: "Đã ghi nhận yêu cầu hủy nhưng không biết PID của tiến trình con — nếu tín hiệu vẫn tiếp tục đến, hãy dùng nút Dừng toàn cục."
   },
+  cancelAll: {
+    open: "Dừng tất cả công cụ trong phiên này",
+    explain: "Thao tác này gửi tín hiệu ngắt đến mọi tiến trình công cụ trong phiên, còn lượt vẫn tiếp tục. Tiến trình có thể bỏ qua tín hiệu hoặc tiếp tục chạy. Hãy kiểm tra trạng thái thực tế sau đó.",
+    confirm: "Gửi tín hiệu ngắt đến tất cả công cụ",
+    back: "Quay lại",
+    sending: "Đang gửi tín hiệu ngắt…",
+    signalled: "Yêu cầu đã hoàn tất. Tín hiệu không đảm bảo tiến trình đã dừng; hãy kiểm tra trạng thái thực tế.",
+    capped: "Không gửi tín hiệu: đã đạt giới hạn tần suất.",
+    uncertain: "Chưa rõ kết quả. Tín hiệu vẫn có thể được gửi; hãy kiểm tra phiên trước khi thử lại.",
+    refused: "Nhà cung cấp đã từ chối thao tác này.",
+    reset: "Tôi đã kiểm tra phiên này — cho phép yêu cầu khác",
+  },
   cancel: {
     alreadyStopped: "đã dừng",
     notStopped: "chưa dừng — hãy dùng nút Dừng toàn cục",

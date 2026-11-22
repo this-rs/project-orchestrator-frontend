@@ -29,6 +29,18 @@ export default {
     stoppedMany: 'Stopped {count} subprocesses.',
     noPid: 'Cancel registered, but the subprocess PID wasn’t known — if ticks keep arriving, use the global Stop button.',
   },
+  cancelAll: {
+    open: 'Stop all tools in this session',
+    explain: 'This sends an interruption signal to all tool processes in this session, while the turn continues. Processes may ignore the signal or survive. Check their actual state afterward.',
+    confirm: 'Send interruption to all tools',
+    back: 'Go back',
+    sending: 'Sending interruption…',
+    signalled: 'Request completed. A signal does not guarantee processes stopped; check their actual state.',
+    capped: 'No signal sent: the rate limit was reached.',
+    uncertain: 'The outcome is unknown. The signal may still be sent; check the session before trying again.',
+    refused: 'The provider refused this operation.',
+    reset: 'I checked this session — allow another request',
+  },
   cancel: {
     alreadyStopped: 'already stopped',
     notStopped: 'not stopped — use the global Stop',
