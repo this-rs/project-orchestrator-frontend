@@ -39,6 +39,7 @@ export default {
     capped: 'No signal sent: the rate limit was reached.',
     uncertain: 'The outcome is unknown. The signal may still be sent; check the session before trying again.',
     refused: 'The provider refused this operation.',
+    identityChanged: "No request was sent because the authenticated identity could not be verified. Check your session and sign in again if needed.",
     reset: 'I checked this session — allow another request',
   },
   cancel: {

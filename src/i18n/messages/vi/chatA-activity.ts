@@ -62,6 +62,7 @@ export default {
     capped: "Không gửi tín hiệu: đã đạt giới hạn tần suất.",
     uncertain: "Chưa rõ kết quả. Tín hiệu vẫn có thể được gửi; hãy kiểm tra phiên trước khi thử lại.",
     refused: "Nhà cung cấp đã từ chối thao tác này.",
+    identityChanged: "Không gửi yêu cầu vì không thể xác minh danh tính đã xác thực. Hãy kiểm tra phiên và đăng nhập lại nếu cần.",
     reset: "Tôi đã kiểm tra phiên này — cho phép yêu cầu khác",
   },
   cancel: {

@@ -62,6 +62,7 @@ export default {
     capped: "未发送信号：已达到速率限制。",
     uncertain: "结果未知。信号仍可能发出；重试前请检查会话。",
     refused: "提供方拒绝了此操作。",
+    identityChanged: "未发送请求：无法验证已认证身份。请检查会话，必要时重新登录。",
     reset: "我已检查此会话 — 允许再次请求",
   },
   cancel: {

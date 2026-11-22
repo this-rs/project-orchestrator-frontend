@@ -13,6 +13,11 @@ export class ApiError extends Error {
   }
 }
 
+/** The caller's identity changed while a single-attempt action was prepared. */
+export class RequestIdentityChangedError extends Error {
+  constructor() { super('Authentication changed before the request was sent') }
+}
+
 /**
  * The server answered something that is not the JSON the client expects
  * (typically an HTML page: a proxy error, a static-file fallback, a login
@@ -129,6 +134,7 @@ async function authedFetch(
   _isRetry = false,
   base: RequestBase = 'api',
   allowRetry = true,
+  beforeSend?: (token: string | null) => boolean,
 ): Promise<Response> {
   // Fast-path: bail immediately if already aborted (e.g. navigation happened
   // while a previous request was still being set up). This avoids queueing
@@ -155,6 +161,8 @@ async function authedFetch(
   if (options.signal?.aborted) {
     throw new DOMException('The operation was aborted.', 'AbortError')
   }
+
+  if (beforeSend && !beforeSend(token)) throw new RequestIdentityChangedError()
 
   // Preserve any AbortSignal passed via options
   const response = await fetchWithStartupRetry(url, {
@@ -206,8 +214,9 @@ async function request<T>(
   _isRetry = false,
   base: RequestBase = 'api',
   allowRetry = true,
+  beforeSend?: (token: string | null) => boolean,
 ): Promise<T> {
-  const response = await authedFetch(endpoint, options, _isRetry, base, allowRetry)
+  const response = await authedFetch(endpoint, options, _isRetry, base, allowRetry, beforeSend)
 
   if (response.status === 204) {
     return {} as T
@@ -261,12 +270,12 @@ export const api = {
     }),
 
   /** A single authenticated attempt for actions unsafe to repeat after a lost response. */
-  postOnce: <T>(endpoint: string, data?: unknown, signal?: AbortSignal) =>
+  postOnce: <T>(endpoint: string, data?: unknown, signal?: AbortSignal, beforeSend?: (token: string | null) => boolean) =>
     request<T>(endpoint, {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
       signal,
-    }, false, 'api', false),
+    }, false, 'api', false, beforeSend),
 
   patch: <T>(endpoint: string, data: unknown, signal?: AbortSignal) =>
     request<T>(endpoint, {

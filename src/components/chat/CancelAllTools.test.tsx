@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import { ApiError } from '@/services/api'
+import { authModeConfirmedAtom, currentUserAtom } from '@/atoms/auth'
 
 vi.mock('@/services/chat', () => ({ chatApi: { cancelTools: vi.fn() } }))
 import { chatApi } from '@/services/chat'
@@ -15,6 +16,8 @@ const refusal = (status: number, code: string, retryable: boolean) =>
 
 function mount(sessionId = 's1') {
   const store = createStore()
+  store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' })
+  store.set(authModeConfirmedAtom, true)
   const view = render(<Provider store={store}><CancelAllTools sessionId={sessionId} available /></Provider>)
   return { ...view, store }
 }
@@ -33,7 +36,7 @@ describe('session-wide cancellation', () => {
     fireEvent.click(button)
     fireEvent.click(button)
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
-    expect(chatApi.cancelTools).toHaveBeenCalledWith('s1')
+    expect(chatApi.cancelTools).toHaveBeenCalledWith('s1', expect.any(Function))
     await act(() => resolve({ capped: false, killed_pids: [123], cli_pid: null }))
     expect(screen.getByRole('status')).toHaveTextContent('does not guarantee processes stopped')
     expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
@@ -101,6 +104,9 @@ describe('session-wide cancellation', () => {
     rerender(<Provider store={store}><CancelAllTools sessionId="s1" available={false} /></Provider>)
     expect(screen.queryByRole('button', { name: 'Send interruption to all tools' })).toBeNull()
     expect(chatApi.cancelTools).not.toHaveBeenCalled()
+    rerender(<Provider store={store}><CancelAllTools sessionId="s1" available /></Provider>)
+    expect(screen.queryByRole('button', { name: 'Send interruption to all tools' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
   })
 
   it('does not carry a confirmation across sessions when navigation happens before sending', () => {
@@ -140,6 +146,47 @@ describe('session-wide cancellation', () => {
     await act(() => resolve({ capped: false, killed_pids: [1], cli_pid: null }))
     expect(screen.queryByRole('status')).toBeNull()
     expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not show a late response from A to B in the same store, even for the same session', async () => {
+    let resolve!: (v: { capped: boolean; killed_pids: number[]; cli_pid: null }) => void
+    vi.mocked(chatApi.cancelTools).mockReturnValueOnce(new Promise((r) => { resolve = r }))
+    const { store } = mount('s1')
+    open()
+    confirm()
+    act(() => store.set(currentUserAtom, { id: 'user-b', email: 'b@example.com', name: 'B' }))
+    await act(() => resolve({ capped: false, killed_pids: [1], cli_pid: null }))
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+  })
+
+  it('does not resurrect a confirmation or old outcome after A → B → A', async () => {
+    let resolve!: (v: { capped: boolean; killed_pids: number[]; cli_pid: null }) => void
+    vi.mocked(chatApi.cancelTools).mockReturnValueOnce(new Promise((r) => { resolve = r }))
+    const { store } = mount('s1')
+    open()
+    confirm()
+    act(() => store.set(currentUserAtom, { id: 'user-b', email: 'b@example.com', name: 'B' }))
+    act(() => store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' }))
+    await act(() => resolve({ capped: false, killed_pids: [1], cli_pid: null }))
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Send interruption to all tools' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+  })
+
+  it('keeps an earlier A request pending or uncertain after A → B → A, without blocking B', async () => {
+    let reject!: (reason: Error) => void
+    vi.mocked(chatApi.cancelTools).mockReturnValueOnce(new Promise((_resolve, r) => { reject = r }))
+    const { store } = mount('s1')
+    open(); confirm()
+    act(() => store.set(currentUserAtom, { id: 'user-b', email: 'b@example.com', name: 'B' }))
+    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    act(() => store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' }))
+    expect(screen.getByRole('status')).toHaveTextContent('Sending interruption')
+    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    await act(() => reject(new TypeError('connection lost')))
+    expect(screen.getByRole('status')).toHaveTextContent('outcome is unknown')
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 })

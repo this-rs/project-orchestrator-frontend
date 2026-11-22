@@ -62,6 +62,7 @@ export default {
     capped: 'Aucun signal envoyé : la limite de fréquence est atteinte.',
     uncertain: 'Résultat inconnu. Le signal peut encore être envoyé ; vérifiez la session avant de réessayer.',
     refused: 'Le fournisseur a refusé cette opération.',
+    identityChanged: "Aucune demande envoyée : l’identité authentifiée n’a pas pu être vérifiée. Vérifiez votre session et reconnectez-vous si nécessaire.",
     reset: 'J’ai vérifié cette session — autoriser une nouvelle demande',
   },
   cancel: {

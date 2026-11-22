@@ -62,6 +62,7 @@ export default {
     capped: "Kein Signal gesendet: Das Anfragelimit wurde erreicht.",
     uncertain: "Ergebnis unbekannt. Das Signal kann noch gesendet werden; prüfen Sie die Sitzung vor einem erneuten Versuch.",
     refused: "Der Anbieter hat diesen Vorgang abgelehnt.",
+    identityChanged: "Keine Anfrage gesendet: Die angemeldete Identität konnte nicht überprüft werden. Prüfen Sie die Sitzung und melden Sie sich bei Bedarf erneut an.",
     reset: "Ich habe diese Sitzung geprüft — weitere Anfrage erlauben",
   },
   cancel: {

@@ -62,6 +62,7 @@ export default {
     capped: "Nenhum sinal enviado: o limite de frequência foi atingido.",
     uncertain: "Resultado desconhecido. O sinal ainda pode ser enviado; verifique a sessão antes de tentar novamente.",
     refused: "O fornecedor recusou esta operação.",
+    identityChanged: "Nenhum pedido foi enviado: não foi possível verificar a identidade autenticada. Verifique a sessão e inicie sessão novamente se necessário.",
     reset: "Verifiquei esta sessão — permitir outro pedido",
   },
   cancel: {

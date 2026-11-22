@@ -62,6 +62,7 @@ export default {
     capped: "No se envió ninguna señal: se alcanzó el límite de frecuencia.",
     uncertain: "Resultado desconocido. La señal aún puede enviarse; compruebe la sesión antes de volver a intentarlo.",
     refused: "El proveedor rechazó esta operación.",
+    identityChanged: "No se envió ninguna solicitud: no se pudo verificar la identidad autenticada. Compruebe su sesión e inicie sesión de nuevo si es necesario.",
     reset: "He comprobado esta sesión: permitir otra solicitud",
   },
   cancel: {
