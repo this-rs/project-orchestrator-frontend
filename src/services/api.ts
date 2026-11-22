@@ -1,4 +1,4 @@
-import { getAuthMode } from './auth'
+import { getAuthMode, getAuthToken } from './auth'
 import { getValidToken, refreshToken, forceLogout } from './authManager'
 import { isTauri, getApiBase, getAuthBase } from './env'
 import { tr } from '@/i18n/lazy'
@@ -11,6 +11,11 @@ export class ApiError extends Error {
     super(message)
     this.name = 'ApiError'
   }
+}
+
+/** The caller's identity changed while a single-attempt action was prepared. */
+export class RequestIdentityChangedError extends Error {
+  constructor() { super('Authentication changed before the request was sent') }
 }
 
 /**
@@ -68,9 +73,10 @@ let _backendReachable = !isTauri // In web mode, assume reachable (Vite proxy)
 async function fetchWithStartupRetry(
   url: string,
   init: RequestInit,
+  allowRetry = true,
 ): Promise<Response> {
   // If backend is already known to be reachable, do a single attempt
-  if (_backendReachable) {
+  if (_backendReachable || !allowRetry) {
     return fetch(url, init)
   }
 
@@ -127,6 +133,9 @@ async function authedFetch(
   options: RequestInit = {},
   _isRetry = false,
   base: RequestBase = 'api',
+  allowRetry = true,
+  beforeSend?: (token: string | null) => boolean,
+  useCurrentToken = false,
 ): Promise<Response> {
   // Fast-path: bail immediately if already aborted (e.g. navigation happened
   // while a previous request was still being set up). This avoids queueing
@@ -143,7 +152,9 @@ async function authedFetch(
     ...(options.headers as Record<string, string> | undefined),
   }
 
-  const token = await getValidToken()
+  const token = useCurrentToken
+    ? (getAuthMode() === 'none' ? null : getAuthToken())
+    : await getValidToken()
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
   }
@@ -154,16 +165,18 @@ async function authedFetch(
     throw new DOMException('The operation was aborted.', 'AbortError')
   }
 
+  if (beforeSend && !beforeSend(token)) throw new RequestIdentityChangedError()
+
   // Preserve any AbortSignal passed via options
   const response = await fetchWithStartupRetry(url, {
     ...options,
     credentials: 'include', // Send HttpOnly refresh_token cookie
     headers,
-  })
+  }, allowRetry)
 
   if (!response.ok) {
     // 401 Unauthorized in auth-required mode → try refresh once, then logout
-    if (response.status === 401 && getAuthMode() === 'required') {
+    if (response.status === 401 && getAuthMode() === 'required' && allowRetry) {
       if (!_isRetry) {
         try {
           // Attempt token refresh and retry the original request once
@@ -203,8 +216,11 @@ async function request<T>(
   options: RequestInit = {},
   _isRetry = false,
   base: RequestBase = 'api',
+  allowRetry = true,
+  beforeSend?: (token: string | null) => boolean,
+  useCurrentToken = false,
 ): Promise<T> {
-  const response = await authedFetch(endpoint, options, _isRetry, base)
+  const response = await authedFetch(endpoint, options, _isRetry, base, allowRetry, beforeSend, useCurrentToken)
 
   if (response.status === 204) {
     return {} as T
@@ -256,6 +272,10 @@ export const api = {
       body: data ? JSON.stringify(data) : undefined,
       signal,
     }),
+
+  /** Single attempt with the existing token: never rotates a shared refresh cookie. */
+  postOnceCurrentToken: <T>(endpoint: string, data: unknown, beforeSend: (token: string | null) => boolean, signal?: AbortSignal) =>
+    request<T>(endpoint, { method: 'POST', body: JSON.stringify(data), signal }, false, 'api', false, beforeSend, true),
 
   patch: <T>(endpoint: string, data: unknown, signal?: AbortSignal) =>
     request<T>(endpoint, {

@@ -206,9 +206,6 @@ export default {
     cancelled: 'キャンセル済み',
     running: '実行中...',
     runningElapsed: '{elapsed} — 実行中...',
-    stopTitle: 'このツールを停止（実行中のサブプロセスに SIGINT を送信します。エージェントのターンは継続します）',
-    stop: '停止',
-    stopping: '停止中…',
   },
   toolRender: {
     processing: '処理中...',

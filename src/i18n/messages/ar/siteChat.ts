@@ -206,9 +206,6 @@ export default {
     cancelled: 'أُلغي',
     running: 'قيد التشغيل...',
     runningElapsed: '{elapsed} — قيد التشغيل...',
-    stopTitle: 'إيقاف هذه الأداة (يُرسل SIGINT إلى العملية الفرعية قيد التشغيل؛ يستمر دور الوكيل)',
-    stop: 'إيقاف',
-    stopping: 'جارٍ الإيقاف…',
   },
   toolRender: {
     processing: 'جارٍ المعالجة...',

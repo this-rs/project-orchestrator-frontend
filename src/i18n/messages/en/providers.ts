@@ -66,7 +66,6 @@ export default {
     policyOnly: 'Policy only: tools that would need approval are denied.',
     policyOnlyDetail: 'This provider cannot pause a tool call to ask you. The tool policy decides alone.',
     policyOnlyRequest: 'Not asked: this provider applies the tool policy without prompting.',
-    toolCancelUnsupported: 'This provider cannot stop a single tool. Use Stop in the composer to interrupt the whole turn.',
     resumeUnsupported: 'This provider cannot resume a conversation. Start a new conversation to continue.',
   },
   setup: {

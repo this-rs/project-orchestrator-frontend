@@ -45,21 +45,35 @@ export default {
     dashboardAria: "Abrir el panel del runner de {title}"
   },
   bar: {
-    tooFast: "Cancelaciones demasiado rápidas — inténtalo de nuevo en un momento.",
-    cancelFailed: "No se pudo cancelar la tarea — usa mejor el botón Detener global.",
+    acknowledge: "He comprobado esta tarea — permitir otra solicitud",
     runningAria: "En ejecución: {summary}",
-    stoppedOne: "{count} subproceso detenido.",
-    stoppedMany: "{count} subprocesos detenidos.",
-    noPid: "Cancelación registrada, pero se desconocía el PID del subproceso — si siguen llegando señales, usa el botón Detener global."
+    stoppedOne: "Se aceptó la señal para {count} proceso. Puede seguir ejecutándose.",
+    stoppedMany: "Se aceptó la señal para {count} procesos. Pueden seguir ejecutándose.",
+    noPid: "No se confirmó ninguna señal para esta tarea. El resultado es desconocido; compruebe su actividad."
+  },
+  cancelAll: {
+    open: "Detener las herramientas de la sesión, incluidas las de los subagentes",
+    explain: "Esto envía una señal de interrupción a todos los procesos de herramientas de esta sesión, mientras el turno continúa. Los procesos pueden ignorar la señal o sobrevivir. Compruebe después su estado real. Los procesos de herramientas de los subagentes también pueden verse afectados si son descendientes; algunos pueden sobrevivir.",
+    confirm: "Enviar la interrupción a las herramientas de la sesión y de los subagentes",
+    back: "Volver",
+    sending: "Enviando interrupción…",
+    signalled: "Se recibió una respuesta de un propietario. Una señal no garantiza que los procesos se detengan; otras operaciones pueden seguir en curso. Compruebe la actividad de la sesión.",
+    capped: "Un propietario notificó un límite de frecuencia. Otros aún pueden actuar; compruebe la sesión antes de volver a intentarlo.",
+    uncertain: "Resultado desconocido. La señal aún puede enviarse; compruebe la sesión antes de volver a intentarlo.",
+    refused: "Se recibió un rechazo de un motor.",
+    unsupported: "Este proveedor no puede detener todas las herramientas de esta sesión.",
+    ownerUnreachable: "Propietario inaccesible; no se confirmó ninguna detención. Compruebe la actividad de la sesión.",
+    identityChanged: "No se envió ninguna solicitud: no se pudo verificar la identidad autenticada. Compruebe su sesión e inicie sesión de nuevo si es necesario.",
+    reset: "He comprobado esta sesión: permitir otra solicitud",
   },
   cancel: {
-    alreadyStopped: "ya detenido",
-    notStopped: "no detenido — usa el botón Detener global",
-    alreadyStoppedNotice: "Ya detenido — ya no se estaba ejecutando nada.",
-    retryNotice: "Aún no detenido — inténtalo de nuevo en un momento.",
+    unsupportedNotice: "Se recibió un rechazo; la detención no está confirmada. Compruebe la actividad de la sesión.",
+    unknownNotice: "Se desconoce el resultado de esta solicitud de detención. Compruebe la actividad de la sesión.",
+    retryNotice: "El resultado no está confirmado. Compruebe la actividad antes de volver a intentar detener esta tarea.",
     timeoutNotice: "La detención no recibió respuesta a tiempo — puede que aún ocurra.",
-    failedNotice: "No se pudieron detener las herramientas — usa mejor el botón Detener global.",
-    taskRefusedNotice: "Este proveedor no puede detener una sola tarea en segundo plano. Usa Detener en el compositor para interrumpir todo el turno."
+    taskRefusedNotice: "Se recibió un rechazo; la detención no está confirmada. Compruebe la actividad de la sesión.",
+    unauthenticatedNotice: 'Autenticación rechazada (401): su sesión de usuario falta o ha caducado. No se confirmó ninguna detención; vuelva a iniciar sesión y compruebe la actividad de la sesión.',
+    forbiddenNotice: 'Autorización rechazada (403): esta cuenta no puede detener estas herramientas. No se confirmó ninguna detención; compruebe la actividad de la sesión.',
   },
   agent: {
     subAgent: "Subagente",

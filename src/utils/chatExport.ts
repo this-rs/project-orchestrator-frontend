@@ -1,6 +1,7 @@
 import type { ChatMessage, ContentBlock } from '@/types'
 import { costOfMessage, costToText } from './cost'
 import { tr } from '@/i18n/lazy'
+import { cancelNoticeKey } from './cancelFailure'
 
 export interface ChatExportMeta {
   sessionId?: string
@@ -50,7 +51,11 @@ function blockToMarkdown(block: ContentBlock): string {
     case 'error':
     case 'result_error':
       // A failed or refused cancel is a notice: the turn went on.
-      if (block.metadata?.cancel_notice === true) return `> **Notice:** ${block.content}`
+      if (block.metadata?.cancel_notice === true) {
+        const code = block.metadata.code as string
+        const reason = block.metadata.reason as string | undefined
+        return `> **Notice:** ${tr(cancelNoticeKey(code, reason))}`
+      }
       return `> **Error:** ${block.content}`
 
     case 'result_max_turns':

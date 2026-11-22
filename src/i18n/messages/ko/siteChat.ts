@@ -206,9 +206,6 @@ export default {
     cancelled: '취소됨',
     running: '실행 중...',
     runningElapsed: '{elapsed} — 실행 중...',
-    stopTitle: '이 도구 중지 (실행 중인 하위 프로세스에 SIGINT를 보내며, 에이전트의 턴은 계속됩니다)',
-    stop: '중지',
-    stopping: '중지하는 중…',
   },
   toolRender: {
     processing: '처리 중...',

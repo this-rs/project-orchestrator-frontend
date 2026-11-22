@@ -20,6 +20,8 @@ import {
 } from '@/constants/toolPolicy'
 import { ChevronDown, Loader2, Paperclip, Square, ArrowRight, ChartNoAxesGantt } from 'lucide-react'
 import { ActivityBar, type RunActions } from './ActivityBar'
+import { CancelAllTools } from './CancelAllTools'
+import { useChatCapabilities } from './ChatSessionContext'
 import { WorkBar } from './WorkBar'
 import { deriveWorkInProgress } from './workInProgress'
 import type { TimelineWork } from '@/components/timeline'
@@ -149,6 +151,7 @@ const IMAGES_REFUSED_KEYS: Readonly<Record<ImagesCause, MessageKey>> = {
 const NO_ACTIVITY: ReadonlyArray<RunningItem> = []
 
 export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, onInterrupt, isStreaming, disabled, disabledReason, sessionId, onChangePermissionMode, onChangeModel, onNewConversation, prefill, activity = NO_ACTIVITY, runActions, work, workspaceSlug, onVaultUnlocked }: ChatInputProps) {
+  const canCancelAll = useChatCapabilities().tool_cancel
   const [value, setValue] = useAtom(chatDraftInputAtom)
   const isMobile = useIsMobile()
   const hasWork = useMemo(() => deriveWorkInProgress(work) != null, [work])
@@ -976,6 +979,7 @@ export const ChatInput = memo(function ChatInput({ onSend, onQueue, onQueueOp, o
           />
         </div>
       )}
+      {sessionId && <CancelAllTools key={sessionId} sessionId={sessionId} available={!disabled && canCancelAll} unsupported={!canCancelAll} />}
       {/* Attachment thumbnails — directly above the textarea, part of the
           message being composed (unlike the queue bar, which floats over the
           conversation because those messages are not being composed any more). */}

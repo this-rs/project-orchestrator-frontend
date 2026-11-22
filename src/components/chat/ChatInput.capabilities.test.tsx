@@ -5,21 +5,24 @@
  * Run with: npx vitest run src/components/chat/ChatInput.capabilities.test.tsx
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { Provider, createStore } from 'jotai'
 import { chatSessionCapabilitiesSnapshotAtom, chatSessionEngineAtom, chatSessionIdAtom, chatSessionProviderAtom } from '@/atoms'
 
 const IMAGES_UNSUPPORTED_TEXT = 'This model does not accept images.'
 import { ChatInput } from './ChatInput'
+import { ChatCapabilitiesProvider } from './ChatSessionContext'
+import { CLAUDE_CODE_CAPABILITIES } from '@/types/provider'
 
 vi.mock('@/hooks', () => ({ useIsMobile: () => false }))
 vi.mock('@/services/chat', () => ({
-  chatApi: { getPermissionConfig: () => Promise.resolve({ mode: 'default' }) },
+  chatApi: { getPermissionConfig: () => Promise.resolve({ mode: 'default' }), cancelTools: vi.fn() },
 }))
 vi.mock('@/services/documents', () => ({
   documentsApi: { upload: vi.fn(() => new Promise(() => {})) },
 }))
 
+const { chatApi } = await import('@/services/chat')
 const { documentsApi } = await import('@/services/documents')
 const uploadMock = documentsApi.upload as unknown as ReturnType<typeof vi.fn>
 
@@ -55,6 +58,7 @@ function setup(options: { images?: boolean; disabled?: boolean; disabledReason?:
 
 beforeEach(() => {
   uploadMock.mockClear()
+  vi.mocked(chatApi.cancelTools).mockClear()
 })
 
 describe('images refused: whose limit it is', () => {
@@ -151,5 +155,36 @@ describe('a disabled composer says why', () => {
     const { textarea } = setup({ disabled: false, disabledReason: 'stale' })
     expect(screen.queryByTestId('composer-disabled-reason')).toBeNull()
     expect(textarea.getAttribute('aria-describedby')).toBeNull()
+  })
+})
+
+
+describe('session-wide cancellation in the real composer', () => {
+  it('sends the session-wide request only after an explicit confirmation', async () => {
+    vi.mocked(chatApi.cancelTools).mockResolvedValueOnce({ capped: false, killed_pids: [1], cli_pid: null })
+    render(<Provider store={createStore()}><ChatCapabilitiesProvider capabilities={CLAUDE_CODE_CAPABILITIES}><ChatInput onSend={vi.fn()} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={vi.fn()} isStreaming={false} sessionId="s1" /></ChatCapabilitiesProvider></Provider>)
+    fireEvent.click(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' }))
+    expect(chatApi.cancelTools).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Send interruption to session and sub-agent tools' }))
+    expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
+    expect(chatApi.cancelTools).toHaveBeenCalledWith('s1', expect.any(Function), expect.any(AbortSignal))
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('does not guarantee processes stopped'))
+  })
+  it.each([true, false])('reflects tool_cancel=%s without sending on opening or when unsupported', (supported) => {
+    const store = createStore()
+    render(<Provider store={store}><ChatCapabilitiesProvider capabilities={{ ...CLAUDE_CODE_CAPABILITIES, tool_cancel: supported }}><ChatInput onSend={vi.fn()} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={vi.fn()} isStreaming={false} sessionId="s1" /></ChatCapabilitiesProvider></Provider>)
+    const button = screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' }) as HTMLButtonElement
+    expect(button.disabled).toBe(!supported)
+    if (supported) {
+      fireEvent.click(button)
+      expect(screen.getByText(/Sub-agents’ tool processes can also be affected when they are descendants/)).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Send interruption to session and sub-agent tools' })).toBeTruthy()
+    } else {
+      expect(screen.getByText('This provider cannot stop all tools in this session.')).toBeTruthy()
+      expect(document.getElementById(button.getAttribute('aria-describedby')!)?.textContent).toBe('This provider cannot stop all tools in this session.')
+      fireEvent.click(button)
+      expect(screen.queryByRole('button', { name: 'Send interruption to session and sub-agent tools' })).toBeNull()
+    }
+    expect(chatApi.cancelTools).not.toHaveBeenCalled()
   })
 })

@@ -206,9 +206,6 @@ export default {
     cancelled: 'cancelado',
     running: 'em execução...',
     runningElapsed: '{elapsed} — em execução...',
-    stopTitle: 'Parar esta ferramenta (envia SIGINT ao subprocesso em execução; o turno do agente continua)',
-    stop: 'parar',
-    stopping: 'parando…',
   },
   toolRender: {
     processing: 'processando...',

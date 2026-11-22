@@ -68,7 +68,6 @@ export default {
     policyOnly: 'Nur Richtlinie: Tools, die eine Freigabe bräuchten, werden abgelehnt.',
     policyOnlyDetail: 'Dieser Provider kann einen Tool-Aufruf nicht anhalten, um Sie zu fragen. Die Tool-Richtlinie entscheidet allein.',
     policyOnlyRequest: 'Nicht gefragt: Dieser Provider wendet die Tool-Richtlinie ohne Rückfrage an.',
-    toolCancelUnsupported: 'Dieser Provider kann ein einzelnes Tool nicht stoppen. Mit Stopp im Eingabefeld unterbrechen Sie den gesamten Zug.',
     resumeUnsupported: 'Dieser Provider kann eine Unterhaltung nicht fortsetzen. Starten Sie eine neue Unterhaltung, um weiterzumachen.',
   },
   setup: {

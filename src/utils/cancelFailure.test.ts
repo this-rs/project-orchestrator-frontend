@@ -5,27 +5,41 @@
  */
 import { describe, it, expect } from 'vitest'
 import { ApiError } from '@/services/api'
-import { CancelFailedError, cancelNoticeKey, cancelNoticeMetadata, chipOutcomeOfReason, readCancelFailure } from './cancelFailure'
+import { CancelFailedError, cancelNoticeKey, cancelNoticeMetadata, readCancelFailure } from './cancelFailure'
 
 const body = (status: number, b: Record<string, unknown>) => new ApiError(status, JSON.stringify(b))
 
 describe('readCancelFailure', () => {
-  it('409 owner_unreachable is "already stopped" and never retryable', () => {
+  it('409 owner_unreachable means owner unreachable and never retryable', () => {
     expect(readCancelFailure(body(409, { error: 'x', code: 'owner_unreachable', retryable: true }))).toEqual({
-      code: 'owner_unreachable', retryable: false, alreadyStopped: true, status: 409,
+      code: 'owner_unreachable', retryable: false, ownerUnreachable: true, status: 409,
     })
   })
 
-  it('retryable is the body word only, never the status', () => {
+  it('retryable is the body word, never guessed from a status', () => {
     expect(readCancelFailure(body(504, { error: 'x', code: 'owner_timeout', retryable: false })).retryable).toBe(false)
     expect(readCancelFailure(body(504, { error: 'x', code: 'owner_timeout', retryable: true })).retryable).toBe(true)
     expect(readCancelFailure(body(410, { error: 'x', code: 'session_gone' })).retryable).toBe(false)
+  })
+
+  it('410 is never retryable, even when the body says so', () => {
+    expect(readCancelFailure(body(410, { error: 'x', code: 'session_gone', retryable: true }))).toEqual({
+      code: 'session_gone', retryable: false, ownerUnreachable: false, status: 410,
+    })
+  })
+
+  it('401 and 403 keep their status, so the interface can tell them apart', () => {
+    expect(readCancelFailure(new ApiError(401, 'proxy refused')).status).toBe(401)
+    expect(readCancelFailure(new ApiError(403, 'proxy refused')).status).toBe(403)
+  })
+
+  it('a non-typed error keeps its reading neutral', () => {
     expect(readCancelFailure(new ApiError(502, 'Bad Gateway')).retryable).toBe(false)
-    expect(readCancelFailure(new TypeError('Failed to fetch'))).toEqual({ retryable: false, alreadyStopped: false })
+    expect(readCancelFailure(new TypeError('Failed to fetch'))).toEqual({ retryable: false, ownerUnreachable: false })
   })
 
   it('a CancelFailedError carries its reading', () => {
-    const failure = { code: 'session_gone', retryable: true, alreadyStopped: false, status: 410 }
+    const failure = { code: 'session_gone', retryable: true, ownerUnreachable: false, status: 410 }
     expect(readCancelFailure(new CancelFailedError(failure))).toBe(failure)
   })
 })
@@ -43,19 +57,10 @@ describe('cancelNoticeMetadata', () => {
 
 describe('cancelNoticeKey', () => {
   it('maps the reason of the socket frame, and never invites a retry', () => {
-    expect(cancelNoticeKey('cancel_failed', 'owner_unreachable')).toBe('chatA-activity.cancel.alreadyStoppedNotice')
+    expect(cancelNoticeKey('cancel_failed', 'owner_unreachable')).toBe('chatA-activity.cancelAll.ownerUnreachable')
     expect(cancelNoticeKey('cancel_failed', 'owner_timeout')).toBe('chatA-activity.cancel.timeoutNotice')
-    expect(cancelNoticeKey('cancel_failed', 'session_gone')).toBe('chatA-activity.cancel.failedNotice')
-    expect(cancelNoticeKey('cancel_refused', 'tool_cancel')).toBe('providers.capabilities.toolCancelUnsupported')
+    expect(cancelNoticeKey('cancel_failed', 'session_gone')).toBe('chatA-activity.cancel.unknownNotice')
+    expect(cancelNoticeKey('cancel_refused', 'tool_cancel')).toBe('chatA-activity.cancel.unsupportedNotice')
     expect(cancelNoticeKey('cancel_refused', 'background_tasks')).toBe('chatA-activity.cancel.taskRefusedNotice')
-  })
-})
-
-describe('chipOutcomeOfReason', () => {
-  it('owner_unreachable: already stopped; owner_timeout: pending; anything else: failed', () => {
-    expect(chipOutcomeOfReason('owner_unreachable')).toBe('already_stopped')
-    expect(chipOutcomeOfReason('owner_timeout')).toBe('pending')
-    expect(chipOutcomeOfReason('session_gone')).toBe('failed')
-    expect(chipOutcomeOfReason('relay_failed')).toBe('failed')
   })
 })

@@ -15,6 +15,7 @@ import type { ReactNode } from 'react'
 import { createElement } from 'react'
 import { Provider, createStore } from 'jotai'
 import { chatBackgroundTasksAtom, chatSessionIdAtom } from '@/atoms'
+import { authModeAtom, authModeConfirmedAtom, currentUserAtom } from '@/atoms/auth'
 import type { BackgroundTaskInfo, CancelTaskResult } from '@/types'
 
 // Mock the chat service before importing the hook so the spy lands on
@@ -23,12 +24,15 @@ vi.mock('@/services/chat', () => {
   return {
     chatApi: {
       cancelTask: vi.fn<
-        (sessionId: string, taskId: string) => Promise<CancelTaskResult>
+        (sessionId: string, taskId: string, beforeSend: (token: string | null) => boolean) => Promise<CancelTaskResult>
       >(),
     },
   }
 })
 
+vi.mock('@/services/auth', () => ({ getAuthMode: vi.fn(() => 'required') }))
+
+import { getAuthMode } from '@/services/auth'
 import { chatApi } from '@/services/chat'
 import { useBackgroundTasks } from './useBackgroundTasks'
 import { ApiError } from '@/services/api'
@@ -106,7 +110,7 @@ describe('useBackgroundTasks', () => {
     })
 
     const out = await result.current.cancelTask('toolu_01ABC')
-    expect(chatApi.cancelTask).toHaveBeenCalledWith('sess-42', 'toolu_01ABC')
+    expect(chatApi.cancelTask).toHaveBeenCalledWith('sess-42', 'toolu_01ABC', expect.any(Function))
     expect(out).toEqual(expected)
   })
 
@@ -142,7 +146,7 @@ describe('useBackgroundTasks', () => {
     expect(chatApi.cancelTask).not.toHaveBeenCalled()
   })
 
-  it('a 409 owner_unreachable throws a CancelFailedError that reads "already stopped"', async () => {
+  it('a 409 owner_unreachable throws a CancelFailedError that reports an unreachable owner', async () => {
     const store = createStore()
     store.set(chatSessionIdAtom, 'sess-42')
     vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(
@@ -151,22 +155,67 @@ describe('useBackgroundTasks', () => {
     const { result } = renderHook(() => useBackgroundTasks(), { wrapper: withStore(store) })
     const err = await result.current.cancelTask('toolu_X').catch((e: unknown) => e)
     expect(err).toBeInstanceOf(CancelFailedError)
-    expect((err as CancelFailedError).failure).toEqual({ code: 'owner_unreachable', retryable: false, alreadyStopped: true, status: 409 })
+    expect((err as CancelFailedError).failure).toEqual({ code: 'owner_unreachable', retryable: false, ownerUnreachable: true, status: 409 })
   })
 
-  it('retryable is what the body says: 504 retryable:true, 410 retryable:true, 502 not', async () => {
+  it('retryable is what the body says (504 retryable:true, 502 not), but never for a 410', async () => {
     const store = createStore()
     store.set(chatSessionIdAtom, 'sess-42')
     const { result } = renderHook(() => useBackgroundTasks(), { wrapper: withStore(store) })
     const cases: Array<[number, string, boolean]> = [
       [504, 'owner_timeout', true],
-      [410, 'session_gone', true],
+      [410, 'session_gone', false],
       [502, 'relay_failed', false],
     ]
     for (const [status, code, retryable] of cases) {
-      vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(new ApiError(status, JSON.stringify({ error: 'x', code, retryable })))
+      // The 410 body says retryable:true; the interface still never invites a retry.
+      vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(new ApiError(status, JSON.stringify({ error: 'x', code, retryable: retryable || status === 410 })))
       const err = (await result.current.cancelTask('toolu_X').catch((e: unknown) => e)) as CancelFailedError
-      expect(err.failure).toEqual({ code, retryable, alreadyStopped: false, status })
+      expect(err.failure).toEqual({ code, retryable, ownerUnreachable: false, status })
     }
   })
+
+  it('only authorizes sending for the same session, confirmed mode, and unexpired user token', async () => {
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'sess-42')
+    store.set(authModeAtom, 'required')
+    store.set(authModeConfirmedAtom, true)
+    store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' })
+    vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({ task_id: 'task', killed_pids: [], capped: false })
+    const { result } = renderHook(() => useBackgroundTasks(), { wrapper: withStore(store) })
+    await result.current.cancelTask('task')
+    const guard = vi.mocked(chatApi.cancelTask).mock.calls[0][2]
+    const token = (sub: string, exp: number) => `e30.${btoa(JSON.stringify({ sub, exp }))}.sig`
+    const now = Math.floor(Date.now() / 1000)
+    expect(guard(token('user-a', now + 60))).toBe(true)
+    expect(guard(token('user-b', now + 60))).toBe(false)
+    expect(guard(token('user-a', now - 1))).toBe(false)
+    expect(guard(null)).toBe(false)
+    expect(guard('invalid')).toBe(false)
+    act(() => store.set(currentUserAtom, { id: 'user-b', email: 'b@example.com', name: 'B' }))
+    expect(guard(token('user-a', now + 60))).toBe(false)
+    act(() => store.set(currentUserAtom, { id: 'user-a', email: 'a@example.com', name: 'A' }))
+    act(() => store.set(chatSessionIdAtom, 'other-session'))
+    expect(guard(token('user-a', now + 60))).toBe(false)
+    act(() => store.set(chatSessionIdAtom, 'sess-42'))
+    act(() => store.set(authModeConfirmedAtom, false))
+    expect(guard(token('user-a', now + 60))).toBe(false)
+  })
+
+  it('allows no-auth only when the server confirmed that mode', async () => {
+    vi.mocked(getAuthMode).mockReturnValueOnce('none').mockReturnValueOnce('none')
+    const store = createStore()
+    store.set(chatSessionIdAtom, 'sess-42')
+    store.set(authModeAtom, 'none')
+    store.set(authModeConfirmedAtom, true)
+    vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({ task_id: 'task', killed_pids: [], capped: false })
+    const { result } = renderHook(() => useBackgroundTasks(), { wrapper: withStore(store) })
+    await result.current.cancelTask('task')
+    const guard = vi.mocked(chatApi.cancelTask).mock.calls[0][2]
+    expect(guard(null)).toBe(true)
+    expect(guard('anything')).toBe(false)
+    act(() => store.set(authModeConfirmedAtom, false))
+    expect(guard(null)).toBe(false)
+  })
+
 })

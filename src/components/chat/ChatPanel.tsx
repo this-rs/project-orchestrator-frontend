@@ -770,7 +770,7 @@ export function ChatPanel() {
   // On desktop: sidebar is a permanent 288px column
   if (isFullscreen) {
     return (
-      <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null} sessionActivity={sessionActivity}>
+      <ChatSessionProvider sessionId={chat.sessionId ?? null} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null} sessionActivity={sessionActivity}>
       <ChatCapabilitiesProvider capabilities={capabilities}>
       {/* `data-chat-panel` marks the chat area for `useWindowFileDrop`: a file
           dropped inside it is attached to the composer, and anywhere else it is
@@ -1116,7 +1116,7 @@ export function ChatPanel() {
 
   // --- PANEL LAYOUT (non-fullscreen): toggle-based session list ---
   return (
-    <ChatSessionProvider sessionId={chat.sessionId ?? null} cancelToolsLive={chat.cancelToolsLive} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null} sessionActivity={sessionActivity}>
+    <ChatSessionProvider sessionId={chat.sessionId ?? null} childSessions={detachedRuns.runs} openSession={handleViewRun} readOnlyReason={isMirror ? mirrorReadOnlyComposerText() : null} sessionActivity={sessionActivity}>
     <ChatCapabilitiesProvider capabilities={capabilities}>
     <div
       ref={panelRef}

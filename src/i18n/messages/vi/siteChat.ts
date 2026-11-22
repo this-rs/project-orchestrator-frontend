@@ -206,9 +206,6 @@ export default {
     cancelled: 'đã hủy',
     running: 'đang chạy...',
     runningElapsed: '{elapsed} — đang chạy...',
-    stopTitle: 'Dừng công cụ này (gửi SIGINT tới tiến trình con đang chạy; lượt của tác nhân vẫn tiếp tục)',
-    stop: 'dừng',
-    stopping: 'đang dừng…',
   },
   toolRender: {
     processing: 'đang xử lý...',

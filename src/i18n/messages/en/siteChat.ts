@@ -204,9 +204,6 @@ export default {
     cancelled: 'cancelled',
     running: 'running...',
     runningElapsed: '{elapsed} — running...',
-    stopTitle: 'Stop this tool (sends SIGINT to the running subprocess; the agent\'s turn continues)',
-    stop: 'stop',
-    stopping: 'stopping…',
   },
   toolRender: {
     processing: 'processing...',

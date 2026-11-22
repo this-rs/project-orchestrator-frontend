@@ -7,6 +7,12 @@
  * the backend can stop that one thing on its own (Monitor / Bash in the
  * background).
  *
+ * That Stop is targeted: one `cancel-task/{task_id}` per click, sent only if
+ * the identity that clicked is still the one signed in (`useBackgroundTasks`),
+ * never retried. Its answer stays on that task (`taskCancellationStore`) until
+ * a person acknowledges it; only then can the task be stopped again. The
+ * session-wide stop of every tool is `CancelAllTools`, a separate control.
+ *
  * It replaces the toolbar pill that only knew Monitor and Bash
  * (`BackgroundTasksIndicator`): workflows and sub-agents used to be visible
  * only where their tool call sat in the transcript, i.e. not at all once the
@@ -16,13 +22,18 @@
  * overlay (see `MessageQueueBar`): the dock measures its height, so the
  * transcript keeps clear of it. Renders nothing when nothing runs.
  */
-import { memo, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Bot, CheckCircle2, ChevronDown, CornerRightUp, ExternalLink, Eye, Layers, Loader2, MessageSquare, Square, Terminal, Workflow } from 'lucide-react'
+import { memo, useState } from 'react'
+import { AlertTriangle, Bot, ChevronDown, CornerRightUp, ExternalLink, Eye, Layers, Loader2, MessageSquare, Square, Terminal, Workflow } from 'lucide-react'
 import { useT } from '@/i18n'
+import { useAtomValue, useStore } from 'jotai'
+import { chatSessionIdAtom } from '@/atoms'
+import { authModeAtom, currentUserAtom } from '@/atoms/auth'
 import { useBackgroundTasks } from '@/hooks/useBackgroundTasks'
+import { RequestIdentityChangedError } from '@/services/api'
 import { readCancelFailure } from '@/utils/cancelFailure'
 import { countByKind, type RunningItem, type RunningKind } from './runningActivity'
 import { useElapsedMs, formatDurationShort } from './useElapsedMs'
+import { taskCancellationAtom, taskCancellationKey, type TaskCancelFeedback } from './taskCancellationStore'
 
 const KIND_META: Record<RunningKind, { icon: typeof Eye }> = {
   run: { icon: Layers },
@@ -32,21 +43,11 @@ const KIND_META: Record<RunningKind, { icon: typeof Eye }> = {
   monitor: { icon: Eye },
 }
 
-/** How long the Stop confirmation stays visible. */
-const FEEDBACK_TTL_MS = 2500
-
 /**
- * What a Stop click came back with (`CancelTaskResult`):
- * - `success`: the backend signalled at least one process;
- * - `fallback`: the cancel was registered but no pid was known — the
- *   subprocess may survive, the global Stop is the way out;
- * - `error`: refused (rate cap) or failed.
+ * Longer than the backend's relay bounds, but finite if a proxy never answers.
+ * Reaching it does not abort the request: the stop may still happen.
  */
-type Feedback =
-  | { kind: 'success'; killed: number }
-  | { kind: 'stopped'; message: string }
-  | { kind: 'fallback' }
-  | { kind: 'error'; message: string }
+const CANCEL_TASK_TIMEOUT_MS = 30_000
 
 /** Scroll the transcript to the block an activity came from. */
 function revealInTranscript(anchorId: string): void {
@@ -76,11 +77,12 @@ export interface RunActions {
 interface RowProps {
   item: RunningItem
   stopping: boolean
+  blocked: boolean
   onStop: (taskId: string) => void
   runActions?: RunActions
 }
 
-function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
+function ActivityRow({ item, stopping, blocked, onStop, runActions }: RowProps) {
   const { t } = useT()
   const { icon: Icon } = KIND_META[item.kind]
   const elapsedMs = useElapsedMs(item.startedAt, true)
@@ -151,7 +153,7 @@ function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
           <button
             type="button"
             onClick={() => onStop(item.taskId!)}
-            disabled={stopping}
+            disabled={stopping || blocked}
             aria-label={t('chatA-activity.row.stopAria', { title: item.title })}
             title={stopping ? t('chatA-activity.row.stoppingTitle') : t('chatA-activity.row.stop')}
             className="w-6 h-6 flex items-center justify-center rounded text-gray-500 hover:text-red-400 hover:bg-red-600/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -167,71 +169,82 @@ function ActivityRow({ item, stopping, onStop, runActions }: RowProps) {
 export const ActivityBar = memo(function ActivityBar({ items, runActions }: { items: ReadonlyArray<RunningItem>; runActions?: RunActions }) {
   const { t } = useT()
   const { cancelTask } = useBackgroundTasks()
+  const sessionId = useAtomValue(chatSessionIdAtom)
+  const store = useStore()
+  const userId = useAtomValue(currentUserAtom)?.id ?? null
+  const mode = useAtomValue(authModeAtom)
+  const operations = useAtomValue(taskCancellationAtom)
   const [expanded, setExpanded] = useState(false)
-  // Sticky: a row says "stopping…" from the click until the task leaves the
-  // list (the backend keeps it for a grace period). Without it the spinner
-  // would flash for the round-trip and the click would look ignored.
-  const [stopping, setStopping] = useState<ReadonlySet<string>>(() => new Set())
-  const [feedback, setFeedback] = useState<Feedback | null>(null)
-  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const elapsedMs = useElapsedMs(oldestStart(items), items.length > 0)
-
-  useEffect(() => {
-    setStopping((prev) => {
-      const alive = new Set(items.map((i) => i.id))
-      const next = new Set([...prev].filter((id) => alive.has(id)))
-      return next.size === prev.size ? prev : next
-    })
-  }, [items])
-
-  useEffect(() => () => {
-    if (feedbackTimer.current != null) clearTimeout(feedbackTimer.current)
-  }, [])
+  const keyFor = (taskId: string) => taskCancellationKey(sessionId, userId, mode, taskId)
 
   if (items.length === 0) return null
 
-  const flash = (next: Feedback) => {
-    if (feedbackTimer.current != null) clearTimeout(feedbackTimer.current)
-    setFeedback(next)
-    feedbackTimer.current = setTimeout(() => setFeedback(null), FEEDBACK_TTL_MS)
+  const acknowledge = (taskId: string) => {
+    const key = keyFor(taskId)
+    store.set(taskCancellationAtom, (previous) => {
+      if (previous[key]?.phase !== 'answered') return previous
+      const updated = { ...previous }
+      delete updated[key]
+      return updated
+    })
   }
 
-  const setStoppingFor = (taskId: string, on: boolean) =>
-    setStopping((prev) => {
-      const next = new Set(prev)
-      if (on) next.add(taskId)
-      else next.delete(taskId)
-      return next
-    })
-
   const handleStop = async (taskId: string) => {
-    setFeedback(null)
-    setStoppingFor(taskId, true)
+    const key = keyFor(taskId)
+    // Synchronous guard in the store: one request per task until a person
+    // acknowledges its answer, even across two mounted bars or a remount.
+    if (store.get(taskCancellationAtom)[key]) return
+    const token = Symbol('targeted cancellation')
+    store.set(taskCancellationAtom, (previous) => ({ ...previous, [key]: { phase: 'sending', token } }))
+    const finish = (feedback: TaskCancelFeedback) => store.set(taskCancellationAtom, (previous) => {
+      if (previous[key]?.token !== token) return previous
+      return { ...previous, [key]: { phase: 'answered', token, feedback } }
+    })
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    const localTimeout = Symbol('local task stop timeout')
     try {
-      const result = await cancelTask(taskId)
+      const result = await Promise.race([
+        cancelTask(taskId),
+        new Promise<never>((_resolve, reject) => {
+          timeout = setTimeout(() => reject(localTimeout), CANCEL_TASK_TIMEOUT_MS)
+        }),
+      ])
       if (result.capped) {
-        // Refused: the click did nothing, so the row must not say "stopping…".
-        setStoppingFor(taskId, false)
-        flash({ kind: 'error', message: t('chatA-activity.bar.tooFast') })
+        // One owner reported a limit; another may still act on this task.
+        finish({ kind: 'error', keys: ['chatA-activity.cancelAll.capped', 'chatA-activity.cancel.retryNotice'] })
       } else if (result.killed_pids.length > 0) {
-        flash({ kind: 'success', killed: result.killed_pids.length })
+        finish({ kind: 'success', killed: result.killed_pids.length })
       } else {
-        flash({ kind: 'fallback' })
+        finish({ kind: 'fallback' })
       }
     } catch (err) {
-      setStoppingFor(taskId, false)
       const failure = readCancelFailure(err)
-      if (failure.alreadyStopped) {
-        // 409 owner_unreachable: nothing runs any more, nothing to retry.
-        flash({ kind: 'stopped', message: t('chatA-activity.cancel.alreadyStoppedNotice') })
-      } else if (failure.code === 'owner_timeout') {
-        // No answer in time: it may still happen (retryable or not, say that first).
-        flash({ kind: 'error', message: t('chatA-activity.cancel.timeoutNotice') })
+      if (err instanceof RequestIdentityChangedError) {
+        // The identity guard refused before sending: nothing went out.
+        finish({ kind: 'error', keys: ['chatA-activity.cancelAll.identityChanged'] })
+      } else if (err === localTimeout || failure.code === 'owner_timeout') {
+        // 504, or no answer at all: the stop may still happen.
+        finish({ kind: 'error', keys: ['chatA-activity.cancel.timeoutNotice'] })
+      } else if (failure.ownerUnreachable) {
+        // 409 owner_unreachable: not confirmed, never "already stopped".
+        finish({ kind: 'error', keys: ['chatA-activity.cancelAll.ownerUnreachable'] })
+      } else if (failure.status === 401) {
+        finish({ kind: 'error', keys: ['chatA-activity.cancel.unauthenticatedNotice'] })
+      } else if (failure.status === 403) {
+        finish({ kind: 'error', keys: ['chatA-activity.cancel.forbiddenNotice'] })
+      } else if (failure.status === 502 || failure.status === 410) {
+        // A relay failure or a moved session may follow another owner's signal,
+        // whatever the body says about retrying.
+        finish({ kind: 'error', keys: ['chatA-activity.cancel.unknownNotice'] })
       } else if (failure.retryable) {
-        flash({ kind: 'error', message: t('chatA-activity.cancel.retryNotice') })
+        finish({ kind: 'error', keys: ['chatA-activity.cancel.retryNotice'] })
       } else {
-        flash({ kind: 'error', message: t('chatA-activity.bar.cancelFailed') })
+        // A network failure or a lost response can follow a delivered signal.
+        finish({ kind: 'error', keys: ['chatA-activity.cancel.unknownNotice'] })
       }
+    } finally {
+      if (timeout !== undefined) clearTimeout(timeout)
     }
   }
 
@@ -280,33 +293,28 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
       {expanded && (
         <ul className="max-h-40 overflow-y-auto border-t border-white/[0.06] divide-y divide-white/[0.04]">
           {items.map((item) => (
-            <ActivityRow key={item.id} item={item} stopping={stopping.has(item.id)} onStop={(id) => void handleStop(id)} runActions={runActions} />
+            <ActivityRow key={item.id} item={item} stopping={item.taskId != null && operations[keyFor(item.taskId)]?.phase === 'sending'} blocked={item.taskId != null && operations[keyFor(item.taskId)]?.phase === 'answered'} onStop={(id) => void handleStop(id)} runActions={runActions} />
           ))}
         </ul>
       )}
 
-      {feedback && (
-        <div
+      {items.flatMap((item) => {
+        const operation = item.taskId ? operations[keyFor(item.taskId)] : undefined
+        if (!operation || operation.phase !== 'answered' || !item.taskId) return []
+        const result = operation.feedback
+        return [<div
+          key={item.taskId}
           role="status"
-          className={`flex items-start gap-2 px-2.5 py-1.5 border-t border-white/[0.06] text-[11px] ${
-            feedback.kind === 'success' || feedback.kind === 'stopped' ? 'text-emerald-300' : 'text-amber-300'
-          }`}
-          data-feedback={feedback.kind}
+          className="flex items-start gap-2 px-2.5 py-1.5 border-t border-white/[0.06] text-[11px] text-amber-300"
+          data-feedback={result.kind}
         >
-          {feedback.kind === 'success' || feedback.kind === 'stopped' ? (
-            <CheckCircle2 className="w-3 h-3 mt-0.5 shrink-0" />
-          ) : (
-            <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
-          )}
-          <span>
-            {feedback.kind === 'success'
-              ? t(feedback.killed === 1 ? 'chatA-activity.bar.stoppedOne' : 'chatA-activity.bar.stoppedMany', { count: feedback.killed })
-              : feedback.kind === 'fallback'
-                ? t('chatA-activity.bar.noPid')
-                : feedback.message}
-          </span>
-        </div>
-      )}
+          <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+          <span><strong>{item.title}: </strong>{result.kind === 'success'
+            ? t(result.killed === 1 ? 'chatA-activity.bar.stoppedOne' : 'chatA-activity.bar.stoppedMany', { count: result.killed })
+            : result.kind === 'fallback' ? t('chatA-activity.bar.noPid') : result.keys.map((key) => t(key)).join(' ')}</span>
+          <button type="button" className="underline" onClick={() => acknowledge(item.taskId!)}>{t('chatA-activity.bar.acknowledge')}</button>
+        </div>]
+      })}
     </div>
   )
 })
