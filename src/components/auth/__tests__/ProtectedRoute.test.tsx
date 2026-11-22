@@ -45,6 +45,16 @@ vi.mock('@/components/ui', () => ({
   ErrorState: ({ onRetry }: { onRetry: () => void }) => <button onClick={onRetry}>Retry</button>,
 }))
 
+// The real retry waits 1 s, 3 s, 8 s: the same logic, with no waiting in tests.
+vi.mock('../bootRefresh', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../bootRefresh')>()
+  return {
+    ...real,
+    refreshAtBoot: (refresh: () => Promise<string>) =>
+      real.refreshAtBoot(refresh, [0, 0], () => Promise.resolve()),
+  }
+})
+
 import { authApi } from '@/services'
 import { forceLogout, refreshToken } from '@/services/authManager'
 import { ProtectedRoute } from '../ProtectedRoute'
@@ -233,5 +243,69 @@ describe('ProtectedRoute: an auth mode the server said vs. a guess', () => {
     const store = mountWithStore()
     await waitFor(() => expect(store.get(authModeAtom)).toBe('none'))
     expect(store.get(authModeConfirmedAtom)).toBe(false)
+  })
+})
+
+describe('ProtectedRoute: the silent refresh when the page loads', () => {
+  const status = (code: number) => Object.assign(new Error(`HTTP ${code}`), { status: code })
+
+  beforeEach(() => {
+    vi.resetAllMocks()
+    vi.mocked(authApi.getProviders).mockResolvedValue({
+      auth_required: true,
+      providers: [],
+      allow_registration: false,
+    } as Awaited<ReturnType<typeof authApi.getProviders>>)
+    vi.mocked(authApi.me).mockResolvedValue({ id: '1', email: 'a@b.com', name: 'A' } as Awaited<
+      ReturnType<typeof authApi.me>
+    >)
+  })
+
+  it('a server that cannot answer does NOT send the person to the login page: it offers a retry', async () => {
+    vi.mocked(refreshToken).mockRejectedValue(status(503))
+
+    renderGuard(null)
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.queryByText('Login page')).not.toBeInTheDocument()
+    expect(forceLogout).not.toHaveBeenCalled()
+    // 1 first try + 2 retries
+    expect(refreshToken).toHaveBeenCalledTimes(3)
+
+    // The server is back: Retry signs the person in again, still without a login.
+    vi.mocked(refreshToken).mockResolvedValue('jwt')
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('Protected content')).toBeInTheDocument()
+    expect(screen.queryByText('Login page')).not.toBeInTheDocument()
+  })
+
+  it('a network error is not a refusal either', async () => {
+    vi.mocked(refreshToken).mockRejectedValue(new TypeError('Failed to fetch'))
+    renderGuard(null)
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.queryByText('Login page')).not.toBeInTheDocument()
+  })
+
+  it('a refusal (401) is the only answer that leads to the login page', async () => {
+    vi.mocked(refreshToken).mockRejectedValue(status(401))
+    renderGuard(null)
+    expect(await screen.findByText('Login page')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(refreshToken).toHaveBeenCalledTimes(1)
+  })
+
+  it('a failure followed by a refusal ends at the login page: the cookie was consumed, the session is lost', async () => {
+    vi.mocked(refreshToken).mockRejectedValueOnce(status(503)).mockRejectedValue(status(401))
+    renderGuard(null)
+    expect(await screen.findByText('Login page')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('a blip that clears within the retries goes unnoticed', async () => {
+    vi.mocked(refreshToken).mockRejectedValueOnce(status(503)).mockResolvedValueOnce('jwt')
+    renderGuard(null)
+    expect(await screen.findByText('Protected content')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(refreshToken).toHaveBeenCalledTimes(2)
   })
 })

@@ -21,6 +21,10 @@ export default {
     description: "Запит ще виконується. Вхід відбудеться після його завершення.",
     keepWaiting: "Продовжити очікування",
   },
+  bootRefreshFailed: {
+    title: "Сервер недоступний",
+    description: "Сервер не відповів. Повторіть спробу за мить.",
+  },
   callback: {
     signingIn: "Виконується вхід…",
     failedTitle: "Автентифікація не вдалася",

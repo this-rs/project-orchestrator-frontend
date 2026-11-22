@@ -21,6 +21,10 @@ export default {
     description: "La demande est toujours en cours. Vous serez connecté dès qu’elle sera terminée.",
     keepWaiting: "Continuer à attendre",
   },
+  bootRefreshFailed: {
+    title: "Serveur injoignable",
+    description: "Le serveur n'a pas répondu. Réessayez dans un instant.",
+  },
   callback: {
     signingIn: "Connexion en cours…",
     failedTitle: "Échec de l'authentification",
