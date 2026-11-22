@@ -30,6 +30,7 @@ vi.mock('@/services', () => ({
 import { authApi } from '@/services'
 import { installMatchMedia } from './testUtils'
 import { AuthCallbackPage } from '../AuthCallbackPage'
+import { peekReturnPath, rememberReturnPath } from '@/services/authManager'
 
 // jsdom has no matchMedia; the screen's chrome reads it (HaloPointer).
 installMatchMedia()
@@ -122,5 +123,37 @@ describe('AuthCallbackPage (regression: StrictMode must not double-exchange the 
 
     await screen.findByText('Overview')
     expect(authApi.exchangeCode).toHaveBeenCalledExactlyOnceWith('single-use-code')
+  })
+})
+
+describe('AuthCallbackPage — back to the page the session expired on', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sessionStorage.clear()
+  })
+
+  it('returns to the remembered page after the OIDC round trip, and forgets it', async () => {
+    // forceLogout wrote this before the full-page hop to the identity provider;
+    // LoginPage is not mounted any more when the code comes back here.
+    rememberReturnPath('/w/alpha/chat?session=abc#thread')
+    vi.mocked(authApi.exchangeOidcCode).mockResolvedValue({
+      token: 'jwt',
+      user: { id: 'u1', email: 'a@b.c', name: 'A' },
+    } as never)
+    const store = createStore()
+    render(
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/auth/callback?code=xyz']}>
+          <Routes>
+            <Route path="/auth/callback" element={<AuthCallbackPage />} />
+            <Route path="/w/alpha/chat" element={<div>Chat page</div>} />
+            <Route path="/" element={<div>Overview</div>} />
+          </Routes>
+        </MemoryRouter>
+      </Provider>,
+    )
+    await screen.findByText('Chat page')
+    expect(screen.queryByText('Overview')).not.toBeInTheDocument()
+    expect(peekReturnPath()).toBeNull()
   })
 })

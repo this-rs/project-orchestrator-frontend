@@ -235,7 +235,7 @@ export function ProtectedRoute() {
   // Auth required but not authenticated → redirect to login, keeping the page
   // the person was on so that LoginPage can bring them back to it.
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search + location.hash }} />
   }
 
   return <Outlet />

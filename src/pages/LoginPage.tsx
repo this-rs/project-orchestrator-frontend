@@ -9,11 +9,7 @@ import {
   isAuthenticatedAtom,
 } from '@/atoms'
 import { authApi, setAuthMode as setAuthModeService } from '@/services'
-import {
-  clearReturnPath,
-  isReturnablePath,
-  peekReturnPath,
-} from '@/services/authManager'
+import { consumeReturnPath, isReturnablePath, rememberReturnPath } from '@/services/authManager'
 import { LogIn } from 'lucide-react'
 import { Spinner, Branding, Button, textLink } from '@/components/ui'
 import { useT } from '@/i18n'
@@ -39,7 +35,6 @@ export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const fromState = (location.state as { from?: unknown } | null)?.from
-  const returnTo = isReturnablePath(fromState) ? fromState : peekReturnPath()
   const isAuthenticated = useAtomValue(isAuthenticatedAtom)
   const authMode = useAtomValue(authModeAtom)
   const providers = useAtomValue(authProvidersAtom)
@@ -52,6 +47,14 @@ export function LoginPage() {
   const [showRegister, setShowRegister] = useState(false)
   const [oidcLoading, setOidcLoading] = useState(false)
   const [oidcError, setOidcError] = useState<string | null>(null)
+
+  // ProtectedRoute hands the page it bounced from in the router state. Keep it
+  // with the forced-logout memory so that every sign-in path (password form,
+  // registration, OIDC callback after a full-page round trip) finds it in one
+  // place. Declared first: effects run in order within a component.
+  useEffect(() => {
+    if (isReturnablePath(fromState)) rememberReturnPath(fromState)
+  }, [fromState])
 
   // Fetch providers if not already loaded (e.g. navigating to /login directly)
   useEffect(() => {
@@ -78,10 +81,9 @@ export function LoginPage() {
   useEffect(() => {
     if (!providersLoaded) return
     if (isAuthenticated || authMode === 'none') {
-      navigate(returnTo ?? '/', { replace: true })
-      clearReturnPath()
+      navigate(consumeReturnPath(), { replace: true })
     }
-  }, [providersLoaded, isAuthenticated, authMode, navigate, returnTo])
+  }, [providersLoaded, isAuthenticated, authMode, navigate])
 
   const hasPassword = providers.some((p) => p.type === 'password')
   const oidcProvider = providers.find((p) => p.type === 'oidc')

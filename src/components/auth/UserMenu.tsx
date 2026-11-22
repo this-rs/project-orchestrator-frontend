@@ -96,7 +96,7 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
     // Unsent chat text is persisted per conversation; it leaves with the user.
     clearChatDrafts()
     clearOpenErrors()
-    forceLogout()
+    forceLogout({ remember: false })
   }
 
   const handleSettings = () => {

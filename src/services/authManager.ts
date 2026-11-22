@@ -72,15 +72,20 @@ function isOnAuthExemptRoute(): boolean {
 const RETURN_PATH_KEY = 'po.auth.returnPath'
 
 export function isReturnablePath(path: unknown): path is string {
-  return (
-    typeof path === 'string' &&
-    path.startsWith('/') &&
-    !path.startsWith('//') &&
-    path !== LOGIN_PATH &&
-    path !== AUTH_CALLBACK_PATH &&
-    !path.startsWith(`${LOGIN_PATH}?`) &&
-    !path.startsWith(`${AUTH_CALLBACK_PATH}?`)
-  )
+  if (typeof path !== 'string' || !path.startsWith('/')) return false
+  // `//host` and `/\host` both resolve to another origin.
+  if (path.startsWith('//') || path.includes('\\')) return false
+  if (typeof window !== 'undefined') {
+    try {
+      if (new URL(path, window.location.origin).origin !== window.location.origin) return false
+    } catch {
+      return false
+    }
+  }
+  // Never back to an auth route: routes are case-insensitive and tolerate a
+  // trailing slash, so compare the normalised first segment(s).
+  const bare = path.split(/[?#]/)[0].replace(/\/+$/, '').toLowerCase()
+  return bare !== LOGIN_PATH && bare !== AUTH_CALLBACK_PATH
 }
 
 export function rememberReturnPath(path: string): void {
@@ -107,6 +112,16 @@ export function clearReturnPath(): void {
   } catch {
     // ignore
   }
+}
+
+/**
+ * Where to go once signed in: the remembered page, or the app root. Reading
+ * consumes the value, so a later visit to /login does not teleport anyone.
+ */
+export function consumeReturnPath(): string {
+  const path = peekReturnPath()
+  clearReturnPath()
+  return path ?? '/'
 }
 
 /** Inject React Router navigate (called from ProtectedRoute on mount) */
@@ -318,7 +333,13 @@ let _isLoggingOut = false
  * Safe to call from anywhere: React components, API interceptors, WebSocket handlers.
  * Re-entrant safe: calling forceLogout() while already logging out is a no-op.
  */
-export function forceLogout(): void {
+export type ForceLogoutOptions = {
+  /** Remember the current page so the next login returns to it (default true).
+   *  A deliberate sign-out passes `false`: the next person starts fresh. */
+  remember?: boolean
+}
+
+export function forceLogout(options: ForceLogoutOptions = {}): void {
   if (_isLoggingOut) return
 
   // On /login or /auth/callback → there is nothing to log out from, and
@@ -365,7 +386,11 @@ export function forceLogout(): void {
     }
 
     // 6. Navigate to login, remembering the page the person was on
-    rememberReturnPath(window.location.pathname + window.location.search)
+    if (options.remember !== false) {
+      rememberReturnPath(window.location.pathname + window.location.search + window.location.hash)
+    } else {
+      clearReturnPath()
+    }
     if (_navigate) {
       _navigate('/login')
     } else {
@@ -418,6 +443,9 @@ export function initCrossTabSync(): () => void {
           // a hard reload would loop the login page or abort an in-flight
           // SSO code exchange.
           if (!isOnAuthExemptRoute()) {
+            rememberReturnPath(
+              window.location.pathname + window.location.search + window.location.hash,
+            )
             if (_navigate) {
               _navigate('/login')
             } else {
