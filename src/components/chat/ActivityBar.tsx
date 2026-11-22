@@ -25,15 +25,9 @@
 import { memo, useState } from 'react'
 import { AlertTriangle, Bot, ChevronDown, CornerRightUp, ExternalLink, Eye, Layers, Loader2, MessageSquare, Square, Terminal, Workflow } from 'lucide-react'
 import { useT } from '@/i18n'
-import { useAtomValue, useStore } from 'jotai'
-import { chatSessionIdAtom } from '@/atoms'
-import { authModeAtom, currentUserAtom } from '@/atoms/auth'
-import { useBackgroundTasks } from '@/hooks/useBackgroundTasks'
-import { RequestIdentityChangedError } from '@/services/api'
-import { readCancelFailure } from '@/utils/cancelFailure'
 import { countByKind, type RunningItem, type RunningKind } from './runningActivity'
 import { useElapsedMs, formatDurationShort } from './useElapsedMs'
-import { taskCancellationAtom, taskCancellationKey, type TaskCancelFeedback } from './taskCancellationStore'
+import { taskFeedbackText, useTaskStopper } from './useTaskStopper'
 
 const KIND_META: Record<RunningKind, { icon: typeof Eye }> = {
   run: { icon: Layers },
@@ -42,12 +36,6 @@ const KIND_META: Record<RunningKind, { icon: typeof Eye }> = {
   shell: { icon: Terminal },
   monitor: { icon: Eye },
 }
-
-/**
- * Longer than the backend's relay bounds, but finite if a proxy never answers.
- * Reaching it does not abort the request: the stop may still happen.
- */
-const CANCEL_TASK_TIMEOUT_MS = 30_000
 
 /** Scroll the transcript to the block an activity came from. */
 function revealInTranscript(anchorId: string): void {
@@ -168,85 +156,11 @@ function ActivityRow({ item, stopping, blocked, onStop, runActions }: RowProps) 
 
 export const ActivityBar = memo(function ActivityBar({ items, runActions }: { items: ReadonlyArray<RunningItem>; runActions?: RunActions }) {
   const { t } = useT()
-  const { cancelTask } = useBackgroundTasks()
-  const sessionId = useAtomValue(chatSessionIdAtom)
-  const store = useStore()
-  const userId = useAtomValue(currentUserAtom)?.id ?? null
-  const mode = useAtomValue(authModeAtom)
-  const operations = useAtomValue(taskCancellationAtom)
+  const { operations, keyFor, acknowledge, stopTask } = useTaskStopper()
   const [expanded, setExpanded] = useState(false)
   const elapsedMs = useElapsedMs(oldestStart(items), items.length > 0)
-  const keyFor = (taskId: string) => taskCancellationKey(sessionId, userId, mode, taskId)
 
   if (items.length === 0) return null
-
-  const acknowledge = (taskId: string) => {
-    const key = keyFor(taskId)
-    store.set(taskCancellationAtom, (previous) => {
-      if (previous[key]?.phase !== 'answered') return previous
-      const updated = { ...previous }
-      delete updated[key]
-      return updated
-    })
-  }
-
-  const handleStop = async (taskId: string) => {
-    const key = keyFor(taskId)
-    // Synchronous guard in the store: one request per task until a person
-    // acknowledges its answer, even across two mounted bars or a remount.
-    if (store.get(taskCancellationAtom)[key]) return
-    const token = Symbol('targeted cancellation')
-    store.set(taskCancellationAtom, (previous) => ({ ...previous, [key]: { phase: 'sending', token } }))
-    const finish = (feedback: TaskCancelFeedback) => store.set(taskCancellationAtom, (previous) => {
-      if (previous[key]?.token !== token) return previous
-      return { ...previous, [key]: { phase: 'answered', token, feedback } }
-    })
-    let timeout: ReturnType<typeof setTimeout> | undefined
-    const localTimeout = Symbol('local task stop timeout')
-    try {
-      const result = await Promise.race([
-        cancelTask(taskId),
-        new Promise<never>((_resolve, reject) => {
-          timeout = setTimeout(() => reject(localTimeout), CANCEL_TASK_TIMEOUT_MS)
-        }),
-      ])
-      if (result.capped) {
-        // One owner reported a limit; another may still act on this task.
-        finish({ kind: 'error', keys: ['chatA-activity.cancelAll.capped', 'chatA-activity.cancel.retryNotice'] })
-      } else if (result.killed_pids.length > 0) {
-        finish({ kind: 'success', killed: result.killed_pids.length })
-      } else {
-        finish({ kind: 'fallback' })
-      }
-    } catch (err) {
-      const failure = readCancelFailure(err)
-      if (err instanceof RequestIdentityChangedError) {
-        // The identity guard refused before sending: nothing went out.
-        finish({ kind: 'error', keys: ['chatA-activity.cancelAll.identityChanged'] })
-      } else if (err === localTimeout || failure.code === 'owner_timeout') {
-        // 504, or no answer at all: the stop may still happen.
-        finish({ kind: 'error', keys: ['chatA-activity.cancel.timeoutNotice'] })
-      } else if (failure.ownerUnreachable) {
-        // 409 owner_unreachable: not confirmed, never "already stopped".
-        finish({ kind: 'error', keys: ['chatA-activity.cancelAll.ownerUnreachable'] })
-      } else if (failure.status === 401) {
-        finish({ kind: 'error', keys: ['chatA-activity.cancel.unauthenticatedNotice'] })
-      } else if (failure.status === 403) {
-        finish({ kind: 'error', keys: ['chatA-activity.cancel.forbiddenNotice'] })
-      } else if (failure.status === 502 || failure.status === 410) {
-        // A relay failure or a moved session may follow another owner's signal,
-        // whatever the body says about retrying.
-        finish({ kind: 'error', keys: ['chatA-activity.cancel.unknownNotice'] })
-      } else if (failure.retryable) {
-        finish({ kind: 'error', keys: ['chatA-activity.cancel.retryNotice'] })
-      } else {
-        // A network failure or a lost response can follow a delivered signal.
-        finish({ kind: 'error', keys: ['chatA-activity.cancel.unknownNotice'] })
-      }
-    } finally {
-      if (timeout !== undefined) clearTimeout(timeout)
-    }
-  }
 
   const counts = countByKind(items)
   const summary = counts.map(({ kind, count }) => t(count === 1 ? `chatA-activity.kindCount.${kind}.one` : `chatA-activity.kindCount.${kind}.many`, { count })).join(', ')
@@ -293,7 +207,7 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
       {expanded && (
         <ul className="max-h-40 overflow-y-auto border-t border-white/[0.06] divide-y divide-white/[0.04]">
           {items.map((item) => (
-            <ActivityRow key={item.id} item={item} stopping={item.taskId != null && operations[keyFor(item.taskId)]?.phase === 'sending'} blocked={item.taskId != null && operations[keyFor(item.taskId)]?.phase === 'answered'} onStop={(id) => void handleStop(id)} runActions={runActions} />
+            <ActivityRow key={item.id} item={item} stopping={item.taskId != null && operations[keyFor(item.taskId)]?.phase === 'sending'} blocked={item.taskId != null && operations[keyFor(item.taskId)]?.phase === 'answered'} onStop={(id) => void stopTask(id)} runActions={runActions} />
           ))}
         </ul>
       )}
@@ -309,9 +223,7 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
           data-feedback={result.kind}
         >
           <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
-          <span><strong>{item.title}: </strong>{result.kind === 'success'
-            ? t(result.killed === 1 ? 'chatA-activity.bar.stoppedOne' : 'chatA-activity.bar.stoppedMany', { count: result.killed })
-            : result.kind === 'fallback' ? t('chatA-activity.bar.noPid') : result.keys.map((key) => t(key)).join(' ')}</span>
+          <span><strong>{item.title}: </strong>{taskFeedbackText(t, result)}</span>
           <button type="button" className="underline" onClick={() => acknowledge(item.taskId!)}>{t('chatA-activity.bar.acknowledge')}</button>
         </div>]
       })}
