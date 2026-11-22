@@ -206,9 +206,6 @@ export default {
     cancelled: '已取消',
     running: '运行中...',
     runningElapsed: '{elapsed} — 运行中...',
-    stopTitle: '停止此工具（向正在运行的子进程发送 SIGINT；代理的回合继续）',
-    stop: '停止',
-    stopping: '停止中…',
   },
   toolRender: {
     processing: '处理中...',

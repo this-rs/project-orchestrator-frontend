@@ -74,30 +74,6 @@ export function cancelNoticeMetadata(evt: unknown): { cancel_notice: true; code:
 }
 
 /**
- * What a Stop chip whose request went over the socket reads from a cancel notice
- * of its session: `null` when the notice is not about the running tools (a refused
- * background-task cancel). The frame has no `retryable`: never a retry.
- */
-export function chipOutcomeOfNotice(code: string, reason?: string): { reason: string } | null {
-  if (code === 'cancel_refused' && reason === 'background_tasks') return null
-  return { reason: reason ?? code }
-}
-
-/** What a Stop chip shows once its cancel was refused or failed. */
-export type ChipOutcome = 'owner_unreachable' | 'pending' | 'failed'
-
-/**
- * The outcome a Stop chip shows for the reason of a failed cancel:
- * `owner_unreachable` → owner unreachable; `owner_timeout` → pending (no answer in
- * time, the stop may still happen); anything else → failed. None re-enables it.
- */
-export function chipOutcomeOfReason(reason: string): ChipOutcome {
-  if (reason === 'owner_unreachable') return 'owner_unreachable'
-  if (reason === 'owner_timeout') return 'pending'
-  return 'failed'
-}
-
-/**
  * The i18n key of the sentence for a cancel notice on the turn. The socket frame
  * carries no `retryable`: it never invites a retry.
  */
@@ -112,17 +88,3 @@ export function cancelNoticeKey(code: string, reason?: string): MessageKey {
   return 'chatA-activity.cancel.unknownNotice'
 }
 
-let lastCancelStamp = 0
-
-/**
- * A strictly increasing number, to order this tab's own moments: the click of a
- * Stop chip and the arrival of a cancel notice on the stream. Not the wall clock
- * (`Date.now()` can go back — NTP, a changed system time — and a real notice would
- * then look older than the click, leaving the chip on "stopping…"), and never two
- * moments with the same value (a notice that came in the same millisecond as the
- * click but BEFORE it is not its answer).
- */
-export function nextCancelStamp(): number {
-  lastCancelStamp += 1
-  return lastCancelStamp
-}

@@ -206,9 +206,6 @@ export default {
     cancelled: 'annulé',
     running: 'en cours...',
     runningElapsed: '{elapsed} — en cours...',
-    stopTitle: 'Arrêter cet outil (envoie SIGINT au sous-processus en cours ; le tour de l\'agent continue)',
-    stop: 'arrêter',
-    stopping: 'arrêt…',
   },
   toolRender: {
     processing: 'traitement...',

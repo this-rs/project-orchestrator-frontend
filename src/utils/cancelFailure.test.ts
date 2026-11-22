@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { ApiError } from '@/services/api'
-import { CancelFailedError, cancelNoticeKey, cancelNoticeMetadata, chipOutcomeOfReason, readCancelFailure } from './cancelFailure'
+import { CancelFailedError, cancelNoticeKey, cancelNoticeMetadata, readCancelFailure } from './cancelFailure'
 
 const body = (status: number, b: Record<string, unknown>) => new ApiError(status, JSON.stringify(b))
 
@@ -48,14 +48,5 @@ describe('cancelNoticeKey', () => {
     expect(cancelNoticeKey('cancel_failed', 'session_gone')).toBe('chatA-activity.cancel.unknownNotice')
     expect(cancelNoticeKey('cancel_refused', 'tool_cancel')).toBe('chatA-activity.cancel.unsupportedNotice')
     expect(cancelNoticeKey('cancel_refused', 'background_tasks')).toBe('chatA-activity.cancel.taskRefusedNotice')
-  })
-})
-
-describe('chipOutcomeOfReason', () => {
-  it('owner_unreachable: unconfirmed; owner_timeout: pending; anything else: failed', () => {
-    expect(chipOutcomeOfReason('owner_unreachable')).toBe('owner_unreachable')
-    expect(chipOutcomeOfReason('owner_timeout')).toBe('pending')
-    expect(chipOutcomeOfReason('session_gone')).toBe('failed')
-    expect(chipOutcomeOfReason('relay_failed')).toBe('failed')
   })
 })

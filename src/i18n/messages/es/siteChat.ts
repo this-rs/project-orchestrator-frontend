@@ -206,9 +206,6 @@ export default {
     cancelled: 'cancelado',
     running: 'en curso...',
     runningElapsed: '{elapsed} — en curso...',
-    stopTitle: 'Detener esta herramienta (envía SIGINT al subproceso en curso; el turno del agente continúa)',
-    stop: 'detener',
-    stopping: 'deteniendo…',
   },
   toolRender: {
     processing: 'procesando...',

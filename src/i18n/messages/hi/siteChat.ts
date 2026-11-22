@@ -206,9 +206,6 @@ export default {
     cancelled: 'रद्द किया गया',
     running: 'चल रहा है...',
     runningElapsed: '{elapsed} — चल रहा है...',
-    stopTitle: 'यह टूल रोकें (चल रही उप-प्रक्रिया को SIGINT भेजता है; एजेंट की बारी जारी रहती है)',
-    stop: 'रोकें',
-    stopping: 'रोका जा रहा है…',
   },
   toolRender: {
     processing: 'प्रसंस्करण...',

@@ -45,12 +45,12 @@ const RELAYED = {
 /** The block the history reducer builds for one frame. */
 const blockOf = (frame: Record<string, unknown>): ContentBlock => historyEventsToMessages([frame] as never[])[0].blocks[0]
 
-function mount(ui: ReactNode, sessionId: string, cancelToolsLive?: () => boolean) {
+function mount(ui: ReactNode, sessionId: string) {
   const store = createStore()
   store.set(providersAtom, PROVIDERS)
   render(
     <Provider store={store}>
-      <ChatSessionProvider sessionId={sessionId} cancelToolsLive={cancelToolsLive}>
+      <ChatSessionProvider sessionId={sessionId}>
         {ui}
       </ChatSessionProvider>
     </Provider>,
@@ -142,11 +142,12 @@ describe('tool-call controls', () => {
   })
 
   it('never offers a per-tool control that cancels all running tools', () => {
-    const live = vi.fn(() => true)
-    mount(<><ToolCallBlock block={tool('one')} /><ToolCallBlock block={tool('two')} /></>, 's1', live)
+    const send = vi.spyOn(WebSocket.prototype, 'send')
+    mount(<><ToolCallBlock block={tool('one')} /><ToolCallBlock block={tool('two')} /></>, 's1')
     expect(screen.queryByRole('button', { name: /^stop$/i })).toBeNull()
     for (const header of screen.getAllByRole('button')) fireEvent.click(header)
-    expect(live).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+    send.mockRestore()
     expect(cancelTools).not.toHaveBeenCalled()
   })
 })

@@ -368,12 +368,13 @@ describe('tool_cancel', () => {
       id: 'tu', type: 'tool_use', content: 'Bash',
       metadata: { tool_call_id: 'c9', tool_name: 'Bash', tool_input: { command: 'sleep 100' } },
     }
-    const sendFrame = vi.fn(() => true)
-    render(<Provider store={createStore()}><ChatCapabilitiesProvider capabilities={caps({ tool_cancel: toolCancel })}><ChatSessionProvider sessionId="s1" cancelToolsLive={sendFrame}><ToolCallBlock block={running} /></ChatSessionProvider></ChatCapabilitiesProvider></Provider>)
+    const sendFrame = vi.spyOn(WebSocket.prototype, 'send')
+    render(<Provider store={createStore()}><ChatCapabilitiesProvider capabilities={caps({ tool_cancel: toolCancel })}><ChatSessionProvider sessionId="s1"><ToolCallBlock block={running} /></ChatSessionProvider></ChatCapabilitiesProvider></Provider>)
     const buttons = screen.getAllByRole('button')
     for (const button of buttons) fireEvent.click(button)
     expect(screen.queryByRole('button', { name: /^stop$/i })).toBeNull()
     expect(sendFrame).not.toHaveBeenCalled()
+    sendFrame.mockRestore()
     expect(cancelTools).not.toHaveBeenCalled()
   })
 })

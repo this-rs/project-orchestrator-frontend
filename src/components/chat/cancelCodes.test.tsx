@@ -8,12 +8,12 @@ import { chatSessionIdAtom } from '@/atoms'
 import { ChatSessionProvider } from './ChatSessionContext'
 import { ChatMessageBubble } from './ChatMessageBubble'
 
-function mount(ui: ReactNode, cancelToolsLive?: () => boolean) {
+function mount(ui: ReactNode) {
   const store = createStore()
   store.set(chatSessionIdAtom, 's1')
   const view = render(
     <Provider store={store}>
-      <ChatSessionProvider sessionId="s1" cancelToolsLive={cancelToolsLive}>{ui}</ChatSessionProvider>
+      <ChatSessionProvider sessionId="s1">{ui}</ChatSessionProvider>
     </Provider>,
   )
   return { ...view, store }
