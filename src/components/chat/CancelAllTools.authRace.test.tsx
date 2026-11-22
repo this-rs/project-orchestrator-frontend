@@ -30,7 +30,7 @@ function mount() {
 
 describe('cancel all tools authenticated preflight', () => {
   beforeEach(() => { vi.clearAllMocks(); auth.mode = 'required'; auth.token = jwt('user-a') })
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
   it('does not refresh or POST when A token expired even if the shared cookie could return B', async () => {
     auth.token = jwt('user-a', Math.floor(Date.now() / 1000) - 1)
@@ -67,9 +67,13 @@ describe('cancel all tools authenticated preflight', () => {
   it('sends the verified A Bearer once without refreshing when the identity stays stable', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ capped: false, killed_pids: [], cli_pid: null }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
+    // A second boundary between `beforeEach` and the assertion, made certain instead of rare.
+    vi.setSystemTime(Date.now() + 1500)
     mount(); open(); confirm()
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
-    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe(`Bearer ${jwt('user-a')}`)
+    // The token of `beforeEach`, not a new `jwt('user-a')`: its `exp` comes from the clock, so
+    // building it twice differs whenever a second boundary falls between the two.
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe(`Bearer ${auth.token}`)
     expect(getValidToken).not.toHaveBeenCalled()
     expect(refreshToken).not.toHaveBeenCalled()
   })
