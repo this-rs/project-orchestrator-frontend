@@ -163,9 +163,9 @@ describe('session-wide cancellation in the real composer', () => {
   it('sends the session-wide request only after an explicit confirmation', async () => {
     vi.mocked(chatApi.cancelTools).mockResolvedValueOnce({ capped: false, killed_pids: [1], cli_pid: null })
     render(<Provider store={createStore()}><ChatCapabilitiesProvider capabilities={CLAUDE_CODE_CAPABILITIES}><ChatInput onSend={vi.fn()} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={vi.fn()} isStreaming={false} sessionId="s1" /></ChatCapabilitiesProvider></Provider>)
-    fireEvent.click(screen.getByRole('button', { name: 'Stop all tools in this session' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' }))
     expect(chatApi.cancelTools).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Send interruption to all tools' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send interruption to session and sub-agent tools' }))
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
     expect(chatApi.cancelTools).toHaveBeenCalledWith('s1', expect.any(Function), expect.any(AbortSignal))
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('does not guarantee processes stopped'))
@@ -173,17 +173,17 @@ describe('session-wide cancellation in the real composer', () => {
   it.each([true, false])('reflects tool_cancel=%s without sending on opening or when unsupported', (supported) => {
     const store = createStore()
     render(<Provider store={store}><ChatCapabilitiesProvider capabilities={{ ...CLAUDE_CODE_CAPABILITIES, tool_cancel: supported }}><ChatInput onSend={vi.fn()} onQueue={() => {}} onQueueOp={() => {}} onInterrupt={vi.fn()} isStreaming={false} sessionId="s1" /></ChatCapabilitiesProvider></Provider>)
-    const button = screen.getByRole('button', { name: 'Stop all tools in this session' }) as HTMLButtonElement
+    const button = screen.getByRole('button', { name: 'Stop session tools, including sub-agent tools' }) as HTMLButtonElement
     expect(button.disabled).toBe(!supported)
     if (supported) {
       fireEvent.click(button)
       expect(screen.getByText(/Sub-agents’ tool processes can also be affected when they are descendants/)).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Send interruption to all tools' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Send interruption to session and sub-agent tools' })).toBeTruthy()
     } else {
       expect(screen.getByText('This provider cannot stop all tools in this session.')).toBeTruthy()
       expect(document.getElementById(button.getAttribute('aria-describedby')!)?.textContent).toBe('This provider cannot stop all tools in this session.')
       fireEvent.click(button)
-      expect(screen.queryByRole('button', { name: 'Send interruption to all tools' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Send interruption to session and sub-agent tools' })).toBeNull()
     }
     expect(chatApi.cancelTools).not.toHaveBeenCalled()
   })
