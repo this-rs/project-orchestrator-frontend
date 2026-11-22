@@ -89,13 +89,27 @@ describe('session-wide cancellation', () => {
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
-  it('shows a refusal without retry and a rate cap only when the server confirms no signal', async () => {
+  it('a capped response may coexist with another owner acting; both controls wait for verification', async () => {
     vi.mocked(chatApi.cancelTools).mockResolvedValueOnce({ capped: true, killed_pids: [], cli_pid: null })
-    mount()
-    open()
-    confirm()
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('No signal sent'))
-    expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+    const store = createStore()
+    const { rerender } = render(<Provider store={store}><CancelAllTools sessionId="s1" available /><CancelAllTools sessionId="s1" available /></Provider>)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Stop all tools in this session' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Send interruption to all tools' }))
+    await waitFor(() => expect(screen.getAllByRole('status').some((status) => status.textContent?.includes('rate limit'))).toBe(true))
+    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
+    rerender(<Provider store={store}><CancelAllTools sessionId="s1" available /></Provider>)
+    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
+  })
+
+  it('a successful response from one owner does not claim that other owners finished', async () => {
+    vi.mocked(chatApi.cancelTools).mockResolvedValueOnce({ capped: false, killed_pids: [1], cli_pid: null })
+    mount(); open(); confirm()
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('other operations may still be in progress'))
+    expect(screen.getByRole('status')).toHaveTextContent('response was received from one owner')
+    expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
+    expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
   })
 
   it('a provider refusal remains visible and never repeats the request', async () => {

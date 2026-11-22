@@ -64,7 +64,7 @@ function CancelAllToolsScoped({ sessionId, available, unsupported, scope, userId
   const principal = JSON.stringify([sessionId, userId, mode])
   const version = versions[principal] ?? 0
   const ownPhase = phases[scope]
-  const phase = ownPhase === undefined || ownPhase === 'idle' || ownPhase === 'capped'
+  const phase = ownPhase === undefined || ownPhase === 'idle'
     ? pending[principal] ?? ownPhase ?? 'idle'
     : ownPhase
   const [confirmationVersion, setConfirmationVersion] = useState<number | null>(null)
@@ -122,8 +122,8 @@ function CancelAllToolsScoped({ sessionId, available, unsupported, scope, userId
         }),
       ])
       if (result.capped === true) {
-        // The backend explicitly reports no action at the rate cap.
-        setPending(null)
+        // One responder hit its cap; another owner may still act.
+        setPending('uncertain')
         setPhase('capped')
       } else if (result.capped === false && Array.isArray(result.killed_pids)) {
         // A later login as the same person must acknowledge that the old
@@ -161,13 +161,13 @@ function CancelAllToolsScoped({ sessionId, available, unsupported, scope, userId
 
   return (
     <div className="px-2.5 py-1.5 text-xs text-gray-300" data-testid="cancel-all-tools">
-      {(phase === 'idle' || phase === 'capped') && !confirming && (
+      {phase === 'idle' && !confirming && (
         <button type="button" className="text-amber-300 underline" onClick={() => setConfirmationVersion(store.get(operationVersionAtom)[principal] ?? 0)}>
           {t('chatA-activity.cancelAll.open')}
         </button>
       )}
       {phase === 'capped' && <p role="status">{t('chatA-activity.cancelAll.capped')}</p>}
-      {(phase === 'idle' || phase === 'capped') && confirming && (
+      {phase === 'idle' && confirming && (
         <div role="group" aria-label={t('chatA-activity.cancelAll.open')}>
           <p>{t('chatA-activity.cancelAll.explain')}</p>
           <div className="flex gap-3 mt-1">
@@ -183,7 +183,7 @@ function CancelAllToolsScoped({ sessionId, available, unsupported, scope, userId
       {phase === 'authRefused' && <p role="status">{t('chatA-activity.cancelAll.authRefused')}</p>}
       {phase === 'refused' && <p role="status">{t('chatA-activity.cancelAll.refused')} {t('chatA-activity.cancelAll.uncertain')}</p>}
       {phase === 'identityChanged' && <p role="status">{t('chatA-activity.cancelAll.identityChanged')}</p>}
-      {available && (phase === 'signalled' || phase === 'uncertain' || phase === 'refused' || phase === 'authRefused' || phase === 'ownerUnreachable' || phase === 'identityChanged') && (
+      {available && (phase === 'signalled' || phase === 'uncertain' || phase === 'refused' || phase === 'capped' || phase === 'authRefused' || phase === 'ownerUnreachable' || phase === 'identityChanged') && (
         <button type="button" className="underline mt-1" onClick={() => { invalidateConfirmations(); setPending(null); setPhase('idle') }}>
           {t('chatA-activity.cancelAll.reset')}
         </button>

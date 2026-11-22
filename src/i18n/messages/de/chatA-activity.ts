@@ -48,8 +48,8 @@ export default {
     tooFast: "Zu schnell abgebrochen — versuche es gleich noch einmal.",
     cancelFailed: "Aufgabe konnte nicht abgebrochen werden — nutze stattdessen den globalen Stopp.",
     runningAria: "Läuft: {summary}",
-    stoppedOne: "{count} Unterprozess gestoppt.",
-    stoppedMany: "{count} Unterprozesse gestoppt.",
+    stoppedOne: "Signal für {count} Prozess angenommen. Er kann noch laufen.",
+    stoppedMany: "Signal für {count} Prozesse angenommen. Sie können noch laufen.",
     noPid: "Abbruch registriert, aber die PID des Unterprozesses war unbekannt — falls weiterhin Ticks eintreffen, nutze die globale Stopp-Schaltfläche."
   },
   cancelAll: {
@@ -58,8 +58,8 @@ export default {
     confirm: "Unterbrechung an alle Werkzeuge senden",
     back: "Zurück",
     sending: "Unterbrechung wird gesendet…",
-    signalled: "Anfrage abgeschlossen. Ein Signal garantiert nicht, dass Prozesse beendet wurden; prüfen Sie den tatsächlichen Zustand.",
-    capped: "Kein Signal gesendet: Das Anfragelimit wurde erreicht.",
+    signalled: "Antwort von einem Besitzer erhalten. Ein Signal garantiert nicht das Prozessende; andere Vorgänge können noch laufen. Prüfen Sie die Sitzungsaktivität.",
+    capped: "Ein Besitzer meldete eine Ratenbegrenzung. Andere können noch handeln; prüfen Sie die Sitzung vor einem erneuten Versuch.",
     uncertain: "Ergebnis unbekannt. Das Signal kann noch gesendet werden; prüfen Sie die Sitzung vor einem erneuten Versuch.",
     refused: "Eine Ablehnung von einer Engine wurde empfangen.",
     unsupported: "Dieser Anbieter kann nicht alle Werkzeuge dieser Sitzung stoppen.",
@@ -69,15 +69,15 @@ export default {
     reset: "Ich habe diese Sitzung geprüft — weitere Anfrage erlauben",
   },
   cancel: {
-    unsupportedNotice: "Diese Stoppanfrage wird nicht unterstützt.",
+    unsupportedNotice: "Eine Ablehnung wurde empfangen; der Stopp ist nicht bestätigt. Prüfen Sie die Sitzungsaktivität.",
     unknownNotice: "Das Ergebnis dieser Stoppanfrage ist unbekannt. Prüfen Sie die Sitzungsaktivität.",
     alreadyStopped: "bereits beendet",
     notStopped: "nicht beendet — nutze den globalen Stopp",
     alreadyStoppedNotice: "Bereits beendet — es lief nichts mehr.",
-    retryNotice: "Noch nicht beendet — versuche es gleich noch einmal.",
+    retryNotice: "Das Ergebnis ist nicht bestätigt. Prüfen Sie die Aktivität, bevor Sie das Stoppen dieser Aufgabe erneut versuchen.",
     timeoutNotice: "Der Stopp wurde nicht rechtzeitig beantwortet — er kann noch erfolgen.",
     failedNotice: "Die Tools konnten nicht beendet werden — nutze stattdessen den globalen Stopp.",
-    taskRefusedNotice: "Dieser Provider kann eine einzelne Hintergrundaufgabe nicht stoppen. Mit Stopp im Eingabefeld unterbrichst du den gesamten Zug."
+    taskRefusedNotice: "Eine Ablehnung wurde empfangen; der Stopp ist nicht bestätigt. Prüfen Sie die Sitzungsaktivität.",
   },
   agent: {
     subAgent: "Sub-Agent",

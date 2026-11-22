@@ -48,8 +48,8 @@ export default {
     tooFast: "Annulations trop rapides — réessayez dans un instant.",
     cancelFailed: "Échec de l’annulation de la tâche — utilisez plutôt l’arrêt global.",
     runningAria: "En cours : {summary}",
-    stoppedOne: "{count} sous-processus arrêté.",
-    stoppedMany: "{count} sous-processus arrêtés.",
+    stoppedOne: "Signal accepté pour {count} processus. Il peut encore fonctionner.",
+    stoppedMany: "Signal accepté pour {count} processus. Ils peuvent encore fonctionner.",
     noPid: "Annulation enregistrée, mais le PID du sous-processus était inconnu — si des signaux continuent d’arriver, utilisez le bouton d’arrêt global."
   },
   cancelAll: {
@@ -58,8 +58,8 @@ export default {
     confirm: 'Envoyer l’interruption à tous les outils',
     back: 'Retour',
     sending: 'Envoi de l’interruption…',
-    signalled: 'Demande terminée. Un signal ne garantit pas l’arrêt des processus ; vérifiez leur état réel.',
-    capped: 'Aucun signal envoyé : la limite de fréquence est atteinte.',
+    signalled: "Réponse reçue d’un propriétaire. Un signal ne garantit pas l’arrêt des processus ; d’autres opérations peuvent encore être en cours. Vérifiez l’activité de la session.",
+    capped: "Un propriétaire a signalé une limite de fréquence. D’autres peuvent encore agir ; vérifiez la session avant de réessayer.",
     uncertain: 'Résultat inconnu. Le signal peut encore être envoyé ; vérifiez la session avant de réessayer.',
     refused: "Un refus a été reçu d’un moteur.",
     unsupported: "Ce fournisseur ne peut pas arrêter tous les outils de cette session.",
@@ -69,15 +69,15 @@ export default {
     reset: 'J’ai vérifié cette session — autoriser une nouvelle demande',
   },
   cancel: {
-    unsupportedNotice: "Cette demande d’arrêt n’est pas prise en charge.",
+    unsupportedNotice: "Un refus a été reçu ; l’état de l’arrêt n’est pas confirmé. Vérifiez l’activité de la session.",
     unknownNotice: "Le résultat de cette demande d’arrêt est inconnu. Vérifiez l’activité de la session.",
     alreadyStopped: "déjà arrêté",
     notStopped: "non arrêté — utilisez l’arrêt global",
     alreadyStoppedNotice: "Déjà arrêté — plus rien ne tournait.",
-    retryNotice: "Pas encore arrêté — réessayez dans un instant.",
+    retryNotice: "Le résultat n’est pas confirmé. Vérifiez l’activité avant de réessayer l’arrêt de cette tâche.",
     timeoutNotice: "L’arrêt n’a pas reçu de réponse à temps — il peut encore avoir lieu.",
     failedNotice: "Les outils n’ont pas pu être arrêtés — utilisez plutôt l’arrêt global.",
-    taskRefusedNotice: "Ce provider ne peut pas arrêter une seule tâche de fond. Utilisez Arrêter dans la zone de saisie pour interrompre tout le tour."
+    taskRefusedNotice: "Un refus a été reçu ; l’état de l’arrêt n’est pas confirmé. Vérifiez l’activité de la session.",
   },
   agent: {
     subAgent: "Sous-agent",

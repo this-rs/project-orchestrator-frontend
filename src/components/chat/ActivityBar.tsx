@@ -227,10 +227,14 @@ export const ActivityBar = memo(function ActivityBar({ items, runActions }: { it
       } else if (failure.code === 'owner_timeout') {
         // No answer in time: it may still happen (retryable or not, say that first).
         flash({ kind: 'error', message: t('chatA-activity.cancel.timeoutNotice') })
+      } else if (failure.status === 502) {
+        // A relay failure may arrive after another owner acted.
+        flash({ kind: 'error', message: t('chatA-activity.cancel.unknownNotice') })
       } else if (failure.retryable) {
         flash({ kind: 'error', message: t('chatA-activity.cancel.retryNotice') })
       } else {
-        flash({ kind: 'error', message: t('chatA-activity.bar.cancelFailed') })
+        // A failed relay or lost response can follow a delivered signal.
+        flash({ kind: 'error', message: t('chatA-activity.cancel.unknownNotice') })
       }
     }
   }

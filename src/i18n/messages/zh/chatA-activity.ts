@@ -48,8 +48,8 @@ export default {
     tooFast: "取消过于频繁——请稍后再试。",
     cancelFailed: "取消任务失败——请改用全局停止。",
     runningAria: "运行中：{summary}",
-    stoppedOne: "已停止 {count} 个子进程。",
-    stoppedMany: "已停止 {count} 个子进程。",
+    stoppedOne: "已接受发送给 {count} 个进程的信号。该进程可能仍在运行。",
+    stoppedMany: "已接受发送给 {count} 个进程的信号。它们可能仍在运行。",
     noPid: "已登记取消，但子进程的 PID 未知——若仍有信号到达，请使用全局停止按钮。"
   },
   cancelAll: {
@@ -58,8 +58,8 @@ export default {
     confirm: "向所有工具发送中断",
     back: "返回",
     sending: "正在发送中断…",
-    signalled: "请求已完成。信号不保证进程已停止；请检查实际状态。",
-    capped: "未发送信号：已达到速率限制。",
+    signalled: "收到一个所有者的响应。信号不能保证进程停止；其他操作可能仍在进行。请检查会话活动。",
+    capped: "一个所有者报告了速率限制。其他所有者仍可能执行操作；重试前请检查会话。",
     uncertain: "结果未知。信号仍可能发出；重试前请检查会话。",
     refused: "收到一个引擎的拒绝。",
     unsupported: "此提供方无法停止此会话中的所有工具。",
@@ -69,15 +69,15 @@ export default {
     reset: "我已检查此会话 — 允许再次请求",
   },
   cancel: {
-    unsupportedNotice: "不支持此停止请求。",
+    unsupportedNotice: "收到拒绝；停止状态尚未确认。请检查会话活动。",
     unknownNotice: "此停止请求的结果未知。请检查会话活动。",
     alreadyStopped: "已停止",
     notStopped: "未停止——请改用全局停止",
     alreadyStoppedNotice: "已停止——已没有任何内容在运行。",
-    retryNotice: "尚未停止——请稍后重试。",
+    retryNotice: "结果尚未确认。再次尝试停止此任务前，请检查活动状态。",
     timeoutNotice: "停止请求未及时得到响应——停止仍可能生效。",
     failedNotice: "无法停止工具——请改用全局停止。",
-    taskRefusedNotice: "此提供方无法停止单个后台任务。请使用输入框中的“停止”来中断整个回合。"
+    taskRefusedNotice: "收到拒绝；停止状态尚未确认。请检查会话活动。",
   },
   agent: {
     subAgent: "子智能体",

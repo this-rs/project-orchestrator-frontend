@@ -48,8 +48,8 @@ export default {
     tooFast: "Hủy quá nhanh — hãy thử lại sau giây lát.",
     cancelFailed: "Không hủy được tác vụ — hãy dùng nút Dừng toàn cục.",
     runningAria: "Đang chạy: {summary}",
-    stoppedOne: "Đã dừng {count} tiến trình con.",
-    stoppedMany: "Đã dừng {count} tiến trình con.",
+    stoppedOne: "Tín hiệu đã được chấp nhận cho {count} tiến trình. Tiến trình đó có thể vẫn chạy.",
+    stoppedMany: "Tín hiệu đã được chấp nhận cho {count} tiến trình. Chúng có thể vẫn chạy.",
     noPid: "Đã ghi nhận yêu cầu hủy nhưng không biết PID của tiến trình con — nếu tín hiệu vẫn tiếp tục đến, hãy dùng nút Dừng toàn cục."
   },
   cancelAll: {
@@ -58,8 +58,8 @@ export default {
     confirm: "Gửi tín hiệu ngắt đến tất cả công cụ",
     back: "Quay lại",
     sending: "Đang gửi tín hiệu ngắt…",
-    signalled: "Yêu cầu đã hoàn tất. Tín hiệu không đảm bảo tiến trình đã dừng; hãy kiểm tra trạng thái thực tế.",
-    capped: "Không gửi tín hiệu: đã đạt giới hạn tần suất.",
+    signalled: "Đã nhận phản hồi từ một chủ sở hữu. Tín hiệu không đảm bảo các tiến trình đã dừng; các thao tác khác có thể vẫn đang diễn ra. Hãy kiểm tra hoạt động phiên.",
+    capped: "Một chủ sở hữu báo giới hạn tốc độ. Những chủ sở hữu khác vẫn có thể hành động; hãy kiểm tra phiên trước khi thử lại.",
     uncertain: "Chưa rõ kết quả. Tín hiệu vẫn có thể được gửi; hãy kiểm tra phiên trước khi thử lại.",
     refused: "Đã nhận được từ chối từ một bộ máy.",
     unsupported: "Nhà cung cấp này không thể dừng tất cả công cụ trong phiên này.",
@@ -69,15 +69,15 @@ export default {
     reset: "Tôi đã kiểm tra phiên này — cho phép yêu cầu khác",
   },
   cancel: {
-    unsupportedNotice: "Yêu cầu dừng này không được hỗ trợ.",
+    unsupportedNotice: "Đã nhận được từ chối; trạng thái dừng chưa được xác nhận. Hãy kiểm tra hoạt động phiên.",
     unknownNotice: "Chưa rõ kết quả của yêu cầu dừng này. Hãy kiểm tra hoạt động phiên.",
     alreadyStopped: "đã dừng",
     notStopped: "chưa dừng — hãy dùng nút Dừng toàn cục",
     alreadyStoppedNotice: "Đã dừng — không còn gì đang chạy.",
-    retryNotice: "Chưa dừng được — hãy thử lại sau giây lát.",
+    retryNotice: "Kết quả chưa được xác nhận. Hãy kiểm tra hoạt động trước khi thử dừng lại tác vụ này.",
     timeoutNotice: "Lệnh dừng không nhận được phản hồi kịp thời — việc dừng vẫn có thể xảy ra.",
     failedNotice: "Không dừng được các công cụ — hãy dùng nút Dừng toàn cục.",
-    taskRefusedNotice: "Nhà cung cấp này không thể dừng một tác vụ nền riêng lẻ. Dùng Dừng trong khung soạn để ngắt cả lượt."
+    taskRefusedNotice: "Đã nhận được từ chối; trạng thái dừng chưa được xác nhận. Hãy kiểm tra hoạt động phiên.",
   },
   agent: {
     subAgent: "Sub-agent",

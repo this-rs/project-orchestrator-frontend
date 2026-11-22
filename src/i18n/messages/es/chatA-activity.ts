@@ -48,8 +48,8 @@ export default {
     tooFast: "Cancelaciones demasiado rápidas — inténtalo de nuevo en un momento.",
     cancelFailed: "No se pudo cancelar la tarea — usa mejor el botón Detener global.",
     runningAria: "En ejecución: {summary}",
-    stoppedOne: "{count} subproceso detenido.",
-    stoppedMany: "{count} subprocesos detenidos.",
+    stoppedOne: "Se aceptó la señal para {count} proceso. Puede seguir ejecutándose.",
+    stoppedMany: "Se aceptó la señal para {count} procesos. Pueden seguir ejecutándose.",
     noPid: "Cancelación registrada, pero se desconocía el PID del subproceso — si siguen llegando señales, usa el botón Detener global."
   },
   cancelAll: {
@@ -58,8 +58,8 @@ export default {
     confirm: "Enviar interrupción a todas las herramientas",
     back: "Volver",
     sending: "Enviando interrupción…",
-    signalled: "Solicitud completada. Una señal no garantiza que los procesos se hayan detenido; compruebe su estado real.",
-    capped: "No se envió ninguna señal: se alcanzó el límite de frecuencia.",
+    signalled: "Se recibió una respuesta de un propietario. Una señal no garantiza que los procesos se detengan; otras operaciones pueden seguir en curso. Compruebe la actividad de la sesión.",
+    capped: "Un propietario notificó un límite de frecuencia. Otros aún pueden actuar; compruebe la sesión antes de volver a intentarlo.",
     uncertain: "Resultado desconocido. La señal aún puede enviarse; compruebe la sesión antes de volver a intentarlo.",
     refused: "Se recibió un rechazo de un motor.",
     unsupported: "Este proveedor no puede detener todas las herramientas de esta sesión.",
@@ -69,15 +69,15 @@ export default {
     reset: "He comprobado esta sesión: permitir otra solicitud",
   },
   cancel: {
-    unsupportedNotice: "Esta solicitud de detención no es compatible.",
+    unsupportedNotice: "Se recibió un rechazo; la detención no está confirmada. Compruebe la actividad de la sesión.",
     unknownNotice: "Se desconoce el resultado de esta solicitud de detención. Compruebe la actividad de la sesión.",
     alreadyStopped: "ya detenido",
     notStopped: "no detenido — usa el botón Detener global",
     alreadyStoppedNotice: "Ya detenido — ya no se estaba ejecutando nada.",
-    retryNotice: "Aún no detenido — inténtalo de nuevo en un momento.",
+    retryNotice: "El resultado no está confirmado. Compruebe la actividad antes de volver a intentar detener esta tarea.",
     timeoutNotice: "La detención no recibió respuesta a tiempo — puede que aún ocurra.",
     failedNotice: "No se pudieron detener las herramientas — usa mejor el botón Detener global.",
-    taskRefusedNotice: "Este proveedor no puede detener una sola tarea en segundo plano. Usa Detener en el compositor para interrumpir todo el turno."
+    taskRefusedNotice: "Se recibió un rechazo; la detención no está confirmada. Compruebe la actividad de la sesión.",
   },
   agent: {
     subAgent: "Subagente",

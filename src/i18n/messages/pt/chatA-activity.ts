@@ -48,8 +48,8 @@ export default {
     tooFast: "Cancelamentos rápidos demais — tente novamente em instantes.",
     cancelFailed: "Falha ao cancelar a tarefa — use o Parar global.",
     runningAria: "Em execução: {summary}",
-    stoppedOne: "{count} subprocesso interrompido.",
-    stoppedMany: "{count} subprocessos interrompidos.",
+    stoppedOne: "Sinal aceite para {count} processo. Pode ainda estar em execução.",
+    stoppedMany: "Sinal aceite para {count} processos. Podem ainda estar em execução.",
     noPid: "Cancelamento registrado, mas o PID do subprocesso era desconhecido — se os sinais continuarem chegando, use o botão Parar global."
   },
   cancelAll: {
@@ -58,8 +58,8 @@ export default {
     confirm: "Enviar interrupção a todas as ferramentas",
     back: "Voltar",
     sending: "Enviando interrupção…",
-    signalled: "Pedido concluído. Um sinal não garante que os processos pararam; verifique o estado real.",
-    capped: "Nenhum sinal enviado: o limite de frequência foi atingido.",
+    signalled: "Foi recebida resposta de um proprietário. Um sinal não garante a paragem dos processos; outras operações podem continuar em curso. Verifique a atividade da sessão.",
+    capped: "Um proprietário comunicou um limite de frequência. Outros ainda podem agir; verifique a sessão antes de tentar novamente.",
     uncertain: "Resultado desconhecido. O sinal ainda pode ser enviado; verifique a sessão antes de tentar novamente.",
     refused: "Foi recebida uma recusa de um motor.",
     unsupported: "Este fornecedor não consegue parar todas as ferramentas desta sessão.",
@@ -69,15 +69,15 @@ export default {
     reset: "Verifiquei esta sessão — permitir outro pedido",
   },
   cancel: {
-    unsupportedNotice: "Este pedido de paragem não é suportado.",
+    unsupportedNotice: "Foi recebida uma recusa; a paragem não está confirmada. Verifique a atividade da sessão.",
     unknownNotice: "O resultado deste pedido de paragem é desconhecido. Verifique a atividade da sessão.",
     alreadyStopped: "já parado",
     notStopped: "não parado — use o Parar global",
     alreadyStoppedNotice: "Já parado — nada estava mais em execução.",
-    retryNotice: "Ainda não parado — tente de novo em instantes.",
+    retryNotice: "O resultado não está confirmado. Verifique a atividade antes de tentar novamente parar esta tarefa.",
     timeoutNotice: "A parada não teve resposta a tempo — ela ainda pode acontecer.",
     failedNotice: "Não foi possível parar as ferramentas — use o Parar global.",
-    taskRefusedNotice: "Este provedor não consegue parar uma única tarefa em segundo plano. Use Parar no campo de mensagem para interromper o turno inteiro."
+    taskRefusedNotice: "Foi recebida uma recusa; a paragem não está confirmada. Verifique a atividade da sessão.",
   },
   agent: {
     subAgent: "Subagente",

@@ -152,13 +152,13 @@ describe('<ActivityBar />', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show Plan the slices in the conversation' }))
   })
 
-  it('calls cancelTask for the row, says "stopping…" until the task leaves, and confirms the kill', async () => {
+  it('calls cancelTask for the row, says "stopping…" until the task leaves, reports the accepted signal without claiming exit', async () => {
     vi.mocked(chatApi.cancelTask).mockResolvedValueOnce({ task_id: 'm1', killed_pids: [10, 11], capped: false })
     const { setItems } = mount([monitor, shell])
     expand()
     fireEvent.click(screen.getByRole('button', { name: 'Stop tail -f ci.log' }))
     expect(chatApi.cancelTask).toHaveBeenCalledWith('session-1', 'm1')
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Stopped 2 subprocesses.'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Signal accepted for 2 processes. They may still be running.'))
     const row = screen.getByText('tail -f ci.log').closest('li')!
     expect(within(row).getByText('stopping…')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Stop tail -f ci.log' })).toBeDisabled()
@@ -175,7 +175,7 @@ describe('<ActivityBar />', () => {
     mount([shell])
     expand()
     fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Stopped 1 subprocess.'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Signal accepted for 1 process. It may still be running.'))
   })
 
   it('warns when the cancel was registered without a known pid', async () => {
@@ -197,12 +197,12 @@ describe('<ActivityBar />', () => {
     expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
   })
 
-  it('when the cancel fails, says so and re-enables Stop', async () => {
+  it('when the network fails, reports an unknown outcome', async () => {
     vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(new Error('boom'))
     mount([shell])
     expand()
     fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Failed to cancel task'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('The outcome of this stop request is unknown'))
     expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
   })
 
@@ -215,7 +215,7 @@ describe('<ActivityBar />', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Owner unreachable; no stop was confirmed. Check the session activity.'))
     expect(screen.getByRole('status')).toHaveAttribute('data-feedback', 'error')
-    expect(screen.getByRole('status')).not.toHaveTextContent('Failed to cancel task')
+    expect(screen.getByRole('status')).not.toHaveTextContent('The outcome of this stop request is unknown')
   })
 
   it('504 owner_timeout (retryable:true for a task) says it may still happen', async () => {
@@ -229,25 +229,28 @@ describe('<ActivityBar />', () => {
     expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
   })
 
-  it('a retryable refusal (410 session_gone, retryable:true) invites a retry', async () => {
+  it('410 retryable leaves the outcome unconfirmed and limits advice to this task', async () => {
     vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(
       new ApiError(410, JSON.stringify({ error: 'moved', code: 'session_gone', retryable: true })),
     )
     mount([shell])
     expand()
     fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Not stopped yet — try again in a moment.'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('The outcome is unconfirmed. Check the activity before retrying this task’s stop request.'))
     expect(screen.getByRole('button', { name: 'Stop npm run dev' })).toBeEnabled()
   })
 
-  it('a non-retryable failure (502 relay_failed) keeps the generic failure', async () => {
+  it.each([
+    ['relay_failed', false], ['relay_failed', true], ['owner_failed', true], ['owner_protocol', true],
+  ])('502 %s (retryable=%s) reports an unknown outcome', async (code, retryable) => {
     vi.mocked(chatApi.cancelTask).mockRejectedValueOnce(
-      new ApiError(502, JSON.stringify({ error: 'could not send', code: 'relay_failed', retryable: false })),
+      new ApiError(502, JSON.stringify({ error: 'relay', code, retryable })),
     )
     mount([shell])
     expand()
     fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Failed to cancel task'))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('The outcome of this stop request is unknown'))
+    expect(chatApi.cancelTask).toHaveBeenCalledTimes(1)
   })
 
   it('clears the confirmation after a moment, and the latest click replaces the previous message', async () => {
@@ -263,7 +266,7 @@ describe('<ActivityBar />', () => {
       expect(screen.getByRole('status')).toHaveTextContent('Cancelling too fast')
       fireEvent.click(screen.getByRole('button', { name: 'Stop npm run dev' }))
       await act(() => vi.advanceTimersByTimeAsync(0))
-      expect(screen.getByRole('status')).toHaveTextContent('Stopped 1 subprocess.')
+      expect(screen.getByRole('status')).toHaveTextContent('Signal accepted for 1 process. It may still be running.')
       await act(() => vi.advanceTimersByTimeAsync(2600))
       expect(screen.queryByRole('status')).toBeNull()
     } finally {

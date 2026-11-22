@@ -482,15 +482,16 @@ export const ChatMessageBubble = memo(function ChatMessageBubble({ message, isSt
               if (block.metadata?.cancel_notice === true) {
                 const code = block.metadata.code as string
                 const reason = block.metadata.reason as string | undefined
+                const notice = t(cancelNoticeKey(code, reason))
                 return (
                   <div
                     key={block.id}
                     role="status"
                     data-cancel-notice={reason ?? code}
-                    title={block.content}
+                    title={notice}
                     className="my-2 px-3 py-2 rounded-lg bg-amber-900/10 border border-amber-500/20 text-xs text-amber-300"
                   >
-                    {t(cancelNoticeKey(code, reason))}
+                    {notice}
                   </div>
                 )
               }
