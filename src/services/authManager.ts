@@ -77,7 +77,10 @@ export function isReturnablePath(path: unknown): path is string {
   if (path.startsWith('//') || path.includes('\\')) return false
   if (typeof window !== 'undefined') {
     try {
-      if (new URL(path, window.location.origin).origin !== window.location.origin) return false
+      // Compare two origins from the same parser: under Tauri (`tauri://localhost`)
+      // `new URL(...).origin` is "null" while `window.location.origin` may not be.
+      const here = new URL(window.location.href)
+      if (new URL(path, here).origin !== here.origin) return false
     } catch {
       return false
     }
