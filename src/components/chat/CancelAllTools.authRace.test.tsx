@@ -102,4 +102,31 @@ describe('cancel all tools authenticated preflight', () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined()
   })
+
+  it('times out once, aborts locally, and keeps the uncertain outcome across navigation and a late response', async () => {
+    vi.useFakeTimers()
+    try {
+      let resolve!: (response: Response) => void
+      // Simulate a fetch implementation that does not settle when aborted.
+      const fetchMock = vi.fn().mockReturnValueOnce(new Promise((r) => { resolve = r }))
+      vi.stubGlobal('fetch', fetchMock)
+      const { store, rerender } = mount()
+      open(); confirm()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      const signal = fetchMock.mock.calls[0][1].signal as AbortSignal
+      rerender(<Provider store={store}><CancelAllTools sessionId="s2" available /></Provider>)
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+      expect(signal.aborted).toBe(true)
+      expect(screen.queryByRole('status')).toBeNull()
+      rerender(<Provider store={store}><CancelAllTools sessionId="s1" available /></Provider>)
+      expect(screen.getByRole('status')).toHaveTextContent('outcome is unknown')
+      fireEvent.click(screen.getByRole('button', { name: 'I checked this session — allow another request' }))
+      await act(() => resolve(new Response(JSON.stringify({ capped: false, killed_pids: [1], cli_pid: null }), { status: 200 })))
+      expect(screen.queryByRole('status')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Stop all tools in this session' })).toBeEnabled()
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

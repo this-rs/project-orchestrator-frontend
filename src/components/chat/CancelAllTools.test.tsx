@@ -36,7 +36,7 @@ describe('session-wide cancellation', () => {
     fireEvent.click(button)
     fireEvent.click(button)
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
-    expect(chatApi.cancelTools).toHaveBeenCalledWith('s1', expect.any(Function))
+    expect(chatApi.cancelTools).toHaveBeenCalledWith('s1', expect.any(Function), expect.any(AbortSignal))
     await act(() => resolve({ capped: false, killed_pids: [123], cli_pid: null }))
     expect(screen.getByRole('status')).toHaveTextContent('does not guarantee processes stopped')
     expect(screen.queryByRole('button', { name: 'Stop all tools in this session' })).toBeNull()
@@ -88,7 +88,8 @@ describe('session-wide cancellation', () => {
   })
 
   it('two mounted controls cannot both send the same confirmation', async () => {
-    vi.mocked(chatApi.cancelTools).mockReturnValueOnce(new Promise(() => {}))
+    let resolve!: (v: { capped: boolean; killed_pids: number[]; cli_pid: null }) => void
+    vi.mocked(chatApi.cancelTools).mockReturnValueOnce(new Promise((r) => { resolve = r }))
     const store = createStore()
     render(<Provider store={store}><CancelAllTools sessionId="s1" available /><CancelAllTools sessionId="s1" available /></Provider>)
     for (const button of screen.getAllByRole('button', { name: 'Stop all tools in this session' })) fireEvent.click(button)
@@ -96,6 +97,7 @@ describe('session-wide cancellation', () => {
     fireEvent.click(buttons[0])
     fireEvent.click(buttons[1])
     expect(chatApi.cancelTools).toHaveBeenCalledTimes(1)
+    await act(() => resolve({ capped: false, killed_pids: [1], cli_pid: null }))
   })
 
   it('invalidates the other open confirmation when an operation ends and is reset', async () => {

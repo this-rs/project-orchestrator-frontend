@@ -171,8 +171,8 @@ export const chatApi = {
    * `capped:true` means the per-session rate limit (10/60s) was hit; the
    * caller should display a "slow down" toast and retry later.
    */
-  cancelTools: (sessionId: string, beforeSend: (token: string | null) => boolean) =>
-    api.postOnceCurrentToken<CancelToolsResult>(`/chat/sessions/${sessionId}/cancel-tools`, {}, beforeSend),
+  cancelTools: (sessionId: string, beforeSend: (token: string | null) => boolean, signal?: AbortSignal) =>
+    api.postOnceCurrentToken<CancelToolsResult>(`/chat/sessions/${sessionId}/cancel-tools`, {}, beforeSend, signal),
 
   /**
    * Snapshot the background subprocesses currently tracked for a session

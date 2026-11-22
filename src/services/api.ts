@@ -274,8 +274,8 @@ export const api = {
     }),
 
   /** Single attempt with the existing token: never rotates a shared refresh cookie. */
-  postOnceCurrentToken: <T>(endpoint: string, data: unknown, beforeSend: (token: string | null) => boolean) =>
-    request<T>(endpoint, { method: 'POST', body: JSON.stringify(data) }, false, 'api', false, beforeSend, true),
+  postOnceCurrentToken: <T>(endpoint: string, data: unknown, beforeSend: (token: string | null) => boolean, signal?: AbortSignal) =>
+    request<T>(endpoint, { method: 'POST', body: JSON.stringify(data), signal }, false, 'api', false, beforeSend, true),
 
   patch: <T>(endpoint: string, data: unknown, signal?: AbortSignal) =>
     request<T>(endpoint, {

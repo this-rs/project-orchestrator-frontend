@@ -17,6 +17,8 @@ const pendingByPrincipalAtom = atom<Partial<Record<string, 'sending' | 'uncertai
 const operationVersionAtom = atom<Partial<Record<string, number>>>({})
 const authEpochAtom = atom(0)
 const observedStores = new WeakSet<object>()
+// Longer than the backend's owner/relay bounds, but finite if a proxy never answers.
+const CANCEL_ALL_TIMEOUT_MS = 30_000
 
 /** Compare a token's declared subject only; the server still verifies its signature. */
 function tokenSubject(token: string | null): string | null {
@@ -89,18 +91,29 @@ function CancelAllToolsScoped({ sessionId, available, scope, userId, mode, modeC
     setConfirmationVersion(null)
     setPending('sending')
     setPhase('sending')
+    const controller = new AbortController()
+    let timeout: ReturnType<typeof setTimeout> | undefined
     try {
       const sameIdentity = (token: string | null) => {
         if (!active.current || !available || !modeConfirmed || store.get(authEpochAtom) !== epoch || store.get(authModeAtom) !== mode ||
             store.get(authModeConfirmedAtom) !== modeConfirmed || getAuthMode() !== mode ||
             (store.get(currentUserAtom)?.id ?? null) !== userId) return false
         // No cookie-only authentication: in required mode the exact Bearer sent
-        // must name the person who confirmed, even after an awaited refresh.
+        // must name the person who confirmed; this action never refreshes it.
         const exp = token ? parseJwtExp(token) : null
         return mode === 'none' ? modeConfirmed && token === null :
           !!userId && tokenSubject(token) === userId && exp !== null && exp > Math.floor(Date.now() / 1000)
       }
-      const result = await chatApi.cancelTools(sessionId, sameIdentity)
+      const result = await Promise.race([
+        chatApi.cancelTools(sessionId, sameIdentity, controller.signal),
+        new Promise<never>((_resolve, reject) => {
+          timeout = setTimeout(() => {
+            // Aborting cannot undo a request already received by the server.
+            reject(new Error('cancel tools timed out'))
+            controller.abort()
+          }, CANCEL_ALL_TIMEOUT_MS)
+        }),
+      ])
       if (result.capped === true) {
         // The backend explicitly reports no action at the rate cap.
         setPending(null)
@@ -128,6 +141,8 @@ function CancelAllToolsScoped({ sessionId, available, scope, userId, mode, modeC
         setPending('uncertain')
         setPhase('uncertain')
       }
+    } finally {
+      if (timeout !== undefined) clearTimeout(timeout)
     }
   }
 
