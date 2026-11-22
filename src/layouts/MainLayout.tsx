@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo, useCallback, useContext, useId } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useCallback, useContext, useId } from 'react'
 import { Outlet, NavLink, useLocation, useParams } from 'react-router-dom'
 import { ownsContentArea } from './contentArea'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import { Menu, ChevronLeft, ChevronRight, ChevronDown, MessageCircle, Plus } from 'lucide-react'
 import { NOMENCLATURE, NAV_GROUPS, segmentLabel, entityNoun } from '@/constants/nomenclature'
 import { useT, type MessageKey } from '@/i18n'
-import { sidebarCollapsedAtom, breadcrumbTitleAtom, chatPanelModeAtom, chatPanelWidthAtom, eventBusStatusAtom, workspacesAtom, workspaceRefreshAtom } from '@/atoms'
+import { sidebarCollapsedAtom, breadcrumbTitleAtom, chatPanelModeAtom, chatPanelWidthAtom, chatDraftWorkspaceAtom, eventBusStatusAtom, workspacesAtom, workspaceRefreshAtom } from '@/atoms'
 import { ToastContainer, Branding, HaloPointer } from '@/components/ui'
 import { ChatPanel } from '@/components/chat'
 import { ReferenceSourceHost } from '@/refs/source/ReferenceSourceHost'
@@ -303,6 +303,13 @@ export function MainLayout() {
   const chromeSlug = useContext(ChromeWorkspaceSlugContext)
   const isGlobal = !urlSlug
   const chatSlug = urlSlug ?? chromeSlug ?? undefined
+  const setDraftWorkspace = useSetAtom(chatDraftWorkspaceAtom)
+  // This is the route/context resolved for THIS tab. The persisted last-visited
+  // workspace is shared by all tabs and cannot identify the open composer.
+  // Update before paint when a mounted panel follows a workspace change.
+  useLayoutEffect(() => {
+    setDraftWorkspace(chatSlug ?? null)
+  }, [chatSlug, setDraftWorkspace])
   const wsSlug = urlSlug
   const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
   const [chatMode, setChatMode] = useAtom(chatPanelModeAtom)

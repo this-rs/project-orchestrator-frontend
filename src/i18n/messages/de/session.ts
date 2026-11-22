@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  openError: {
+    attached: "{count} zuvor angehängte Datei(en) werden mit diesem Entwurf gesendet. Beim Schließen dieser Fehlermeldung werden sie verworfen.",
+    retry: "Erneut versuchen",
+    discard: "Dateien verwerfen und schließen",
+  },
   place: {
     neutral: "Neutraler Ort",
     neutralHint: "Läuft in einem leeren Ordner, den der Server angelegt hat, außerhalb jedes Projekts. Dort geschriebene Dateien werden beim Schließen der Unterhaltung gelöscht.",

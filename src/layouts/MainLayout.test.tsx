@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, Link } from 'react-router-dom'
+import { createStore, Provider } from 'jotai'
+import { chatDraftWorkspaceAtom } from '@/atoms'
 
 const projectsOfWorkspace = vi.hoisted(() => ({ current: [] as { id: string; name: string; slug: string; profile?: 'software' | 'work' }[] }))
 
@@ -30,6 +32,25 @@ vi.mock('@/services/workspaces', () => ({
 }))
 
 import { MainLayout } from './MainLayout'
+
+it('keeps the draft workspace in step with this tab’s route', () => {
+  const store = createStore()
+  render(
+    <Provider store={store}>
+      <MemoryRouter initialEntries={['/workspace/one/plans']}>
+        <Routes>
+          <Route path="/workspace/:slug" element={<MainLayout />}>
+            <Route path="plans" element={<div>plans</div>} />
+          </Route>
+        </Routes>
+        <Link to="/workspace/two/plans">workspace two</Link>
+      </MemoryRouter>
+    </Provider>,
+  )
+  expect(store.get(chatDraftWorkspaceAtom)).toBe('one')
+  fireEvent.click(screen.getByText('workspace two'))
+  expect(store.get(chatDraftWorkspaceAtom)).toBe('two')
+})
 
 function Boom(): never {
   throw new Error('page exploded')

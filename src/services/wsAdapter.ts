@@ -89,6 +89,9 @@ class TauriWebSocket implements IWebSocket {
   private _readyState: ReadyState = ReadyState.CONNECTING
   private tauriWs: Awaited<ReturnType<typeof import('@tauri-apps/plugin-websocket').default.connect>> | null = null
   private unsubscribe: (() => void) | null = null
+  // The plugin's sends are asynchronous. Serialize them and wait for them
+  // before disconnecting, as a browser WebSocket does for buffered frames.
+  private pendingSends: Promise<void> = Promise.resolve()
 
   onopen: ((ev: Event) => void) | null = null
   onmessage: ((ev: MessageEvent) => void) | null = null
@@ -171,13 +174,10 @@ class TauriWebSocket implements IWebSocket {
     if (this._readyState !== ReadyState.OPEN || !this.tauriWs) {
       throw new DOMException('WebSocket is not open', 'InvalidStateError')
     }
-    // send() is async on the Tauri plugin but IWebSocket.send() is sync.
-    // Fire-and-forget — errors will surface via the listener as Close events.
-    this.tauriWs.send(data).catch((err) => {
+    const socket = this.tauriWs
+    this.pendingSends = this.pendingSends.then(() => socket.send(data)).catch((err) => {
       console.error('TauriWebSocket send error:', err)
-      if (this.onerror) {
-        this.onerror(new Event('error'))
-      }
+      if (this.onerror) this.onerror(new Event('error'))
     })
   }
 
@@ -187,7 +187,8 @@ class TauriWebSocket implements IWebSocket {
     }
     this._readyState = ReadyState.CLOSING
     if (this.tauriWs) {
-      this.tauriWs.disconnect().then(() => {
+      const socket = this.tauriWs
+      this.pendingSends.then(() => socket.disconnect()).then(() => {
         this._readyState = ReadyState.CLOSED
         if (this.onclose) {
           this.onclose(new CloseEvent('close', { code: 1000, reason: '', wasClean: true }))

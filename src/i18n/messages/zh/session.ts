@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  openError: {
+    attached: "之前附加的 {count} 个文件将随此草稿发送。关闭此错误提示将丢弃这些文件。",
+    retry: "重试",
+    discard: "丢弃文件并关闭",
+  },
   place: {
     neutral: "中立位置",
     neutralHint: "在服务器创建的空文件夹中运行，不属于任何项目。写入其中的文件会在对话关闭时删除。",

@@ -5,6 +5,7 @@ import { useAtomValue, useSetAtom } from 'jotai'
 import { Cpu, KeyRound, LogOut, Settings } from 'lucide-react'
 import { authModeAtom, currentUserAtom } from '@/atoms'
 import { clearChatDraftsAtom } from '@/atoms/chat'
+import { clearChatSessionOpenErrorsAtom } from '@/atoms/providers'
 import { trayNavigationAtom } from '@/atoms/setup'
 import { forceLogout } from '@/services/authManager'
 import { isTauri } from '@/services/env'
@@ -77,6 +78,7 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
   const navigate = useNavigate()
   const setTrayNavigation = useSetAtom(trayNavigationAtom)
   const clearChatDrafts = useSetAtom(clearChatDraftsAtom)
+  const clearOpenErrors = useSetAtom(clearChatSessionOpenErrorsAtom)
 
   // Hide in no-auth mode (early returns must come AFTER all hook calls)
   if (authMode === 'none') return null
@@ -93,6 +95,7 @@ export function UserMenu({ dropUp = false, showName = false }: UserMenuProps = {
   const handleLogout = () => {
     // Unsent chat text is persisted per conversation; it leaves with the user.
     clearChatDrafts()
+    clearOpenErrors()
     forceLogout()
   }
 

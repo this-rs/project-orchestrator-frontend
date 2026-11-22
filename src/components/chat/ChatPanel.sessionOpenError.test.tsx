@@ -13,6 +13,10 @@ import {
   chatPanelModeAtom,
   chatSelectedProjectAtom,
   chatSessionOpenErrorAtom,
+  chatDraftWorkspaceAtom,
+  chatSessionIdAtom,
+  setChatSessionOpenErrorByKeyAtom,
+  newConversationDraftKey,
   chatWorkspaceHasProjectsAtom,
   providersLoadStateAtom,
   type ChatSessionOpenError,
@@ -160,6 +164,37 @@ describe('ChatPanel — a conversation that could not be opened', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('Internal Server Error')
     expect(alert.getAttribute('data-error-code')).toBeNull()
+  })
+
+  it('keeps a failed opening and its attachments with the original workspace', async () => {
+    const store = renderPanel('open', (s) => {
+      s.set(chatDraftWorkspaceAtom, 'b')
+      s.set(setChatSessionOpenErrorByKeyAtom, {
+        key: newConversationDraftKey('a'),
+        error: { ...UNTYPED, attachments: ['doc-a'] },
+      })
+    })
+    await screen.findByTestId('input')
+    expect(screen.queryByTestId('session-open-error')).toBeNull()
+    act(() => store.set(chatDraftWorkspaceAtom, 'a'))
+    const alert = await screen.findByTestId('session-open-error')
+    expect(alert.textContent).toContain('1 previously attached')
+    fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }))
+    expect(chatStub.sendMessage).toHaveBeenCalledWith(
+      'hello', { cwd: '/repo', workspaceSlug: 'ws', projectSlug: undefined }, ['doc-a'],
+    )
+    act(() => store.set(chatSessionIdAtom, 'other-session'))
+    expect(screen.queryByTestId('session-open-error')).toBeNull()
+    act(() => store.set(chatSessionIdAtom, null))
+    expect(screen.getByTestId('session-open-error')).toBeDefined()
+  })
+
+  it('keeps failed attachment ids on an ordinary send as well as on retry', async () => {
+    renderPanel('open', (s) => s.set(chatSessionOpenErrorAtom, { ...UNTYPED, attachments: ['doc-a', 'doc-1'] }))
+    fireEvent.click(await screen.findByTestId('input'))
+    expect(chatStub.sendMessage).toHaveBeenCalledWith(
+      'hello', { cwd: '/repo', workspaceSlug: 'ws', projectSlug: undefined }, ['doc-a', 'doc-1'],
+    )
   })
 
   it('loads the provider instances for the selected project when the chat mounts', async () => {

@@ -3,6 +3,7 @@ import type { ChatSessionOpenError } from '@/atoms'
 import { ProviderStateCard, type ProviderCardTone } from './ProviderStateCard'
 import type { ProviderFallback, ProviderId } from '@/types/provider'
 import { panelGlass } from '@/components/ui/panelGlass'
+import { useT } from '@/i18n'
 
 interface SessionOpenErrorProps {
   error: ChatSessionOpenError
@@ -32,8 +33,15 @@ interface SessionOpenErrorProps {
  * plain alert with the server's sentence.
  */
 export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, onUnlocked, onPickProvider, onConsented, projectSlug, tone }: SessionOpenErrorProps) {
+  const { t } = useT()
+  const attachmentCount = error.attachments?.length ?? 0
+  const retainedFiles = attachmentCount > 0
+    ? <p className="mx-3 mb-1 text-xs text-amber-200">{t('session.openError.attached', { count: attachmentCount })}</p>
+    : null
   if (error.info) {
     return (
+      <>
+      {retainedFiles}
       <ProviderStateCard
         error={error.info.message ? error.info : { ...error.info, message: error.message }}
         projectSlug={projectSlug}
@@ -48,6 +56,7 @@ export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, onUnl
         className="mx-3 mb-1"
         testId="session-open-error"
       />
+      </>
     )
   }
   return (
@@ -60,6 +69,8 @@ export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, onUnl
       <div className="min-w-0 flex-1">
         <p className="font-medium text-red-100">The conversation could not be started</p>
         <p className="mt-0.5 break-words text-red-200/90">{error.message}</p>
+        {attachmentCount > 0 && <p className="mt-1">{t('session.openError.attached', { count: attachmentCount })}</p>}
+        {onRetry && <button type="button" onClick={onRetry} className="mt-2 rounded px-1.5 py-0.5 font-medium hover:bg-white/10">{t('session.openError.retry')}</button>}
       </div>
       <button
         type="button"
@@ -67,7 +78,7 @@ export function SessionOpenError({ error, onDismiss, onRetry, onRetryWith, onUnl
         className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-red-200 hover:bg-red-500/20"
       >
         <X className="h-3 w-3" aria-hidden="true" />
-        Dismiss
+        {attachmentCount > 0 ? t('session.openError.discard') : 'Dismiss'}
       </button>
     </div>
   )

@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  openError: {
+    attached: "以前に添付した {count} 件のファイルをこの下書きと一緒に送信します。このエラーを閉じるとファイルは破棄されます。",
+    retry: "再試行",
+    discard: "ファイルを破棄して閉じる",
+  },
   place: {
     neutral: "中立の場所",
     neutralHint: "サーバーが作成した空のフォルダーで、どのプロジェクトにも属さずに実行されます。そこに書き込まれたファイルは会話を閉じると削除されます。",

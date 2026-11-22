@@ -1,6 +1,11 @@
 import type { Translation } from '../../catalog.ts'
 
 export default {
+  openError: {
+    attached: '{count} pièce(s) jointe(s) conservée(s) seront envoyées avec ce brouillon. Fermer cette erreur les abandonne.',
+    retry: 'Réessayer',
+    discard: 'Abandonner les fichiers et fermer',
+  },
   place: {
     neutral: "Lieu neutre",
     neutralHint: "S’exécute dans un dossier vide créé par le serveur, hors de tout projet. Les fichiers qui y sont écrits sont supprimés à la fermeture de la conversation.",
