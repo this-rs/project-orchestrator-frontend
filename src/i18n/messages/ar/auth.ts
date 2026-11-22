@@ -23,7 +23,7 @@ export default {
   },
   bootRefreshFailed: {
     title: "تعذّر الوصول إلى الخادم",
-    description: "تم الاحتفاظ بجلستك. لم يستجب الخادم؛ حاول مرة أخرى بعد قليل.",
+    description: "لم يستجب الخادم. حاول مرة أخرى بعد قليل.",
   },
   callback: {
     signingIn: "جارٍ تسجيل دخولك…",

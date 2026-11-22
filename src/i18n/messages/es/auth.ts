@@ -23,7 +23,7 @@ export default {
   },
   bootRefreshFailed: {
     title: "No se puede contactar con el servidor",
-    description: "Su sesión se conserva. El servidor no respondió; inténtelo de nuevo en un momento.",
+    description: "El servidor no respondió. Inténtelo de nuevo en un momento.",
   },
   callback: {
     signingIn: "Iniciando sesión…",

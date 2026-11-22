@@ -21,7 +21,7 @@ export default {
   },
   bootRefreshFailed: {
     title: "Can't reach the server",
-    description: "Your session is kept. The server did not answer; try again in a moment.",
+    description: "The server did not answer. Try again in a moment.",
   },
   callback: {
     signingIn: "Signing you in…",

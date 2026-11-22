@@ -23,7 +23,7 @@ export default {
   },
   bootRefreshFailed: {
     title: "サーバーに接続できません",
-    description: "セッションは保持されています。サーバーが応答しませんでした。しばらくしてからもう一度お試しください。",
+    description: "サーバーが応答しませんでした。しばらくしてからもう一度お試しください。",
   },
   callback: {
     signingIn: "サインインしています…",

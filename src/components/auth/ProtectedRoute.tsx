@@ -114,6 +114,12 @@ export function ProtectedRoute() {
   // When the user is already authenticated (e.g. just logged in), we skip the
   // refresh — the `needsBootRefresh` guard below prevents the effect from running.
   const needsBootRefresh = providersLoaded && authMode === 'required' && !isAuthenticated
+
+  // A late refresh (another loader got a token) ends the failure: do not keep the
+  // error screen around for a later loss of session.
+  useEffect(() => {
+    if (isAuthenticated) setBootRefreshFailed(false)
+  }, [isAuthenticated])
   useEffect(() => {
     if (!needsBootRefresh) return
 

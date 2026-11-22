@@ -23,7 +23,7 @@ export default {
   },
   bootRefreshFailed: {
     title: "Server nicht erreichbar",
-    description: "Ihre Sitzung bleibt erhalten. Der Server hat nicht geantwortet; versuchen Sie es gleich noch einmal.",
+    description: "Der Server hat nicht geantwortet. Versuchen Sie es gleich noch einmal.",
   },
   callback: {
     signingIn: "Sie werden angemeldet…",

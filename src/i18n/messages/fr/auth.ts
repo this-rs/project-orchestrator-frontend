@@ -23,7 +23,7 @@ export default {
   },
   bootRefreshFailed: {
     title: "Serveur injoignable",
-    description: "Votre session est conservée. Le serveur n'a pas répondu ; réessayez dans un instant.",
+    description: "Le serveur n'a pas répondu. Réessayez dans un instant.",
   },
   callback: {
     signingIn: "Connexion en cours…",

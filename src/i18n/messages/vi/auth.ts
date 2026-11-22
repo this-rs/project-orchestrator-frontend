@@ -23,7 +23,7 @@ export default {
   },
   bootRefreshFailed: {
     title: "Không thể kết nối máy chủ",
-    description: "Phiên của bạn vẫn được giữ. Máy chủ không phản hồi; vui lòng thử lại sau giây lát.",
+    description: "Máy chủ không phản hồi. Vui lòng thử lại sau giây lát.",
   },
   callback: {
     signingIn: "Đang đăng nhập cho bạn…",

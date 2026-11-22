@@ -294,6 +294,13 @@ describe('ProtectedRoute: the silent refresh when the page loads', () => {
     expect(refreshToken).toHaveBeenCalledTimes(1)
   })
 
+  it('a failure followed by a refusal ends at the login page: the cookie was consumed, the session is lost', async () => {
+    vi.mocked(refreshToken).mockRejectedValueOnce(status(503)).mockRejectedValue(status(401))
+    renderGuard(null)
+    expect(await screen.findByText('Login page')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('a blip that clears within the retries goes unnoticed', async () => {
     vi.mocked(refreshToken).mockRejectedValueOnce(status(503)).mockResolvedValueOnce('jwt')
     renderGuard(null)

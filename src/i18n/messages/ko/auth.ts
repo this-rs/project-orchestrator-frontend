@@ -23,7 +23,7 @@ export default {
   },
   bootRefreshFailed: {
     title: "서버에 연결할 수 없습니다",
-    description: "세션은 유지됩니다. 서버가 응답하지 않았습니다. 잠시 후 다시 시도해 주세요.",
+    description: "서버가 응답하지 않았습니다. 잠시 후 다시 시도해 주세요.",
   },
   callback: {
     signingIn: "로그인하는 중…",

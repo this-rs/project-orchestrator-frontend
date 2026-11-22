@@ -23,7 +23,7 @@ export default {
   },
   bootRefreshFailed: {
     title: "无法连接服务器",
-    description: "您的会话已保留。服务器没有响应，请稍后重试。",
+    description: "服务器没有响应，请稍后重试。",
   },
   callback: {
     signingIn: "正在为您登录…",

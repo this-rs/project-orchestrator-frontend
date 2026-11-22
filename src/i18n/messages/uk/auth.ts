@@ -23,7 +23,7 @@ export default {
   },
   bootRefreshFailed: {
     title: "Сервер недоступний",
-    description: "Ваш сеанс збережено. Сервер не відповів; повторіть спробу за мить.",
+    description: "Сервер не відповів. Повторіть спробу за мить.",
   },
   callback: {
     signingIn: "Виконується вхід…",
