@@ -150,6 +150,7 @@ export default {
     allowProject: "{origin} für Projekt „{project}“ erlauben",
     allowNoProject: "{origin} für Chats außerhalb eines Projekts erlauben",
     askAdmin: "Nur der Administrator kann einen Endpunkt für Chats außerhalb eines Projekts erlauben. Fragen Sie ihn oder öffnen Sie diesen Chat in einem Projekt.",
+    noDecidingAccount: "Dieser Server benennt kein Administratorkonto (auth.root_email in config.yaml): Niemand kann den Endpunkt daher für Chats außerhalb eines Projekts erlauben.",
     noOrigin: "Der Endpunkt dieser Instanz ist hier nicht bekannt: Erlauben Sie ihn in den Anbietereinstellungen.",
     openInstance: "Instanzeinstellungen öffnen",
     review: "Zustimmung des Projekts prüfen",

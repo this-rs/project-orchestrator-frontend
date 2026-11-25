@@ -1322,6 +1322,12 @@ export interface AuthProvidersResponse {
   auth_required: boolean
   providers: AuthProviderInfo[]
   allow_registration: boolean
+  /**
+   * Whether this server names the account that decides for everyone (`auth.root_email`,
+   * else `auth.root_account`). Absent on servers older than the field: unknown, and no
+   * screen claims either way. See `hasDecidingAccountAtom`.
+   */
+  has_deciding_account?: boolean
 }
 
 /** POST /auth/login request body */

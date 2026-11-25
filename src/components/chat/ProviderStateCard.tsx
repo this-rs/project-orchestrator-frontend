@@ -20,7 +20,7 @@ import {
 import { humanizeFeature } from '@/constants/engine'
 import { useT } from '@/i18n'
 import { useAtomValue, useSetAtom } from 'jotai'
-import { chatSessionEngineAtom, chatSessionPermissionOverrideAtom, decidesForEveryoneAtom, providersAtom } from '@/atoms'
+import { chatSessionEngineAtom, chatSessionPermissionOverrideAtom, decidesForEveryoneAtom, hasDecidingAccountAtom, providersAtom } from '@/atoms'
 import { ApiError, apiErrorMessage } from '@/services/api'
 import { TRUST_FALLBACK_MODE } from '@/constants/toolPolicy'
 import { providerDisplayName, type ConsentScope, type ProviderErrorInfo, type ProviderFallback, type ProviderId } from '@/types/provider'
@@ -207,6 +207,7 @@ export function ProviderStateCard({
   const degraded = useAtomValue(chatSessionEngineAtom).degraded
   const providerList = useAtomValue(providersAtom)
   const decidesForEveryone = useAtomValue(decidesForEveryoneAtom)
+  const hasDecidingAccount = useAtomValue(hasDecidingAccountAtom)
   // The instance the failure is about, as the SERVER named it (`provider_id`, backend #722 B6):
   // never the provider the composer happened to show.
   const instance = error.provider_id ? (providerList?.providers.find((p) => p.id === error.provider_id) ?? null) : null
@@ -263,11 +264,20 @@ export function ProviderStateCard({
           </>
         )
       } else if (error.consent_scope === 'no_project') {
-        // Root only (403 `root_required` for anyone else): the others are told whom to ask.
+        // The account that decides for everyone only (403 `root_required` for anyone
+        // else): the others are told whom to ask — unless the server names NOBODY, in
+        // which case there is nobody to ask and the dead end has to say what repairs it
+        // (measured 24/11/2026: an OIDC-only server with no `auth.root_email`).
         action = !decidesForEveryone ? (
-          <span data-testid="consent-ask-admin" className={`text-[11px] ${tone === 'warning' ? 'text-amber-100/90' : 'text-red-100/90'}`}>
-            {t('providerErrors.consent.askAdmin')}
-          </span>
+          hasDecidingAccount === false ? (
+            <span data-testid="consent-no-deciding-account" className={`text-[11px] ${tone === 'warning' ? 'text-amber-100/90' : 'text-red-100/90'}`}>
+              {t('providerErrors.consent.noDecidingAccount')}
+            </span>
+          ) : (
+            <span data-testid="consent-ask-admin" className={`text-[11px] ${tone === 'warning' ? 'text-amber-100/90' : 'text-red-100/90'}`}>
+              {t('providerErrors.consent.askAdmin')}
+            </span>
+          )
         ) : onAllowed && error.provider_id && origin ? (
           <ConsentButton scope="no_project" project={null} providerId={error.provider_id} origin={origin} onAllowed={onAllowed} />
         ) : onAllowed ? (

@@ -150,6 +150,7 @@ export default {
     allowProject: "为项目“{project}”允许 {origin}",
     allowNoProject: "为项目之外的对话允许 {origin}",
     askAdmin: "只有管理员可以为项目之外的对话允许端点。请联系管理员，或在项目中打开此对话。",
+    noDecidingAccount: "此服务器未指定管理员账户（config.yaml 中的 auth.root_email）：因此任何人都无法为项目外的对话允许该端点。",
     noOrigin: "此处不知道该实例的端点：请在提供方设置中允许它。",
     openInstance: "打开实例设置",
     review: "查看项目的同意设置",

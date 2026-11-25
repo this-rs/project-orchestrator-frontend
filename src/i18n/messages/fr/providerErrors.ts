@@ -150,6 +150,7 @@ export default {
     allowProject: "Autoriser {origin} pour le projet « {project} »",
     allowNoProject: "Autoriser {origin} pour les conversations hors projet",
     askAdmin: "Seul l’administrateur peut autoriser un point d’accès pour les conversations hors projet. Demandez-le-lui, ou ouvrez cette conversation dans un projet.",
+    noDecidingAccount: "Ce serveur ne nomme aucun compte administrateur (auth.root_email dans config.yaml) : personne ne peut donc encore autoriser ce point d’accès pour les conversations hors projet.",
     noOrigin: "Le point d’accès de cette instance n’est pas connu ici : autorisez-le depuis les réglages des fournisseurs.",
     openInstance: "Ouvrir les réglages de l’instance",
     review: "Revoir le consentement du projet",

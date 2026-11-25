@@ -150,6 +150,7 @@ export default {
     allowProject: "プロジェクト「{project}」に {origin} を許可",
     allowNoProject: "プロジェクト外のチャットに {origin} を許可",
     askAdmin: "プロジェクト外のチャットにエンドポイントを許可できるのは管理者だけです。管理者に依頼するか、このチャットをプロジェクト内で開いてください。",
+    noDecidingAccount: "このサーバーには管理者アカウントが指定されていません（config.yaml の auth.root_email）。そのため、プロジェクト外のチャットに対して誰もエンドポイントを許可できません。",
     noOrigin: "このインスタンスのエンドポイントはここでは不明です。プロバイダー設定から許可してください。",
     openInstance: "インスタンス設定を開く",
     review: "プロジェクトの同意を確認",
