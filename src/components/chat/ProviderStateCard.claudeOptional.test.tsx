@@ -24,7 +24,7 @@ vi.mock('@/services/providers', () => ({
   },
 }))
 
-import { authModeAtom, authModeConfirmedAtom, currentUserAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
+import { authModeAtom, authModeConfirmedAtom, currentUserAtom, hasDecidingAccountAtom, providersAtom, providersLoadStateAtom } from '@/atoms'
 import type { AuthUser } from '@/types'
 import { ProviderStateCard } from './ProviderStateCard'
 import { SessionOpenError } from './SessionOpenError'
@@ -42,13 +42,18 @@ const PROVIDERS: ProvidersResponse = {
 
 const user = (is_root: boolean) => ({ id: 'u1', email: 'a@b.c', name: 'A', is_root }) as unknown as AuthUser
 
-function mount(error: ProviderErrorInfo, props: Partial<Parameters<typeof ProviderStateCard>[0]> = {}, { root = false } = {}) {
+function mount(
+  error: ProviderErrorInfo,
+  props: Partial<Parameters<typeof ProviderStateCard>[0]> = {},
+  { root = false, decidingAccount = null }: { root?: boolean; decidingAccount?: boolean | null } = {},
+) {
   const store = createStore()
   store.set(providersAtom, PROVIDERS)
   store.set(providersLoadStateAtom, 'ready')
   store.set(authModeAtom, 'required')
   store.set(authModeConfirmedAtom, true)
   store.set(currentUserAtom, user(root))
+  store.set(hasDecidingAccountAtom, decidingAccount)
   render(
     <Provider store={store}>
       <MemoryRouter>
@@ -161,9 +166,26 @@ describe('endpoint_not_allowed (403) by consent_scope', () => {
   })
 
   it('no_project, not root: no consent button (the server answers 403 root_required), "ask the administrator"', () => {
-    const { card } = mount(refused('no_project'), { onRetry: vi.fn() })
+    const { card } = mount(refused('no_project'), { onRetry: vi.fn() }, { decidingAccount: true })
     expect(within(card).queryByTestId('consent-allow')).toBeNull()
     expect(within(card).getByTestId('consent-ask-admin').textContent).toMatch(/only the administrator/i)
+  })
+
+  it('no_project, not root, and the server names NOBODY: says what repairs it instead of "ask the administrator"', () => {
+    // Measured 24/11/2026: an OIDC-only server with no auth.root_email has nobody who
+    // could ever allow this — telling the person to ask an absent administrator is a lie.
+    const { card } = mount(refused('no_project'), { onRetry: vi.fn() }, { decidingAccount: false })
+    expect(within(card).queryByTestId('consent-allow')).toBeNull()
+    expect(within(card).queryByTestId('consent-ask-admin')).toBeNull()
+    const said = within(card).getByTestId('consent-no-deciding-account').textContent ?? ''
+    expect(said).toContain('auth.root_email')
+    expect(said).toMatch(/config\.yaml/)
+  })
+
+  it('no_project, the server did not say (older server): keeps "ask the administrator"', () => {
+    const { card } = mount(refused('no_project'), { onRetry: vi.fn() })
+    expect(within(card).getByTestId('consent-ask-admin')).toBeDefined()
+    expect(within(card).queryByTestId('consent-no-deciding-account')).toBeNull()
   })
 
   it('no_project, root refused anyway (403): says to ask the administrator, sends nothing', async () => {

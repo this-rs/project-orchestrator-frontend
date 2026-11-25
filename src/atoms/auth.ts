@@ -44,6 +44,18 @@ export const authProvidersAtom = atom<AuthProviderInfo[]>([])
 /** Whether user registration is allowed (from GET /auth/providers) */
 export const allowRegistrationAtom = atom<boolean>(false)
 
+/**
+ * Whether this server names an account that decides for everyone (`has_deciding_account`
+ * of GET /auth/providers: `auth.root_email`, else `auth.root_account`).
+ *
+ * `null` = not known — the call did not answer, or a server older than this field did not
+ * send it — and no screen claims either way. `false` is a measured fact with a
+ * consequence: every server-wide setting (the consent of the chats outside any project,
+ * the global roles, the model policy, the routing) is refused to EVERYONE, so a screen
+ * that would send you to « ask the administrator » has to say that instead.
+ */
+export const hasDecidingAccountAtom = atom<boolean | null>(null)
+
 /** Whether auth providers have been fetched (prevents redundant calls) */
 export const authProvidersLoadedAtom = atom<boolean>(false)
 

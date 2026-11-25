@@ -9,6 +9,7 @@ import {
   authTokenAtom,
   allowRegistrationAtom,
   currentUserAtom,
+  hasDecidingAccountAtom,
   isAuthenticatedAtom,
 } from '@/atoms'
 import { authApi, setAuthMode as setAuthModeService } from '@/services'
@@ -50,6 +51,7 @@ export function ProtectedRoute() {
   const setAuthModeConfirmed = useSetAtom(authModeConfirmedAtom)
   const setProviders = useSetAtom(authProvidersAtom)
   const setAllowRegistration = useSetAtom(allowRegistrationAtom)
+  const setHasDecidingAccount = useSetAtom(hasDecidingAccountAtom)
   const [user, setUser] = useAtom(currentUserAtom)
   const setToken = useSetAtom(authTokenAtom)
   const [authError, setAuthError] = useState(false)
@@ -92,6 +94,8 @@ export function ProtectedRoute() {
         setAuthModeConfirmed(true)
         setProviders(resp.providers)
         setAllowRegistration(resp.allow_registration)
+        // A server older than the field sends nothing: `null` (unknown), never `false`.
+        setHasDecidingAccount(resp.has_deciding_account ?? null)
         setProvidersLoaded(true)
       })
       .catch(() => {
@@ -101,7 +105,7 @@ export function ProtectedRoute() {
         setAuthModeService('none')
         setProvidersLoaded(true)
       })
-  }, [providersLoaded, setAuthMode, setAuthModeConfirmed, setProviders, setAllowRegistration, setProvidersLoaded])
+  }, [providersLoaded, setAuthMode, setAuthModeConfirmed, setProviders, setAllowRegistration, setHasDecidingAccount, setProvidersLoaded])
 
   // Phase 2: Silent token refresh via HttpOnly cookie on page reload.
   //

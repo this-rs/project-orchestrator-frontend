@@ -150,6 +150,7 @@ export default {
     allowProject: "Cho phép {origin} cho dự án \"{project}\"",
     allowNoProject: "Cho phép {origin} cho các cuộc trò chuyện ngoài dự án",
     askAdmin: "Chỉ quản trị viên mới có thể cho phép một điểm cuối cho các cuộc trò chuyện ngoài dự án. Hãy hỏi họ, hoặc mở cuộc trò chuyện này trong một dự án.",
+    noDecidingAccount: "Máy chủ này không chỉ định tài khoản quản trị nào (auth.root_email trong config.yaml): vì vậy không ai có thể cho phép điểm cuối cho các cuộc trò chuyện ngoài dự án.",
     noOrigin: "Điểm cuối của phiên bản này không được biết ở đây: hãy cho phép nó trong cài đặt nhà cung cấp.",
     openInstance: "Mở cài đặt phiên bản",
     review: "Xem lại sự đồng ý của dự án",

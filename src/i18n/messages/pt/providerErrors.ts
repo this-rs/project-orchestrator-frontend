@@ -150,6 +150,7 @@ export default {
     allowProject: "Permitir {origin} para o projeto “{project}”",
     allowNoProject: "Permitir {origin} para conversas fora de um projeto",
     askAdmin: "Somente o administrador pode permitir um endpoint para conversas fora de um projeto. Peça a ele, ou abra esta conversa em um projeto.",
+    noDecidingAccount: "Este servidor não designa nenhuma conta de administrador (auth.root_email em config.yaml): ninguém pode permitir o endpoint para as conversas fora de um projeto.",
     noOrigin: "O endpoint desta instância não é conhecido aqui: permita-o nas configurações de provedores.",
     openInstance: "Abrir as configurações da instância",
     review: "Rever o consentimento do projeto",

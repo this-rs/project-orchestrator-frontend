@@ -148,6 +148,7 @@ export default {
     allowProject: "Allow {origin} for project \"{project}\"",
     allowNoProject: "Allow {origin} for chats outside a project",
     askAdmin: "Only the administrator can allow an endpoint for chats outside a project. Ask them, or open this chat in a project.",
+    noDecidingAccount: "This server names no administrator account (auth.root_email in config.yaml), so nobody can allow it for chats outside a project yet.",
     noOrigin: "The endpoint of this instance is not known here: allow it from the provider settings.",
     openInstance: "Open the instance settings",
     review: "Review the project’s consent",

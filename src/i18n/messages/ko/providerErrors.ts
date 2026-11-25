@@ -150,6 +150,7 @@ export default {
     allowProject: "프로젝트 \"{project}\"에 {origin} 허용",
     allowNoProject: "프로젝트 밖 채팅에 {origin} 허용",
     askAdmin: "프로젝트 밖 채팅에 엔드포인트를 허용할 수 있는 사람은 관리자뿐입니다. 관리자에게 요청하거나 이 채팅을 프로젝트에서 여세요.",
+    noDecidingAccount: "이 서버에는 관리자 계정이 지정되어 있지 않습니다(config.yaml의 auth.root_email). 따라서 프로젝트 밖 채팅에 아무도 엔드포인트를 허용할 수 없습니다.",
     noOrigin: "이 인스턴스의 엔드포인트를 여기서 알 수 없습니다. 공급자 설정에서 허용하세요.",
     openInstance: "인스턴스 설정 열기",
     review: "프로젝트 동의 검토",
