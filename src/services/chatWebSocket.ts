@@ -276,7 +276,7 @@ export class ChatWebSocket {
             this.lastMessageAt = Date.now()
             if (data.type === 'streaming_status') {
               this.serverStreaming = !!data.is_streaming
-            } else if (data.type === 'result' && !data.replaying) {
+            } else if ((data.type === 'result' || data.type === 'session_closed') && !data.replaying) {
               this.serverStreaming = false
             }
 
@@ -341,14 +341,18 @@ export class ChatWebSocket {
               return
             }
 
-            // The server closed the session (`close_session`, or a move to another
-            // provider right after `conversation_relayed`): never reconnect, and let
-            // the transcript say so instead of going silently "disconnected".
-            if (data.type === 'session_closed') {
-              this.shouldReconnect = false
-              this.setStatus('disconnected')
-              this.onEvent?.(data as ChatStreamEvent & { seq?: number; replaying?: boolean })
-              return
+            if (data.type === 'session_closed' && !data.replaying) {
+              // Automatic provider shutdown leaves this conversation ready to resume.
+              if (data.reason !== 'idle_timeout' && data.reason !== 'process_died') {
+                this.shouldReconnect = false
+                this.setStatus('disconnected')
+              }
+            }
+            if (!this.shouldReconnect && !data.replaying &&
+                (data.type === 'user_message' || (data.type === 'streaming_status' && data.is_streaming))) {
+              // An external sender reopened the conversation on the same socket.
+              this.shouldReconnect = true
+              this.setStatus('connected')
             }
 
             // Track lastEventSeq for reconnection.

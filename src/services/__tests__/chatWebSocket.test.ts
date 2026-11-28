@@ -230,6 +230,40 @@ describe('ChatWebSocket generation token', () => {
   })
 })
 
+describe('ChatWebSocket provider closure', () => {
+  it.each([
+    ['idle_timeout', 'connected'],
+    ['process_died', 'connected'],
+    ['user_closed', 'disconnected'],
+  ])('follows an external turn after %s', async (reason, statusAfterClose) => {
+    const ws = new ChatWebSocket()
+    const onEvent = vi.fn()
+    ws.setCallbacks({ onEvent })
+    const { sockets, open } = deferSockets(1)
+
+    const connecting = ws.connect('session-a', Number.MAX_SAFE_INTEGER)
+    await flush()
+    open(0)
+    await connecting
+    const [socket] = sockets
+    socket.receive({ type: 'auth_ok' })
+    socket.receive({ type: 'session_closed', session_id: 'session-a', reason })
+    expect(ws.status).toBe(statusAfterClose)
+
+    const prompt = { type: 'user_message', content: 'Sent by MCP' }
+    const reply = { type: 'stream_delta', text: 'Provider reply' }
+    socket.receive(prompt)
+    socket.receive(reply)
+    expect(ws.status).toBe('connected')
+    expect(onEvent.mock.calls.map(([event]) => event)).toEqual([
+      { type: 'session_closed', session_id: 'session-a', reason },
+      prompt,
+      reply,
+    ])
+    ws.disconnect()
+  })
+})
+
 // ---------------------------------------------------------------------------
 // onResync — reconnects the server cannot replay
 // ---------------------------------------------------------------------------
