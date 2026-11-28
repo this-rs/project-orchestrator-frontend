@@ -68,3 +68,5 @@ Chaque entité a une page de détail avec navigation par onglets sticky (Section
 Le frontend communique avec le backend via `http://localhost:8080/api`. La configuration du proxy est dans `vite.config.ts`.
 
 Pagination : `?limit=100&offset=0` — max 100 items par requête.
+
+Les créations de conversation sont annoncées sur `/ws/events`. Une conversation ouverte reçoit ses messages et les réponses du fournisseur sur `/ws/chat/{session_id}`, y compris lorsqu’un envoi MCP reprend la conversation après la mise en veille du fournisseur.
